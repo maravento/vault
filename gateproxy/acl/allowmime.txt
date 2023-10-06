@@ -1,0 +1,23 @@
+# verify: file --mime-type file.ext
+# https://developer.mozilla.org/es/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
+^application/epub+zip$
+^application/java-archive$
+^application/msword$
+^application/octet-stream$
+^application/pdf$
+^application/rtf$
+^application/vnd.ms-excel$
+^application/vnd.ms-powerpoint$
+^application/vnd.oasis.opendocument.spreadsheet$
+^application/vnd.oasis.opendocument.text$
+^application/x-7z-compressed$
+^application/x-bzip$
+^application/x-bzip2$
+^application/x-font-truetype
+^application/x-font-ttf
+^application/x-jar$
+^application/x-java-archive$
+^application/x-rar-compressed$
+^application/x-tar$
+^application/zip$
+^font/ttf$

@@ -1,0 +1,19 @@
+# Let NetworkManager manage all devices on this system (networkd)
+# check your .yaml http://www.yamllint.com/
+# To apply changes: sudo netplan apply
+network:
+  version: 2
+# change to "networkd" if you don't want to use NetworkManager
+  renderer: NetworkManager
+  ethernets:
+    eth0:
+# change dhcp4 to "no" (yes/no) or "false" (true/false) if you want to use static IP. See http://yaml.org/type/bool.html
+      dhcp4: true
+      dhcp6: false
+      #addresses: [192.168.88.20/24] # uncomment and replace with your static IP/Netmask 
+      #gateway4: 192.168.88.1 # uncomment and replace with your gateway
+      #nameservers:
+        #addresses: [8.8.8.8, 8.8.4.4]  # uncomment and replace with your dns
+    eth1:
+      dhcp4: false
+      addresses: [192.168.0.10/24]

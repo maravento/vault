@@ -1,0 +1,294 @@
+﻿## uniOPOS CHANGELOG
+
+2023.08.23
+Update: Oracle Java 8 Update 381 x86 x64 (Global)
+Update: Microsoft Visual Studio 2010 Tools for Office Runtime x64 - 10.0.60910.0 (MSI 10.0.60915) (Global)
+
+2023.07.28
+Update: mysql-5.7.43-winx64 (no-install package .zip) (WebServer Pack)
+
+2023.07.19
+Update: Microsoft Visual C++ 2022 Redistributable - v14.36.32532.0 (Global)
+New: uniCenta-oPos-5.0-Migration-Guide.pdf
+Fixed: Bugs
+
+2023.05.12
+Update: Microsoft Visual C++ 2022 Redistributable - v14.36.32531.0 (Global)
+Update: HeidiSQL_12.5_64_Portable.zip (WebServer Pack)
+
+2023.04.18
+Update: Microsoft Visual C++ 2022 Redistributable - v14.36.32522.0 (Global)
+Update: Oracle Java 8 Update 371 x86 x64 (Global)
+Update: mysql-5.7.42-winx64 (no-install package .zip) (WebServer Pack)
+
+2023.03.12
+Update: Microsoft Visual C++ 2022 Redistributable - v14.36.32420.0 (Global)
+Fixed: Changed 'my.ini' with parameter 'max_allowed_packet = 1024M' (Install and Portable Pack)
+
+2023.02.28
+Update: Microsoft Visual C++ 2022 Redistributable - 14.36.32323.0 (Global)
+Update: HeidiSQL_12.4_64_Portable.zip (WebServer Pack)
+
+2023.02.06
+Fixed: Bugs (Ubuntu scripts)
+
+2023.01.17
+Update: mysql-5.7.41-winx64 (no-install package .zip) (WebServer Pack)
+Update: Oracle Java 8.0.3610.9 x86 x64 (Global)
+
+2022.12.19
+Update: Uniform Server 15_0_1_ZeroXIV (UZero) (Portable Pack)
+
+2022.12.07
+Update: Wampserver 3.3.0 x64 (Install Pack)
+Update: HeidiSQL_12.3_64_Portable.zip (WebServer Pack)
+
+2022.11.21
+Update: Wampserver 3 x64 update 3.2.9 (Install Pack)
+Fixed: Bugs
+
+2022.11.17
+Update: Microsoft Visual C++ 2022 Redistributable - 14.34.31931.0 (Global)
+Update: HeidiSQL_12.2_64_Portable.zip (WebServer Pack)
+
+2022.10.19
+Update: Oracle Java 8.0.3510.10 x86 x64 (Global)
+
+2022.10.13
+Update: Microsoft Visual C++ 2022 Redistributable - 14.34.31921.1 (Global)
+Update: mysql-5.7.40-winx64 (no-install package .zip) (WebServer Pack)
+
+2022.10.03
+Update: Uniform Server 15_0_0_ZeroXIV (UZero) (Portable Pack)
+Update: Microsoft Visual C++ 2022 Redistributable - 14.34.31823.3 (Global)
+
+2022.08.27
+New: VisualCppRedist_AIO_x86_x64_61 (check README)
+Fixed: Bugs
+
+2022.08.25
+New: Oracle Java 8.0.3410.10 x86 x64 (Global)
+
+2022.08.18
+Update: HeidiSQL_12.1_64_Portable.zip (WebServer Pack)
+
+2022.08.06
+Update: mysql-5.7.39-winx64 (no-install package .zip) (WebServer Pack)
+
+2022.06.01
+Update: Uniform Server 14_0_5_ZeroXIV (UZero) (Portable Pack)
+Modules (Plugins) included: adminer v4.8.1, mysql_autoback v1.0.1, mysql v5.7.37, uniservice v2.4.0
+
+2022.04.28
+Add: Update: mysql-5.7.38-winx64 (no-install package .zip) (WebServer Pack)
+
+2022.04.23
+Add: Ubuntu 22.04 x64 support (Linux Pack)
+
+2022.04.20
+Update: HeidiSQL_12.0_64_Portable.zip (WebServer Pack)
+
+2022.04.11
+Update: Uniform Server 14_0_4_ZeroXIV (UZero) (Portable Pack)
+
+2022.03.30
+Update: Wampmanager update 3.2.8 (Install Pack)
+New: ZeroXI mysql autoback v1.0.0 (Portable Pack)
+
+2022.02.11
+New: Unicenta oPOS 5.0.1 Beta (Linux Pack)
+Fixed: Bugs
+
+2022.02.09
+Update: mysql-5.7.37-winx64 (no-install package .zip) (WebServer Pack)
+
+2022.01.20
+Fixed: Bugs
+
+2022.01.14
+New: Rebuild Portable Pack
+Update: Unicenta-Webserver 4.5.4 Beta to 4.6.4
+Fixed: Bugs
+
+2022.01.13
+Fixed: Bugs Portable Package
+
+2021.12.23
+Update: unicentaopos-4.6.4 (all versions)
+Fixed: Bugs
+
+2021.11.08
+Update: Wampserver 3.2.6 x64 (Install Pack)
+Fixed: Bugs
+
+2021.10.30
+New: Join Master uniOPOS and uniOPOSws
+Fixed: Bugs & Links
+
+2021.10.28
+Release day uniOPOS Web Server (Stand-alone package)
+Added: uniCenta-WEBSERVER-4.5.4
+Added: mysql-5.7.36-winx64
+Added: HeidiSQL_11.3_64_Portable
+
+2021.10.27
+New: unicentaopos-4.6.3 for Linux
+New: Includes dependencies for Linux (Lamp, Ampps, Java 8)
+New: Webmin (Optional)
+New: Link to Resources on Cloud
+Fixed: Bugs & Links
+
+2021.08.20
+Update: unicentaopos-4.6.3
+New: unicentaopos-4.6.3 Portable
+Fixed: Bugs
+Components removed: DBeaver, MySQL Workbench
+DB removed: MariaDB and MySQL (no-install package .zip)
+
+2021.07.20
+Update: MySQL Workbench 8.0.26
+Update: MySQL 5.7.35 x86 x64 (no-install package .zip)
+Update: DBeaver ce 21.1.3
+
+2021.07.15
+Update: MariaDB 10.6.3 Stable x64 (no-install package .zip)
+Update: DBeaver ce 21.1.2
+
+2021.06.26
+Update: MariaDB 10.5.11 Stable x64 (no-install package .zip)
+Update: DBeaver ce 21.1.1
+
+2021.05.31
+Add: Uniform Server Module ZeroXIV_uniservice_2_3_0
+Update: DBeaver ce 21.1.0
+Fixed: BUGS
+
+2021.05.27
+Add: Batch cript to Start/Stop Uniform Server with SO
+Update: DBeaver ce 21.0.5
+Fixed: BUGS
+
+2021.05.21
+Add: Wampmanager Update 3.2.5 x86 x64
+Fixed: BUGS
+
+2021.05.14
+Update: MySQL Workbench 8.0.25
+Update: MariaDB 10.5.10 Stable x64 (no-install package .zip)
+Update: DBeaver ce 21.0.4
+
+2021.04.27
+Update: MySQL Workbench 8.0.24
+Update: MySQL 5.7.34 x86 x64 (no-install package .zip)
+Update: DBeaver ce 21.0.3
+
+2021.04.08
+Update: Uniform Server 14_0_3_ZeroXIV with module ZeroXIV_mysql_5_7_33
+Update: DBeaver ce 21.0.2
+
+2021.03.02
+Update: MariaDB 10.5.9 Stable x64 (no-install package .zip)
+Update DBeaver ce 21.0.0
+Discontinued: 32-bit support
+
+2021.02.17
+Update: MySQL Workbench 8.0.23
+Update: MySQL 5.7.33 x86 x64 (no-install package .zip)
+Update: DBeaver ce 7.3.5
+
+2020.12.01
+Update: MariaDB 10.5.8 Stable x86 x64 (no-install package .zip)
+Update DBeaver ce 7.3.0
+
+2020.10.21
+Added: Uniform Server 14_0_2_ZeroXIV with module ZeroXIV_mysql_5_7_28
+
+2020.10.20
+Update: MySQL Workbench 8.0.22
+Update: MySQL 5.7.32 x86 x64 (no-install package .zip)
+Update: MariaDB 10.5.6 Stable x86 x64 (no-install package .zip)
+Update DBeaver ce 7.2.3
+Fixed: BUGS
+
+2020.09.07
+Update: unicentaopos-4.6.2
+Update: MariaDB 10.5.5 Stable x86 x64 (no-install package .zip)
+Update: DBeaver ce 7.2.0 x86 64
+Update: Wampserver 3.2.3 x86 x64 (Apache 2.4.46 - PHP 5.6.40/7.3.21/7.4.9 - MySQL 5.7.31(default x86x64)|8.0.21 - MariaDB 10.3.23|10.4.13|10.5.4)
+Fixed: BUGS
+
+2020.07.15
+Update: MySQL Workbench Community 8.0.21
+Update: MySQL 5.7.31 x86 x64 (no-install package .zip)
+Update: DBeaver ce 7.1.2 x86 64
+
+2020.07.01
+Update: MariaDB 10.5.4 Stable x86 x64 (no-install package .zip)
+Update: DBeaver ce 7.1.1 x86 64
+
+2020.05.29
+Fixed: BUGS
+
+2020.05.22
+Fixed: BUGS
+
+2020.05.19
+Update: MariaDB 10.4.13 Stable x86 x64
+Update: dbeaver 7.0.5
+Fixed: BUGS
+
+2020.05.12
+Update: MySQL Workbench Community 8.0.20
+Update: MySQL 5.7.30 x86 x64 (no-install package .zip)
+Update: dbeaver 7.0.4
+Fixed: BUGS
+
+2020.05.08
+Fixed: BUGS
+close 80, 8080 and set manual World Wide Web service (affect phpmyadmin in unicenta-wampserver)
+Fixed: unicenta install for "others languages" (spanish) x64
+
+2020.04.17
+Added: Wampserver 3.2.0 x86 x64 (Apache 2.4.41 - PHP 5.6.40/7.3.12/7.4.0 - MariaDB 10.4.10|10.3.20 - MySQL 5.7.28 Default|8.0.18)
+Fixed: BUGS and Links
+
+2020.03.05
+Added: MariaDB 10.4.12 Stable x86 x64 (no-install package .zip)
+Added: dbeaver 7.0.0 x86 64
+Added: Language Eng/Spa
+Fixed: BUGS and Links
+
+2020.03.04
+Added: Wampserver 3.1.9 x86 x64 (Apache 2.4.39 - PHP 5.6.40/7.0.33/7.1.28/7.2.18/7.3.5 - MySQL 5.7.26 - MariaDB 10.3.14)
+Added: uniCenta OPOS 4.6
+Added: MySQL Workbench Community 8.0.19
+Added: MySQL 5.7.29
+Fixed: x86 x64
+
+2019.05.16
+Added: Wampserver 3.1.9 64 bit x64 - Apache 2.4.39 - PHP 5.6.40/7.0.33/7.1.28/7.2.18/7.3.5 - MySQL 5.7.26 - MariaDB 10.3.14
+Fixed: Only x64
+
+2019.02.26
+Update: Wampserver 3.1.7 64 bit x64 - Apache 2.4.37 - PHP 5.6.40/7.0.33/7.1.26/7.2.14/7.3.1 - MySQL 5.7.24 - MariaDB 10.3.12
+Fixed: Only x64
+
+2018.12.28
+Update: Wampserver 3.1.4 64 bit x64 - Apache 2.4.35 - PHP 5.6.38/7.0.32/7.1.22/7.2.10 - MySQL 5.7.23 - MariaDB 10.3.9
+Fixed: Only x64
+
+2018.01.18
+Update: Unicenta v4.5
+
+2017.11.01
+Update: Unicenta v4.4.2
+Update: wampserver 3.1.0
+
+2017.10.25
+Update: Unicenta v4.3.2
+Fixed: BUGS and Links
+
+2017.10.12
+Release day
+Added: Unicenta 4.3
+Added: wampserver 3.0.6

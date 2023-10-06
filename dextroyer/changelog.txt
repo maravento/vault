@@ -1,0 +1,579 @@
+## Dextroyer CHANGELOG
+
+2022.02.18
+Fixed: BUGS
+
+2022.02.14
+Added: Malware Database Update
+
+2021.12.01
+Update: blackusb
+
+2021.10.26
+Fixed: BUGS and Links
+
+2021.09.28
+Added: Ransomware Database Update
+
+2021.09.09
+Fixed: BUGS
+
+2021.08.30
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2021.07.01
+Fixed: BUGS
+
+2021.06.26
+Update: BlackUSB
+
+2021.06.03
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2021.04.12
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2020.06.19
+Added: Malware Database Update
+
+2020.02.25
+Fixed: BUGS and Links
+
+2020.02.08
+Added: Malware Database Update
+
+2019.12.23
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2019.11.18
+Added: Malware Database Update
+
+2019.10.13
+Added: Malware Database Update
+
+2019.09.03
+Added: Malware Database Update
+
+2019.08.23
+Added: Malware Database Update
+
+2019.08.14
+Added: Malware Database Update
+
+2019.06.25
+Added: Malware Database Update
+
+2019.06.20
+Added: Malware Database Update
+
+2019.06.18
+Fixed: BUGS and Links
+
+2019.06.12
+Fixed: BUGS and Links
+Update: Blackusb
+
+2019.06.07
+Added: Malware Database Update
+Added: Blackusb
+Fixed: BUGS and Links
+
+2019.05.30
+Added: Malware Database Update
+Added: Fix Print
+Fixed: BUGS and Links
+
+2019.05.06
+Added: Malware Database Update
+
+2019.04.24
+Fixed: BUGS and Links
+Added: Malware Database Update
+
+2019.04.22
+Added: Malware Database Update
+
+2019.03.20
+Fixed: BUGS and Links
+Added: Malware Database Update
+
+2019.03.1
+Fixed: BUGS and Links
+Added: Malware Database Update
+
+2019.02.23
+Fixed: BUGS and Links
+Discontinued: USB Repair
+
+2019.02.22
+Fixed: BUGS and Links
+Added: unzip password "dextroyer"
+Added: Malware Database Update
+
+2019.02.10
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2019.01.25
+Added: Malware Database Update
+
+2019.01.04
+Added: Malware Database Update
+
+2019.01.03
+Fixed: BUGS and Links
+
+2018.12.28
+Fixed: BUGS and Links
+
+2018.12.24
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2018.11.14
+Added: Malware Database Update
+
+2018.10.17
+Added: Malware Database Update
+
+2018.09.26
+Fixed: BUGS and Links
+
+2018.09.24
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2018.09.20
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2018.09.13
+Added: Malware Database Update
+
+2018.08.27
+Added: Malware Database Update
+
+2018.08.14
+Added: Malware Database Update
+
+2018.08.09
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2018.07.24
+Added: Malware Database Update
+
+2018.07.10
+Added: Malware Database Update
+Added: Ransomware Database Update
+Fixed: BUGS and Links
+
+2018.06.08
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2018.05.24
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2018.05.07
+Added: SafeBoot Tool
+Fixed: BUGS and Links
+
+2018.05.05
+Added: Malware Database Update
+
+2018.04.12
+Added: Malware Database Update
+
+2018.04.02
+Added: SysRestore Update
+
+2018.03.16
+Discontinued: Systemcheck
+Discontinued: Lock
+Discontinued: SFC
+Added: Restore Tool change to SysRestore
+Fixed: BUGS and Links
+
+2018.03.15
+Added: Malware Database Update
+Added: Restore Tool with Rkill
+Fixed: BUGS and Links
+
+2018.03.08
+Added: Malware Database Update
+
+2018.03.03
+Fixed: BUGS and Links
+New: Migrate to Github
+
+2018.02.14
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2018.02.12
+Fixed: BUGS and Links
+
+2018.02.10
+Added: Malware Database Update
+
+2018.02.06
+Added: Malware Database Update
+
+2018.02.05
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2018.01.29
+Added: Malware Database Update
+Update: Restore Tool
+Fixed: BUGS and Links
+
+2018.01.24
+Added: Malware Database Update
+
+2017.12.19
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2017.11.30
+Added: Malware Database Update
+
+2017.11.21
+Added: Malware Database Update
+
+2017.10.30
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2017.10.18
+Added: Malware Database Update
+
+2017.10.05
+Added: Malware Database Update
+Added: Ransomware Database Update
+Added: USBTrek and BlackUSB Projects
+Fixed: BUGS and Links
+
+2017.09.13
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2017.09.08
+Added: Malware Database Update
+
+2017.09.01
+Added: Malware Database Update
+Added: Ransomware Database Update
+
+2017.08.07
+Added: Malware Database Update
+
+2017.08.01
+Added: Malware Database Update
+
+2017.07.24
+Added: Malware Database Update
+
+2017.07.13
+Added: Malware Database Update
+Added: Ransomware Database Update
+Fixed: BUGS and Links
+
+2017.07.01
+Added: Malware Database Update
+Added: Ransomware Database Update
+
+2017.06.16
+Added: Malware Database Update
+
+2017.06.02
+Added: Malware Database Update
+
+2017.05.19
+Added: Malware Database Update
+
+2017.05.17
+Added: Malware Database Update
+Added: Ransomware Database Update
+Added: System Check
+Fixed: BUGS and Links
+
+2017.05.13
+Added: Ransomware Database Update
+
+2017.05.07
+Added: Malware Database Update
+Added: Ransomware Database Update
+Fixed: BUGS and Links
+
+2017.05.01
+Added: Malware Database Update
+Added: Ransomware Database Update
+Fixed: BUGS and Links
+
+2017.04.22
+Added: Malware Database Update
+
+2017.04.12
+Added: Malware Database Update
+
+2017.04.06
+Added: Malware Database Update
+
+2017.04.01
+Added: Malware Database Update
+
+2017.03.22
+Added: Malware Database Update
+
+2017.03.16
+Added: Malware Database Update
+
+2017.03.14
+Added: Malware Database Update
+
+2017.03.07
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2017.03.04
+Added: BlackUSB
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2017.03.01
+Added: Malware Database Update
+
+2017.02.18
+Added: Malware Database Update
+
+2017.02.16
+Added: Malware Database Update
+
+2017.02.03
+Added: Malware Database Update
+
+2017.01.27
+Added: Malware Database Update
+
+2017.01.03
+Added: Malware Database Update
+
+2016.12.16
+Added: Malware Database Update
+
+2016.12.09
+Added: Malware Database Update
+
+2016.11.30
+Added: Malware Database Update
+
+2016.11.25
+Added: Malware Database Update
+
+2016.11.20
+Added: Malware Database Update
+
+2016.11.15
+Added: Malware Database Update
+
+2016.11.10
+Added: Malware Database Update
+Fixed: BUGS
+
+2016.11.05
+Added: Malware Database Update
+Fixed: BUGS
+
+2016.10.31
+Added: Partial support for XP
+Added: Malware Database Update
+Fixed: BUGS
+
+2016.10.25
+Added: English Support
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.10.20
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.10.15
+Added: Lock
+Added: Malware Database Update
+
+2016.10.10
+Added: Restore
+Added: Malware Database Update
+Fixed: BUGS and Links
+Discontinued: Immunize
+
+2016.10.05
+Added: Malware Database Update
+
+2016.10.03
+Fixed: BUGS
+
+2016.10.01
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.09.26
+Added: Malware Database Update
+Fixed: BUGS
+
+2016.09.20
+Added: Malware Database Update
+
+2016.09.16
+Added: Malware Database Update
+
+2016.09.12
+Added: Malware Database Update
+
+2016.09.05
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.09.02
+Added: Restore
+Fixed: BUGS and Links
+
+2016.08.29
+Added: Malware Database Update2019.02.22
+Fixed: BUGS and Links
+Added: password to protect file: dextroyer
+
+2016.08.24
+Added: Malware Database Update
+
+2016.08.12
+Added: SFC Tool
+Fixed: BUGS and Links
+
+2016.08.09
+Fixed: BUGS and Links
+
+2016.08.07
+Released: Dextroyer v1.0 Beta
+Added: GUI Zenity
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.08.03
+Fixed: BUGS and Links
+
+2016.07.29
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.07.28
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.07.27
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.07.25
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.07.18
+Added: Malware Database Update
+
+2016.07.15
+Added: Autorun Killer
+Added: Malware Database Update
+Fixed: BUGS and Links
+Discontinued: Autorun Disable/Enable (Replaced by Autorun Killer)
+Discontinued: WSH Disable/Enable (Replaced by Restore)
+
+2016.07.13
+Fixed: BUGS and Links
+
+2016.07.12
+Added: USB Port, USB write Tools, Immunize, System File Checker SFC
+Fixed: BUGS and Links
+Removed: Clean Safe
+Discontinued: USB Write/restore, USB read/restore (replaced by USB write)
+
+2016.07.05
+Added: Backup Registry Tool
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.06.28
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.06.07
+Added: Ransomware Database
+http://goo.gl/b9R8DE
+Added: Malware Database Update with ransomware
+
+2016.05.28
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.05.17
+Added: Malware Database Update
+Fixed: BUGS
+
+2016.05.12
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.05.07
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.04.28
+Added: Malware Database Update
+Fixed: BUGS
+
+2016.04.25
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.04.21
+Added: USB Repair
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.04.14
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.04.12
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.04.11
+Added: Backup USB
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.04.09
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.04.07
+Added: Autorun Disable/Enable, WSH Disable/Enable
+Added: Malware Database Update
+Fixed: BUGS and Links
+
+2016.04.01
+Released: Dextroyer v1.0 Alpha
+
+2016.03.01 - 2016.03.31
+Unreleased: Dextroyer Build
+Added: GUI AMS runtime
+Discontinued Projects: ReparaVirus, USB Suite and Sysbackup (Merged into Dextroyer)

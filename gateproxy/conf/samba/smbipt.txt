@@ -1,0 +1,5 @@
+    # NETBios (137-139), Microsoft-DS and SMB (445), Simple Network Management Protocol (SNMP) (162)
+    $iptables -t mangle -A PREROUTING -i $lan -p $protocol -m multiport --dports 137:139,445,162 -j ACCEPT
+    $iptables -A INPUT -i $lan -p $protocol -m multiport --dports 137:139,445,162 -j ACCEPT
+    $iptables -A FORWARD -i $lan -p $protocol -m multiport --dports 137:139,445,162 -j ACCEPT
+    

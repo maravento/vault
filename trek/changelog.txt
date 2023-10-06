@@ -1,0 +1,49 @@
+## Trek CHANGELOG
+---
+
+2022.10.09
+Fixed: BUGS
+
+2022.10.08
+Fixed: BUGS
+
+2022.02.12
+New: Selector MySQL Folder
+Fixed: BUGS
+
+2022.01.20
+Fixed: BUGS
+
+2022.01.13
+Fixed: BUGS
+
+2021.08.26
+New: MySQL Dump
+Fixed: BUGS
+
+2021.08.20
+removed: MySQL/MariaDB and WampServer Support
+Fixed: BUGS
+
+2020.10.31
+Fixed: BUGS
+
+2020.10.22
+Added: UniServer Support
+Fixed: BUGS
+
+2020.05.23
+Fixed: BUGS
+
+2020.05.16
+Fixed: BUGS
+
+2020.05.15
+Fixed: BUGS
+Added: MySQL/MariaDB and WampServer Support
+
+2019.05.90
+Fixed: BUGS and Links
+
+2017.07.01
+Released

@@ -1,0 +1,23 @@
+# Loopback
+127.0.0.0/8
+# Link local networks
+169.254.0.0/16
+# Test-net
+192.0.2.0/24
+# No asignados
+248.0.0.0/5
+# Red privada clase A (RFC 1918)
+0.0.0.0/8
+10.0.0.0/8
+# Red privada clase B (RFC 1918)
+172.16.0.0/12
+# Red privada clase C (RFC 1918)
+192.168.0.0/16
+# Local Network Control Block (RIP, OSPF, etc)
+224.0.0.0/24
+# Red reservada clase D (Multicast and R&D)
+#224.0.0.0/3
+# Red reservada clase E
+#240.0.0.0/5
+# Broadcast
+255.255.255.255/32
