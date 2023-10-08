@@ -22,14 +22,16 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
+### VARIABLES
 vboxversion=$(dpkg -l | grep -P 'virtualbox-\d+\.\d+' | awk '{print $2}')
 
+### FUNCTIONS
 function vboxinstall() {
     echo "Vbox not detected. Installing..."
     # Download and install .asc
     wget -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | gpg --dearmor | tee /usr/share/keyrings/virtualbox.gpg &>/dev/null
     # add repo
-    echo deb [arch=amd64 signed-by=/usr/share/keyrings/virtualbox.gpg] http://download.virtualbox.org/virtualbox/debian $(lsb_release -sc) contrib | tee /etc/apt/sources.list.d/virtualbox.list/virtualbox.list
+    echo deb [arch=amd64 signed-by=/usr/share/keyrings/virtualbox.gpg] http://download.virtualbox.org/virtualbox/debian $(lsb_release -sc) contrib | tee /etc/apt/sources.list.d/virtualbox.list
     apt-get update
     # install vbox
     apt-get -y install linux-headers-$(uname -r) build-essential gcc make perl dkms bridge-utils

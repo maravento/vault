@@ -32,11 +32,12 @@ else
     exit
 fi
 
+### VARIABLES
 # LOCAL USER (sudo user no root)
-local_user=${SUDO_USER:-$(whoami)}
-
+#local_user=${SUDO_USER:-$(whoami)}
+local_user=$(who | head -1 | awk '{print $1;}')
 # CHANGE VALUES AND PATHS
-## path to mount point folder (change it)
+# path to mount point folder (change it)
 mountpoint="/home/$local_user/vdisk"
 # path to .img folder (change it)
 myvhd="/home/$local_user/img"
@@ -52,6 +53,8 @@ vlabel="mydisk"
 vbs="1M"
 # partition: primary/logical/extended
 ptype="primary"
+
+### mount
 # if no mount point exists, create it
 if [ ! -d $mountpoint ]; then
     mkdir -p $mountpoint

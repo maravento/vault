@@ -12,11 +12,15 @@
 # Can use M (MBytes), B (Bytes) or G (GBytes). Eg: 50M, 1G etc
 # bandata excludes weekends
 
+echo "Bandata for LightSquid Start. Wait..."
+printf "\n"
+
 # checking root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
+
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
@@ -26,6 +30,7 @@ if pidof -x $(basename $0) >/dev/null; then
         fi
     done
 fi
+
 # checking dependencies (optional)
 pkg='ipset'
 if apt-get -qq install $pkg; then
@@ -34,8 +39,6 @@ else
     echo "Error installing $pkg. Abort"
     exit
 fi
-
-echo "Start BanData for LightSquid..."
 
 ### VARIABLES
 # ipset/iptables

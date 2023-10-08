@@ -30,12 +30,14 @@ else
     exit
 fi
 
+### VARIABLES
 # ffs update
 ffsfile=FreeFileSync.tar.gz
 url="https://www.freefilesync.org/download.php"
 link=$(wget -q $url -O - | grep -Pio '/download/[^"]+Linux[^"]+gz')
 version=$(echo $link | sed -r 's:.*FreeFileSync_([0-9]+\.[0-9]+)_.*:\1:')
 
+### DOWNLOAD
 echo "link: $link"
 echo "version: $version"
 echo "Download FreeFileync..."
@@ -45,6 +47,7 @@ mv FreeFileSync*.run FreeFileSync.run >/dev/null 2>&1
 chmod +x FreeFileSync.run
 echo OK
 
+### UPDATE
 echo "Run Update..."
 /usr/bin/expect <<EOF
 set timeout -1

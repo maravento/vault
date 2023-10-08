@@ -10,6 +10,7 @@ if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
+
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
@@ -18,6 +19,15 @@ if pidof -x $(basename $0) >/dev/null; then
             exit
         fi
     done
+fi
+
+# checking dependencies (optional)
+pkg='nala curl software-properties-common apt-transport-https aptitude net-tools mlocate plocate git git-gui gitk subversion gist expect tcl-expect libnotify-bin'
+if apt-get -qq install $pkg; then
+    echo "OK"
+else
+    echo "Error installing $pkg. Abort"
+    exit
 fi
 
 ### LANGUAGE EN-ES ###
@@ -126,12 +136,15 @@ scr=/etc/scr
 if [ ! -d $scr ]; then mkdir -p $scr; fi &>/dev/null
 
 # LOCAL USER (sudo user no root)
-local_user=${SUDO_USER:-$(whoami)}
+#local_user=${SUDO_USER:-$(whoami)}
+local_user=$(who | head -1 | awk '{print $1;}')
 
 ### BASIC ###
-apt -qq install -y nala curl software-properties-common apt-transport-https aptitude net-tools mlocate plocate git git-gui gitk subversion gist
 apt -qq install -y --reinstall systemd-timesyncd
 apt -qq remove -y zsys
+service sendmail stop >/dev/null 2>&1
+update-rc.d -f sendmail remove >/dev/null 2>&1
+DEBIAN_FRONTEND=noninteractive apt -qq -y install postfix
 dpkg --configure -a
 fuser -vki /var/lib/dpkg/lock &>/dev/null
 hdparm -W /dev/sda &>/dev/null
@@ -423,7 +436,7 @@ function essential_setup() {
     # compression
     nala install -y p7zip-full p7zip-rar rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar
     # system tools
-    nala install -y gawk gir1.2-gtop-2.0 gir1.2-xapp-1.0 javascript-common libjs-jquery libxapp1 rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit rubygems-integration xapps-common python3-pip libssl-dev libffi-dev python3-dev python3-venv idle3 python3-psutil gtkhash moreutils renameutils libpam0g-dev dh-autoreconf rename wmctrl dos2unix i2c-tools bind9-dnsutils geoip-database neofetch ppa-purge gdebi synaptic pm-utils sharutils wget dpkg pv libnotify-bin inotify-tools expect tcl-expect tree preload xsltproc debconf-utils mokutil uuid-dev libmnl-dev conntrack gcc make autoconf autoconf-archive autogen automake pkg-config deborphan perl lsof finger logrotate linux-firmware util-linux linux-tools-common build-essential module-assistant linux-headers-$(uname -r)
+    nala install -y gawk gir1.2-gtop-2.0 gir1.2-xapp-1.0 javascript-common libjs-jquery libxapp1 rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit rubygems-integration xapps-common python3-pip libssl-dev libffi-dev python3-dev python3-venv idle3 python3-psutil gtkhash moreutils renameutils libpam0g-dev dh-autoreconf rename wmctrl dos2unix i2c-tools bind9-dnsutils geoip-database neofetch ppa-purge gdebi synaptic pm-utils sharutils wget dpkg pv inotify-tools tree preload xsltproc debconf-utils mokutil uuid-dev libmnl-dev conntrack gcc make autoconf autoconf-archive autogen automake pkg-config deborphan perl lsof finger logrotate linux-firmware util-linux linux-tools-common build-essential module-assistant linux-headers-$(uname -r)
     # mesa (if there any problems, install the package: libegl-mesa0)
     nala install -y mesa-utils
     # file tools

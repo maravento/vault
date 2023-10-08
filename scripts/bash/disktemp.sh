@@ -32,9 +32,10 @@ else
     exit
 fi
 
+# VARIABLES
 # LOCAL USER
-local_user=${SUDO_USER:-$(whoami)}
-
+#local_user=${SUDO_USER:-$(whoami)}
+local_user=$(who | head -1 | awk '{print $1;}')
 # Select the maximum degrees Celsius (default 50):
 degrees=50
 

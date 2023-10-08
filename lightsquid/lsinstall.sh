@@ -8,6 +8,7 @@ if [ "$(id -u)" != "0" ]; then
   echo "This script must be run as root" 1>&2
   exit 1
 fi
+
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
   for p in $(pidof -x $(basename $0)); do
@@ -17,6 +18,7 @@ if pidof -x $(basename $0) >/dev/null; then
     fi
   done
 fi
+
 # check dependencies
 pkg='wget git tar squid apache2 ipset subversion libnotify-bin nbtscan libcgi-session-perl libgd-gd2-perl'
 if apt-get -qq install $pkg; then

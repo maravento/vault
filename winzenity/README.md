@@ -31,23 +31,19 @@ svn export "https://github.com/maravento/vault/trunk/winzenity"
 | :---: | :---: |
 | [Glynn Foster](glynn.foster@sun.com), [Lucas Rocha](lucasr@gnome.org)| 2013 |
 
-### Compilation Data for Binaries
-
-- [The Moluccas (used for making binaries)](https://sourceforge.net/projects/tumagcc/)
-- [opensourcepack (about process)](https://opensourcepack.blogspot.com/2013/02/zenity-360-portable.html)
-- [osspack32 (original repository)](https://web.archive.org/web/20160805164634/https://code.google.com/p/osspack32)
-
 ## REFERENCES
 
 ---
 
-- http://ftp.gnome.org/pub/gnome/sources/zenity
-- http://osspack32.googlecode.com
-- https://en.wikipedia.org/wiki/Zenity
-- https://github.com/GNOME/zenity
-- https://help.gnome.org/users/zenity/stable/index.html.en
-- https://wiki.gnome.org/action/show/Projects/Zenity
-- http://www.placella.com/software/zenity/
+- [Github: Gnome Zenity](https://github.com/GNOME/zenity)
+- [Gnone: Index of Zenity](http://ftp.gnome.org/pub/gnome/sources/zenity)
+- [Gnone: Zenity Help](https://help.gnome.org/users/zenity/stable/index.html.en)
+- [Gnone: Zenity Wiki](https://wiki.gnome.org/action/show/Projects/Zenity)
+- [opensourcepack (about process)](https://opensourcepack.blogspot.com/2013/02/zenity-360-portable.html)
+- [osspack32 (original repository)](https://web.archive.org/web/20160805164634/https://code.google.com/p/osspack32)
+- [placella: Index of Zenity](http://www.placella.com/software/zenity/)
+- [The Moluccas (used for making binaries)](https://sourceforge.net/projects/tumagcc/)
+- [Wikipedia: Zenity and WinZenity](https://en.wikipedia.org/wiki/Zenity#:~:text=Tyler%5B4%5D-,Cross%2Dplatform%20compatibility,-%5Bedit%5D)
 
 ## EOL
 

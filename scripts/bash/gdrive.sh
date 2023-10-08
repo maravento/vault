@@ -31,13 +31,15 @@ else
     echo ok
 fi
 
+### VARIABLES
 # LOCAL USER (sudo user no root)
-local_user=${SUDO_USER:-$(whoami)}
-
+#local_user=${SUDO_USER:-$(whoami)}
+local_user=$(who | head -1 | awk '{print $1;}')
 # replace "GoogleDrive" with your (path) GoogleDrive Folder
 GD="/home/$local_user/GDrive"
 if [ ! -d $GD ]; then mkdir -p $GD && chmod 777 $GD; fi
 
+### MOUNT | UMOUNT
 case "$1" in
 start)
     echo 'Mount Google Drive...'

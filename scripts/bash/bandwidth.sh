@@ -32,12 +32,13 @@ else
     exit
 fi
 
-# Check Bandwidth
+### VARIABLES
 # Set Minimum Download Value
 dlmin="1.00"
 # Set Minimum Upload Value
 ulmin="1.00"
 
+### SPEEDTEST
 # Speedtest Python Script
 #dl=$(curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 - --simple --no-upload | grep 'Download:')
 #ul=$(curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 - --simple --no-download | grep 'Upload:')

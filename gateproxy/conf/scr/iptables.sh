@@ -8,6 +8,7 @@ if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
+
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
@@ -22,9 +23,10 @@ fi
 # Ports: /etc/services
 # check: https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt
 
-echo "Iptables Start..."
+echo "Iptables Start. Wait..."
+printf "\n"
 
-### VARIABLES ###
+### VARIABLES
 # paths
 ip6tables=/usr/sbin/ip6tables
 iptables=/usr/sbin/iptables
@@ -414,3 +416,4 @@ echo "Drop All..."
 $iptables -w -A INPUT -d 0/0 -j DROP
 $iptables -w -A FORWARD -d 0/0 -j DROP
 echo "iptables Load at: $(date)" | tee -a /var/log/syslog
+echo "Done"

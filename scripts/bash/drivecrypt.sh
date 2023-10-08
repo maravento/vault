@@ -40,16 +40,17 @@ else
     echo OK
 fi
 
+### VARIABLES
 # LOCAL USER (sudo user no root)
-local_user=${SUDO_USER:-$(whoami)}
-
+#local_user=${SUDO_USER:-$(whoami)}
+local_user=$(who | head -1 | awk '{print $1;}')
 # path drivecrypt
 dstpath="/home/$local_user/DriveCrypt"
 if [ ! -d $dstpath ]; then mkdir -p $dstpath && chmod u+rwx,go-rwx -R $dstpath; fi
-
 # original path drivecrypt
 originpath="/home/$local_user/.local/share/Cryptomator/mnt"
 
+### DRIVE CRYPT
 case "$1" in
 'start')
     # mount

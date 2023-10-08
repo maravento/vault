@@ -61,11 +61,15 @@
 # find _origindir_ -type f -name ”_pattern_” -exec mv -v {} _outputdir_ ;
 ################################################################################
 
+echo "Cleaner Start. Wait..."
+printf "\n"
+
 # checking root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
+
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
@@ -75,8 +79,6 @@ if pidof -x $(basename $0) >/dev/null; then
         fi
     done
 fi
-
-echo "Start Deep Cleaner..."
 
 # Buscar y eliminar archivos ADS (Thumbs.db, Zone.identifier, encryptable, etc)
 #find . -type f -name "Nombre_del_Archivo" -exec rm {} \;
@@ -91,3 +93,4 @@ rm -rf /var/crash/*crash &>/dev/null
 
 # log registry
 echo "Cleaner: $(date)" | tee -a /var/log/syslog
+echo "Done"

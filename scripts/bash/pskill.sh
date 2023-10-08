@@ -22,6 +22,7 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
+### KILL PROCESS
 read -p "Set process name (e.g. vlc): " PS
 f() { ps ax | grep "$1" | grep -v grep | awk '{print $1}' | xargs kill -9 &>/dev/null; }
 f "$PS"

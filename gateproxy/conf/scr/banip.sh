@@ -3,11 +3,15 @@
 
 # Ban IP
 
+echo "Banip Start. Wait..."
+printf "\n"
+
 # checking root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
+
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
@@ -18,14 +22,12 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
-### GLOBAL
+### VARIABLES
 # ipset/iptables
 iptables=/sbin/iptables
 ipset=/sbin/ipset
 # replace localnet interface (enpXsX)
 lan=eth1
-
-### ACLs
 # path to ACLs folder
 aclroute=/etc/acl
 # path to banip
@@ -36,8 +38,7 @@ ban_ip="$aclroute/banip.txt"
 ban_words="$aclroute/ban_words.txt"
 # Create ACLs if doesn't exist
 if [[ ! -f {$ban_words,$ban_ip} ]]; then touch {$ban_words,$ban_ip}; fi
-
-### DEBUG IP
+# DEBUG IP
 reorganize="sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n"
 
 ### BANIP CAPTURE

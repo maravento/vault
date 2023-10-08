@@ -3,11 +3,15 @@
 
 # Squid Log Audit: Regular Expressions Check
 
+echo "Squid Log Audit Start. Wait..."
+printf "\n"
+
 # checking root
 if [ "$(id -u)" != "0" ]; then
   echo "This script must be run as root" 1>&2
   exit 1
 fi
+
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
   for p in $(pidof -x $(basename $0)); do
@@ -27,6 +31,7 @@ else
   exit
 fi
 
+### SQUID AUDIT
 echo "Squid Log Audit: Regular Expressions Check..."
 echo -e
 read -p "Enter the word and press ENTER (e.g.: video): " WORD

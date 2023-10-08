@@ -6,6 +6,9 @@
 # SO: Ubuntu 20.04/22.04 x64
 # Version: Alpha (Use at your own risk)
 
+echo "UniOPOS Start. Wait..."
+printf "\n"
+
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
@@ -26,7 +29,8 @@ fi
 wgetd='wget -q --show-progress -c --no-check-certificate --retry-connrefused --timeout=10 --tries=20'
 
 # LOCAL USER
-local_user=${SUDO_USER:-$(whoami)}
+#local_user=${SUDO_USER:-$(whoami)}
+local_user=$(who | head -1 | awk '{print $1;}')
 
 echo -e "\n"
 # CHECKING SO
@@ -359,5 +363,5 @@ while true; do
         ;;
     esac
 done
-echo "Done"
 notify-send "UniOPOS Done" "Restart PC" -i checkbox
+echo "Done"

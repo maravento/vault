@@ -3,11 +3,15 @@
 
 # Lock Scripts
 
+echo "Lock Script Start. Wait..."
+printf "\n"
+
 # checking root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
+
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
@@ -18,6 +22,7 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
+### LOCK
 randa=$(($RANDOM % 3 + 1))
 pid_execute=$(ps -eo pid,comm | grep $0 | egrep -o '[0-9]+')
 if [[ "${pid_execute:-NO_VALUE}" != "NO_VALUE" ]]; then
@@ -25,3 +30,4 @@ if [[ "${pid_execute:-NO_VALUE}" != "NO_VALUE" ]]; then
     exit
     echo "Lock Start: $(date)" | tee -a /var/log/syslog
 fi
+echo "Done"

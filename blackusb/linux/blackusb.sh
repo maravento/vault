@@ -1,11 +1,16 @@
 #!/bin/bash
 # by maravento.com
 
+# BlackUSB
+
 # Fork:
 # [usbkill](https://github.com/hephaest0s/usbkill)
 # [usbdeath](https://github.com/trpt/usbdeath)
 # Modified by:
 # maravento.com and novatoz.com
+
+echo "BlackUSB Start. Wait..."
+printf "\n"
 
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
@@ -321,3 +326,4 @@ j | eject)
     usage
     ;;
 esac
+echo "Done"

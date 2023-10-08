@@ -31,9 +31,12 @@ else
     exit
 fi
 
+### VARIABLES
 # LOCAL USER
-local_user=${SUDO_USER:-$(whoami)}
+#local_user=${SUDO_USER:-$(whoami)}
+local_user=$(who | head -1 | awk '{print $1;}')
 
+### NETREPORT
 # Option 1: Intensive | Deep
 nmap -v -sSUV --version-light -r -T4 -Pn -O -F --script smb-os-discovery.nse 192.168.0.0/24 -oX netreport.xml
 xsltproc netreport.xml -o netreport.html
@@ -60,4 +63,4 @@ sudo -u $local_user bash -c 'firefox netreport.html' &
 
 # Option 5: Fast
 # nmap -sn 192.168.1.0/24
-echo Done
+echo "Done"

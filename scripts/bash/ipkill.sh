@@ -22,8 +22,10 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
+### VARIABLES
 sleep_time="10"
 
+### IP KILL
 echo "Net Interfaces:"
 ip -o link | awk '$2 != "lo:" {print $2, $(NF-2)}' | sed 's_: _ _'
 read -p "Enter the network interface. e.g: enpXsX): " eth

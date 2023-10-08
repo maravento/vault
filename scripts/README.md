@@ -24,6 +24,7 @@ Tested on: / probado en: Ubuntu 20.04/22.04 x64
 - [ARP table filter](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arponscan.sh)
 - [Check Bandwidth](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bandwidth.sh)
 - [Check Cron](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/checkcron.sh)
+- [Cloud Drive Mount (Gdrive, PCloud, Dropbox, OneDrive, Mega, etc., with Rclone)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rcloud.sh)
 - [Disk Temp (HDD/SSD/NVMe)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/disktemp.sh)
 - [Drive Crypt (Cryptomator Encrypted Disk - Mount | Umount - Folder /home/$USER/DriveCrypt)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/drivecrypt.sh)
 - [FreeFileSync Update](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ffsupdate.sh)

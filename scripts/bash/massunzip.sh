@@ -27,6 +27,7 @@ else
   exit
 fi
 
+### PASSWORDS
 # add and replace "passfoo, passbar, www.passfoobar.com, etc" with the passwords of your files to unzip
 shopt -s extglob nullglob nocaseglob
 passw=(
@@ -40,6 +41,7 @@ passw=(
   icecream
 )
 
+### CHECK
 for f in *.@(gz|rar|zip|zip.001|7z|7z.001); do
   [[ ("$f" =~ \.part[[:digit:]]+\.rar$) && ! ("$f" =~ \.part0*1\.rar$) ]] && continue
   for p in "${passw[@]}"; do

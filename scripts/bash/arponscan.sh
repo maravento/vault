@@ -30,7 +30,7 @@ if [ -z "$arponbin" ]; then
     mkdir -p /var/log/arpon && touch /var/log/arpon/arpon.log
 fi
 
-# VARIABLES
+### VARIABLES
 # path mac adresses
 read -p "Enter the path for MAC addresses (e.g. /etc/acl): " acl
 printf "\n"

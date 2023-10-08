@@ -23,6 +23,7 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
+### PORT KILL
 read -p "Enter Port Number to close: " port
 kill $(lsof -t -i:"$port") &>/dev/null
 if [ $? -gt 0 ]; then

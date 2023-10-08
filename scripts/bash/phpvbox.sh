@@ -44,33 +44,29 @@ else
     echo "Aborting. Vbox 7 is not installed"
 fi
 
+### VARIABLES
 # LOCAL USER (sudo user no root)
-local_user=${SUDO_USER:-$(whoami)}
+#local_user=${SUDO_USER:-$(whoami)}
+local_user=$(who | head -1 | awk '{print $1;}')
 
+### PHPVBOX
 # git clone phpvirtualbox
 wget -c https://github.com/BartekSz95/phpvirtualbox/archive/main.zip
 unzip -q main.zip
-
 # ren config
 mv phpvirtualbox-main/config.php-example phpvirtualbox-main/config.php
 #mv phpvirtualbox-main/recovery.php-disabled phpvirtualbox-main/recovery.php
-
 # change user
 sed -i "s:'vbox':'$local_user':g" phpvirtualbox-main/config.php
-
 # move folder to final path
 mv phpvirtualbox-main/ /var/www/html/phpvirtualbox
-
 # set chown
 chown -R www-data:www-data /var/www/html/phpvirtualbox
-
 # create virtualbox file config
 echo "VBOXWEB_USER=$local_user" | tee /etc/default/virtualbox
 echo "VBOXWEB_HOST=localhost" | tee -a /etc/default/virtualbox
-
 # add user to vboxusers group
 usermod -aG vboxusers $local_user
-
 # restart services
 service apache2 restart
 service vboxweb-service stop >/dev/null
@@ -92,7 +88,6 @@ if pgrep -x vboxwebsrv > /dev/null; then
         logger "vboxweb failed to start"
     fi
 fi' >/etc/init.d/phpvbox_port.sh
-
 # execution permissions
 chmod +x /etc/init.d/phpvbox_port.sh
 

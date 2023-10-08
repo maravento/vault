@@ -3,11 +3,15 @@
 
 # Update Clock
 
+echo "Cleaner Start. Wait..."
+printf "\n"
+
 # checking root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
+
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
@@ -20,3 +24,4 @@ fi
 
 hwclock -w
 echo "Clock Update: $(date)" | tee -a /var/log/syslog
+echo "Done"

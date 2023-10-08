@@ -3,11 +3,15 @@
 
 # FreeFileSync Update
 
+echo "FreeFileSync Update Start. Wait..."
+printf "\n"
+
 # checking root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
+
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
@@ -17,6 +21,7 @@ if pidof -x $(basename $0) >/dev/null; then
         fi
     done
 fi
+
 # checking dependencies (optional)
 pkg='expect tcl-expect libnotify-bin'
 if apt-get -qq install $pkg; then
@@ -26,14 +31,14 @@ else
     exit
 fi
 
-echo "Starting FreeFileSync Update..."
-
+### VARIABLES
 # ffs update
 ffsfile=FreeFileSync.tar.gz
 url="https://www.freefilesync.org/download.php"
 link=$(wget -q $url -O - | grep -Pio '/download/[^"]+Linux[^"]+gz')
 version=$(echo $link | sed -r 's:.*FreeFileSync_([0-9]+\.[0-9]+)_.*:\1:')
 
+### DOWNLOAD
 echo "link: $link"
 echo "version: $version"
 echo "Download FreeFileync..."
@@ -43,6 +48,7 @@ mv FreeFileSync*.run FreeFileSync.run >/dev/null 2>&1
 chmod +x FreeFileSync.run
 echo OK
 
+### UPDATE
 echo "Run Update..."
 /usr/bin/expect <<EOF
 set timeout -1
@@ -55,6 +61,7 @@ expect -exact "https://freefilesync.org/donate\r
 \r"
 EOF
 
-# Deleting downloaded files (optional)
+### END
 rm -fv FreeFileSync*
 echo "FreeFileSync Update Done: $(date)"
+echo "Done"

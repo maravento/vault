@@ -5,6 +5,9 @@
 
 # SO: Ubuntu 20.04/22.04 x64
 
+echo "Check Services Start. Wait..."
+printf "\n"
+
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
@@ -21,10 +24,10 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
+### VARIABLES
 # LOCAL USER
-local_user=${SUDO_USER:-$(whoami)}
-
-echo "Starting installation..."
+#local_user=${SUDO_USER:-$(whoami)}
+local_user=$(who | head -1 | awk '{print $1;}')
 
 ### BASIC ###
 killall -s SIGTERM apt apt-get &>/dev/null
