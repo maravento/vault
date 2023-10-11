@@ -34,7 +34,7 @@ fi
 # checking dependencies (optional)
 pkg='ipset'
 if apt-get -qq install $pkg; then
-    echo "OK"
+    true
 else
     echo "Error installing $pkg. Abort"
     exit
@@ -66,7 +66,7 @@ block_list_month=$aclroute/banmonth.txt
 # Create ACLs files if doesn't exist
 if [[ ! -f {"$allow_list","$block_list_day","$block_list_week","$block_list_month"} ]]; then touch {"$allow_list","$block_list_day","$block_list_week","$block_list_month"}; fi
 
-### BANDATA DAY
+### BANDATA DAY (1G daily)
 echo "Running Bandata Day..."
 max_bandwidth_day="1G"
 max_bw_day=$(echo "$max_bandwidth_day" | tr '.' ',' | numfmt --from=iec)
@@ -90,7 +90,7 @@ else
 fi
 echo "OK"
 
-### BANDWIDTH WEEK
+### BANDWIDTH WEEK (5G weekly MON-FRI)
 echo "Running Bandata Week..."
 max_bandwidth_week="5G"
 max_bw_week=$(echo $max_bandwidth_week | tr '.' ',' | numfmt --from=iec)
@@ -107,7 +107,7 @@ if [ "$today" -eq 1 ]; then
 fi
 echo "OK"
 
-### BANDATA MONTH
+### BANDATA MONTH (20G monthly = 5G weekly x 4 weeks)
 echo "Running Bandata Month..."
 max_bandwidth_month="20G"
 max_bw_month=$(echo $max_bandwidth_month | tr '.' ',' | numfmt --from=iec)

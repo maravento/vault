@@ -29,7 +29,6 @@ fi
 wgetd='wget -q -c --show-progress --no-check-certificate --retry-connrefused --timeout=10 --tries=20'
 
 # LOCAL USER
-#local_user=${SUDO_USER:-$(whoami)}
 local_user=$(who | head -1 | awk '{print $1;}')
 
 echo -e "\n"

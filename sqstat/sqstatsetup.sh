@@ -23,7 +23,7 @@ fi
 # check dependencies
 pkg='wget git tar apache2 squid subversion libnotify-bin php php-cli libapache2-mod-php'
 if apt-get -qq install $pkg; then
-    echo "OK"
+    true
 else
     echo "Error installing $pkg. Abort"
     exit

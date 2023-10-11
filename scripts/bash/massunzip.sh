@@ -21,7 +21,7 @@ fi
 # On Ubuntu Software, activate "multiverse" repo
 pkgs='p7zip-full p7zip-rar'
 if apt-get install -qq $pkgs; then
-  echo "OK"
+  true
 else
   echo "Error installing $pkgs. Abort"
   exit

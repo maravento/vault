@@ -24,7 +24,6 @@ if pidof -x $(basename $0) >/dev/null; then
 fi
 
 ### VARIABLES
-#local_user=${SUDO_USER:-$(whoami)}
 local_user=$(who | head -1 | awk '{print $1;}')
 # replace "myfolder" and "filereport.txt" with yours
 targetfolder=/home/$local_user/myfolder

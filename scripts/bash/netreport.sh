@@ -25,7 +25,7 @@ fi
 # check dependencies
 pkgs='nmap xsltproc arp-scan'
 if apt-get install -qq $pkgs; then
-    echo "OK"
+    true
 else
     echo "Error installing $pkgs. Abort"
     exit
@@ -33,7 +33,6 @@ fi
 
 ### VARIABLES
 # LOCAL USER
-#local_user=${SUDO_USER:-$(whoami)}
 local_user=$(who | head -1 | awk '{print $1;}')
 
 ### NETREPORT

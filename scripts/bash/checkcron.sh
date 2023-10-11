@@ -25,7 +25,7 @@ fi
 # checking dependencies
 pkgs='colordiff'
 if apt-get install -qq $pkgs; then
-    echo "OK"
+    true
 else
     echo "Error installing $pkgs. Abort"
     exit

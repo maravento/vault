@@ -23,11 +23,11 @@ if pidof -x $(basename $0) >/dev/null; then
 fi
 
 ### VARIABLES
-# user account
-myuser="your_user"
+# local user
+local_user=$(who | head -1 | awk '{print $1;}')
 # path to cloud
-cloud="/home/$myuser/backup"
-if [ ! -d "$cloud" ]; then sudo mkdir -p "$cloud"; fi
+bkconfig="/home/$local_user/bkconf"
+if [ ! -d "$bkconfig" ]; then sudo mkdir -p "$bkconfig"; fi
 
 ### BACKUP
 zipbk="backup_$(date +%Y%m%d_%H%M).zip"
@@ -36,7 +36,7 @@ pathbk="/etc/squid/* /etc/acl/* /etc/apache2/* /var/www/wpad/* /etc/hosts /etc/s
 case "$1" in
 'start')
     echo "Start Backup Config Files..."
-    zip -r "$cloud"/"$zipbk" $pathbk >/dev/null
+    zip -r "$bkconfig"/"$zipbk" $pathbk >/dev/null
     echo "Backup Config: $(date)" | tee -a /var/log/syslog
     ;;
 'stop') ;;

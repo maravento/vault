@@ -2,8 +2,10 @@
 # by maravento.com
 
 # Gateproxy
-
 # Note: &>/dev/nul is an abbreviation for >/dev/null 2>&1
+
+echo "Gateproxy Start. Wait..."
+printf "\n"
 
 # checking root
 if [ "$(id -u)" != "0" ]; then
@@ -30,7 +32,7 @@ else
     exit
 fi
 
-### LANGUAGE EN-ES ###
+### LANGUAGE EN-ES
 lang_01=("Check System..." "Verificando Sistema...")
 lang_02=("Aborted installation. Check the Minimum Requirements" "Instalacion Abortada. Verifique los Requisitos Mínimos")
 lang_03=("Checking Bandwidth..." "Verificando Ancho de Banda...")
@@ -61,7 +63,7 @@ lang_26=("e.g." "e.j.")
 test "${LANG:0:2}" == "en"
 en=$?
 
-### CHECK SO ###
+### CHECK SO
 clear
 echo -e "\n"
 echo "${lang_01[${en}]}"
@@ -100,33 +102,7 @@ function x64() {
 }
 x64
 
-### BANDWIDTH ###
-clear
-echo -e "\n"
-echo "${lang_03[${en}]}"
-dlmin="1.00"
-mb="Mbit/s"
-dl=$(curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 - --simple --no-upload | grep 'Download:')
-resume=$(curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 - --simple)
-dlvalue=$(echo "$dl" | awk '{print $2}')
-dlmb=$(echo "$dl" | awk '{print $3}')
-
-function download() {
-    if (($(echo "$dlvalue $dlmin" | awk '{print ($1 < $2)}'))); then
-        echo "WARNING! Bandwidth Download Slow: $dlvalue $dlmb < $dlmin $mb (min value)"
-    else
-        echo OK
-    fi
-}
-
-if [[ "$mb" == "$dlmb" ]]; then
-    download
-else
-    echo "Incorrect Value. Abort: $resume"
-    exit
-fi
-
-### VARIABLES AND FOLDERS ###
+### VARIABLES
 gp=$(pwd)/gateproxy
 zone=/etc/zones
 if [ ! -d $zone ]; then mkdir -p $zone; fi &>/dev/null
@@ -139,9 +115,11 @@ if [ ! -d $scr ]; then mkdir -p $scr; fi &>/dev/null
 #local_user=${SUDO_USER:-$(whoami)}
 local_user=$(who | head -1 | awk '{print $1;}')
 
-### BASIC ###
+### BASIC
 apt -qq install -y --reinstall systemd-timesyncd
 apt -qq remove -y zsys
+apt -qq install -y apt-file
+apt-file update
 service sendmail stop >/dev/null 2>&1
 update-rc.d -f sendmail remove >/dev/null 2>&1
 DEBIAN_FRONTEND=noninteractive apt -qq -y install postfix
@@ -164,7 +142,7 @@ cp /etc/crontab{,.bak} &>/dev/null
 crontab /etc/crontab &>/dev/null
 cp /etc/apt/sources.list{,.bak} &>/dev/null
 
-### CLEAN | UPDATE ###
+### CLEAN | UPDATE
 clear
 echo -e "\n"
 function cleanupgrade() {
@@ -185,17 +163,17 @@ function fixbroken() {
 cleanupgrade
 fixbroken
 
-### PACKAGES ###
+### PACKAGES
 clear
 echo -e "\n"
 echo "${lang_09[${en}]}"
 
-### GATEPROXY ###
+### GATEPROXY GIT
 echo -e "\n"
 if [ -d $gp ]; then rm -rf $gp; fi &>/dev/null
 svn export "https://github.com/maravento/vault/trunk/gateproxy" >/dev/null 2>&1
 
-### CONFIG ###
+### CONFIG
 clear
 echo -e "\n"
 hostnamectl set-hostname "$HOSTNAME"
@@ -237,7 +215,7 @@ function is_interfaces() {
 }
 is_interfaces
 
-### START ###
+### START
 clear
 echo -e "\n"
 echo "    ${lang_14[${en}]}"
@@ -254,7 +232,7 @@ echo -e "\n"
 read RES
 clear
 
-### PARAMETERS ###
+### PARAMETERS
 is_ask() {
     inquiry="$1"
     iresponse="$2"
@@ -425,7 +403,7 @@ Localnet 192.168.0.0, Broadcast 192.168.0.255, DHCP-Range ini-100 end-250, Proxy
     esac
 done
 
-### ESSENTIAL ###
+### ESSENTIAL
 clear
 echo -e "\n"
 function essential_setup() {
@@ -443,6 +421,7 @@ function essential_setup() {
     nala install -y reiserfsprogs reiser4progs xfsprogs jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools quota sshfs lvm2 attr jmtpfs
     # Optional: Running a .desktop file in the terminal. e.g.: dex foo.desktop
     nala install -y dex
+    # ubuntu database
     update-desktop-database
 }
 essential_setup
@@ -452,7 +431,7 @@ sleep 1
 cleanupgrade
 fixbroken
 
-### GATEPROXY ###
+### SETUP
 echo -e "\n"
 function gateproxy_setup() {
     echo "Gateproxy Packages..."
@@ -614,7 +593,7 @@ sleep 1
 cleanupgrade
 fixbroken
 
-### SAMBA (with SHARE folder, Recycle Bin and Audit) ###
+### SAMBA (with SHARE folder, Recycle Bin and Audit)
 clear
 echo -e "\n"
 while true; do
@@ -686,7 +665,7 @@ sleep 1
 cleanupgrade
 fixbroken
 
-### ACLs ###
+### ACLs
 echo -e "\n"
 echo "Downloading ACLs..."
 # Allow IP
@@ -700,7 +679,7 @@ cp blackweb.txt $aclroute/blackweb.txt
 echo OK
 sleep 1
 
-### ADD CONFIG ###
+### ADD CONFIG
 echo -e "\n"
 echo "Applying Config..."
 cp -f /etc/squid/squid.conf{,.bak} &>/dev/null
@@ -810,7 +789,7 @@ systemctl reload apache2.service
 echo OK
 sleep 1
 
-### APACHE PASSWORD ###
+### APACHE PASSWORD
 echo -e "\n"
 echo "Create Apache Password /var/www/..."
 echo -e "\n"
@@ -823,7 +802,7 @@ sleep 1
 cleanupgrade
 fixbroken
 
-### CRONTAB ###
+### CRONTAB
 echo -e "\n"
 echo "Add Crontab Tasks..."
 crontab -l | {
@@ -846,7 +825,7 @@ sleep 1
 cleanupgrade
 fixbroken
 
-### ENDING ###
+### ENDING
 # Restart Daemon
 systemctl daemon-reexec &>/dev/null
 # Update initramfs (optional)

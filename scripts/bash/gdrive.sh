@@ -28,12 +28,11 @@ if [ ! $? = 0 ] || [ ! "$status" = installed ]; then
     sudo add-apt-repository -y ppa:alessandro-strada/ppa &>/dev/null
     sudo apt-get install -qq $pkgs
 else
-    echo ok
+    true
 fi
 
 ### VARIABLES
 # LOCAL USER (sudo user no root)
-#local_user=${SUDO_USER:-$(whoami)}
 local_user=$(who | head -1 | awk '{print $1;}')
 # replace "GoogleDrive" with your (path) GoogleDrive Folder
 GD="/home/$local_user/GDrive"

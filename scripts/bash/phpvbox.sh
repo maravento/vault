@@ -30,7 +30,7 @@ fi
 # checking dependencies
 pkgs='bsdutils unzip apache2 libapache2-mod-php php php-soap php-xml'
 if apt-get install -qq $pkgs; then
-    echo "OK"
+    true
 else
     echo "Error installing $pkgs. Abort"
     exit
@@ -39,14 +39,13 @@ fi
 # checking Virtualbox 7x
 output=$(dpkg -l | grep -P 'virtualbox-\d+\.\d+' | awk '{print $2}')
 if echo "$output" | grep -q "virtualbox-7"; then
-    echo "Vbox 7 OK"
+    true
 else
     echo "Aborting. Vbox 7 is not installed"
 fi
 
 ### VARIABLES
 # LOCAL USER (sudo user no root)
-#local_user=${SUDO_USER:-$(whoami)}
 local_user=$(who | head -1 | awk '{print $1;}')
 
 ### PHPVBOX

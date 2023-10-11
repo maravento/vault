@@ -25,7 +25,7 @@ fi
 # checking dependencies (optional)
 pkg='expect tcl-expect libnotify-bin'
 if apt-get -qq install $pkg; then
-    echo "OK"
+    true
 else
     echo "Error installing $pkg. Abort"
     exit

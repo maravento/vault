@@ -30,7 +30,6 @@ fi
 
 ### VARIABLES
 # LOCAL USER (sudo user no root)
-#local_user=${SUDO_USER:-$(whoami)}
 local_user=$(who | head -1 | awk '{print $1;}')
 # replace "my_vm_name" with your vm name
 # Set name of VM (e.j: VMNAME="win10") or UUID (e.j.: VMNAME="4ec6acc1-a232-566d-a040-6bc4aadc19a6")

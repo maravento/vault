@@ -1,12 +1,13 @@
 #!/bin/bash
 # by maravento.com
 
-# Cloud Drive Mount (Gdrive, PCloud, Dropbox, OneDrive, Mega...)
-# You can add any service supported by Rclone
+# Rclone Cloud (Gdrive, PCloud, Dropbox, OneDrive, Mega...)
 # https://www.maravento.com/2023/09/2-way-sync-con-rclone.html
 
-echo "Cloud Drive Mount Start. Wait..."
-printf "\n"
+# Usage:
+# sudo ./rclone.sh start | stop | restart | status
+
+echo "Rclone Cloud Start. Wait..."
 
 # checking root
 if [ "$(id -u)" != "0" ]; then
@@ -24,7 +25,15 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
-# checking dependencies
+# check internet (eesential)
+if host www.google.com &>/dev/null; then
+    true
+else
+    echo "Internet: Offline"
+    exit 1
+fi
+
+# checking dependencies (optional)
 if ! command -v rclone &>/dev/null; then
     echo "Installing Rclone..."
     sudo -v
@@ -35,136 +44,141 @@ if ! command -v rclone &>/dev/null; then
     fi
     echo "OK"
 else
-    echo "Rclone is already installed"
+    true
 fi
 
-### VARIABLES
-# LOCAL USER (sudo user no root)
-#local_user=${SUDO_USER:-$(whoami)}
+# checking dependencies (optional)
+pkg='fuse3'
+if apt-get -qq install $pkg; then
+    true
+else
+    echo "Error installing $pkg. Abort"
+    exit
+fi
+
+# VARIABLES
 local_user=$(who | head -1 | awk '{print $1;}')
-# rclone config
-config_file="/home/$local_user/.config/rclone/rclone.conf"
-# local path
 local_path="/home/$local_user/cloud"
-if [ ! -d $local_path ]; then mkdir -p $local_path; fi &>/dev/null
-# services name an path
-dropbox_path="$local_path/dropbox"
-dropbox_service="dropbox"
-drive_path="$local_path/drive"
-drive_service="drive"
-mega_path="$local_path/mega"
-mega_service="mega"
-onedrive_path="$local_path/onedrive"
-onedrive_service="onedrive"
-pcloud_path="$local_path/pcloud"
-pcloud_service="pcloud"
+lock_file="/tmp/cloud_drive_mount.lock"
+rclonelog="$local_path/rclone.log"
 
-# log
-rclonelog=$local_path/rclone.log
+# Log Level (INFO, DEBUG, NOTICE, ERROR)
+loglevel="DEBUG"
 
-### CHECK INTERNET
-internet_check_url="https://www.google.com"
-if curl --output /dev/null --silent --head --fail "$internet_check_url"; then
-    echo "online"
-else
-    echo "offline"
+# add any services supported by Rclone with its route
+services=(
+    # Mega
+    "mega:$local_path/mega"
+    # Pcloud
+    "pcloud:$local_path/pcloud"
+    # Dropbox
+    "dropbox:$local_path/dropbox"
+    # Google Drive
+    "drive:$local_path/drive"
+    # MS OneDrive
+    "onedrive:$local_path/onedrive"
+    # Add more services here as needed
+)
+
+# if local_path or service_path does not exist, create them
+for service_info in "${services[@]}"; do
+    IFS=':' read -r service_name service_path <<<"$service_info"
+    if [ ! -d "$service_path" ]; then
+        sudo -u $local_user bash -c "mkdir -p $service_path"
+    fi
+done
+
+# start script
+start_script() {
+    if [ -e "$lock_file" ]; then
+        echo "Script is already running."
+        exit 1
+    fi
+    touch "$lock_file"
+
+    # mount
+    for service_info in "${services[@]}"; do
+        IFS=':' read -r service_name service_path <<<"$service_info"
+        echo "Mounting $service_name"
+        sudo -u $local_user bash -c "rclone mount $service_name: $service_path --log-file $rclonelog --log-level $loglevel --vfs-cache-mode writes &"
+        echo "$service_name mounted"
+    done
+
+    echo "Script started."
+}
+
+# stop script
+stop_script() {
+    if [ ! -e "$lock_file" ]; then
+        echo "Script is not running."
+        exit 1
+    fi
+
+    # umount
+    for service_info in "${services[@]}"; do
+        IFS=':' read -r service_name service_path <<<"$service_info"
+        if mount | grep -q "$service_path"; then
+            fusermount -uz "$service_path"
+            # alternative
+            #umount "$service_path" 2>/dev/null
+            rm -f "$lock_file"
+            echo "$service_name unmounted"
+        else
+            echo "$service_name is not mounted."
+        fi
+    done
+}
+
+# restart script
+restart_script() {
+    stop_script
+    echo "Sleeping..."
+    sleep 1
+    start_script
+}
+
+# status script
+status_script() {
+    if [ -e "$lock_file" ]; then
+        echo "Script is running."
+    else
+        echo "Script is not running."
+    fi
+
+    # status
+    for service_info in "${services[@]}"; do
+        IFS=':' read -r service_name service_path <<<"$service_info"
+        if mount | grep -q "$service_path"; then
+            echo "$service_name is mounted."
+        else
+            echo "$service_name is not mounted."
+        fi
+    done
+}
+
+# additional commands (start, stop, restart, status)
+case "$1" in
+'start')
+    start_script
+    ;;
+'stop')
+    stop_script
+    ;;
+'restart')
+    stop_script
+    echo "Sleeping..."
+    sleep 5
+    start_script
+    ;;
+'status')
+    status_script
+    ;;
+*)
+    echo
+    echo "Usage: $0 { start | stop | restart | status }"
+    echo
     exit 1
-fi
+    ;;
+esac
 
-# check service
-check_service_existence() {
-    local service_name="$1"
-    local config_file="$2"
-    if grep -q "\[$service_name\]" "$config_file"; then
-        return 0  # service exist
-    else
-        return 1  # service does not exist
-    fi
-}
-
-# check mount
-check_mounted_folder() {
-    local folder_path="$1"
-
-    if mount | grep -q "$folder_path"; then
-        return 0  # folder is mounted
-    else
-        return 1  # folder is not mounted
-    fi
-}
-
-# function to mount the service
-mount_service() {
-    local service_name="$1"
-    local service_path="$2"
-    echo "mounting $service_name"
-    sudo -u $local_user bash -c "rclone mount $service_name: $service_path --log-file $rclonelog --log-level INFO --vfs-cache-mode writes &"
-    echo "$service_name mount"
-}
-
-### MOUNT DROPBOX
-check_service_existence "$dropbox_service" "$config_file"
-if [ $? -eq 0 ]; then
-    check_mounted_folder "$dropbox_path"
-    if [ $? -eq 0 ]; then
-        echo "$dropbox_service is already mounted"
-    else
-        mount_service "$dropbox_service" "$dropbox_path"
-    fi
-else
-    echo "$dropbox_service does not exist"
-fi
-
-### MOUNT DRIVE (Google Drive)
-check_service_existence "$drive_service" "$config_file"
-if [ $? -eq 0 ]; then
-    check_mounted_folder "$drive_path"
-    if [ $? -eq 0 ]; then
-        echo "$drive_service is already mounted"
-    else
-        mount_service "$drive_service" "$drive_path"
-    fi
-else
-    echo "$drive_service does not exist"
-fi
-
-### MOUNT MEGA (Currently does not accept 2FA)
-check_service_existence "$mega_service" "$config_file"
-if [ $? -eq 0 ]; then
-    check_mounted_folder "$mega_path"
-    if [ $? -eq 0 ]; then
-        echo "$mega_service is already mounted"
-    else
-        mount_service "$mega_service" "$mega_path"
-    fi
-else
-    echo "$mega_service does not exist"
-fi
-
-### MOUNT ONEDRIVE
-check_service_existence "$onedrive_service" "$config_file"
-if [ $? -eq 0 ]; then
-    check_mounted_folder "$onedrive_path"
-    if [ $? -eq 0 ]; then
-        echo "$onedrive_service is already mounted"
-    else
-        mount_service "$onedrive_service" "$onedrive_path"
-    fi
-else
-    echo "$onedrive_service does not exist"
-fi
-
-### MOUNT PCLOUD
-check_service_existence "$pcloud_service" "$config_file"
-if [ $? -eq 0 ]; then
-    check_mounted_folder "$pcloud_path"
-    if [ $? -eq 0 ]; then
-        echo "$pcloud_service is already mounted"
-    else
-        mount_service "$pcloud_service" "$pcloud_path"
-    fi
-else
-    echo "$pcloud_service does not exist"
-fi
-
-echo "Done"
+exit 0

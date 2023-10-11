@@ -22,7 +22,7 @@ fi
 # check dependencies
 pkg='wget git tar apache2 ipset subversion libnotify-bin libcgi-session-perl libgd-gd2-perl'
 if apt-get -qq install $pkg; then
-  echo "OK"
+  true
 else
   echo "Error installing $pkg. Abort"
   exit

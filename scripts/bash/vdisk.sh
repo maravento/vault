@@ -26,7 +26,7 @@ fi
 # check dependencies
 pkgs='kpartx'
 if apt-get install -qq $pkgs; then
-    echo "OK"
+    true
 else
     echo "Error installing $pkgs. Abort"
     exit
@@ -34,7 +34,6 @@ fi
 
 ### VARIABLES
 # LOCAL USER (sudo user no root)
-#local_user=${SUDO_USER:-$(whoami)}
 local_user=$(who | head -1 | awk '{print $1;}')
 # CHANGE VALUES AND PATHS
 # path to mount point folder (change it)
