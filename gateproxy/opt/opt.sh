@@ -25,7 +25,7 @@ fi
 # checking dependencies (optional)
 pkg='nala curl software-properties-common apt-transport-https aptitude net-tools mlocate plocate expect tcl-expect libnotify-bin'
 if apt-get -qq install $pkg; then
-    echo "OK"
+    true
 else
     echo "Error installing $pkg. Abort"
     exit

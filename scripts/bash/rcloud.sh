@@ -9,6 +9,8 @@
 
 echo "Rclone Cloud Start. Wait..."
 
+echo "Run Rclone Script at $(date)" | tee -a /var/log/syslog
+
 # checking root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
@@ -99,7 +101,6 @@ start_script() {
     # mount
     for service_info in "${services[@]}"; do
         IFS=':' read -r service_name service_path <<<"$service_info"
-        echo "Mounting $service_name"
         sudo -u $local_user bash -c "rclone mount $service_name: $service_path --log-file $rclonelog --log-level $loglevel --vfs-cache-mode writes &"
         echo "$service_name mounted"
     done

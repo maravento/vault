@@ -39,25 +39,18 @@ sleep_time="5"
 ### SERVERS
 echo "DHCP & Iptables..."
 eval "sudo "/etc/scr/{leases,iptables}.sh";"
-echo "OK"
 echo "Squid Reload..."
-systemctl reload-or-restart squid.service
-echo "OK"
-echo "Apache2 Reload..."
-systemctl reload-or-restart apache2.service
-echo "OK"
-echo "Samba Reload..."
-systemctl reload-or-restart smbd.service
-echo "OK"
-echo "Netbios Reload..."
-systemctl reload-or-restart nmbd.service
-echo "OK"
+systemctl reload squid.service
+echo "Apache2 Restart..."
+systemctl restart apache2.service
+echo "Samba Restart..."
+systemctl restart smbd.service
+echo "Netbios Restart..."
+systemctl restart nmbd.service
 echo "Winbind Reload..."
-systemctl reload-or-restart winbind.service
-echo "OK"
+systemctl restart winbind.service
 echo "Rsyslog Reload..."
-systemctl reload-or-restart rsyslog.service
-echo "OK"
+systemctl restart syslog.socket rsyslog.service
 echo "Server Load: $(date)" | tee -a /var/log/syslog
 sudo -u $local_user DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u $local_user)/bus notify-send "Server Load" "$(date)" -i checkbox
 echo "Done"

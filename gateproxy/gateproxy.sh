@@ -120,9 +120,6 @@ apt -qq install -y --reinstall systemd-timesyncd
 apt -qq remove -y zsys
 apt -qq install -y apt-file
 apt-file update
-service sendmail stop >/dev/null 2>&1
-update-rc.d -f sendmail remove >/dev/null 2>&1
-DEBIAN_FRONTEND=noninteractive apt -qq -y install postfix
 dpkg --configure -a
 fuser -vki /var/lib/dpkg/lock &>/dev/null
 hdparm -W /dev/sda &>/dev/null
@@ -421,6 +418,10 @@ function essential_setup() {
     nala install -y reiserfsprogs reiser4progs xfsprogs jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools quota sshfs lvm2 attr jmtpfs
     # Optional: Running a .desktop file in the terminal. e.g.: dex foo.desktop
     nala install -y dex
+    # Optional: mail
+    service sendmail stop >/dev/null 2>&1
+    update-rc.d -f sendmail remove >/dev/null 2>&1
+    DEBIAN_FRONTEND=noninteractive nala install -y postfix
     # ubuntu database
     update-desktop-database
 }
@@ -696,9 +697,9 @@ cp -fr $gp/conf/scr/* $scr
 chown -R root:root $scr/*
 chmod -R +x $scr/*
 # Choose your security level: "Secure Share Memory" (optional)
-#echo 'none /run/shm tmpfs defaults,ro 0 0' | tee --append /etc/fstab &> /dev/null
+#echo 'none /run/shm tmpfs defaults,ro 0 0' | tee -a /etc/fstab &> /dev/null
 # alternative
-#echo 'tmpfs /tmp tmpfs defaults,size=30%,nofail,noatime,mode=1777 0 0' | tee --append /etc/fstab &> /dev/null
+#echo 'tmpfs /tmp tmpfs defaults,size=30%,nofail,noatime,mode=1777 0 0' | tee -a /etc/fstab &> /dev/null
 echo OK
 sleep 1
 

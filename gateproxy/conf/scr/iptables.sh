@@ -32,23 +32,23 @@ ip6tables=/usr/sbin/ip6tables
 iptables=/usr/sbin/iptables
 ipset=/usr/sbin/ipset
 aclroute=/etc/acl
-# net
-internet=eth0
+# interfaces
+wan=eth0
 lan=eth1
+# IP/netmask
 local=192.168.0.0
 netmask=24
+# IP/MAC server
 # Command to get active interfaces (except lo) (Name/IPv4/MAC) (Replace with your server IPv4/MAC):
 # join <(ip -o -br link | sort) <(ip -o -br addr | sort) | awk '$2=="UP" {print $1,$6,$3}' | sed -Ee 's./[0-9]+..'
 ipserver=192.168.0.10
 macserver=00:00:00:00:00:00
 
-####################
-### KERNEL RULES ###
-####################
+### KERNEL RULES
 
-echo "Load Kerner Rules. Wait..."
+echo "Load Kerner Rules..."
 
-### Zero all packets and counters ###
+# Zero all packets and counters
 $iptables -F
 $iptables -X
 $iptables -t nat -F
@@ -63,18 +63,10 @@ $iptables -Z
 $iptables -t nat -Z
 $iptables -t mangle -Z
 
-### TRAFFIC CUTTING IN CASE OF ATTACK ###
-#$iptables -P INPUT DROP
-#$iptables -P FORWARD DROP
-#$iptables -P OUTPUT DROP
-#$iptables -t nat -P PREROUTING DROP
-#$iptables -t mangle -A PREROUTING -j DROP
-#echo 0 > /proc/sys/net/ipv4/ip_forward
-#ip aclroute add blackhole 0.0.0.0
-#$iptables -t raw -A PREROUTING ! -i lo -m addrtype --src-type UNSPEC -j DROP
-#$iptables -t raw -A PREROUTING ! -i lo -m addrtype --src-type LOCAL -j DROP
+# Flush routing cache
+ip route flush cache
 
-### IPv4 RULES ###
+# IPv4 RULES
 # syncookies
 echo 1 >/proc/sys/net/ipv4/tcp_syncookies
 # Disables IP source routing
@@ -115,47 +107,39 @@ echo 20000 >/proc/sys/net/core/netdev_max_backlog # default 1000
 # pmtu
 echo 1 >/proc/sys/net/ipv4/ip_no_pmtu_disc # default 0
 # pmtu (alternative)
-#$iptables -t mangle -A POSTROUTING -p tcp --tcp-flags SYN,RST SYN -o $internet -j TCPMSS --clamp-mss-to-pmtu
+#$iptables -t mangle -A POSTROUTING -p tcp --tcp-flags SYN,RST SYN -o $wan -j TCPMSS --clamp-mss-to-pmtu
 
-### IPv6 RULES ###
+# IPv6 RULES
 # Important: If you set "echo 1" (disable IPv6), Squid it will display the message:
 # WARNING: BCP 177 violation. Detected non-functional IPv6 loopback
 echo 0 >/proc/sys/net/ipv6/conf/all/disable_ipv6     # default 0
 echo 0 >/proc/sys/net/ipv6/conf/default/disable_ipv6 # default 0
 echo 0 >/proc/sys/net/ipv6/conf/lo/disable_ipv6      # default 0
 
-echo "OK"
+### GLOBAL RULES
 
-####################
-### GLOBAL RULES ###
-####################
+echo "Loading Global Rules..."
 
-echo "Loading Global Rules. Wait..."
-
-### Global Policies IPv4 (DROP or ACCEPT) ###
+# Global Policies IPv4 (DROP or ACCEPT)
 $iptables -P INPUT ACCEPT
 $iptables -P FORWARD ACCEPT
 $iptables -P OUTPUT ACCEPT
 
-### Global Policies IPv6 (DROP or ACCEPT) ###
+# Global Policies IPv6 (DROP or ACCEPT)
 $ip6tables -P INPUT DROP
 $ip6tables -P FORWARD DROP
 $ip6tables -P OUTPUT DROP
 
-### LOOPBACK ###
+# LOOPBACK
 $iptables -w -t filter -A INPUT -i lo -j ACCEPT
 $iptables -w -t filter -A FORWARD -i lo -j ACCEPT
 $iptables -w -t filter -A OUTPUT -o lo -j ACCEPT
 $iptables -w -t nat -A PREROUTING -i lo -j ACCEPT
 $iptables -w -t mangle -A PREROUTING -i lo -j ACCEPT
 
-echo "OK"
+## LOCALNET RULES
 
-####################
-## LOCALNET RULES ##
-####################
-
-echo "Loading localnet Rules. Wait..."
+echo "Loading localnet Rules..."
 
 # LOCALHOST
 $iptables -w -t mangle -A PREROUTING -s 127.0.0.0/8 ! -i lo -j DROP
@@ -219,7 +203,7 @@ for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
 done
 
 # MASQUERADE (share internet with LAN)
-$iptables -w -t nat -A POSTROUTING -s $local/$netmask -o $internet -j MASQUERADE
+$iptables -w -t nat -A POSTROUTING -s $local/$netmask -o $wan -j MASQUERADE
 
 # LAN ---> PROXY <--- INTERNET
 $iptables -w -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
@@ -258,13 +242,9 @@ for protocol in $(echo tcp udp); do
 
 done
 
-echo "OK"
+### GLOBAL SECURITY RULES
 
-###########################
-## GLOBAL SECURITY RULES ##
-###########################
-
-echo "Loading Security Rules. Wait..."
+echo "Loading Security Rules..."
 
 # syn_flood
 $iptables -w -A INPUT -p tcp --tcp-flags ALL NONE -j DROP
@@ -371,13 +351,9 @@ $iptables -w -t mangle -A PREROUTING -m set --match-set blockports src,dst -j DR
 #$iptables -w -t mangle -A PREROUTING -m set --match-set blockzone src,dst -j DROP
 echo "done"
 
-echo "OK"
+### ACL RULES
 
-###############
-## ACL RULES ##
-###############
-
-echo "Loading ACL Rules. Wait..."
+echo "Loading ACL Rules..."
 
 # MACPROXY (Port 8000 to 3128 - Opcion 252 DHCP)
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-proxy.txt); do
@@ -390,7 +366,7 @@ done
 #for mac in $(awk -F";" '{print $2}' $aclroute/mac-transparent.txt); do
 #    $iptables -w -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m mac --mac-source $mac -j REDIRECT --to-port 8080
 #    $iptables -w -A INPUT -i $lan -p tcp --dport 8080 -m mac --mac-source $mac -j ACCEPT
-#    $iptables -w -A FORWARD -i $lan -p tcp -m multiport --dports 443,8080 -o $internet -m mac --mac-source $mac -j ACCEPT
+#    $iptables -w -A FORWARD -i $lan -p tcp -m multiport --dports 443,8080 -o $wan -m mac --mac-source $mac -j ACCEPT
 #done
 
 # MACLIMITED (Port 8000 to 3128 - Opcion 252 DHCP)
@@ -403,11 +379,7 @@ for mac in $(echo -e "$limited"); do
     $iptables -w -t mangle -A PREROUTING -p tcp -m multiport --dports 8000,3128 -m mac --mac-source $mac -j ACCEPT
 done
 
-echo "OK"
-
-#########
-## END ##
-#########
+### END
 
 echo "Drop All..."
 # Optional
@@ -415,5 +387,6 @@ echo "Drop All..."
 # Drop All
 $iptables -w -A INPUT -d 0/0 -j DROP
 $iptables -w -A FORWARD -d 0/0 -j DROP
+
 echo "iptables Load at: $(date)" | tee -a /var/log/syslog
 echo "Done"

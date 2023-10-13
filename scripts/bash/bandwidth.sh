@@ -58,7 +58,7 @@ function download() {
     if (($(echo "$dlvalue $dlmin" | awk '{print ($1 < $2)}'))); then
         echo "WARNING! Bandwidth Download Slow: $dlvalue $dlmb < $dlmin $mb (min value)"
     else
-        echo "Bandwidth Download OK" "Up to $dlmin"
+        echo "Bandwidth Download OK:" "Up to $dlmin"
     fi
 }
 
@@ -66,7 +66,7 @@ function upload() {
     if (($(echo "$ulvalue $ulmin" | awk '{print ($1 < $2)}'))); then
         echo "WARNING! Bandwidth Upload Slow: $ulvalue $ulmb < $ulmin $mb (min value)"
     else
-        echo "Bandwidth Upload OK" "Up to $ulmin"
+        echo "Bandwidth Upload OK:" "Up to $ulmin"
     fi
 }
 

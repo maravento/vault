@@ -22,7 +22,7 @@ fi
 # check dependencies
 pkg='arpon'
 if apt-get -qq install $pkg; then
-    echo "OK"
+    true
  else
     echo "Error installing $pkg. Abort"
     exit

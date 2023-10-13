@@ -33,7 +33,7 @@ else
     echo -e "\n"
     for pid in $(ps -ef | grep "miniserv.pl" | awk '{print $2}'); do kill -9 $pid &>/dev/null; done
     sleep ${sleep_time}
-    systemctl start webmin.service
+    /etc/webmin/restart-by-force-kill
     echo "Webmin start: $(date)" | tee -a /var/log/syslog
 fi
 # DHCP service
@@ -61,7 +61,7 @@ else
     echo -e "\n"
     for pid in $(ps -ef | grep "squid" | awk '{print $2}'); do kill -9 $pid &>/dev/null; done
     sleep ${sleep_time}
-    /etc/init.d/squid start
+    systemctl start squid.service
     echo "Squid start: $(date)" | tee -a /var/log/syslog
 fi
 # rsyslog
@@ -70,8 +70,8 @@ if [[ $(ps -A | grep rsyslogd) != "" ]]; then
 else
     echo -e "\n"
     systemctl stop syslog.socket rsyslog.service &>/dev/null
+    for pid in $(ps -ef | grep "rsyslog" | awk '{print $2}'); do kill -9 $pid &>/dev/null; done
     sleep ${sleep_time}
-    systemctl start rsyslog.service
+    systemctl start syslog.socket rsyslog.service
     echo "Rsyslog start: $(date)" | tee -a /var/log/syslog
 fi
-echo "Done"
