@@ -19,13 +19,16 @@ svn export "https://github.com/maravento/vault/trunk/lightsquid"
 
 ---
 
-| Developer | Fork | Theme | HowTo |
-| :-------: | :--: | :---: | :---: |
-| [v1.8-7 (2009)](https://lightsquid.sourceforge.net/) | [v1.8.1 (2021)](https://github.com/finisky/lightsquid-1.8.1) | [Metro (2020)](https://www.sysadminsdecuba.com/2020/09/lightsquid/) | [Post (ESP)](https://www.maravento.com/2022/10/lightsquid.html) |
+| Last Official Version | Unofficial Update | Theme | HowTo |
+| :-------------------: | :---------------: | :---: | :---: |
+| [v1.8-7 (2009)](https://lightsquid.sourceforge.net/) | [v1.8.1 (2021)](https://github.com/finisky/lightsquid-1.8.1) | [Metro (2020)](https://www.sysadminsdecuba.com/2020/09/lightsquid/) | [Post (SP-ES)](https://www.maravento.com/2022/10/lightsquid.html) |
+
+### Fork or NG
+
+This project is not a Next Generation (NG) version. It is a fork of the unofficial version [v1.8.1](https://github.com/finisky/lightsquid-1.8.1), updated with [fixes](https://github.com/finisky/lightsquid-1.8.1/issues/1) / Este proyecto no es una versión de Nueva Generación (NG). Es un fork de la versión no oficial [v1.8.1](https://github.com/finisky/lightsquid-1.8.1), actualizado con [correcciones](https://github.com/finisky/lightsquid-1.8.1/issues/1).
 
 ### Important before using
 
-- This project is a fork of [v1.8.1](https://github.com/finisky/lightsquid-1.8.1), updated with [fixes](https://github.com/finisky/lightsquid-1.8.1/issues/1) / Este proyecto es un fork de [v1.8.1](https://github.com/finisky/lightsquid-1.8.1), actualizado con [correcciones](https://github.com/finisky/lightsquid-1.8.1/issues/1).
 - If any IP addresses on your local network do not go through the Squid proxy, then they will not appear in the reports. / Si alguna dirección IP de su red local no pasan por el proxy Squid, entonces no aparecerá en los reportes.
 - Tested on: / Probado en: Ubuntu 22.04 LTS x64.
 

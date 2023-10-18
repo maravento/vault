@@ -39,7 +39,7 @@ function vboxinstall() {
     dpkg --configure -a
     apt-get -f -y install
     # install Extension Pack
-    export VBOX_VER=$(VBoxManage --version | awk -Fr '{print $1}')
+    export VBOX_VER=$(VBoxManage --version | awk 'END {print $1}' | cut -d 'r' -f 1)
     wget -c http://download.virtualbox.org/virtualbox/$VBOX_VER/Oracle_VM_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack
     VBoxManage extpack install Oracle_VM_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack
     # configure

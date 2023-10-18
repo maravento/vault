@@ -59,10 +59,14 @@ else
 fi
 
 # VARIABLES
+# local user
 local_user=$(who | head -1 | awk '{print $1;}')
-local_path="/home/$local_user/cloud"
+# local path
+local_cloud="/home/$local_user/cloud"
+# lock file
 lock_file="/tmp/cloud_drive_mount.lock"
-rclonelog="$local_path/rclone.log"
+# rcloud log
+rclonelog="$local_cloud/rcloud.log"
 
 # Log Level (INFO, DEBUG, NOTICE, ERROR)
 loglevel="DEBUG"
@@ -70,22 +74,33 @@ loglevel="DEBUG"
 # add any services supported by Rclone with its route
 services=(
     # Mega
-    "mega:$local_path/mega"
+    "mega:$local_cloud/mega"
     # Pcloud
-    "pcloud:$local_path/pcloud"
+    "pcloud:$local_cloud/pcloud"
     # Dropbox
-    "dropbox:$local_path/dropbox"
+    "dropbox:$local_cloud/dropbox"
     # Google Drive
-    "drive:$local_path/drive"
+    "drive:$local_cloud/drive"
     # MS OneDrive
-    "onedrive:$local_path/onedrive"
+    "onedrive:$local_cloud/onedrive"
     # Add more services here as needed
 )
 
-# if local_path or service_path does not exist, create them
+# Function to check if a service is configured
+is_service_configured() {
+    local service_name="$1"
+    # Check if the service is configured using rclone listremotes
+    if sudo -u $local_user bash -c "rclone listremotes | grep -q $service_name"; then
+        return 0 # Service is configured
+    else
+        return 1 # Service is not configured
+    fi
+}
+
+# if local_cloud or service_path does not exist, create them only if the service is configured
 for service_info in "${services[@]}"; do
     IFS=':' read -r service_name service_path <<<"$service_info"
-    if [ ! -d "$service_path" ]; then
+    if is_service_configured "$service_name" && [ ! -d "$service_path" ]; then
         sudo -u $local_user bash -c "mkdir -p $service_path"
     fi
 done
@@ -101,11 +116,13 @@ start_script() {
     # mount
     for service_info in "${services[@]}"; do
         IFS=':' read -r service_name service_path <<<"$service_info"
-        sudo -u $local_user bash -c "rclone mount $service_name: $service_path --log-file $rclonelog --log-level $loglevel --vfs-cache-mode writes &"
-        echo "$service_name mounted"
+        if is_service_configured "$service_name"; then
+            sudo -u $local_user bash -c "rclone mount $service_name: $service_path --log-file $rclonelog --log-level $loglevel --vfs-cache-mode writes &"
+            echo "$service_name mounted"
+        else
+            echo "$service_name is not configured in Rclone. Skipping..."
+        fi
     done
-
-    echo "Script started."
 }
 
 # stop script

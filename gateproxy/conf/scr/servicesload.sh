@@ -70,7 +70,6 @@ if [[ $(ps -A | grep rsyslogd) != "" ]]; then
 else
     echo -e "\n"
     systemctl stop syslog.socket rsyslog.service &>/dev/null
-    for pid in $(ps -ef | grep "rsyslog" | awk '{print $2}'); do kill -9 $pid &>/dev/null; done
     sleep ${sleep_time}
     systemctl start syslog.socket rsyslog.service
     echo "Rsyslog start: $(date)" | tee -a /var/log/syslog

@@ -116,25 +116,31 @@ if [ ! -d $scr ]; then mkdir -p $scr; fi &>/dev/null
 local_user=$(who | head -1 | awk '{print $1;}')
 
 ### BASIC
-apt -qq install -y --reinstall systemd-timesyncd
-apt -qq remove -y zsys
-apt -qq install -y apt-file
-apt-file update
-dpkg --configure -a
+# kill
 fuser -vki /var/lib/dpkg/lock &>/dev/null
-hdparm -W /dev/sda &>/dev/null
-hwclock -w &>/dev/null
 killall apt-get &>/dev/null
 killall -s SIGTERM apt apt-get &>/dev/null
-pro config set apt_news=false
 rm /var/cache/apt/archives/lock &>/dev/null
 rm /var/cache/debconf/*.dat &>/dev/null
 rm /var/lib/apt/lists/lock &>/dev/null
 rm /var/lib/dpkg/lock &>/dev/null
+# dpkg
+dpkg --configure -a
+# time
+apt -qq install -y --reinstall systemd-timesyncd
+hwclock -w &>/dev/null
 timedatectl set-ntp true &>/dev/null
+# install | remove
+apt -qq install -y apt-file
+apt-file update
+apt -qq remove -y zsys
 ubuntu-drivers autoinstall &>/dev/null
-#systemctl disable avahi-daemon cups-browser &> /dev/null # optional
+# configure
+pro config set apt_news=false
+hdparm -W /dev/sda &>/dev/null
 ifconfig lo 127.0.0.1
+#systemctl disable avahi-daemon cups-browser &> /dev/null # optional
+# cron
 cp /etc/crontab{,.bak} &>/dev/null
 crontab /etc/crontab &>/dev/null
 cp /etc/apt/sources.list{,.bak} &>/dev/null

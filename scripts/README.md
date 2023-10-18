@@ -36,6 +36,7 @@ Tested on: / probado en: Ubuntu 20.04/22.04 x64
 - [phpVirtualBox (Install)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/phpvbox.sh)
 - [Port Kill (check port with: `sudo netstat -lnp | grep "port"`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/portkill.sh)
 - [Rclone Cloud (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc. - Mount | Umount with start|stop|restart|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rcloud.sh)
+- [Rclone Sync (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc. - Sync to Download | Upload Folder)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rsync.sh)
 - [TRIM (SSD/NVMe)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/trim.sh)
 - [Virtual Hard Disk VHD (image (.img) - loop or kpartx - Create | Mount | Umount](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vdisk.sh)
 - [VirtualBox (Install | Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vboxinstall.sh)

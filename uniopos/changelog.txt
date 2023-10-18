@@ -1,5 +1,9 @@
 ﻿## uniOPOS CHANGELOG
 
+2023.10.17
+Update: Oracle Java 8 Update 391 x86 x64 (Global)
+Update: Visual C++ 2022 Redistributable - 14.38.33126 (Global)
+
 2023.08.23
 Update: Oracle Java 8 Update 381 x86 x64 (Global)
 Update: Microsoft Visual Studio 2010 Tools for Office Runtime x64 - 10.0.60910.0 (MSI 10.0.60915) (Global)

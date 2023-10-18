@@ -23,7 +23,7 @@ svn export "https://github.com/maravento/vault/trunk/uniopos"
 
 |File (mega)|File (pcloud)|OS|Size|
 | :---: | :---: | :---: |  :---: |
-| [uniOPOS.exe (.zip)](https://mega.nz/file/SN9EAADB#UORwztCYRXOtcChKFgK6Nk2cEIlKM4apZndshoazdf8) | [uniOPOS.exe (.zip)](https://u.pcloud.link/publink/show?code=0iP7) | Windows 7/8/10/11 x64 | 1.59 GB |
+| [uniOPOS.exe (.zip)](https://mega.nz/file/6EUDnQ6K#HmoCRjgFw-L_ekxTf_3k8vPmcHNrigXp8Fy_CeOKhYI) | [uniOPOS.exe (.zip)](https://u.pcloud.link/publink/show?code=0iP7) | Windows 7/8/10/11 x64 | 1.59 GB |
 
 ### How to Use
 
@@ -54,7 +54,7 @@ At the end of the installation of each package the following message will appear
 
 - According to the [Minimum Requirements](https://unicenta.com/pages/install-unicenta-opos/), uniCenta oPOS depends on Java. Therefore, uniOPOS includes: / De acuerdo a los [Requisitos Mínimos](https://unicenta.com/pages/install-unicenta-opos/), uniCenta oPOS depende de Java. Por tanto, uniOPOS incluye:
 
-  `Oracle Java 8 Update 381 x86 x64`
+  `Oracle Java 8 Update 391 x86 x64`
 
 - According to the developers, [uniCenta oPOS v4x only uses MySQL Server and v5.7.x is recommended](https://unicenta.com/pages/configure-unicenta-opos/). / Según los desarrolladores, [uniCenta oPOS v4x solamente utiliza MySQL Server y v5.7.x es la recomendada](https://unicenta.com/pages/configure-unicenta-opos/).
 - According to the [official MySQL channel](https://dev.mysql.com/doc/refman/5.7/en/windows-installation.html), MySQL Community v5.7 Server requires Microsoft Visual C++ 2019 Redistributable Package to run on Windows platforms (This requirement changed over time: MySQL 5.7.37 and earlier require Microsoft Visual C++ 2013 Redistributable Package, MySQL 5.7.38 and 5.7.39 require both, and only the Microsoft Visual C++ 2019 Redistributable Package is required as of MySQL 5.7.40). Therefore, uniOPOS includes: / Según el [canal oficial de MySQL](https://dev.mysql.com/doc/refman/5.7/en/windows-installation.html), MySQL Community v5.7 Server requiere Microsoft Visual C++ 2019 Redistributable Package para ejecutarse en plataformas Windows (Este requisito cambió con el tiempo: MySQL 5.7.37 y anteriores requieren Microsoft Visual C++ 2013 Redistributable Package, MySQL 5.7.38 y 5.7.39 requieren ambos, y solo se requiere el paquete redistribuible de Microsoft Visual C++ 2019 a partir de MySQL 5.7.40). Por tanto, uniOPOS incluye:
@@ -66,7 +66,7 @@ At the end of the installation of each package the following message will appear
   Microsoft Visual C++ 2010 Redistributable x86 x64 - 10.0.40219
   Microsoft Visual C++ 2012 Redistributable x86 x64 (Additional and Minimum Runtime) - 11.0.61135
   Microsoft Visual C++ 2013 Redistributable x86 x64 (Additional and Minimum Runtime) - 12.0.40664
-  Microsoft Visual C++ 2022 Redistributable x86 x64 (Additional and Minimum Runtime) - 14.38.32919
+  Microsoft Visual C++ 2022 Redistributable x86 x64 (Additional and Minimum Runtime) - 14.38.33126
   Microsoft Visual Studio 2010 Tools for Office Runtime x64 - 10.0.60910.0 (MSI 10.0.60915)
   ```
 
@@ -83,7 +83,6 @@ At the end of the installation of each package the following message will appear
 UniOPOS install uniCenta oPOS v4.6.4. To update to uniCenta oPOS v5x: / UniOPOS instala uniCenta oPOS v4.6.4. Para actualizar a uniCenta oPOS v5x:
 
 - [uniCenta-oPos-5.0-Migration-Guide.pdf](https://raw.githubusercontent.com/maravento/vault/master/uniopos/resources/docs/uniCenta-oPos-5.0-Migration-Guide.pdf)
-- [uniCenta oPOS 5x Installers](https://mega.nz/folder/uZ8EhDII#Ts8UAJxO1zp0ZQEh9cvSrg)
 
 #### About DB
 
@@ -139,7 +138,7 @@ upload_max_filesize = 256M
 
    > Edit (as admin) file (depends on your version of java): / Editar (como admin) el archivo (depende de su versión de java):
    >
-   > `Program Files\Java\jre1.8.0_301\lib\security\java.security`
+   > `Program Files\Java\jre-1.8(XXX)\lib\security\java.security`
    >
    > And disable or remove the following SSL line, save the changes and reboot the PC: / Y desactive o elimine la siguiente línea SSL, guarde los cambios y reinicie el PC:
 

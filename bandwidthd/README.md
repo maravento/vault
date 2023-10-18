@@ -20,7 +20,7 @@ svn export "https://github.com/maravento/vault/trunk/bandwidthd"
 ---
 
 | Developers | Last Version | HowTo |
-| :---: | :---: | :---: |
+| :--------: | :----------: | :---: |
 | [David Hinkle, Brice Beaman, Andreas Henriksson](https://bandwidthd.sourceforge.net/) | [v2.0.1 (NethServer. 2005)](https://github.com/NethServer/bandwidthd) | [Post (ESP)](https://www.maravento.com/2021/08/bandwidthd.html) |
 
 ### Important before using
