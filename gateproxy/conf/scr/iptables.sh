@@ -108,6 +108,8 @@ echo 20000 >/proc/sys/net/core/netdev_max_backlog # default 1000
 echo 1 >/proc/sys/net/ipv4/ip_no_pmtu_disc # default 0
 # pmtu (alternative)
 #$iptables -t mangle -A POSTROUTING -p tcp --tcp-flags SYN,RST SYN -o $wan -j TCPMSS --clamp-mss-to-pmtu
+# load balancing or multiple wan
+#echo 0 /proc/sys/net/ipv4/conf/all/rp_filter  # default 2
 
 # IPv6 RULES
 # Important: If you set "echo 1" (disable IPv6), Squid it will display the message:

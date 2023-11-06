@@ -1,5 +1,7 @@
 # [UniOPOS](https://uniopos.com/)
 
+[![status-frozen](https://img.shields.io/badge/status-frozen-blue.svg)](https://github.com/maravento/vault)
+
 **uniOPOS** it is a preconfigured installation package of uniCenta OPOS for Points of Sales (POS/ERP Open Source)
 
 **uniOPOS** es un paquete de instalación preconfigurado de uniCenta OPOS para Puntos de Ventas (POS/ERP Open Source)
@@ -17,13 +19,11 @@ svn export "https://github.com/maravento/vault/trunk/uniopos"
 
 ---
 
-[![status-frozen](https://img.shields.io/badge/status-frozen-blue.svg)](https://github.com/maravento/vault)
-
 ### Data Sheet
 
 |File (mega)|File (pcloud)|OS|Size|
 | :---: | :---: | :---: |  :---: |
-| [uniOPOS.exe (.zip)](https://mega.nz/file/6EUDnQ6K#HmoCRjgFw-L_ekxTf_3k8vPmcHNrigXp8Fy_CeOKhYI) | [uniOPOS.exe (.zip)](https://u.pcloud.link/publink/show?code=0iP7) | Windows 7/8/10/11 x64 | 1.59 GB |
+| [uniOPOS.exe (.zip)](https://mega.nz/file/fVMTwbIB#PB2LPGriYKFfY47lql4LlBsF_08aMf1VQQb9faOtRqE) | [uniOPOS.exe (.zip)](https://u.pcloud.link/publink/show?code=0iP7) | Windows 7/8/10/11 x64 | 1.59 GB |
 
 ### How to Use
 
@@ -236,8 +236,8 @@ Go to the destination folder `%HOMEDRIVE%\PortableSrv\` and find the shortcuts t
 #### Content of WebServer Pack
 
 - [uniCenta oPOS WebServer v4.6.4 (.zip)](https://sourceforge.net/projects/unicentaopos/)
-- [HeidiSQL v12.5 x64 Portable.zip (.exe)](https://www.heidisql.com/download.php)
-- [MySQL Server v5.7.43 x64 (no-install package .zip)](https://dev.mysql.com/downloads/mysql/5.7.html#downloads/)
+- [HeidiSQL v12.6 x64 Portable.zip (.exe)](https://www.heidisql.com/download.php)
+- [MySQL Server v5.7.44 x64 (no-install package .zip)](https://dev.mysql.com/downloads/mysql/5.7.html#downloads/)
 
 #### Desktop Launcher
 
@@ -283,8 +283,6 @@ org.webswing.server.http.port=8080
 ## UNIOPOS FOR LINUX
 
 ---
-
-[![status-alpha](https://img.shields.io/badge/status-alpha-critical)](https://github.com/maravento/vault/tree/master/uniopos)
 
 ### How to Use Linux Pack
 

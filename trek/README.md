@@ -2,9 +2,9 @@
 
 [![status-frozen](https://img.shields.io/badge/status-frozen-blue.svg)](https://github.com/maravento/vault)
 
-**Trek** is an experimental SQL database rescue tool. It is used when there is damage to the software, which prevents exporting by traditional methods.
+**Trek** is a SQL database rescue tool. It is used when there is damage to the software, which prevents it from being exported by traditional methods.
 
-**Trek** es una herramienta experimental de rescate de bases de datos SQL. Se usa cuando hay daños en el software, que impiden exportarlas por métodos tradicionales.
+**Trek** es una herramienta de rescate de bases de datos SQL. Se usa cuando hay daños en el software, que impiden exportarlas por métodos tradicionales.
 
 ## GIT CLONE
 

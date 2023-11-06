@@ -70,7 +70,7 @@ git clone --depth=1 https://github.com/maravento/vault.git
 
 ---
 
-[![Stargazers repo roster for @maravento/vault](https://reporoster.com/stars/maravento/vault)](https://github.com/maravento/vault/stargazers)
+[![Stargazers](https://bytecrank.com/nastyox/reporoster/php/stargazersSVG.php?user=maravento&repo=vault)]((https://github.com/maravento/vault/stargazers))
 
 ## CONTRIBUTIONS
 
@@ -80,7 +80,7 @@ We thank all those who contributed to this project. / Agradecemos a todos los qu
 
 Special thanks to: [Jhonatan Sneider](https://github.com/sney2002)
 
-## DONATE
+## SPONSOR THIS PROJECT
 
 ---
 
