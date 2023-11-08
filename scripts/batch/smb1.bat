@@ -21,8 +21,9 @@ echo.
 echo Choose an option:
 echo 1. Activate SMB1
 echo 2. Deactivate SMB1
+echo 3. Exit
 echo.
-set /p choice="Enter the number (1 or 2): "
+set /p choice="Enter the number (1, 2, or 3): "
 
 if "%choice%"=="1" (
     REM Create the PowerShell file to activate SMB1
@@ -30,6 +31,9 @@ if "%choice%"=="1" (
 ) else if "%choice%"=="2" (
     REM Create the PowerShell file to deactivate SMB1
     echo Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart > %psScriptPath%
+) else if "%choice%"=="3" (
+    REM Exit the script
+    exit /b
 ) else (
     REM Invalid choice
     echo Invalid choice. Exiting...

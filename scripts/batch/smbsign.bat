@@ -21,12 +21,7 @@ echo 1. Activate SMB signing
 echo 2. Restore Default
 echo 3. Exit
 echo.
-set /p choice="Enter the number (1, 2, or 3): "
-
-if "%choice%"=="1" goto activate
-if "%choice%"=="2" goto restore
-if "%choice%"=="3" goto end
-goto invalid
+set /p choice="Enter the number (1, 2 or 3): "
 
 REM Validate user input and perform the selected action
 if "%choice%"=="1" (
