@@ -70,7 +70,7 @@ git clone --depth=1 https://github.com/maravento/vault.git
 
 ---
 
-[![Stargazers](https://bytecrank.com/nastyox/reporoster/php/stargazersSVG.php?user=maravento&repo=vault)]((https://github.com/maravento/vault/stargazers))
+[![Stargazers](https://bytecrank.com/nastyox/reporoster/php/stargazersSVG.php?user=maravento&repo=vault)](https://github.com/maravento/vault/stargazers)
 
 ## CONTRIBUTIONS
 
