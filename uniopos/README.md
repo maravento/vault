@@ -23,7 +23,7 @@ svn export "https://github.com/maravento/vault/trunk/uniopos"
 
 |File (mega)|File (pcloud)|OS|Size|
 | :---: | :---: | :---: |  :---: |
-| [uniOPOS.exe (.zip)](https://mega.nz/file/fVMTwbIB#PB2LPGriYKFfY47lql4LlBsF_08aMf1VQQb9faOtRqE) | [uniOPOS.exe (.zip)](https://u.pcloud.link/publink/show?code=0iP7) | Windows 7/8/10/11 x64 | 1.59 GB |
+| [uniOPOS.exe (.zip)](https://mega.nz/file/nANmFQoY#EthZC3AONY1a3EBfUY-ap1RVf7G7jvC5xI81beF2VlM) | [uniOPOS.exe (.zip)](https://u.pcloud.link/publink/show?code=0iP7) | Windows 7/8/10/11 x64 | 1.57 GB |
 
 ### How to Use
 
@@ -66,7 +66,7 @@ At the end of the installation of each package the following message will appear
   Microsoft Visual C++ 2010 Redistributable x86 x64 - 10.0.40219
   Microsoft Visual C++ 2012 Redistributable x86 x64 (Additional and Minimum Runtime) - 11.0.61135
   Microsoft Visual C++ 2013 Redistributable x86 x64 (Additional and Minimum Runtime) - 12.0.40664
-  Microsoft Visual C++ 2022 Redistributable x86 x64 (Additional and Minimum Runtime) - 14.38.33126
+  Microsoft Visual C++ 2022 Redistributable x86 x64 (Additional and Minimum Runtime) - 14.38.33130
   Microsoft Visual Studio 2010 Tools for Office Runtime x64 - 10.0.60910.0 (MSI 10.0.60915)
   ```
 
@@ -172,7 +172,7 @@ upload_max_filesize = 256M
 #### Content of Install Pack
 
 - [uniCenta oPOS v4.6.4 (.exe)](https://sourceforge.net/projects/unicentaopos/)
-- [Wampserver v3.3.0 x64 (.exe)](https://wampserver.aviatechno.net/?lang=en) (included: Apache 2.4.54.2 - PHP 7.4.33/8.0.26/8.1.13/8.2.0 - MySQL 5.7.40|8.0.31 - MariaDB 10.10.2)
+- [Wampserver v3.3.0 x64 - Update 3.3.2 (.exe)](https://wampserver.aviatechno.net/?lang=en) (included: Apache 2.4.54.2 - PHP 7.4.33/8.0.26/8.1.13/8.2.0 - MySQL 5.7.40|8.0.31 - MariaDB 10.10.2)
 
 #### Important Before Use Install Pack
 
@@ -190,7 +190,7 @@ upload_max_filesize = 256M
 #### Content of Portable Pack
 
 - [uniCenta OPOS v4.6.4 _no_installer](https://sourceforge.net/projects/unicentaopos/)
-- [Uniform Server ZeroXV (v15.0.1)](https://sourceforge.net/projects/miniserver/files/Uniform%20Server%20ZeroXV/) (Additional modules included: [adminer v4.8.1, mysql autoback v1.0.2, uniservice v2.5.1](https://sourceforge.net/projects/miniserver/files/Uniform%20Server%20ZeroXV/ZeroXV%20Modules/), and [mysql v5.7.37 from ZeroIV](https://sourceforge.net/projects/miniserver/files/Uniform%20Server%20ZeroXIV/ZeroXIV%20Modules/))
+- [Uniform Server ZeroXV (v15.0.2)](https://sourceforge.net/projects/miniserver/files/Uniform%20Server%20ZeroXV/) (Additional modules included: [adminer v4.8.3, mysql autoback v1.0.2, uniservice v2.5.2](https://sourceforge.net/projects/miniserver/files/Uniform%20Server%20ZeroXV/ZeroXV%20Modules/), and [mysql v5.7.37 from ZeroIV](https://sourceforge.net/projects/miniserver/files/Uniform%20Server%20ZeroXIV/ZeroXIV%20Modules/))
 
 #### Self-Extracting
 
