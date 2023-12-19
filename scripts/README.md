@@ -66,8 +66,6 @@ Tested on: / probado en: Windows 7/10/11 x64
 [![GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl.txt)
 [![License: CC BY-SA 4.0](https://img.shields.io/badge/License-CC_BY--SA_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-sa/4.0/)
 
-© 2023 [Maravento Studio](https://www.maravento.com)
-
 ## DISCLAIMER
 
 ---
