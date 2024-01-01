@@ -23,7 +23,7 @@ svn export "https://github.com/maravento/vault/trunk/uniopos"
 
 |File (mega)|File (pcloud)|OS|Size|
 | :---: | :---: | :---: |  :---: |
-| [uniOPOS.exe (.zip)](https://mega.nz/file/nANmFQoY#EthZC3AONY1a3EBfUY-ap1RVf7G7jvC5xI81beF2VlM) | [uniOPOS.exe (.zip)](https://u.pcloud.link/publink/show?code=0iP7) | Windows 7/8/10/11 x64 | 1.57 GB |
+| [uniOPOS.exe (.zip)](https://mega.nz/file/OZMiyKQR#nXuPs58BT4afyrQeYMO2fKn0Ez_AgLig-1zBmrqhyw4) | [uniOPOS.exe (.zip)](https://u.pcloud.link/publink/show?code=0iP7) | Windows 7/8/10/11 x64 | 1.57 GB |
 
 ### How to Use
 
@@ -172,7 +172,7 @@ upload_max_filesize = 256M
 #### Content of Install Pack
 
 - [uniCenta oPOS v4.6.4 (.exe)](https://sourceforge.net/projects/unicentaopos/)
-- [Wampserver v3.3.0 x64 - Update 3.3.2 (.exe)](https://wampserver.aviatechno.net/?lang=en) (included: Apache 2.4.54.2 - PHP 7.4.33/8.0.26/8.1.13/8.2.0 - MySQL 5.7.40|8.0.31 - MariaDB 10.10.2)
+- [Wampserver v3.3.0 x64 - Update 3.3.3 (.exe)](https://wampserver.aviatechno.net/?lang=en) (included: Apache 2.4.54.2 - PHP 7.4.33/8.0.26/8.1.13/8.2.0 - MySQL 5.7.40|8.0.31 - MariaDB 10.10.2)
 
 #### Important Before Use Install Pack
 
