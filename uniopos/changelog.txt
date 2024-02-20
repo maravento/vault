@@ -1,5 +1,11 @@
 ﻿## uniOPOS CHANGELOG
 
+2024.02.09
+Update: Visual C++ 2022 Redistributable - 14.38.33135 (Deps)
+Update: Visual Studio 2010 Tools for Office Runtime x64 - 10.0.60917 (Deps)
+Update: Oracle Java 8 Update 401 x86 x64 (Deps)
+Fixed: Bugs
+
 2024.01.01
 Update: Wampserver Update 3.3.3 x64 (Install Pack)
 
@@ -7,43 +13,43 @@ Update: Wampserver Update 3.3.3 x64 (Install Pack)
 Update: Uniform Server 15_0_2_ZeroXIV (UZero) with mysql v5.7.37 (Portable Pack)
 Update: Uniform Server Modules (Plugins): adminer v4.8.3, mysql_autoback v1.0.2, uniservice v2.5.2 (Portable Pack)
 Update: Wampserver Update 3.3.2 x64 (Install Pack)
-Update: Visual C++ 2022 Redistributable - 14.38.33130 (Global)
+Update: Visual C++ 2022 Redistributable - 14.38.33130 (Deps)
 
 2023.11.05
 Update: mysql-5.7.44-winx64 (no-install package .zip) (WebServer Pack)
 Update: HeidiSQL_12.6_64_Portable.zip (WebServer Pack)
 
 2023.10.17
-Update: Oracle Java 8 Update 391 x86 x64 (Global)
-Update: Visual C++ 2022 Redistributable - 14.38.33126 (Global)
+Update: Oracle Java 8 Update 391 x86 x64 (Deps)
+Update: Visual C++ 2022 Redistributable - 14.38.33126 (Deps)
 
 2023.08.23
-Update: Oracle Java 8 Update 381 x86 x64 (Global)
-Update: Microsoft Visual Studio 2010 Tools for Office Runtime x64 - 10.0.60910.0 (MSI 10.0.60915) (Global)
+Update: Oracle Java 8 Update 381 x86 x64 (Deps)
+Update: Microsoft Visual Studio 2010 Tools for Office Runtime x64 - 10.0.60910.0 (MSI 10.0.60915) (Deps)
 
 2023.07.26
 Update: mysql-5.7.44-winx64 (no-install package .zip) (WebServer Pack)
 
 2023.07.19
-Update: Microsoft Visual C++ 2022 Redistributable - v14.36.32532.0 (Global)
+Update: Microsoft Visual C++ 2022 Redistributable - v14.36.32532.0 (Deps)
 New: uniCenta-oPos-5.0-Migration-Guide.pdf
 Fixed: Bugs
 
 2023.05.12
-Update: Microsoft Visual C++ 2022 Redistributable - v14.36.32531.0 (Global)
+Update: Microsoft Visual C++ 2022 Redistributable - v14.36.32531.0 (Deps)
 Update: HeidiSQL_12.5_64_Portable.zip (WebServer Pack)
 
 2023.04.18
-Update: Microsoft Visual C++ 2022 Redistributable - v14.36.32522.0 (Global)
-Update: Oracle Java 8 Update 371 x86 x64 (Global)
+Update: Microsoft Visual C++ 2022 Redistributable - v14.36.32522.0 (Deps)
+Update: Oracle Java 8 Update 371 x86 x64 (Deps)
 Update: mysql-5.7.42-winx64 (no-install package .zip) (WebServer Pack)
 
 2023.03.12
-Update: Microsoft Visual C++ 2022 Redistributable - v14.36.32420.0 (Global)
+Update: Microsoft Visual C++ 2022 Redistributable - v14.36.32420.0 (Deps)
 Fixed: Changed 'my.ini' with parameter 'max_allowed_packet = 1024M' (Install and Portable Pack)
 
 2023.02.28
-Update: Microsoft Visual C++ 2022 Redistributable - 14.36.32323.0 (Global)
+Update: Microsoft Visual C++ 2022 Redistributable - 14.36.32323.0 (Deps)
 Update: HeidiSQL_12.4_64_Portable.zip (WebServer Pack)
 
 2023.02.06
@@ -51,7 +57,7 @@ Fixed: Bugs (Ubuntu scripts)
 
 2023.01.17
 Update: mysql-5.7.41-winx64 (no-install package .zip) (WebServer Pack)
-Update: Oracle Java 8.0.3610.9 x86 x64 (Global)
+Update: Oracle Java 8.0.3610.9 x86 x64 (Deps)
 
 2022.12.19
 Update: Uniform Server 15_0_1_ZeroXIV (UZero) (Portable Pack)
@@ -65,26 +71,26 @@ Update: Wampserver 3 x64 update 3.2.9 (Install Pack)
 Fixed: Bugs
 
 2022.11.17
-Update: Microsoft Visual C++ 2022 Redistributable - 14.34.31931.0 (Global)
+Update: Microsoft Visual C++ 2022 Redistributable - 14.34.31931.0 (Deps)
 Update: HeidiSQL_12.2_64_Portable.zip (WebServer Pack)
 
 2022.10.19
-Update: Oracle Java 8.0.3510.10 x86 x64 (Global)
+Update: Oracle Java 8.0.3510.10 x86 x64 (Deps)
 
 2022.10.13
-Update: Microsoft Visual C++ 2022 Redistributable - 14.34.31921.1 (Global)
+Update: Microsoft Visual C++ 2022 Redistributable - 14.34.31921.1 (Deps)
 Update: mysql-5.7.40-winx64 (no-install package .zip) (WebServer Pack)
 
 2022.10.03
 Update: Uniform Server 15_0_0_ZeroXIV (UZero) (Portable Pack)
-Update: Microsoft Visual C++ 2022 Redistributable - 14.34.31823.3 (Global)
+Update: Microsoft Visual C++ 2022 Redistributable - 14.34.31823.3 (Deps)
 
 2022.08.27
 New: VisualCppRedist_AIO_x86_x64_61 (check README)
 Fixed: Bugs
 
 2022.08.25
-New: Oracle Java 8.0.3410.10 x86 x64 (Global)
+New: Oracle Java 8.0.3410.10 x86 x64 (Deps)
 
 2022.08.18
 Update: HeidiSQL_12.1_64_Portable.zip (WebServer Pack)

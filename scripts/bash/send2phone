@@ -1,0 +1,51 @@
+#!/bin/bash
+# by maravento.com
+
+# Send files to phone with KDE Connect
+# Nautilus Path:  .config/nautilus/scripts
+# Caja Path:  .config/caja/scripts
+
+# Check kdeconnect-cli options
+# https://linuxcommandlibrary.com/man/kdeconnect-cli
+
+echo "Start KDE Connect Send. Wait..."
+
+# Check if kdeconnect-cli is installed
+if ! command -v kdeconnect-cli &> /dev/null; then
+    echo "kdeconnect-cli is not installed"
+    exit 1
+fi
+
+# Verify that at least one file was passed as an argument
+if (( $# == 0 )); then
+    echo "Usage: $0 file [file...]"
+    exit 1
+fi
+
+# Get list of kdeconnect devices
+devices="$(kdeconnect-cli -a)"
+
+# Check if devices are connected and accessible
+if [[ -z "$devices" ]]; then
+    echo "No connected or accessible kdeconnect devices found"
+    exit 1
+fi
+
+# Get the first available device
+phone_id="$(echo "$devices" | grep -oP '(\w+:\s[\w-]+)' | head -1 | awk '{print $2}')"
+
+# Iterate over the files and send them one by one
+for file in "$@"; do
+    base="$(basename -- "$file")"
+
+    # Try to send the file to the phone
+    if kdeconnect-cli --device "$phone_id" --share "$file"; then
+        echo "File sent: $base"
+    else
+        echo "Error sending file: $base"
+    fi
+
+    # Wait 2 seconds before continuing
+    sleep 2
+done
+echo Done

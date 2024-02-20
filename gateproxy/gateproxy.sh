@@ -705,7 +705,7 @@ chmod -R +x $scr/*
 # Choose your security level: "Secure Share Memory" (optional)
 #echo 'none /run/shm tmpfs defaults,ro 0 0' | tee -a /etc/fstab &> /dev/null
 # alternative
-#echo 'tmpfs /tmp tmpfs defaults,size=30%,nofail,noatime,mode=1777 0 0' | tee -a /etc/fstab &> /dev/null
+echo 'tmpfs /tmp tmpfs defaults,size=30%,nofail,noatime,mode=1777 0 0' | tee -a /etc/fstab &> /dev/null
 echo OK
 sleep 1
 
