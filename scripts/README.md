@@ -31,6 +31,7 @@ Tested on: / Probado en: Ubuntu 20.04/22.04 x64
 - [IP Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ipkill.sh)
 - [Kill Process By Name](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/pskill.sh)
 - [Kworker Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/kworker.sh)
+- [Limit processes with CPU Limit (start | stop | status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cpulimit.sh)
 - [Mass Unzip with Pass](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/massunzip.sh)
 - [Net Report](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/netreport.sh)
 - [phpVirtualBox (Install)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/phpvbox.sh)

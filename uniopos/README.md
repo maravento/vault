@@ -1,6 +1,6 @@
 # [UniOPOS](https://uniopos.com/)
 
-[![status-frozen](https://img.shields.io/badge/status-frozen-blue.svg)](https://github.com/maravento/vault)
+[![status-deprecated](https://img.shields.io/badge/status-deprecated-red.svg)](https://sourceforge.net/projects/unicentaopos/files/releases/)
 
 **uniOPOS** it is a preconfigured installation package of uniCenta OPOS for Points of Sales (POS/ERP Open Source)
 
