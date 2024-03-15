@@ -139,6 +139,8 @@ stop_script() {
             fusermount -uz "$service_path"
             # alternative
             #umount "$service_path" 2>/dev/null
+            # alternative 2
+            #for i in $(mount | grep rclone | cut -d' ' -f 3); do fusermount -z -u $i ; done
             rm -f "$lock_file"
             echo "$service_name unmounted"
         else

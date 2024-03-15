@@ -1,6 +1,6 @@
 # [Tracking & Telemetry](https://www.maravento.com)
 
-[![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento/vault)
+[![status-deprecated](https://img.shields.io/badge/status-deprecated-red.svg)](https://github.com/maravento/vault)
 
 **Tracking & Telemetry** is a block list of URLs related to Telemetry & Tracking
 
@@ -89,6 +89,12 @@ sed -r "s:^\.(.*):127.0.0.1 \1:g" telemetry.txt > telemetry_hosts.txt
 - [StevenBlack/hosts](https://raw.githubusercontent.com/StevenBlack/hosts/master/data/add.2o7Net/hosts)
 - [szotsaki/windows-telemetry-removal](https://raw.githubusercontent.com/szotsaki/windows-telemetry-removal/master/WindowsTelemetryRemoval.bat)
 - [W4RH4WK/Debloat-Windows-10](https://raw.githubusercontent.com/W4RH4WK/Debloat-Windows-10/master/scripts/block-telemetry.ps1)
+
+## EOL
+
+---
+
+This project has reached EOL (End of Life). No longer supported or updated / Este proyecto a alcanzado EOL (End of Life). Ya no cuenta con soporte o actualizaciones
 
 ## LICENSES
 

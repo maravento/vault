@@ -1,7 +1,11 @@
 #!/bin/bash
 # by maravento.com
 
-# Squid Log Audit: Regular Expressions Check
+# Squid Cache Log Audit: Regular Expressions Check
+
+# IMPORTANT BEFORE USE
+# Enable the debug_log directive in squid.conf with the following settings:
+# debug_options ALL,1 33,2 28,9
 
 echo "Squid Log Audit Start. Wait..."
 printf "\n"
@@ -35,7 +39,7 @@ fi
 echo "Squid Log Audit: Regular Expressions Check..."
 echo -e
 read -p "Enter the word and press ENTER (e.g.: video): " WORD
-perl -pe 's/[\d\.]+/localtime($&)/e' /var/log/squid/access.log | grep -i "clientAccessCheckDone" | grep -i --color -E "$WORD"
+perl -pe 's/[\d\.]+/localtime($&)/e' /var/log/squid/cache.log | grep -i "clientAccessCheckDone" | grep -i --color=always -E "$WORD"
 
 if [ $? -gt 0 ]; then
   echo "There are no records of: $WORD"

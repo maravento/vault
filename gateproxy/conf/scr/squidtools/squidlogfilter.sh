@@ -32,15 +32,15 @@ else
 fi
 
 ### SQUID FILTER
-read -p "Enter IP and press ENTER (e.g. 192.168.0.10): " IP
+read -p "Enter IP (e.g. 192.168.0.10) or leave empty and press ENTER: " IP
 read -p "Enter the word and press ENTER (e.g. google): " WORD
 
 IPNEW=$(echo "$IP" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
 
 if [ "$IPNEW" ]; then
-  perl -pe 's/[\d\.]+/localtime($&)/e' /var/log/squid/access.log | grep "$IPNEW" | grep -i --color -E "$WORD"
+  perl -pe 's/[\d\.]+/localtime($&)/e' /var/log/squid/access.log | grep --color=always "$IPNEW" | grep -i --color=always -E "$WORD"
 else
-  perl -pe 's/[\d\.]+/localtime($&)/e' /var/log/squid/access.log | grep -i --color -E "$WORD"
+  perl -pe 's/[\d\.]+/localtime($&)/e' /var/log/squid/access.log | grep -i --color=always -E "$WORD"
 fi
 
 if [ $? -gt 0 ]; then

@@ -456,6 +456,12 @@ Once you start uniCenta oPOS Beta v5.0.1, in the library you must replace the li
 - [Webmin (Optional)](https://www.webmin.com/)
 - [WinZenity](https://github.com/maravento/vault/tree/master/winzenity)
 
+## EOL
+
+---
+
+This project has reached EOL (End of Life). No longer supported or updated / Este proyecto a alcanzado EOL (End of Life). Ya no cuenta con soporte o actualizaciones
+
 ## LICENSES
 
 ---

@@ -1,6 +1,6 @@
 # [Dextroyer](https://www.maravento.com/p/dxt.html)
 
-[![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento/vault)
+[![status-deprecated](https://img.shields.io/badge/status-deprecated-red.svg)](https://www.maravento.com/p/dxt.html)
 
 Dextroyer (dxt) is an experimental package of security scripts for Windows. Contains highly destructive tools, classified as malware by some antivirus and security solutions ([VirusTotal report](https://www.virustotal.com/en/file/63c60e798a5738e10cb6fda1975c360d9889b4c437c2c04bd20ec967926c9b7e/analysis/1551278322/)), and can harm your system if used incorrectly. Therefore, use it at your own risk.
 
@@ -208,6 +208,12 @@ Si aparece como "Disco Extraíble", Windows lo detectó correctamente y el selec
 - [TCC Jpsoft](https://jpsoft.com/products/tcc-cmd-prompt.html)
 - [unzip mkssoftware](https://www.mkssoftware.com/docs/man1/unzip.1.asp)
 - [WinZenity](https://github.com/maravento/vault/tree/master/winzenity)
+
+## EOL
+
+---
+
+This project has reached EOL (End of Life). No longer supported or updated / Este proyecto a alcanzado EOL (End of Life). Ya no cuenta con soporte o actualizaciones
 
 ## LICENSES
 
