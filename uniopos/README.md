@@ -23,7 +23,13 @@ svn export "https://github.com/maravento/vault/trunk/uniopos"
 
 |File|OS|Size|
 | :---: | :---: | :---: |
-| [uniOPOS.exe (.zip)](https://mega.nz/file/fcMgWCaS#wa4FzjMlo_pV8cRd88Qznjc7u1oUXZNHVg4anx9SEL8) | Windows 7/8/10/11 x64 | 1.57 GB |
+| [uniOPOS.exe (.zip)](https://mega.nz/file/fQN1mTII#6zMM_zXqpoXmd3KJ_OLITdxeRAseR7Tm3ICAHOTnh18) | Windows 7/8/10/11 x64 | 1.57 GB |
+
+### Important About uniOPOS
+
+This project has become deprecated, due to uniCenta oPOS 5x. For more information: / Este proyecto ha quedado obsoleto, debido a uniCenta oPOS 5x. Para mayor información:
+
+- [uniCenta-oPos-5.0-Migration-Guide.pdf](https://raw.githubusercontent.com/maravento/vault/master/uniopos/resources/docs/uniCenta-oPos-5.0-Migration-Guide.pdf)
 
 ### How to Use
 
@@ -66,8 +72,7 @@ At the end of the installation of each package the following message will appear
   Microsoft Visual C++ 2010 Redistributable x86 x64 - 10.0.40219
   Microsoft Visual C++ 2012 Redistributable x86 x64 (Additional and Minimum Runtime) - 11.0.61135
   Microsoft Visual C++ 2013 Redistributable x86 x64 (Additional and Minimum Runtime) - 12.0.40664
-  Microsoft Visual C++ 2022 Redistributable x86 x64 (Additional and Minimum Runtime) - 14.38.33135
-  Microsoft Visual Studio 2010 Tools for Office Runtime x64 - 10.0.60917
+  Microsoft Visual C++ 2022 Redistributable x86 x64 (Additional and Minimum Runtime) - 14.40.33721.2
   ```
 
 <div align="center">
@@ -77,12 +82,6 @@ At the end of the installation of each package the following message will appear
 #### About Backup
 
 - If you have previous versions of uniOPOS (or some of its components: uniCenta oPOS (`unicentaopos.properties`), MySQL Server (DBs & config), etc.) installed on your system, it is highly recommended that you remove or stop the related services. uniOPOS can also remove previous versions of its components, so Backup before using it / Si tiene versiones previas de uniOPOS (o de algunos de sus componentes: uniCenta oPOS (`unicentaopos.properties`), MySQL Server (DBs & config), etc), instaladas en su sistema, se recomenda encarecidamente que las elimine o detenga los servicios relacionados. uniOPOS también puede eliminar versiones previas de sus componentes, por tanto haga Backup antes de usarlo
-
-#### About uniCenta oPOS Upgrade
-
-UniOPOS install uniCenta oPOS v4.6.4. To update to uniCenta oPOS v5x: / UniOPOS instala uniCenta oPOS v4.6.4. Para actualizar a uniCenta oPOS v5x:
-
-- [uniCenta-oPos-5.0-Migration-Guide.pdf](https://raw.githubusercontent.com/maravento/vault/master/uniopos/resources/docs/uniCenta-oPos-5.0-Migration-Guide.pdf)
 
 #### About DB
 
@@ -172,7 +171,7 @@ upload_max_filesize = 256M
 #### Content of Install Pack
 
 - [uniCenta oPOS v4.6.4 (.exe)](https://sourceforge.net/projects/unicentaopos/)
-- [Wampserver v3.3.0 x64 - Update 3.3.3 (.exe)](https://wampserver.aviatechno.net/?lang=en) (included: Apache 2.4.54.2 - PHP 7.4.33/8.0.26/8.1.13/8.2.0 - MySQL 5.7.40|8.0.31 - MariaDB 10.10.2)
+- [Wampserver v3.3.0 x64 - Update 3.3.4 (.exe)](https://wampserver.aviatechno.net/?lang=en) (included: Apache 2.4.54.2 - PHP 7.4.33/8.0.26/8.1.13/8.2.0 - MySQL 5.7.40|8.0.31 - MariaDB 10.10.2)
 
 #### Important Before Use Install Pack
 

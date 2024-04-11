@@ -16,7 +16,7 @@
 
 ---
 
-### To download all repositories: / Para descargar todos los repositorios:
+### To download all repositories: / Para descargar todos los repositorios
 
 ```bash
 git clone --depth=1 https://github.com/maravento/vault.git
@@ -84,7 +84,7 @@ Special thanks to: [Jhonatan Sneider](https://github.com/sney2002)
 
 ---
 
-BTC: 3M84UKpz8AwwPADiYGQjT9spPKCvbqm4Bc
+[![Image](https://raw.githubusercontent.com/maravento/winexternal/master/img/maravento-paypal.png)](https://paypal.me/maravento)
 
 ## LICENSES
 

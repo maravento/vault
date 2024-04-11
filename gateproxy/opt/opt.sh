@@ -101,7 +101,7 @@ while true; do
         # kvm
         nala install -y barrier
         # edit
-        nala install -y gnome-text-editor vim
+        nala install -y vim notepadqq
         # terminal
         nala install -y tilix
         fixbroken
