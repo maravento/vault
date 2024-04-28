@@ -6,15 +6,6 @@
 
 **BlackUSB** es un script experimental, que previene el robo de datos personales, malware, herramientas forenses, BadUSB (USB Rubber Ducky), etc. Genera una lista blanca de dispositivos usb/hid y bloquea cualquier otra inserción no autorizada de dispositivos desconocidos, usando reglas udev
 
-## GIT CLONE
-
----
-
-```bash
-sudo apt install -y git subversion
-svn export "https://github.com/maravento/vault/trunk/blackusb"
-```
-
 ## FOR LINUX OS
 
 ---

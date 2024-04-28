@@ -6,15 +6,6 @@
 
 **Trek** es una herramienta de rescate de bases de datos SQL. Se usa cuando hay daños en el software, que impiden exportarlas por métodos tradicionales.
 
-## GIT CLONE
-
----
-
-```bash
-sudo apt install -y git subversion
-svn export "https://github.com/maravento/vault/trunk/trek"
-```
-
 ## DATA SHEET
 
 ---

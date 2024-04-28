@@ -6,15 +6,6 @@
 
 [**WinZenity** (Zen Dialogs for Windows)](https://es.wikipedia.org/wiki/Zenity) es un software que permite generar diálogos simples a manera de wrapper e ideado como sustituto de gdialog para GNOME y dialog en consola. Utiliza las bibliotecas GTK + y GLADE. Esta versión fue portada para ejecutarse en Sistemas Windows
 
-## GIT CLONE
-
----
-
-```bash
-sudo apt install -y git subversion
-svn export "https://github.com/maravento/vault/trunk/winzenity"
-```
-
 ## DATA SHEET
 
 ---

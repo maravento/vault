@@ -21,7 +21,7 @@ if pidof -x $(basename $0) >/dev/null; then
 fi
 
 # check dependencies
-pkg='wget git tar apache2 squid subversion libnotify-bin php php-cli libapache2-mod-php'
+pkg='wget git tar apache2 squid libnotify-bin php php-cli libapache2-mod-php python-is-python3'
 if apt-get -qq install $pkg; then
     true
 else
@@ -29,9 +29,16 @@ else
     exit
 fi
 
+### VARIABLES
+sq=$(pwd)/sqstat
+
+echo "Sqstat install..."
+
 # download
-svn export "https://github.com/maravento/vault/trunk/sqstat" >/dev/null 2>&1
-cd sqstat
+wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+chmod +x gitfolderdl.py
+python gitfolderdl.py https://github.com/maravento/vault/sqstat
+cd $sq || exit
 
 # install
 tar -xf sqstat-1.20.tar.gz

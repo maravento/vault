@@ -6,13 +6,15 @@
 
 **Gateproxy** es un sencillo servidor proxy/firewall para administrar redes Pyme's [LAN](https://es.wikipedia.org/wiki/Red_de_%C3%A1rea_local). El script de instalación y configuración es totalmente automatizado y personalizable, de acuerdo a las necesidades del administrador u organización, con una interacción mínima durante proceso. Puede ser implementado en servidores físicos o VMs, para mayor flexibilidad y portabilidad.
 
-## GIT CLONE
+## DOWNLOAD PROJECT
 
 ---
 
 ```bash
-sudo apt install -y git subversion
-svn export "https://github.com/maravento/vault/trunk/gateproxy"
+sudo apt install -y python-is-python3
+wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+chmod +x gitfolderdl.py
+python gitfolderdl.py https://github.com/maravento/vault/gateproxy
 ```
 
 ## DATA SHEET

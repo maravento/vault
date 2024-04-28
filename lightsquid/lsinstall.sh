@@ -20,7 +20,7 @@ if pidof -x $(basename $0) >/dev/null; then
 fi
 
 # check dependencies
-pkg='wget git tar squid apache2 ipset subversion libnotify-bin nbtscan libcgi-session-perl libgd-gd2-perl'
+pkg='wget git tar squid apache2 ipset libnotify-bin nbtscan libcgi-session-perl libgd-gd2-perl python-is-python3'
 if apt-get -qq install $pkg; then
   true
 else
@@ -28,10 +28,17 @@ else
   exit
 fi
 
+### VARIABLES
+ls=$(pwd)/lightsquid
+scr=/etc/scr
+if [ ! -d $scr ]; then mkdir -p $scr; fi &>/dev/null
+
 echo "Lightsquid install..."
 
-svn export "https://github.com/maravento/vault/trunk/lightsquid" >/dev/null 2>&1
-cd lightsquid
+wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+chmod +x gitfolderdl.py
+python gitfolderdl.py https://github.com/maravento/vault/lightsquid
+cd $ls || exit
 tar -xf lightsquid-1.8.1.tar.gz
 mkdir -p /var/www/lightsquid
 cp -f -R lightsquid-1.8.1/* /var/www/lightsquid/
@@ -51,8 +58,8 @@ echo "Your net interfaces are:"
 ip -o link | awk '$2 != "lo:" {print $2, $(NF-2)}' | sed 's_: _ _'
 read -p "Enter LAN Net Interface. E.g: enpXsX): " LAN
 sed -i "s/eth1/$LAN/g" bandata.sh
-cp -f bandata.sh /etc/init.d/bandata.sh
-chmod +x /etc/init.d/bandata.sh
+cp -f bandata.sh $scr/bandata.sh
+chmod +x $scr/bandata.sh
 
 # crontab
 crontab -l | {
@@ -61,7 +68,7 @@ crontab -l | {
 } | crontab -
 crontab -l | {
   cat
-  echo "*/12 * * * * /etc/init.d/bandata.sh"
+  echo "*/12 * * * * /etc/scr/bandata.sh"
 } | crontab -
 
 # end

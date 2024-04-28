@@ -6,13 +6,15 @@
 
 **SqStat** es un script que permite verificar las conexiones activas de los usuarios. Utiliza el protocolo cachemgr para obtener información de [Squid Proxy Server](https://www.squid-cache.org/).
 
-## GIT CLONE
+## DOWNLOAD PROJECT
 
 ---
 
 ```bash
-sudo apt install -y git subversion
-svn export "https://github.com/maravento/vault/trunk/sqstat"
+sudo apt install -y python-is-python3
+wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+chmod +x gitfolderdl.py
+python gitfolderdl.py https://github.com/maravento/vault/sqstat
 ```
 
 ## DATA SHEET

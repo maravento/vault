@@ -6,13 +6,15 @@
 
 **BandwidthD** rastrea el uso de subredes de red TCP/IP y crea archivos html con gráficos para mostrar la utilización. Los gráficos se crean por IP individuales y, de forma predeterminada, muestran la utilización en períodos de 2 días, 8 días, 40 días y 400 días. Además, la utilización de cada dirección IP puede cerrarse sesión a intervalos de 3,3 minutos, 10 minutos, 1 hora o 12 horas en formato cdf, o en un servidor de base de datos back-end. El tráfico HTTP, TCP, UDP, ICMP, VPN y P2P está codificado por colores.
 
-## GIT CLONE
+## DOWNLOAD PROJECT
 
 ---
 
 ```bash
-sudo apt install -y git subversion
-svn export "https://github.com/maravento/vault/trunk/bandwidthd"
+sudo apt install -y python-is-python3
+wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+chmod +x gitfolderdl.py
+python gitfolderdl.py https://github.com/maravento/vault/bandwidthd
 ```
 
 ## DATA SHEET

@@ -6,15 +6,6 @@
 
 **uniOPOS** es un paquete de instalación preconfigurado de uniCenta OPOS para Puntos de Ventas (POS/ERP Open Source)
 
-## GIT CLONE
-
----
-
-```bash
-sudo apt install -y git subversion
-svn export "https://github.com/maravento/vault/trunk/uniopos"
-```
-
 ## UNIOPOS FOR WINDOWS
 
 ---

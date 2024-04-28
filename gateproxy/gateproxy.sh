@@ -24,7 +24,7 @@ if pidof -x $(basename $0) >/dev/null; then
 fi
 
 # checking dependencies (optional)
-pkg='nala curl software-properties-common apt-transport-https aptitude net-tools mlocate plocate git git-gui gitk subversion gist expect tcl-expect libnotify-bin'
+pkg='nala curl software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 p7zip-full p7zip-rar rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar python-is-python3'
 if apt-get -qq install $pkg; then
     echo "OK"
 else
@@ -68,10 +68,10 @@ clear
 echo -e "\n"
 echo "${lang_01[${en}]}"
 function is_ubuntu() {
-    #is_uversion=$(lsb_release -sc | grep -P 'focal|jammy') # optional
-    is_uversion=$(lsb_release -sc | grep 'jammy')
+    is_uversion=$(lsb_release -sc | grep -P 'noble|jammy') # optional
+    #is_uversion=$(lsb_release -sc | grep 'jammy')
     if [ "$is_uversion" ]; then
-        echo "OK. Ubuntu 22.04.x"
+        echo "OK. Ubuntu 24.04.x | 22.04.x"
         #if [ "$(lsb_release -sc | grep 'focal')" ]; then for i in universe multiverse restricted; do add-apt-repository -y $i; done; fi # optional (for 20.04)
     else
         echo "${lang_02[${en}]}"
@@ -174,7 +174,9 @@ echo "${lang_09[${en}]}"
 ### GATEPROXY GIT
 echo -e "\n"
 if [ -d $gp ]; then rm -rf $gp; fi &>/dev/null
-svn export "https://github.com/maravento/vault/trunk/gateproxy" >/dev/null 2>&1
+wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+chmod +x gitfolderdl.py
+python gitfolderdl.py https://github.com/maravento/vault/gateproxy
 
 ### CONFIG
 clear
@@ -224,7 +226,7 @@ echo -e "\n"
 echo "    ${lang_14[${en}]}"
 echo -e "\n"
 echo "    ${lang_15[${en}]}"
-echo "    GNU/Linux:    Ubuntu 22.04.x x64"
+echo "    GNU/Linux:    Ubuntu 24.04.x | 22.04.x x64"
 echo "    Processor:    Up to Intel 1x GHz"
 echo "    Interfaces:   Public and Local"
 echo "    RAM:          4 GB reserved for Squid-Cache"
@@ -414,10 +416,8 @@ function essential_setup() {
     # Disk Tools
     nala install -y gparted libfuse2 nfs-common ntfs-3g exfat-fuse gsmartcontrol qdirstat libguestfs-tools gvfs-fuse
     nala install -y --no-install-recommends smartmontools
-    # compression
-    nala install -y p7zip-full p7zip-rar rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar
     # system tools
-    nala install -y gawk gir1.2-gtop-2.0 gir1.2-xapp-1.0 javascript-common libjs-jquery libxapp1 rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit rubygems-integration xapps-common python3-pip libssl-dev libffi-dev python3-dev python3-venv idle3 python3-psutil gtkhash moreutils renameutils libpam0g-dev dh-autoreconf rename wmctrl dos2unix i2c-tools bind9-dnsutils geoip-database neofetch ppa-purge gdebi synaptic pm-utils sharutils wget dpkg pv inotify-tools tree preload xsltproc debconf-utils mokutil uuid-dev libmnl-dev conntrack cpu-x gcc make autoconf autoconf-archive autogen automake pkg-config deborphan perl lsof finger logrotate linux-firmware util-linux linux-tools-common build-essential module-assistant linux-headers-$(uname -r)
+    nala install -y dmidecode gawk gir1.2-gtop-2.0 javascript-common libjs-jquery rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit rubygems-integration python3-pip libssl-dev libffi-dev python3-dev python3-venv idle3 python3-psutil gtkhash moreutils renameutils libpam0g-dev dh-autoreconf rename wmctrl dos2unix i2c-tools bind9-dnsutils geoip-database neofetch ppa-purge gdebi synaptic pm-utils sharutils wget dpkg pv inotify-tools tree preload xsltproc debconf-utils mokutil uuid-dev libmnl-dev conntrack cpu-x autoconf autoconf-archive autogen automake pkg-config deborphan lsof finger logrotate linux-firmware util-linux linux-tools-common build-essential module-assistant linux-headers-$(uname -r)
     # mesa (if there any problems, install the package: libegl-mesa0)
     nala install -y mesa-utils
     # file tools
@@ -498,10 +498,9 @@ function gateproxy_setup() {
     sed -i '/ExecStart=\/usr\/bin\/glances -s -B 127.0.0.1/c\ExecStart=\/usr\/bin\/glances -w -B 127.0.0.1 -t 10' /usr/lib/systemd/system/glances.service
     systemctl daemon-reload
     echo "Glances Access: http://127.0.0.1:61208"
-    # Net Tools: nbtscan, nmap, wireless-tools
-    nala install -y nbtscan nmap python3-nmap wireless-tools
-    # Net Traffic: sniffnet
-    nala install -y libpcap-dev libasound2-dev libfontconfig1
+    # Net Tools: nbtscan, nmap, wireless-tools sniffnet, etc
+    nala install -y libpcap-dev libasound2-dev libfontconfig1 clang
+    nala install -y nbtscan nmap python3-nmap ndiff wireless-tools ncat nast netdiscover traceroute arp-scan masscan grepcidr fping mtr-tiny ethtool
     lastsniffnet=$(curl -s https://api.github.com/repos/GyulyVGC/sniffnet/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
     wget -c https://github.com/GyulyVGC/sniffnet/releases/download/v${lastsniffnet}/sniffnet.deb
     dpkg -i sniffnet.deb

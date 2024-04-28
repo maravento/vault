@@ -4,13 +4,15 @@
 
 Script Repository / Repositorio de Scripts
 
-## GIT CLONE
+## DOWNLOAD PROJECT
 
 ---
 
 ```bash
-sudo apt install -y git subversion
-svn export "https://github.com/maravento/vault/trunk/scripts"
+sudo apt install -y python-is-python3
+wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+chmod +x gitfolderdl.py
+python gitfolderdl.py https://github.com/maravento/vault/scripts
 ```
 
 ## HOW TO USE
@@ -39,6 +41,7 @@ Tested on: / Probado en: Ubuntu 20.04/22.04 x64
 - [Port Kill (check port with: `sudo netstat -lnp | grep "port"`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/portkill.sh)
 - [Rclone Cloud (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Mount | Umount (start | stop | restart | status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rcloud.sh)
 - [Rclone Sync (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Sync to Download | Upload Folder](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rsync.sh)
+- [System Migration Tool](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/appbr.sh)
 - [TRIM for SSD/NVMe](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/trim.sh)
 - [Virtual Hard Disk VHD image (.img) - loop or kpartx - Create | Mount | Umount](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vdisk.sh)
 - [VirtualBox - Install | Remove](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vboxinstall.sh)
@@ -55,6 +58,12 @@ Tested on: / Probado en: Windows 7/10/11 x64
 - [Safe Boot - Modes: Safe with Network | Safe Minimal | Normal](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/safeboot.bat)
 - [SMB signing - Activate | Deactivate](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/smbsign.bat)
 - [SMB1 protocol - Activate | Deactivate](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/smb1.bat)
+
+### Python (Linux)
+
+Tested on: / Probado en: Ubuntu 20.04/22.04/24.04
+
+- [Git Folder Download - Replaces Subversion (svn) EOS/EOL on GitHub/GitLab](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py)
 
 ### VBScript (Windows)
 

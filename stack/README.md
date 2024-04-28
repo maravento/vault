@@ -4,13 +4,15 @@
 
 **Stack** contains stack installation package for linux / **Stack** contiene paquete de instalación stack para Linux
 
-## GIT CLONE
+## DOWNLOAD PROJECT
 
 ---
 
 ```bash
-sudo apt install -y git subversion
-svn export "https://github.com/maravento/vault/trunk/stack"
+sudo apt install -y python-is-python3
+wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+chmod +x gitfolderdl.py
+python gitfolderdl.py https://github.com/maravento/vault/stack
 ```
 
 ## HOW TO USE

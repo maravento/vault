@@ -8,15 +8,6 @@ Dextroyer (dxt) es un paquete experimental de scripts de seguridad para Windows.
 
 ![Dextroyer](https://raw.githubusercontent.com/maravento/vault/master/dextroyer/img/dextroyer.png)
 
-## GIT CLONE
-
----
-
-```bash
-sudo apt install -y git subversion
-svn export "https://github.com/maravento/vault/trunk/dextroyer"
-```
-
 ## DATA SHEET
 
 ---

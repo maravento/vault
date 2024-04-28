@@ -20,7 +20,7 @@ if pidof -x $(basename $0) >/dev/null; then
 fi
 
 # check dependencies
-pkg='wget git tar apache2 ipset subversion libnotify-bin libcgi-session-perl libgd-gd2-perl'
+pkg='wget git tar apache2 ipset libnotify-bin libcgi-session-perl libgd-gd2-perl python-is-python3'
 if apt-get -qq install $pkg; then
   true
 else
@@ -28,11 +28,18 @@ else
   exit
 fi
 
+### VARIABLES
+bwd=$(pwd)/bandwidthd
+scr=/etc/scr
+if [ ! -d $scr ]; then mkdir -p $scr; fi &>/dev/null
+
 echo "BandwidthD install..."
 
 # download
-svn export "https://github.com/maravento/vault/trunk/bandwidthd" >/dev/null 2>&1
-cd bandwidthd || exit
+wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+chmod +x gitfolderdl.py
+python gitfolderdl.py https://github.com/maravento/vault/bandwidthd
+cd $bwd || exit
 
 # install
 apt -y purge bandwidthd* &>/dev/null
@@ -58,8 +65,8 @@ echo "Your net interfaces are:"
 ip -o link | awk '$2 != "lo:" {print $2, $(NF-2)}' | sed 's_: _ _'
 read -p "Enter LAN Net Interface. E.g: enpXsX): " LAN
 sed -i "s/eth1/$LAN/g" bwbandata.sh
-cp -f bw_bandata.sh /etc/init.d/bwbandata.sh
-chmod +x /etc/init.d/bwbandata.sh
+cp -f bw_bandata.sh $scr/bwbandata.sh
+chmod +x $scr/bwbandata.sh
 
 # apache port
 sed -i '/Listen 80/a Listen 41000' /etc/apache2/ports.conf
@@ -84,7 +91,7 @@ crontab -l | {
 } | crontab -
 crontab -l | {
   cat
-  echo '*/15 * * * * /etc/init.d/bwbandata.sh'
+  echo '*/15 * * * * /etc/scr/bwbandata.sh'
 } | crontab -
 
 # End

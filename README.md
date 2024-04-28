@@ -19,6 +19,7 @@
 ### To download all repositories: / Para descargar todos los repositorios
 
 ```bash
+apt install git
 git clone --depth=1 https://github.com/maravento/vault.git
 ```
 
@@ -27,9 +28,11 @@ git clone --depth=1 https://github.com/maravento/vault.git
 - **Ubuntu/Debian:**
 
   ```bash
-  sudo apt install git subversion
-  # Replace "project" with the name of repository
-  svn export "https://github.com/maravento/vault/trunk/project"`
+  sudo apt install -y python-is-python3
+  wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+  chmod +x gitfolderdl.py
+  # Now Replace "project_name" with the name of repository
+  python gitfolderdl.py https://github.com/maravento/vault/project_name
   ```
 
 - **Windows:**

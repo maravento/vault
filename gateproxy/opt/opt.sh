@@ -89,11 +89,11 @@ while true; do
         apt-add-repository -y ppa:yannubuntu/boot-repair &>/dev/null
         nala install -y boot-repair
         # pc tools
-        nala install -y thunar isomaster tasksel fd-find colordiff bat
+        nala install -y thunar fd-find colordiff bat
         # browsers
         nala install -y lynx
         # hardware info
-        nala install -y inxi hardinfo cpufrequtils cpuid i7z dmidecode
+        nala install -y inxi hardinfo cpufrequtils cpuid i7z
         # disk
         nala install -y qdirstat meld ncdu gnome-disk-utility testdisk gdisk kpartx guymager bindfs fdupes udisks2-btrfs
         # usb
@@ -123,11 +123,10 @@ while true; do
         dpkg -i bleachbit.deb
         fixbroken
         # mintstick
-        nala install -y python3-parted python-parted-doc gir1.2-udisks-2.0 xapp exfatprogs
+        nala install -y python3-parted python-parted-doc gir1.2-udisks-2.0 exfatprogs xapps-common libxapp1 gir1.2-xapp-1.0 genisoimage python3-gnupg
         lastmintstick=$(wget -O - http://packages.linuxmint.com/pool/main/m/mintstick/ | grep -Po 'href=".*?"' | sed -r 's:href\="(.*)":\1:' | grep ".deb" | sort | tail -1)
         echo $lastmintstick
         wget -q --show-progress -c http://packages.linuxmint.com/pool/main/m/mintstick/"$lastmintstick" -O mintstick.deb
-        nala install -y genisoimage python3-gnupg gir1.2-xapp-1.0
         dpkg -i mintstick.deb
         fixbroken
         # cryptomator
@@ -149,8 +148,10 @@ while true; do
         chmod +x $gp/opt/pkg/netdata.sh
         $gp/opt/pkg/netdata.sh >>/etc/scr/servicesload.sh
         echo "Netdata Access: http://localhost:19999/"
-        # net tools
-        nala install -y ndiff arp-scan ncat cutter ethtool fping hping3 nast netdiscover putty traceroute mtr-tiny dirb wavemon netcat masscan nikto grepcidr
+        # extra net tools
+        nala install -y hping3 putty dirb wavemon nikto
+        # Reverse Engineering
+        #nala install -y cutter
         echo "masscan --ports 0-65535 192.168.0.0/16"
         fixbroken
         # security
