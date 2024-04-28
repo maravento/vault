@@ -11,20 +11,20 @@ def download_folder_from_github(repo_owner, repo_name, folder_path, output_dir):
     # Make a GET request to the GitHub API to retrieve the contents of the folder
     url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{folder_path}"
     response = requests.get(url)
-    print(url)
+
     # Check if the request was successful
     if response.status_code == 200:
         contents = response.json()
 
         if isinstance(contents, dict) and contents.get("type") == "file":
-            download_item(contents)
+            download_item(contents, output_dir)
             return
 
         # Iterate over the contents of the folder
         for item in contents:
             if item["type"] == "file":
                 # Download the file
-                download_item(item)
+                download_item(item, output_dir)
             elif item["type"] == "dir":
                 # Recursively download subfolders
                 subfolder_path = folder_path + '/' + item["name"]
@@ -33,7 +33,7 @@ def download_folder_from_github(repo_owner, repo_name, folder_path, output_dir):
     else:
         print(f"Failed to retrieve folder contents: {url}")
 
-def download_item(item):
+def download_item(item, output_dir):
     file_url = item["download_url"]
     file_path = os.path.join(output_dir, item["name"])
     response = requests.get(file_url)
@@ -65,6 +65,10 @@ if __name__ == "__main__":
         folder_path = "/".join(path_parts[3:])
         output_dir = path_parts[3]
 
-    print([repo_owner, repo_name, folder_path, output_dir])
+    print(f"""
+          Owner: {repo_owner}
+          Repository: {repo_name}
+          Directory: {folder_path}
+    """)
 
     download_folder_from_github(repo_owner, repo_name, folder_path, output_dir)

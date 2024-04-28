@@ -133,6 +133,11 @@ while true; do
         add-apt-repository -y ppa:sebastian-stenzel/cryptomator &>/dev/null
         nala install -y cryptomator
         # monitors
+        lastsniffnet=$(curl -s https://api.github.com/repos/GyulyVGC/sniffnet/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+        wget -c https://github.com/GyulyVGC/sniffnet/releases/download/v${lastsniffnet}/Sniffnet_LinuxDEB_amd64.deb
+        dpkg -i Sniffnet_LinuxDEB_amd64.deb
+        setcap 'cap_net_raw,cap_net_admin=eip' /usr/bin/sniffnet
+        sed -i -e 's/^Exec=sudo \/usr\/bin\/sniffnet$/Exec=\/usr\/bin\/sniffnet/' -e 's/^Terminal=true$/Terminal=false/' /usr/share/applications/sniffnet.desktop
         nala install -y vnstat vnstati iftop nload nethogs bmon cbm iperf3 hwinfo powertop libiperf0 calamaris sysstat bpytop iptraf-ng
         # htop + HTML-Code
         nala install -y aha htop

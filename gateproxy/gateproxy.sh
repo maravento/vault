@@ -498,14 +498,9 @@ function gateproxy_setup() {
     sed -i '/ExecStart=\/usr\/bin\/glances -s -B 127.0.0.1/c\ExecStart=\/usr\/bin\/glances -w -B 127.0.0.1 -t 10' /usr/lib/systemd/system/glances.service
     systemctl daemon-reload
     echo "Glances Access: http://127.0.0.1:61208"
-    # Net Tools: nbtscan, nmap, wireless-tools sniffnet, etc
+    # Net Tools: nbtscan, nmap, wireless-tools, etc
     nala install -y libpcap-dev libasound2-dev libfontconfig1 clang
     nala install -y nbtscan nmap python3-nmap ndiff wireless-tools ncat nast netdiscover traceroute arp-scan masscan grepcidr fping mtr-tiny ethtool
-    lastsniffnet=$(curl -s https://api.github.com/repos/GyulyVGC/sniffnet/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
-    wget -c https://github.com/GyulyVGC/sniffnet/releases/download/v${lastsniffnet}/sniffnet.deb
-    dpkg -i sniffnet.deb
-    setcap 'cap_net_raw,cap_net_admin=eip' /usr/bin/sniffnet
-    sed -i -e 's/^Exec=sudo \/usr\/bin\/sniffnet$/Exec=\/usr\/bin\/sniffnet/' -e 's/^Terminal=true$/Terminal=false/' /usr/share/applications/sniffnet.desktop
     # Monitor: lightsquid
     nala install -y libcgi-session-perl libgd-gd2-perl
     tar -xf $gp/conf/monitor/lightsquid-1.8.1.tar.gz
