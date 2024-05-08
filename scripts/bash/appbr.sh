@@ -41,7 +41,7 @@ OUTFILE=/home/$local_user/BackupAppstar.tar.gz
 
 # backup
 backup() {
-    echo "Backup Start. Wait…"
+    echo "Backup Start. Wait.."
     # Save the list of installed packages
     dpkg --get-selections > $BACKUP_DIR/package.list
     # Save package sources and PPA repositories
@@ -56,7 +56,7 @@ backup() {
 
 # restore
 restore() {
-    echo "Restore Start. Wait…"
+    echo "Restore Start. Wait.."
     # uncompress tar.gz
     cat $OUTFILE | tar xzf -
     # Restore package sources, keys, and PPA repositories

@@ -673,6 +673,8 @@ echo "Downloading ACLs..."
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O $aclroute/allowip.txt
 # Block TLDs
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O $aclroute/blocktlds.txt
+# Block words
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blockwords.txt -O $aclroute/blockwords.txt
 # Blackweb
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/blackweb.tar.gz
 cat blackweb.tar.gz* | tar xzf -
