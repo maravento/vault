@@ -465,17 +465,23 @@ function gateproxy_setup() {
     service squid stop &>/dev/null
     systemctl stop squid.service &>/dev/null
     nala purge -y squid* &>/dev/null
-    rm -rf /var/spool/squid/* /var/log/squid/* /etc/squid3 /dev/shm/* &>/dev/null
-    nala install -y squid squid-langpack
+    rm -rf /var/spool/squid* /var/log/squid* /etc/squid* /dev/shm/* &>/dev/null
+    #DEBIAN_FRONTEND=noninteractive nala install -y --no-install-recommends squid-openssl
+    nala install -y squid-openssl squid-langpack squid-common squidclient squid-purge
     fixbroken
     killall -s SIGTERM squid &>/dev/null
     if [ ! -d /var/log/squid ]; then mkdir -p /var/log/squid; fi &>/dev/null
     if [[ ! -f /var/log/squid/{access,cache,store,deny}.log ]]; then touch /var/log/squid/{access,cache,store,deny}.log; fi &>/dev/null
     chown -R proxy:proxy /var/log/squid
+    # Let’s Encrypt certificate for client to Squid proxy encryption
+    nala install -y certbot
     # Web Admin: webmin
-    wget -c http://www.webmin.com/jcameron-key.asc -O- | gpg --no-default-keyring --keyring gnupg-ring:/etc/apt/trusted.gpg.d/ubuntu-webmin.gpg --import
-    chmod 644 /etc/apt/trusted.gpg.d/ubuntu-webmin.gpg
-    add-apt-repository -y "deb [arch=amd64] https://download.webmin.com/download/repository sarge contrib" &>/dev/null
+    #wget -c http://www.webmin.com/jcameron-key.asc -O- | gpg --no-default-keyring --keyring gnupg-ring:/etc/apt/trusted.gpg.d/ubuntu-webmin.gpg --import
+    #chmod 644 /etc/apt/trusted.gpg.d/ubuntu-webmin.gpg
+    #add-apt-repository -y "deb [arch=amd64] https://download.webmin.com/download/repository sarge contrib" &>/dev/null
+    curl -o setup-repos.sh https://raw.githubusercontent.com/webmin/webmin/master/setup-repos.sh
+    chmod +x setup-repos.sh
+    echo "y" | ./setup-repos.sh
     cleanupgrade
     nala install -y webmin
     fixbroken
@@ -598,8 +604,8 @@ fixbroken
 clear
 echo -e "\n"
 while true; do
-    read -p "${lang_21[${en}]} Samba?
-    ${lang_22[${en}]} (y/n)" answer
+read -p "${lang_21[${en}]} Samba?
+${lang_22[${en}]} (y/n)" answer
     case $answer in
     [Yy]*)
         # execute command yes
@@ -610,7 +616,7 @@ while true; do
         systemctl enable winbind.service
         fixbroken
         mkdir -p $(pwd)/"${lang_23[${en}]}"
-        chown -R nobody.nogroup $(pwd)/"${lang_23[${en}]}"
+        chown -R nobody:nogroup $(pwd)/"${lang_23[${en}]}"
         chmod -R a+rwx $(pwd)/"${lang_23[${en}]}"
         find $gp/conf/samba -type f -print0 | xargs -0 -I "{}" sed -i "s:compartida:${lang_23[${en}]}:g" "{}"
         if [ ! -d /var/lib/samba/usershares ]; then mkdir -p /var/lib/samba/usershares; fi

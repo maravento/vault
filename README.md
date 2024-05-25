@@ -25,7 +25,7 @@ git clone --depth=1 https://github.com/maravento/vault.git
 
 ### To download a specific repository: / Para descargar un repositorio específico:
 
-- **Ubuntu/Debian:**
+- Ubuntu/Debian:
 
   ```bash
   sudo apt install -y python-is-python3
@@ -35,13 +35,7 @@ git clone --depth=1 https://github.com/maravento/vault.git
   python gitfolderdl.py https://github.com/maravento/vault/project_name
   ```
 
-- **Windows:**
-
-  [TortoiseSVN](https://tortoisesvn.net/), [smartSVN](https://www.smartsvn.com/), etc.
-
-- **Web:**
-
-  [DownGit](https://github.com/MinhasKamal/DownGit/blob/master/README.md#how-to-use), [Download-directory](https://download-directory.github.io/), etc.
+- Or download project (subfolder) via [Download-directory](https://download-directory.github.io/)
 
 ## DATA SHEET
 
