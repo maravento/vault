@@ -633,7 +633,6 @@ ${lang_22[${en}]} (y/n)" answer
         cp -f /etc/samba/smb.conf{,.bak} &>/dev/null
         cp -f $gp/conf/samba/smb.conf /etc/samba/smb.conf
         cp -f $gp/conf/samba/libuser.conf /etc/libuser.conf
-        sed -i "/SAMBA/r $gp/conf/samba/smbipt.txt" $gp/conf/scr/iptables.sh
         chmod +x $gp/conf/samba/sambacron.sh
         $gp/conf/samba/sambacron.sh
         chmod +x $gp/conf/samba/sambaload.sh
