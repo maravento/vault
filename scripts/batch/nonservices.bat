@@ -36,20 +36,20 @@ if "%choice%"=="1" (
 )
 
 :disable
-REM Lista de servicios a detener y deshabilitar
+REM List of services to stop and disable
 set SERVICES="wsearch" "SysMain" "DiagTrack" "dmwappushservice"
 
 for %%S in (%SERVICES%) do (
-    REM Detener el servicio y redirigir errores a nul
+    REM Stop service and redirect errors to null
     sc stop %%S >nul 2>&1
 
     :loop_stop
-    REM Esperar a que el servicio se detenga
+    REM Wait for the service to stop
     sc query %%S | find "STATE" | find /i "STOPPED" > nul
     if %errorlevel%==0 (
         echo %%S has been stopped.
         :disable_service
-        REM Deshabilitar el servicio
+        REM Disable the service
         sc config %%S start=disabled >nul 2>&1
         if %errorlevel%==0 (
             echo %%S has been disabled.
@@ -66,19 +66,19 @@ endlocal
 goto end
 
 :restore
-REM Lista de servicios a iniciar y habilitar
+REM List of services to start and enable
 set SERVICES="wsearch" "SysMain" "DiagTrack" "dmwappushservice"
 
 for %%S in (%SERVICES%) do (
-    REM Habilitar el servicio
+    REM Enable the service
     sc config %%S start=auto >nul 2>&1
     echo %%S has been enable
 
-    REM Iniciar el servicio
+    REM Start the service
     sc start %%S >nul 2>&1
 
     :loop
-    REM Esperar a que el servicio se inicie
+    REM Wait for the service to start
     sc query %%S | find /i "RUNNING" > nul
     if %errorlevel%==0 (
         echo %%S has been started.

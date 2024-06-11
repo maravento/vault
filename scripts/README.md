@@ -43,6 +43,7 @@ Tested on: / Probado en: Ubuntu 20.04/22.04 x64
 - [Rclone Sync (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Sync to Download | Upload Folder](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rsync.sh)
 - [System Migration Tool](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/appbr.sh)
 - [TRIM for SSD/NVMe](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/trim.sh)
+- [Unifi Hotspot Client Access via Linux Server with Iptables](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/unifihotspot.sh)
 - [Virtual Hard Disk VHD image (.img) - loop or kpartx - Create | Mount | Umount](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vdisk.sh)
 - [VirtualBox - Install | Remove](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vboxinstall.sh)
 - [VMs Virtualbox - start | stop | shutdown | reset | status (replace `my_vm` with the name of your vm)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vm.sh)
