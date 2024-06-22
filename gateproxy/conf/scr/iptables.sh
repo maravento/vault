@@ -45,7 +45,7 @@ ipserver=192.168.0.10
 macserver=00:00:00:00:00:00
 
 ## KERNEL RULES ##
-echo "Kerner Rules..."
+echo "Kernel Rules..."
 
 # Zero all packets and counters
 $iptables -F
@@ -151,14 +151,12 @@ aports="8282,10000,10100,10200,10300"
 sysadmin="00:00:00:00:00:00"
 for mac in $sysadmin; do
     for protocol in tcp udp; do
-        $iptables -t mangle -A PREROUTING -i $lan -p $protocol -m multiport --dports $aports -m mac --mac-source $mac -j ACCEPT
         $iptables -A INPUT -i $lan -p $protocol -m multiport --dports $aports -m mac --mac-source $mac -j ACCEPT
         $iptables -A FORWARD -i $lan -p $protocol -m multiport --dports $aports -m mac --mac-source $mac -j ACCEPT
     done
 done
 # Block Audit Ports
 for protocol in tcp udp; do
-    $iptables -t mangle -A PREROUTING -i $lan -p $protocol -m multiport --dports $aports -j DROP
     $iptables -A INPUT -i $lan -p $protocol -m multiport --dports $aports -j DROP
     $iptables -A FORWARD -i $lan -p $protocol -m multiport --dports $aports -j DROP
 done
@@ -173,7 +171,6 @@ $iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 # MACUNLIMITED (For Access Points, Switch, etc)
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-unlimited.txt); do
-    $iptables -t mangle -A PREROUTING -i $lan -m mac --mac-source $mac -j ACCEPT
     $iptables -A INPUT -i $lan -m mac --mac-source $mac -j ACCEPT
     $iptables -A FORWARD -i $lan -m mac --mac-source $mac -j ACCEPT
 done
@@ -212,7 +209,6 @@ echo "Gateway Ports..."
 gports="67,68,137:139,445,162,123,631"
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
     for protocol in tcp udp; do
-            $iptables -t mangle -A PREROUTING -i $lan -p $protocol -m multiport --dports $gports -m mac --mac-source $mac -j ACCEPT
             $iptables -A INPUT -i $lan -p $protocol -m multiport --dports $gports -m mac --mac-source $mac -j ACCEPT
             $iptables -A FORWARD -i $lan -p $protocol -m multiport --dports $gports -m mac --mac-source $mac -j ACCEPT
     done
@@ -287,12 +283,10 @@ $iptables -A syn_flood -j NFLOG --nflog-prefix 'synflood'
 $iptables -A syn_flood -j DROP
 
 # Invalid Packages
-#$iptables -t mangle -A PREROUTING -i $lan -m conntrack --ctstate INVALID -j NFLOG --nflog-prefix 'invalid'
-$iptables -t mangle -A PREROUTING -i $lan -m conntrack --ctstate INVALID -j DROP
+$iptables -A INPUT -i $lan -m conntrack --ctstate INVALID -j DROP
 
 # ICMP (ping) (Optional)
-#$iptables -t mangle -A PREROUTING -p icmp -j NFLOG --nflog-prefix 'icmp'
-$iptables -t mangle -A PREROUTING -p icmp -j DROP
+$iptables -A INPUT -p icmp -j DROP
 
 # Limit the available bandwidth for each IP (Optional)
 #$iptables -A INPUT -p tcp -m connlimit --connlimit-above 50 -j NFLOG --nflog-prefix 'bw_limit'
@@ -326,8 +320,6 @@ fi
 for blports in $(cat $aclroute/blockports.txt | sort -V -u); do
     $ipset -! add blockports $blports
 done
-$iptables -t mangle -A PREROUTING -m set --match-set blockports dst -j NFLOG --nflog-prefix 'blockports'
-$iptables -t mangle -A PREROUTING -m set --match-set blockports dst -j DROP
 $iptables -A INPUT -m set --match-set blockports src -j NFLOG --nflog-prefix 'blockports'
 $iptables -A INPUT -m set --match-set blockports src -j DROP
 $iptables -A FORWARD -m set --match-set blockports src,dst -j NFLOG --nflog-prefix 'blockports'
@@ -362,15 +354,12 @@ $iptables -A FORWARD -m set --match-set blockports src,dst -j DROP
 #$ipset -! restore < /tmp/ipset_blockzone.txt
 # iptables rules
 #$iptables -A INPUT -m set --match-set blockzone src,dst -j DROP
-#$iptables -A FORWARD -m set --match-set blockzone src,dst -j DROP
-#$iptables -t mangle -A PREROUTING -m set --match-set blockzone src,dst -j DROP
 
 ## ACL RULES ##
 echo "ACL Rules..."
 
 # MACPROXY (Port 8000 to 3128 - Opcion 252 DHCP)
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-proxy.txt); do
-    $iptables -t mangle -A PREROUTING -i $lan -p tcp -m multiport --dports 8000,3128 -m mac --mac-source $mac -j ACCEPT
     $iptables -A INPUT -i $lan -p tcp -m multiport --dports 8000,3128 -m mac --mac-source $mac -j ACCEPT
     $iptables -A FORWARD -i $lan -p tcp -m multiport --dports 8000,3128 -m mac --mac-source $mac -j ACCEPT
 done
@@ -387,7 +376,6 @@ done
 limited=$(awk -F";" '{print $2}' $aclroute/mac-limited.txt)
 echo -e "$limited" >$aclroute/squid_maclimited.txt
 for mac in $(echo -e "$limited"); do
-    $iptables -t mangle -A PREROUTING -i $lan -p tcp -m multiport --dports 8000,3128 -m mac --mac-source $mac -j ACCEPT
     $iptables -A INPUT -i $lan -p tcp -m multiport --dports 8000,3128 -m mac --mac-source $mac -j ACCEPT
     $iptables -A FORWARD -i $lan -p tcp -m multiport --dports 8000,3128 -m mac --mac-source $mac -j ACCEPT
 done

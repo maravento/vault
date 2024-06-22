@@ -1,6 +1,6 @@
 # [Tracking & Telemetry](https://www.maravento.com)
 
-[![status-deprecated](https://img.shields.io/badge/status-deprecated-red.svg)](https://github.com/maravento/vault)
+[![status-frozen](https://img.shields.io/badge/status-frozen-blue.svg)](https://github.com/maravento/vault)
 
 **Tracking & Telemetry** is a block list of URLs related to Telemetry & Tracking
 
