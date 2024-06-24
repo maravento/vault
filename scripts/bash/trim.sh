@@ -3,6 +3,7 @@
 
 # Run TRIM for SSD
 # https://askubuntu.com/a/665670/828892
+# WARNING: TRIM is a highly destructive command. Use it at your own risk
 
 echo "TRIM Start. Wait..."
 printf "\n"
