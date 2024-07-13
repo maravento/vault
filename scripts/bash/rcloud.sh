@@ -35,18 +35,25 @@ else
     exit 1
 fi
 
-# checking dependencies (optional)
+# Check if rclone is installed (Optional)
 if ! command -v rclone &>/dev/null; then
     echo "Installing Rclone..."
+    
+    # Ensure we have sudo privileges
     sudo -v
+    
+    # Install rclone
     curl https://rclone.org/install.sh | sudo bash
+    
+    # Check again if rclone was successfully installed
     if ! command -v rclone &>/dev/null; then
         echo "Error installing Rclone"
         exit 1
     fi
-    echo "OK"
+    
+    echo "Rclone installed successfully"
 else
-    true
+    echo "Rclone is already installed"
 fi
 
 # checking dependencies (optional)
@@ -97,10 +104,17 @@ is_service_configured() {
     fi
 }
 
+
+# Ensure local_cloud exists
+if [ ! -d "$local_cloud" ]; then
+    sudo -u $local_user bash -c "mkdir -p $local_cloud"
+fi
+
 # if local_cloud or service_path does not exist, create them only if the service is configured
 for service_info in "${services[@]}"; do
     IFS=':' read -r service_name service_path <<<"$service_info"
     if is_service_configured "$service_name" && [ ! -d "$service_path" ]; then
+        echo "Creating directory $service_path"
         sudo -u $local_user bash -c "mkdir -p $service_path"
     fi
 done

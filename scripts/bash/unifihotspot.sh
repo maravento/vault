@@ -80,14 +80,13 @@ RANGE_END=200
 # IMPORTANT: It must coincide with the time assigned in the vouchers in Unifi Hotspot
 expiration_seconds=3600
 
-# Local ports for authenticated client
+# Local ports for authenticated client (Optional)
 # Important about localports
 # If you use Squid-Cache, you must add the proxy port (e.g. 3128)
-# If you don't use proxy, If you don't use proxy, and your traffic is direct, add port 443
 # If you use DHCP Option 252 and a published .pac file, you must add the apache2/Nginx port of the .pac
 # Edit this variable and remove or add the ports to authorize. By default:
 # RFC 2131 DHCP BOOTP protocol (67,68), NETBios (137:139), Microsoft-DS and SMB (445), SNMP (162), Open cups (printing service) udp/tcp for lan users IPP (631), Proxy PAC Apache2 (8000), Squid-Cache (3128), DNS (53) DNS over TLS (853)
-# HTTPS (443) optional, only in case of transparent proxy
+# WARNING: Add HTTPS (443) port, in case of transparent proxy or non-proxy
 localports="67,68,137:139,445,162,631,8000,3128,53,853"
 
 # Checking Rsyslog
@@ -114,7 +113,6 @@ function unifi_rules() {
     # Open Unifi Ports
     # https://help.ui.com/hc/en-us/articles/218506997-UniFi-Network-Required-Ports-Reference
     # DNS (53), STUN (3478), Remote syslog (5514), device and application communication (80,8080), GUI/API (8443), HTTP/HTTPS portal redirection (8880, 8843), UniFi mobile speed test (6789), local-bound database communication (27117), AP-EDU broadcasting (5656:5699), Device discovery (10001), L2 network (1900), NTP (123)
-    # WARNING: HTTPS (443) Optional only for transparent proxy
     uports="53,3478,5514,8080,8443,8880,8843,6789,27117,5656:5699,10001,1900,123"
     
     echo "Configuring UniFi Hotspot ports"

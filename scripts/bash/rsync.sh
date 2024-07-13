@@ -137,6 +137,7 @@ is_service_configured() {
         return 1 # Service is not configured
     fi
 }
+
 for service_info in "${services[@]}"; do
     IFS=':' read -r service_name service_path <<<"$service_info"
     if is_service_configured "$service_name"; then

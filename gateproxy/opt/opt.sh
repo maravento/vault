@@ -23,7 +23,7 @@ if pidof -x $(basename $0) >/dev/null; then
 fi
 
 # checking dependencies (optional)
-pkg='nala curl software-properties-common apt-transport-https aptitude net-tools mlocate plocate expect tcl-expect libnotify-bin'
+pkg='nala curl software-properties-common apt-transport-https aptitude net-tools plocate expect tcl-expect libnotify-bin'
 if apt-get -qq install $pkg; then
     true
 else
@@ -123,7 +123,7 @@ while true; do
         dpkg -i bleachbit.deb
         fixbroken
         # mintstick
-        nala install -y python3-parted python-parted-doc gir1.2-udisks-2.0 exfatprogs xapps-common libxapp1 gir1.2-xapp-1.0 genisoimage python3-gnupg
+        nala install -y python3-parted python-parted-doc gir1.2-udisks-2.0 exfatprogs xapps-common libxapp1 gir1.2-xapp-1.0 genisoimage python3-gnupg python3-unidecode
         lastmintstick=$(wget -O - http://packages.linuxmint.com/pool/main/m/mintstick/ | grep -Po 'href=".*?"' | sed -r 's:href\="(.*)":\1:' | grep ".deb" | sort | tail -1)
         echo $lastmintstick
         wget -q --show-progress -c http://packages.linuxmint.com/pool/main/m/mintstick/"$lastmintstick" -O mintstick.deb
