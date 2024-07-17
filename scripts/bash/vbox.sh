@@ -2,8 +2,12 @@
 # by maravento.com
 
 # Virtualbox install | remove
+# tested: Ubuntu 22.04 | 24.04
 
-echo "Virtualbox Install. Wait..."
+# LOCAL USER (sudo user no root)
+local_user=$(who | head -1 | awk '{print $1;}')
+
+clear
 printf "\n"
 
 # checking root
@@ -22,12 +26,9 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
-### VARIABLES
-vboxversion=$(dpkg -l | grep -P 'virtualbox-\d+\.\d+' | awk '{print $2}')
-
 ### FUNCTIONS
 function vboxinstall() {
-    echo "Vbox not detected. Installing..."
+    echo "Installing Virtualbox..."
     # Download and install .asc
     wget -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | gpg --dearmor | tee /usr/share/keyrings/virtualbox.gpg &>/dev/null
     # add repo
@@ -53,25 +54,39 @@ function vboxinstall() {
 }
 
 function vboxpurge() {
-    echo "Vbox has been detected. Removing..."
-    vboxmanage list runningvms | sed -r 's/.*\{(.*)\}/\1/' | xargs -L1 -I {} VBoxManage controlvm {} savestate
-    ps ax | grep -P 'vboxwebbsrv|VirtualBox|Vbox' | awk '{print $1}' | xargs kill -9 &>/dev/null
+    echo "Removing Virtualbox..."
+    sudo -u $local_user bash -c "vboxmanage list runningvms | sed -r 's/.*\{(.*)\}/\1/' | xargs -I {} VBoxManage controlvm {} poweroff"
+    ps ax | grep -P 'vboxwebsrv|VirtualBox|Vbox' | awk '{print $1}' | xargs kill -9 &>/dev/null
     systemctl stop vboxweb-service.service &>/dev/null
     service vboxdrv stop &>/dev/null
+    killall VirtualBox iprt-VBoxTscThread VBoxSVC &>/dev/null
     VBoxManage extpack uninstall "Oracle VM VirtualBox Extension Pack"
     apt-get -y autoremove --purge $(echo $vboxversion)
     /opt/VirtualBox/uninstall.sh &>/dev/null
-    apt-get -y remove --purge virtualbox-guest-utils virtualbox-dkms virtualbox-guest-x11 virtualbox virtualbox-guest-additions-iso virtualbox-ext-pack virtualbox-source
+    apt-get -y remove --purge virtualbox*
     rm -rf /etc/vbox /opt/VirtualBox /usr/lib/virtualbox /etc/apt/sources.list.d/virtualbox.list &>/dev/null
+    rm -rf /var/lib/dpkg/info/virtualbox* &>/dev/null
     # Optional: delete virtual disk config
     #rm -rf ~/.config/VirtualBox
     echo "Done"
 }
 
+vboxversion=$(dpkg -l | grep -P 'virtualbox-\d+\.\d+' | awk '{print $2}')
+
 if [ "$vboxversion" ]; then
-    vboxpurge
-    sleep 5
-    vboxinstall
+    echo "Virtualbox is installed. Do you want to delete it? (y/n)"
+    read answer
+    if [ "$answer" == "y" ]; then
+        vboxpurge
+    else
+        echo "Virtualbox will not be removed."
+    fi
 else
-    vboxinstall
+    echo "Virtualbox is not installed. Do you want to install it? (y/n)"
+    read answer
+    if [ "$answer" == "y" ]; then
+        vboxinstall
+    else
+        echo "Virtualbox will not be installed."
+    fi
 fi
