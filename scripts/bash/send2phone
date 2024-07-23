@@ -8,6 +8,9 @@
 # Check kdeconnect-cli options
 # https://linuxcommandlibrary.com/man/kdeconnect-cli
 
+# Dependencies:
+# sudo apt install kdeconnect
+
 echo "Start KDE Connect Send. Wait..."
 
 # Check if kdeconnect-cli is installed

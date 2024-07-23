@@ -44,8 +44,9 @@ function vboxinstall() {
     wget -c http://download.virtualbox.org/virtualbox/$VBOX_VER/Oracle_VM_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack
     VBoxManage extpack install Oracle_VM_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack
     # configure
-    usermod -a -G vboxusers $USER
-    #adduser $USER vboxsf # for host
+    usermod -aG vboxusers $local_user
+    # for host
+    #adduser $local_user vboxsf
     update-grub
     /sbin/vboxconfig
     # check status vboxdrv
