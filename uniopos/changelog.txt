@@ -5,6 +5,12 @@ This project has reached EOL (End of Life). No longer supported or updated / Est
 This project has become deprecated, due to uniCenta oPOS 5x. For more information: / Este proyecto ha quedado obsoleto, debido a uniCenta oPOS 5x. Para mayor información:
 https://raw.githubusercontent.com/maravento/vault/master/uniopos/resources/docs/uniCenta-oPos-5.0-Migration-Guide.pdf
 
+2024.08.19
+Update: Visual C++ 2022 Redistributable x86 x64 - 14.42.34226.3 (Deps)
+Update: Wampserver Update 3.3.6 x64 (Install Pack)
+Update: Oracle Java 8 Update 421 x86 x64 (Deps)
+Update: HeidiSQL_12.8_64_Portable.zip (WebServer Pack)
+
 2024.03.29
 Update: Visual C++ 2022 Redistributable - 14.40.33721.2 (Deps)
 Update: Wampserver Update 3.3.4 x64 (Install Pack)

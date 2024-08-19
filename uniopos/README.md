@@ -14,7 +14,7 @@
 
 |File|OS|Size|
 | :---: | :---: | :---: |
-| [uniOPOS.exe (.zip)](https://mega.nz/file/fQN1mTII#6zMM_zXqpoXmd3KJ_OLITdxeRAseR7Tm3ICAHOTnh18) | Windows 7/8/10/11 x64 | 1.57 GB |
+| [uniOPOS.exe (.zip)](https://mega.nz/file/vUUTXarT#w5UQlnc-KkzCIlqsBqmk6wjY6_r-zhAQEIxkYQO6Ov8) | Windows 7/8/10/11 x64 | 1.58 GB |
 
 ### Important About uniOPOS
 
@@ -51,7 +51,7 @@ At the end of the installation of each package the following message will appear
 
 - According to the [Minimum Requirements](https://unicenta.com/pages/install-unicenta-opos/), uniCenta oPOS depends on Java. Therefore, uniOPOS includes: / De acuerdo a los [Requisitos Mínimos](https://unicenta.com/pages/install-unicenta-opos/), uniCenta oPOS depende de Java. Por tanto, uniOPOS incluye:
 
-  `Oracle Java 8 Update 401 x86 x64`
+  `Oracle Java 8 Update 421 x86 x64`
 
 - According to the developers, [uniCenta oPOS v4x only uses MySQL Server and v5.7.x is recommended](https://unicenta.com/pages/configure-unicenta-opos/). / Según los desarrolladores, [uniCenta oPOS v4x solamente utiliza MySQL Server y v5.7.x es la recomendada](https://unicenta.com/pages/configure-unicenta-opos/).
 - According to the [official MySQL channel](https://dev.mysql.com/doc/refman/5.7/en/windows-installation.html), MySQL Community v5.7 Server requires Microsoft Visual C++ 2019 Redistributable Package to run on Windows platforms (This requirement changed over time: MySQL 5.7.37 and earlier require Microsoft Visual C++ 2013 Redistributable Package, MySQL 5.7.38 and 5.7.39 require both, and only the Microsoft Visual C++ 2019 Redistributable Package is required as of MySQL 5.7.40). Therefore, uniOPOS includes: / Según el [canal oficial de MySQL](https://dev.mysql.com/doc/refman/5.7/en/windows-installation.html), MySQL Community v5.7 Server requiere Microsoft Visual C++ 2019 Redistributable Package para ejecutarse en plataformas Windows (Este requisito cambió con el tiempo: MySQL 5.7.37 y anteriores requieren Microsoft Visual C++ 2013 Redistributable Package, MySQL 5.7.38 y 5.7.39 requieren ambos, y solo se requiere el paquete redistribuible de Microsoft Visual C++ 2019 a partir de MySQL 5.7.40). Por tanto, uniOPOS incluye:
@@ -63,7 +63,7 @@ At the end of the installation of each package the following message will appear
   Microsoft Visual C++ 2010 Redistributable x86 x64 - 10.0.40219
   Microsoft Visual C++ 2012 Redistributable x86 x64 (Additional and Minimum Runtime) - 11.0.61135
   Microsoft Visual C++ 2013 Redistributable x86 x64 (Additional and Minimum Runtime) - 12.0.40664
-  Microsoft Visual C++ 2022 Redistributable x86 x64 (Additional and Minimum Runtime) - 14.40.33721.2
+  Microsoft Visual C++ 2022 Redistributable x86 x64 (Additional and Minimum Runtime) - 14.42.34226.3
   ```
 
 <div align="center">
@@ -162,7 +162,7 @@ upload_max_filesize = 256M
 #### Content of Install Pack
 
 - [uniCenta oPOS v4.6.4 (.exe)](https://sourceforge.net/projects/unicentaopos/)
-- [Wampserver v3.3.0 x64 - Update 3.3.4 (.exe)](https://wampserver.aviatechno.net/?lang=en) (included: Apache 2.4.54.2 - PHP 7.4.33/8.0.26/8.1.13/8.2.0 - MySQL 5.7.40|8.0.31 - MariaDB 10.10.2)
+- [Wampserver v3.3.0 x64 - Update 3.3.6 (.exe)](https://wampserver.aviatechno.net/?lang=en) (included: Apache 2.4.54.2 - PHP 7.4.33/8.0.26/8.1.13/8.2.0 - MySQL 5.7.40|8.0.31 - MariaDB 10.10.2)
 
 #### Important Before Use Install Pack
 
@@ -226,7 +226,7 @@ Go to the destination folder `%HOMEDRIVE%\PortableSrv\` and find the shortcuts t
 #### Content of WebServer Pack
 
 - [uniCenta oPOS WebServer v4.6.4 (.zip)](https://sourceforge.net/projects/unicentaopos/)
-- [HeidiSQL v12.6 x64 Portable.zip (.exe)](https://www.heidisql.com/download.php)
+- [HeidiSQL v12.8 x64 Portable.zip (.exe)](https://www.heidisql.com/download.php)
 - [MySQL Server v5.7.44 x64 (no-install package .zip)](https://dev.mysql.com/downloads/mysql/5.7.html#downloads/)
 
 #### Desktop Launcher

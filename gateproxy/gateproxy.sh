@@ -462,17 +462,23 @@ function gateproxy_setup() {
     cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
     sed -i '/^Listen.*/a Listen 8000\nListen 10100\nListen 10200\nListen 10300' /etc/apache2/ports.conf
     # Proxy: squid-cache
-    service squid stop &>/dev/null
-    systemctl stop squid.service &>/dev/null
+    while pgrep squid > /dev/null; do
+        killall -s SIGTERM squid &>/dev/null
+        sleep 5
+    done
     nala purge -y squid* &>/dev/null
     rm -rf /var/spool/squid* /var/log/squid* /etc/squid* /dev/shm/* &>/dev/null
     #DEBIAN_FRONTEND=noninteractive nala install -y --no-install-recommends squid-openssl
     nala install -y squid-openssl squid-langpack squid-common squidclient squid-purge
     fixbroken
-    killall -s SIGTERM squid &>/dev/null
-    if [ ! -d /var/log/squid ]; then mkdir -p /var/log/squid; fi &>/dev/null
-    if [[ ! -f /var/log/squid/{access,cache,store,deny}.log ]]; then touch /var/log/squid/{access,cache,store,deny}.log; fi &>/dev/null
+    if [ ! -d /var/log/squid ]; then
+        mkdir -p /var/log/squid
+    fi &>/dev/null
+    if [[ ! -f /var/log/squid/{access,cache,store,deny}.log ]]; then
+        touch /var/log/squid/{access,cache,store,deny}.log
+    fi &>/dev/null
     chown -R proxy:proxy /var/log/squid
+    systemctl enable squid.service
     # Let’s Encrypt certificate for client to Squid proxy encryption
     nala install -y certbot
     # Web Admin: webmin
@@ -506,7 +512,7 @@ function gateproxy_setup() {
     echo "Glances Access: http://127.0.0.1:61208"
     # Net Tools: nbtscan, nmap, wireless-tools, etc
     nala install -y libpcap-dev libasound2-dev libfontconfig1 clang
-    nala install -y nbtscan nmap python3-nmap ndiff wireless-tools ncat nast netdiscover traceroute arp-scan masscan grepcidr fping mtr-tiny ethtool
+    nala install -y nbtscan nmap python3-nmap ndiff wireless-tools ncat nast netdiscover traceroute arp-scan masscan grepcidr fping mtr-tiny ethtool zenmap
     # Monitor: lightsquid
     nala install -y libcgi-session-perl libgd-gd2-perl
     tar -xf $gp/conf/monitor/lightsquid-1.8.1.tar.gz
