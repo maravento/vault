@@ -27,6 +27,7 @@ Tested on: / Probado en: Ubuntu 20.04/22.04 x64
 - [Check Bandwidth (Set Minimum Download | Upload Value)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bandwidth.sh)
 - [Check Cron](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/checkcron.sh)
 - [Disk Temp (HDD/SSD/NVMe)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/disktemp.sh)
+- [Docker - Install | Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/docker.sh)
 - [Drive Crypt (Cryptomator Encrypted Disk - Mount | Umount - to folder `/home/$USER/dcrypt`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/drivecrypt.sh)
 - [FreeFileSync - Update](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ffsupdate.sh)
 - [Gdrive (Mount | Umount - to folder `/home/$USER/gdrive`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/gdrive.sh)
@@ -47,6 +48,7 @@ Tested on: / Probado en: Ubuntu 20.04/22.04 x64
 - [Virtual Hard Disk VHD image (.img) - loop or kpartx - Create | Mount | Umount](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vdisk.sh)
 - [VirtualBox - Install | Remove](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vbox.sh)
 - [VMs Virtualbox - start | stop | shutdown | reset | status (replace `my_vm` with the name of your vm)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vm.sh)
+- [Wireguard VPN - Install | Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/wireguard.sh)
 
 ### Batch (Windows)
 

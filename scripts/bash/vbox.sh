@@ -1,8 +1,8 @@
 #!/bin/bash
 # by maravento.com
 
-# Virtualbox install | remove
-# tested: Ubuntu 22.04 | 24.04
+# Virtualbox 7.1 install | remove
+# tested: Ubuntu 24.04
 
 # LOCAL USER (sudo user no root)
 local_user=$(who | head -1 | awk '{print $1;}')
@@ -36,13 +36,9 @@ function vboxinstall() {
     apt-get update
     # install vbox
     apt-get -y install linux-headers-$(uname -r) build-essential gcc make perl dkms bridge-utils
-    apt-get -y install virtualbox-7.0
+    apt-get -y install virtualbox-7.1
     dpkg --configure -a
     apt-get -f -y install
-    # install Extension Pack
-    export VBOX_VER=$(VBoxManage --version | awk 'END {print $1}' | cut -d 'r' -f 1)
-    wget -c http://download.virtualbox.org/virtualbox/$VBOX_VER/Oracle_VM_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack
-    VBoxManage extpack install Oracle_VM_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack
     # configure
     usermod -aG vboxusers $local_user
     # for host
@@ -51,6 +47,11 @@ function vboxinstall() {
     /sbin/vboxconfig
     # check status vboxdrv
     #systemctl status vboxdrv
+    systemctl restart vboxdrv
+    # install Extension Pack
+    export VBOX_VER=$(VBoxManage --version | awk 'END {print $1}' | cut -d 'r' -f 1)
+    wget -c https://download.virtualbox.org/virtualbox/$VBOX_VER/Oracle_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack
+    VBoxManage extpack install Oracle_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack
     echo "Done. Reboot"
 }
 
