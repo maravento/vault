@@ -15,12 +15,8 @@ fi
 
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
-    for p in $(pidof -x $(basename $0)); do
-        if [ "$p" -ne $$ ]; then
-            echo "Script $0 is already running..."
-            exit
-        fi
-    done
+    echo "Script $0 is already running..."
+    exit
 fi
 
 # Function to install WireGuard

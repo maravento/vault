@@ -28,6 +28,7 @@ install_docker() {
     echo "Docker is not installed. Proceeding with installation..."
     apt update
     apt install -y docker.io docker-compose-plugin
+    mkdir -p /etc/docker
     docker compose version
     systemctl start docker
     systemctl enable docker
