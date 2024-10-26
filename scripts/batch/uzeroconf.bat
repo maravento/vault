@@ -3,11 +3,20 @@
 
 :: Uniform Server Config
 :: Tested  v15_0_2_ZeroXV
-:: Win 10/11
-:: Path Files: %HOMEDRIVE%\UniServerZ\uconfig
-:: Dependencies: Find and Replace (FNR) http://findandreplace.io/download
+:: Support: Win 10/11
+:: Path Scripts: %HOMEDRIVE%\UniServerZ
+:: Dependencies: Find and Replace (FNR) http://findandreplace.io/downloads/fnr.zip
+:: Download fnr.exe to %WINDIR%\System32\fnr.exe
 
-set winfnr=%HOMEDRIVE%\UniServerZ\uconfig\fnr.exe
+REM Checking privileges
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    powershell -ExecutionPolicy Bypass -Command "Start-Process '%~f0' -Verb RunAs"
+    exit /b
+)
+
+set uzero=%HOMEDRIVE%\UniServerZ
+set winfnr=%WINDIR%\System32\fnr.exe
 
 :Menu
 cls
@@ -36,13 +45,15 @@ if "%var%"=="5" goto :Permanent
 if "%var%"=="6" goto :Portable
 if "%var%"=="7" shutdown /r /t 0
 if "%var%"=="8" exit /0
+echo Invalid option. Please select a valid number from 1 to 8
+pause
 goto :Menu
 
 :ChangeMySQLUZero
 call :StopServices
 echo Change MySQL port (Default is 3306)
 call :Port
-%winfnr% --cl --dir "%HOMEDRIVE%\UniServerZ\home\us_config" --fileMask us_user.ini --useRegEx --find "MYSQL_TCP_PORT=3306" --replace "MYSQL_TCP_PORT=%port%"
+%winfnr% --cl --dir "%uzero%\home\us_config" --fileMask us_user.ini --useRegEx --find "MYSQL_TCP_PORT=3306" --replace "MYSQL_TCP_PORT=%port%"
 if ERRORLEVEL 1 goto :ErrorHandler
 echo MySQL port changed to %port%
 call :StartServices
@@ -51,7 +62,7 @@ goto :ReturnToMenu
 :RestoreMySQLUZero
 call :StopServices
 echo Restoring MySQL port to default (3306)...
-%winfnr% --cl --dir "%HOMEDRIVE%\UniServerZ\home\us_config" --fileMask us_user.ini --useRegEx --find "MYSQL_TCP_PORT=\d+" --replace "MYSQL_TCP_PORT=3306"
+%winfnr% --cl --dir "%uzero%\home\us_config" --fileMask us_user.ini --useRegEx --find "MYSQL_TCP_PORT=\d+" --replace "MYSQL_TCP_PORT=3306"
 if ERRORLEVEL 1 goto :ErrorHandler
 echo MySQL port restored to default 3306
 call :StartServices
@@ -61,8 +72,8 @@ goto :ReturnToMenu
 call :StopServices
 echo Change Apache port (Default is 80)
 call :Port
-%winfnr% --cl --dir "%HOMEDRIVE%\UniServerZ\home\us_config" --fileMask us_user.ini --useRegEx --find "AP_PORT=80" --replace "AP_PORT=%port%"
-%winfnr% --cl --dir "%HOMEDRIVE%\UniServerZ\home\us_pac" --fileMask proxy.pac --useRegEx --find "if \(shExpMatch\(host, ""\*localhost""\)\) return ""PROXY 127.0.0.1:80"";" --replace "if (shExpMatch(host, \"*localhost\")) return \"PROXY 127.0.0.1:%port%\";"
+%winfnr% --cl --dir "%uzero%\home\us_config" --fileMask us_user.ini --useRegEx --find "AP_PORT=80" --replace "AP_PORT=%port%"
+%winfnr% --cl --dir "%uzero%\home\us_pac" --fileMask proxy.pac --useRegEx --find "if \(shExpMatch\(host, ""\*localhost""\)\) return ""PROXY 127.0.0.1:80"";" --replace "if (shExpMatch(host, \"*localhost\")) return \"PROXY 127.0.0.1:%port%\";"
 if ERRORLEVEL 1 goto :ErrorHandler
 echo Apache port changed to %port%
 call :StartServices
@@ -70,15 +81,15 @@ goto :ReturnToMenu
 
 :RestoreApacheUZero
 call :StopServices
-%winfnr% --cl --dir "%HOMEDRIVE%\UniServerZ\home\us_config" --fileMask us_user.ini --useRegEx --find "AP_PORT=\d+" --replace "AP_PORT=80"
-%winfnr% --cl --dir "%HOMEDRIVE%\UniServerZ\home\us_pac" --fileMask proxy.pac --useRegEx --find "if \(shExpMatch\(host, \"\*localhost\"\)\) return \"PROXY 127\.0\.0\.1:\d+\";" --replace "if (shExpMatch(host, \"*localhost\")) return \"PROXY 127.0.0.1:80\";"
+%winfnr% --cl --dir "%uzero%\home\us_config" --fileMask us_user.ini --useRegEx --find "AP_PORT=\d+" --replace "AP_PORT=80"
+%winfnr% --cl --dir "%uzero%\home\us_pac" --fileMask proxy.pac --useRegEx --find "if \(shExpMatch\(host, \"\*localhost\"\)\) return \"PROXY 127\.0\.0\.1:\d+\";" --replace "if (shExpMatch(host, \"*localhost\")) return \"PROXY 127.0.0.1:80\";"
 if ERRORLEVEL 1 goto :ErrorHandler
 echo Apache port restored to default 80
 call :StartServices
 goto :ReturnToMenu
 
 :Permanent
-REG ADD "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /V "UniServer" /t REG_SZ /F /D "\"%HOMEDRIVE%\UniServerZ\UniController.exe\" start_both" >NUL 2>NUL
+REG ADD "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /V "UniServer" /t REG_SZ /F /D "\"%uzero%\UniController.exe\" start_both" >NUL 2>NUL
 echo Permanent Configuration Set
 goto :ReturnToMenu
 
@@ -88,17 +99,18 @@ echo Restored Portable Configuration
 goto :ReturnToMenu
 
 :ReturnToMenu
+echo.
 echo Press a Key to Menu Return
 pause > NUL
 goto :Menu
 
 :StopServices
 taskkill /F /IM UniController.exe > NUL 2>NUL
-start /w %HOMEDRIVE%\UniServerZ\UniController.exe stop_both
+start /w %uzero%\UniController.exe stop_both
 exit /B 0
 
 :StartServices
-start /w %HOMEDRIVE%\UniServerZ\UniController.exe start_both
+start /w %uzero%\UniController.exe start_both
 exit /B 0
 
 :Port

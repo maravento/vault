@@ -82,9 +82,9 @@ Tool to block unauthorized devices USB, HID, HDC, Bluetooth, IEEE, SmartCardRead
 
 ### Data Sheet (For Windows)
 
-|File|Version|OS|Size|
-|----|-------|--|----|
-|[blackusb.exe (.zip)](https://raw.githubusercontent.com/maravento/vault/master/blackusb/win/blackusb.zip)|1.0|Windows 7/8/10 x86 x64|4,2 MB|
+|File|OS|Size|
+|----|--|----|
+|[blackusb.exe (.zip)](https://raw.githubusercontent.com/maravento/vault/master/blackusb/win/blackusb.zip)|Windows 10/11 x86 x64|4,3 MB|
 
 ### How To Use (For Windows)
 
@@ -110,10 +110,11 @@ Tool to block unauthorized devices USB, HID, HDC, Bluetooth, IEEE, SmartCardRead
 
 - [74cz](http://74.cz/es/make-sfx/index.php)
 - [7zSFX Builder](https://sourceforge.net/projects/s-zipsfxbuilder/)
-- [Resource Hacker](http://www.angusj.com/resourcehacker/)
+- [Resource Turner](http://www.restuner.com/)
 - [Robust File Copy](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/robocopy)
 - [robvanderwoude](http://www.robvanderwoude.com/)
 - [USBOblivion](https://sourceforge.net/projects/usboblivion/)
+- [Windows SDK - Devcon32/64](https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/)
 - [WinZenity](https://github.com/maravento/vault/tree/master/winzenity)
 
 ## LICENSES

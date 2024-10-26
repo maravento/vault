@@ -55,6 +55,7 @@ Tested on: / Probado en: Ubuntu 22.04/24.04 x64
 
 Tested on: / Probado en: Windows 10/11 x64
 
+- [iTop - IT Service Management & CMDB (Change MySQL/Apache Ports)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/itopconf.bat)
 - [Mozilla Thunderbird (Backup Profiles to USB)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/mtpbackup.bat)
 - [Net Reset (Proxy and NIC)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/netreset.bat)
 - [Non-Essential Services (Disable | Auto)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/nonservices.bat)
@@ -62,7 +63,7 @@ Tested on: / Probado en: Windows 10/11 x64
 - [Safe Boot (Modes: Safe with Network | Safe Minimal | Normal)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/safeboot.bat)
 - [SMB signing (Activate | Deactivate)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/smbsign.bat)
 - [SMB1 protocol (Activate | Deactivate)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/smb1.bat)
-- [Uniform Server (Change MySQL/Apache Ports | Set Portable or Permanent | path `%HOMEDRIVE%\UniServerZ\uconfig`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/uzeroconf.bat)
+- [Uniform Server (Change MySQL/Apache Ports | Set Portable/Permanent | Run With System)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/uzeroconf.bat)
 
 ### Python (Linux)
 

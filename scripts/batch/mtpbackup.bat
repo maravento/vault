@@ -11,9 +11,6 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-cls
-setlocal
-
 :: Source folder path
 set "source_folder=%APPDATA%\Thunderbird\Profiles"
 

@@ -1,0 +1,13 @@
+﻿## CHANGELOG
+# BlackUSB
+# by Maravento Studio
+# https://www.maravento.com
+
+2024.10.20
+Added: USB Oblivion v1.17.0.0
+
+2023.10.06
+Release day
+Added: USB Oblivion v1.16.0.0
+Added: Devcon32/64 v5.2.3790.0 Windows SDK
+Added: scripts and programs to build

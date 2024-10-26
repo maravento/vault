@@ -1,0 +1,16 @@
+﻿## CHANGELOG
+# iTop - IT Service Management & CMDB Portable
+# by Maravento Studio
+# https://www.maravento.com
+
+2024.10.25
+Fix: Bugs and Links
+
+2024.10.20
+Release day
+Added: iTop v3.2.0-2-14758
+Added: Visual C++ v0.84.0
+Added: graphviz v12.1.2-win64
+Added: apcu v8.2 x64 ts for WampServer and Zampp
+Added: apcu v8.3 x64 ts for UniServer Zero
+Added: scripts and programs to build

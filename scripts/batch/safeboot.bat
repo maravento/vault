@@ -5,14 +5,10 @@
 :: for win 7/8/10/11
 :: Run with Administrador Privileges
 
-REM Checking Privileges
->nul 2>&1 "%SystemRoot%\system32\cacls.exe" "%SystemRoot%\system32\config\system"
+REM Checking privileges
+net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo.
-    echo Error: No Privileges
-    echo Run the Script with Privileges
-    echo.
-    pause
+    powershell -ExecutionPolicy Bypass -Command "Start-Process '%~f0' -Verb RunAs"
     exit /b
 )
 

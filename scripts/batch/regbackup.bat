@@ -4,7 +4,7 @@
 :: Script to Regedit Backup
 :: for win 7/10/11
 
-REM Checking Privileges
+REM Checking privileges
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     powershell -ExecutionPolicy Bypass -Command "Start-Process '%~f0' -Verb RunAs"

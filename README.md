@@ -23,7 +23,7 @@ apt install git
 git clone --depth=1 https://github.com/maravento/vault.git
 ```
 
-### To download a specific repository: / Para descargar un repositorio específico:
+### To download a specific project: / Para descargar un proyecto específico:
 
 - Ubuntu/Debian:
 
@@ -31,7 +31,8 @@ git clone --depth=1 https://github.com/maravento/vault.git
   sudo apt install -y python-is-python3
   wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
   chmod +x gitfolderdl.py
-  # Now Replace "project_name" with the name of repository
+  
+  # Now Replace "project_name" with the name of project
   python gitfolderdl.py https://github.com/maravento/vault/project_name
   ```
 
@@ -49,19 +50,20 @@ git clone --depth=1 https://github.com/maravento/vault.git
 - [telemetry](https://github.com/maravento/vault/tree/master/telemetry)
 - [trek](https://github.com/maravento/vault/tree/master/trek)
 
+### MIXED
+
+- [blackusb](https://github.com/maravento/vault/tree/master/blackusb)
+- [itop](https://github.com/maravento/vault/tree/master/itop)
+- [scripts](https://github.com/maravento/vault/tree/master/scripts)
+- [stack](https://github.com/maravento/vault/tree/master/stack)
+- [uniopos](https://github.com/maravento/vault/tree/master/uniopos)
+
 ### THIRD-PARTY
 
 - [bandwidthd](https://github.com/maravento/vault/tree/master/bandwidthd)
 - [lightsquid](https://github.com/maravento/vault/tree/master/lightsquid)
 - [sqstat](https://github.com/maravento/vault/tree/master/sqstat)
 - [winzenity](https://github.com/maravento/vault/tree/master/winzenity)
-
-### MIXED
-
-- [blackusb](https://github.com/maravento/vault/tree/master/blackusb)
-- [scripts](https://github.com/maravento/vault/tree/master/scripts)
-- [stack](https://github.com/maravento/vault/tree/master/stack)
-- [uniopos](https://github.com/maravento/vault/tree/master/uniopos)
 
 ## STARGAZERS
 
