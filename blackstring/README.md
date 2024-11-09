@@ -2,9 +2,18 @@
 
 [![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento/vault)
 
-**BlackString** is an experimental project, aimed at blocking different types of connections, including [circumvention](https://en.wikipedia.org/wiki/Internet_censorship_circumvention), Proxy, BitTorrent, Tor, etc., which use a combination of secure communications with VPN obfuscation technologies, SSH and HTTP Proxy and they retransmit and re-assemble, making it very difficult to detect and block them. To achieve this, we use the Wireshark and tcpdump tools, which allow the capture and analysis of the data flow, both incoming and outgoing, to extract the strings of these connections and block them.
+<!-- markdownlint-disable MD033 -->
 
-**BlackString** es un proyecto experimental, orientado a bloquear diferentes tipos de conexiones, entre ellas las [circumvention](https://en.wikipedia.org/wiki/Internet_censorship_circumvention), Proxy, BitTorrent, Tor, etc., que utilizan una combinación de comunicaciones seguras con tecnologías de ofuscación VPN, SSH y HTTP Proxy y hacen retransmisión y re-ensamblado, siendo muy difícil su detección y bloqueo. Para lograrlo utilizamos las herramientas Wireshark y tcpdump, que permiten la captura y análisis del flujo de datos, tanto de llegada como de salida, para extraer las cadenas de estas conexiones y bloquearlas.
+<table width="100%">
+  <tr>
+    <td width="50%">
+     <b>BlackString</b> is an experimental project, aimed at blocking different types of connections, including <a href="https://en.wikipedia.org/wiki/Internet_censorship_circumvention" target="_blank">circumvention</a>, Proxy, BitTorrent, Tor, etc., which use a combination of secure communications with VPN obfuscation technologies, SSH and HTTP Proxy and they retransmit and re-assemble, making it very difficult to detect and block them. To achieve this, we use the Wireshark and tcpdump tools, which allow the capture and analysis of the data flow, both incoming and outgoing, to extract the strings of these connections and block them.
+    </td>
+    <td width="50%">
+     <b>BlackString</b> es un proyecto experimental, orientado a bloquear diferentes tipos de conexiones, entre ellas las <a href="https://en.wikipedia.org/wiki/Internet_censorship_circumvention" target="_blank">circumvention</a>, Proxy, BitTorrent, Tor, etc., que utilizan una combinación de comunicaciones seguras con tecnologías de ofuscación VPN, SSH y HTTP Proxy y hacen retransmisión y re-ensamblado, siendo muy difícil su detección y bloqueo. Para lograrlo utilizamos las herramientas Wireshark y tcpdump, que permiten la captura y análisis del flujo de datos, tanto de llegada como de salida, para extraer las cadenas de estas conexiones y bloquearlas.
+    </td>
+  </tr>
+</table>
 
 ## DOWNLOAD PROJECT
 
@@ -29,9 +38,18 @@ iptables ulogd2 ipset squid perl bash
 
 ---
 
-***RESULT IS NOT GUARANTEED. USE IT AT YOUR OWN RISK / NO SE GARANTIZA EL RESULTADO. USELO BAJO SU PROPIO RIESGO***
+***RESULT IS NOT GUARANTEED. USE IT AT YOUR OWN RISK | NO SE GARANTIZA EL RESULTADO. USELO BAJO SU PROPIO RIESGO***
 
-This project contains ACLs with non-exclusive strings, which can generate false positives, and Iptables firewall rules that slow down traffic and may not get the desired results. Note that string matching is intensive, unreliable, so you should consider it as a last resort. / Este proyecto contiene ACLs con cadenas no exclusivas, que pueden generar falsos positivos y reglas de firewall Iptables que ralentizan el tráfico y puede no obtener los resultados deseados. Tenga en cuenta que la coincidencia de cadenas es intensiva, poco confiable, por tanto debe considerarla como último recurso.
+<table width="100%">
+  <tr>
+    <td width="50%">
+     This project contains ACLs with non-exclusive strings, which can generate false positives, and Iptables firewall rules that slow down traffic and may not get the desired results. Note that string matching is intensive, unreliable, so you should consider it as a last resort.
+    </td>
+    <td width="50%">
+     Este proyecto contiene ACLs con cadenas no exclusivas, que pueden generar falsos positivos y reglas de firewall Iptables que ralentizan el tráfico y puede no obtener los resultados deseados. Tenga en cuenta que la coincidencia de cadenas es intensiva, poco confiable, por tanto debe considerarla como último recurso.
+    </td>
+  </tr>
+</table>
 
 ## HOW TO USE
 
@@ -56,7 +74,7 @@ lan=enp2s1
 
 ### [Ultrasurf](https://ultrasurf.us/) Rules
 
-#### With Hex String (Not Recommended) / Con Hex-String (No Recomendada)
+#### With Hex String (Not Recommended) | Con Hex-String (No Recomendada)
 
 ```bash
 # Lock: Hex-String
@@ -99,16 +117,50 @@ http_access deny no_ip
 
 ##### Important About Block IP Rule with Squid
 
-- It is faster to block these IPs with a proxy, like [Squid-Cache](http://www.squid-cache.org/). For more information, visit the [BlackIP](https://github.com/maravento/blackip) project / Es más rápido bloquear estas IPs con un proxy, como [Squid-Cache](http://www.squid-cache.org/). Para mayor información, visite el proyecto [BlackIP](https://github.com/maravento/blackip)
-- You can also block the domains related using [Blackweb](https://github.com/maravento/blackweb) / También puede bloquear los dominios relacionados usando [Blackweb](https://github.com/maravento/blackweb)
+<table width="100%">
+  <tr>
+    <td width="50%">
+     - It is faster to block these IPs with a proxy, like <a href="https://www.squid-cache.org/" target="_blank">Squid-Cache</a>. For more information, visit the <a href="https://github.com/maravento/blackip" target="_blank">Blackip</a> project.
+    </td>
+    <td width="50%">
+     - Es más rápido bloquear estas IPs con un proxy, como <a href="https://www.squid-cache.org/" target="_blank">Squid-Cache</a>. Para mayor información, visite el proyecto <a href="https://github.com/maravento/blackip" target="_blank">Blackip</a>.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+     - You can also block the domains related using <a href="https://github.com/maravento/blackweb" target="_blank">Blackweb</a>.
+    </td>
+    <td width="50%">
+     - También puede bloquear los dominios relacionados usando <a href="https://github.com/maravento/blackweb" target="_blank">Blackweb</a>.
+    </td>
+  </tr>
+</table>
 
 #### Block with Ipset/Iptables
 
-For more information, visit the [BlackIP](https://github.com/maravento/blackip) project / Para mayor información, visite el proyecto [BlackIP](https://github.com/maravento/blackip)
+<table width="100%">
+  <tr>
+    <td width="50%">
+     To block with Ipset/Iptables, visit the project, visit the <a href="https://github.com/maravento/blackip" target="_blank">Blackip</a> project.
+    </td>
+    <td width="50%">
+     Para bloquear con Ipset/Iptables, visite el proyecto, visite el proyecto <a href="https://github.com/maravento/blackip" target="_blank">Blackip</a>.
+    </td>
+  </tr>
+</table>
 
 #### Increase Protection
 
-To increase protection against this type of applications, it is recommended [Dnsmasq](https://thekelleys.org.uk/dnsmasq/doc.html) and [Zeek](https://docs.zeek.org/en/master/) / Para incrementar la protección contra este tipo de aplicaciones, se recomienda [Dnsmasq](https://thekelleys.org.uk/dnsmasq/doc.html) y [Zeek](https://docs.zeek.org/en/master/)
+<table width="100%">
+  <tr>
+    <td width="50%">
+     To increase protection against this type of applications, it is recommended <a href="https://thekelleys.org.uk/dnsmasq/doc.html" target="_blank">Dnsmasq</a> and <a href="https://docs.zeek.org/en/master/" target="_blank">Zeek</a>.
+    </td>
+    <td width="50%">
+     Para incrementar la protección contra este tipo de aplicaciones, se recomienda <a href="https://thekelleys.org.uk/dnsmasq/doc.html" target="_blank">Dnsmasq</a> y <a href="https://docs.zeek.org/en/master/" target="_blank">Zeek</a>.
+    </td>
+  </tr>
+</table>
 
 ### BitTorrent Protocol Rule
 
@@ -139,8 +191,6 @@ acl blockext urlpath_regex "\.torrent([a-zA-Z][0-9]*)?(\?.*)?$"
 http_access deny blockext
 ```
 
-For more information, visit the [BlackIP](https://github.com/maravento/blackip) project / Para mayor información, visite el proyecto [BlackIP](https://github.com/maravento/blackip)
-
 ### Tor Rule (Brave)
 
 ```bash
@@ -164,7 +214,16 @@ Jul  9 09:54:03 adminred Tor IN=enp2s1 OUT=enp2s0 MAC=94:18:82:XX:XX:XX:08:00:27
 
 #### Important About Ports (Tor, BitTorrent, etc)
 
-It is recommended to block p2p, tor ports, etc., with [Ipset](https://manpages.debian.org/ipset/ipset.8). For more information visit [Blockports](https://www.maravento.com/2020/06/blackports.html) / Se recomienda bloquear los puertos p2p, tor, etc., con [Ipset](https://manpages.debian.org/ipset/ipset.8). Para mayor información visite el post [Blockports](https://www.maravento.com/2020/06/blackports.html)
+<table width="100%">
+  <tr>
+    <td width="50%">
+     It is recommended to block p2p, tor ports, etc., with <a href="https://manpages.debian.org/ipset/ipset.8" target="_blank">Ipset</a>. For more information visit <a href="https://www.maravento.com/2020/06/blackports.html" target="_blank">Blockports</a>.
+    </td>
+    <td width="50%">
+     Se recomienda bloquear los puertos p2p, tor, etc., con <a href="https://manpages.debian.org/ipset/ipset.8" target="_blank">Ipset</a>. Para mayor información visite el post <a href="https://www.maravento.com/2020/06/blackports.html" target="_blank">Blockports</a>.
+    </td>
+  </tr>
+</table>
 
 ```bash
 # BLOCKPORTS (Remove or add ports to block TCP/UDP):
@@ -191,7 +250,16 @@ $iptables -w -A FORWARD -m set --match-set blockports src,dst -j DROP
 
 ### Important About Source (SRC)
 
-To avoid congestion (of the log and server that manages local network) due to the high level of processing, it is necessary to block local IP address that is generating this traffic. You can do it with [Ipset](https://manpages.debian.org/ipset/ipset.8): / Para evitar la congestión (del log y del servidor que administra la red local) por el alto nivel de procesamiento, es necesario bloquear la dirección IP local que está generando este tráfico. Puede hacerlo con [Ipset](https://manpages.debian.org/ipset/ipset.8):
+<table width="100%">
+  <tr>
+    <td width="50%">
+     To avoid congestion (of the log and server that manages local network) due to the high level of processing, it is necessary to block local IP address that is generating this traffic. You can do it with <a href="https://manpages.debian.org/ipset/ipset.8" target="_blank">Ipset</a>:
+    </td>
+    <td width="50%">
+     Para evitar la congestión (del log y del servidor que administra la red local) por el alto nivel de procesamiento, es necesario bloquear la dirección IP local que está generando este tráfico. Puede hacerlo con <a href="https://manpages.debian.org/ipset/ipset.8" target="_blank">Ipset</a>:
+    </td>
+  </tr>
+</table>
 
 ```bash
 #!/bin/bash
@@ -219,7 +287,16 @@ $iptables -A INPUT -m set --match-set banip src,dst -j DROP
 $iptables -A FORWARD -m set --match-set banip src,dst -j DROP
 ```
 
-Save the script and schedule it in the crontab to run each 10 min. Adjust the ruler and task time according to your needs. Example: / Guarde el script y prográmelo en el crontab para que se ejecute cada 10 minutos. Ajuste el tiempo de la regla y tarea según sus necesidades. Ejemplo:
+<table width="100%">
+  <tr>
+    <td width="50%">
+     Save the script and schedule it in the crontab to run each 10 min. Adjust the ruler and task time according to your needs. Example:
+    </td>
+    <td width="50%">
+     Guarde el script y prográmelo en el crontab para que se ejecute cada 10 minutos. Ajuste el tiempo de la regla y tarea según sus necesidades. Ejemplo:
+    </td>
+  </tr>
+</table>
 
 ```bash
 sudo crontab -l | { cat; echo "*/10 * * * * /path_to_script/banip.sh"; } | sudo crontab -

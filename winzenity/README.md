@@ -2,9 +2,18 @@
 
 [![status-deprecated](https://img.shields.io/badge/status-deprecated-red.svg)](https://github.com/maravento/vault)
 
-[**WinZenity** (Zen Dialogs for Windows)](https://en.wikipedia.org/wiki/Zenity) is a software that allows generating simple dialogues as a wrapper and designed as a substitute for gdialog for GNOME and console dialog. It uses the GTK + and GLADE libraries. This version was ported to run on Windows Systems
+<!-- markdownlint-disable MD033 -->
 
-[**WinZenity** (Zen Dialogs for Windows)](https://es.wikipedia.org/wiki/Zenity) es un software que permite generar diálogos simples a manera de wrapper e ideado como sustituto de gdialog para GNOME y dialog en consola. Utiliza las bibliotecas GTK + y GLADE. Esta versión fue portada para ejecutarse en Sistemas Windows
+<table width="100%">
+  <tr>
+    <td width="50%">
+     <b>WinZenity</b> <a href="https://en.wikipedia.org/wiki/Zenity" target="_blank">Zen Dialogs for Windows</a> is a software that allows generating simple dialogues as a wrapper and designed as a substitute for gdialog for GNOME and console dialog. It uses the GTK + and GLADE libraries. This version was ported to run on Windows Systems.
+    </td>
+    <td width="50%">
+     <b>WinZenity</b> <a href="https://es.wikipedia.org/wiki/Zenity" target="_blank">Zen Dialogs for Windows</a> es un software que permite generar diálogos simples a manera de wrapper e ideado como sustituto de gdialog para GNOME y dialog en consola. Utiliza las bibliotecas GTK + y GLADE. Esta versión fue portada para ejecutarse en Sistemas Windows.
+    </td>
+  </tr>
+</table>
 
 ## DATA SHEET
 
@@ -36,11 +45,20 @@
 - [The Moluccas (used for making binaries)](https://sourceforge.net/projects/tumagcc/)
 - [Wikipedia: Zenity and WinZenity](https://en.wikipedia.org/wiki/Zenity#:~:text=Tyler%5B4%5D-,Cross%2Dplatform%20compatibility,-%5Bedit%5D)
 
-## EOL
+## End-of-Life (EOL) | End-of-Support (EOS)
 
 ---
 
-This project has reached EOL (End of Life). No longer supported or updated / Este proyecto a alcanzado EOL (End of Life). Ya no cuenta con soporte o actualizaciones
+<table width="100%">
+  <tr>
+    <td width="50%">
+     This project has reached EOL - EOS. No longer supported or updated.
+    </td>
+    <td width="50%">
+     Este proyecto a alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.
+    </td>
+  </tr>
+</table>
 
 ## LICENSES
 

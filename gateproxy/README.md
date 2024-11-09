@@ -2,9 +2,18 @@
 
 [![status-beta](https://img.shields.io/badge/status-beta-magenta.svg)](https://github.com/maravento/vault)
 
-**Gateproxy** is a simple proxy/firewall server for managing Pyme's [LAN](https://en.wikipedia.org/wiki/Local_area_network) networks. The installation and configuration script is fully automated and customizable according to the needs of the administrator or organization, with minimal interaction during the process. It can be implemented in physical servers or VMs, for greater flexibility and portability.
+<!-- markdownlint-disable MD033 -->
 
-**Gateproxy** es un sencillo servidor proxy/firewall para administrar redes Pyme's [LAN](https://es.wikipedia.org/wiki/Red_de_%C3%A1rea_local). El script de instalación y configuración es totalmente automatizado y personalizable, de acuerdo a las necesidades del administrador u organización, con una interacción mínima durante proceso. Puede ser implementado en servidores físicos o VMs, para mayor flexibilidad y portabilidad.
+<table width="100%">
+  <tr>
+    <td width="50%">
+     <b>Gateproxy</b> is a simple proxy/firewall server for managing Pyme's LAN networks. The installation and configuration script is fully automated and customizable according to the needs of the administrator or organization, with minimal interaction during the process. It can be implemented in physical servers or VMs, for greater flexibility and portability.
+    </td>
+    <td width="50%">
+     <b>Gateproxy</b> es un sencillo servidor proxy/firewall para administrar redes Pyme's LAN. El script de instalación y configuración es totalmente automatizado y personalizable, de acuerdo a las necesidades del administrador u organización, con una interacción mínima durante proceso. Puede ser implementado en servidores físicos o VMs, para mayor flexibilidad y portabilidad.
+    </td>
+  </tr>
+</table>
 
 ## DOWNLOAD PROJECT
 
@@ -29,7 +38,7 @@ python gitfolderdl.py https://github.com/maravento/vault/gateproxy
 
 ---
 
-Open the terminal and run: / Abra el terminal y ejecute:
+**Open the terminal and run: | Abra el terminal y ejecute:**
 
 ```bash
 wget -q -N https://raw.githubusercontent.com/maravento/vault/master/gateproxy/gateproxy.sh && sudo chmod +x gateproxy.sh && sudo ./gateproxy.sh
@@ -41,7 +50,16 @@ wget -q -N https://raw.githubusercontent.com/maravento/vault/master/gateproxy/ga
 
 ---
 
-Gateproxy is an experimental script and may contain bugs, which will be documented or fixed where possible and contain some programs for testing purposes. Therefore, it is not recommended for use in networks or high productivity environments. / Gateproxy es un script experimental y puede contener fallos, los cuales serán documentados o corregidos en lo posible y contener algunos programas para propósitos de pruebas. Por tanto, no se recomienda su uso en redes o entornos de alta productividad.
+<table width="100%">
+  <tr>
+    <td width="50%">
+     Gateproxy is an experimental script and may contain bugs, which will be documented or fixed where possible and contain some programs for testing purposes. Therefore, it is not recommended for use in networks or high productivity environments.
+    </td>
+    <td width="50%">
+     Gateproxy es un script experimental y puede contener fallos, los cuales serán documentados o corregidos en lo posible y contener algunos programas para propósitos de pruebas. Por tanto, no se recomienda su uso en redes o entornos de alta productividad.
+    </td>
+  </tr>
+</table>
 
 ## LICENSES
 
