@@ -2,15 +2,33 @@
 
 [![status-frozen](https://img.shields.io/badge/status-frozen-blue.svg)](https://github.com/maravento/vault)
 
-**BlackUSB** is a experimental script, that prevents theft of personal data, malware, forensic tools, BadUSB (USB Rubber Ducky), etc. Generates a whitelist of usb/hid devices and blocks any other unauthorized insertion of unknown devices, using udev rules.
+<!-- markdownlint-disable MD033 -->
 
-**BlackUSB** es un script experimental, que previene el robo de datos personales, malware, herramientas forenses, BadUSB (USB Rubber Ducky), etc. Genera una lista blanca de dispositivos usb/hid y bloquea cualquier otra inserción no autorizada de dispositivos desconocidos, usando reglas udev
+<table width="100%">
+  <tr>
+    <td width="50%">
+     <b>BlackUSB</b> is a experimental script, that prevents theft of personal data, malware, forensic tools, BadUSB (USB Rubber Ducky), etc. Generates a whitelist of usb/hid devices and blocks any other unauthorized insertion of unknown devices, using udev rules.
+    </td>
+    <td width="50%">
+     <b>BlackUSB</b> es un script experimental, que previene el robo de datos personales, malware, herramientas forenses, BadUSB (USB Rubber Ducky), etc. Genera una lista blanca de dispositivos usb/hid y bloquea cualquier otra inserción no autorizada de dispositivos desconocidos, usando reglas udev.
+    </td>
+  </tr>
+</table>
 
 ## FOR LINUX OS
 
 ---
 
-It is a bash script that generates a white list of usb/hid devices and blocks any other unauthorized insertion of unknown devices, using udev rules / Es un bash script que genera una lista blanca de dispositivos usb/hid y bloquea cualquier otra inserción no autorizada de dispositivos desconocidos, usando reglas udev
+<table width="100%">
+  <tr>
+    <td width="50%">
+     It is a bash script that generates a white list of usb/hid devices and blocks any other unauthorized insertion of unknown devices, using udev rules.
+    </td>
+    <td width="50%">
+     Es un bash script que genera una lista blanca de dispositivos usb/hid y bloquea cualquier otra inserción no autorizada de dispositivos desconocidos, usando reglas udev.
+    </td>
+  </tr>
+</table>
 
 ```bash
 sudo wget -q -N https://raw.githubusercontent.com/maravento/vault/master/blackusb/linux/blackusb.sh -O /path_to/blackusb.sh && sudo chmod +x /path_to/blackusb.sh
@@ -46,7 +64,16 @@ sudo /path_to/blackusb.sh s
 
 ### Paranoic Mode
 
-It consists of turning off your terminal when inserting an unauthorized and/or unknown usb device, rather than locking it. To activate it, edit the script manually and uncomment the line / Consiste en apagar su terminal cuando se inserte un dispositivo usb no autorizado y/o desconocido, en lugar de bloquearlo. Para activarlo, edite manualmente el script y descomente la línea
+<table width="100%">
+  <tr>
+    <td width="50%">
+     It consists of turning off your terminal when inserting an unauthorized and/or unknown usb device, rather than locking it. To activate it, edit the script manually and uncomment the line.
+    </td>
+    <td width="50%">
+     Consiste en apagar su terminal cuando se inserte un dispositivo usb no autorizado y/o desconocido, en lugar de bloquearlo. Para activarlo, edite manualmente el script y descomente la línea. 
+    </td>
+  </tr>
+</table>
 
 `'poweroff'`
 
@@ -68,7 +95,16 @@ Cruzer Blade
 
 ### Fork
 
-This project is based on: / Este proyecto está basado en:
+<table width="100%">
+  <tr>
+    <td width="50%">
+     This project is a fork of:
+    </td>
+    <td width="50%">
+     Este proyecto es un fork de:
+    </td>
+  </tr>
+</table>
 
 [usbkill](https://github.com/hephaest0s/usbkill)
 
@@ -78,7 +114,16 @@ This project is based on: / Este proyecto está basado en:
 
 ---
 
-Tool to block unauthorized devices USB, HID, HDC, Bluetooth, IEEE, SmartCardReader, PCMCIA, Printers, SCSI, RAID, etc. Cleans previous device installations, rescans those connected and blocks new ones / Herramienta para bloquear dispositivos no autorizados USB, HID, HDC, Bluetooth, IEEE, SmartCardReader, PCMCIA, Printers, SCSI, RAID, etc. Limpia instalaciones previas de dispositivos, reescanea los conectados y bloquea los nuevos
+<table width="100%">
+  <tr>
+    <td width="50%">
+     Tool to block unauthorized devices USB, HID, HDC, Bluetooth, IEEE, SmartCardReader, PCMCIA, Printers, SCSI, RAID, etc. Cleans previous device installations, rescans those connected and blocks new ones.
+    </td>
+    <td width="50%">
+     Herramienta para bloquear dispositivos no autorizados USB, HID, HDC, Bluetooth, IEEE, SmartCardReader, PCMCIA, Printers, SCSI, RAID, etc. Limpia instalaciones previas de dispositivos, reescanea los conectados y bloquea los nuevos.
+    </td>
+  </tr>
+</table>
 
 ### Data Sheet (For Windows)
 
@@ -88,9 +133,16 @@ Tool to block unauthorized devices USB, HID, HDC, Bluetooth, IEEE, SmartCardRead
 
 ### How To Use (For Windows)
 
-- Disable your Antivirus, Antimalware, SmartScreen or any other security solution in your Operating System and close all windows / Desactive su Antivirus, Antimalware, SmartScreen o cualquier otra solución de seguridad en su Sistema Operativo y cierre todas las ventanas
-- Download BlackUSB.exe (.zip)), unzip it on your desktop / Descargue BlackUSB.exe (.zip), descomprimirlo en el escritorio
-- Run Setup by double-clicking accept execution with privileges and follow the onscreen instructions / Ejecútelo con doble clic, acepte la ejecución con privilegios y siga las instrucciones en pantalla
+<table width="100%">
+  <tr>
+    <td width="50%">
+     Disable your Antivirus, Antimalware, SmartScreen or any other security solution in your Operating System, close all windows and check the date and time of your PC is correct. Unzip <code>BlackUSB.exe (.zip)</code> to your desktop, execute it with double click (accept privileged execution) and follow the instructions on the screen.
+    </td>
+    <td width="50%">
+     Desactive su Antivirus, Antimalware, SmartScreen o cualquier otra solución de seguridad en su Sistema Operativo, cierre todas las ventanas y verifique la fecha y hora de su PC sea la correcta. Descomprima <code>BlackUSB.exe (.zip)</code> en el escritorio, ejecutarlo con doble clic (acepte la ejecución con privilegios) y siga las instrucciones en pantalla.
+    </td>
+  </tr>
+</table>
 
 ### Important Before Use
 
@@ -98,11 +150,40 @@ Tool to block unauthorized devices USB, HID, HDC, Bluetooth, IEEE, SmartCardRead
   <img src="https://raw.githubusercontent.com/maravento/vault/master/blackusb/img/blackusb.png">
 </div>
 
-- Do not press **BLOCK** button twice in a row or it will block all USB/HID devices. / No pulse el botón **BLOCK**, dos veces seguidas, o bloqueará todos los dispositivos USB/HID
-- If you have defined [GPO policies](https://en.wikipedia.org/wiki/Group_Policy) on your system, they will be rewritten. Make a GPO backup before using BlackUSB / Si tiene establecidas [políticas GPO](https://es.wikipedia.org/wiki/Directiva_de_Grupo) en su sistema, serán reescritas. Haga backup GPO antes de usar BlackUSB
-- To add a new USB/HID device to your whitelist (excluded from blocking) you must press the RESTORE button to remove the restrictions, then connect the new device and finally press BLOCK button / Para incorporar un nuevo dispositivo USB/HID a su lista blanca (excluidos de bloqueo) debe pulsar el botón RESTORE para eliminar las restricciones, luego conectar el nuevo dispositivo y finalmente pulsar el botón BLOCK
-- After executing the BLOCK option, the **whitelist.txt** report file, which contains the white list of USB/HID devices excluded from the lock, will be displayed on your desktop. This list will be deleted when using the RESTORE option / Despues de ejecutar la opción BLOCK, aparecerá en su escritorio el archivo de reporte **whitelist.txt**, que contiene la lista blanca de dispositivos USB/HID excluidos del bloqueo. Esta lista será eliminada al utilizar la opción RESTORE
-- BlackUSB for Windows is included in [Dextroyer](https://www.maravento.com/p/dxt.html) / BlackUSB para Windows está incluido en [Dextroyer](https://www.maravento.com/p/dxt.html)
+<table width="100%">
+  <tr>
+    <td width="50%">
+     - Do not press <b>BLOCK</b> button twice in a row or it will block all USB/HID devices.
+    </td>
+    <td width="50%">
+     - No pulse el botón <b>BLOCK</b> dos veces seguidas, o bloqueará todos los dispositivos USB/HID.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+     - If you have defined <a href="https://en.wikipedia.org/wiki/Group_Policy" target="_blank">GPO policies</a> on your system, they will be rewritten. Make a GPO backup before using BlackUSB.
+    </td>
+    <td width="50%">
+     - Si tiene establecidas <a href="https://en.wikipedia.org/wiki/Group_Policy" target="_blank">GPO policies</a> en su sistema, serán reescritas. Haga backup GPO antes de usar BlackUSB. 
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+     - To add a new USB/HID device to your whitelist (excluded from blocking) you must press the RESTORE button to remove the restrictions, then connect the new device and finally press BLOCK button.
+    </td>
+    <td width="50%">
+     - Para incorporar un nuevo dispositivo USB/HID a su lista blanca (excluidos de bloqueo) debe pulsar el botón RESTORE para eliminar las restricciones, luego conectar el nuevo dispositivo y finalmente pulsar el botón BLOCK.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+     - After executing the BLOCK option, the <b>whitelist.txt</b> report file, which contains the white list of USB/HID devices excluded from the lock, will be displayed on your desktop. This list will be deleted when using the RESTORE option.
+    </td>
+    <td width="50%">
+     - Despues de ejecutar la opción BLOCK, aparecerá en su escritorio el archivo de reporte <b>whitelist.txt</b>, que contiene la lista blanca de dispositivos USB/HID excluidos del bloqueo. Esta lista será eliminada al utilizar la opción RESTORE.
+    </td>
+  </tr>
+</table>
 
 ## PACKAGES AND TOOLS
 

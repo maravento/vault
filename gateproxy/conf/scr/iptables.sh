@@ -150,10 +150,8 @@ aports="8282,10000,10100,10200,10300"
 # add your sysadmin mac address to control audit ports
 sysadmin="00:00:00:00:00:00"
 for mac in $sysadmin; do
-    for protocol in tcp udp; do
-        $iptables -A INPUT -i $lan -p $protocol -m multiport --dports $aports -m mac --mac-source $mac -j ACCEPT
-        $iptables -A FORWARD -i $lan -p $protocol -m multiport --dports $aports -m mac --mac-source $mac -j ACCEPT
-    done
+    $iptables -A INPUT -i $lan -p tcp -m multiport --dports $aports -m mac --mac-source $mac -j ACCEPT
+    $iptables -A FORWARD -i $lan -p tcp -m multiport --dports $aports -m mac --mac-source $mac -j ACCEPT
 done
 # Block Audit Ports
 for protocol in tcp udp; do
@@ -205,13 +203,16 @@ $iptables -t mangle -A PREROUTING -i $lan -j DROP
 ## GATEWAY PORTS ##
 echo "Gateway Ports..."
 
-# RFC 2131 DHCP BOOTP protocol (67,68), NETBios (137:139), Microsoft-DS and SMB (445), SNMP (162), NTP (123), Open cups (printing service) udp/tcp for lan users IPP (631)
-gports="67,68,137:139,445,162,123,631"
+# RFC 2131 DHCP BOOTP protocol (UDP 67,68), NETBIOS Names and NETBIOS Datagram Service (UDP 137,138), SNMP (UDP 161,162), NTP (UDP 123), Open cups Printing Services (IPP - UDP 631)
+gudp="67,68,137,138,445,161,162,123,631"
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
-    for protocol in tcp udp; do
-            $iptables -A INPUT -i $lan -p $protocol -m multiport --dports $gports -m mac --mac-source $mac -j ACCEPT
-            $iptables -A FORWARD -i $lan -p $protocol -m multiport --dports $gports -m mac --mac-source $mac -j ACCEPT
-    done
+    $iptables -A INPUT -i $lan -p udp -m multiport --dports $gudp -m mac --mac-source $mac -j ACCEPT
+done
+
+# NETBios Sessions (TCP 139), Microsoft-DS and SMB (TCP 445)
+gtcp="139,445"
+for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
+    $iptables -A INPUT -i $lan -p tcp -m multiport --dports $gtcp -m mac --mac-source $mac -j ACCEPT
 done
 
 ## DNS PORTS ##
@@ -219,22 +220,24 @@ echo "DNS Ports..."
 
 # DNS Public Server (Google) + Stubby (127.0.0.1 192.168.X.X)
 dns="8.8.8.8 8.8.4.4 192.168.1.2 127.0.0.1"
-# DNS OpenDNS (Optional)
-#dns="208.67.222.222 208.67.220.220"
-# DNS Ports
-dnsports="53,853,5353,5355"
+#dns="208.67.222.222 208.67.220.220" # OpenDNS (Alternative)
+
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
     for ip in $dns; do
-       for protocol in tcp udp; do
-            # mDNS (multicast DNS) (port 5353) and 239.255.255.250 UPnP/SSDP
-            $iptables -A INPUT -i $lan -s 224.0.0.0/4 -m mac --mac-source $mac -j ACCEPT
-            # Link local networks
-            $iptables -A INPUT -i $lan -s 169.254.0.0/16 -m mac --mac-source $mac -j ACCEPT
-            # DNS PORTS: DNS (53), DNS over TLS DoT (853), Multicast DNS Bonjour-Apple, LLMNR-Microsoft, Avanhi-Linux, Link-Local Multicast LLMNR (5353)
-            $iptables -A INPUT -i $lan -s $ip -p $protocol -m multiport --dports $dnsports -m state --state ESTABLISHED -m mac --mac-source $mac -j ACCEPT
-            $iptables -A FORWARD -i $lan -d $ip -p $protocol -m multiport --dports $dnsports -m mac --mac-source $mac -j ACCEPT
-            $iptables -A OUTPUT -d $ip -p $protocol -m multiport --dports $dnsports -j ACCEPT
-        done
+        # Multicast DNS (mDNS) (udp 5353)
+        $iptables -A INPUT -i $lan -p udp -s 224.0.0.0/4 -d 5353 -m mac --mac-source $mac -j ACCEPT
+        # Simple Service Discovery Protocol/Universal Plug and Play (SSDP/UPnP) (239.255.255.250) (udp 1900,5000)
+        $iptables -A INPUT -i $lan -p udp -m multiport --dports 1900,5000 -m mac --mac-source $mac -j ACCEPT
+        # Web Service Discovery (WSDD - UDP 3702)
+        $iptables -A INPUT -i $lan -p udp -d 239.255.255.250 --dport 3702 -m mac --mac-source $mac -j ACCEPT
+        # Link-local addresses (LLA)
+        $iptables -A INPUT -i $lan -s 169.254.0.0/16 -m mac --mac-source $mac -j ACCEPT
+        # Link-local Multicast Name Resolution (LLMNR - TCP 5355)
+        $iptables -A INPUT -i $lan -p tcp --dport 5355 -m mac --mac-source $mac -j ACCEPT
+        # DNS (UDP 53), DNS over TLS (DoT - UDP 853), Multicast DNS (mDNS - UDP 5353)
+        $iptables -A INPUT -i $lan -p udp -m multiport --dports 53,853,5353 -m state --state ESTABLISHED -m mac --mac-source $mac -j ACCEPT
+        $iptables -A FORWARD -i $lan -p udp -m multiport --dports 53,853,5353 -m mac --mac-source $mac -j ACCEPT
+        $iptables -A OUTPUT -p udp -m multiport --dports 53,853,5353 -j ACCEPT
     done
 done
 
@@ -267,6 +270,9 @@ done
 ## SECURITY RULES ##
 echo "Security Rules..."
 
+# Block UDP
+$iptables -A OUTPUT -p udp -j DROP
+
 # syn_flood
 $iptables -A INPUT -p tcp --tcp-flags ALL NONE -j DROP
 $iptables -A INPUT -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
@@ -285,45 +291,34 @@ $iptables -A syn_flood -j DROP
 # Invalid Packages
 $iptables -A INPUT -i $lan -m conntrack --ctstate INVALID -j DROP
 
-# ICMP (ping) (Optional)
+# ICMP (ping)
 $iptables -A INPUT -p icmp -j DROP
 
-# Limit the available bandwidth for each IP (Optional)
-#$iptables -A INPUT -p tcp -m connlimit --connlimit-above 50 -j NFLOG --nflog-prefix 'bw_limit'
+# Limit incoming and outgoing connections.
+#$iptables -A INPUT -p tcp -m connlimit --connlimit-above 50 -j NFLOG --nflog-prefix 'connlimit'
 #$iptables -A INPUT -p tcp -m connlimit --connlimit-above 50 -j REJECT
+#$iptables -A OUTPUT -p tcp --syn -m connlimit --connlimit-above 20 -j DROP
 
-# Number of connections per minute from an IP address (Optional)
-#$iptables -A INPUT -p tcp -m conntrack --ctstate NEW -m limit --limit 10/minute --limit-burst 10 -j NFLOG --nflog-prefix 'conn_limit'
+# Block IPs with more than 10 connections in 10 seconds (INPUT).
+#$iptables -A INPUT -m state --state NEW -m recent --set
+#$iptables -A INPUT -m state --state NEW -m recent --update --seconds 10 --hitcount 10 -j NFLOG --nflog-prefix 'hitcount'
+#$iptables -A INPUT -m state --state NEW -m recent --update --seconds 10 --hitcount 10 -j DROP
+
+# Number of connections per minute from an IP (INPUT).
+#$iptables -A INPUT -p tcp -m conntrack --ctstate NEW -m limit --limit 10/minute --limit-burst 10 -j NFLOG --nflog-prefix 'conntrack'
 #$iptables -A INPUT -p tcp -m conntrack --ctstate NEW -m limit --limit 10/minute --limit-burst 10 -j ACCEPT
 
-# Block Spoofed Packets (Optional)
+# Block Spoofed Packets
 #for ip in $(sed '/#.*/d' $aclroute/ipsreserved.txt); do
 #    $iptables -A INPUT -i $lan -s $ip -j NFLOG --nflog-prefix 'spoof'
 #    $iptables -A INPUT -i $lan -s $ip -j DROP
 #done
 
-# Protection against port scanning (Optional)
+# Protection against port scanning
 #$iptables -N port-scanning
 #$iptables -A port-scanning -p tcp --tcp-flags SYN,ACK,FIN,RST RST -m limit --limit 1/s --limit-burst 2 -j RETURN
 #$iptables -A port-scanning -j NFLOG --nflog-prefix 'portscan'
 #$iptables -A port-scanning -j DROP
-
-# BLOCKPORTS (Remove or add ports to block TCP/UDP):
-# path: /etc/acl/blockports.txt
-# Echo (7), CHARGEN (19), FTP (20, 21), SSH (22), TELNET (23), 6to4 (41,43,44,58,59,60,3544), FINGER (79), SSDP (2869,1900,5000), RDP-MS WBT Server - Windows Terminal Serve (3389), RFB-VNC (5900), TOR Ports (9001,9050,9150), Brave Tor (8008,8443,9001:9004,9090,9101:9103,9030,9031,9050,9132:9159), IBM HTTP Server administration default (TCP/UDP 8008), SqueezeCenter/Cherokee/Openfire (9090), IPP (631), DCOM TCP Port & RPC Endpoint Mapper & RDC/DCE [Endpoint Mapper] – Microsoft networks (135), WinRM TCP Ports HTTP/HTTPS (5985:5986), TFTP (69) Trojans (10080), IRC (6660-6669), Trojans/Metasploit (4444), SQL inyection/XSS (8088, 8888), bittorrent (6881-6889 58251-58252,58687,6969) others P2P (1337,2760,4662,4672), Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560), Lightweight Directory Access protocol (LDAP) (389,636,3268,3269,10389,10636), Kerberos (88), WINS (42,1512), SUN.RPC - rpcbind [Remote Procedure Calls] (111), Barkley r-services and r-commands [e.g., rlogin, rsh, rexec] (512-514), Microsoft SQL Server [ms-sql-s] (1433), Microsoft SQL Monitor [ms-sql-m] (1434), TFTP (69), SNMP (161), VoIP - H.323 (1719/UDP 1720/TCP), Microsoft Point-to-Point Tunneling protocol PPTP - VPN (1723), SIP (5060, 5061), SANE network scanner (6566), RTSP Nat Slipstreaming (TCP 554,5060:5061,1719:1720), BTC/ETH (8332,8333,8545,30303)
-$ipset -L blockports >/dev/null 2>&1
-if [ $? -ne 0 ]; then
-    $ipset -! create blockports bitmap:port range 0-65535
-else
-    $ipset -! flush blockports
-fi
-for blports in $(cat $aclroute/blockports.txt | sort -V -u); do
-    $ipset -! add blockports $blports
-done
-$iptables -A INPUT -m set --match-set blockports src -j NFLOG --nflog-prefix 'blockports'
-$iptables -A INPUT -m set --match-set blockports src -j DROP
-$iptables -A FORWARD -m set --match-set blockports src,dst -j NFLOG --nflog-prefix 'blockports'
-$iptables -A FORWARD -m set --match-set blockports src,dst -j DROP
 
 # BLOCKZONE (optional)
 # https://github.com/maravento/blackip
@@ -354,6 +349,25 @@ $iptables -A FORWARD -m set --match-set blockports src,dst -j DROP
 #$ipset -! restore < /tmp/ipset_blockzone.txt
 # iptables rules
 #$iptables -A INPUT -m set --match-set blockzone src,dst -j DROP
+
+# BLOCKPORTS (Remove or add ports to block TCP/UDP):
+# path: /etc/acl/blockports.txt
+# Echo (7), CHARGEN (19), FTP (20, 21), SSH Tunneling (22), TELNET (23), 6to4 (41,43,44,58,59,60,3544), FINGER (79), SSDP (2869,1900,5000), RDP-MS WBT Server - Windows Terminal Serve (3389), RFB-VNC (5900), TOR Ports (9001,9050,9150), Brave Tor (8008,8443,9001:9004,9090,9101:9103,9030,9031,9050,9132:9159), IBM HTTP Server administration default (TCP/UDP 8008), SqueezeCenter/Cherokee/Openfire (9090), IPP (631), DCOM TCP Port & RPC Endpoint Mapper & RDC/DCE [Endpoint Mapper] – Microsoft networks (135), WinRM TCP Ports HTTP/HTTPS (5985:5986), TFTP (69) Trojans (10080), IRC (6660-6669), Trojans/Metasploit (4444), SQL inyection/XSS (8088, 8888), bittorrent (6881-6889 58251-58252,58687,6969) others P2P (1337,2760,4662,4672), Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560), Lightweight Directory Access protocol (LDAP) (389,636,3268,3269,10389,10636), Kerberos (88), WINS (42,1512), SUN.RPC - rpcbind [Remote Procedure Calls] (111), Barkley r-services and r-commands [e.g., rlogin, rsh, rexec] (512-514), Microsoft SQL Server [ms-sql-s] (1433), Microsoft SQL Monitor [ms-sql-m] (1434), TFTP (69), VoIP - H.323 (1719/UDP 1720/TCP), Microsoft Point-to-Point Tunneling protocol PPTP - VPN (1723), SIP (5060, 5061), SANE network scanner (6566), RTSP Nat Slipstreaming (TCP 554,5060:5061,1719:1720), BTC/ETH (8332,8333,8545,30303), SOCKS Proxy (1080)
+$ipset -L blockports >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+    $ipset -! create blockports bitmap:port range 0-65535
+else
+    $ipset -! flush blockports
+fi
+for blports in $(cat $aclroute/blockports.txt | sort -V -u); do
+    $ipset -! add blockports $blports
+done
+$iptables -A INPUT -m set --match-set blockports src -j NFLOG --nflog-prefix 'blockports_input'
+$iptables -A INPUT -m set --match-set blockports src -j DROP
+$iptables -A FORWARD -m set --match-set blockports src,dst -j NFLOG --nflog-prefix 'blockports_forward'
+$iptables -A FORWARD -m set --match-set blockports src,dst -j DROP
+$iptables -A OUTPUT -m set --match-set blockports src,dst -j NFLOG --nflog-prefix 'blockports_output'
+$iptables -A OUTPUT -m set --match-set blockports src,dst -j DROP
 
 ## ACL RULES ##
 echo "ACL Rules..."

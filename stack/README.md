@@ -2,7 +2,18 @@
 
 [![status-deprecated](https://img.shields.io/badge/status-deprecated-red.svg)](https://github.com/maravento/vault)
 
-**Stack** contains stack installation package for linux / **Stack** contiene paquete de instalación stack para Linux
+<!-- markdownlint-disable MD033 -->
+
+<table width="100%">
+  <tr>
+    <td width="50%">
+     <b>Stack</b> contains stack installation package for linux.
+    </td>
+    <td width="50%">
+     <b>Stack</b> contiene paquete de instalación stack para Linux.
+    </td>
+  </tr>
+</table>inux
 
 ## DOWNLOAD PROJECT
 
@@ -18,6 +29,8 @@ python gitfolderdl.py https://github.com/maravento/vault/stack
 ## HOW TO USE
 
 ---
+
+**Tested on: Ubuntu 20.04/22.04 x64**
 
 ```bash
 wget -q -N https://raw.githubusercontent.com/maravento/vault/master/stack/stack.sh && sudo chmod +x stack.sh && sudo ./stack.sh
@@ -39,26 +52,70 @@ wget -q -N https://raw.githubusercontent.com/maravento/vault/master/stack/stack.
   <img width="80%" src="https://raw.githubusercontent.com/maravento/vault/master/stack/img/ampps.png" width="80%" height="80%">
 </div>
 
-### LAMP / AMPPS Default
+### LAMP | AMPPS Default
 
-- Tested on: / probado en: Ubuntu 20.04/22.04 x64
-- Default phpMyAdmin: [http://localhost/phpmyadmin](http://localhost/phpmyadmin)
+**Default phpMyAdmin: [http://localhost/phpmyadmin](http://localhost/phpmyadmin)**
 
 #### Important Before Use LAMP Stack
 
-- Default User **root** and Default Password **lampstack** (change it) / Usuario predeterminado **root** y contraseña predeterminada **lampstack** (cámbiela)
-- To connect to MySQL Server you must create a new username/password in phpMyAdmin / Para conectar a MySQL Server debe crear un nuevo usuario/password en phpMyAdmin
-- LAMP 7.1.33-0 is the latest released version of the Bitnami Stack for Linux with MySQL 5.7.x. Contains [MySQL Server v5.7.28, PHP v7.1.33, Apache v2.4.41](https://bitnami.com/stack/lamp/installer/changelog.txt) / LAMP 7.1.33-0 es la última versión lanzada de Bitnami Stack para Linux con MySQL 5.7.x. Contiene [MySQL Server v5.7.28, PHP v7.1.33, Apache v2.4.41](https://bitnami.com/stack/lamp/installer/changelog.txt).
-- [Bitnami has discontinued support for most native Linux installers as of June 30, 2021](https://blog.bitnami.com/2021/04/amplifying-our-focus-on-cloud-native.html) / [Bitnami ha descontinuado el soporte para la mayoría de los instaladores nativos para Linux a partir del 30 de junio de 2021](https://blog.bitnami.com/2021/04/amplifying-our-focus-on-cloud-native.html)
+<table width="100%">
+  <tr>
+    <td width="50%">
+     - Default User **root** and Default Password **lampstack** (change it).
+    </td>
+    <td width="50%">
+     - Usuario predeterminado **root** y contraseña predeterminada **lampstack** (cámbiela).
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+     - To connect to MySQL Server you must create a new username/password in phpMyAdmin.
+    </td>
+    <td width="50%">
+     - Para conectar a MySQL Server debe crear un nuevo usuario/password en phpMyAdmin.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+     - LAMP 7.1.33-0 is the latest released version of the Bitnami Stack for Linux with MySQL 5.7.x. Contains <a href="https://bitnami.com/stack/lamp/installer/changelog.txt" target="_blank">MySQL Server v5.7.28, PHP v7.1.33, Apache v2.4.41</a>.
+    </td>
+    <td width="50%">
+     - LAMP 7.1.33-0 es la última versión lanzada de Bitnami Stack para Linux con MySQL 5.7.x. Contiene <a href="https://bitnami.com/stack/lamp/installer/changelog.txt" target="_blank">MySQL Server v5.7.28, PHP v7.1.33, Apache v2.4.41</a>.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+     - <a href="https://blog.bitnami.com/2021/04/amplifying-our-focus-on-cloud-native.html" target="_blank">Bitnami has discontinued support for most native Linux installers as of June 30, 2021</a>.
+    </td>
+    <td width="50%">
+     - <a href="https://blog.bitnami.com/2021/04/amplifying-our-focus-on-cloud-native.html" target="_blank">Bitnami ha descontinuado el soporte para la mayoría de los instaladores nativos para Linux a partir del 30 de junio de 2021</a>.
+    </td>
+  </tr>
+</table>
 
 #### Important Before Use AMPPS Stack
 
-- Default User **root** and Default Password **mysql** (change it) / Usuario predeterminado **root** y contraseña predeterminada **mysql** (cámbiela)
-- AMPPS for Linux include: [Softaculous 4.9.3, Apache 2.4.27, OpenSSL 1.0.1t, PHP 7.1.1, PHP 7.0.22, PHP 5.6.31, PHP 5.5.38, PHP 5.4.45 and 5.3.29, ionCube PHP Loader v10.0.0, Xdebug 2.5.5, PERL 5.26.0, Python 3.6.2 with mod_wsgi 4.5.17 module, MySQL 5.6.37, phpMyAdmin 4.4.15.5, SQLite Manager 1.2.4, MongoDB 3.4.7, RockMongo 1.1.7, Pure-FTPd Server 1.0.36](https://www.ampps.com/blog/ampps-3-8/)
+<table width="100%">
+  <tr>
+    <td width="50%">
+     - Default User **root** and Default Password **mysql** (change it).
+    </td>
+    <td width="50%">
+     - Usuario predeterminado **root** y contraseña predeterminada **mysql** (cámbiela).
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" style="text-align: center;"><strong>AMPPS includes:</strong></td>
+  </tr>
+</table>
 
-### LAMP / AMPPS by Command Line
+<p style="text-align: justify;">
+  Softaculous 4.9.3, Apache 2.4.27, OpenSSL 1.0.1t, PHP 7.1.1, PHP 7.0.22, PHP 5.6.31, PHP 5.5.38, PHP 5.4.45 and 5.3.29, ionCube PHP Loader v10.0.0, Xdebug 2.5.5, PERL 5.26.0, Python 3.6.2 with mod_wsgi 4.5.17 module, MySQL 5.6.37, phpMyAdmin 4.4.15.5, SQLite Manager 1.2.4, MongoDB 3.4.7, RockMongo 1.1.7. For more details, visit the <a href="https://www.ampps.com" target="_blank">AMPPS website</a>
+</p>
 
-By command line / Por línea de comandos
+### LAMP | AMPPS by Command Line
+
+**By command line | Por línea de comandos:**
 
 ```shell
 ### LAMP ###
@@ -92,11 +149,20 @@ sudo rm -rf /usr/local/ampps/
 - [AMPPS v3.8 x64 (Softaculous)](http://www.ampps.com/downloads)
 - [LAMP v7.1.33-0 x64 (Bitnami)](https://bitnami.com/stack/lamp)
 
-## EOL
+## End-of-Life (EOL) | End-of-Support (EOS)
 
 ---
 
-This project has reached EOL (End of Life). No longer supported or updated / Este proyecto a alcanzado EOL (End of Life). Ya no cuenta con soporte o actualizaciones
+<table width="100%">
+  <tr>
+    <td width="50%">
+     This project has reached EOL - EOS. No longer supported or updated.
+    </td>
+    <td width="50%">
+     Este proyecto a alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.
+    </td>
+  </tr>
+</table>
 
 ## LICENSES
 

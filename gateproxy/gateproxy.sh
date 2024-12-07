@@ -124,6 +124,7 @@ rm /var/cache/apt/archives/lock &>/dev/null
 rm /var/cache/debconf/*.dat &>/dev/null
 rm /var/lib/apt/lists/lock &>/dev/null
 rm /var/lib/dpkg/lock &>/dev/null
+rm -rf /var/lib/apt/lists/*
 # dpkg
 dpkg --configure -a
 # time
@@ -416,8 +417,12 @@ function essential_setup() {
     # Disk Tools
     nala install -y gparted libfuse2 nfs-common ntfs-3g exfat-fuse gsmartcontrol qdirstat libguestfs-tools gvfs-fuse
     nala install -y --no-install-recommends smartmontools
-    # system tools
-    nala install -y dmidecode gawk gir1.2-gtop-2.0 javascript-common libjs-jquery rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit rubygems-integration python3-pip libssl-dev libffi-dev python3-dev python3-venv idle3 python3-psutil gtkhash moreutils renameutils libpam0g-dev dh-autoreconf rename wmctrl dos2unix i2c-tools bind9-dnsutils geoip-database neofetch ppa-purge gdebi synaptic pm-utils sharutils wget dpkg pv inotify-tools tree preload xsltproc debconf-utils mokutil uuid-dev libmnl-dev conntrack cpu-x autoconf autoconf-archive autogen automake pkg-config deborphan lsof finger logrotate linux-firmware util-linux linux-tools-common build-essential module-assistant linux-headers-$(uname -r)
+    # Sys Tools
+    nala install -y pm-utils neofetch cpu-x lsof inotify-tools dmidecode idle3 wmctrl pv dpkg ppa-purge deborphan apt-utils gawk gir1.2-gtop-2.0 finger logrotate tree uuid-dev libmnl-dev gtkhash moreutils rename renameutils sharutils dos2unix gdebi synaptic preload xsltproc debconf-utils mokutil libssl-dev libffi-dev python3-dev python3-venv libpam0g-dev autoconf autoconf-archive autogen automake dh-autoreconf pkg-config linux-firmware util-linux linux-tools-common build-essential module-assistant linux-headers-$(uname -r)
+    # Net/Geo/Web Tools
+    nala install -y conntrack i2c-tools wget bind9-dnsutils geoip-database wsdd
+    # Dev Tools
+    nala install -y javascript-common libjs-jquery rubygems-integration rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit python3-pip python3-psutil
     # mesa (if there any problems, install the package: libegl-mesa0)
     nala install -y mesa-utils
     # file tools

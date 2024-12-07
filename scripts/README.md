@@ -2,7 +2,18 @@
 
 [![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento/vault)
 
-Script Repository / Repositorio de Scripts
+<!-- markdownlint-disable MD033 -->
+
+<table width="100%">
+  <tr>
+    <td width="50%">
+     Script Repository.
+    </td>
+    <td width="50%">
+     Repositorio de Scripts.
+    </td>
+  </tr>
+</table>
 
 ## DOWNLOAD PROJECT
 
@@ -21,7 +32,7 @@ python gitfolderdl.py https://github.com/maravento/vault/scripts
 
 ### Bash (Linux)
 
-Tested on: / Probado en: Ubuntu 22.04/24.04 x64
+Tested on: Ubuntu 22.04/24.04 x64
 
 - [ARP table filter](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arponscan.sh)
 - [Check Bandwidth (Set Minimum Download | Upload Value)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bandwidth.sh)
@@ -37,6 +48,7 @@ Tested on: / Probado en: Ubuntu 22.04/24.04 x64
 - [Kworker Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/kworker.sh)
 - [Limit processes with CPU Limit (start | stop | status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cpulimit.sh)
 - [Mass Unzip with Pass](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/massunzip.sh)
+- [MEGAsync Instances (start | stop | status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/msyncs)
 - [Net Report](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/netreport.sh)
 - [NTFS Disk Drive (Mount | Umount with ntfs-3g)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ntfsdrive.sh)
 - [phpVirtualBox Install](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/phpvbox.sh)
@@ -53,7 +65,7 @@ Tested on: / Probado en: Ubuntu 22.04/24.04 x64
 
 ### Batch (Windows)
 
-Tested on: / Probado en: Windows 10/11 x64
+Tested on: Windows 10/11 x64
 
 - [iTop - IT Service Management & CMDB (Change MySQL/Apache Ports)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/itopconf.bat)
 - [Mozilla Thunderbird (Backup Profiles to USB)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/mtpbackup.bat)
@@ -67,13 +79,13 @@ Tested on: / Probado en: Windows 10/11 x64
 
 ### Python (Linux)
 
-Tested on: / Probado en: Ubuntu 22.04/24.04
+Tested on: Ubuntu 22.04/24.04
 
 - [Git Folder Download (Replaces Subversion (svn) EOS/EOL on GitHub/GitLab)](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py)
 
 ### VBScript (Windows)
 
-Tested on: / Probado en: Windows 7/10/11 x64
+Tested on: Windows 7/10/11 x64
 
 - [Autorun Disable](https://raw.githubusercontent.com/maravento/vault/master/scripts/vbs/autorun.vbs)
 

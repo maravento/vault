@@ -2,9 +2,18 @@
 
 [![status-frozen](https://img.shields.io/badge/status-frozen-blue.svg)](https://github.com/maravento/vault)
 
-**Tracking & Telemetry** is a block list of URLs related to Telemetry & Tracking
+<!-- markdownlint-disable MD033 -->
 
-**Tracking & Telemetry** es una lista de bloqueo de URLs relacionadas con Telemetría & Seguimiento
+<table width="100%">
+  <tr>
+    <td width="50%">
+     <b>Tracking & Telemetry</b> is a block list of URLs related to Telemetry & Tracking.
+    </td>
+    <td width="50%">
+     <b>Tracking & Telemetry</b> es una lista de bloqueo de URLs relacionadas con Telemetría & Seguimiento.
+    </td>
+  </tr>
+</table>
 
 ## DOWNLOAD PROJECT
 
@@ -21,7 +30,16 @@ python gitfolderdl.py https://github.com/maravento/vault/telemetry
 
 ---
 
-This project is only for test purposes and may contain false positives. The debugging and updating process can take time and consume a lot of hardware resources and internet bandwidth. Use with discretion. / Este proyecto es solo para propósitos de prueba y puede contener falsos positivos. El proceso de depuración y actualización puede tardar y consumir muchos recursos de hardware y ancho de banda de internet. Úselo con discreción.
+<table width="100%">
+  <tr>
+    <td width="50%">
+     This project is only for test purposes and may contain false positives. The debugging and updating process can take time and consume a lot of hardware resources and internet bandwidth. Use with discretion.
+    </td>
+    <td width="50%">
+     Este proyecto es solo para propósitos de prueba y puede contener falsos positivos. El proceso de depuración y actualización puede tardar y consumir muchos recursos de hardware y ancho de banda de internet. Úselo con discreción.
+    </td>
+  </tr>
+</table>
 
 ## DATA SHEET
 
@@ -92,11 +110,20 @@ sed -r "s:^\.(.*):127.0.0.1 \1:g" telemetry.txt > telemetry_hosts.txt
 - [szotsaki/windows-telemetry-removal](https://raw.githubusercontent.com/szotsaki/windows-telemetry-removal/master/WindowsTelemetryRemoval.bat)
 - [W4RH4WK/Debloat-Windows-10](https://raw.githubusercontent.com/W4RH4WK/Debloat-Windows-10/master/scripts/block-telemetry.ps1)
 
-## EOL
+## End-of-Life (EOL) | End-of-Support (EOS)
 
 ---
 
-This project has reached EOL (End of Life). No longer supported or updated / Este proyecto a alcanzado EOL (End of Life). Ya no cuenta con soporte o actualizaciones
+<table width="100%">
+  <tr>
+    <td width="50%">
+     This project has reached EOL - EOS. No longer supported or updated.
+    </td>
+    <td width="50%">
+     Este proyecto a alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.
+    </td>
+  </tr>
+</table>
 
 ## LICENSES
 

@@ -2,9 +2,18 @@
 
 [![status-deprecated](https://img.shields.io/badge/status-deprecated-red.svg)](https://lightsquid.sourceforge.net/)
 
-**SqStat** is a script that allows you to verify the active connections of users. Use the cachemgr protocol to obtain information about the [Squid Proxy Server](https://www.squid-cache.org/).
+<!-- markdownlint-disable MD033 -->
 
-**SqStat** es un script que permite verificar las conexiones activas de los usuarios. Utiliza el protocolo cachemgr para obtener información de [Squid Proxy Server](https://www.squid-cache.org/).
+<table width="100%">
+  <tr>
+    <td width="50%">
+     <b>SqStat</b> is a script that allows you to verify the active connections of users. Use the cachemgr protocol to obtain information about the <a href="https://www.squid-cache.org/" target="_blank">Squid Proxy Server</a>.
+    </td>
+    <td width="50%">
+     <b>SqStat</b> es un script que permite verificar las conexiones activas de los usuarios. Utiliza el protocolo cachemgr para obtener información de <a href="https://www.squid-cache.org/" target="_blank">Squid Proxy Server</a>.
+    </td>
+  </tr>
+</table>
 
 ## DOWNLOAD PROJECT
 
@@ -21,14 +30,22 @@ python gitfolderdl.py https://github.com/maravento/vault/sqstat
 
 ---
 
-| Developer | Last Version | HowTo |
-| :---: | :---: | :---: |
-| [Alex Samorukov](https://samm.kiev.ua/sqstat/) | [v1.20 (2006)](https://sourceforge.net/projects/sqstat/files/) | [Post (ESP)](https://www.maravento.com/2014/03/network-monitor.html) |
+| Developer | Last Version | HowTo | Tested On |
+| :---: | :---: | :---: | :---: |
+| [Alex Samorukov](https://samm.kiev.ua/sqstat/) | [v1.20 (2006)](https://sourceforge.net/projects/sqstat/files/) | [Post (ESP)](https://www.maravento.com/2014/03/network-monitor.html) | Ubuntu 22.04 LTS x64, Squid v5.2|
 
 ### Important before using
 
-- If any IP addresses on your local network do not go through the Squid proxy, then they will not appear in the reports. / Si alguna dirección IP de su red local no pasan por el proxy Squid, entonces no aparecerá en los reportes.
-- Tested on: / Probado en: Ubuntu 22.04 LTS x64, Squid v5.2, Apache v2.4.52
+<table width="100%">
+  <tr>
+    <td width="50%">
+     If any IP addresses on your local network do not go through the Squid proxy, then they will not appear in the reports.
+    </td>
+    <td width="50%">
+     Si alguna dirección IP de su red local no pasan por el proxy Squid, entonces no aparecerá en los reportes.
+    </td>
+  </tr>
+</table>
 
 ## HOW TO INSTALL
 
@@ -54,13 +71,22 @@ Select at least 5 seconds: / Seleccione al menos 5 segundos:
 
 [![Image](https://raw.githubusercontent.com/maravento/vault/master/sqstat/img/sqstat-auto.png)](https://www.maravento.com/)
 
-When you restart/reload Squid, sqstat will lose the connection. Wait a minute and press the F5 key to reload the page. / Al reiniciar/recargar Squid, sqstat perderá la conexión. Espere un minuto y pulsar la tecla F5 para recargar la página.
+<table width="100%">
+  <tr>
+    <td width="50%">
+     When you restart/reload Squid, sqstat will lose the connection. Wait a minute and press the F5 key to reload the page.
+    </td>
+    <td width="50%">
+     Al reiniciar/recargar Squid, sqstat perderá la conexión. Espere un minuto y pulsar la tecla F5 para recargar la página.
+    </td>
+  </tr>
+</table>
 
 [![Image](https://raw.githubusercontent.com/maravento/vault/master/sqstat/img/sqstat-f5.png)](https://www.maravento.com/)
 
 ### Squid conf
 
-Add: / Añadir:
+**Add: | Añadir:**
 
 ```bash
 sudo nano /etc/squid/squid.conf
@@ -71,7 +97,16 @@ http_access deny manager !localhost
 
 ### Password
 
-If you are going to use password, you must modify the following files: / Si va a usar password, debe modificar los siguientes archivos:
+<table width="100%">
+  <tr>
+    <td width="50%">
+     If you are going to use password, you must modify the following files:
+    </td>
+    <td width="50%">
+     Si va a usar password, debe modificar los siguientes archivos:
+    </td>
+  </tr>
+</table>
 
 ```bash
 sudo nano /etc/squid/squid.conf
@@ -86,11 +121,20 @@ sudo systemctl restart squid
 sudo systemctl restart apache2
 ```
 
-## EOL
+## End-of-Life (EOL) | End-of-Support (EOS)
 
 ---
 
-This project has reached EOL (End of Life). No longer supported or updated / Este proyecto a alcanzado EOL (End of Life). Ya no cuenta con soporte o actualizaciones
+<table width="100%">
+  <tr>
+    <td width="50%">
+     This project has reached EOL - EOS. No longer supported or updated.
+    </td>
+    <td width="50%">
+     Este proyecto a alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.
+    </td>
+  </tr>
+</table>
 
 ## LICENSES
 

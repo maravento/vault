@@ -3,9 +3,18 @@
 [![last commit](https://img.shields.io/github/last-commit/maravento/vault)](https://github.com/maravento/vault/)
 [![Twitter Follow](https://img.shields.io/twitter/follow/maraventostudio.svg?style=social)](https://twitter.com/maraventostudio)
 
-**Vault** is a collection of cross-platform projects, own, mixed and third-party, in the following cycles:
+<!-- markdownlint-disable MD033 -->
 
-**Vault** es una colección de proyectos multiplataforma, propios, mixtos y de terceros, en los siguientes ciclos:
+<table width="100%">
+  <tr>
+    <td width="50%">
+      <b>Vault</b> is a collection of cross-platform projects, own, mixed and third-party, in the following cycles:
+    </td>
+    <td width="50%">
+      <b>Vault</b> es una colección de proyectos multiplataforma, propios, mixtos y de terceros, en los siguientes ciclos:
+    </td>
+  </tr>
+</table>
 
 [![status-beta](https://img.shields.io/badge/status-beta-magenta.svg)](https://github.com/maravento/vault)
 [![status-deprecated](https://img.shields.io/badge/status-deprecated-red.svg)](https://github.com/maravento/vault)
@@ -75,9 +84,16 @@ git clone --depth=1 https://github.com/maravento/vault.git
 
 ---
 
-We thank all those who contributed to this project. / Agradecemos a todos los que han contribuido con este proyecto.
-
-Special thanks to: [Jhonatan Sneider](https://github.com/sney2002)
+<table width="100%">
+  <tr>
+    <td width="50%">
+      We thank all those who contributed to this project.
+    </td>
+    <td width="50%">
+      Agradecemos a todos los que han contribuido con este proyecto.
+    </td>
+  </tr>
+</table>
 
 ## SPONSOR THIS PROJECT
 
