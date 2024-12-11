@@ -21,7 +21,7 @@
 
 |File|OS|Size|
 | :---: | :---: | :---: |
-|[iTop.exe (.zip)](https://mega.nz/file/uMtgSBxD#Y4Q1G-8cFKksaVF5bRCE72UIDITno3U-CMeKXXmjRx4)|Windows 10/11 x64|69.6 MB|
+|[iTop.exe (.zip)](https://mega.nz/file/HAFGVK4A#88mburUrgf4TYnT-EMxPI9h7IAIJtMGNUHk8WR5tMyo)|Windows 10/11 x64|69.5 MB|
 
 ### Supported Versions
 
@@ -40,6 +40,12 @@
 - [WampServer v3.3.5 x64](https://wampserver.aviatechno.net/)
 - [XAMPP v8.2.12-0-VS16 x64](https://sourceforge.net/projects/xampp/files/)
 - [Uniform Server v15.0.2 ZeroXV (UZero)](https://sourceforge.net/projects/miniserver/files/)
+
+### Dependencies Included
+
+- [Microsoft Visual C++ Redistributable Runtimes](https://github.com/abbodi1406/vcredist)
+- [graphviz x64](https://graphviz.org/download/)
+- [apcu v8.x x64 ts](https://github.com/krakjoe/apcu)
 
 ### Hardware & Software Requirements
 

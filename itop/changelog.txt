@@ -3,6 +3,9 @@
 # by Maravento Studio
 # https://www.maravento.com
 
+2024.12.10
+Added: graphviz-12.2.1 (64-bit)
+
 2024.11.13
 Added: graphviz-12.2.0 (64-bit)
 New: curl 8.11.0 for Windows
