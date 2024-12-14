@@ -3,6 +3,9 @@
 # by Maravento Studio
 # https://www.maravento.com
 
+2024.12.13
+Fix: Wamp Bugs
+
 2024.12.10
 Added: graphviz-12.2.1 (64-bit)
 

@@ -21,7 +21,7 @@
 
 |File|OS|Size|
 | :---: | :---: | :---: |
-|[iTop.exe (.zip)](https://mega.nz/file/HAFGVK4A#88mburUrgf4TYnT-EMxPI9h7IAIJtMGNUHk8WR5tMyo)|Windows 10/11 x64|69.5 MB|
+|[iTop.exe (.zip)](https://mega.nz/file/qcthBQwL#2SUgJzBgQ7S1vGaU2L18mUIrZuRPsnoFqPG_6cbOzUk)|Windows 10/11 x64|69.5 MB|
 
 ### Supported Versions
 
@@ -37,7 +37,7 @@
 </table>
 
 - [iTop v3.2.0-2-14758](https://sourceforge.net/projects/itop/files/itop/)
-- [WampServer v3.3.5 x64](https://wampserver.aviatechno.net/)
+- [WampServer v3.3.7 x64](https://wampserver.aviatechno.net/)
 - [XAMPP v8.2.12-0-VS16 x64](https://sourceforge.net/projects/xampp/files/)
 - [Uniform Server v15.0.2 ZeroXV (UZero)](https://sourceforge.net/projects/miniserver/files/)
 
@@ -291,7 +291,7 @@ Package: iTop
 - [iTop - IT Service Management & CMDB Files](https://sourceforge.net/projects/itop/files/itop/)
 - [Quick Batch File Compiler](https://www.abyssmedia.com/quickbfc/)
 - [Resource Turner](http://www.restuner.com/)
-- [stahlworks ZipUnzip](http://stahlworks.com/dev/index.php?tool=zipunzip)
+- [stahlworks unzip and gzip](http://stahlworks.com/dev/index.php?tool=zipunzip)
 - [Uniform Server](https://sourceforge.net/projects/miniserver/files/)
 - [vcredist](https://github.com/abbodi1406/vcredist)
 - [WampServer](https://wampserver.aviatechno.net/)
