@@ -1,8 +1,23 @@
-# [iTop](https://www.maravento.com)
+# [ITSM](https://www.maravento.com)
 
 [![status-beta](https://img.shields.io/badge/status-beta-magenta.svg)](https://github.com/maravento/vault)
 
 <!-- markdownlint-disable MD033 -->
+
+<table width="100%">
+  <tr>
+    <td width="50%">
+     ITSM (IT Service Management) is a structured approach to designing, implementing, managing and optimizing information technology services within an organization. Its main objective is to align IT services with business needs, improving operational efficiency and end-user experience.
+     This package includes two open source web applications designed for ITSM: iTop and GLPI
+    </td>
+    <td width="50%">
+     ITSM (Gestión de Servicios de TI) es un enfoque estructurado para diseñar, implementar, gestionar y optimizar los servicios de tecnología de la información dentro de una organización. Su objetivo principal es alinear los servicios de TI con las necesidades del negocio, mejorando la eficiencia operativa y la experiencia del usuario final.
+     Este paquete incluye dos aplicaciones web de código abierto diseñadas para la ITSM: iTop y GLPI
+    </td>
+  </tr>
+</table>
+
+## iTop
 
 <table width="100%">
   <tr>
@@ -15,15 +30,28 @@
   </tr>
 </table>
 
+## GLPI
+
+<table width="100%">
+  <tr>
+    <td width="50%">
+     <b>GLPI</b> (Gestionnaire Libre de Parc Informatique): This is a comprehensive ITSM solution that combines inventory management, help desk and IT asset management. It also includes advanced features for ticket, contract and project management, offering an intuitive and extensible interface through plugins.
+    </td>
+    <td width="50%">
+     <b>GLPI</b> (Gestionnaire Libre de Parc Informatique): Es una solución integral de ITSM que combina la gestión de inventarios, el soporte técnico y la administración de activos de TI. Además, incluye funcionalidades avanzadas para la gestión de tickets, contratos y proyectos, ofreciendo una interfaz intuitiva y extensible mediante plugins.
+    </td>
+  </tr>
+</table>
+
 ## DATA SHEET
 
 ---
 
 |File|OS|Size|
 | :---: | :---: | :---: |
-|[iTop.exe (.zip)](https://mega.nz/file/qcthBQwL#2SUgJzBgQ7S1vGaU2L18mUIrZuRPsnoFqPG_6cbOzUk)|Windows 10/11 x64|69.5 MB|
+|[itsm.exe (.zip)](https://mega.nz/file/CdlREA4S#-CTJTM9NgTDDPy-xCudWnjF_VQ1aMrcgDRoWQ9-CMiA)|Windows 10/11 x64|103.9 MB|
 
-### Supported Versions
+## Supported Versions
 
 <table width="100%">
   <tr>
@@ -36,12 +64,18 @@
   </tr>
 </table>
 
+### Web-based ITSM solutions
+
+- [glpi-10.0.17](https://glpi-project.org/downloads/)
 - [iTop v3.2.0-2-14758](https://sourceforge.net/projects/itop/files/itop/)
+
+### Stacks
+
 - [WampServer v3.3.7 x64](https://wampserver.aviatechno.net/)
 - [XAMPP v8.2.12-0-VS16 x64](https://sourceforge.net/projects/xampp/files/)
 - [Uniform Server v15.0.2 ZeroXV (UZero)](https://sourceforge.net/projects/miniserver/files/)
 
-### Dependencies Included
+### Dependencies (Included)
 
 - [Microsoft Visual C++ Redistributable Runtimes](https://github.com/abbodi1406/vcredist)
 - [graphviz x64](https://graphviz.org/download/)
@@ -49,16 +83,8 @@
 
 ### Hardware & Software Requirements
 
-<table width="100%">
-  <tr>
-    <td width="50%">
-     Check the minimum requirements <a href="https://www.itophub.io/wiki/page?id=latest:install:requirements" target="_blank">HERE</a>.
-    </td>
-    <td width="50%">
-     Verifique los requerimientos mínimos <a href="https://www.itophub.io/wiki/page?id=latest:install:requirements" target="_blank">AQUI</a>.
-    </td>
-  </tr>
-</table>
+- [For GLPI](https://glpi-install.readthedocs.io/en/latest/prerequisites.html)
+- [For iTop](https://www.itophub.io/wiki/page?id=latest:install:requirements)
 
 ## HOW TO USE
 
@@ -67,10 +93,10 @@
 <table width="100%">
   <tr>
     <td width="50%">
-     Disable your Antivirus, Antimalware, SmartScreen or any other security solution in your Operating System, close all windows and check the date and time of your PC is correct. Unzip <code>iTop.exe (.zip)</code> to your desktop, execute it with double click (accept privileged execution) and follow the instructions on the screen.
+     Disable your Antivirus, Antimalware, SmartScreen or any other security solution in your Operating System, close all windows and check the date and time of your PC is correct. Unzip <code>itsm.exe (.zip)</code> to your desktop, execute it with double click (accept privileged execution) and follow the instructions on the screen.
     </td>
     <td width="50%">
-     Desactive su Antivirus, Antimalware, SmartScreen o cualquier otra solución de seguridad en su Sistema Operativo, cierre todas las ventanas y verifique la fecha y hora de su PC sea la correcta. Descomprima <code>iTop.exe (.zip)</code> en el escritorio, ejecutarlo con doble clic (acepte la ejecución con privilegios) y siga las instrucciones en pantalla.
+     Desactive su Antivirus, Antimalware, SmartScreen o cualquier otra solución de seguridad en su Sistema Operativo, cierre todas las ventanas y verifique la fecha y hora de su PC sea la correcta. Descomprima <code>itsm.exe (.zip)</code> en el escritorio, ejecutarlo con doble clic (acepte la ejecución con privilegios) y siga las instrucciones en pantalla.
     </td>
   </tr>
 </table>
@@ -89,24 +115,37 @@
 
 ### START
 
-[![Image](https://raw.githubusercontent.com/maravento/vault/master/itop/img/itop-ini.png)](https://www.maravento.com)
+[![Image](https://raw.githubusercontent.com/maravento/vault/master/itsm/img/itsm-ini.png)](https://www.maravento.com)
 
 <table width="100%">
   <tr>
     <td width="50%">
-     Press OK to begin. If you choose CANCEL, you will abort the process and the following window will appear:
+     Select Web-based ITSM and press OK.
     </td>
     <td width="50%">
-     Pulse OK para comenzar. Si elije CANCEL, abortará el proceso y saldrá la siguiente ventana:
+     Seleccione ITSM basado en web y presione OK.
     </td>
   </tr>
 </table>
 
-[![Image](https://raw.githubusercontent.com/maravento/vault/master/itop/img/itop-cancel.png)](https://www.maravento.com)
+[![Image](https://raw.githubusercontent.com/maravento/vault/master/itsm/img/itsm-select.png)](https://www.maravento.com)
+
+<table width="100%">
+  <tr>
+    <td width="50%">
+     If you choose CANCEL, you will abort the process and the following window will appear:
+    </td>
+    <td width="50%">
+     Si elije CANCEL, abortará el proceso y saldrá la siguiente ventana:
+    </td>
+  </tr>
+</table>
+
+[![Image](https://raw.githubusercontent.com/maravento/vault/master/itsm/img/itsm-cancel.png)](https://www.maravento.com)
 
 ### STACK SELECTOR
 
-[![Image](https://raw.githubusercontent.com/maravento/vault/master/itop/img/itop-menu.png)](https://www.maravento.com)
+[![Image](https://raw.githubusercontent.com/maravento/vault/master/itsm/img/itsm-stack.png)](https://www.maravento.com)
 
 <table width="100%">
   <tr>
@@ -119,7 +158,7 @@
   </tr>
 </table>
 
-[![Image](https://raw.githubusercontent.com/maravento/vault/master/itop/img/itop-nostack.png)](https://www.maravento.com)
+[![Image](https://raw.githubusercontent.com/maravento/vault/master/itsm/img/itsm-nostack.png)](https://www.maravento.com)
 
 <table width="100%">
   <tr>
@@ -138,20 +177,20 @@
 
 ### INSTALLATION
 
-[![Image](https://raw.githubusercontent.com/maravento/vault/master/itop/img/itop-run.png)](https://www.maravento.com)
+[![Image](https://raw.githubusercontent.com/maravento/vault/master/itsm/img/itsm-run.png)](https://www.maravento.com)
 
 <table width="100%">
   <tr>
     <td width="50%">
-     The installation of iTop will start, with its dependencies and configurations, and when finished the following message will appear:
+     It will start installing your choice of itsm, with its dependencies and configurations and when finished the following message will appear:
     </td>
     <td width="50%">
-     Iniciará la instalación de iTop, con sus dependencias y configuraciones y al terminar saldrá el siguiente mensaje:
+     Iniciará la instalación de su selección de itsm, con sus dependencias y configuraciones y al terminar saldrá el siguiente mensaje:
     </td>
   </tr>
 </table>
 
-[![Image](https://raw.githubusercontent.com/maravento/vault/master/itop/img/itop-complete.png)](https://www.maravento.com)
+[![Image](https://raw.githubusercontent.com/maravento/vault/master/itsm/img/itsm-complete.png)](https://www.maravento.com)
 
 ### ⚠️ WARNING: START SERVICES
 
@@ -168,15 +207,15 @@
 
 ### DESKTOP SHORTCUT
 
-[![Image](https://raw.githubusercontent.com/maravento/vault/master/itop/img/itop-icons.png)](https://www.maravento.com)
+[![Image](https://raw.githubusercontent.com/maravento/vault/master/itsm/img/itsm-icons.png)](https://www.maravento.com)
 
 <table width="100%">
   <tr>
     <td width="50%">
-     During the installation, two shortcuts are created on your PC's desktop. Double-click on <code>iTop Wizard (.url)</code> which will take you to the iTop setup URL. Once you have completed the iTop setup, close your browser. From now on, to access iTop, you will need to use the second shortcut on your desktop called <code>iTop (.url)</code> which will take you to the login URL, where you will enter the credentials you chose in the iTop setup.
+     During the installation, several shortcuts are created on your PC's desktop. For iTop 2 and GLPI 1, to run iTop for the first time, double-click on <code>iTop Wizard (.url)</code> which will take you to the iTop setup URL. Once iTop setup is complete, close your browser. From now on, to access iTop, you will need to use the second shortcut on your desktop called <code>iTop (.url)</code> which will take you to the login URL, where you will enter the credentials you chose in the iTop setup. For GLPI, there is only one shortcut <code>GLPI (.url)</code>, which you will use both to launch it for the first time, and to log in after installation.
     </td>
     <td width="50%">
-     Durante la instalación se crean dos accesos directos en el escritorio de su PC. Haga doblé clic en <code>iTop Wizard (.url)</code> que lo llevará a la URL de la configuración de iTop. Una vez concluida la configuración de iTop, cierre su navegador. Y a partir de ahora, para acceder a iTop, deberá usar el segundo acceso directo de su escritorio llamado <code>iTop (.url)</code> que lo llevará a la URL de ingreso, en la cual introducirá las credenciales que eligió en la configuración de iTop.
+     Durante la instalación se crean varios accesos directos en el escritorio de su PC. Para iTop 2 y GLPI 1. Para ejecutar iTop por primera vez haga doblé clic en <code>iTop Wizard (.url)</code> que lo llevará a la URL de la configuración de iTop. Una vez concluida la configuración de iTop, cierre su navegador. Y a partir de ahora, para acceder a iTop, deberá usar el segundo acceso directo de su escritorio llamado <code>iTop (.url)</code> que lo llevará a la URL de ingreso, en la cual introducirá las credenciales que eligió en la configuración de iTop. Para GLPI solo hay un acceso directo <code>GLPI (.url)</code>, el cual usará tanto para iniciar por primera vez, como para ingresar después de instalado.
     </td>
   </tr>
 </table>
@@ -186,46 +225,19 @@
 <table width="100%">
   <tr>
     <td width="50%">
-     To start the iTop setup, double-click the <code>iTop Wizard (.url)</code> icon and follow the instructions described in the PDF located in the wizard folder of this repository or on your PC's desktop:
+     You can check the iTop and GLPI settings in the shortcuts on your PC desktop named <code>iTop-Wizard.pdf</code> and <code>GLPI-Wizard.pdf</code>.
     </td>
     <td width="50%">
-     Para iniciar la configuración de iTop, haga doble clic en el ícono <code>iTop Wizard (.url)</code> y siga las instrucciones descritas en el PDF que se encuentra en la carpeta wizard de este repositorio o en el escritorio de su PC:
+     Puede consultar las configuraciones de iTop y GLPI en los accesos directos del escritorio de su PC llamados <code>iTop-Wizard.pdf</code> y <code>GLPI-Wizard.pdf</code>.
     </td>
   </tr>
 </table>
+
+[GLPI-Wizard.pdf](https://raw.githubusercontent.com/maravento/vault/master/itop/wizard/GLPI-Wizard.pdf)
 
 [iTop-Wizard.pdf](https://raw.githubusercontent.com/maravento/vault/master/itop/wizard/iTop-Wizard.pdf)
 
-### IMPORTANT BEFORE USE ITOP
-
-<table width="100%">
-  <tr>
-    <td width="50%">
-     - The default database is iTop with the format: <code>utf8mb4_unicode_ci</code>.
-    </td>
-    <td width="50%">
-     - La base de datos por defecto es iTop con el formato: <code>utf8mb4_unicode_ci</code>.
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-     - This installer modifies the default values of <code>post_max_size=64M</code> for PHP and <code>max_allowed_packet=50M</code> for MySQL, across stacks. If the value of <code>post_max_size</code> is greater than <code>40M</code> and the value of <code>max_allowed_packet</code> is greater than <code>1M</code>, there will be no configuration changes.
-    </td>
-    <td width="50%">
-     - Este instalador modifica los valores por defecto de <code>post_max_size=64M</code> para PHP y <code>max_allowed_packet=50M</code> para MySQL, en los diferentes Stacks. Si el valor de <code>post_max_size</code> es superior a <code>40M</code> y el valor de <code>max_allowed_packet</code> es superior a <code>1M</code>, no habrá cambios en la configuración.
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-     - If you have any questions about your Stack parameters or during the configuration you get any conflicts or warning messages from iTop related to Apache/PHP/MySQL, for more information, please visit: <a href="http://localhost/info.php" target="_blank">http://localhost/info.php</a>.
-    </td>
-    <td width="50%">
-     - Si tiene alguna duda sobre los parámetros de su Stack o durante la configuración se presenta algún conflicto o mensajes de advertencia de iTop, relacionados con Apache/PHP/MySQL, para obtener mayor información, ingrese a: <a href="http://localhost/info.php" target="_blank">http://localhost/info.php</a>.
-    </td>
-  </tr>
-</table>
-
-### CHANGING PORTS
+#### Important About iTop
 
 <table width="100%">
   <tr>
@@ -262,10 +274,10 @@ by:
 <table width="100%">
   <tr>
     <td width="50%">
-     iTop sends information to the developer, only for the purpose of verifying that the installation has been completed successfully. This information is used exclusively for statistical purposes and to improve the installer, without collecting personal data or compromising user privacy. Example:
+     ITSM sends information to the developer, only for the purpose of verifying that the installation has been completed successfully. This information is used exclusively for statistical purposes and to improve the installer, without collecting personal data or compromising user privacy. Example:
     </td>
     <td width="50%">
-     iTop envía información al desarrollador, únicamente con el propósito de verificar que la instalación se haya completado de manera exitosa. Esta información se utiliza exclusivamente para fines estadísticos y de mejora del instalador, sin recopilar datos personales ni comprometer la privacidad del usuario. Ejemplo:
+     ITSM envía información al desarrollador, únicamente con el propósito de verificar que la instalación se haya completado de manera exitosa. Esta información se utiliza exclusivamente para fines estadísticos y de mejora del instalador, sin recopilar datos personales ni comprometer la privacidad del usuario. Ejemplo:
     </td>
   </tr>
 </table>
@@ -287,8 +299,9 @@ Package: iTop
 - [ACPU](https://github.com/krakjoe/apcu)
 - [Checksum Control](https://sourceforge.net/projects/checksumcontrol/)
 - [curl for Windows](https://curl.se/windows/)
+- [GLPI](https://glpi-project.org/downloads/)
 - [graphviz](https://graphviz.org/download/)
-- [iTop - IT Service Management & CMDB Files](https://sourceforge.net/projects/itop/files/itop/)
+- [iTop](https://sourceforge.net/projects/itop/files/itop/)
 - [Quick Batch File Compiler](https://www.abyssmedia.com/quickbfc/)
 - [Resource Turner](http://www.restuner.com/)
 - [stahlworks unzip and gzip](http://stahlworks.com/dev/index.php?tool=zipunzip)

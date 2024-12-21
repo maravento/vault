@@ -62,7 +62,7 @@ git clone --depth=1 https://github.com/maravento/vault.git
 ### MIXED
 
 - [blackusb](https://github.com/maravento/vault/tree/master/blackusb)
-- [itop](https://github.com/maravento/vault/tree/master/itop)
+- [itsm](https://github.com/maravento/vault/tree/master/itsm)
 - [scripts](https://github.com/maravento/vault/tree/master/scripts)
 - [stack](https://github.com/maravento/vault/tree/master/stack)
 - [uniopos](https://github.com/maravento/vault/tree/master/uniopos)
