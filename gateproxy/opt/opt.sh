@@ -31,7 +31,7 @@ else
     exit
 fi
 
-ffunction cleanupgrade() {
+function cleanupgrade() {
     nala upgrade --purge -y
     aptitude safe-upgrade -y
     fc-cache
@@ -85,6 +85,13 @@ while true; do
     case $answer in
     [Yy]*)
         # execute command yes
+        # snap (optional)
+        nala install snap
+        snap install core
+        snap refresh core
+        #snap install --classic certbot
+        #ln -s /snap/bin/certbot /usr/bin/certbot
+        #certbot renew --dry-run
         # boot-repair
         apt-add-repository -y ppa:yannubuntu/boot-repair &>/dev/null
         nala install -y boot-repair
