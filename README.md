@@ -8,10 +8,10 @@
 <table width="100%">
   <tr>
     <td width="50%">
-      <b>Vault</b> is a collection of cross-platform projects, own, mixed and third-party, in the following cycles:
+      <b>Vault</b> is a collection of cross-platform projects in the following cycles:
     </td>
     <td width="50%">
-      <b>Vault</b> es una colección de proyectos multiplataforma, propios, mixtos y de terceros, en los siguientes ciclos:
+      <b>Vault</b> es una colección de proyectos multiplataforma en los siguientes ciclos:
     </td>
   </tr>
 </table>
@@ -25,14 +25,13 @@
 
 ---
 
-### To download all repositories: / Para descargar todos los repositorios
+### To download all repositories / Para descargar todos los repositorios
 
 ```bash
-apt install git
 git clone --depth=1 https://github.com/maravento/vault.git
 ```
 
-### To download a specific project: / Para descargar un proyecto específico:
+### To download a specific project / Para descargar un proyecto específico
 
 - Ubuntu/Debian:
 
@@ -51,28 +50,24 @@ git clone --depth=1 https://github.com/maravento/vault.git
 
 ---
 
-### OWN
-
+- [bandwidthd](https://github.com/maravento/vault/tree/master/bandwidthd)
 - [blackstring](https://github.com/maravento/vault/tree/master/blackstring)
+- [blackusb](https://github.com/maravento/vault/tree/master/blackusb)
+- [blackword](https://github.com/maravento/vault/tree/master/blackword)
 - [dextroyer](https://github.com/maravento/vault/tree/master/dextroyer)
 - [gateproxy](https://github.com/maravento/vault/tree/master/gateproxy)
+- [itsm](https://github.com/maravento/vault/tree/master/itsm)
+- [lightsquid](https://github.com/maravento/vault/tree/master/lightsquid)
+- [scripts](https://github.com/maravento/vault/tree/master/scripts)
+- [sqstat](https://github.com/maravento/vault/tree/master/sqstat)
+- [stack](https://github.com/maravento/vault/tree/master/stack)
 - [telemetry](https://github.com/maravento/vault/tree/master/telemetry)
 - [trek](https://github.com/maravento/vault/tree/master/trek)
-
-### MIXED
-
-- [blackusb](https://github.com/maravento/vault/tree/master/blackusb)
-- [itsm](https://github.com/maravento/vault/tree/master/itsm)
-- [scripts](https://github.com/maravento/vault/tree/master/scripts)
-- [stack](https://github.com/maravento/vault/tree/master/stack)
 - [uniopos](https://github.com/maravento/vault/tree/master/uniopos)
-
-### THIRD-PARTY
-
-- [bandwidthd](https://github.com/maravento/vault/tree/master/bandwidthd)
-- [lightsquid](https://github.com/maravento/vault/tree/master/lightsquid)
-- [sqstat](https://github.com/maravento/vault/tree/master/sqstat)
 - [winzenity](https://github.com/maravento/vault/tree/master/winzenity)
+
+> **Important:**
+> These projects include third-party components
 
 ## STARGAZERS
 

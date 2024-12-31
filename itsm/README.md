@@ -49,7 +49,7 @@
 
 |File|OS|Size|
 | :---: | :---: | :---: |
-|[itsm.exe (.zip)](https://mega.nz/file/CdlREA4S#-CTJTM9NgTDDPy-xCudWnjF_VQ1aMrcgDRoWQ9-CMiA)|Windows 10/11 x64|103.9 MB|
+|[itsm.exe (.zip)](https://mega.nz/file/GAlSADxL#DIzfjWyEMyL4bLvpHrJ8kh1QZsMoiBDx00e8hkRcYvk)|Windows 10/11 x64|104 MB|
 
 ## Supported Versions
 
@@ -149,7 +149,7 @@
 
 |WampServer|Xampp|UniformServerZ|
 | :---: | :---: | :---: |
-|[%HOMEDRIVE%\wamp64|%HOMEDRIVE%\xampp|%HOMEDRIVE%\UniServerZ|
+|%HOMEDRIVE%\wamp64|%HOMEDRIVE%\xampp|%HOMEDRIVE%\UniServerZ|
 
 ### INSTALLATION
 
@@ -196,10 +196,18 @@
 <table width="100%">
   <tr>
     <td width="50%">
-     During the installation, several shortcuts are created on your PC's desktop. For iTop 2 and GLPI 1, to run iTop for the first time, double-click on <code>iTop Wizard (.url)</code> which will take you to the iTop setup URL. Once iTop setup is complete, close your browser. From now on, to access iTop, you will need to use the second shortcut on your desktop called <code>iTop (.url)</code> which will take you to the login URL, where you will enter the credentials you chose in the iTop setup. For GLPI, there is only one shortcut <code>GLPI (.url)</code>, which you will use both to launch it for the first time, and to log in after installation.
+     During the installation, several shortcuts are created on your PC's desktop. For iTop 2 and GLPI 1, to run iTop for the first time, double-click on <code>iTop Wizard (.url)</code> which will take you to the iTop setup URL.<br>
+     Once iTop setup is complete, close your browser. From now on, to access iTop, you will need to use the second shortcut on your desktop called <code>iTop (.url)</code> which will take you to the login URL, where you will enter the credentials you chose in the iTop setup.<br>
+     For GLPI, there is only one shortcut <code>GLPI (.url)</code>, which you will use both to launch it for the first time, and to log in after installation.<br>
+     <strong>Important:</strong><br>
+     If double-clicking the iTop or GLPI shortcut on your desktop does not open the URL in your browser, close your browser completely and try again.
     </td>
     <td width="50%">
-     Durante la instalación se crean varios accesos directos en el escritorio de su PC. Para iTop 2 y GLPI 1. Para ejecutar iTop por primera vez haga doblé clic en <code>iTop Wizard (.url)</code> que lo llevará a la URL de la configuración de iTop. Una vez concluida la configuración de iTop, cierre su navegador. Y a partir de ahora, para acceder a iTop, deberá usar el segundo acceso directo de su escritorio llamado <code>iTop (.url)</code> que lo llevará a la URL de ingreso, en la cual introducirá las credenciales que eligió en la configuración de iTop. Para GLPI solo hay un acceso directo <code>GLPI (.url)</code>, el cual usará tanto para iniciar por primera vez, como para ingresar después de instalado.
+     Durante la instalación se crean varios accesos directos en el escritorio de su PC. Para iTop 2 y GLPI 1. Para ejecutar iTop por primera vez haga doblé clic en <code>iTop Wizard (.url)</code> que lo llevará a la URL de la configuración de iTop.<br>
+     Una vez concluida la configuración de iTop, cierre su navegador. Y a partir de ahora, para acceder a iTop, deberá usar el segundo acceso directo de su escritorio llamado <code>iTop (.url)</code> que lo llevará a la URL de ingreso, en la cual introducirá las credenciales que eligió en la configuración de iTop.<br>
+     Para GLPI solo hay un acceso directo <code>GLPI (.url)</code>, el cual usará tanto para iniciar por primera vez, como para ingresar después de instalado.<br>
+     <strong>Importante</strong>:<br>
+     Si al hacer doble clic sobre el acceso directo de iTop o GLPI en su escritorio, no abre la URL en el navegador, cierre el navegador completamente e inténtelo nuevamente.
     </td>
   </tr>
 </table>
@@ -221,7 +229,7 @@
 
 [iTop-Wizard.pdf](https://raw.githubusercontent.com/maravento/vault/master/itsm/wizard/iTop-Wizard.pdf)
 
-#### Important About iTop
+#### Important About iTop and GLPI
 
 <table width="100%">
   <tr>
@@ -253,6 +261,19 @@ by:
 
 `http://localhost:8080/itop/web/pages/UI.php`
 
+<table width="100%">
+  <tr>
+    <td width="50%">
+     If you have problems accessing the iTop or GLPI startup or configuration URL, check your browser's proxy settings or run the following command with administrative privileges:
+    </td>
+    <td width="50%">
+     Si tiene problemas al acceder a la URL de inicio o configuración de iTop o GLPI, revise la configuración de proxy de su navegador o ejecute el siguiente comando con privilegios administrativos:
+    </td>
+  </tr>
+</table>
+
+`netsh winhttp import proxy source=ie`
+
 ### TELEMETRY
 
 <table width="100%">
@@ -283,12 +304,14 @@ Package: ITSM
 - [ACPU](https://github.com/krakjoe/apcu)
 - [Checksum Control](https://sourceforge.net/projects/checksumcontrol/)
 - [curl for Windows](https://curl.se/windows/)
+- [Find & Replace Tool](https://findandreplace.io/)
 - [GLPI](https://glpi-project.org/downloads/)
 - [graphviz](https://graphviz.org/download/)
 - [iTop](https://sourceforge.net/projects/itop/files/itop/)
 - [Quick Batch File Compiler](https://www.abyssmedia.com/quickbfc/)
 - [Resource Turner](http://www.restuner.com/)
 - [stahlworks unzip and gzip](http://stahlworks.com/dev/index.php?tool=zipunzip)
+- [tartool](https://github.com/senthilrajasek/tartool)
 - [Uniform Server](https://sourceforge.net/projects/miniserver/files/)
 - [vcredist](https://github.com/abbodi1406/vcredist)
 - [WampServer](https://wampserver.aviatechno.net/)

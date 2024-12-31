@@ -504,17 +504,21 @@ function gateproxy_setup() {
     nala install -y cockpit cockpit-storaged cockpit-networkmanager cockpit-packagekit cockpit-machines cockpit-sosreport virt-viewer
     systemctl start cockpit cockpit.socket
     systemctl enable --now cockpit cockpit.socket
-    echo "cockpit: http://localhost:9090"
+    echo "Cockpit Access: http://localhost:9090"
     # Process: glances
     nala install -y glances
-    pkill glances &>/dev/null
-    wget -q --show-progress -c https://github.com/nicolargo/glances/archive/refs/tags/v3.2.7.tar.gz
-    tar -xzf v3.2.7.tar.gz
-    cp -f -R glances-3.2.7/glances/outputs/static/public/ /usr/lib/python3/dist-packages/glances/outputs/static/
     systemctl enable glances.service
-    sed -i '/ExecStart=\/usr\/bin\/glances -s -B 127.0.0.1/c\ExecStart=\/usr\/bin\/glances -w -B 127.0.0.1 -t 10' /usr/lib/systemd/system/glances.service
+    systemctl stop glances.service
+    export GLANCES_VERSION=$(glances -V | head -n 1 | awk '{print $2}' | sed 's/^v//')
+    wget "https://github.com/nicolargo/glances/archive/refs/tags/v${GLANCES_VERSION}.tar.gz"
+    tar -xzf v${GLANCES_VERSION}.tar.gz
+    rm v${GLANCES_VERSION}.tar.gz
+    cp -r glances-${GLANCES_VERSION}/glances/outputs/static/public/ /usr/lib/python3/dist-packages/glances/outputs/static/
+    rm -rf glances-${GLANCES_VERSION}
+    sed -i '/ExecStart=\/usr\/bin\/glances -s -B 127.0.0.1/c\ExecStart=\/usr\/bin\/glances -w -B 0.0.0.0 -t 10 -p 61208' /usr/lib/systemd/system/glances.service
     systemctl daemon-reload
-    echo "Glances Access: http://127.0.0.1:61208"
+    systemctl start glances.service
+    echo "Glances Access: http://localhost:61208"
     # Net Tools: nbtscan, nmap, wireless-tools, etc
     nala install -y libpcap-dev libasound2-dev libfontconfig1 clang
     nala install -y nbtscan nmap python3-nmap ndiff wireless-tools ncat nast netdiscover traceroute arp-scan masscan grepcidr fping mtr-tiny ethtool zenmap
@@ -536,10 +540,10 @@ function gateproxy_setup() {
         cat
         echo "*/12 * * * * /etc/scr/bandata.sh"
     } | crontab -
-    echo "lightsquid: http://localhost/lightsquid/"
-    echo "lightsquid: Usernames: /var/www/lightsquid/realname.cfg"
-    echo "lightsquid: first time run: /var/www/lightsquid/lightparser.pl"
-    echo "lightsquid: check bandata IP cat /etc/acl/{banmonth,bandaily}.txt | uniq"
+    echo "Lightsquid Access: http://localhost/lightsquid/"
+    echo "Lightsquid Usernames: /var/www/lightsquid/realname.cfg"
+    echo "Lightsquid (first time run): /var/www/lightsquid/lightparser.pl"
+    echo "Lightsquid (check bandata IP): cat /etc/acl/{banmonth,bandaily}.txt | uniq"
     # Traffic Reports: Sarg
     nala install -y sarg fonts-liberation fonts-dejavu
     fixbroken
@@ -587,7 +591,7 @@ function gateproxy_setup() {
         cat
         echo "#*/10 * * * * /etc/scr/banip.sh"
     } | crontab -
-    echo "Ulog: /var/log/ulog/syslogemu.log"
+    echo "Ulog Access: /var/log/ulog/syslogemu.log"
     nala install -y rsyslog
     # in case rsyslog fails: nala install -y libfastjson4
     systemctl enable rsyslog.service
@@ -811,7 +815,7 @@ sleep 1
 
 ### APACHE PASSWORD
 echo -e "\n"
-echo "Create Apache Password /var/www/..."
+echo "Create Apache Password: /var/www/..."
 echo -e "\n"
 #htpasswd -c /etc/apache2/.htpasswd "$USER"
 htpasswd -c /etc/apache2/.htpasswd "$local_user"
@@ -873,6 +877,7 @@ rm -rfv $gp *tar.gz *.sh *.deb *.txt
 journalctl --rotate
 journalctl --vacuum-time=1s
 systemctl restart systemd-journald
+systemctl daemon-reload
 #apt -qq -y remove --purge `deborphan --guess-all` # optional
 #dpkg -l | grep "^rc" | cut -d " " -f 3 | xargs dpkg --purge &> /dev/null # optional
 reboot
