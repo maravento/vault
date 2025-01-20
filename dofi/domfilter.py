@@ -13,6 +13,7 @@
 # - Python 3.12.3
 
 # Usage:
+# Replace 'mylst.txt' with the name of your domain list
 # python domfilter.py --input mylst.txt
 
 # Optional parameters:
@@ -21,7 +22,6 @@
 # python domfilter.py --input mylst.txt --output outlst.txt --remove removelst.txt
 
 # Important:
-# Replace "mylst_in.txt" and "mylst_out.txt" with your file names.
 # Ensure the input list has no 'http://', 'https://', or 'www.' prefixes.
 
 # TLD:
