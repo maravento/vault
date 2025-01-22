@@ -6,10 +6,10 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>BlackWord</b> is an experimental project designed to block malicious patterns, including file extensions associated with ransomware, malware, and other cyber threats. It aims to prevent the spread of these patterns using access control lists and custom rules.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>BlackWord</b> es un proyecto experimental diseñado para bloquear patrones maliciosos, incluyendo extensiones de archivo asociadas a ransomware, malware y otras amenazas cibernéticas. Su objetivo es prevenir la propagación de estos patrones mediante listas de control de acceso y reglas personalizadas.
     </td>
   </tr>
@@ -42,10 +42,10 @@ python gitfolderdl.py https://github.com/maravento/vault/blackword
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      This project contains files that may generate false positives.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Este proyecto contiene archivos que pueden generar falsos positivos.
     </td>
   </tr>
@@ -57,10 +57,10 @@ python gitfolderdl.py https://github.com/maravento/vault/blackword
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Open the terminal and run:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Abra el terminal y ejecute:
     </td>
   </tr>
@@ -74,11 +74,13 @@ chmod +x blackword.sh
 
 <table width="100%">
   <tr>
-    <td width="50%">
-     The script will generate two files: <code>bw_smb.txt</code> and <code>bw_squid.txt</code>. Both contain the malicious patterns and extensions to block in Samba and Squid. 
+    <td style="width: 50%; white-space: nowrap;">
+     The script will generate two files: <a href="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackword/bw_squid.txt" target="_blank">bw_squid.txt</a> and <a href="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackword/bw_smb.txt" target="_blank">bw_smb.txt</a>. </br>
+     Both contain the malicious patterns and extensions to block in Samba and Squid. </br>
     </td>
-    <td width="50%">
-     El script generará dos archivos: <code>bw_smb.txt</code> y <code>bw_squid.txt</code>. Ambos contienen los patrones y extensiones maliciosas para bloquear en Samba y Squid.
+    <td style="width: 50%; white-space: nowrap;">
+     El script generará dos archivos: <a href="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackword/bw_squid.txt" target="_blank">bw_squid.txt</a> y <a href="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackword/bw_smb.txt" target="_blank">bw_smb.txt</a>. </br>
+     Ambos contienen los patrones y extensiones maliciosas para bloquear en Samba y Squid.</br>
     </td>
   </tr>
 </table>
@@ -87,10 +89,10 @@ chmod +x blackword.sh
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Modify your <code>/etc/squid/squid.conf</code> file and add the ACL <code>bw_squid.txt</code>:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Modifique su archivo <code>/etc/squid/squid.conf</code> y agregue la ACL <code>bw_squid.txt</code>:
     </td>
   </tr>
@@ -108,10 +110,10 @@ deny_info ERR_ACCESS_DENIED blackword
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      For better protection, we suggest you consider adding the following rules:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Para una mejor protección, sugerimos que considere agregar las siguientes reglas:
     </td>
   </tr>
@@ -150,10 +152,10 @@ deny_info ERR_ACCESS_DENIED no_ip
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Modify your <code>/etc/samba/smb.conf</code> file and add <code>bw_smb.txt</code>. It can be added to the <code>[global]</code> section or to a specific shared folder. This file will add the <code>veto files =</code> directive to block patterns and extensions in Samba. Example:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Modifique su archivo <code>/etc/samba/smb.conf</code> y agregue <code>bw_smb.txt</code>. Puede ser agregado a la sección <code>[global]</code> o a una carpeta compartida específica. Este archivo agregará la directiva <code>veto files =</code> para bloquear los patrones y extensiones en Samba. Ejemplo:
     </td>
   </tr>
@@ -173,7 +175,7 @@ deny_info ERR_ACCESS_DENIED no_ip
 - [kinomakino - ransomware_file_extensions](https://github.com/kinomakino/ransomware_file_extensions/blob/master/extensions.csv)
 - [nspoab - malicious_extensions](https://github.com/nspoab/malicious_extensions/blob/main/list1)
 
-## LICENSES
+## PROJECT LICENSES
 
 ---
 

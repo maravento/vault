@@ -6,10 +6,10 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>uniOPOS</b> it is a preconfigured installation package of uniCenta OPOS for Points of Sales (POS/ERP Open Source).
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>uniOPOS</b> es un paquete de instalación preconfigurado de uniCenta OPOS para Puntos de Ventas (POS/ERP Open Source).
     </td>
   </tr>
@@ -29,10 +29,10 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      This project has become deprecated, due to uniCenta oPOS 5x. For more information:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Este proyecto ha quedado obsoleto, debido a uniCenta oPOS 5x. Para mayor información:
     </td>
   </tr>
@@ -44,10 +44,10 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Disable your Antivirus, Antimalware, SmartScreen or any other security solution in your Operating System, close all windows and check the date and time of your PC is correct. Unzip <code>uniOPOS.exe (.zip)</code> to your desktop, execute it with double click (accept privileged execution) and follow the instructions on the screen.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Desactive su Antivirus, Antimalware, SmartScreen o cualquier otra solución de seguridad en su Sistema Operativo, cierre todas las ventanas y verifique la fecha y hora de su PC sea la correcta. Descomprima <code>uniOPOS.exe (.zip)</code> en el escritorio, ejecutarlo con doble clic (acepte la ejecución con privilegios) y siga las instrucciones en pantalla.
     </td>
   </tr>
@@ -61,10 +61,10 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      uniOPOS contains three (3) options. Select the one you are going to work with. At the end of the installation of each package the following message will appear:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      uniOPOS contiene tres (3) opciones. Seleccione con el que va a trabajar. Al finalizar la instalación de cada paquete saldrá el siguiente mensaje:
     </td>
   </tr>
@@ -78,18 +78,18 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Some bundled packages are only compatible with 64-bit architecture.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Algunos paquetes incluidos solo son compatibles con arquitectura 64 bits.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Backward compatibility to Windows 10 is not guaranteed.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - La compatibilidad con versiones anteriores a Windows 10 no está garantizada.
     </td>
   </tr>
@@ -99,10 +99,10 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - According to the <a href="https://unicenta.com/pages/install-unicenta-opos/" target="_blank">Minimum Requirements</a>, uniCenta oPOS depends on Java. Therefore, uniOPOS includes:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - De acuerdo a los <a href="https://unicenta.com/pages/install-unicenta-opos/" target="_blank">Requisitos Mínimos</a>, uniCenta oPOS depende de Java. Por tanto, uniOPOS incluye:
     </td>
   </tr>
@@ -150,10 +150,10 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
     If you have previous versions of uniOPOS (or some of its components: uniCenta oPOS (<code>unicentaopos.properties</code>), MySQL Server (DBs & config), etc.) installed on your system, it is highly recommended that you remove or stop the related services. uniOPOS can also remove previous versions of its components, so Backup before using it.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
     Si tiene versiones previas de uniOPOS (o de algunos de sus componentes: uniCenta oPOS (<code>unicentaopos.properties</code>), MySQL Server (DBs & config), etc), instaladas en su sistema, se recomenda encarecidamente que las elimine o detenga los servicios relacionados. uniOPOS también puede eliminar versiones previas de sus componentes, por tanto haga Backup antes de usarlo.
     </td>
   </tr>
@@ -163,50 +163,50 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Always check the port in the uniCenta oPOS Control Panel (example: <code>jdbc:mysql://localhost:3306/</code>) that matches the port in use of MySQL Server.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Verifique siempre el puerto en el Panel de Control de uniCenta oPOS (ejemplo: <code>jdbc:mysql://localhost:3306/</code>) que coincida con el puerto en uso de MySQL Server.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - If you are going to work with MariaDB instead of MySQL Server (not recommended by developer), edit your <code>.sql</code> file and replace the line <code>ROW_FORMAT=COMPACT;</code> by <code>ROW_FORMAT=DYNAMIC;</code>.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Si va a trabajar con MariaDB en lugar de MySQL Server (no recomendado por el desarrollador), edite su archivo <code>.sql</code> y reemplace la línea <code>ROW_FORMAT=COMPACT;</code> por <code>ROW_FORMAT=DYNAMIC;</code>.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - To manage databases, the options "Install" and "Portable" include phpMyAdmin. Option "WebServer" includes <a href="https://www.heidisql.com/" target="_blank">HeidiSQL</a>.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Para administrar bases de datos, las opciones "Instalación" y "Portable" incluyen phpMyAdmin. La opción "WebServer" incluye <a href="https://www.heidisql.com/" target="_blank">HeidiSQL</a>.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - From uniCenta oPOS 4.5 only the Database Transfer tool is available. It will upgrade any previous uniCenta oPOS version from 3.0 and also includes Openbravo POS 2.30.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Desde uniCenta oPOS 4.5 solo está disponible la herramienta de Transferencia de Base de Datos. Actualizará cualquier versión anterior de uniCenta oPOS de 3.0 y también incluye Openbravo POS 2.30.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Note that utf8 (MySQL 5.5 and earlier), utf8mb3 (MySQL 5.7), utf8mb4 (MySQL 8.0 and later).
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Tenga en cuenta que utf8 (MySQL 5.5 y versiones anteriores), utf8mb3 (MySQL 5.7), utf8mb4 (MySQL 8.0 y versiones posteriores).
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - It is recommended to increase the following values of <code>my.ini</code> or <code>my.cnf</code>:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Se recomienda incrementar los siguientes valores de <code>my.ini</code> o <code>my.cnf</code>:
     </td>
   </tr>
@@ -223,10 +223,10 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      According to <a href="https://docs.phpmyadmin.net/en/latest/faq.html#faq1-16" target="_blank">phpMyAdmin FAQ1.16</a>), it is recommended to increase the following values of <code>php.ini</code>:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      De acuerdo con <a href="https://docs.phpmyadmin.net/en/latest/faq.html#faq1-16" target="_blank">phpMyAdmin FAQ1.16</a>, se recomienda incrementar los siguientes valores de <code>php.ini</code>:
     </td>
   </tr>
@@ -244,10 +244,10 @@ upload_max_filesize = 256M
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - If you work with IPv4 and want to prevent Java from connecting through the IPv6 stack, run in cmd (as admin) the following command:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Si trabaja con IPv4 y quiere evitar que Java se conecte a través de la pila IPv6, ejecute en cmd (como admin) el siguiente comando:
     </td>
   </tr>
@@ -257,10 +257,10 @@ upload_max_filesize = 256M
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Beginning with the April 2021 releases of OpenJDK, TLS 1.0 and TLS 1.1 is disabled by default. If you use a version higher than Java v8u211, when connecting uniCenta oPOS with MySQL Server an error will appear:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - A partir de las versiones de abril de 2021 de OpenJDK, TLS 1.0 y TLS 1.1 están deshabilitados de forma predeterminada. Si usa una versión superior a Java v8u211, al conectar uniCenta oPOS con MySQL Server saldrá error:
     </td>
   </tr>
@@ -322,34 +322,34 @@ upload_max_filesize = 256M
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - uniCenta oPOS + WampServer only for Windows 10/11 x64.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - uniCenta oPOS + WampServer únicamente para Windows 10/11 x64.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - If you select uniCenta oPOS + WampServer, keep in mind that installs MySQL Server (By default service start automatically) and MariaDB (By default service does not start automatically).
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Si selecciona uniCenta oPOS + WampServer, tenga en cuenta que instala MySQL Server (Por defecto inicia automáticamente) y MariaDB (por defecto el servicio no inicia automáticamente).
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Installation is done in insecure mode, so access to <code>root</code> account is <b>without a password</b> (you must create one).
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - La instalacion se realiza en  modo inseguro, por tanto el acceso a la cuenta <code>root</code> es <b>sin contraseña</b> (deberá crear una).
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - uniCenta oPOS + WampServer uses port 80 by default for Apache/phpMyAdmin, therefore it is recommended to release this port (<ins>Note</ins>: if you use the IIS World Wide Web Publishing service, installing this package will change the IIS service to <code>manual</code>, to avoid conflicts).
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - uniCenta oPOS + WampServer usa el puerto 80 por defecto para Apache/phpMyAdmin, por tanto se recomienda liberar este puerto (<ins>Nota</ins>: si usa el servicio de IIS World Wide Web Publishing, la instalación de este paquete cambiará el servicio IIS a <code>manual</code>, para evitar conflictos).
     </td>
   </tr>
@@ -376,10 +376,10 @@ upload_max_filesize = 256M
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Go to the destination folder <code>%HOMEDRIVE%\PortableSrv\</code> and find the shortcuts to start Unicenta and Uniserver.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Vaya a la carpeta de destino <code>%HOMEDRIVE%\PortableSrv\</code> y encontrará los accesos directos para iniciar Unicenta y UniserverZ.
     </td>
   </tr>
@@ -393,34 +393,34 @@ upload_max_filesize = 256M
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - If you select uniCenta oPOS + UZero, when installation is finished, you must run <code>UniController</code> with administrative privileges. It will ask you <code>Enter new MySQL root password or press cancel</code>. It is recommended to change default password <code>root</code>.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Si selecciona uniCenta oPOS + UZero, al terminar la instalación, debe ejecutar <code>UniController</code> con privilegios administrativos. Solicitará <code>Ingresa la nueva contraseña de root de MySQL o presiona cancelar</code>. Se recomienda cambiar la contraseña por defecto <code>root</code>.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - While Apache is running to prevent problems, php menu option is disabled (greyed out).
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Mientras Apache se ejecuta para evitar problemas, la opción de menú php está deshabilitada (atenuada).
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - According to the [UZero PHP documentation](https://www.uniformserver.com/ZeroXI_documentation/php.html), it works with three (3) versions of <code>php.ini</code> (<code>php_test.ini</code>, <code>php_development.ini</code> and <code>php_production.ini</code>). The default is <code>php_production.ini</code>, so if you don't choose another configuration file in the PHP menu, any configuration changes will have to be made in the <code>php_production.ini</code> file.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Según la [documentación de UZero PHP](https://www.uniformserver.com/ZeroXI_documentation/php.html), trabaja con tres (3) versiones de <code>php.ini</code> (<code>php_test.ini</code>, <code>php_development.ini</code> and <code>php_production.ini</code>). Por defecto <code>php_production.ini</code>, por tanto, si no elije otro archivo de configuración en el menú PHP, cualquier cambio en la configuración deberá hacerlo en el archivo <code>php_production.ini</code>.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - phpMyAdmin starts by default in French language. To change it, open the phpMyAdmin administration page, log in, find the "Paramètres d'affichage (Appearance Settings)" section and change the language in the "Langue (Language)" drop-down menu.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - phpMyAdmin inicia por defecto en idioma francés. Para cambiarlo, abra la página de administración de phpMyAdmin, inicie sesión, busque la sección de "Paramètres d'affichage (Configuración de Apariencia)" y cambie el idioma en el menú desplegable "Langue (Language)".
     </td>
   </tr>
@@ -432,10 +432,10 @@ upload_max_filesize = 256M
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      To start it automatically with your system, go to the path `%HOMEDRIVE%\PortableSrv\UniserverZ\permanent` and run the `permanent.bat` script with privileges and follow the instructions on the screen. Or open the `Extra\PC-Win Start-Up` menu and check the boxes for autostart.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Para iniciarlo automáticamente con su sistema, vaya al path `%HOMEDRIVE%\PortableSrv\UniserverZ\permanent` y ejecute con privilegios el script `permanent.bat` y siga las instrucciones en pantalla. O abra el menú `Extra\PC-Win Start-Up` y marque las casillas correspondientes al inicio automático.
     </td>
   </tr>
@@ -471,58 +471,58 @@ upload_max_filesize = 256M
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
     - Exclude the <code>%HOMEDRIVE%\websrv</code> folder from your antivirus or security solution.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
     - Excluya la carpeta <code>%HOMEDRIVE%\websrv</code> de su antivirus o solución de seguridad.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - This package delete previous folder (<code>%HOMEDRIVE%\websrv</code>) before installing, therefore make backup of your DBs and configurations before executing it. Read <a href="https://github.com/maravento/uniopos#about-backup" target="_blank">About Backup</a>.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Este paquete elimina la carpeta previa (<code>%HOMEDRIVE%\websrv</code>) antes de instalar, por tanto haga backup de sus DBs y configuraciones antes de ejecutarlo. Lea <a href="https://github.com/maravento/uniopos#about-backup" target="_blank">About Backup</a>.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Keep in mind the same requirements as described in <a href="https://github.com/maravento/uniopos#about-db" target="_blank">About DB</a>, <a href="https://github.com/maravento/uniopos#about-java" target="_blank">About Java</a>.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Tenga en cuenta los mismos requerimientos descritos en: <a href="https://github.com/maravento/uniopos#about-db" target="_blank">About DB</a>, <a href="https://github.com/maravento/uniopos#about-java" target="_blank">About Java</a>.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - HeidiSQL is compatible with Win 10/11 (and Win 7 with some limitations) and to connect to MS SQL servers enabled for TLS 1.2 requires <a href="https://www.microsoft.com/en-us/download/confirmation.aspx?id=56730" target="_blank">OLE DB Driver 18 for SQL Server</a>.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - HeidiSQL es compatible con Win 10/11 (y Win 7 con algunas limitaciones) y para conectarse a servidores MS SQL habilitados para TLS 1.2 requiere <a href="https://www.microsoft.com/en-us/download/confirmation.aspx?id=56730" target="_blank">OLE DB Driver 18 for SQL Server</a>.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - The path of MySQL Data DB is <code>%HOMEDRIVE%\websrv\mysql\data\mysql\</code>.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - El path de MySQL Data DB es: <code>%HOMEDRIVE%\websrv\mysql\data\mysql\</code>.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - MySQL Server Installation is in insecure mode, so access to <code>root</code> account is <b>without a password</b> (you must create one).
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - La instalacion de MySQL Server es en modo inseguro, por tanto el acceso a la cuenta <code>root</code> es <b>sin contraseña</b> (deberá crear una).
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - uniCenta oPOS Web Server includes <a href="https://www.eclipse.org/jetty/" target="_blank">Jetty</a>, therefore you do not need to install apache, nginx or another web server.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - uniCenta oPOS Web Server incluye <a href="https://www.eclipse.org/jetty/" target="_blank">Jetty</a>, por tanto no necesita instalar apache, nginx u otro web server.
     </td>
   </tr>
@@ -530,24 +530,24 @@ upload_max_filesize = 256M
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>Default User</b>
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>Default Pass</b>
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>Access</b>
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      admin
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      pwd
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <a href="http://localhost/phpmyadmin" target="_blank">phpMyAdmin</a>
     </td>
   </tr>
@@ -563,10 +563,10 @@ upload_max_filesize = 256M
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      To access uniCenta oPOS Web Server from another computer's browser, you must use static IP on your server. And replace IP:port in <code>\unicenta-webserver\jetty.properties</code>.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Para acceder a uniCenta oPOS Web Server desde el navegador de otro equipo, debe usar IP estática en su servidor. Y cambiar la IP:Puerto en <code>\unicenta-webserver\jetty.properties</code>.
     </td>
   </tr>
@@ -610,18 +610,18 @@ sudo ./uniopos.sh
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - To connect uniCenta oPOS to MySQL Server you must create a new username/password in phpMyAdmin.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Para conectar uniCenta oPOS a MySQL Server debe crear un nuevo usuario/password en phpMyAdmin.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - LAMP is the recommended installation option. Includes <a href="https://bitnami.com/stack/lamp/installer/changelog.txt" target="_blank">MySQL Server v5.7.28</a>. Do not update or it will stop working for uniCenta oPOS. Also, [Bitnami has discontinued support for most native Linux installers as of June 30, 2021, included <a href="https://blog.bitnami.com/2021/04/amplifying-our-focus-on-cloud-native.html" target="_blank">Bitnami has discontinued support for most native Linux installers as of June 30, 2021</a>.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - LAMP es la opción de instalación recomendada. Incluye <a href="https://bitnami.com/stack/lamp/installer/changelog.txt" target="_blank">MySQL Server v5.7.28</a>. No la actualice o dejará de funcionar para uniCenta oPOS. Además, <a href="https://blog.bitnami.com/2021/04/amplifying-our-focus-on-cloud-native.html" target="_blank">Bitnami ha descontinuado el soporte para la mayoría de los instaladores nativos para Linux a partir del 30 de junio de 2021</a>.
     </td>
   </tr>
@@ -637,10 +637,10 @@ sudo ./uniopos.sh
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - uniCenta oPOS has two versions. Install and Web Server.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - uniCenta oPOS tiene dos versiones. Install y Web Server.
     </td>
   </tr>
@@ -654,18 +654,18 @@ sudo ./uniopos.sh
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - When the installation is finished, start uniCenta oPOS by double clicking on the shortcut on the desktop.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Al terminar la instalación, inicie uniCenta oPOS con doble clic en el acceso directo en el escritorio.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - If you don't have a graphical environment, run the following command:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Si no tiene entorno gráfico, ejecute el siguiente comando:
     </td>
   </tr>
@@ -682,18 +682,18 @@ sudo pkill -f 'java'
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - If you installed uniCenta oPOS Web Server and you are going to use AMPPS or LAMP, do not enable Apache Web Server (MySQL Server only).
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Si instaló uniCenta oPOS Web Server y va a usar AMPPS o LAMP, no active Apache Web Server (solo MySQL Server).
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - To start uniCenta oPOS Web Server, open the terminal and run the following script:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Para iniciar uniCenta oPOS Web Server, abra el terminal y ejecute el siguiente script:
     </td>
   </tr>
@@ -708,10 +708,10 @@ sudo pkill -f 'java'
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - When it initialises open a browser tab:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Cuando se inicializa, abra una pestaña del navegador:
     </td>
   </tr>
@@ -723,10 +723,10 @@ http://localhost:8080/unicentaopos/
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - For more information about uniCenta oPOS Web Server, see the section <a href="https://github.com/maravento/uniopos#important-before-use-webserver-pack" target="_blank">Important Before Use WebServer Pack</a>.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Para mayor información sobre uniCenta oPOS Web Server consulte la sección <a href="https://github.com/maravento/uniopos#important-before-use-webserver-pack" target="_blank">Important Before Use WebServer Pack</a>.
     </td>
   </tr>
@@ -736,10 +736,10 @@ http://localhost:8080/unicentaopos/
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      If you don't have a graphical environment, you can work by command line:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Si no tiene entorno gráfico, puede trabajar por línea de comandos:
     </td>
   </tr>
@@ -768,10 +768,10 @@ sudo killall mysqld
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Java 8 is a third party repository and a bug report may appear (To purge Java check <a href="https://askubuntu.com/a/185250/828892" target="_blank">HERE</a>):
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Java 8 es un repositorio de terceros y puede aparecer un informe de error (Para eliminar Java verifique <a href="https://askubuntu.com/a/185250/828892" target="_blank">AQUÍ</a>):
     </td>
   </tr>
@@ -785,10 +785,10 @@ sudo killall mysqld
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      uniCenta oPOS works with MySQL Server v5.7.x. AMPPS v3.8 contains MySQL Server v5.6.37 and a warning may appear:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      uniCenta oPOS funciona con MySQL Server v5.7.x. AMPPS v3.8 contiene MySQL Server v5.6.37 y puede aparecer una advertencia:
     </td>
   </tr>
@@ -829,10 +829,10 @@ sudo ./uniopos_nojava.sh
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Once you start uniCenta oPOS Beta v5.0.1, in the library you must replace the line:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Una vez inicie uniCenta oPOS Beta v5.0.1, en la librería debe reemplazar la línea:
     </td>
   </tr>
@@ -876,16 +876,16 @@ sudo ./uniopos_nojava.sh
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      This project has reached EOL - EOS. No longer supported or updated.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Este proyecto a alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.
     </td>
   </tr>
 </table>
 
-## LICENSES
+## PROJECT LICENSES
 
 ---
 
@@ -904,10 +904,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Maravento Studio has no relationship with the developers of uniCenta OPOS. We also don't use it, we don't promote it, and we don't provide support. Maravento Studio only supports the uniOPOS installer, which is an open source project, sponsored by <a href="https://co.linkedin.com/in/lancord" target="_blank">UuniOPOS SAS</a>. Only the sponsor of this installer may use it for commercial purposes.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Maravento Studio no tiene ninguna relación con los desarrolladores de uniCenta OPOS. Tampoco lo usamos, no lo promocionamos y no brindamos soporte. Maravento Studio solo brinda soporte al instalador uniOPOS, que es un proyecto de código abierto, patrocinado por <a href="https://co.linkedin.com/in/lancord" target="_blank">uniOPOS SAS</a>. Solo el patrocinador de este instalador, podrá usarlo con fines comerciales.
     </td>
   </tr>

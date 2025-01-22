@@ -6,10 +6,10 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>Gateproxy</b> is a simple proxy/firewall server for managing Pyme's LAN networks. The installation and configuration script is fully automated and customizable according to the needs of the administrator or organization, with minimal interaction during the process. It can be implemented in physical servers or VMs, for greater flexibility and portability.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>Gateproxy</b> es un sencillo servidor proxy/firewall para administrar redes Pyme's LAN. El script de instalación y configuración es totalmente automatizado y personalizable, de acuerdo a las necesidades del administrador u organización, con una interacción mínima durante proceso. Puede ser implementado en servidores físicos o VMs, para mayor flexibilidad y portabilidad.
     </td>
   </tr>
@@ -52,16 +52,16 @@ wget -q -N https://raw.githubusercontent.com/maravento/vault/master/gateproxy/ga
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Gateproxy is an experimental script and may contain bugs, which will be documented or fixed where possible and contain some programs for testing purposes. Therefore, it is not recommended for use in networks or high productivity environments.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Gateproxy es un script experimental y puede contener fallos, los cuales serán documentados o corregidos en lo posible y contener algunos programas para propósitos de pruebas. Por tanto, no se recomienda su uso en redes o entornos de alta productividad.
     </td>
   </tr>
 </table>
 
-## LICENSES
+## PROJECT LICENSES
 
 ---
 

@@ -6,10 +6,10 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>BlackString</b> is an experimental project, aimed at blocking different types of connections, including <a href="https://en.wikipedia.org/wiki/Internet_censorship_circumvention" target="_blank">circumvention</a>, Proxy, BitTorrent, Tor, etc., which use a combination of secure communications with VPN obfuscation technologies, SSH and HTTP Proxy and they retransmit and re-assemble, making it very difficult to detect and block them. To achieve this, we use the Wireshark and tcpdump tools, which allow the capture and analysis of the data flow, both incoming and outgoing, to extract the strings of these connections and block them.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>BlackString</b> es un proyecto experimental, orientado a bloquear diferentes tipos de conexiones, entre ellas las <a href="https://en.wikipedia.org/wiki/Internet_censorship_circumvention" target="_blank">circumvention</a>, Proxy, BitTorrent, Tor, etc., que utilizan una combinación de comunicaciones seguras con tecnologías de ofuscación VPN, SSH y HTTP Proxy y hacen retransmisión y re-ensamblado, siendo muy difícil su detección y bloqueo. Para lograrlo utilizamos las herramientas Wireshark y tcpdump, que permiten la captura y análisis del flujo de datos, tanto de llegada como de salida, para extraer las cadenas de estas conexiones y bloquearlas.
     </td>
   </tr>
@@ -42,10 +42,10 @@ iptables ulogd2 ipset squid perl bash
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      This project contains ACLs with non-exclusive strings, which can generate false positives, and Iptables firewall rules that slow down traffic and may not get the desired results. Note that string matching is intensive, unreliable, so you should consider it as a last resort.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Este proyecto contiene ACLs con cadenas no exclusivas, que pueden generar falsos positivos y reglas de firewall Iptables que ralentizan el tráfico y puede no obtener los resultados deseados. Tenga en cuenta que la coincidencia de cadenas es intensiva, poco confiable, por tanto debe considerarla como último recurso.
     </td>
   </tr>
@@ -119,18 +119,18 @@ http_access deny no_ip
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - It is faster to block these IPs with a proxy, like <a href="https://www.squid-cache.org/" target="_blank">Squid-Cache</a>. For more information, visit the <a href="https://github.com/maravento/blackip" target="_blank">Blackip</a> project.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Es más rápido bloquear estas IPs con un proxy, como <a href="https://www.squid-cache.org/" target="_blank">Squid-Cache</a>. Para mayor información, visite el proyecto <a href="https://github.com/maravento/blackip" target="_blank">Blackip</a>.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - You can also block the domains related using <a href="https://github.com/maravento/blackweb" target="_blank">Blackweb</a>.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - También puede bloquear los dominios relacionados usando <a href="https://github.com/maravento/blackweb" target="_blank">Blackweb</a>.
     </td>
   </tr>
@@ -140,10 +140,10 @@ http_access deny no_ip
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      To block with Ipset/Iptables, visit the project, visit the <a href="https://github.com/maravento/blackip" target="_blank">Blackip</a> project.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Para bloquear con Ipset/Iptables, visite el proyecto, visite el proyecto <a href="https://github.com/maravento/blackip" target="_blank">Blackip</a>.
     </td>
   </tr>
@@ -153,10 +153,10 @@ http_access deny no_ip
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      To increase protection against this type of applications, it is recommended <a href="https://thekelleys.org.uk/dnsmasq/doc.html" target="_blank">Dnsmasq</a> and <a href="https://docs.zeek.org/en/master/" target="_blank">Zeek</a>.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Para incrementar la protección contra este tipo de aplicaciones, se recomienda <a href="https://thekelleys.org.uk/dnsmasq/doc.html" target="_blank">Dnsmasq</a> y <a href="https://docs.zeek.org/en/master/" target="_blank">Zeek</a>.
     </td>
   </tr>
@@ -216,10 +216,10 @@ Jul  9 09:54:03 adminred Tor IN=enp2s1 OUT=enp2s0 MAC=94:18:82:XX:XX:XX:08:00:27
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      It is recommended to block p2p, tor ports, etc., with <a href="https://manpages.debian.org/ipset/ipset.8" target="_blank">Ipset</a>. For more information visit <a href="https://www.maravento.com/2020/06/blackports.html" target="_blank">Blockports</a>.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Se recomienda bloquear los puertos p2p, tor, etc., con <a href="https://manpages.debian.org/ipset/ipset.8" target="_blank">Ipset</a>. Para mayor información visite el post <a href="https://www.maravento.com/2020/06/blackports.html" target="_blank">Blockports</a>.
     </td>
   </tr>
@@ -252,10 +252,10 @@ $iptables -w -A FORWARD -m set --match-set blockports src,dst -j DROP
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      To avoid congestion (of the log and server that manages local network) due to the high level of processing, it is necessary to block local IP address that is generating this traffic. You can do it with <a href="https://manpages.debian.org/ipset/ipset.8" target="_blank">Ipset</a>:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Para evitar la congestión (del log y del servidor que administra la red local) por el alto nivel de procesamiento, es necesario bloquear la dirección IP local que está generando este tráfico. Puede hacerlo con <a href="https://manpages.debian.org/ipset/ipset.8" target="_blank">Ipset</a>:
     </td>
   </tr>
@@ -289,10 +289,10 @@ $iptables -A FORWARD -m set --match-set banip src,dst -j DROP
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Save the script and schedule it in the crontab to run each 10 min. Adjust the ruler and task time according to your needs. Example:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Guarde el script y prográmelo en el crontab para que se ejecute cada 10 minutos. Ajuste el tiempo de la regla y tarea según sus necesidades. Ejemplo:
     </td>
   </tr>
@@ -313,7 +313,7 @@ sudo crontab -l | { cat; echo "*/10 * * * * /path_to_script/banip.sh"; } | sudo 
 - [tcpdump-cheat-sheet](https://cdn.comparitech.com/wp-content/uploads/2019/06/tcpdump-cheat-sheet.jpg)
 - [wireshark](https://www.wireshark.org/)
 
-## LICENSES
+## PROJECT LICENSES
 
 ---
 

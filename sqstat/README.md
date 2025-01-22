@@ -6,10 +6,10 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>SqStat</b> is a script that allows you to verify the active connections of users. Use the cachemgr protocol to obtain information about the <a href="https://www.squid-cache.org/" target="_blank">Squid Proxy Server</a>.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>SqStat</b> es un script que permite verificar las conexiones activas de los usuarios. Utiliza el protocolo cachemgr para obtener información de <a href="https://www.squid-cache.org/" target="_blank">Squid Proxy Server</a>.
     </td>
   </tr>
@@ -38,10 +38,10 @@ python gitfolderdl.py https://github.com/maravento/vault/sqstat
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      If any IP addresses on your local network do not go through the Squid proxy, then they will not appear in the reports.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Si alguna dirección IP de su red local no pasan por el proxy Squid, entonces no aparecerá en los reportes.
     </td>
   </tr>
@@ -67,16 +67,25 @@ wget -c https://raw.githubusercontent.com/maravento/vault/master/sqstat/sqstatse
 
 ### Auto refresh
 
-Select at least 5 seconds: / Seleccione al menos 5 segundos:
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     Select at least 5 seconds:
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     Seleccione al menos 5 segundos:
+    </td>
+  </tr>
+</table>
 
 [![Image](https://raw.githubusercontent.com/maravento/vault/master/sqstat/img/sqstat-auto.png)](https://www.maravento.com/)
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      When you restart/reload Squid, sqstat will lose the connection. Wait a minute and press the F5 key to reload the page.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Al reiniciar/recargar Squid, sqstat perderá la conexión. Espere un minuto y pulsar la tecla F5 para recargar la página.
     </td>
   </tr>
@@ -86,7 +95,16 @@ Select at least 5 seconds: / Seleccione al menos 5 segundos:
 
 ### Squid conf
 
-**Add: | Añadir:**
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     Add:
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     Añadir:
+    </td>
+  </tr>
+</table>
 
 ```bash
 sudo nano /etc/squid/squid.conf
@@ -99,10 +117,10 @@ http_access deny manager !localhost
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      If you are going to use password, you must modify the following files:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Si va a usar password, debe modificar los siguientes archivos:
     </td>
   </tr>
@@ -127,16 +145,16 @@ sudo systemctl restart apache2
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      This project has reached EOL - EOS. No longer supported or updated.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Este proyecto a alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.
     </td>
   </tr>
 </table>
 
-## LICENSES
+## PROJECT LICENSES
 
 ---
 

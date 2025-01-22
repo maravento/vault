@@ -6,14 +6,14 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>Stack</b> contains stack installation package for linux.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>Stack</b> contiene paquete de instalación stack para Linux.
     </td>
   </tr>
-</table>inux
+</table>
 
 ## DOWNLOAD PROJECT
 
@@ -26,11 +26,24 @@ chmod +x gitfolderdl.py
 python gitfolderdl.py https://github.com/maravento/vault/stack
 ```
 
+### Tested on
+
+Ubuntu 20.04/22.04 x64
+
 ## HOW TO USE
 
 ---
 
-**Tested on: Ubuntu 20.04/22.04 x64**
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     <b>Stack</b> contains stack installation package for linux.
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     <b>Stack</b> contiene paquete de instalación stack para Linux.
+    </td>
+  </tr>
+</table>
 
 ```bash
 wget -q -N https://raw.githubusercontent.com/maravento/vault/master/stack/stack.sh && sudo chmod +x stack.sh && sudo ./stack.sh
@@ -52,43 +65,30 @@ wget -q -N https://raw.githubusercontent.com/maravento/vault/master/stack/stack.
   <img width="80%" src="https://raw.githubusercontent.com/maravento/vault/master/stack/img/ampps.png" width="80%" height="80%">
 </div>
 
-### LAMP | AMPPS Default
+### LAMP | AMPPS
 
-**Default phpMyAdmin: [http://localhost/phpmyadmin](http://localhost/phpmyadmin)**
+
+#### Default phpMyAdmin
+
+[http://localhost/phpmyadmin](http://localhost/phpmyadmin)
 
 #### Important Before Use LAMP Stack
 
 <table width="100%">
   <tr>
-    <td width="50%">
-     - Default User **root** and Default Password **lampstack** (change it).
+    <td style="width: 50%; white-space: nowrap;">
+     - Default User <code>root</code> and Default Password <code>lampstack</code> (change it).<br>
+     - To connect to MySQL Server you must create a new username/password in phpMyAdmin.<br>
+     - LAMP 7.1.33-0 is the latest released version of the Bitnami Stack for Linux.<br>
+     - Contains <a href="https://bitnami.com/stack/lamp/installer/changelog.txt" target="_blank">MySQL Server v5.7.28, PHP v7.1.33, Apache v2.4.41</a>.<br>
+     - <a href="https://blog.bitnami.com/2021/04/amplifying-our-focus-on-cloud-native.html" target="_blank">Bitnami has discontinued support for Linux of June 30, 2021</a>.<br>
     </td>
-    <td width="50%">
-     - Usuario predeterminado **root** y contraseña predeterminada **lampstack** (cámbiela).
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-     - To connect to MySQL Server you must create a new username/password in phpMyAdmin.
-    </td>
-    <td width="50%">
-     - Para conectar a MySQL Server debe crear un nuevo usuario/password en phpMyAdmin.
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-     - LAMP 7.1.33-0 is the latest released version of the Bitnami Stack for Linux with MySQL 5.7.x. Contains <a href="https://bitnami.com/stack/lamp/installer/changelog.txt" target="_blank">MySQL Server v5.7.28, PHP v7.1.33, Apache v2.4.41</a>.
-    </td>
-    <td width="50%">
-     - LAMP 7.1.33-0 es la última versión lanzada de Bitnami Stack para Linux con MySQL 5.7.x. Contiene <a href="https://bitnami.com/stack/lamp/installer/changelog.txt" target="_blank">MySQL Server v5.7.28, PHP v7.1.33, Apache v2.4.41</a>.
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-     - <a href="https://blog.bitnami.com/2021/04/amplifying-our-focus-on-cloud-native.html" target="_blank">Bitnami has discontinued support for most native Linux installers as of June 30, 2021</a>.
-    </td>
-    <td width="50%">
-     - <a href="https://blog.bitnami.com/2021/04/amplifying-our-focus-on-cloud-native.html" target="_blank">Bitnami ha descontinuado el soporte para la mayoría de los instaladores nativos para Linux a partir del 30 de junio de 2021</a>.
+    <td style="width: 50%; white-space: nowrap;">
+     - Usuario predeterminado <code>root</code> y contraseña predeterminada <code>lampstack</code> (cámbiela).<br>
+     - Para conectar a MySQL Server debe crear un nuevo usuario/password en phpMyAdmin.<br>
+     - LAMP 7.1.33-0 es la última versión lanzada de Bitnami Stack para Linux. <br>
+     - Contiene <a href="https://bitnami.com/stack/lamp/installer/changelog.txt" target="_blank">MySQL Server v5.7.28, PHP v7.1.33, Apache v2.4.41</a>.<br>
+     - <a href="https://blog.bitnami.com/2021/04/amplifying-our-focus-on-cloud-native.html" target="_blank">Bitnami ha descontinuado el soporte para Linux a partir del 30 de junio de 2021</a>.<br>
     </td>
   </tr>
 </table>
@@ -97,10 +97,10 @@ wget -q -N https://raw.githubusercontent.com/maravento/vault/master/stack/stack.
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Default User **root** and Default Password **mysql** (change it).
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Usuario predeterminado **root** y contraseña predeterminada **mysql** (cámbiela).
     </td>
   </tr>
@@ -114,8 +114,6 @@ wget -q -N https://raw.githubusercontent.com/maravento/vault/master/stack/stack.
 </p>
 
 ### LAMP | AMPPS by Command Line
-
-**By command line | Por línea de comandos:**
 
 ```shell
 ### LAMP ###
@@ -155,16 +153,16 @@ sudo rm -rf /usr/local/ampps/
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      This project has reached EOL - EOS. No longer supported or updated.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Este proyecto a alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.
     </td>
   </tr>
 </table>
 
-## LICENSES
+## PROJECT LICENSES
 
 ---
 

@@ -6,10 +6,10 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Script Repository.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Repositorio de Scripts.
     </td>
   </tr>
@@ -81,7 +81,6 @@ Tested on: Windows 10/11 x64
 
 Tested on: Ubuntu 22.04/24.04
 
-- [Domain Filter for Removing Overlapping Domains and TLD Validation](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/domfilter.py)
 - [Git Folder Download (Replaces Subversion (svn) EOS/EOL on GitHub/GitLab)](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py)
 
 ### VBScript (Windows)
@@ -90,7 +89,7 @@ Tested on: Windows 7/10/11 x64
 
 - [Autorun Disable](https://raw.githubusercontent.com/maravento/vault/master/scripts/vbs/autorun.vbs)
 
-## LICENSES
+## PROJECT LICENSES
 
 ---
 

@@ -6,10 +6,10 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>BlackUSB</b> is a experimental script, that prevents theft of personal data, malware, forensic tools, BadUSB (USB Rubber Ducky), etc. Generates a whitelist of usb/hid devices and blocks any other unauthorized insertion of unknown devices, using udev rules.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>BlackUSB</b> es un script experimental, que previene el robo de datos personales, malware, herramientas forenses, BadUSB (USB Rubber Ducky), etc. Genera una lista blanca de dispositivos usb/hid y bloquea cualquier otra inserción no autorizada de dispositivos desconocidos, usando reglas udev.
     </td>
   </tr>
@@ -21,10 +21,10 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      It is a bash script that generates a white list of usb/hid devices and blocks any other unauthorized insertion of unknown devices, using udev rules.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Es un bash script que genera una lista blanca de dispositivos usb/hid y bloquea cualquier otra inserción no autorizada de dispositivos desconocidos, usando reglas udev.
     </td>
   </tr>
@@ -66,10 +66,10 @@ sudo /path_to/blackusb.sh s
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      It consists of turning off your terminal when inserting an unauthorized and/or unknown usb device, rather than locking it. To activate it, edit the script manually and uncomment the line.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Consiste en apagar su terminal cuando se inserte un dispositivo usb no autorizado y/o desconocido, en lugar de bloquearlo. Para activarlo, edite manualmente el script y descomente la línea. 
     </td>
   </tr>
@@ -97,10 +97,10 @@ Cruzer Blade
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      This project is a fork of:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Este proyecto es un fork de:
     </td>
   </tr>
@@ -116,10 +116,10 @@ Cruzer Blade
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Tool to block unauthorized devices USB, HID, HDC, Bluetooth, IEEE, SmartCardReader, PCMCIA, Printers, SCSI, RAID, etc. Cleans previous device installations, rescans those connected and blocks new ones.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Herramienta para bloquear dispositivos no autorizados USB, HID, HDC, Bluetooth, IEEE, SmartCardReader, PCMCIA, Printers, SCSI, RAID, etc. Limpia instalaciones previas de dispositivos, reescanea los conectados y bloquea los nuevos.
     </td>
   </tr>
@@ -135,10 +135,10 @@ Cruzer Blade
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Disable your Antivirus, Antimalware, SmartScreen or any other security solution in your Operating System, close all windows and check the date and time of your PC is correct. Unzip <code>BlackUSB.exe (.zip)</code> to your desktop, execute it with double click (accept privileged execution) and follow the instructions on the screen.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Desactive su Antivirus, Antimalware, SmartScreen o cualquier otra solución de seguridad en su Sistema Operativo, cierre todas las ventanas y verifique la fecha y hora de su PC sea la correcta. Descomprima <code>BlackUSB.exe (.zip)</code> en el escritorio, ejecutarlo con doble clic (acepte la ejecución con privilegios) y siga las instrucciones en pantalla.
     </td>
   </tr>
@@ -152,34 +152,34 @@ Cruzer Blade
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Do not press <b>BLOCK</b> button twice in a row or it will block all USB/HID devices.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - No pulse el botón <b>BLOCK</b> dos veces seguidas, o bloqueará todos los dispositivos USB/HID.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - If you have defined <a href="https://en.wikipedia.org/wiki/Group_Policy" target="_blank">GPO policies</a> on your system, they will be rewritten. Make a GPO backup before using BlackUSB.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Si tiene establecidas <a href="https://en.wikipedia.org/wiki/Group_Policy" target="_blank">GPO policies</a> en su sistema, serán reescritas. Haga backup GPO antes de usar BlackUSB. 
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - To add a new USB/HID device to your whitelist (excluded from blocking) you must press the RESTORE button to remove the restrictions, then connect the new device and finally press BLOCK button.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Para incorporar un nuevo dispositivo USB/HID a su lista blanca (excluidos de bloqueo) debe pulsar el botón RESTORE para eliminar las restricciones, luego conectar el nuevo dispositivo y finalmente pulsar el botón BLOCK.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - After executing the BLOCK option, the <b>whitelist.txt</b> report file, which contains the white list of USB/HID devices excluded from the lock, will be displayed on your desktop. This list will be deleted when using the RESTORE option.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Despues de ejecutar la opción BLOCK, aparecerá en su escritorio el archivo de reporte <b>whitelist.txt</b>, que contiene la lista blanca de dispositivos USB/HID excluidos del bloqueo. Esta lista será eliminada al utilizar la opción RESTORE.
     </td>
   </tr>
@@ -198,7 +198,7 @@ Cruzer Blade
 - [Windows SDK - Devcon32/64](https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/)
 - [WinZenity](https://github.com/maravento/vault/tree/master/winzenity)
 
-## LICENSES
+## PROJECT LICENSES
 
 ---
 

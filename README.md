@@ -7,10 +7,10 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
       <b>Vault</b> is a collection of cross-platform projects in the following cycles:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
       <b>Vault</b> es una colección de proyectos multiplataforma en los siguientes ciclos:
     </td>
   </tr>
@@ -55,6 +55,7 @@ git clone --depth=1 https://github.com/maravento/vault.git
 - [blackusb](https://github.com/maravento/vault/tree/master/blackusb)
 - [blackword](https://github.com/maravento/vault/tree/master/blackword)
 - [dextroyer](https://github.com/maravento/vault/tree/master/dextroyer)
+- [dofi](https://github.com/maravento/vault/tree/master/dofi)
 - [gateproxy](https://github.com/maravento/vault/tree/master/gateproxy)
 - [itsm](https://github.com/maravento/vault/tree/master/itsm)
 - [lightsquid](https://github.com/maravento/vault/tree/master/lightsquid)
@@ -81,10 +82,10 @@ git clone --depth=1 https://github.com/maravento/vault.git
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
       We thank all those who contributed to this project.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
       Agradecemos a todos los que han contribuido con este proyecto.
     </td>
   </tr>
@@ -96,7 +97,7 @@ git clone --depth=1 https://github.com/maravento/vault.git
 
 [![Image](https://raw.githubusercontent.com/maravento/winexternal/master/img/maravento-paypal.png)](https://paypal.me/maravento)
 
-## LICENSES
+## PROJECT LICENSES
 
 ---
 

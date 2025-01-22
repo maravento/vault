@@ -6,10 +6,10 @@
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>Lightsquid</b> is a webapp that works exclusively with <a href="https://www.squid-cache.org/" target="_blank">Squid-Cache</a>, extracting from <code>access.log</code> the necessary data to show the traffic statistics of the local network.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      <b>Lightsquid</b> es una webapp que trabaja exclusivamente con <a href="https://www.squid-cache.org/" target="_blank">Squid-Cache</a>, extrayendo de <code>access.log</code> los datos necesarios para mostrar las estadísticas del tráfico de la red local.
     </td>
   </tr>
@@ -38,18 +38,18 @@ python gitfolderdl.py https://github.com/maravento/vault/lightsquid
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - If any IP addresses on your local network do not go through the Squid proxy, then they will not appear in the reports.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Si alguna dirección IP de su red local no pasan por el proxy Squid, entonces no aparecerá en los reportes.
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - This project is not a Next Generation (NG) version. It is a fork of the unofficial version <a href="https://github.com/finisky/lightsquid-1.8.1" target="_blank">v1.8.1</a>, updated with <a href="https://github.com/finisky/lightsquid-1.8.1/issues/1" target="_blank">fixes</a>.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      - Este proyecto no es una versión de Nueva Generación (NG). Es un fork de la versión no oficial <a href="https://github.com/finisky/lightsquid-1.8.1" target="_blank">v1.8.1</a>, actualizado con <a href="https://github.com/finisky/lightsquid-1.8.1/issues/1" target="_blank">correcciones</a>.
     </td>
   </tr>
@@ -77,10 +77,10 @@ wget -c https://raw.githubusercontent.com/maravento/vault/master/lightsquid/lsin
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      The LightSquid install script runs a command that by default schedules the crontab to run lightsquid every 10 seconds and bandata every 12 seconds. You can adjust it according to your preferences.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      El script de instalación de LightSquid ejecuta un comando que programa por defecto en el crontab la ejecución de lightsquid cada 10 segundos y de bandata cada 12 segundos. Puede ajustarlo según sus preferencias.
     </td>
   </tr>
@@ -145,10 +145,10 @@ $templatename        ="metro_tpl";
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      This section is to block users who have overcome the consumption of data default by the sysadmin.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Esta sección es para bloquear a los usuarios que hayan superado el consumo de datos predeterminado por el sysadmin.
     </td>
   </tr>
@@ -178,10 +178,10 @@ cat /etc/acl/{banmonth,banweek,banday}.txt | uniq
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      You can use GBytes, MBytes or Bytes, for example 0.5G or 512M or 536870912. By default, the consumption limit values are: 1 Gigabyte (1G) daily data, 5 Gigabyte (5G) weekly data and 20 Gigabyte (20G ) monthly data.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Puede usar GBytes, MBytes o Bytes, por ejemplo 0.5G o 512M o 536870912. Por defecto, los valores del límite de consumo son: 1 Gigabyte (1G) de datos diarios, 5 Gigabyte (3G) de datos semanal y 20 Gigabyte (20G) de datos mensual.
     </td>
   </tr>
@@ -191,10 +191,10 @@ cat /etc/acl/{banmonth,banweek,banday}.txt | uniq
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      The script checks the Lightsquid current day report and blocks any user, within the local network, who exceeds the set consumption. The block will be removed the next day.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      El script verifica el informe del día actual de Lightsquid y bloquea a cualquier usuario, dentro de la red local, que supere el consumo establecido. El bloqueo se levantará al día siguiente.
     </td>
   </tr>
@@ -210,10 +210,10 @@ max_bandwidth_day="1G"
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      The script checks that it is Monday and the previous week's reports from Lightsquid, and blocks any user, within the local network, who exceeds the set consumption. The block will be removed the next Monday.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      El script verifica que sea Lunes y los informes de la semana anterior de Lightsquid, y bloquea a cualquier usuario, dentro de la red local, que supere el consumo establecido. El bloqueo se levantará el lunes siguiente.
     </td>
   </tr>
@@ -229,10 +229,10 @@ max_bandwidth_week="5G"
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      The script checks the current month's reports from Lightsquid and blocks any user, within the local network, who exceeds the set consumption. The block will be removed the next month.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      El script verifica los informes del mes actual de Lightsquid y bloquea a cualquier usuario, dentro de la red local, que supere el consumo establecido. El bloqueo se levantará al mes siguiente.
     </td>
   </tr>
@@ -248,10 +248,10 @@ max_bandwidth_month="20G"
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Traffic statistics are displayed in the web application and also users who exceeded the limit. To change the data limit in </code>lightsquid.cfg</code> statistics:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Las estadísticas del tráfico se muestran en la aplicación web y también los usuarios que sobrepasaron el límite. Para cambiar el límite de datos en las estadísticas de </code>lightsquid.cfg</code>:
     </td>
   </tr>
@@ -276,10 +276,10 @@ $perusertrafficlimit = 1000*1024*1024;
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      LightSquid can generate reports in PDF, CSV, etc., but it will only show the TOP domains. If you want all visited domains on your local network in a single ACL, suitable for Squid, run the following command:
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      LightSquid puede generar reportes en PDF, CSV, etc., pero solo mostrará los dominios TOP. Si quiere todos los dominios visitados de su red local en una sola ACL, apta para Squid, ejecute el siguiente comando:
     </td>
   </tr>
@@ -295,16 +295,16 @@ find /var/www/lightsquid/report -type f -name '[0-9]*.[0-9]*.[0-9]*.[0-9]*' -exe
 
 <table width="100%">
   <tr>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      This project has reached EOL - EOS. No longer supported or updated.
     </td>
-    <td width="50%">
+    <td style="width: 50%; white-space: nowrap;">
      Este proyecto a alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.
     </td>
   </tr>
 </table>
 
-## LICENSES
+## PROJECT LICENSES
 
 ---
 
