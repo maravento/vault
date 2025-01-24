@@ -49,7 +49,7 @@
 
 |File|OS|Size|
 | :---: | :---: | :---: |
-|[itsm.exe (.zip)](https://mega.nz/file/GAlSADxL#DIzfjWyEMyL4bLvpHrJ8kh1QZsMoiBDx00e8hkRcYvk)|Windows 10/11 x64|104 MB|
+|[itsm.exe (.zip)](https://mega.nz/file/rM9ghAJD#VhLdMPNJXKU6h9VMm9b-tsWLAcgOD0okshXiMTHXYJQ)|Windows 10/11 x64|103.9 MB|
 
 ## Supported Versions
 
@@ -81,7 +81,7 @@
 - [graphviz x64](https://graphviz.org/download/)
 - [apcu v8.x x64 ts](https://github.com/krakjoe/apcu)
 
-### Hardware & Software Requirements
+### Prerequisites
 
 - [For GLPI](https://glpi-install.readthedocs.io/en/latest/prerequisites.html)
 - [For iTop](https://www.itophub.io/wiki/page?id=latest:install:requirements)
@@ -196,18 +196,18 @@
 <table width="100%">
   <tr>
     <td style="width: 50%; white-space: nowrap;">
-     During the installation, several shortcuts are created on your PC's desktop. For iTop 2 and GLPI 1, to run iTop for the first time, double-click on <code>iTop Wizard (.url)</code> which will take you to the iTop setup URL.<br>
-     Once iTop setup is complete, close your browser. From now on, to access iTop, you will need to use the second shortcut on your desktop called <code>iTop (.url)</code> which will take you to the login URL, where you will enter the credentials you chose in the iTop setup.<br>
-     For GLPI, there is only one shortcut <code>GLPI (.url)</code>, which you will use both to launch it for the first time, and to log in after installation.<br>
-     <strong>Important:</strong><br>
-     If double-clicking the iTop or GLPI shortcut on your desktop does not open the URL in your browser, close your browser completely and try again.
+     - During the installation, several shortcuts are created on your PC's desktop. For iTop 2 and GLPI 1, to run iTop for the first time, double-click on <code>iTop Wizard.url</code> which will take you to the iTop setup URL.<br>
+     - Once iTop setup is complete, close your browser and delete the shortcut <code>iTop Wizard.url</code>.<br>
+     - From now on, every time you want to access iTop, you will need to use the shortcut on your desktop called <code>iTop.url</code>, which will take you to the login URL. There you will need to enter the credentials you set up during the post-installation of iTop.<br>
+     - For GLPI, there is only one shortcut <code>GLPI.url</code>, which you will use both to launch it for the first time, and to log in after installation.<br>
+     - If double-clicking the iTop or GLPI shortcut on your desktop does not open the URL in your browser, close your browser completely and try again.
     </td>
     <td style="width: 50%; white-space: nowrap;">
-     Durante la instalación se crean varios accesos directos en el escritorio de su PC. Para iTop 2 y GLPI 1. Para ejecutar iTop por primera vez haga doblé clic en <code>iTop Wizard (.url)</code> que lo llevará a la URL de la configuración de iTop.<br>
-     Una vez concluida la configuración de iTop, cierre su navegador. Y a partir de ahora, para acceder a iTop, deberá usar el segundo acceso directo de su escritorio llamado <code>iTop (.url)</code> que lo llevará a la URL de ingreso, en la cual introducirá las credenciales que eligió en la configuración de iTop.<br>
-     Para GLPI solo hay un acceso directo <code>GLPI (.url)</code>, el cual usará tanto para iniciar por primera vez, como para ingresar después de instalado.<br>
-     <strong>Importante</strong>:<br>
-     Si al hacer doble clic sobre el acceso directo de iTop o GLPI en su escritorio, no abre la URL en el navegador, cierre el navegador completamente e inténtelo nuevamente.
+     - Durante la instalación se crean varios accesos directos en el escritorio de su PC. Para iTop 2 y GLPI 1. Para ejecutar iTop por primera vez haga doblé clic en <code>iTop Wizard.url</code> que lo llevará a la URL de la configuración de iTop.<br>
+     - Una vez concluida la configuración de iTop, cierre su navegador y elimine el acceso directo <code>iTop Wizard.url</code>.<br>
+     - A partir de ahora, cada vez que desee acceder a iTop, deberá utilizar el acceso directo en su escritorio llamado <code>iTop.url</code>, el cual lo llevará a la URL de ingreso. Allí deberá introducir las credenciales que configuró durante la post-instalación de iTop.<br>
+     - Para GLPI solo hay un acceso directo <code>GLPI.url</code>, el cual usará tanto para iniciar por primera vez, como para ingresar después de instalado.<br>
+     - Si al hacer doble clic sobre el acceso directo de iTop o GLPI en su escritorio, no abre la URL en el navegador, cierre el navegador completamente e inténtelo nuevamente.
     </td>
   </tr>
 </table>
@@ -217,19 +217,18 @@
 <table width="100%">
   <tr>
     <td style="width: 50%; white-space: nowrap;">
-     You can check the iTop and GLPI settings in the shortcuts on your PC desktop named <code>iTop-Wizard.pdf</code> and <code>GLPI-Wizard.pdf</code>.
-    </td>
+     You can check the iTop and GLPI settings in the shortcuts on your PC desktop named 
+    <a href="https://raw.githubusercontent.com/maravento/vault/master/itsm/wizard/iTop-Wizard.pdf" target="_blank">iTop-Wizard.pdf</a> 
+     and 
+    <a href="https://raw.githubusercontent.com/maravento/vault/master/itsm/wizard/GLPI-Wizard.pdf" target="_blank">GLPI-Wizard.pdf</a>.
+</td>
     <td style="width: 50%; white-space: nowrap;">
-     Puede consultar las configuraciones de iTop y GLPI en los accesos directos del escritorio de su PC llamados <code>iTop-Wizard.pdf</code> y <code>GLPI-Wizard.pdf</code>.
+     Puede consultar las configuraciones de iTop y GLPI en los accesos directos del escritorio de su PC llamados <a href="https://raw.githubusercontent.com/maravento/vault/master/itsm/wizard/iTop-Wizard.pdf" target="_blank">iTop-Wizard.pdf</a> y <a href="https://raw.githubusercontent.com/maravento/vault/master/itsm/wizard/GLPI-Wizard.pdf" target="_blank">GLPI-Wizard.pdf</a>.
     </td>
   </tr>
 </table>
 
-[GLPI-Wizard.pdf](https://raw.githubusercontent.com/maravento/vault/master/itsm/wizard/GLPI-Wizard.pdf)
-
-[iTop-Wizard.pdf](https://raw.githubusercontent.com/maravento/vault/master/itsm/wizard/iTop-Wizard.pdf)
-
-#### Important About iTop and GLPI
+### POST-INSTALLATION
 
 <table width="100%">
   <tr>
@@ -242,7 +241,9 @@
   </tr>
 </table>
 
-[itopconf.bat](https://github.com/maravento/vault/blob/master/scripts/batch/itopconf.bat)
+| iTop Port Change |
+|------------------|
+|[itopconf.bat](https://raw.githubusercontent.com/maravento/vault/master/itsm/scripts/itopconf.bat)|
 
 <table width="100%">
   <tr>
@@ -255,11 +256,46 @@
   </tr>
 </table>
 
-`http://localhost/itop/web/pages/UI.php`
+| Access Example: |
+|-----------------|
+|`http://localhost/itop/web/pages/UI.php`|
+|`http://localhost:8080/itop/web/pages/UI.php`|
 
-by:
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     If you decide to access from your browser using the IP address of the PC or server where iTop is installed, download the following script that will help you in the process:
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     Si decide acceder desde su navegador mediante la dirección IP del PC o servidor donde esté instalado iTop, descargue el siguiente script que le ayudará en el proceso:
+    </td>
+  </tr>
+</table>
 
-`http://localhost:8080/itop/web/pages/UI.php`
+| iTop URL Change (localhost + local IP) |
+|----------------------------------------|
+|[itopip.ps1](https://raw.githubusercontent.com/maravento/vault/master/itsm/scripts/itopip.ps1)|
+
+| Access Example: |
+|-----------------|
+|`http://localhost/itop/web/pages/UI.php`|
+|`http://192.168.1.10/itop/web/pages/UI.php`|
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     GLPI does not require any modifications. You can access it via localhost or the IP address of the computer where it is installed. Example:
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     GLPI no necesita modificaciones. Puede acceder por localhost o la dirección IP del equipo donde esté instalado. Ejemplo:
+    </td>
+  </tr>
+</table>
+
+| Access Example: |
+|-----------------|
+|`http://localhost/glpi`|
+|`http://192.168.1.102/glpi`|
 
 <table width="100%">
   <tr>
@@ -272,7 +308,9 @@ by:
   </tr>
 </table>
 
-`netsh winhttp import proxy source=ie`
+```bash
+netsh winhttp import proxy source=ie
+```
 
 ### TELEMETRY
 

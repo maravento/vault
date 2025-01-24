@@ -67,7 +67,6 @@ Tested on: Ubuntu 22.04/24.04 x64
 
 Tested on: Windows 10/11 x64
 
-- [iTop - IT Service Management & CMDB (Change MySQL/Apache Ports)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/itopconf.bat)
 - [Mozilla Thunderbird (Backup Profiles to USB)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/mtpbackup.bat)
 - [Net Reset (Proxy and NIC)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/netreset.bat)
 - [Non-Essential Services (Disable | Auto)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/nonservices.bat)

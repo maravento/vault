@@ -64,6 +64,7 @@ git clone --depth=1 https://github.com/maravento/vault.git
 - [stack](https://github.com/maravento/vault/tree/master/stack)
 - [telemetry](https://github.com/maravento/vault/tree/master/telemetry)
 - [trek](https://github.com/maravento/vault/tree/master/trek)
+- [unifi](https://github.com/maravento/vault/tree/master/unifi)
 - [uniopos](https://github.com/maravento/vault/tree/master/uniopos)
 - [winzenity](https://github.com/maravento/vault/tree/master/winzenity)
 
