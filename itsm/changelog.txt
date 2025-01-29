@@ -4,6 +4,9 @@
 # by Maravento Studio
 # https://www.maravento.com
 
+2025.01.27
+Fixed: Bugs
+
 2025.01.24
 Added: Scripts to add IP and change port (iTop)
 Fixed: Bugs

@@ -217,10 +217,7 @@
 <table width="100%">
   <tr>
     <td style="width: 50%; white-space: nowrap;">
-     You can check the iTop and GLPI settings in the shortcuts on your PC desktop named 
-    <a href="https://raw.githubusercontent.com/maravento/vault/master/itsm/wizard/iTop-Wizard.pdf" target="_blank">iTop-Wizard.pdf</a> 
-     and 
-    <a href="https://raw.githubusercontent.com/maravento/vault/master/itsm/wizard/GLPI-Wizard.pdf" target="_blank">GLPI-Wizard.pdf</a>.
+     You can check the iTop and GLPI settings in the shortcuts on your PC desktop named <a href="https://raw.githubusercontent.com/maravento/vault/master/itsm/wizard/iTop-Wizard.pdf" target="_blank">iTop-Wizard.pdf</a> and <a href="https://raw.githubusercontent.com/maravento/vault/master/itsm/wizard/GLPI-Wizard.pdf" target="_blank">GLPI-Wizard.pdf</a>.
 </td>
     <td style="width: 50%; white-space: nowrap;">
      Puede consultar las configuraciones de iTop y GLPI en los accesos directos del escritorio de su PC llamados <a href="https://raw.githubusercontent.com/maravento/vault/master/itsm/wizard/iTop-Wizard.pdf" target="_blank">iTop-Wizard.pdf</a> y <a href="https://raw.githubusercontent.com/maravento/vault/master/itsm/wizard/GLPI-Wizard.pdf" target="_blank">GLPI-Wizard.pdf</a>.
@@ -228,66 +225,37 @@
   </tr>
 </table>
 
-### POST-INSTALLATION
+### ACCESS BY IP/PORT
 
 <table width="100%">
   <tr>
     <td style="width: 50%; white-space: nowrap;">
-     If you decide to change the Apache/MySQL ports on your Stack, you will also need to change them in iTop. To do this, download the following script that will help you through the process:
+     If you decide to access iTop via the IP address of the PC where iTop is installed, or change the port in Apache (e.g., from 80 to 8080), download the following script that will modify the iTop configuration to allow access in any of these scenarios:
     </td>
     <td style="width: 50%; white-space: nowrap;">
-     Si decide cambiar los puertos de Apache/MySQL en su Stack, también deberá cambiarlos en iTop. Para esto descargue el siguiente script que le ayudará en el proceso:
-    </td>
-  </tr>
-</table>
-
-| iTop Port Change |
-|------------------|
-|[itopconf.bat](https://raw.githubusercontent.com/maravento/vault/master/itsm/scripts/itopconf.bat)|
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; white-space: nowrap;">
-     You will also need to change the URL of the <code>iTop.url</code> shortcut on your desktop. Example: Changing the Apache port from 80 to 8080:
-    </td>
-    <td style="width: 50%; white-space: nowrap;">
-     También deberá cambiar la URL del acceso directo <code>iTop.url</code> en su escritorio. Ejemplo: Cambio del puerto Apache, de 80 a 8080:
-    </td>
-  </tr>
-</table>
-
-| Access Example: |
-|-----------------|
-|`http://localhost/itop/web/pages/UI.php`|
-|`http://localhost:8080/itop/web/pages/UI.php`|
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; white-space: nowrap;">
-     If you decide to access from your browser using the IP address of the PC or server where iTop is installed, download the following script that will help you in the process:
-    </td>
-    <td style="width: 50%; white-space: nowrap;">
-     Si decide acceder desde su navegador mediante la dirección IP del PC o servidor donde esté instalado iTop, descargue el siguiente script que le ayudará en el proceso:
+     Si decide acceder a iTop mediante la dirección IP del PC donde esté instalado iTop, o cambia el puerto en Apache (e.j:80 por 8080), descargue el siguiente script que modificará la configuración de iTop para que pueda acceder en cualquiera de estos escenarios:
     </td>
   </tr>
 </table>
 
 | iTop URL Change (localhost + local IP) |
 |----------------------------------------|
-|[itopip.ps1](https://raw.githubusercontent.com/maravento/vault/master/itsm/scripts/itopip.ps1)|
+|[itopconf.ps1](https://raw.githubusercontent.com/maravento/vault/master/itsm/scripts/itopconf.ps1)|
 
 | Access Example: |
 |-----------------|
 |`http://localhost/itop/web/pages/UI.php`|
+|`http://localhost:8080/itop/web/pages/UI.php`|
 |`http://192.168.1.10/itop/web/pages/UI.php`|
+|`http://192.168.1.10:8080/itop/web/pages/UI.php`|
 
 <table width="100%">
   <tr>
     <td style="width: 50%; white-space: nowrap;">
-     GLPI does not require any modifications. You can access it via localhost or the IP address of the computer where it is installed. Example:
+     GLPI does not require any additional configuration. You can access it via localhost or the IP address of the PC where it is installed and the port change must be set in the Apache vhost. E.g.:
     </td>
     <td style="width: 50%; white-space: nowrap;">
-     GLPI no necesita modificaciones. Puede acceder por localhost o la dirección IP del equipo donde esté instalado. Ejemplo:
+     GLPI no necesita configuraciones adicionales. Puede acceder por localhost o la dirección IP del PC donde esté instalado y el cambio de puerto deberá establecerlo en el vhost de Apache. E.j:
     </td>
   </tr>
 </table>
@@ -295,7 +263,9 @@
 | Access Example: |
 |-----------------|
 |`http://localhost/glpi`|
-|`http://192.168.1.102/glpi`|
+|`http://localhost:8080/glpi`|
+|`http://192.168.1.10/glpi`|
+|`http://192.168.1.10:8080/glpi`|
 
 <table width="100%">
   <tr>
