@@ -242,6 +242,12 @@
 |----------------------------------------|
 |[itopconf.ps1](https://raw.githubusercontent.com/maravento/vault/master/itsm/scripts/itopconf.ps1)|
 
+#### How To Run
+
+| Windows 10 | Windows 11 |
+|------------|------------|
+| Right-click on the script and select "Run with PowerShell" | Right-click on the script and select "Run with PowerShell". <br> In case it fail do the following: <br> - Open Windows PowerShell as Administrator. <br> - Run the following command to allow script execution: <br> ```Set-ExecutionPolicy Unrestricted -Scope CurrentUser -Force``` <br> - Now run the script `itopconf.ps1`. <br> - Once the script has finished, restore the execution policy to a more secure setting by running: <br> ```Set-ExecutionPolicy Restricted -Scope CurrentUser -Force``` |
+
 | Access Example: |
 |-----------------|
 |`http://localhost/itop/web/pages/UI.php`|

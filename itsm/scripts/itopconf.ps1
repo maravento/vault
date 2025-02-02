@@ -4,10 +4,22 @@ iTop - IT Service Management & CMDB - Config
 by maravento.com
 
 Description:
-This script will allow access to iTop, by IP/Port
-To run it, download the script, right click, run with PowerShell
-Only for Wampserver, Xampp and Uniserver Zero
+This script will allow access to iTop, by IP/Port.
+It is intended for use with Wampserver, Xampp, and Uniserver Zero only.
 
+How To Run:
+- For Windows 10/11: Right-click on the script and select **"Run with PowerShell"**.
+- In case it fail do the following:
+    1. Open **Windows PowerShell** as **Administrator**.
+    2. Run the following command to allow script execution:
+       ```powershell
+       Set-ExecutionPolicy Unrestricted -Scope CurrentUser -Force
+       ```
+    3. Now run the script `itopconf.ps1`.
+    4. Once the script has finished, restore the execution policy to a more secure setting by running:
+       ```powershell
+       Set-ExecutionPolicy Restricted -Scope CurrentUser -Force
+       ```
 #>
 
 # Request elevation of privileges
@@ -242,4 +254,5 @@ switch ($choice) {
 }
 
 Write-Host ""
-Read-Host "Press any key to finish"
+Read-Host "Press any key to exit..."
+$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")

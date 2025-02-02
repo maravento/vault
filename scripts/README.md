@@ -72,8 +72,7 @@ Tested on: Windows 10/11 x64
 - [Non-Essential Services (Disable | Auto)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/nonservices.bat)
 - [Regedit Backup (to `%HOMEDRIVE%\RegBackup`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/regbackup.bat)
 - [Safe Boot (Modes: Safe with Network | Safe Minimal | Normal)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/safeboot.bat)
-- [SMB signing (Activate | Deactivate)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/smbsign.bat)
-- [SMB1 protocol (Activate | Deactivate)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/smb1.bat)
+- [SMB Config (Modify SMB1, SMB Signing and Insecure Guest Access)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/smbconf.bat)
 - [Unifi Network Server Setup](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/unifisetup.bat)
 - [Uniform Server (Change MySQL/Apache Ports | Set Portable/Permanent | Run With System)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/uzeroconf.bat)
 

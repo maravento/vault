@@ -4,24 +4,34 @@
 :: UniFi Network Server Setup + Java Adoptium as a Service
 :: For Windows 10/11
 
-:: How to Use:
-:: 1. Download this script to "%HOMEDRIVE%\unifi" (If it doesn't exist, create it)
-:: 2. Download the latest version of UniFi Network Server to "%HOMEDRIVE%\unifi"
-::    URL: https://ui.com/download/releases/network-server
-:: 3. Download the latest x64 MSI version of Java Adoptium to "%HOMEDRIVE%\unifi"
-::    URL: https://adoptium.net/en-GB/temurin/releases/?version=21&os=windows&arch=x64
-:: 4. Open CMD with privileges and run:
-::    cd "%HOMEDRIVE%\unifi" && unifisetup.bat
-:: 5. Reboot
+:: Dependencies:
+:: - curl
+::   Microsoft Windows 10 (build 17063 or later) and Windows 11 have CURL installed by default.
+::   If you don't have curl installed, you can download it from:
+::   https://curl.se/download.html
 
-:: Access UniFi Network Server: 
+:: How to Use:
+:: - Download the script and open it with notepad
+:: - Modify "version=9.0.108" with the version number to install
+:: - Run it by double-clicking and accepting the privilege elevation
+:: - Follow the on-screen instructions
+
+:: UniFi Network Server Latest Version (variable version):
+:: 1. Check out the latest version of Unifi Network for Windows at:
+::    URL: https://ui.com/download/releases/network-server
+:: 2. When you get the version number, modify the following variable and change the number. E.g:
+::    set "version=9.0.108"
+
+:: Access UniFi Network Server:
+:: After installation, access UniFi Network Server by navigating to:
 :: https://localhost:8443
-:: To set access by IP address, edit the file:
+:: To allow access by IP address, edit the file:
 :: "%UserProfile%\Ubiquiti UniFi\data\system.properties"
-:: And add the following line with the IP of the PC/Server where Unifi is installed. E.g:
+:: Add the following line with the IP of the PC/Server where UniFi is installed. For example:
 :: system_ip=192.168.1.10
-:: You will now be able to access:
+:: After editing the file, you can access the server at:
 :: https://192.168.1.10:8443
+
 
 setlocal enabledelayedexpansion
 
@@ -34,9 +44,15 @@ if %errorlevel% neq 0 (
 
 :: Source folder path
 set "installdir=%HOMEDRIVE%\unifi"
-:: Check Install Path
+
+:: Check if directory exists, create if it doesn't, then enter the directory
+if not exist "%installdir%" (
+    echo Directory not found. Creating directory: %installdir%
+    mkdir "%installdir%"
+)
+
 cd /d "%installdir%" || (
-    echo Directory not found: %installdir%
+    echo Failed to enter the directory: %installdir%
     exit /b 1
 )
 
@@ -72,16 +88,34 @@ if %errorlevel% equ 0 (
     )
 )
 
-:CheckUniFi
+:check_unifi
 if exist "%UserProfile%\Ubiquiti UniFi\" (
     echo The folder "%UserProfile%\Ubiquiti UniFi\" already exists
     echo Uninstall Unifi, delete folder and run the script again
     exit /b 1
 )
 
-:install_pack
+:check_curl
+where curl >nul 2>&1
+if %errorlevel% neq 0 (
+    echo curl is not installed. Please install curl before continuing
+    exit /b 1
+)
+
+:install_unifi
 echo.
-echo Installing Unifi...
+echo Getting the latest version of Unifi-Network...
+:: Replace the variable number with the latest version available for Windows:
+set "version=9.0.108"
+curl -# -L -o "UniFi-installer.exe" "https://dl.ui.com/unifi/%version%/UniFi-installer.exe"
+set download_status=!errorlevel!
+if !download_status! equ 1 (
+    echo Error downloading Unifi-Network.
+    exit /b 1
+)
+echo OK
+echo.
+echo Installing Unifi-Network...
 "UniFi-installer.exe" /S
 :wait_for_install
 timeout /t 10 /nobreak >nul
@@ -98,19 +132,52 @@ echo debug.setting_preference=auto
 echo debug.system=warn
 ) > "system.properties"
 copy "system.properties" "%UserProfile%\Ubiquiti UniFi\data" >nul 2>&1
+echo OK
+
+:get_java
+echo.
+echo Getting the latest version of Adoptium Temurin 21...
+:: Configuration
+set "version_base_url=https://github.com/adoptium/temurin21-binaries/releases/download/"
+set "version_latest_url=https://api.github.com/repos/adoptium/temurin21-binaries/releases/latest"
+set "jdk_type=jre"
+set "os_arch=x64_windows"
+set "vm_type=hotspot"
+:: Get the latest version available from the GitHub API
+for /f "delims=" %%a in ('curl -s %version_latest_url% ^| findstr /i "tag_name"') do set "version=%%a"
+:: Extract version number
+for /f "tokens=2 delims=: " %%b in ("!version!") do set "version=%%b"
+set "version=!version:jdk-=!"
+set "version=!version:~1,-2!"
+:: Replace "B" with "%2B" in the URL
+set "url_version=!version!"
+set "url_version=!url_version:B=%2B!"
+:: Replace "+" with "_" in the file name
+set "file_version=!version!"
+for /l %%i in (1,1,10) do set "file_version=!file_version:+=_!"
+:: URL for the MSI download
+set "download_url=%version_base_url%jdk-!url_version!/OpenJDK21U-%jdk_type%_%os_arch%_%vm_type%_!file_version!.msi"
+:: Download MSI
+::echo Downloading MSI from: !download_url!
+curl -# -L -o "OpenJDK21U-%jdk_type%_%os_arch%_%vm_type%_!file_version!.msi" "!download_url!"
+:: Check if the download was successful by verifying errorlevel
+if %errorlevel% NEQ 0 (
+    echo Error downloading MSI.
+    exit /b 1
+)
+echo OK
 
 echo.
 echo Installing Java Adoptium...
-set "latest_msi="
-for /f "delims=" %%f in ('dir /b /a-d /o-d /t:c "OpenJDK*-jre_x64_windows_hotspot_*.msi" 2^>nul') do (
-    set "latest_msi=%%f"
-    goto :install_java
-)
-echo MSI not found in %installdir%
-exit /b 1
 :install_java
-:: OpenJDK21U-jre_x64_windows_hotspot_21.0.5_11.msi
+:: Set the latest MSI filename variable
+set "latest_msi=OpenJDK21U-%jdk_type%_%os_arch%_%vm_type%_!file_version!.msi"
 start /wait msiexec /i "%latest_msi%" ADDLOCAL=FeatureMain,FeatureEnvironment,FeatureJarFileRunWith,FeatureJavaHome INSTALLDIR="%ProgramFiles%\Temurin\" /quiet >nul 2>&1
+if !errorlevel! NEQ 0 (
+    echo Error installing MSI file
+    exit /b 1
+)
+echo OK
 
 echo.
 echo Setup Unifi as a Service...
