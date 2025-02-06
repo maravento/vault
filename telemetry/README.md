@@ -110,21 +110,6 @@ sed -r "s:^\.(.*):127.0.0.1 \1:g" telemetry.txt > telemetry_hosts.txt
 - [szotsaki/windows-telemetry-removal](https://raw.githubusercontent.com/szotsaki/windows-telemetry-removal/master/WindowsTelemetryRemoval.bat)
 - [W4RH4WK/Debloat-Windows-10](https://raw.githubusercontent.com/W4RH4WK/Debloat-Windows-10/master/scripts/block-telemetry.ps1)
 
-## End-of-Life (EOL) | End-of-Support (EOS)
-
----
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; white-space: nowrap;">
-     This project has reached EOL - EOS. No longer supported or updated.
-    </td>
-    <td style="width: 50%; white-space: nowrap;">
-     Este proyecto a alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.
-    </td>
-  </tr>
-</table>
-
 ## PROJECT LICENSES
 
 ---

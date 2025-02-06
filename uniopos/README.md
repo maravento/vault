@@ -1,6 +1,6 @@
 # [UniOPOS](https://uniopos.com/)
 
-[![status-frozen](https://img.shields.io/badge/status-frozen-blue.svg)](https://sourceforge.net/projects/unicentaopos/files/releases/)
+[![status-deprecated](https://img.shields.io/badge/status-deprecated-red.svg)](https://lightsquid.sourceforge.net/)
 
 <!-- markdownlint-disable MD033 -->
 
@@ -301,7 +301,7 @@ upload_max_filesize = 256M
   >
   > Since Connector/J 8.0.28 and later: `jdbc:mysql://localhost:3306/database_name?tlsVersions=TLSv1.2`
   >
-  >  After Java changes and reboot, uniCenta oPOS will now be able to connect: | Después de los cambios en Java y reinicio, uniCenta oPOS ya podrá conectarse:
+  > After Java changes and reboot, uniCenta oPOS will now be able to connect: | Después de los cambios en Java y reinicio, uniCenta oPOS ya podrá conectarse:
 
   <div align="center">
     <img src="https://raw.githubusercontent.com/maravento/vault/master/uniopos/resources/img/unicenta_connected.png" width="80%" height="80%">

@@ -1,6 +1,6 @@
 # [Trek](https://www.maravento.com)
 
-[![status-frozen](https://img.shields.io/badge/status-frozen-blue.svg)](https://github.com/maravento/vault)
+[![status-deprecated](https://img.shields.io/badge/status-deprecated-red.svg)](https://lightsquid.sourceforge.net/)
 
 <!-- markdownlint-disable MD033 -->
 
@@ -303,7 +303,7 @@ MySQL (Community Server): \Program Files\MySQL\MySQL(version)
 <table width="100%">
   <tr>
     <td style="width: 50%; white-space: nowrap;">
-     This project has reached EOL - EOS. No longer supported or updated. 
+     This project has reached EOL - EOS. No longer supported or updated.
     </td>
     <td style="width: 50%; white-space: nowrap;">
      Este proyecto a alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.

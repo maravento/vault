@@ -93,7 +93,16 @@ wget -c https://raw.githubusercontent.com/maravento/vault/master/lightsquid/lsin
 
 ### Scan Users
 
-**To scan your users, choose your network range. e.g.: | Para escanear sus usuarios, elija su rango de red. ej:**
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     To scan your users, choose your network range. e.g.:
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     Para escanear sus usuarios, elija su rango de red. ej:
+    </td>
+  </tr>
+</table>
 
 ```bash
 sudo nbtscan 192.168.1.0/24
@@ -101,19 +110,46 @@ sudo nbtscan 192.168.1.0/24
 
 ### Parameters
 
-**To run it for the first time: | Para ejecutarlo por primera vez:**
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     To run it for the first time:
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     Para ejecutarlo por primera vez:
+    </td>
+  </tr>
+</table>
 
 ```bash
 sudo /var/www/lightsquid/lightparser.pl
 ```
 
-**To run it manually: | Para ejecutarlo manualmente:**
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     To run it manually:
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     Para ejecutarlo manualmente:
+    </td>
+  </tr>
+</table>
 
 ```bash
 sudo /var/www/lightsquid/lightparser.pl today
 ```
 
-**To add users: | Para agregar usuarios:**
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     To add users:
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     Para agregar usuarios:
+    </td>
+  </tr>
+</table>
 
 ```bash
 sudo nano /var/www/lightsquid/realname.cfg
@@ -122,7 +158,16 @@ sudo nano /var/www/lightsquid/realname.cfg
 192.168.1.3 CEO
 ```
 
-**To exclude users: | Para excluir usuarios:**
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     To exclude users:
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     Para excluir usuarios:
+    </td>
+  </tr>
+</table>
 
 ```bash
 sudo nano /var/www/lightsquid/skipuser.cfg
@@ -130,7 +175,16 @@ sudo nano /var/www/lightsquid/skipuser.cfg
 192.168.1.1
 ```
 
-**To modify the default theme Metro: | Para modificar el tema por defecto Metro:**
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     To modify the default theme Metro:
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     Para modificar el tema por defecto Metro:
+    </td>
+  </tr>
+</table>
 
 ```bash
 sudo nano /var/www/lightsquid/lightsquid.cfg
@@ -146,21 +200,28 @@ $templatename        ="metro_tpl";
 <table width="100%">
   <tr>
     <td style="width: 50%; white-space: nowrap;">
-     This section is to block users who have overcome the consumption of data default by the sysadmin.
+     This section is to block users who have overcome the consumption of data default by the sysadmin. To run it manually:
     </td>
     <td style="width: 50%; white-space: nowrap;">
-     Esta sección es para bloquear a los usuarios que hayan superado el consumo de datos predeterminado por el sysadmin.
+     Esta sección es para bloquear a los usuarios que hayan superado el consumo de datos predeterminado por el sysadmin. Para ejecutarlo manualmente:
     </td>
   </tr>
 </table>
-
-**To run it manually: | Para ejecutarlo manualmente:**
 
 ```bash
 sudo /etc/init.d/bandata.sh
 ```
 
-**Replace localnet interface (installation script does the replacement): | Reeplace su interface de red local (el script de instalación hace el reemplazo):**
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     Replace localnet interface (installation script does the replacement):
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     Reeplace su interface de red local (el script de instalación hace el reemplazo):
+    </td>
+  </tr>
+</table>
 
 ```bash
 sudo nano /etc/init.d/bandata.sh
@@ -168,7 +229,16 @@ sudo nano /etc/init.d/bandata.sh
 lan=eth1
 ```
 
-**To check the banned IPs: | Para verificar las IPs baneadas:**
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     To check the banned IPs:
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     Para verificar las IPs baneadas:
+    </td>
+  </tr>
+</table>
 
 ```bash
 cat /etc/acl/{banmonth,banweek,banday}.txt | uniq
@@ -192,15 +262,13 @@ cat /etc/acl/{banmonth,banweek,banday}.txt | uniq
 <table width="100%">
   <tr>
     <td style="width: 50%; white-space: nowrap;">
-     The script checks the Lightsquid current day report and blocks any user, within the local network, who exceeds the set consumption. The block will be removed the next day.
+     The script checks the Lightsquid current day report and blocks any user, within the local network, who exceeds the set consumption. The block will be removed the next day. To change the daily data limit in <code>bandata.sh</code>:
     </td>
     <td style="width: 50%; white-space: nowrap;">
-     El script verifica el informe del día actual de Lightsquid y bloquea a cualquier usuario, dentro de la red local, que supere el consumo establecido. El bloqueo se levantará al día siguiente.
+     El script verifica el informe del día actual de Lightsquid y bloquea a cualquier usuario, dentro de la red local, que supere el consumo establecido. El bloqueo se levantará al día siguiente. Para cambiar el límite de datos diario en <code>bandata.sh</code>:
     </td>
   </tr>
 </table>
-
-**To change the daily data limit in `bandata.sh`: | Para cambiar el límite de datos diario en `bandata.sh`:**
 
 ```bash
 max_bandwidth_day="1G"
@@ -211,15 +279,13 @@ max_bandwidth_day="1G"
 <table width="100%">
   <tr>
     <td style="width: 50%; white-space: nowrap;">
-     The script checks that it is Monday and the previous week's reports from Lightsquid, and blocks any user, within the local network, who exceeds the set consumption. The block will be removed the next Monday.
+     The script checks that it is Monday and the previous week's reports from Lightsquid, and blocks any user, within the local network, who exceeds the set consumption. The block will be removed the next Monday. To change the weekly data limit in <code>bandata.sh</code>:
     </td>
     <td style="width: 50%; white-space: nowrap;">
-     El script verifica que sea Lunes y los informes de la semana anterior de Lightsquid, y bloquea a cualquier usuario, dentro de la red local, que supere el consumo establecido. El bloqueo se levantará el lunes siguiente.
+     El script verifica que sea Lunes y los informes de la semana anterior de Lightsquid, y bloquea a cualquier usuario, dentro de la red local, que supere el consumo establecido. El bloqueo se levantará el lunes siguiente. Para cambiar el límite de datos semanal en <code>bandata.sh</code>:
     </td>
   </tr>
 </table>
-
-**To change the weekly data limit in `bandata.sh` | Para cambiar el límite de datos semanal en `bandata.sh`:**
 
 ```bash
 max_bandwidth_week="5G"
@@ -230,15 +296,13 @@ max_bandwidth_week="5G"
 <table width="100%">
   <tr>
     <td style="width: 50%; white-space: nowrap;">
-     The script checks the current month's reports from Lightsquid and blocks any user, within the local network, who exceeds the set consumption. The block will be removed the next month.
+     The script checks the current month's reports from Lightsquid and blocks any user, within the local network, who exceeds the set consumption. The block will be removed the next month. To change the monthly data limit in <code>bandata.sh</code>:
     </td>
     <td style="width: 50%; white-space: nowrap;">
-     El script verifica los informes del mes actual de Lightsquid y bloquea a cualquier usuario, dentro de la red local, que supere el consumo establecido. El bloqueo se levantará al mes siguiente.
+     El script verifica los informes del mes actual de Lightsquid y bloquea a cualquier usuario, dentro de la red local, que supere el consumo establecido. El bloqueo se levantará al mes siguiente. Para cambiar el límite de datos mensual en <code>bandata.sh</code>:
     </td>
   </tr>
 </table>
-
-**To change the monthly data limit in `bandata.sh` | Para cambiar el límite de datos mensual en `bandata.sh`:**
 
 ```bash
 max_bandwidth_month="20G"
@@ -249,10 +313,10 @@ max_bandwidth_month="20G"
 <table width="100%">
   <tr>
     <td style="width: 50%; white-space: nowrap;">
-     Traffic statistics are displayed in the web application and also users who exceeded the limit. To change the data limit in </code>lightsquid.cfg</code> statistics:
+     Traffic statistics are displayed in the web application and also users who exceeded the limit. To change the data limit in <code>lightsquid.cfg</code> statistics:
     </td>
     <td style="width: 50%; white-space: nowrap;">
-     Las estadísticas del tráfico se muestran en la aplicación web y también los usuarios que sobrepasaron el límite. Para cambiar el límite de datos en las estadísticas de </code>lightsquid.cfg</code>:
+     Las estadísticas del tráfico se muestran en la aplicación web y también los usuarios que sobrepasaron el límite. Para cambiar el límite de datos en las estadísticas de <code>lightsquid.cfg</code>:
     </td>
   </tr>
 </table>
@@ -261,16 +325,24 @@ max_bandwidth_month="20G"
 sudo nano /var/www/lightsquid/lightsquid.cfg
 ```
 
-**And modify the following line: | Y modificar la siguiente línea:**
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     And modify the following line:
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     Y modificar la siguiente línea:
+    </td>
+  </tr>
+</table>
 
 ```bash
+# Nomenclature: 10 = 10 MBytes, 512 = 512 Mbytes, 1000 = 1 Gbytes...
+# By default it comes in 1000. Do not modify the value 1024.
+
 #user maximum size per day limit (oversize)
 $perusertrafficlimit = 1000*1024*1024;
 ```
-
-**Nomenclature:** 10 = 10 MBytes, 512 = 512 Mbytes, 1000 = 1 Gbytes...
-
-**By default it comes in 1000. Do not modify the value 1024. | Por defecto viene en 1000. No modifique el valor 1024.**
 
 ### Reports (Optional)
 
