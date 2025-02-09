@@ -1,7 +1,7 @@
 @echo off
 :: by maravento.com
 
-:: UniFi Network Server Setup + JRE as a Service
+:: UniFi Network Server Setup UNS + JRE as a Service
 :: For Windows 10/11
 :: https://www.maravento.com/2025/02/unifi-como-servicio.html
 
@@ -11,8 +11,8 @@
 ::   Default Path: C:\Windows\System32\curl.exe
 ::   If you don't have curl installed, you can download it from:
 ::   https://curl.se/download.html
-:: - Unifi Network Server (.exe)
-::	 https://ui.com/download/releases/network-server
+:: - Unifi Network Server UNS (.exe)
+::   https://ui.com/download/releases/network-server
 :: - Eclipse Temurin from Java Adoptium JRE x64 LTS (.msi)
 ::   https://adoptium.net/es/temurin/releases/?os=windows&arch=x64&package=jre
 
@@ -20,13 +20,13 @@
 :: - Run it by double-clicking and accepting the privilege elevation
 :: - Follow the on-screen instructions
 
-:: Access UniFi Network Server by localhost:
+:: Access UNS by localhost:
 :: https://localhost:8443
 
-:: Access UniFi Network Server by IP:
+:: Access UNS by IP:
 :: Edit the file:
 :: "%UserProfile%\Ubiquiti UniFi\data\system.properties"
-:: Add the following line with the IP of the PC/Server where UniFi is installed. E.g:
+:: Add the following line with the IP of the PC/Server where UNS is installed. E.g:
 :: system_ip=192.168.1.10
 :: Save changes and reboot. You can now access the URL:
 :: https://192.168.1.10:8443
@@ -53,12 +53,12 @@ if NOT EXIST "%PROGRAMFILES(X86)%" (
 )
 
 :check_path
-set "installdir=%HOMEDRIVE%\unifi"
-if not exist "%installdir%" (
-    mkdir "%installdir%"
+set "installpath=%HOMEDRIVE%\uns"
+if not exist "%installpath%" (
+    mkdir "%installpath%"
 )
-cd /d "%installdir%" || (
-    echo Failed to enter the directory: %installdir%
+cd /d "%installpath%" || (
+    echo Failed to enter the directory: %installpath%
 	pause
     exit /b 1
 )
@@ -68,8 +68,8 @@ cls
 echo.
 echo Unifi Network Server as a Service
 echo.
-echo 1. Install Unifi + JRE
-echo 2. Remove Unifi + JRE
+echo 1. Install UNS + JRE
+echo 2. Remove UNS + JRE
 echo 3. Exit
 echo.
 echo Write your number (1, 2, 3) and
@@ -96,11 +96,11 @@ if %errorlevel% equ 0 (
     )
 )
 
-:check_unifi
+:check_uns
 if exist "%UserProfile%\Ubiquiti UniFi\" (
     echo The folder "%UserProfile%\Ubiquiti UniFi\" already exists
     echo Uninstall Unifi, delete folder and run the script again
-	pause
+    pause
     exit /b 1
 )
 
@@ -108,27 +108,44 @@ if exist "%UserProfile%\Ubiquiti UniFi\" (
 where curl >nul 2>&1
 if %errorlevel% neq 0 (
     echo curl is not installed. Please install curl before continuing
-	pause
+    pause
     exit /b 1
 )
 
-:install_unifi
+:install_uns
 echo.
-echo Getting the latest version of Unifi...
+echo Getting the latest version of UNS...
 curl -s https://download.svc.ui.com/v1/software-downloads > temp.json
+:: 9x
 for /f "delims=" %%a in ('powershell -Command "(Get-Content temp.json | ConvertFrom-Json).downloads[0].version"') do set "version=%%a"
+:: 8x
+for /f "delims=" %%a in ('powershell -Command "(Get-Content temp.json | ConvertFrom-Json).downloads | ForEach-Object { $_.version } | Where-Object { $_ -match '^8\.6\.' } | Select-Object -First 1"') do set "version_86x=%%a"
 echo Latest: %version%
-curl -# -L -o "UniFi-installer.exe" "https://dl.ui.com/unifi/%version%/UniFi-installer.exe"
+if defined version_86x echo Older: %version_86x%
+echo.
+echo Select a UNS Version to Install:
+echo 1. Latest: %version%
+if defined version_86x echo 2. Older: %version_86x%
+set /p choice="Enter your option (1/2): "
+if "%choice%"=="1" set "selected_version=%version%"
+if "%choice%"=="2" set "selected_version=%version_86x%"
+if not defined selected_version (
+    echo Invalid option.
+    exit /b 1
+)
+echo.
+echo Downloading UNS version %selected_version%...
+curl -# -L -o "UniFi-installer.exe" "https://dl.ui.com/unifi/%selected_version%/UniFi-installer.exe"
 set download_status=!errorlevel!
-if !download_status! equ 1 (
-    echo Error downloading Unifi.
-	pause
+if !download_status! neq 0 (
+    echo Error downloading UNS.
+    pause
     exit /b 1
 )
 del temp.json
 echo OK
 echo.
-echo Installing Unifi...
+echo Installing UNS...
 "UniFi-installer.exe" /S
 :wait_for_install
 timeout /t 10 /nobreak >nul
@@ -170,14 +187,14 @@ set "url_version=!url_version:B=%2B!"
 set "file_version=!version!"
 for /l %%i in (1,1,10) do set "file_version=!file_version:+=_!"
 :: URL for the MSI download
-set "download_url=%version_base_url%jdk-!url_version!/OpenJDK21U-%jdk_type%_%os_arch%_%vm_type%_!file_version!.msi"
+set "download_url=!version_base_url!jdk-!url_version!/OpenJDK21U-%jdk_type%_%os_arch%_%vm_type%_!file_version!.msi"
 :: Download MSI
 ::echo Downloading MSI from: !download_url!
 curl -# -L -o "OpenJDK21U-%jdk_type%_%os_arch%_%vm_type%_!file_version!.msi" "!download_url!"
 :: Check if the download was successful by verifying errorlevel
 if %errorlevel% NEQ 0 (
     echo Error downloading JRE.
-	pause
+    pause
     exit /b 1
 )
 echo OK
@@ -190,21 +207,22 @@ set "latest_msi=OpenJDK21U-%jdk_type%_%os_arch%_%vm_type%_!file_version!.msi"
 start /wait msiexec /i "%latest_msi%" ADDLOCAL=FeatureMain,FeatureEnvironment,FeatureJarFileRunWith,FeatureJavaHome INSTALLDIR="%ProgramFiles%\Temurin\" /quiet >nul 2>&1
 if !errorlevel! NEQ 0 (
     echo Error installing JRE.
-	pause
+    pause
     exit /b 1
 )
 echo OK
 
 echo.
-echo Setup Unifi as a Service...
+echo Setup UNS as a Service...
 cd "%UserProfile%\Ubiquiti UniFi\" || (
-	echo Failed to change directory to "%UserProfile%\Ubiquiti UniFi\"
-	pause
-	exit /b 1
+    echo Failed to change directory to "%UserProfile%\Ubiquiti UniFi\"
+    pause
+    exit /b 1
 )
 set JAVA_PATH="%ProgramFiles%\Temurin\bin\java.exe"
 %JAVA_PATH% -jar lib\ace.jar startsvc &
-%JAVA_PATH% -jar lib\ace.jar installsvc
+%JAVA_PATH% -jar lib\ace.jar installsvc >nul 2>&1
+echo OK
 
 :firewall_rules
 echo.
@@ -213,6 +231,7 @@ netsh advfirewall firewall add rule name="Unifi TCP in 8080,8443,8880,8843" prot
 netsh advfirewall firewall add rule name="Unifi TCP out 8080,8443,8880,8843" protocol=TCP dir=out localport=8080,8843 action=allow >nul 2>&1
 netsh advfirewall firewall add rule name="Unifi UDP in 10001,3478" protocol=UDP dir=in localport=10001,3478 action=allow >nul 2>&1
 netsh advfirewall firewall add rule name="Unifi UDP out 10001,3478" protocol=UDP dir=out localport=10001,3478 action=allow >nul 2>&1
+echo OK
 
 :final_install
 echo.
@@ -229,15 +248,16 @@ netsh advfirewall firewall delete rule name="Unifi TCP in 8080,8443,8880,8843" >
 netsh advfirewall firewall delete rule name="Unifi TCP out 8080,8443,8880,8843" >nul 2>&1
 netsh advfirewall firewall delete rule name="Unifi UDP in 10001,3478" >nul 2>&1
 netsh advfirewall firewall delete rule name="Unifi UDP out 10001,3478" >nul 2>&1
+echo OK
 
-:uninstall_unifi
+:uninstall_uns
 echo.
-echo Uninstall UniFi...
+echo Uninstall UNS...
 net stop UniFi >nul 2>&1
 cd "%UserProfile%\Ubiquiti UniFi\" || (
-	echo Failed to change directory to "%UserProfile%\Ubiquiti UniFi\"
-	pause
-	exit /b 1
+    echo Failed to change directory to "%UserProfile%\Ubiquiti UniFi\"
+    pause
+    exit /b 1
 )
 set JAVA_PATH="%ProgramFiles%\Temurin\bin\java.exe"
 %JAVA_PATH% -jar lib\ace.jar uninstallsvc
@@ -251,25 +271,33 @@ if exist "%uninstall_path%" (
     if %errorlevel% equ 0 (
         goto wait_for_uninstall
     )
-    rd /s /q "%UserProfile%\Ubiquiti UniFi" >nul 2>&1
-    goto :msi
+	echo OK
+	goto :msi
 )
-echo UniFi Uninstaller not found
+echo UNS Uninstaller not found
 exit /b 1
 
 :msi
 echo.
 echo Uninstall JRE...
-cd /d "%installdir%"
+set "installpath=%HOMEDRIVE%\uns"
+cd /d "%installpath%"
 set "latest_msi="
 for /f "delims=" %%f in ('dir /b /a-d /o-d /t:c "OpenJDK*-jre_x64_windows_hotspot_*.msi" 2^>nul') do (
     set "latest_msi=%%f"
-    goto :remove_java
+    goto :remove_jre
 )
-echo Java MSI file not found in %installdir%.
+echo Java MSI file not found in %installpath%.
 exit /b 1
-:remove_java
+:remove_jre
 start /wait msiexec /x "%latest_msi%" /quiet
+echo OK
+
+:: delete folder
+taskkill /f /im "java.exe" >nul 2>&1
+taskkill /f /im "UniFi.exe" >nul 2>&1
+timeout /t 2 >nul
+rd /s /q "%UserProfile%\Ubiquiti UniFi" >nul 2>&1
 
 :final_remove
 echo.
