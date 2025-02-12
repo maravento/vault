@@ -75,12 +75,13 @@ Tested on: Windows 10/11 x64
 - [SMB Config (Modify SMB1, SMB Signing and Insecure Guest Access)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/smbconf.bat)
 - [Unifi Network Server Setup](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/unifisetup.bat)
 - [Uniform Server (Change MySQL/Apache Ports | Set Portable/Permanent | Run With System)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/uzeroconf.bat)
+- [WMIC (Add/Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/wmic.bat)
 
 ### Python (Linux)
 
 Tested on: Ubuntu 22.04/24.04
 
-- [Git Folder Download (Replaces Subversion (svn) EOS/EOL on GitHub/GitLab)](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py)
+- [Git Folder Download (Replaces Subversion SVN EOS/EOL on GitHub/GitLab)](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py)
 
 ### VBScript (Windows)
 
