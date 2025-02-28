@@ -124,6 +124,7 @@ rm /var/cache/apt/archives/lock &>/dev/null
 rm /var/cache/debconf/*.dat &>/dev/null
 rm /var/lib/apt/lists/lock &>/dev/null
 rm /var/lib/dpkg/lock &>/dev/null
+# clean list
 rm -rf /var/lib/apt/lists/*
 # dpkg
 dpkg --configure -a
@@ -418,7 +419,7 @@ function essential_setup() {
     nala install -y gparted libfuse2 nfs-common ntfs-3g exfat-fuse gsmartcontrol qdirstat libguestfs-tools gvfs-fuse
     nala install -y --no-install-recommends smartmontools
     # Sys Tools
-    nala install -y pm-utils neofetch cpu-x lsof inotify-tools dmidecode idle3 wmctrl pv dpkg ppa-purge deborphan apt-utils gawk gir1.2-gtop-2.0 finger logrotate tree uuid-dev libmnl-dev gtkhash moreutils rename renameutils sharutils dos2unix gdebi synaptic preload xsltproc debconf-utils mokutil libssl-dev libffi-dev python3-dev python3-venv libpam0g-dev autoconf autoconf-archive autogen automake dh-autoreconf pkg-config linux-firmware util-linux linux-tools-common build-essential module-assistant linux-headers-$(uname -r)
+    nala install -y trash-cli pm-utils neofetch cpu-x lsof inotify-tools dmidecode idle3 wmctrl pv dpkg ppa-purge deborphan apt-utils gawk gir1.2-gtop-2.0 finger logrotate tree uuid-dev libmnl-dev gtkhash moreutils rename renameutils sharutils dos2unix gdebi synaptic preload xsltproc debconf-utils mokutil libssl-dev libffi-dev python3-dev python3-venv libpam0g-dev autoconf autoconf-archive autogen automake dh-autoreconf pkg-config linux-firmware util-linux linux-tools-common build-essential module-assistant linux-headers-$(uname -r)
     # Net/Geo/Web Tools
     nala install -y conntrack i2c-tools wget bind9-dnsutils geoip-database wsdd
     # Dev Tools

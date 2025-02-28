@@ -142,6 +142,10 @@ acl invalid_ext urlpath_regex -i \.[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*$
 http_access deny invalid_ext
 deny_info ERR_ACCESS_DENIED invalid_ext
 
+# Block: Blockwords (Optional)
+acl blockwords url_regex -i "/etc/acl/blockwords.txt"
+http_access deny blockwords
+
 # Block: IP/CIDR
 acl no_ip url_regex -i [0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}
 http_access deny workdays no_ip
