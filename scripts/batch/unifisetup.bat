@@ -45,10 +45,14 @@ for /f "tokens=4-5 delims=. " %%i in ('ver') do set VERSION=%%i.%%j
 echo Windows Version Detected: %VERSION%
 if NOT "%VERSION%" == "10.0" (
    echo OS Incompatible
+   echo.
+   pause
    exit /b 1
 )
 if NOT EXIST "%PROGRAMFILES(X86)%" (
    echo OS Incompatible
+   echo.
+   pause
    exit /b 1
 )
 
@@ -59,7 +63,8 @@ if not exist "%installpath%" (
 )
 cd /d "%installpath%" || (
     echo Failed to enter the directory: %installpath%
-	pause
+    echo.
+    pause
     exit /b 1
 )
 
@@ -70,16 +75,110 @@ echo Unifi Network Server as a Service
 echo.
 echo 1. Install UNS + JRE
 echo 2. Remove UNS + JRE
-echo 3. Exit
+echo 3. Backup Configuration
+echo 4. Add IPv4 address
+echo 5. Exit
 echo.
-echo Write your number (1, 2, 3) and
+echo Write your number (1, 2, 3, 4, 5) and
 echo Press ENTER
 echo.
 set /p var=
 if "%var%"=="1" goto :install
 if "%var%"=="2" goto :remove
-if "%var%"=="3" exit /0
-echo Invalid option. Please select a valid number from 1 to 8
+if "%var%"=="3" goto :backup
+if "%var%"=="4" goto :ip
+if "%var%"=="5" exit /0
+echo Invalid option. Please select a valid number from 1 to 5
+echo.
+pause
+goto :menu
+
+:backup
+set "unifidir=%UserProfile%\Ubiquiti UniFi\data\backup\autobackup"
+set "backupdir=%HOMEDRIVE%\uns\backup"
+:: Get the date in YYYYMMDD format
+for /f "tokens=*" %%I in ('PowerShell -Command "Get-Date -Format 'yyyyMMdd'"') do set "date=%%I"
+:: Check if the backup directory exists
+if not exist "%unifidir%" (
+    echo No backup directory found: %unifidir%
+    echo Make sure UniFi is installed and has generated backups
+    echo.
+    pause
+    goto :menu
+)
+:: Create the destination directory if it does not exist
+if not exist "%backupdir%" mkdir "%backupdir%"
+:: Find the most recent backup
+set "latest="
+for /f "delims=" %%F in ('dir /b /a-d /od "%unifidir%\autobackup_*.unf" 2^>nul') do set "latest=%%F"
+:: Check if a backup was found
+if not defined latest (
+    echo No backup files found in %unifidir%.
+    echo Ensure that UniFi has generated at least one backup
+    echo.
+    pause
+    goto :menu
+)
+:: Define the source file path
+set "sourcefile=%unifidir%\%latest%"
+echo Autobackup: "%sourcefile%"
+:: Verify that the source file exists
+if not exist "%sourcefile%" (
+    echo ERROR: Source file does not exist: "%sourcefile%"
+    echo.
+    pause
+    goto :menu
+)
+:: Define the destination file name in secure format
+set "destfile=%backupdir%\backup_%date%.unf"
+:: Copiar el archivo
+copy "%sourcefile%" "%destfile%" /Y
+:: Check if the copy was successful
+if %ERRORLEVEL% NEQ 0 (
+    echo Error copying the backup file
+    echo.
+    pause
+    goto :menu
+)
+echo Backup saved as "%destfile%"
+echo.
+pause
+goto :menu
+
+:ip
+echo.
+set "propsFile=%UserProfile%\Ubiquiti UniFi\data\system.properties"
+set /p system_ip="Enter the IPv4 address (e.g. 192.168.1.10): "
+
+:: Creating a backup copy of the original file
+set "backupFile=%UserProfile%\Ubiquiti UniFi\data\system.properties.bak"
+copy "%propsFile%" "%backupFile%" >nul
+if %errorlevel% == 0 (
+    echo.
+    echo Backup created successfully at: %backupFile%
+) else (
+    echo Error creating backup
+    echo.
+    pause
+    goto :menu
+)
+
+:: Check if the line already exists
+findstr /R "^system_ip=" "%propsFile%" >nul
+if %errorlevel% == 0 (
+    echo.
+    echo ERROR: The IP already exists in the config file
+    echo.
+    pause
+    goto :menu
+)
+
+:: If it doesn't exist, add it to the end of the file
+echo system_ip=%system_ip%>> "%propsFile%"
+:: %system_ip% has been added to the file: %propsFile%
+echo Reboot to apply changes
+echo You can now access the URL: https://%system_ip%:8443
+echo.
 pause
 goto :menu
 
@@ -91,8 +190,9 @@ if %errorlevel% equ 0 (
     for /f "tokens=3" %%v in ('java -version 2^>^&1') do (
         echo Java Version: %%v
         echo Uninstall java and run the script again
-		pause
-        exit /b 1
+        echo.
+        pause
+        goto :menu
     )
 )
 
@@ -100,14 +200,16 @@ if %errorlevel% equ 0 (
 if exist "%UserProfile%\Ubiquiti UniFi\" (
     echo The folder "%UserProfile%\Ubiquiti UniFi\" already exists
     echo Uninstall Unifi, delete folder and run the script again
+    echo.
     pause
-    exit /b 1
+    goto :menu
 )
 
 :check_curl
 where curl >nul 2>&1
 if %errorlevel% neq 0 (
     echo curl is not installed. Please install curl before continuing
+    echo.
     pause
     exit /b 1
 )
@@ -139,6 +241,7 @@ curl -# -L -o "UniFi-installer.exe" "https://dl.ui.com/unifi/%selected_version%/
 set download_status=!errorlevel!
 if !download_status! neq 0 (
     echo Error downloading UNS.
+    echo.
     pause
     exit /b 1
 )
@@ -193,7 +296,8 @@ set "download_url=!version_base_url!jdk-!url_version!/OpenJDK21U-%jdk_type%_%os_
 curl -# -L -o "OpenJDK21U-%jdk_type%_%os_arch%_%vm_type%_!file_version!.msi" "!download_url!"
 :: Check if the download was successful by verifying errorlevel
 if %errorlevel% NEQ 0 (
-    echo Error downloading JRE.
+    echo Error downloading JRE
+    echo.
     pause
     exit /b 1
 )
@@ -206,7 +310,8 @@ echo Installing JRE...
 set "latest_msi=OpenJDK21U-%jdk_type%_%os_arch%_%vm_type%_!file_version!.msi"
 start /wait msiexec /i "%latest_msi%" ADDLOCAL=FeatureMain,FeatureEnvironment,FeatureJarFileRunWith,FeatureJavaHome INSTALLDIR="%ProgramFiles%\Temurin\" /quiet >nul 2>&1
 if !errorlevel! NEQ 0 (
-    echo Error installing JRE.
+    echo Error installing JRE
+    echo.
     pause
     exit /b 1
 )
@@ -216,6 +321,7 @@ echo.
 echo Setup UNS as a Service...
 cd "%UserProfile%\Ubiquiti UniFi\" || (
     echo Failed to change directory to "%UserProfile%\Ubiquiti UniFi\"
+    echo.
     pause
     exit /b 1
 )
@@ -238,6 +344,7 @@ echo.
 echo Done
 echo Access https://localhost:8443
 echo Reboot your system
+echo.
 pause
 exit
 
@@ -256,6 +363,7 @@ echo Uninstall UNS...
 net stop UniFi >nul 2>&1
 cd "%UserProfile%\Ubiquiti UniFi\" || (
     echo Failed to change directory to "%UserProfile%\Ubiquiti UniFi\"
+    echo.
     pause
     exit /b 1
 )
@@ -303,5 +411,6 @@ rd /s /q "%UserProfile%\Ubiquiti UniFi" >nul 2>&1
 echo.
 echo Done
 echo Reboot your system
+echo.
 pause
 exit

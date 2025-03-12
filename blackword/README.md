@@ -124,12 +124,12 @@ Path (Change it with yours): /etc/acl
 ```bash
 # Block: mime_type
 acl blockmime rep_mime_type -i "/etc/acl/blockmime.txt"
-http_reply_access deny workdays blockmime
+http_reply_access deny blockmime
 deny_info ERR_ACCESS_DENIED blockmime
 
 # Block: ext
 acl blockext urlpath_regex -i "/etc/acl/blockext.txt"
-http_access deny workdays blockext
+http_access deny blockext
 deny_info ERR_ACCESS_DENIED blockext
 
 # Block: punycode
@@ -148,7 +148,7 @@ http_access deny blockwords
 
 # Block: IP/CIDR
 acl no_ip url_regex -i [0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}
-http_access deny workdays no_ip
+http_access deny no_ip
 deny_info ERR_ACCESS_DENIED no_ip
 ```
 
