@@ -68,7 +68,8 @@ git clone --depth=1 https://github.com/maravento/vault.git
 - [winzenity](https://github.com/maravento/vault/tree/master/winzenity)
 
 > **Important:**
-> These projects include third-party components
+> These projects include third-party components.
+> Changes must be proposed via Issues. We do not accept Pull Requests.
 
 ## STARGAZERS
 
