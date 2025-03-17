@@ -128,6 +128,18 @@ rm /var/lib/dpkg/lock &>/dev/null
 rm -rf /var/lib/apt/lists/*
 # dpkg
 dpkg --configure -a
+# repos
+repos=("main" "universe" "restricted" "multiverse")
+enabled_repos=$(apt-cache policy | grep http | awk '{print $3}' | sort -u)
+for repo in "${repos[@]}"; do
+    if ! echo "$enabled_repos" | grep -qw "$repo"; then
+        echo "Add: $repo"
+        add-apt-repository "$repo" -y
+    else
+        echo "$repo is already enabled"
+    fi
+done
+apt update
 # time
 apt -qq install -y --reinstall systemd-timesyncd
 hwclock -w &>/dev/null
