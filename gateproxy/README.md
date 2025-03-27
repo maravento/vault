@@ -30,9 +30,9 @@ python gitfolderdl.py https://github.com/maravento/vault/gateproxy
 
 ---
 
-|OS|CPU|Net Interfaces|RAM for [Squid](http://www.squid-cache.org/)|HDD/SSD for [Squid](http://www.squid-cache.org/)|HowTO|
+| OS | CPU | NIC | RAM | Storage | HowTO |
 | :---: | :---: | :---: | :---: | :---: | :---: |
-|Ubuntu 22.04 / 24.04 x64|Intel(R) Compatible Up to 1.30GHz|Public and Local|4 GB|100 GB|[PDF](https://raw.githubusercontent.com/maravento/vault/master/gateproxy/howto/gateproxy.pdf)|
+| Ubuntu 24.04.x | Intel Core i5/Xeon/AMD Ryzen 5 (≥ 3.0 GHz) | 2 (WAN & LAN) | 6 GB (cache_mem) | 100 GB SSD (cache_dir rock) | [PDF](https://raw.githubusercontent.com/maravento/vault/master/gateproxy/howto/gateproxy.pdf) |
 
 ## HOW TO USE
 

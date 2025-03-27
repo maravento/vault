@@ -1,11 +1,9 @@
 #!/bin/bash
+# by maravento.com
 
 # Mount | Umount NTFS Disk Drive (HDD/SSD)
 
-# Usage:
-# sudo ./ntfsdrive.sh
-
-# checking root
+# Check if the script is run as root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
@@ -27,99 +25,78 @@ printf "\n"
 ### VARIABLES
 local_user=$(who | head -1 | awk '{print $1;}')  # Local user (non-root)
 
-# Function to list connected USB devices
+# list connected USB devices (UUID/Label)
 list_drives() {
-  echo "Connected USB disks:"
-  lsblk -o NAME,LABEL,SIZE | grep -E "sd[b-z][0-9]?"
+    echo "Connected Devices"
+    lsblk -o NAME,LABEL,UUID,SIZE,FSTYPE | grep -E "sd[b-z][0-9]?" | column -t
+    echo ""
 }
 
-# Function to mount the drive
 mount_drive() {
-  list_drives
+    local_user=$(who | head -1 | awk '{print $1;}')
 
-  read -p "Enter the label of the disk to mount or 'exit' to finish: " DISKLABEL
+    list_drives
+    read -p "Enter the LABEL or UUID of the disk to be mounted ('exit' to exit): " DISKID
 
-  if [ "$DISKLABEL" == "exit" ]; then
-    echo "Exiting..."
-    return
-  fi
+    [ "$DISKID" == "exit" ] && echo "Exiting..." && return
 
-  # Find the device by label
-  USBDISK=$(lsblk -o LABEL,NAME | grep -iw "$DISKLABEL" | awk '{print $2}' | tr -d '└─')
+    DEVICE=$(lsblk -rn -o NAME,LABEL,UUID | awk -v id="$DISKID" '$2 == id || $3 == id {print "/dev/" $1}')
 
-  if [ -n "$USBDISK" ]; then
-    DEVICE="/dev/$USBDISK"
-    echo "Trying to mount the device $DEVICE..."
+    if [ -n "$DEVICE" ]; then
+        LABEL=$(lsblk -no LABEL "$DEVICE" | tr -d ' ')
+        [ -z "$LABEL" ] && LABEL=$(basename "$DEVICE")
 
-    read -p "Enter folder name to mount the drive: " FOLDER
-    MOUNT_POINT="/home/$local_user/$FOLDER"
+        MOUNT_POINT="/media/$local_user/$LABEL"
+        mkdir -p "$MOUNT_POINT"
+        chown "$local_user:$local_user" "$MOUNT_POINT"  # Ensures the user has access
 
-    if [ ! -d "$MOUNT_POINT" ]; then
-        sudo -u "$local_user" mkdir -p "$MOUNT_POINT"
-        echo "Folder created at: $MOUNT_POINT"
-    fi
+        # Mount with user permissions and visibility on the desktop
+        mount -o uid=$(id -u "$local_user"),gid=$(id -g "$local_user"),fmask=0022,dmask=0022,windows_names -t ntfs-3g "$DEVICE" "$MOUNT_POINT"
 
-    # Mount the device
-    mount -t ntfs-3g "$DEVICE" "$MOUNT_POINT"
-
-    if [ $? -eq 0 ]; then
-      echo "Device successfully mounted at $MOUNT_POINT."
+        if [ $? -eq 0 ]; then
+            echo "Device mounted on $MOUNT_POINT."
+        else
+            echo "Error mounting device"
+        fi
     else
-      echo "Error mounting the device. Please check the device and try again."
+        echo "No disk found with LABEL/UUID '$DISKID'."
     fi
-  else
-    echo "No disk with the label '$DISKLABEL' was found."
-  fi
 }
 
-# Function to unmount the drive
 umount_drive() {
-  # List currently mounted drives for clarity
-  df -h | grep "/home/$local_user"
+    MOUNT_POINTS=$(lsblk -nr -o MOUNTPOINT | grep -E "^/mnt|^/media")
 
-  read -p "Enter the label of the disk to unmount or 'exit' to finish: " DISKLABEL
-
-  if [ "$DISKLABEL" == "exit" ]; then
-    echo "Exiting..."
-    return
-  fi
-
-  # Find the mount point
-  MOUNT_POINT=$(df -h | grep "/home/$local_user" | grep "$DISKLABEL" | awk '{print $6}')
-
-  if [ -n "$MOUNT_POINT" ]; then
-    echo "Unmounting device mounted at $MOUNT_POINT..."
-    umount "$MOUNT_POINT"
-
-    if [ $? -eq 0 ]; then
-      echo "Device successfully unmounted."
-    else
-      echo "Error unmounting the device. Please try again."
+    if [ -z "$MOUNT_POINTS" ]; then
+        echo "There are no disks mounted in /mnt or /media"
+        return
     fi
-  else
-    echo "No mounted disk with the label '$DISKLABEL' found."
-  fi
+
+    echo "Mounted devices:"
+    echo "$MOUNT_POINTS"
+    echo ""
+
+    read -p "Enter the name of the folder where the disk is mounted ('exit' to exit): " FOLDER
+    [ "$FOLDER" == "exit" ] && echo "Exiting..." && return
+
+    MOUNT_POINT=$(echo "$MOUNT_POINTS" | grep "/$FOLDER$")
+
+    if [ -n "$MOUNT_POINT" ]; then
+        echo "Unmounting $MOUNT_POINT..."
+        umount "$MOUNT_POINT" && echo "Device unmounted" || echo "Error unmounting device"
+    else
+        echo "No mounted disk found at '/$FOLDER'."
+    fi
 }
 
-# Main script logic
-echo "Do you want to mount or unmount an NTFS drive?"
+
+# Menú principal
+echo "Do you want to mount or unmount an NTFS disk?"
 select choice in "Mount" "Unmount" "Exit"; do
-  case $choice in
-    "Mount")
-      mount_drive
-      break
-      ;;
-    "Unmount")
-      umount_drive
-      break
-      ;;
-    "Exit")
-      echo "Exiting..."
-      break
-      ;;
-    *)
-      echo "Invalid choice, please try again."
-      ;;
-  esac
+    case $choice in
+        "Mount") mount_drive; break ;;
+        "Unmount") umount_drive; break ;;
+        "Exit") echo "Exiting..."; exit 0 ;;
+        *) echo "Invalid option, please try again" ;;
+    esac
 done
 

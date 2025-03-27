@@ -67,8 +67,26 @@ git clone --depth=1 https://github.com/maravento/vault.git
 - [uniopos](https://github.com/maravento/vault/tree/master/uniopos)
 - [winzenity](https://github.com/maravento/vault/tree/master/winzenity)
 
-> **Important:**
-> These projects include third-party components
+## NOTICE
+
+---
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <ul>
+        <li>This project includes third-party components.</li>
+        <li>Changes must be submitted via Issues. Pull requests are not accepted.</li>
+      </ul>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <ul>
+        <li>Este proyecto incluye componentes de terceros.</li>
+        <li>Los cambios deben proponerse mediante Issues. No se aceptan Pull Requests.</li>
+      </ul>
+    </td>
+  </tr>
+</table>
 
 ## STARGAZERS
 

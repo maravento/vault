@@ -2,6 +2,8 @@
 # by maravento.com
 
 # Gateproxy
+# A simple proxy/firewall server
+
 # Note: &>/dev/nul is an abbreviation for >/dev/null 2>&1
 
 echo "Gateproxy Start. Wait..."
@@ -39,26 +41,25 @@ lang_03=("Checking Bandwidth..." "Verificando Ancho de Banda...")
 lang_04=("Update and Clean" "Actualización y Limpieza")
 lang_05=("Fix Broken Packages" "Arreglando Paquetes Rotos")
 lang_06=("Wait..." "Espere...")
-#lang_07=("the name of user account" "el nombre de la cuenta de usuario")
-lang_08=("Answer" "Responda")
-lang_09=("Check Dependencies..." "Verificando Dependencias...")
-lang_10=("Older NIC-Ethernet Format Detected" "Se ha detectado formato antiguo NIC-Ethernet")
-lang_11=("List of Network Interfaces Detected" "Lista de Interfaces de Red Detectadas")
-lang_12=("Public Network Interface (Internet)" "Interfaz de Red Publica (Internet)")
-lang_13=("Local Network Interface" "Interfaz de Red Local")
-lang_14=("Welcome to GateProxy" "Bienvenido a GateProxy")
-lang_15=("Minimum Requirements:" "Requisitos Mínimos:")
-lang_16=("Press ENTER to start or CTRL+C to abort" "Presione ENTER para iniciar o CTRL+C para abortar")
-lang_17=("Server settings:" "Parametros del servidor:")
-lang_18=("Enter" "Introduzca")
-lang_19=("You have entered" "Ha introducido")
-lang_20=("Do you want to change?" "Desea modificar?")
-lang_21=("Do you want to install" "Desea instalar")
-lang_22=("with SHARE folder, Recycle Bin and Audit" "con carpeta COMPARTIDA, Papelera Reciclaje y Auditoria")
-lang_23=("share" "compartida")
-lang_24=("the name of samba user" "el nombre del usuario de samba")
-lang_25=("Done. Press ENTER to Reboot" "Terminado. Presione ENTER para Reiniciar")
-lang_26=("e.g." "e.j.")
+lang_07=("Answer" "Responda")
+lang_08=("Check Dependencies..." "Verificando Dependencias...")
+lang_09=("Older NIC-Ethernet Format Detected" "Se ha detectado formato antiguo NIC-Ethernet")
+lang_10=("List of Network Interfaces Detected" "Lista de Interfaces de Red Detectadas")
+lang_11=("Public Network Interface (Internet)" "Interfaz de Red Publica (Internet)")
+lang_12=("Local Network Interface" "Interfaz de Red Local")
+lang_13=("Welcome to GateProxy" "Bienvenido a GateProxy")
+lang_14=("Minimum Requirements:" "Requisitos Mínimos:")
+lang_15=("Press ENTER to start or CTRL+C to abort" "Presione ENTER para iniciar o CTRL+C para abortar")
+lang_16=("Server settings:" "Parametros del servidor:")
+lang_17=("Enter" "Introduzca")
+lang_18=("You have entered" "Ha introducido")
+lang_19=("Do you want to change?" "Desea modificar?")
+lang_20=("Do you want to install" "Desea instalar")
+lang_21=("with SHARE folder, Recycle Bin and Audit" "con carpeta COMPARTIDA, Papelera Reciclaje y Auditoria")
+lang_22=("share" "compartida")
+lang_23=("the name of samba user" "el nombre del usuario de samba")
+lang_24=("Done. Press ENTER to Reboot" "Terminado. Presione ENTER para Reiniciar")
+lang_25=("e.g." "e.j.")
 
 test "${LANG:0:2}" == "en"
 en=$?
@@ -68,39 +69,21 @@ clear
 echo -e "\n"
 echo "${lang_01[${en}]}"
 function is_ubuntu() {
-    is_uversion=$(lsb_release -sc | grep -P 'noble|jammy') # optional
-    #is_uversion=$(lsb_release -sc | grep 'jammy')
+    is_uversion=$(lsb_release -sc | grep 'noble')
     if [ "$is_uversion" ]; then
-        echo "OK. Ubuntu 24.04.x | 22.04.x"
-        #if [ "$(lsb_release -sc | grep 'focal')" ]; then for i in universe multiverse restricted; do add-apt-repository -y $i; done; fi # optional (for 20.04)
+        echo "OK. Ubuntu 24.04.x"
     else
         echo "${lang_02[${en}]}"
         exit
     fi
 }
+is_ubuntu
 
-function getconf_x64() {
-    if [ $(getconf LONG_BIT) = "64" ]; then
-        # 64 bit
-        echo "OK. 64-Bit System"
-    else
-        # 32 bit
-        echo "Fail. 32-Bit System"
-    fi
-}
-
-function x64() {
-    ARCHITECTURE=$(uname -m)
-    if [ "${ARCHITECTURE}" == 'x86_64' ]; then
-        getconf_x64
-        is_ubuntu
-    else
-        getconf_x64
-        echo "${lang_02[${en}]}"
-        exit
-    fi
-}
-x64
+### CHECK DESKTOP
+DESKTOP_ENV=$(echo "$XDG_CURRENT_DESKTOP" | tr '[:upper:]' '[:lower:]')
+UBUNTU_VERSION=$(lsb_release -rs)
+[[ "$UBUNTU_VERSION" != "24.04" || ( "$DESKTOP_ENV" != "mate" && "$DESKTOP_ENV" != "cinnamon" ) ]] && \
+echo "It is recommended to use the MATE or Cinnamon desktops"
 
 ### VARIABLES
 gp=$(pwd)/gateproxy
@@ -111,8 +94,7 @@ if [ ! -d $aclroute ]; then mkdir -p $aclroute; fi &>/dev/null
 scr=/etc/scr
 if [ ! -d $scr ]; then mkdir -p $scr; fi &>/dev/null
 
-# LOCAL USER (sudo user no root)
-#local_user=${SUDO_USER:-$(whoami)}
+# LOCAL USER
 local_user=$(who | head -1 | awk '{print $1;}')
 
 ### BASIC
@@ -128,6 +110,18 @@ rm /var/lib/dpkg/lock &>/dev/null
 rm -rf /var/lib/apt/lists/*
 # dpkg
 dpkg --configure -a
+# repos
+repos=("main" "universe" "restricted" "multiverse")
+enabled_repos=$(apt-cache policy | grep http | awk '{print $3}' | sort -u)
+for repo in "${repos[@]}"; do
+    if ! echo "$enabled_repos" | grep -qw "$repo"; then
+        echo "Add: $repo"
+        add-apt-repository "$repo" -y
+    else
+        echo "$repo is already enabled"
+    fi
+done
+apt update
 # time
 apt -qq install -y --reinstall systemd-timesyncd
 hwclock -w &>/dev/null
@@ -135,7 +129,7 @@ timedatectl set-ntp true &>/dev/null
 # install | remove
 apt -qq install -y apt-file
 apt-file update
-apt -qq remove -y zsys
+apt -qq remove -y zsys &>/dev/null
 ubuntu-drivers autoinstall &>/dev/null
 # configure
 pro config set apt_news=false
@@ -171,7 +165,7 @@ fixbroken
 ### PACKAGES
 clear
 echo -e "\n"
-echo "${lang_09[${en}]}"
+echo "${lang_08[${en}]}"
 
 ### GATEPROXY GIT
 echo -e "\n"
@@ -190,7 +184,7 @@ find $gp/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:your_user:$local_user
 
 # public interface
 function public_interface() {
-    read -p "${lang_18[${en}]} ${lang_12[${en}]} (${lang_26[${en}]} enpXsX): " ETH0
+    read -p "${lang_17[${en}]} ${lang_11[${en}]} (${lang_25[${en}]} enpXsX): " ETH0
     if [ "$ETH0" ]; then
         find $gp/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$ETH0:g" "{}"
     fi
@@ -198,7 +192,7 @@ function public_interface() {
 
 # local interface
 function local_interface() {
-    read -p "${lang_18[${en}]} ${lang_13[${en}]} (${lang_26[${en}]} enpXsX): " ETH1
+    read -p "${lang_17[${en}]} ${lang_12[${en}]} (${lang_25[${en}]} enpXsX): " ETH1
     if [ "$ETH1" ]; then
         find $gp/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
     fi
@@ -207,13 +201,13 @@ function local_interface() {
 function is_interfaces() {
     is_interfaces=$(ifconfig | grep eth0)
     if [ "$is_interfaces" ]; then
-        echo "${lang_10[${en}]}"
+        echo "${lang_09[${en}]}"
         echo "${lang_02[${en}]}"
         rm -rf $gp &>/dev/null
         exit
     else
         echo "Check Net Interfaces: OK"
-        echo "${lang_11[${en}]}:"
+        echo "${lang_10[${en}]}:"
         ip -o link | awk '$2 != "lo:" {print $2, $(NF-2)}' | sed 's_: _ _'
         public_interface
         local_interface
@@ -225,16 +219,16 @@ is_interfaces
 ### START
 clear
 echo -e "\n"
+echo "    ${lang_13[${en}]}"
+echo -e "\n"
 echo "    ${lang_14[${en}]}"
+echo "    OS:       Ubuntu 24.04.x"
+echo "    CPU:      Intel Core i5/Xeon/AMD Ryzen 5 (≥ 3.0 GHz)"
+echo "    NIC:      2 (WAN & LAN)"
+echo "    RAM:      6 GB for cache_mem (≥ 12 GB total RAM recommended)"
+echo "    Storage:  100 GB SSD for cache_dir rock"
 echo -e "\n"
 echo "    ${lang_15[${en}]}"
-echo "    GNU/Linux:    Ubuntu 24.04.x | 22.04.x x64"
-echo "    Processor:    Up to Intel 1x GHz"
-echo "    Interfaces:   Public and Local"
-echo "    RAM:          4 GB reserved for Squid-Cache"
-echo "    HDD/SSD:      100 GB reserved for Squid-Cache"
-echo -e "\n"
-echo "    ${lang_16[${en}]}"
 echo -e "\n"
 read RES
 clear
@@ -267,14 +261,14 @@ is_ask() {
             ;;
         *)
             echo
-            echo "${lang_08[${en}]}: YES (y) or NO (n)"
+            echo "${lang_07[${en}]}: YES (y) or NO (n)"
             ;;
         esac
     done
 }
 # gateway
 function is_gateway() {
-    read -p "${lang_18[${en}]} IP (${lang_26[${en}]} 192.168.0.10): " GATEWAY
+    read -p "${lang_17[${en}]} IP (${lang_25[${en}]} 192.168.0.10): " GATEWAY
     GATEWAYNEW=$(echo "$GATEWAY" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
 
     if [ "$GATEWAYNEW" ]; then
@@ -284,117 +278,117 @@ function is_gateway() {
         find $gp/acl -type f \( -name "mac-*" -o -name "blockdhcp*" \) -print0 | while IFS= read -r -d '' file; do
             sed -i "s:192.168.0\.:$(echo "$GATEWAYNEW" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" "$file"
         done
-        echo "${lang_19[${en}]} IP $GATEWAY and Range :OK"
+        echo "${lang_18[${en}]} IP $GATEWAY and Range :OK"
     fi
 }
 
 # netmask
 function is_mask1() {
-    read -p "${lang_18[${en}]} Netmask (${lang_26[${en}]} 255.255.255.0): " MASK1
+    read -p "${lang_17[${en}]} Netmask (${lang_25[${en}]} 255.255.255.0): " MASK1
     MASKNEW1=$(echo "$MASK1" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$MASKNEW1" ]; then
         find $gp/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:255.255.255.0:$MASKNEW1:g" "{}"
-        echo "${lang_19[${en}]} Netmask $MASK1 :OK"
+        echo "${lang_18[${en}]} Netmask $MASK1 :OK"
     fi
 }
 
 function is_mask2() {
-    read -p "${lang_18[${en}]} Subnet-Mask (${lang_26[${en}]} 24): " MASK2
+    read -p "${lang_17[${en}]} Subnet-Mask (${lang_25[${en}]} 24): " MASK2
     MASKNEW2=$(echo "$MASK2" | grep -E '[0-9]')
     if [ "$MASKNEW2" ]; then
         find $gp/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:/24:/$MASKNEW2:g" "{}"
-        echo "${lang_19[${en}]} Subnet-Mask $MASK2 :OK"
+        echo "${lang_18[${en}]} Subnet-Mask $MASK2 :OK"
     fi
 }
 
 # dns primary
 function is_dns1() {
-    read -p "${lang_18[${en}]} DNS1 (${lang_26[${en}]} 8.8.8.8): " DNS1
+    read -p "${lang_17[${en}]} DNS1 (${lang_25[${en}]} 8.8.8.8): " DNS1
     DNSNEW1=$(echo "$DNS1" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$DNSNEW1" ]; then
         find $gp/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.8.8:$DNSNEW1:g" "{}"
-        echo "${lang_19[${en}]} DNS1 $DNS1 :OK"
+        echo "${lang_18[${en}]} DNS1 $DNS1 :OK"
     fi
 }
 
 # dns secondary
 function is_dns2() {
-    read -p "${lang_18[${en}]} DNS2 (${lang_26[${en}]} 8.8.4.4): " DNS2
+    read -p "${lang_17[${en}]} DNS2 (${lang_25[${en}]} 8.8.4.4): " DNS2
     DNSNEW2=$(echo "$DNS2" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$DNSNEW2" ]; then
         find $gp/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.4.4:$DNSNEW2:g" "{}"
-        echo "${lang_19[${en}]} DNS2 $DNS2 :OK"
+        echo "${lang_18[${en}]} DNS2 $DNS2 :OK"
     fi
 }
 
 # localnet
 function is_localnet() {
-    read -p "${lang_18[${en}]} Localnet (${lang_26[${en}]} 192.168.0.0): " LOCALNET
+    read -p "${lang_17[${en}]} Localnet (${lang_25[${en}]} 192.168.0.0): " LOCALNET
     LOCALNETNEW=$(echo "$LOCALNET" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$LOCALNETNEW" ]; then
         find $gp/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$LOCALNETNEW:g" "{}"
-        echo "${lang_19[${en}]} Localnet $LOCALNET :OK"
+        echo "${lang_18[${en}]} Localnet $LOCALNET :OK"
     fi
 }
 
 # broadcast
 function is_broadcast() {
-    read -p "${lang_18[${en}]} Broadcast (${lang_26[${en}]} 192.168.0.255): " BROADCAST
+    read -p "${lang_17[${en}]} Broadcast (${lang_25[${en}]} 192.168.0.255): " BROADCAST
     BROADCASTNEW=$(echo "$BROADCAST" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$BROADCASTNEW" ]; then
         find $gp/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.255:$BROADCASTNEW:g" "{}"
-        echo "${lang_19[${en}]} Broadcast $BROADCAST :OK"
+        echo "${lang_18[${en}]} Broadcast $BROADCAST :OK"
     fi
 }
 
 # dhcp range
 function is_rangeini() {
-    read -p "${lang_18[${en}]} DHCP-RANGE-INI (${lang_26[${en}]} 192.168.0.100): " RANGEINI
+    read -p "${lang_17[${en}]} DHCP-RANGE-INI (${lang_25[${en}]} 192.168.0.100): " RANGEINI
     RANGEININEW=$(echo "$RANGEINI" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$RANGEININEW" ]; then
         find $gp/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.100:$RANGEININEW:g" "{}"
-        echo "${lang_19[${en}]} correct DHCP-RANGE-INI $RANGEINI :OK"
+        echo "${lang_18[${en}]} correct DHCP-RANGE-INI $RANGEINI :OK"
     fi
 }
 
 function is_rangeend() {
-    read -p "${lang_18[${en}]} DHCP-RANGE-END (${lang_26[${en}]} 192.168.0.250): " RANGEEND
+    read -p "${lang_17[${en}]} DHCP-RANGE-END (${lang_25[${en}]} 192.168.0.250): " RANGEEND
     RANGEENDNEW=$(echo "$RANGEEND" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$RANGEENDNEW" ]; then
         find $gp/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.250:$RANGEENDNEW:g" "{}"
-        echo "${lang_19[${en}]} correct DHCP-RANGE-END $RANGEEND :OK"
+        echo "${lang_18[${en}]} correct DHCP-RANGE-END $RANGEEND :OK"
     fi
 }
 
 # squid port
 function is_port() {
-    read -p "${lang_18[${en}]} Proxy Port (${lang_26[${en}]} 3128): " PORT
+    read -p "${lang_17[${en}]} Proxy Port (${lang_25[${en}]} 3128): " PORT
     PORTNEW=$(echo "$PORT" | grep -E '[1-9]')
     if [ "$PORTNEW" ]; then
         find $gp/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:3128:$PORTNEW:g" "{}"
-        echo "${lang_19[${en}]} Proxy Port $PORT :OK"
+        echo "${lang_18[${en}]} Proxy Port $PORT :OK"
     fi
 }
 
 echo -e "\n"
 while true; do
-    read -p "${lang_17[${en}]}
+    read -p "${lang_16[${en}]}
 Gateway 192.168.0.10, Mask 255.255.255.0, Network /24, DNS 8.8.8.8 8.8.4.4,
 Localnet 192.168.0.0, Broadcast 192.168.0.255, DHCP-Range ini-100 end-250, Proxy 3128
-    ${lang_20[${en}]} (y/n)" answer
+    ${lang_19[${en}]} (y/n)" answer
     case $answer in
     [Yy]*)
         # execute command yes
-        is_ask "${lang_20[${en}]} Gateway 192.168.0.10? (y/n)" "${lang_19[${en}]} IP incorrect" is_gateway
-        is_ask "${lang_20[${en}]} Mask 255.255.255.0? (y/n)" "${lang_19[${en}]} Mask incorrect" is_mask1
-        is_ask "${lang_20[${en}]} Sub-Mask /24? (y/n)" "${lang_19[${en}]} Sub-Mask incorrect" is_mask2
-        is_ask "${lang_20[${en}]} DNS1 8.8.8.8? (y/n)" "${lang_19[${en}]} DNS1 incorrect" is_dns1
-        is_ask "${lang_20[${en}]} DNS2 8.8.4.4? (y/n)" "${lang_19[${en}]} DNS2 incorrect" is_dns2
-        is_ask "${lang_20[${en}]} Localnet 192.168.0.0? (y/n)" "${lang_19[${en}]} Localnet incorrect" is_localnet
-        is_ask "${lang_20[${en}]} Broadcast 192.168.0.255? (y/n)" "${lang_19[${en}]} Broadcast incorrect" is_broadcast
-        is_ask "${lang_20[${en}]} DHCP-RANGE-INI 192.168.0.100? (y/n)" "${lang_19[${en}]} IP incorrect" is_rangeini
-        is_ask "${lang_20[${en}]} DHCP-RANGE-END 192.168.0.250? (y/n)" "${lang_19[${en}]} IP incorrect" is_rangeend
-        is_ask "${lang_20[${en}]} Proxy Port Default 3128? (y/n)" "${lang_19[${en}]} Proxy Port incorrect" is_port
+        is_ask "${lang_19[${en}]} Gateway 192.168.0.10? (y/n)" "${lang_18[${en}]} IP incorrect" is_gateway
+        is_ask "${lang_19[${en}]} Mask 255.255.255.0? (y/n)" "${lang_18[${en}]} Mask incorrect" is_mask1
+        is_ask "${lang_19[${en}]} Sub-Mask /24? (y/n)" "${lang_18[${en}]} Sub-Mask incorrect" is_mask2
+        is_ask "${lang_19[${en}]} DNS1 8.8.8.8? (y/n)" "${lang_18[${en}]} DNS1 incorrect" is_dns1
+        is_ask "${lang_19[${en}]} DNS2 8.8.4.4? (y/n)" "${lang_18[${en}]} DNS2 incorrect" is_dns2
+        is_ask "${lang_19[${en}]} Localnet 192.168.0.0? (y/n)" "${lang_18[${en}]} Localnet incorrect" is_localnet
+        is_ask "${lang_19[${en}]} Broadcast 192.168.0.255? (y/n)" "${lang_18[${en}]} Broadcast incorrect" is_broadcast
+        is_ask "${lang_19[${en}]} DHCP-RANGE-INI 192.168.0.100? (y/n)" "${lang_18[${en}]} IP incorrect" is_rangeini
+        is_ask "${lang_19[${en}]} DHCP-RANGE-END 192.168.0.250? (y/n)" "${lang_18[${en}]} IP incorrect" is_rangeend
+        is_ask "${lang_19[${en}]} Proxy Port Default 3128? (y/n)" "${lang_18[${en}]} Proxy Port incorrect" is_port
         echo OK
         break
         ;;
@@ -405,7 +399,7 @@ Localnet 192.168.0.0, Broadcast 192.168.0.255, DHCP-Range ini-100 end-250, Proxy
         ;;
     *)
         echo
-        echo "${lang_08[${en}]}: YES (y) or NO (n)"
+        echo "${lang_07[${en}]}: YES (y) or NO (n)"
         ;;
     esac
 done
@@ -416,7 +410,7 @@ echo -e "\n"
 function essential_setup() {
     echo "Essential Packages..."
     # Disk Tools
-    nala install -y gparted libfuse2 nfs-common ntfs-3g exfat-fuse gsmartcontrol qdirstat libguestfs-tools gvfs-fuse
+    nala install -y gparted libfuse2t64 nfs-common ntfs-3g exfat-fuse gsmartcontrol qdirstat libguestfs-tools gvfs-fuse
     nala install -y --no-install-recommends smartmontools
     # Sys Tools
     nala install -y trash-cli pm-utils neofetch cpu-x lsof inotify-tools dmidecode idle3 wmctrl pv dpkg ppa-purge deborphan apt-utils gawk gir1.2-gtop-2.0 finger logrotate tree uuid-dev libmnl-dev gtkhash moreutils rename renameutils sharutils dos2unix gdebi synaptic preload xsltproc debconf-utils mokutil libssl-dev libffi-dev python3-dev python3-venv libpam0g-dev autoconf autoconf-archive autogen automake dh-autoreconf pkg-config linux-firmware util-linux linux-tools-common build-essential module-assistant linux-headers-$(uname -r)
@@ -458,7 +452,7 @@ function gateproxy_setup() {
     # php
     nala install -y php
     # http server: apache2
-    nala install -y apache2 apache2-doc apache2-utils apache2-dev apache2-suexec-pristine libaprutil1 libaprutil1-dev
+    nala install -y apache2 apache2-doc apache2-utils apache2-dev apache2-suexec-pristine libaprutil1t64 libaprutil1-dev libtest-fatal-perl
     systemctl enable apache2.service
     # To fix apache2 error: Syntax error on line 146 of /etc/apache2/apache2.conf | Cannot load /usr/lib/apache2/modules/mod_dnssd.so
     #nala install -y libapache2-mod-dnssd
@@ -488,9 +482,6 @@ function gateproxy_setup() {
     # Let’s Encrypt certificate for client to Squid proxy encryption
     nala install -y certbot
     # Web Admin: webmin
-    #wget -c http://www.webmin.com/jcameron-key.asc -O- | gpg --no-default-keyring --keyring gnupg-ring:/etc/apt/trusted.gpg.d/ubuntu-webmin.gpg --import
-    #chmod 644 /etc/apt/trusted.gpg.d/ubuntu-webmin.gpg
-    #add-apt-repository -y "deb [arch=amd64] https://download.webmin.com/download/repository sarge contrib" &>/dev/null
     curl -o setup-repos.sh https://raw.githubusercontent.com/webmin/webmin/master/setup-repos.sh
     chmod +x setup-repos.sh
     echo "y" | ./setup-repos.sh
@@ -568,7 +559,7 @@ function gateproxy_setup() {
         echo '@weekly find /var/www/squid-reports -name "2*" -mtime +30 -type d -exec rm -rf "{}" \; &> /dev/null'
     } | crontab -
     echo "Sarg Access: http://localhost:10300 or http://SERVER_IP:10300/"
-    echo "Sarg Usernames: /etc/sarg/usertab (${lang_26[${en}]} 192.168.0.10 GATEPROXY)"
+    echo "Sarg Usernames: /etc/sarg/usertab (${lang_25[${en}]} 192.168.0.10 GATEPROXY)"
     # Firewall Iptables Complement: ipset
     nala install -y ipset
     # Firewall Filter: ddos deflate
@@ -620,8 +611,8 @@ fixbroken
 clear
 echo -e "\n"
 while true; do
-read -p "${lang_21[${en}]} Samba?
-${lang_22[${en}]} (y/n)" answer
+read -p "${lang_20[${en}]} Samba?
+${lang_21[${en}]} (y/n)" answer
     case $answer in
     [Yy]*)
         # execute command yes
@@ -631,10 +622,10 @@ ${lang_22[${en}]} (y/n)" answer
         systemctl enable nmbd.service
         systemctl enable winbind.service
         fixbroken
-        mkdir -p $(pwd)/"${lang_23[${en}]}"
-        chown -R nobody:nogroup $(pwd)/"${lang_23[${en}]}"
-        chmod -R a+rwx $(pwd)/"${lang_23[${en}]}"
-        find $gp/conf/samba -type f -print0 | xargs -0 -I "{}" sed -i "s:compartida:${lang_23[${en}]}:g" "{}"
+        mkdir -p $(pwd)/"${lang_22[${en}]}"
+        chown -R nobody:nogroup $(pwd)/"${lang_22[${en}]}"
+        chmod -R a+rwx $(pwd)/"${lang_22[${en}]}"
+        find $gp/conf/samba -type f -print0 | xargs -0 -I "{}" sed -i "s:compartida:${lang_22[${en}]}:g" "{}"
         if [ ! -d /var/lib/samba/usershares ]; then mkdir -p /var/lib/samba/usershares; fi
         chmod 1775 /var/lib/samba/usershares/
         chmod +t /var/lib/samba/usershares/
@@ -653,7 +644,7 @@ ${lang_22[${en}]} (y/n)" answer
         $gp/conf/samba/sambacron.sh
         chmod +x $gp/conf/samba/sambaload.sh
         $gp/conf/samba/sambaload.sh >>$gp/conf/scr/servicesload.sh
-        read -p "${lang_18[${en}]} ${lang_24[${en}]}: " SMBNAME
+        read -p "${lang_17[${en}]} ${lang_23[${en}]}: " SMBNAME
         if [ "$SMBNAME" ]; then
             smbpasswd -a $SMBNAME
             pdbedit -L
@@ -678,7 +669,7 @@ ${lang_22[${en}]} (y/n)" answer
         ;;
     *)
         echo
-        echo "${lang_08[${en}]}: YES (y) or NO (n)"
+        echo "${lang_07[${en}]}: YES (y) or NO (n)"
         ;;
     esac
 done
@@ -871,7 +862,7 @@ fixbroken
 
 clear
 echo -e "\n"
-echo "${lang_25[${en}]}"
+echo "${lang_24[${en}]}"
 echo "after reboot, run: systemctl list-units --type service --state running,failed"
 read RES
 rm -rfv $gp *tar.gz *.sh *.deb *.txt
