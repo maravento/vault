@@ -51,9 +51,8 @@ git clone --depth=1 https://github.com/maravento/vault.git
 ---
 
 - [bandwidthd](https://github.com/maravento/vault/tree/master/bandwidthd)
-- [blackstring](https://github.com/maravento/vault/tree/master/blackstring)
+- [blackshield](https://github.com/maravento/vault/tree/master/blackshield)
 - [blackusb](https://github.com/maravento/vault/tree/master/blackusb)
-- [blackword](https://github.com/maravento/vault/tree/master/blackword)
 - [dextroyer](https://github.com/maravento/vault/tree/master/dextroyer)
 - [dofi](https://github.com/maravento/vault/tree/master/dofi)
 - [gateproxy](https://github.com/maravento/vault/tree/master/gateproxy)
