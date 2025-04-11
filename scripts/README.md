@@ -43,6 +43,7 @@ Tested on: Ubuntu 22.04/24.04 x64
 - [FreeFileSync Update](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ffsupdate.sh)
 - [Gdrive (Mount | Umount - to folder `/home/$USER/gdrive`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/gdrive.sh)
 - [IP Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ipkill.sh)
+- [Joomla Install | Remove (Included: Apache/MySQL/PHP/mkcert)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/joomla.sh)
 - [KDE Connect (Send files to phone for Nautilus/Caja)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/send2phone)
 - [Kill Process By Name](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/pskill.sh)
 - [Kworker Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/kworker.sh)

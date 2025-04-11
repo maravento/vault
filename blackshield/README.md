@@ -142,7 +142,18 @@ http_access deny all
    include = /etc/acl/vetofiles.txt
 ```
 
-### Iptables Rules
+### Iptables Rules (Not Recommended)
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     This project contains ACLs with non-exclusive strings, which can generate false positives, and Iptables firewall rules that slow down traffic and may not get the desired results. Note that string matching is intensive, unreliable, so you should consider it as a last resort.
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     Este proyecto contiene ACLs con cadenas no exclusivas, que pueden generar falsos positivos y reglas de firewall Iptables que ralentizan el tráfico y puede no obtener los resultados deseados. Tenga en cuenta que la coincidencia de cadenas es intensiva, poco confiable, por tanto debe considerarla como último recurso.
+    </td>
+  </tr>
+</table>
 
 #### Global Variables
 
@@ -157,7 +168,7 @@ enp2s0: 94:18:82:XX:XX:XX
 lan=enp2s1
 ```
 
-#### Hex String Rule (Not Recommended)
+#### Hex String Rule
 
 ```bash
 # Block: Hex-String
