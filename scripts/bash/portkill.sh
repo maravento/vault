@@ -4,7 +4,7 @@
 # Port Kill
 # check port with: sudo netstat -lnp | grep "port"
 
-echo "Port Kill Start. Wait..."
+echo "Port Kill Starting. Wait..."
 printf "\n"
 
 # checking root

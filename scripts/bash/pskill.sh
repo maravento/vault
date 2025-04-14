@@ -3,7 +3,7 @@
 
 # Kill Process By Name
 
-echo "Kill Process Start. Wait..."
+echo "Kill Process Starting. Wait..."
 printf "\n"
 
 # checking root

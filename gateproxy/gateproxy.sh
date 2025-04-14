@@ -654,9 +654,14 @@ ${lang_21[${en}]} (y/n)" answer
         sed 's/^[^#]*\($FileOwner syslog\|$FileGroup adm\|$FileCreateMode 0640\|$FileCreateMode 0640\|$DirCreateMode 0755\|$Umask 0022\|$PrivDropToUser syslog\|$PrivDropToGroup syslog\)$/#\1/' -i /etc/rsyslog.conf
         cp -f /etc/rsyslog.d/50-default.conf{,.bak} &>/dev/null
         # $PRI == 173 https://github.com/rsyslog/rsyslog/issues/5214
-        sed -i '/# First some standard log files.  Log by facility./i # fullaudit rule\nif $PRI == 173 then {\n   /var/log/samba/audit.log\n stop\n}' /etc/rsyslog.d/50-default.conf
+        #sed -i '/# First some standard log files.  Log by facility./i # fullaudit rule\nif $PRI == 173 then {\n   /var/log/samba/audit.log\n stop\n}' /etc/rsyslog.d/50-default.conf
+        sed -i '/# First some standard log files.  Log by facility./i # fullaudit rule\nif ($programname == '\''smbd_audit'\'' and not ($msg contains '\''pam_unix'\'')) then {\n    action(type="omfile" file="/var/log/samba/audit.log")\n    stop\n} else {\n    # Ignores all other program names from writing to this log file\n    stop\n}' /etc/rsyslog.d/50-default.conf
         cp -f /etc/logrotate.d/rsyslog{,.bak} &>/dev/null
         sed -i "/	sharedscripts/r $gp/conf/samba/smbrsyslog.txt" /etc/logrotate.d/rsyslog
+        # state file /var/lib/logrotate/status is world-readable
+        rm -f /var/lib/logrotate/status.lock
+        chmod 640 /var/lib/logrotate/status
+        chown root:root /var/lib/logrotate/status
         echo "Samba Audit: http://localhost:10100/audit.log | http://SERVER_IP:10100/audit.log"
         echo "Samba Log: /var/log/samba/audit.log"
         echo "check smb.conf: testparm"

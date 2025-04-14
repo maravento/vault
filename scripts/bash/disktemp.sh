@@ -4,7 +4,7 @@
 # Check temp HDD, SSD, NVME and send alert to desktop and syslog
 # Note: Not compatible with some storages hdd | ssd
 
-echo "Check Disk Temp Start. Wait..."
+echo "Check Disk Temp Starting. Wait..."
 printf "\n"
 
 # checking root

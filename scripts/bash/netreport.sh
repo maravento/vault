@@ -3,7 +3,7 @@
 
 # Net Report
 
-echo "Net Report Start. Wait..."
+echo "Net Report Starting. Wait..."
 printf "\n"
 
 # checking root

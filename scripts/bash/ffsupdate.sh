@@ -3,7 +3,7 @@
 
 # FreeFileSync Update
 
-echo "FreeFileSync Update Start. Wait..."
+echo "FreeFileSync Update Starting. Wait..."
 printf "\n"
 
 # checking root

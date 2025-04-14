@@ -3,7 +3,7 @@
 
 # CPU Limit (start / stop / status)
 
-echo "CPU limit Start. Wait..."
+echo "CPU limit Starting. Wait..."
 printf "\n"
 
 # checking root

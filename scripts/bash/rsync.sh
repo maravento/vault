@@ -4,9 +4,9 @@
 # Rclone 2-Way Sync (Gdrive, PCloud, Dropbox, OneDrive, Mega...)
 # https://www.maravento.com/2023/09/2-way-sync-con-rclone.html
 
-echo "Rclone Sync Start. Wait..."
-
+echo "Rclone Sync Starting. Wait..."
 echo "Run Sync Script at $(date)" | tee -a /var/log/syslog
+printf "\n"
 
 # checking root
 if [ "$(id -u)" != "0" ]; then

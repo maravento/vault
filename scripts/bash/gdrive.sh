@@ -8,7 +8,7 @@
 #./gdrive start
 #./gdrive stop
 
-echo "Gdrive Start. Wait..."
+echo "Gdrive Starting. Wait..."
 printf "\n"
 
 # checking script execution

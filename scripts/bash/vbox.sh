@@ -4,11 +4,11 @@
 # Virtualbox 7.1 install | remove
 # tested: Ubuntu 24.04
 
+echo "Virtualbox Install | Remove Starting. Wait..."
+printf "\n"
+
 # LOCAL USER (sudo user no root)
 local_user=$(who | head -1 | awk '{print $1;}')
-
-clear
-printf "\n"
 
 # checking root
 if [ "$(id -u)" != "0" ]; then

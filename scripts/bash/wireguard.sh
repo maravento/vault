@@ -4,7 +4,7 @@
 # WireGuard Install | Remove
 # tested: Ubuntu 24.04
 
-echo "WireGuard Install | Remove.. Wait..."
+echo "WireGuard Install | Remove Starting. Wait..."
 printf "\n"
 
 # checking root

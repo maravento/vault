@@ -9,7 +9,7 @@
 # confirm update-rc.d:  ls -al /etc/rc?.d/ | grep vm.sh
 # add user vboxusers:   usermod -a -G vboxusers $USER # where $USER is your user
 
-echo "Virtualbox Start. Wait..."
+echo "Virtualbox Starting. Wait..."
 printf "\n"
 
 # checking root

@@ -5,6 +5,9 @@
 # The migration must be done on the same distro and version
 # Tested Ubuntu 22.04
 
+echo "System Migration Tool Starting. Wait..."
+printf "\n"
+
 # checking root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2

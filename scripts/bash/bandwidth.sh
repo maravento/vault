@@ -4,7 +4,7 @@
 # Check Bandwidth
 # Source: https://github.com/sivel/speedtest-cli
 
-echo "Check Bandwidth. Wait..."
+echo "Check Bandwidth Starting. Wait..."
 printf "\n"
 
 # checking root

@@ -3,7 +3,7 @@
 
 # Kworker Kill
 
-echo "Kworker Kill. Wait..."
+echo "Kworker Kill Starting. Wait..."
 printf "\n"
 
 # checking root

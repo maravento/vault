@@ -4,7 +4,7 @@
 # Virtual Hard Disk (VHD) image (.img) with loop or kpartx - Create and Mount | Umount
 # https://www.maravento.com/2018/03/disco-virtual.html
 
-echo "Virtual Hard Disk Start. Wait..."
+echo "Virtual Hard Disk Starting. Wait..."
 printf "\n"
 
 # checking root

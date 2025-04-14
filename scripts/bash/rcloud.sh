@@ -7,9 +7,9 @@
 # Usage:
 # sudo ./rclone.sh start | stop | restart | status
 
-echo "Rclone Cloud Start. Wait..."
-
+echo "Rclone Cloud Starting. Wait..."
 echo "Run Rclone Script at $(date)" | tee -a /var/log/syslog
+printf "\n"
 
 # checking root
 if [ "$(id -u)" != "0" ]; then

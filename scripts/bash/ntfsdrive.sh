@@ -3,6 +3,9 @@
 
 # Mount | Umount NTFS Disk Drive (HDD/SSD)
 
+echo "Auto Mount/Unmount NTFS Starting. Wait..."
+printf "\n"
+
 # Check if the script is run as root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
@@ -18,9 +21,6 @@ if pidof -x $(basename $0) >/dev/null; then
         fi
     done
 fi
-
-echo "Auto Mount/Unmount NTFS. Please wait..."
-printf "\n"
 
 ### VARIABLES
 local_user=$(who | head -1 | awk '{print $1;}')  # Local user (non-root)

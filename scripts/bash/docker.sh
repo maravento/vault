@@ -4,7 +4,7 @@
 # Docker Install | Remove
 # tested: Ubuntu 24.04
 
-echo "Docker Install | Remove. Wait..."
+echo "Docker Install | Remove Starting. Wait..."
 printf "\n"
 
 # checking root

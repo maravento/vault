@@ -8,7 +8,7 @@
 # special thanks to:
 # https://github.com/BartekSz95
 
-echo "phpVirtualBox Start. Wait..."
+echo "phpVirtualBox Starting. Wait..."
 printf "\n"
 
 # checking root

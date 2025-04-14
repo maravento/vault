@@ -3,7 +3,7 @@
 
 # IP Kill
 
-echo "IP Kill. Wait..."
+echo "IP Kill Starting. Wait..."
 printf "\n"
 
 # checking root

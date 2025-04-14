@@ -4,7 +4,7 @@
 # ARP table filter
 # v3.0-ng or higher
 
-echo "ARP table filter Start. Wait..."
+echo "ARP table filter Starting. Wait..."
 printf "\n"
 
 # checking root

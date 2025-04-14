@@ -15,7 +15,7 @@
 # Remove:
 # sudo rm -rf /home/$USER/.config/msyncs /usr/bin/msyncs
 
-echo "MEGAsync Instances..."
+echo "MEGAsync Instances Starting. Wait..."
 printf "\n"
 
 # checking no-root

@@ -4,7 +4,7 @@
 # Mass decompression with password
 # https://www.maravento.com/2020/05/descompresion-masiva-de-archivos.html
 
-echo "Unzip files with pass. Wait..."
+echo "Unzip Files With Pass Starting. Wait..."
 printf "\n"
 
 # checking script execution
