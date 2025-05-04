@@ -1,0 +1,122 @@
+[DEFAULT]
+bantime  = 24h
+findtime = 10m
+maxretry = 3
+backend  = auto
+action = %(action_mwl)s
+banaction = iptables-multiport
+ignoreself = true
+
+# To enable email notifications, uncomment the following line and replace it with your valid email address:
+#destemail = your@email.com
+# Requirements:
+# 1. Make sure you have a mail server configured to send notifications.
+# 2. The system must have a mail service like `sendmail`, `postfix`, or `msmtp` configured to send the emails.
+# 3. Ensure that the necessary mail ports (e.g., port 25 for SMTP) are not blocked by a firewall.
+
+[pam-generic]
+enabled = true
+port    = all
+filter  = pam-generic
+logpath = /var/log/auth.log
+
+# sshd
+[sshd]
+enabled = true
+port = ssh
+filter = sshd
+logpath = /var/log/auth.log
+
+# apache - authentication failed
+[apache-auth]
+enabled = true
+port     = http,https
+logpath  = /var/log/apache2/error.log
+filter   = apache-auth
+
+# apache - malicious bots
+[apache-badbots]
+enabled = true
+port     = http,https
+logpath  = /var/log/apache2/access.log
+maxretry = 1
+filter   = apache-badbots
+
+# apache - malicious scripts
+[apache-noscript]
+enabled = true
+port     = http,https
+logpath  = /var/log/apache2/error.log
+filter   = apache-noscript
+
+# apache - buffer overflow
+[apache-overflows]
+enabled = true
+port     = http,https
+logpath  = /var/log/apache2/error.log 
+maxretry = 2
+filter   = apache-overflows
+
+# apache - protected directories
+[apache-nohome]
+enabled = true
+port     = http,https
+logpath  = /var/log/apache2/error.log
+maxretry = 2
+filter   = apache-nohome
+
+# apache - bots searching for specific vulnerabilities
+[apache-botsearch]
+enabled = true
+port     = http,https
+logpath  = /var/log/apache2/error.log 
+maxretry = 2
+filter   = apache-botsearch
+
+# apache - fake googlebot
+[apache-fakegooglebot]
+enabled = true
+port     = http,https
+logpath  = /var/log/apache2/error.log
+maxretry = 1
+ignorecommand = %(fail2ban_confpath)s/filter.d/ignorecommands/apache-fakegooglebot <ip>
+filter   = apache-fakegooglebot
+
+# apache - ModSecurity related attacks
+[apache-modsecurity]
+enabled = true
+port     = http,https
+logpath  = /var/log/apache2/error.log
+maxretry = 2
+filter   = apache-modsecurity
+
+# apache - shellshock attacks
+[apache-shellshock]
+enabled = true
+port     = http,https
+logpath  = /var/log/apache2/error.log
+maxretry = 1
+filter   = apache-shellshock
+
+# squid
+[squid]
+enabled = true
+port     = 80,443,3128,8080
+logpath  = /var/log/squid/access.log
+filter   = squid
+
+# webmin
+[webmin-auth]
+enabled = true
+port     = 10000
+logpath  = /var/log/auth.log
+backend  = auto
+filter   = webmin-auth
+
+# cockpit
+[cockpit]
+enabled  = true
+port     = 9090
+logpath = /var/log/fail2ban.log
+backend  = systemd
+filter   = cockpit

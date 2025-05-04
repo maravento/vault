@@ -1,5 +1,5 @@
 @echo off
-:: by maravento.com
+:: maravento.com
 
 :: script to boot PC in mode: safe with network/safe minimal/normal
 :: for win 7/8/10/11

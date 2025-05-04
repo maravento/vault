@@ -1,5 +1,5 @@
 @echo off
-:: by maravento.com
+:: maravento.com
 
 :: Force reset proxy and network interfaces
 :: for win 7/8/10/11

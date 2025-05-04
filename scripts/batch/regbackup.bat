@@ -1,5 +1,5 @@
 @echo off
-:: by maravento.com
+:: maravento.com
 
 :: Script to Regedit Backup
 :: for win 7/10/11

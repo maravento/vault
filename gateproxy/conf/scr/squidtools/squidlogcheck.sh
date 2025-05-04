@@ -1,5 +1,5 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
 # Squid Cache Log Audit: Regular Expressions Check
 

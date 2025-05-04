@@ -21,7 +21,7 @@
 
 ```bash
 sudo apt install -y python-is-python3
-wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
 chmod +x gitfolderdl.py
 python gitfolderdl.py https://github.com/maravento/vault/dofi
 ```
@@ -93,7 +93,7 @@ Ubuntu 22.04/24.04 x64
 </table>
 
 ```bash
-wget https://raw.githubusercontent.com/maravento/vault/master/dofi/domfilter.py
+wget -qO domfilter.py https://raw.githubusercontent.com/maravento/vault/master/dofi/domfilter.py
 python domfilter.py --input mylst.txt
 ```
 
@@ -146,7 +146,7 @@ ccTLDs, gTLDs, sTLDs, eTLDs, and 4LDs (file: `tlds.txt`)
 #### Using Bash Script
 
 ```bash
-wget https://raw.githubusercontent.com/maravento/vault/master/dofi/domcheck.sh
+wget -qO domcheck.sh https://raw.githubusercontent.com/maravento/vault/master/dofi/domcheck.sh
 chmod +x domcheck.sh
 ./domcheck.sh my_domain_list.txt
 ```

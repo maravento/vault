@@ -1,5 +1,5 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
 # Squid Log Audit: Filtering IP and Words
 

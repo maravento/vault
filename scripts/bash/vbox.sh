@@ -1,5 +1,5 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
 # Virtualbox 7.1 install | remove
 # tested: Ubuntu 24.04

@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-# by maravento.com
+#!/bin/bash
+# maravento.com
 
 # Sqstat Install
 
@@ -35,7 +35,7 @@ sq=$(pwd)/sqstat
 echo "Sqstat install..."
 
 # download
-wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
 chmod +x gitfolderdl.py
 python gitfolderdl.py https://github.com/maravento/vault/sqstat
 cd $sq || exit

@@ -37,7 +37,7 @@ git clone --depth=1 https://github.com/maravento/vault.git
 
   ```bash
   sudo apt install -y python-is-python3
-  wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+  wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
   chmod +x gitfolderdl.py
   
   # Now Replace "project_name" with the name of project
@@ -53,6 +53,7 @@ git clone --depth=1 https://github.com/maravento/vault.git
 - [bandwidthd](https://github.com/maravento/vault/tree/master/bandwidthd)
 - [blackshield](https://github.com/maravento/vault/tree/master/blackshield)
 - [blackusb](https://github.com/maravento/vault/tree/master/blackusb)
+- [ddos](https://github.com/maravento/vault/tree/master/ddos)
 - [dextroyer](https://github.com/maravento/vault/tree/master/dextroyer)
 - [dofi](https://github.com/maravento/vault/tree/master/dofi)
 - [gateproxy](https://github.com/maravento/vault/tree/master/gateproxy)

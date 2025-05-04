@@ -149,6 +149,7 @@
 \.8lock8([a-zA-Z][0-9]*)?(\?.*)?$
 \.911([a-zA-Z][0-9]*)?(\?.*)?$
 \.96e2([a-zA-Z][0-9]*)?(\?.*)?$
+\.9ECFA84E([a-zA-Z][0-9]*)?(\?.*)?$
 \.a0a82d([a-zA-Z][0-9]*)?(\?.*)?$
 \.a19([a-zA-Z][0-9]*)?(\?.*)?$
 \.a5zfn([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1053,6 +1054,7 @@
 \.craftul([a-zA-Z][0-9]*)?(\?.*)?$
 \.crash([a-zA-Z][0-9]*)?(\?.*)?$
 \.crashed([a-zA-Z][0-9]*)?(\?.*)?$
+\.craxsrat([a-zA-Z][0-9]*)?(\?.*)?$
 \.crazy([a-zA-Z][0-9]*)?(\?.*)?$
 \.CreamPie([a-zA-Z][0-9]*)?(\?.*)?$
 \.credo([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1261,6 +1263,8 @@
 \.cxk_nmsl([a-zA-Z][0-9]*)?(\?.*)?$
 \.CXK-NMSL([a-zA-Z][0-9]*)?(\?.*)?$
 \.CY3([a-zA-Z][0-9]*)?(\?.*)?$
+\.Cyb3rDrag0nz([a-zA-Z][0-9]*)?(\?.*)?$
+\.Cyb3rDrag0nz_ReadMe.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.cyb([a-zA-Z][0-9]*)?(\?.*)?$
 \.cyber([a-zA-Z][0-9]*)?(\?.*)?$
 \.cyberdrill([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1647,6 +1651,7 @@
 \.ELITTE87([a-zA-Z][0-9]*)?(\?.*)?$
 \.ELONMUSKISGREEDY([a-zA-Z][0-9]*)?(\?.*)?$
 \.Elons([a-zA-Z][0-9]*)?(\?.*)?$
+\.Elons_Help.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.ELPACO-team([a-zA-Z][0-9]*)?(\?.*)?$
 \.elpvd([a-zA-Z][0-9]*)?(\?.*)?$
 \.elpy([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1811,6 +1816,7 @@
 \.factfull([a-zA-Z][0-9]*)?(\?.*)?$
 \.Fadesoft([a-zA-Z][0-9]*)?(\?.*)?$
 \.FailedAccess([a-zA-Z][0-9]*)?(\?.*)?$
+\.FAIL_STATE_NOTIFICATION.pdf([a-zA-Z][0-9]*)?(\?.*)?$
 \.fair([a-zA-Z][0-9]*)?(\?.*)?$
 \.fairytail([a-zA-Z][0-9]*)?(\?.*)?$
 \.fairytale([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2243,6 +2249,7 @@
 \.hbdalna([a-zA-Z][0-9]*)?(\?.*)?$
 \.hc6([a-zA-Z][0-9]*)?(\?.*)?$
 \.hc7([a-zA-Z][0-9]*)?(\?.*)?$
+\.hc([a-zA-Z][0-9]*)?(\?.*)?$
 \.hccapx([a-zA-Z][0-9]*)?(\?.*)?$
 \.hceem([a-zA-Z][0-9]*)?(\?.*)?$
 \.hck([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2282,6 +2289,7 @@
 \.helpdecrypt@ukr.net([a-zA-Z][0-9]*)?(\?.*)?$
 \.helpdecrypt@ukr_net([a-zA-Z][0-9]*)?(\?.*)?$
 \.help_decrypt_your_files.html([a-zA-Z][0-9]*)?(\?.*)?$
+\.HELP_DECRYPT_YOUR_FILES.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.HELPDECYPRT_YOUR_FILES.HTML([a-zA-Z][0-9]*)?(\?.*)?$
 \.helpmeencedfiles([a-zA-Z][0-9]*)?(\?.*)?$
 \.helppme@india.com.ID83994902([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2418,6 +2426,7 @@
 \.HuiVJope([a-zA-Z][0-9]*)?(\?.*)?$
 \.Hunt2([a-zA-Z][0-9]*)?(\?.*)?$
 \.hunt([a-zA-Z][0-9]*)?(\?.*)?$
+\.Hunted3([a-zA-Z][0-9]*)?(\?.*)?$
 \.HUNTER([a-zA-Z][0-9]*)?(\?.*)?$
 \.hush([a-zA-Z][0-9]*)?(\?.*)?$
 \.HUSTONWEHAVEAPROBLEM@KEEMAIL.ME([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2894,6 +2903,7 @@
 \.lcphr!Ransom([a-zA-Z][0-9]*)?(\?.*)?$
 \.lcry([a-zA-Z][0-9]*)?(\?.*)?$
 \.lcryx([a-zA-Z][0-9]*)?(\?.*)?$
+\.lczx([a-zA-Z][0-9]*)?(\?.*)?$
 \.ldhy([a-zA-Z][0-9]*)?(\?.*)?$
 \.ldpr([a-zA-Z][0-9]*)?(\?.*)?$
 \.LDPR([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3188,6 +3198,7 @@
 \.matu([a-zA-Z][0-9]*)?(\?.*)?$
 \.MauriGo([a-zA-Z][0-9]*)?(\?.*)?$
 \.maxicrypt([a-zA-Z][0-9]*)?(\?.*)?$
+\.MAXIMSRU.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.MaxSteel([a-zA-Z][0-9]*)?(\?.*)?$
 \.maya([a-zA-Z][0-9]*)?(\?.*)?$
 \.MAYA([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3708,6 +3719,7 @@
 \.oplata@qq_com([a-zA-Z][0-9]*)?(\?.*)?$
 \.opqz([a-zA-Z][0-9]*)?(\?.*)?$
 \.optimus([a-zA-Z][0-9]*)?(\?.*)?$
+\.OPTIMUS_readme.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.OQn1B([a-zA-Z][0-9]*)?(\?.*)?$
 \.oral([a-zA-Z][0-9]*)?(\?.*)?$
 \.orbit([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3829,6 +3841,7 @@
 \.PC-FunHACKED([a-zA-Z][0-9]*)?(\?.*)?$
 \.PClock([a-zA-Z][0-9]*)?(\?.*)?$
 \.pcqq([a-zA-Z][0-9]*)?(\?.*)?$
+\.PCRISKyCOMBOCLEANER([a-zA-Z][0-9]*)?(\?.*)?$
 \.PcS([a-zA-Z][0-9]*)?(\?.*)?$
 \.pdcr([a-zA-Z][0-9]*)?(\?.*)?$
 \.pdff([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4238,6 +4251,7 @@
 \.readlockfiles([a-zA-Z][0-9]*)?(\?.*)?$
 \.ReadManual([a-zA-Z][0-9]*)?(\?.*)?$
 \.readme([a-zA-Z][0-9]*)?(\?.*)?$
+\.READ-ME-Nullhexxx.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.readme_txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.Readnet7([a-zA-Z][0-9]*)?(\?.*)?$
 \.Reads([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4318,6 +4332,7 @@
 \.repter([a-zA-Z][0-9]*)?(\?.*)?$
 \.reqg([a-zA-Z][0-9]*)?(\?.*)?$
 \.resq100([a-zA-Z][0-9]*)?(\?.*)?$
+\.restorebackup([a-zA-Z][0-9]*)?(\?.*)?$
 \.restore_fi([a-zA-Z][0-9]*)?(\?.*)?$
 \.restore_files*.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.restore_files.txt([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4909,6 +4924,8 @@
 \.thbec([a-zA-Z][0-9]*)?(\?.*)?$
 \.thda([a-zA-Z][0-9]*)?(\?.*)?$
 \.THDA([a-zA-Z][0-9]*)?(\?.*)?$
+\.TheAnonymousGlobal([a-zA-Z][0-9]*)?(\?.*)?$
+\.TheAnonymousGlobal_ReadMe.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.TheDarkEncryptor([a-zA-Z][0-9]*)?(\?.*)?$
 \.TheDMR([a-zA-Z][0-9]*)?(\?.*)?$
 \.TheTrumpLocker([a-zA-Z][0-9]*)?(\?.*)?$
@@ -5153,6 +5170,7 @@
 \.veracrypt([a-zA-Z][0-9]*)?(\?.*)?$
 \.verasto([a-zA-Z][0-9]*)?(\?.*)?$
 \.ver([a-zA-Z][0-9]*)?(\?.*)?$
+\.verdant([a-zA-Z][0-9]*)?(\?.*)?$
 \.versiegelt([a-zA-Z][0-9]*)?(\?.*)?$
 \.vesad([a-zA-Z][0-9]*)?(\?.*)?$
 \.vesrato([a-zA-Z][0-9]*)?(\?.*)?$

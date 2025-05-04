@@ -127,9 +127,9 @@ Cruzer Blade
 
 ### Data Sheet (For Windows)
 
-|File|OS|Size|
-|----|--|----|
-|[blackusb.exe (.zip)](https://raw.githubusercontent.com/maravento/vault/master/blackusb/win/blackusb.zip)|Windows 10/11 x86 x64|4,3 MB|
+| File | OS | Size |
+| :---: | :---: | :---: |
+| [blackusb.exe (.zip)](https://raw.githubusercontent.com/maravento/vault/master/blackusb/win/blackusb.zip) | Windows 10/11 x86 x64 | 4,3 MB |
 
 ### How To Use (For Windows)
 

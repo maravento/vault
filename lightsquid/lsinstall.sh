@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-# by maravento.com
+#!/bin/bash
+# maravento.com
 
 # Lightsquid install
 
@@ -35,7 +35,7 @@ if [ ! -d $scr ]; then mkdir -p $scr; fi &>/dev/null
 
 echo "Lightsquid install..."
 
-wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
 chmod +x gitfolderdl.py
 python gitfolderdl.py https://github.com/maravento/vault/lightsquid
 cd $ls || exit

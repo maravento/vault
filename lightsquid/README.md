@@ -21,7 +21,7 @@
 
 ```bash
 sudo apt install -y python-is-python3
-wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
 chmod +x gitfolderdl.py
 python gitfolderdl.py https://github.com/maravento/vault/lightsquid
 ```
@@ -30,9 +30,9 @@ python gitfolderdl.py https://github.com/maravento/vault/lightsquid
 
 ---
 
-| Last Official Version | Unofficial Update | Theme | HowTo | Teste on |
-| :-------------------: | :---------------: | :---: | :---: | :------: |
-| [v1.8-7 (2009)](https://lightsquid.sourceforge.net/) | [v1.8.1 (2021)](https://github.com/finisky/lightsquid-1.8.1) | [Metro (2020)](https://www.sysadminsdecuba.com/2020/09/lightsquid/) | [Post (SP-ES)](https://www.maravento.com/2022/10/lightsquid.html) | Ubuntu 22.04 LTS x64 |
+| Last Official Version | Unofficial Update | Theme | HowTo |
+| :---: | :---: | :---: | :---: |
+| [v1.8-7 (2009)](https://lightsquid.sourceforge.net/) | [v1.8.1 (2021)](https://github.com/finisky/lightsquid-1.8.1) | [Metro (2020)](https://www.sysadminsdecuba.com/2020/09/lightsquid/) | [Post (SP-ES)](https://www.maravento.com/2022/10/lightsquid.html) |
 
 ### Important Before Using
 
@@ -53,6 +53,14 @@ python gitfolderdl.py https://github.com/maravento/vault/lightsquid
      - Este proyecto no es una versión de Nueva Generación (NG). Es un fork de la versión no oficial <a href="https://github.com/finisky/lightsquid-1.8.1" target="_blank">v1.8.1</a>, actualizado con <a href="https://github.com/finisky/lightsquid-1.8.1/issues/1" target="_blank">correcciones</a>.
     </td>
   </tr>
+    <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     - Tested on Ubuntu 22.04/24.04
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     - Probado en Ubuntu 22.04/24.04
+    </td>
+  </tr>
 </table>
 
 ## HOW TO INSTALL
@@ -71,7 +79,7 @@ wget -c https://raw.githubusercontent.com/maravento/vault/master/lightsquid/lsin
 
 [http://localhost/lightsquid/index.cgi](http://localhost/lightsquid/index.cgi)
 
-[![Image](https://raw.githubusercontent.com/maravento/vault/master/lightsquid/lightsquid.png)](https://www.maravento.com/)
+[![Image](https://raw.githubusercontent.com/maravento/vault/master/lightsquid/img/lightsquid.png)](https://www.maravento.com/)
 
 ### Crontab
 
@@ -96,16 +104,28 @@ wget -c https://raw.githubusercontent.com/maravento/vault/master/lightsquid/lsin
 <table width="100%">
   <tr>
     <td style="width: 50%; white-space: nowrap;">
-     To scan your users, choose your network range. e.g.:
+     To scan devices on your local network, choose any of these commands and your network's IP range. e.g.:
     </td>
     <td style="width: 50%; white-space: nowrap;">
-     Para escanear sus usuarios, elija su rango de red. ej:
+     Para escanear los dispositivos de su red local, elija cualquiera de estos comandos y el rango de IP de su red. ej:
     </td>
   </tr>
 </table>
 
 ```bash
+# Install required tools
+sudo apt install -y nbtscan nmap arp-scan nast sudo netdiscover
+# Run the following commands to scan your local network:
+# 1. Using nbtscan
 sudo nbtscan 192.168.1.0/24
+# 2. Using nmap
+sudo nmap -sn 192.168.1.0/24
+# 3. Using arp-scan
+sudo arp-scan --localnet
+# 4. Using nast
+sudo nast -m
+# 5. Using netdiscover
+sudo netdiscover
 ```
 
 ### Parameters

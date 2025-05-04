@@ -1,5 +1,5 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
 # File Extensions Report
 # source: https://askubuntu.com/questions/844711/how-can-i-find-all-video-files-on-my-system

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# by maravento.com
+# maravento.com
 
 # Gateproxy
 # A simple proxy/firewall server
@@ -55,8 +55,8 @@ lang_17=("Enter" "Introduzca")
 lang_18=("You have entered" "Ha introducido")
 lang_19=("Do you want to change?" "Desea modificar?")
 lang_20=("Do you want to install" "Desea instalar")
-lang_21=("with SHARE folder, Recycle Bin and Audit" "con carpeta COMPARTIDA, Papelera Reciclaje y Auditoria")
-lang_22=("share" "compartida")
+lang_21=("with SHARED folder, Recycle Bin and Audit" "con carpeta COMPARTIDA, Papelera Reciclaje y Auditoria")
+lang_22=("shared" "compartida")
 lang_23=("the name of samba user" "el nombre del usuario de samba")
 lang_24=("Done. Press ENTER to Reboot" "Terminado. Presione ENTER para Reiniciar")
 lang_25=("e.g." "e.j.")
@@ -170,7 +170,7 @@ echo "${lang_08[${en}]}"
 ### GATEPROXY GIT
 echo -e "\n"
 if [ -d $gp ]; then rm -rf $gp; fi &>/dev/null
-wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
 chmod +x gitfolderdl.py
 python gitfolderdl.py https://github.com/maravento/vault/gateproxy
 
@@ -410,21 +410,19 @@ echo -e "\n"
 function essential_setup() {
     echo "Essential Packages..."
     # Disk Tools
-    nala install -y gparted libfuse2t64 nfs-common ntfs-3g exfat-fuse gsmartcontrol qdirstat libguestfs-tools gvfs-fuse
+    nala install -y gparted libfuse2t64 nfs-common ntfs-3g exfat-fuse gsmartcontrol qdirstat libguestfs-tools gvfs-fuse bindfs udisks2-btrfs
     nala install -y --no-install-recommends smartmontools
     # Sys Tools
-    nala install -y trash-cli pm-utils neofetch cpu-x lsof inotify-tools dmidecode idle3 wmctrl pv dpkg ppa-purge deborphan apt-utils gawk gir1.2-gtop-2.0 finger logrotate tree uuid-dev libmnl-dev gtkhash moreutils rename renameutils sharutils dos2unix gdebi synaptic preload xsltproc debconf-utils mokutil libssl-dev libffi-dev python3-dev python3-venv libpam0g-dev autoconf autoconf-archive autogen automake dh-autoreconf pkg-config linux-firmware util-linux linux-tools-common build-essential module-assistant linux-headers-$(uname -r)
+    nala install -y trash-cli pm-utils neofetch cpu-x lsof inotify-tools dmidecode idle3 wmctrl pv dpkg ppa-purge deborphan apt-utils gawk gir1.2-gtop-2.0 finger logrotate tree uuid-dev libmnl-dev gtkhash moreutils rename renameutils sharutils dos2unix gdebi synaptic preload xsltproc debconf-utils mokutil libssl-dev libffi-dev python3-dev python3-venv libpam0g-dev autoconf autoconf-archive autogen automake dh-autoreconf pkg-config libpcap-dev libasound2-dev libfontconfig1 clang linux-firmware util-linux linux-tools-common build-essential module-assistant linux-headers-$(uname -r)
     # Net/Geo/Web Tools
     nala install -y conntrack i2c-tools wget bind9-dnsutils geoip-database wsdd
     # Dev Tools
     nala install -y javascript-common libjs-jquery rubygems-integration rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit python3-pip python3-psutil
-    # mesa (if there any problems, install the package: libegl-mesa0)
+    # Mesa (if there any problems, install the package: libegl-mesa0)
     nala install -y mesa-utils
     # file tools
     nala install -y reiserfsprogs reiser4progs xfsprogs jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools quota sshfs lvm2 attr jmtpfs
-    # Optional: Running a .desktop file in the terminal. e.g.: dex foo.desktop
-    nala install -y dex
-    # Optional: mail
+    # Mail
     service sendmail stop >/dev/null 2>&1
     update-rc.d -f sendmail remove >/dev/null 2>&1
     DEBIAN_FRONTEND=noninteractive nala install -y postfix
@@ -479,8 +477,8 @@ function gateproxy_setup() {
     fi &>/dev/null
     chown -R proxy:proxy /var/log/squid
     systemctl enable squid.service
-    # Let’s Encrypt certificate for client to Squid proxy encryption
-    nala install -y certbot
+    # Let’s Encrypt certificate for client to Squid proxy encryption (Optional)
+    #nala install -y certbot python3-certbot-apache
     # Web Admin: webmin
     curl -o setup-repos.sh https://raw.githubusercontent.com/webmin/webmin/master/setup-repos.sh
     chmod +x setup-repos.sh
@@ -511,9 +509,21 @@ function gateproxy_setup() {
     systemctl daemon-reload
     systemctl start glances.service
     echo "Glances Access: http://localhost:61208"
-    # Net Tools: nbtscan, nmap, wireless-tools, etc
-    nala install -y libpcap-dev libasound2-dev libfontconfig1 clang
-    nala install -y nbtscan nmap python3-nmap ndiff wireless-tools ncat nast netdiscover traceroute arp-scan masscan grepcidr fping mtr-tiny ethtool zenmap
+    # Net Tools
+    nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
+    nala install -y fping              # Net diagnostics: fping -a -g 192.168.1.0/24
+    nala install -y ethtool            # Net config: sudo ethtool eth0
+    # Net Scanning
+    nala install -y masscan            # sudo masscan --ports 0-65535 192.168.0.0/16
+    nala install -y nbtscan            # sudo nbtscan 192.168.1.0/24
+    nala install -y nast               # sudo nast -m
+    nala install -y arp-scan           # sudo arp-scan --localnet
+    nala install -y netdiscover        # sudo netdiscover
+    # Nmap
+    nala install -y nmap python3-nmap ndiff
+    # Domain/IP Scanning
+    nala install -y traceroute         # traceroute google.com
+    nala install -y mtr-tiny           # mtr google.com
     # Monitor: lightsquid
     nala install -y libcgi-session-perl libgd-gd2-perl
     tar -xf $gp/conf/monitor/lightsquid-1.8.1.tar.gz
@@ -560,20 +570,15 @@ function gateproxy_setup() {
     } | crontab -
     echo "Sarg Access: http://localhost:10300 or http://SERVER_IP:10300/"
     echo "Sarg Usernames: /etc/sarg/usertab (${lang_25[${en}]} 192.168.0.10 GATEPROXY)"
-    # Firewall Iptables Complement: ipset
-    nala install -y ipset
-    # Firewall Filter: ddos deflate
-    mkdir -p /usr/local/ddos
-    chown root:root /usr/local/ddos
-    tar -xzf $gp/conf/server/ddos.tar.gz
-    cp -f -R ddos/* /usr/local/ddos
-    chmod 0755 /usr/local/ddos/ddos.sh
-    crontab -l | {
-        cat
-        echo "0-59/1 * * * * /usr/local/ddos/ddos.sh &> /dev/null"
-    } | crontab -
-    echo "DDOS Deflate IPs Exclude: /usr/local/ddos/ignore"
-    echo "DDOS Deflate IPs Ban: /usr/local/ddos/ddos.log"
+    # Security
+    nala install -y ipset lynis fail2ban
+    cp $gp/conf/server/jail.local /etc/fail2ban/jail.local
+    cp $gp/conf/server/cockpit.conf /etc/fail2ban/filter.d/cockpit.conf
+    sed -i 's/^#\?allowipv6 *= *.*/allowipv6 = 0/' /etc/fail2ban/fail2ban.conf
+    systemctl enable fail2ban.service
+    echo "Check: sudo fail2ban-client status <jail_name>"
+    echo "Unban all: sudo fail2ban-client unban --all"
+    echo "Unban Jail: sudo fail2ban-client set <jail_name> unban --all"
     # Logs: ulog, rsyslog
     chown root:root /var/log
     nala install -y ulogd2
@@ -596,9 +601,11 @@ function gateproxy_setup() {
         cat
         echo "@weekly /etc/scr/ffsupdate.sh"
     } | crontab -
-    # Web Terminal: shellinabox
-    nala install -y shellinabox
+    # Terminal
+    nala install -y tilix shellinabox
     echo "Shellinabox Access: https://localhost:4200/"
+    # Terminal (Running a .desktop file. e.g.: dex foo.desktop)
+    nala install -y dex
 }
 gateproxy_setup
 echo OK
@@ -623,23 +630,25 @@ ${lang_21[${en}]} (y/n)" answer
         systemctl enable winbind.service
         fixbroken
         mkdir -p $(pwd)/"${lang_22[${en}]}"
-        chown -R nobody:nogroup $(pwd)/"${lang_22[${en}]}"
+        #chown -R nobody:nogroup $(pwd)/"${lang_22[${en}]}"
+        chown -R $local_user:$local_user $(pwd)/"${lang_22[${en}]}"
         chmod -R a+rwx $(pwd)/"${lang_22[${en}]}"
+        #chmod -t $(pwd)/"${lang_22[${en}]}"
         find $gp/conf/samba -type f -print0 | xargs -0 -I "{}" sed -i "s:compartida:${lang_22[${en}]}:g" "{}"
         if [ ! -d /var/lib/samba/usershares ]; then mkdir -p /var/lib/samba/usershares; fi
         chmod 1775 /var/lib/samba/usershares/
         chmod +t /var/lib/samba/usershares/
         if [ ! -d /var/log/samba ]; then mkdir -p /var/log/samba; fi
-        touch /var/log/samba/audit.log
-        mkdir -p /var/www/smbaudit
-        touch /var/www/smbaudit/audit.log
-        cp -f $gp/conf/samba/smbaudit.conf /etc/apache2/sites-available/smbaudit.conf
-        a2ensite -q smbaudit.conf
+        sed -i 's/ \$SMBDOPTIONS//' /lib/systemd/system/smbd.service
+        sed -i 's/ \$NMBDOPTIONS//' /lib/systemd/system/nmbd.service
+        chown root:adm /var/log/samba/log.{samba,audit}
+        chmod 640 /var/log/samba/log.{samba,audit}
+        usermod -aG adm syslog
         cp -f /etc/logrotate.d/samba{,.bak} &>/dev/null
         cp -f $gp/conf/samba/samba /etc/logrotate.d/samba
         cp -f /etc/samba/smb.conf{,.bak} &>/dev/null
         cp -f $gp/conf/samba/smb.conf /etc/samba/smb.conf
-        cp -f $gp/conf/samba/libuser.conf /etc/libuser.conf
+        #cp -f $gp/conf/samba/libuser.conf /etc/libuser.conf
         chmod +x $gp/conf/samba/sambacron.sh
         $gp/conf/samba/sambacron.sh
         chmod +x $gp/conf/samba/sambaload.sh
@@ -653,17 +662,14 @@ ${lang_21[${en}]} (y/n)" answer
         cp -f /etc/rsyslog.conf{,.bak} &>/dev/null
         sed 's/^[^#]*\($FileOwner syslog\|$FileGroup adm\|$FileCreateMode 0640\|$FileCreateMode 0640\|$DirCreateMode 0755\|$Umask 0022\|$PrivDropToUser syslog\|$PrivDropToGroup syslog\)$/#\1/' -i /etc/rsyslog.conf
         cp -f /etc/rsyslog.d/50-default.conf{,.bak} &>/dev/null
-        # $PRI == 173 https://github.com/rsyslog/rsyslog/issues/5214
-        #sed -i '/# First some standard log files.  Log by facility./i # fullaudit rule\nif $PRI == 173 then {\n   /var/log/samba/audit.log\n stop\n}' /etc/rsyslog.d/50-default.conf
-        sed -i '/# First some standard log files.  Log by facility./i # fullaudit rule\nif ($programname == '\''smbd_audit'\'' and not ($msg contains '\''pam_unix'\'')) then {\n    action(type="omfile" file="/var/log/samba/audit.log")\n    stop\n} else {\n    # Ignores all other program names from writing to this log file\n    stop\n}' /etc/rsyslog.d/50-default.conf
+        sed -i "/# First some standard log files.  Log by facility./i # fullaudit\nif \$programname == 'smbd_audit' and not (\$msg contains 'pam_unix') then {\n    action(type=\"omfile\" file=\"/var/log/samba/log.audit\")\n    stop\n}" /etc/rsyslog.d/50-default.conf
         cp -f /etc/logrotate.d/rsyslog{,.bak} &>/dev/null
-        sed -i "/	sharedscripts/r $gp/conf/samba/smbrsyslog.txt" /etc/logrotate.d/rsyslog
+        sed -i '/sharedscripts/a \    create 0644 syslog adm' /etc/logrotate.d/rsyslog
         # state file /var/lib/logrotate/status is world-readable
         rm -f /var/lib/logrotate/status.lock
         chmod 640 /var/lib/logrotate/status
         chown root:root /var/lib/logrotate/status
-        echo "Samba Audit: http://localhost:10100/audit.log | http://SERVER_IP:10100/audit.log"
-        echo "Samba Log: /var/log/samba/audit.log"
+        echo "Samba Log: /var/log/samba/log.audit"
         echo "check smb.conf: testparm"
         break
         ;;
@@ -687,16 +693,22 @@ fixbroken
 ### ACLs
 echo -e "\n"
 echo "Downloading ACLs..."
-# Allow IP
+
+# Blackip Project: Allow IP
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O $aclroute/allowip.txt
-# Block TLDs
+
+# Blackshield Project: Block words
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/squid/blockwords.txt -O $aclroute/blockwords.txt
+# Blackshield Project: Veto Files
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/smb/vetofiles.txt -O $aclroute/vetofiles.txt
+
+# Blackweb Project: Block TLDs
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O $aclroute/blocktlds.txt
-# Block words
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blockwords.txt -O $aclroute/blockwords.txt
-# Blackweb
+# Blackweb Project: Blackweb
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/blackweb.tar.gz
 cat blackweb.tar.gz* | tar xzf -
 cp blackweb.txt $aclroute/blackweb.txt
+
 echo OK
 sleep 1
 
@@ -814,7 +826,6 @@ sleep 1
 echo -e "\n"
 echo "Create Apache Password: /var/www/..."
 echo -e "\n"
-#htpasswd -c /etc/apache2/.htpasswd "$USER"
 htpasswd -c /etc/apache2/.htpasswd "$local_user"
 apache2ctl configtest
 echo OK
@@ -874,6 +885,7 @@ rm -rfv $gp *tar.gz *.sh *.deb *.txt
 journalctl --rotate
 journalctl --vacuum-time=1s
 systemctl restart systemd-journald
+systemctl daemon-reexec
 systemctl daemon-reload
 #apt -qq -y remove --purge `deborphan --guess-all` # optional
 #dpkg -l | grep "^rc" | cut -d " " -f 3 | xargs dpkg --purge &> /dev/null # optional

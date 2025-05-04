@@ -1,5 +1,5 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
 # Ban IP
 
@@ -32,12 +32,12 @@ lan=eth1
 aclroute=/etc/acl
 # path to banip
 ban_ip="$aclroute/banip.txt"
-# ban_words option grep -F
-#ban_words=$(curl -s https://raw.githubusercontent.com/maravento/gateproxy/master/acl/ban_words.txt)
-# ban_words option grep -f
-ban_words="$aclroute/ban_words.txt"
+# ban_nflog option grep -f
+# Notice: 
+# If you add an iptables rule with NFLOG, you must add the message to the nflog.txt ACL
+ban_nflog="$aclroute/nflog.txt"
 # Create ACLs if doesn't exist
-if [[ ! -f {$ban_words,$ban_ip} ]]; then touch {$ban_words,$ban_ip}; fi
+if [[ ! -f {$ban_nflog,$ban_ip} ]]; then touch {$ban_nflog,$ban_ip}; fi
 # DEBUG IP
 reorganize="sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n"
 
@@ -50,8 +50,8 @@ bantime="86400"
 # localrange (replace "192.168.*" with the first two octets of your local network range)
 localrange="192.168.*"
 # add matches to ban_ip
-# change option path (for local: grep -f "$ban_words") (for curl: grep -F "$ban_words")
-perl -MDate::Parse -ne "print if/^(.{15})\s/&&str2time(\$1)>time-$bantime" "$syslogemu" | grep -f "$ban_words" | grep -Pio 'src=[^\s]+' | grep -Po "$localrange" >"$ban_ip"
+# change option path (for local: grep -f "$ban_nflog") (for curl: grep -F "$ban_nflog")
+perl -MDate::Parse -ne "print if/^(.{15})\s/&&str2time(\$1)>time-$bantime" "$syslogemu" | grep -f "$ban_nflog" | grep -Pio 'src=[^\s]+' | grep -Po "$localrange" >"$ban_ip"
 
 ### IPSET/IPTABLES FOR BANIP
 $ipset -L banip >/dev/null 2>&1

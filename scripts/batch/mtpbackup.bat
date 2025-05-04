@@ -1,5 +1,5 @@
 @echo off
-:: by maravento.com
+:: maravento.com
 
 :: Thunderbird Email Profiles Backup
 :: for win 10/11

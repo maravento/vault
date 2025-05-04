@@ -1,5 +1,5 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
 # Unifi Hotspot Client Access via Linux Server with Iptables
 

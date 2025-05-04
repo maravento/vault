@@ -1,5 +1,5 @@
 @echo off
-:: by maravento.com
+:: maravento.com
 
 :: Script to Disable or Auto Non-Essential Services
 :: for win 10/11

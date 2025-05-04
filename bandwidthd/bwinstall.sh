@@ -1,5 +1,5 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
 # BandwidthD install
 
@@ -36,7 +36,7 @@ if [ ! -d $scr ]; then mkdir -p $scr; fi &>/dev/null
 echo "BandwidthD install..."
 
 # download
-wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
 chmod +x gitfolderdl.py
 python gitfolderdl.py https://github.com/maravento/vault/bandwidthd
 cd $bwd || exit

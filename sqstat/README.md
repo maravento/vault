@@ -21,7 +21,7 @@
 
 ```bash
 sudo apt install -y python-is-python3
-wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
 chmod +x gitfolderdl.py
 python gitfolderdl.py https://github.com/maravento/vault/sqstat
 ```
@@ -32,7 +32,7 @@ python gitfolderdl.py https://github.com/maravento/vault/sqstat
 
 | Developer | Last Version | HowTo | Tested On |
 | :---: | :---: | :---: | :---: |
-| [Alex Samorukov](https://samm.kiev.ua/sqstat/) | [v1.20 (2006)](https://sourceforge.net/projects/sqstat/files/) | [Post (ESP)](https://www.maravento.com/2014/03/network-monitor.html) | Ubuntu 22.04 LTS x64, Squid v5.2|
+| [Alex Samorukov](https://samm.kiev.ua/sqstat/) | [v1.20 (2006)](https://sourceforge.net/projects/sqstat/files/) | [Post (ESP)](https://www.maravento.com/2014/03/network-monitor.html) | Ubuntu 22.04 LTS x64, Squid v5.2 |
 
 ### Important before using
 

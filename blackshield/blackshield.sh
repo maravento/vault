@@ -1,5 +1,5 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
 # BlackShield
 # File Extensions/Patterns/User-Agents/Hex-String to Block
@@ -19,6 +19,7 @@ fi
 
 ### VARIABLES
 wgetd='wget -q -c --no-check-certificate --retry-connrefused --timeout=10 --tries=4'
+output=
 
 # Bad User-Agents
 $wgetd bad-user-agents.list "https://raw.githubusercontent.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker/refs/heads/master/_generator_lists/bad-user-agents.list"
@@ -51,8 +52,8 @@ cat acl/squid/{output_lst,debug_lst}.txt | sed -E 's/^\*\.\?//; s/^/\\./; s/(.*)
 echo "Ransomware ACL for Squid: rwext.txt"
 
 # For Samba Veto Files
-echo "veto files = $(cat acl/squid/{output_lst,debug_lst}.txt | sed 's/^/*./' | paste -sd '' - | sed 's/*/\/&/g; s/$/\//' | sort -u)" > acl/smb/vetofiles.txt
-echo "RansomwareACL for Samba: vetofiles.txt"
+echo "veto files = $(cat acl/squid/{output_lst,debug_lst}.txt | sed 's/^/*./' | paste -sd '' - | sed 's/*/\/&/g; s/$/\//' | sort -u)" > acl/smb/ransom_veto.txt
+echo "RansomwareACL for Samba: ransom_veto.txt"
 
 rm -f acl/squid/{output_lst,debug_lst}.txt
 

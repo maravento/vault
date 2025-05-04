@@ -11,7 +11,7 @@
 # Description:       Enable service provided by daemon
 ### END INIT INFO
 
-# by maravento.com
+# maravento.com
 
 # Bandata for LightSquid
 # Data Plan for LocalNet

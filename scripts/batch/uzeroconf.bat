@@ -1,5 +1,5 @@
 @echo off
-:: by maravento.com
+:: maravento.com
 
 :: Uniform Server Config
 :: Tested  v15_0_2_ZeroXV

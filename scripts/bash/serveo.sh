@@ -1,5 +1,5 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
 # Serveo tunnel start | stop | status
 # https://serveo.net/

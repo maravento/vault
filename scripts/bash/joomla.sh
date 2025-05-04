@@ -1,5 +1,5 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
 # Joomla install | remove
 # Included: Apache/MySQL/PHP/mkcert
@@ -101,7 +101,30 @@ EOF
     fi
 
     # Joomla
-    wget https://downloads.joomla.org/co/cms/joomla5/5-2-6/Joomla_5-2-6-Stable-Full_Package.zip -O joomla.zip
+    echo "Searching for the latest Joomla version..."
+    LATEST_VERSION=$(curl -s "https://api.github.com/repos/joomla/joomla-cms/releases/latest" | grep -oP '"tag_name": "\K[0-9.]+')
+
+    if [ -z "$LATEST_VERSION" ]; then
+        LATEST_VERSION=$(curl -s "https://downloads.joomla.org/" | grep -oP 'Joomla_\d+\.\d+\.\d+-Stable-Full_Package\.zip' | sort -V | tail -n 1 | grep -oP '\d+\.\d+\.\d+')
+        if [ -z "$LATEST_VERSION" ]; then
+            echo "Could not determine the latest Joomla version."
+            exit 1
+        fi
+    fi
+
+    echo "Latest version found: $LATEST_VERSION"
+
+    DOWNLOAD_URL="https://update.joomla.org/releases/$LATEST_VERSION/Joomla_$LATEST_VERSION-Stable-Full_Package.zip"
+    echo "Downloading from: $DOWNLOAD_URL"
+    curl -L -o joomla.zip "$DOWNLOAD_URL"
+
+    if [ $? -eq 0 ]; then
+        echo "Download completed: joomla.zip"
+    else
+        echo "Error downloading Joomla."
+        exit 1
+    fi
+
     mkdir -p /var/www/html/joomla
     unzip joomla.zip -d /var/www/html/joomla
     chown -R www-data:www-data /var/www/html/joomla

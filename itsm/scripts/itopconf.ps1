@@ -1,7 +1,7 @@
 <#
 
 iTop - IT Service Management & CMDB - Config
-by maravento.com
+maravento.com
 
 Description:
 This script will allow access to iTop, by IP/Port.

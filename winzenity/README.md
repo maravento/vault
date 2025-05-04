@@ -19,9 +19,9 @@
 
 ---
 
-|Portable|Size|OS|Version|src|Help|
+| Portable | Size | OS | Version | Source | Help |
 | :---: | :---: | :---: | :---: | :---: |:---: |
-|[zenity.exe (.zip)](https://github.com/maravento/vault/raw/master/winzenity/zenity.zip) (Win32)|2 MB|Win XP/7/8/10|3.6|[src](https://github.com/maravento/vault/raw/master/winzenity/zenity-3.6.0_src.7z)|[Help](https://github.com/maravento/vault/raw/master/winzenity/zenityhelp.txt)|
+| [zenity.exe (.zip)](https://github.com/maravento/vault/raw/master/winzenity/zenity.zip) (Win32) | 2 MB | Win XP/7/8/10 | 3.6 | [src](https://github.com/maravento/vault/raw/master/winzenity/zenity-3.6.0_src.7z) | [Help](https://github.com/maravento/vault/raw/master/winzenity/zenityhelp.txt) |
 
 ## ORIGINAL PROJECT
 
@@ -29,7 +29,7 @@
 
 | Developers | Released |
 | :---: | :---: |
-| [Glynn Foster](glynn.foster@sun.com), [Lucas Rocha](lucasr@gnome.org)| 2013 |
+| [Glynn Foster](mailto:glynn.foster@sun.com), [Lucas Rocha](mailto:lucasr@gnome.org) | 2013 |
 
 ## REFERENCES
 

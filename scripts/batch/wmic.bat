@@ -1,5 +1,5 @@
 @echo off
-:: by maravento.com
+:: maravento.com
 
 :: WMIC Add/Remove
 :: For Windows 10/11

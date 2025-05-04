@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-# by maravento.com
+#!/bin/bash
+# maravento.com
 
 # UniOPOS No Java
 

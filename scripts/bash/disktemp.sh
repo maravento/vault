@@ -1,5 +1,5 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
 # Check temp HDD, SSD, NVME and send alert to desktop and syslog
 # Note: Not compatible with some storages hdd | ssd

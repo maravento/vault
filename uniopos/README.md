@@ -21,7 +21,7 @@
 
 ### Data Sheet
 
-|File|OS|Size|
+| File | OS | Size |
 | :---: | :---: | :---: |
 | [uniOPOS.exe (.zip)](https://mega.nz/file/vUUTXarT#w5UQlnc-KkzCIlqsBqmk6wjY6_r-zhAQEIxkYQO6Ov8) | Windows 7/8/10/11 x64 | 1.58 GB |
 

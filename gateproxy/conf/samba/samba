@@ -3,7 +3,7 @@
 	missingok
 	rotate 7
 	postrotate
-	    /etc/init.d/smbd reload > /dev/null
+	    systemctl reload smbd > /dev/null
 	endscript
 	compress
 	notifempty
@@ -13,19 +13,30 @@
 	missingok
 	rotate 7
 	postrotate
-	    reload nmbd 2>/dev/null
+	    systemctl reload nmbd 2>/dev/null || true
 	endscript
 	compress
 	notifempty
 }
 
-/var/log/samba/audit.log {
+/var/log/samba/log.audit {
 	weekly
 	missingok
 	rotate 7
 	postrotate
-	    reload rsyslog > /dev/null 2>&1 || true
+	    systemctl restart rsyslog > /dev/null 2>&1 || true
 	endscript
 	compress
 	notifempty
+}
+
+/var/log/samba/log.samba {
+    weekly
+    missingok
+    rotate 7
+    postrotate
+        systemctl reload smbd > /dev/null || true
+    endscript
+    compress
+    notifempty
 }

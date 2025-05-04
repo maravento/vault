@@ -19,9 +19,9 @@
 
 ---
 
-|File|OS|Size|
+| File | OS | Size |
 | :---: | :---: | :---: |
-|[trek.exe (.zip)](https://raw.githubusercontent.com/maravento/vault/master/trek/trek.zip)|Windows 7/10 x86 x64|3.6 MB|
+| [trek.exe (.zip)](https://raw.githubusercontent.com/maravento/vault/master/trek/trek.zip) | Windows 7/10 x86 x64 | 3.6 MB |
 
 ## HOW TO USE
 

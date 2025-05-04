@@ -21,9 +21,9 @@
 
 ---
 
-|Download|OS|Size|Unzip Password|
+| Download | OS | Size | Unzip Password |
 | :---: | :---: | :---: | :---: |
-|[Dextroyer.exe (.zip)](https://github.com/maravento/vault/raw/master/dextroyer/Dextroyer.zip)|Windows 7/8/10 x86 x64|13.4 MB|dextroyer|
+| [Dextroyer.exe (.zip)](https://github.com/maravento/vault/raw/master/dextroyer/Dextroyer.zip) | Windows 7/8/10 x86 x64 | 13.4 MB | dextroyer |
 
 ## HOW TO USE
 

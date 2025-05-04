@@ -1,5 +1,5 @@
 @echo off
-:: by maravento.com
+:: maravento.com
 
 :: UniFi Network Server Setup UNS + JRE as a Service
 :: For Windows 10/11

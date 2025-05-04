@@ -1,8 +1,7 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
-# WireGuard Install | Remove
-# tested: Ubuntu 24.04
+# WireGuard Install Server or Client | Uninstall
 
 echo "WireGuard Install | Remove Starting. Wait..."
 printf "\n"
@@ -15,12 +14,17 @@ fi
 
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
-    echo "Script $0 is already running..."
-    exit
+    for p in $(pidof -x $(basename $0)); do
+        if [ "$p" -ne $$ ]; then
+            echo "Script $0 is already running..."
+            exit
+        fi
+    done
 fi
 
-# Function to install WireGuard
-install_wireguard() {
+# Function to install WireGuard as Server
+install_wireguard_server() {
+  if ! command -v wg &> /dev/null; then
     # WireGuard Install
     apt update
     apt install -y wireguard wireguard-tools
@@ -79,15 +83,17 @@ install_wireguard() {
     cat > /etc/wireguard/wg0.conf << EOL
 [Interface]
 Address = 10.0.0.1/24
-SaveConfig = true
+#SaveConfig = true
 ListenPort = 51820
 PrivateKey = $SERVER_PRIVATE_KEY
-PostUp = iptables -I FORWARD -i %i -j ACCEPT; iptables -t nat -I POSTROUTING -o $public_eth -j MASQUERADE
-PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o $public_eth -j MASQUERADE
+PostUp = iptables -I FORWARD -i wg0 -j ACCEPT; iptables -t nat -I POSTROUTING -o $public_eth -j MASQUERADE
+PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o $public_eth -j MASQUERADE
 
-[Peer]
-PublicKey = $SERVER_PUBLIC_KEY
-AllowedIPs = 10.0.0.0/24
+# This is an example. Each client should add their own public key and IP address. 
+# Uncomment these lines for clients and replace the values
+#[Peer]
+# PublicKey = <Client's Public Key>
+# AllowedIPs = <Assigned Client IP>/32
 EOL
 
     # Permissions for files and keys
@@ -103,6 +109,9 @@ EOL
 
     # Enable WireGuard service
     systemctl enable wg-quick@wg0
+    
+    # port
+    ufw allow 51820/udp
 
     # show status
     wg show
@@ -111,7 +120,55 @@ EOL
     echo "WireGuard is already installed"
   fi
 }
-    
+
+# Function to install WireGuard as Client
+install_wireguard_client() {
+  if ! command -v wg &> /dev/null; then
+    # WireGuard Install
+    apt update
+    apt install -y wireguard wireguard-tools
+
+    # Generate private and public keys for the client
+    CLIENT_PRIVATE_KEY=$(wg genkey)
+    CLIENT_PUBLIC_KEY=$(echo "$CLIENT_PRIVATE_KEY" | wg pubkey)
+
+    # Configure the WireGuard configuration file with the generated keys
+    echo "[Interface]
+PrivateKey = $CLIENT_PRIVATE_KEY
+Address = <Client IP>/32
+# DNS = 8.8.8.8 # Optional
+
+[Peer]
+PublicKey = <Server's Public Key>
+Endpoint = <Server's Public IP>:51820 # Real IP
+AllowedIPs = 0.0.0.0/0, ::/0
+PersistentKeepalive = 25 # Optional" > /etc/wireguard/wg0.conf
+
+    # Permissions for files and keys
+    chmod 600 /etc/wireguard/wg0.conf
+
+    # Enable WireGuard service
+    systemctl enable wg-quick@wg0
+
+    # Show completion message
+    echo "WireGuard client installation complete."
+    echo
+    echo "Client's Private Key: $CLIENT_PRIVATE_KEY"
+    echo "Client's Public Key: $CLIENT_PUBLIC_KEY"
+    echo
+    echo "Please edit the following file and replace the placeholders:"
+    echo "/etc/wireguard/wg0.conf"
+    echo "  - Replace <Client IP>/32 with your assigned client IP (e.g., 10.0.0.2/32)."
+    echo "  - Replace <Client's Private Key> with the client's private key."
+    echo "  - Replace <Server's Public Key> with the server's public key."
+    echo "  - Replace <Server's Public IP:Port> with the server's IP address (e.g., 192.168.1.1:51820)."
+    echo "Once you have made the changes, start WireGuard with:"
+    echo "  sudo wg-quick up wg0"
+  else
+    echo "WireGuard is already installed"
+  fi
+}
+
 # WireGuard Uninstaller Feature
 uninstall_wireguard() {
   if command -v wg &> /dev/null; then
@@ -126,11 +183,11 @@ uninstall_wireguard() {
     # Uninstall packages
     apt purge -y wireguard wireguard-tools qrencode
 
-    # Delete configuration files and keys
-    rm -rf /etc/wireguard
-
     # Clean up unneeded packages
     apt autoremove -y
+    
+    # Delete configuration files and keys
+    rm -rf /etc/wireguard
 
     echo "WireGuard has been successfully uninstalled"
   else
@@ -140,18 +197,23 @@ uninstall_wireguard() {
 
 # Options
 echo "What action do you want to perform?"
-echo "1) Install Wireguard"
-echo "2) Uninstall Wireguard"
-read -p "Select an option (1 or 2): " option
+echo "1) Install WireGuard Server"
+echo "2) Install WireGuard Client"
+echo "3) Uninstall WireGuard"
+read -p "Select an option (1, 2 or 3): " option
 
 case $option in
   1)
-    install_wireguard
+    install_wireguard_server
     ;;
   2)
+    install_wireguard_client
+    ;;
+  3)
     uninstall_wireguard
     ;;
   *)
     echo "Invalid option"
     ;;
 esac
+

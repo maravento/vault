@@ -1,5 +1,5 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
 # phpvirtualbox install
 # https://www.maravento.com/2015/02/administrando-vms.html

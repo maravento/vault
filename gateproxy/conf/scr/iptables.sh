@@ -1,5 +1,5 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
 ## Iptables Firewall
 ## Verify: iptables -L -n / iptables -nvL / iptables -Ln -t mangle / iptables -Ln -t nat
@@ -270,6 +270,13 @@ done
 ## SECURITY RULES ##
 echo "Security Rules..."
 
+# Block BitTorrent (Experimental)
+bt=$(curl -s https://raw.githubusercontent.com/maravento/vault/master/blackshied/acl/ipt/torrent.txt)
+for string in $(echo -e "$bt" | sed -e '/^#/d' -e 's:#.*::g'); do
+    $iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo bm -j NFLOG --nflog-prefix 'torrent'
+    $iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo bm -j DROP
+done
+
 # Block UDP
 $iptables -A OUTPUT -p udp -j DROP
 
@@ -362,11 +369,11 @@ fi
 for blports in $(cat $aclroute/blockports.txt | sort -V -u); do
     $ipset -! add blockports $blports
 done
-$iptables -A INPUT -m set --match-set blockports src -j NFLOG --nflog-prefix 'blockports_input'
+$iptables -A INPUT -m set --match-set blockports src -j NFLOG --nflog-prefix 'blockports'
 $iptables -A INPUT -m set --match-set blockports src -j DROP
-$iptables -A FORWARD -m set --match-set blockports src,dst -j NFLOG --nflog-prefix 'blockports_forward'
+$iptables -A FORWARD -m set --match-set blockports src,dst -j NFLOG --nflog-prefix 'blockports'
 $iptables -A FORWARD -m set --match-set blockports src,dst -j DROP
-$iptables -A OUTPUT -m set --match-set blockports src,dst -j NFLOG --nflog-prefix 'blockports_output'
+$iptables -A OUTPUT -m set --match-set blockports src,dst -j NFLOG --nflog-prefix 'blockports'
 $iptables -A OUTPUT -m set --match-set blockports src,dst -j DROP
 
 ## ACL RULES ##

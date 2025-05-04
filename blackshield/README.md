@@ -29,7 +29,7 @@ bash samba squid iptables ulogd2 ipset perl
 
 ```bash
 sudo apt install -y python-is-python3
-wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
 chmod +x gitfolderdl.py
 python gitfolderdl.py https://github.com/maravento/vault/blackshield
 ```
@@ -130,17 +130,39 @@ http_access deny all
 <table width="100%">
   <tr>
     <td style="width: 50%; white-space: nowrap;">
-     Modify your <code>/etc/samba/smb.conf</code> file and add <code>bs_smb.txt</code>. It can be added to the <code>[global]</code> section or to a specific shared folder. This file will add the <code>veto files =</code> directive to block patterns and extensions in Samba. Example:
+     Modify your <code>/etc/samba/smb.conf</code> file and add the list to the </code>veto files</code> directive to block the patterns and extensions. e.g:
     </td>
     <td style="width: 50%; white-space: nowrap;">
-     Modifique su archivo <code>/etc/samba/smb.conf</code> y agregue <code>bs_smb.txt</code>. Puede ser agregado a la sección <code>[global]</code> o a una carpeta compartida específica. Este archivo agregará la directiva <code>veto files =</code> para bloquear los patrones y extensiones en Samba. Ejemplo:
+     Modifique su archivo <code>/etc/samba/smb.conf</code> y agregue la lista a la directiva </code>veto files</code> para bloquear los patrones y extensiones. ej:
     </td>
   </tr>
 </table>
 
 ```bash
+   include = /etc/acl/ransom_veto.txt
+   
+   # Optional (includes ransomware and common extensions):
    include = /etc/acl/vetofiles.txt
 ```
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+      Important:
+      <ul>
+        <li>You cannot include more than one list in <code>smb.conf</code> for the <code>veto files</code> directive.</li>
+        <li>Use the <code>acl/smb/merge_veto.sh</code> script to merge the <code>ransom_veto.txt</code> (updated with <code>blackshield.sh</code>) and <code>common_veto.txt</code> (static. You can add or remove extensions manually) lists.</li>
+      </ul>
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+      Importante:
+      <ul>
+        <li>No puede incluir más de una lista en <code>smb.conf</code> para la directiva <code>veto files</code>.</li>
+        <li>Use el script <code>acl/smb/merge_veto.sh</code> para unificar las listas <code>ransom_veto.txt</code> (se actualiza con <code>blackshield.sh</code>) y <code>common_veto.txt</code> (estática. Puede agregar o quitar extensiones manualmente).</li>
+      </ul>
+    </td>
+  </tr>
+</table>
 
 ### Iptables Rules (Not Recommended)
 

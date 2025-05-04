@@ -1,0 +1,1 @@
+veto files = /*.3gp/*.flv/*.mp3/*.mkv/*.mpeg/*.mpg/*.rmvb/*.wma/*.wmv/*.au3/*.bat/*.com/*.cmd/*.exe/*.js/*.py/*.sh/*.vbs/*.wsf/*.wsh/*.cfg/*.chm/._*/.DS_Store/*.reg/*SystemVolumeInformation/*.scr/*.sys/

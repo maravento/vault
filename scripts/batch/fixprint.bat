@@ -1,8 +1,8 @@
 @echo off
-REM by maravento.com
+:: maravento.com
 
-REM FixPrint
-REM for win 10/11
+:: FixPrint
+:: for win 10/11
 
 :check_admin
 net session >nul 2>&1

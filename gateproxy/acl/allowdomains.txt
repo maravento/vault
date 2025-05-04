@@ -1,1 +1,3 @@
+.accounts.google.com
 .accounts.youtube.com
+.auth.wikimedia.org

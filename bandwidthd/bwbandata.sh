@@ -11,7 +11,7 @@
 # Description:       Enable service provided by daemon
 ### END INIT INFO
 
-# by maravento.com
+# maravento.com
 
 # BANDATA FOR BANDWIDTHD
 # Data Plan for LocalNet

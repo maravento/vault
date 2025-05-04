@@ -21,7 +21,7 @@
 
 ```bash
 sudo apt install -y python-is-python3
-wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
 chmod +x gitfolderdl.py
 python gitfolderdl.py https://github.com/maravento/vault/scripts
 ```
@@ -57,13 +57,14 @@ Tested on: Ubuntu 22.04/24.04 x64
 - [Rclone Cloud (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Mount | Umount (start | stop | restart | status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rcloud.sh)
 - [Rclone Sync (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Sync to Download | Upload Folder](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rsync.sh)
 - [Serveo Tunnel (Install | Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/serveo.sh)
+- [Squid-OpenSSL (ssl-bump)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/sslbump.sh)
 - [System Migration Tool](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/appbr.sh)
 - [TRIM for SSD/NVMe](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/trim.sh)
 - [Unifi Hotspot Client Access (via Linux Server with Iptables)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/unifihotspot.sh)
 - [Virtual Hard Disk VHD image (.img) (loop or kpartx - Create | Mount | Umount)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vdisk.sh)
 - [VirtualBox 7.1 (Install | Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vbox.sh)
 - [VMs Virtualbox (start | stop | shutdown | reset | status) (replace `my_vm` with the name of your vm)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vm.sh)
-- [Wireguard VPN (Install | Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/wireguard.sh)
+- [Wireguard VPN (Install Server or Client | Uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/wireguard.sh)
 
 ### Batch (Windows)
 

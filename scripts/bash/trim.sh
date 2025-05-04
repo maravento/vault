@@ -1,5 +1,5 @@
-#! /bin/bash
-# by maravento.com
+#!/bin/bash
+# maravento.com
 
 # Run TRIM for SSD
 # https://askubuntu.com/a/665670/828892

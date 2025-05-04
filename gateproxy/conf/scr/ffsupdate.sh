@@ -1,5 +1,5 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
 # FreeFileSync Update
 
@@ -42,7 +42,7 @@ version=$(echo $link | sed -r 's:.*FreeFileSync_([0-9]+\.[0-9]+)_.*:\1:')
 echo "link: $link"
 echo "version: $version"
 echo "Download FreeFileync..."
-$(wget -q -O $ffsfile https://www.freefilesync.org$link -U "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/63.0.3239.84 Chrome/63.0.3239.84 Safari/537.36")
+$(wget -qO $ffsfile https://www.freefilesync.org$link -U "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/63.0.3239.84 Chrome/63.0.3239.84 Safari/537.36")
 tar xvf $ffsfile >/dev/null 2>&1
 mv FreeFileSync*.run FreeFileSync.run >/dev/null 2>&1
 chmod +x FreeFileSync.run

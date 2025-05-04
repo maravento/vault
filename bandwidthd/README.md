@@ -21,7 +21,7 @@
 
 ```bash
 sudo apt install -y python-is-python3
-wget https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
 chmod +x gitfolderdl.py
 python gitfolderdl.py https://github.com/maravento/vault/bandwidthd
 ```
@@ -31,7 +31,7 @@ python gitfolderdl.py https://github.com/maravento/vault/bandwidthd
 ---
 
 | Developers | Last Version | HowTo |
-| :--------: | :----------: | :---: |
+| :---: | :---: | :---: |
 | [David Hinkle, Brice Beaman, Andreas Henriksson](https://bandwidthd.sourceforge.net/) | [v2.0.1 (NethServer. 2005)](https://github.com/NethServer/bandwidthd) | [Post (ESP)](https://www.maravento.com/2021/08/bandwidthd.html) |
 
 ### Important before using
@@ -65,7 +65,7 @@ wget -c https://raw.githubusercontent.com/maravento/vault/master/bandwidthd/bwin
 
 [http://localhost/bandwidthd/](http://localhost/bandwidthd/)
 
-[![Image](https://raw.githubusercontent.com/maravento/vault/master/bandwidthd/bandwidthd.png)](https://www.maravento.com/)
+[![Image](https://raw.githubusercontent.com/maravento/vault/master/bandwidthd/img/bandwidthd.png)](https://www.maravento.com/)
 
 ### Virtualhost
 

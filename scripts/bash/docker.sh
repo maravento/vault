@@ -1,5 +1,5 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
 # Docker Install | Remove
 # tested: Ubuntu 24.04
@@ -21,6 +21,7 @@ if pidof -x $(basename $0) >/dev/null; then
             exit
         fi
     done
+fi
 
 # Function to install Docker and docker-compose-plugin
 install_docker() {

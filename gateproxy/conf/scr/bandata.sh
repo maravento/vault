@@ -1,5 +1,5 @@
 #!/bin/bash
-# by maravento.com
+# maravento.com
 
 # Bandata for LightSquid
 # Data Plan for LocalNet
