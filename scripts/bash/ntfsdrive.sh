@@ -22,8 +22,8 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
-### VARIABLES
-local_user=$(who | head -1 | awk '{print $1;}')  # Local user (non-root)
+# VARIABLES
+local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 
 # list connected USB devices (UUID/Label)
 list_drives() {
@@ -33,8 +33,6 @@ list_drives() {
 }
 
 mount_drive() {
-    local_user=$(who | head -1 | awk '{print $1;}')
-
     list_drives
     read -p "Enter the LABEL or UUID of the disk to be mounted ('exit' to exit): " DISKID
 
@@ -87,7 +85,6 @@ umount_drive() {
         echo "No mounted disk found at '/$FOLDER'."
     fi
 }
-
 
 # Menú principal
 echo "Do you want to mount or unmount an NTFS disk?"

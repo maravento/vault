@@ -33,7 +33,7 @@ fi
 
 ### VARIABLES
 # LOCAL USER (sudo user no root)
-local_user=$(who | head -1 | awk '{print $1;}')
+local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 # replace "GoogleDrive" with your (path) GoogleDrive Folder
 GD="/home/$local_user/gdrive"
 if [ ! -d $GD ]; then mkdir -p $GD && chmod 777 $GD; fi

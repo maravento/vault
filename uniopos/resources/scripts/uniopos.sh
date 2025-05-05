@@ -29,7 +29,7 @@ fi
 wgetd='wget -q --show-progress -c --no-check-certificate --retry-connrefused --timeout=10 --tries=20'
 
 # LOCAL USER
-local_user=$(who | head -1 | awk '{print $1;}')
+local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 
 echo -e "\n"
 # CHECKING SO

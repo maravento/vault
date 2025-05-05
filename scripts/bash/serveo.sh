@@ -12,7 +12,7 @@ PID_FILE="/tmp/${SCRIPT_NAME}.pid"
 ACTIVE_FLAG="/tmp/${SCRIPT_NAME}_active"
 
 # Local User
-local_user=$(whoami)
+local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 
 # checking no-root
 if [ "$(id -u)" == "0" ]; then

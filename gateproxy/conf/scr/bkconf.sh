@@ -24,7 +24,7 @@ fi
 
 ### VARIABLES
 # local user
-local_user=$(who | head -1 | awk '{print $1;}')
+local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 # path to cloud
 bkconfig="/home/$local_user/bkconf"
 if [ ! -d "$bkconfig" ]; then sudo mkdir -p "$bkconfig"; fi

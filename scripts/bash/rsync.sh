@@ -104,7 +104,7 @@ fi
 
 # VARIABLES
 # Local user
-local_user=$(who | head -1 | awk '{print $1;}')
+local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 # Local path
 local_path="/home/$local_user/sync"
 # cloud path

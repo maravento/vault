@@ -26,7 +26,7 @@ fi
 
 ### VARIABLES
 # LOCAL USER
-local_user=$(who | head -1 | awk '{print $1;}')
+local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 
 ### BASIC ###
 killall -s SIGTERM apt apt-get &>/dev/null

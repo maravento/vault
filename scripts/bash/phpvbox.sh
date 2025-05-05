@@ -46,7 +46,7 @@ fi
 
 ### VARIABLES
 # LOCAL USER (sudo user no root)
-local_user=$(who | head -1 | awk '{print $1;}')
+local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 
 ### PHPVBOX
 # git clone phpvirtualbox

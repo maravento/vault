@@ -4,8 +4,10 @@
 # by Maravento Studio
 # https://www.maravento.com
 
-2025.01.27
-Fixed: Bugs
+2025.05.04
+Update: glpi-10.0.18
+Update: iTop-3.2.1-1-16749
+Update: Visual C++ v0.90.0
 
 2025.01.24
 Added: Scripts to add IP and change port (iTop)

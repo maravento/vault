@@ -24,7 +24,7 @@ if pidof -x $(basename $0) >/dev/null; then
 fi
 
 ### VARIABLES
-local_user=$(who | head -1 | awk '{print $1;}')
+local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 # replace "myfolder" and "filereport.txt" with yours
 targetfolder=/home/$local_user/myfolder
 logreport=/var/log/filereport.log

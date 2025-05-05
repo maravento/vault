@@ -95,7 +95,7 @@ scr=/etc/scr
 if [ ! -d $scr ]; then mkdir -p $scr; fi &>/dev/null
 
 # LOCAL USER
-local_user=$(who | head -1 | awk '{print $1;}')
+local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 
 ### BASIC
 # kill
@@ -509,15 +509,16 @@ function gateproxy_setup() {
     systemctl daemon-reload
     systemctl start glances.service
     echo "Glances Access: http://localhost:61208"
-    # Net Tools
+    # Net Tools (Replace NIC and IP/CIDR)
     nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
     nala install -y fping              # Net diagnostics: fping -a -g 192.168.1.0/24
     nala install -y ethtool            # Net config: sudo ethtool eth0
-    # Net Scanning
+    # Net Scanning (Replace NIC and IP/CIDR)
     nala install -y masscan            # sudo masscan --ports 0-65535 192.168.0.0/16
     nala install -y nbtscan            # sudo nbtscan 192.168.1.0/24
     nala install -y nast               # sudo nast -m
     nala install -y arp-scan           # sudo arp-scan --localnet
+    nala install -y arping             # sudo arping -I eth0 192.168.1.1
     nala install -y netdiscover        # sudo netdiscover
     # Nmap
     nala install -y nmap python3-nmap ndiff
@@ -694,17 +695,20 @@ fixbroken
 echo -e "\n"
 echo "Downloading ACLs..."
 
-# Blackip Project: Allow IP
+# Blackip Project:
+# Allow IP
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O $aclroute/allowip.txt
 
-# Blackshield Project: Block words
+# Blackshield Project:
+# Block words
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/squid/blockwords.txt -O $aclroute/blockwords.txt
-# Blackshield Project: Veto Files
+# Veto Files
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/smb/vetofiles.txt -O $aclroute/vetofiles.txt
 
-# Blackweb Project: Block TLDs
+# Blackweb Project:
+# Block TLDs
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O $aclroute/blocktlds.txt
-# Blackweb Project: Blackweb
+# Blackweb
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/blackweb.tar.gz
 cat blackweb.tar.gz* | tar xzf -
 cp blackweb.txt $aclroute/blackweb.txt

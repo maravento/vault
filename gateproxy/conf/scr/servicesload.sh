@@ -22,55 +22,66 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
-### VARIABLES
+## VARIABLES
 sleep_time="5"
 
 ### CHECK SERVICES
+
 # Webmin service
-if [[ $(ps -A | grep miniserv.pl) != "" ]]; then
+if pgrep -f "miniserv.pl" > /dev/null; then
     echo -e "\nONLINE"
 else
     echo -e "\n"
-    for pid in $(ps -ef | grep "miniserv.pl" | awk '{print $2}'); do kill -9 $pid &>/dev/null; done
-    sleep ${sleep_time}
+    for pid in $(ps -ef | grep "[m]iniserv.pl" | awk '{print $2}'); do
+        kill -9 "$pid" &>/dev/null
+    done
+    sleep "${sleep_time}"
     /etc/webmin/restart-by-force-kill
     echo "Webmin start: $(date)" | tee -a /var/log/syslog
 fi
+
 # DHCP service
-if [[ $(ps -A | grep dhcpd) != "" ]]; then
+if pgrep -f "dhcpd" > /dev/null; then
     echo -e "\nONLINE"
 else
     echo -e "\n"
     /etc/scr/leases.sh
     echo "DHCP start: $(date)" | tee -a /var/log/syslog
 fi
+
 # Apache2 service
-if [[ $(ps -A | grep apache2) != "" ]]; then
+if pgrep -f "apache2" > /dev/null; then
     echo -e "\nONLINE"
 else
     echo -e "\n"
-    for pid in $(ps -ef | grep "apache2" | awk '{print $2}'); do kill -9 $pid &>/dev/null; done
-    sleep ${sleep_time}
+    for pid in $(ps -ef | grep "[a]pache2" | awk '{print $2}'); do
+        kill -9 "$pid" &>/dev/null
+    done
+    sleep "${sleep_time}"
     systemctl start apache2.service
     echo "Apache2 start: $(date)" | tee -a /var/log/syslog
 fi
+
 # Squid Service
-if [[ $(ps -A | grep squid) != "" ]]; then
+if pgrep -f "squid" > /dev/null; then
     echo -e "\nONLINE"
 else
     echo -e "\n"
-    for pid in $(ps -ef | grep "squid" | awk '{print $2}'); do kill -9 $pid &>/dev/null; done
-    sleep ${sleep_time}
+    for pid in $(ps -ef | grep "[s]quid" | awk '{print $2}'); do
+        kill -9 "$pid" &>/dev/null
+    done
+    sleep "${sleep_time}"
     systemctl start squid.service
     echo "Squid start: $(date)" | tee -a /var/log/syslog
 fi
+
 # rsyslog
-if [[ $(ps -A | grep rsyslogd) != "" ]]; then
+if pgrep -f "rsyslogd" > /dev/null; then
     echo -e "\nONLINE"
 else
     echo -e "\n"
     systemctl stop syslog.socket rsyslog.service &>/dev/null
-    sleep ${sleep_time}
+    sleep "${sleep_time}"
     systemctl start syslog.socket rsyslog.service
     echo "Rsyslog start: $(date)" | tee -a /var/log/syslog
 fi
