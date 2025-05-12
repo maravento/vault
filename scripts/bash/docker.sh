@@ -1,7 +1,7 @@
 #!/bin/bash
 # maravento.com
 
-# Docker Install | Remove
+# Docker + Portainer (Install | Remove)
 # tested: Ubuntu 24.04
 
 echo "Docker Install | Remove Starting. Wait..."
@@ -23,17 +23,45 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
+# Local User
+local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
+
 # Function to install Docker and docker-compose-plugin
 install_docker() {
   if ! command -v docker &> /dev/null; then
     echo "Docker is not installed. Proceeding with installation..."
-    apt update
-    apt install -y docker.io docker-compose-plugin
+    apt-get install -y ca-certificates curl gnupg lsb-release
+
+    # GPG
+    rm -f /etc/apt/keyrings/docker.gpg > /dev/null
+    mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+        gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+    # Add Repo
+    echo \
+      "deb [arch=$(dpkg --print-architecture) \
+      signed-by=/etc/apt/keyrings/docker.gpg] \
+      https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) stable" | \
+      tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    # Install
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    #apt install -y docker.io docker-compose-plugin
     mkdir -p /etc/docker
     docker compose version
     systemctl start docker
     systemctl enable docker
-    echo "Docker has been installed successfully"
+    usermod -aG docker $local_user
+    docker volume create portainer_data
+    docker run -d -p 9000:9000 --name portainer --restart=always \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v portainer_data:/data portainer/portainer-ce
+    #docker run hello-world
+    echo "Docker + Portainer has been installed successfully"
+    echo "Access: http://localhost:9000/"
   else
     echo "Docker is already installed"
   fi
@@ -74,13 +102,43 @@ uninstall_docker() {
     done
 
     # Uninstall Docker
-    apt purge -y docker.io docker-compose-plugin
+    if [ "$(docker ps -q)" ]; then
+        echo "Stopping all containers..."
+        docker stop $(docker ps -q)
+    fi
 
-    # Delete Docker directories and files
-    rm -rf /var/lib/docker
+    if [ "$(docker ps -a -q)" ]; then
+        echo "Removing all containers..."
+        docker rm $(docker ps -a -q)
+    fi
+
+    if [ "$(docker images -q)" ]; then
+        echo "Removing all images..."
+        docker rmi $(docker images -q)
+    fi
+
+    if [ "$(docker volume ls -q)" ]; then
+        echo "Removing all volumes..."
+        docker volume prune -f
+    fi
+
+    if [ "$(docker network ls -q)" ]; then
+        echo "Removing all networks..."
+        docker network prune -f
+    fi
+
+    for pkg in docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do
+        echo "Removing Dockers Packages..."
+        dpkg -s "$pkg" &>/dev/null && apt-get purge -y "$pkg"
+    done
+
+    # Delete Docker ppa, directories and files
+    rm -rf /var/lib/docker &>/dev/null
+    rm /etc/apt/sources.list.d/docker.list &>/dev/null
 
     # Clean up unneeded packages
     apt autoremove -y
+    apt-get clean
 
     echo "Docker has been successfully uninstalled"
   else
@@ -90,7 +148,7 @@ uninstall_docker() {
 
 # Options
 echo "What action do you want to perform?"
-echo "1) Install Docker"
+echo "1) Install Docker + Portainer"
 echo "2) Uninstall Docker"
 read -p "Select an option (1 or 2): " option
 

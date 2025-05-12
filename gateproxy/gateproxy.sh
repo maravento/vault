@@ -410,8 +410,14 @@ echo -e "\n"
 function essential_setup() {
     echo "Essential Packages..."
     # Disk Tools
-    nala install -y gparted libfuse2t64 nfs-common ntfs-3g exfat-fuse gsmartcontrol qdirstat libguestfs-tools gvfs-fuse bindfs udisks2-btrfs
+    nala install -y gparted nfs-common ntfs-3g gsmartcontrol qdirstat
     nala install -y --no-install-recommends smartmontools
+    # Fuse
+    nala install -y libfuse2t64 exfat-fuse gvfs-fuse bindfs
+    # Virtual
+    nala install -y libguestfs-tools
+    # Udisk
+    nala install -y udisks2 udisks2-btrfs udisks2-lvm2 libglib2.0-dev libudisks2-dev liblvm2-dev
     # Sys Tools
     nala install -y trash-cli pm-utils neofetch cpu-x lsof inotify-tools dmidecode idle3 wmctrl pv dpkg ppa-purge deborphan apt-utils gawk gir1.2-gtop-2.0 finger logrotate tree uuid-dev libmnl-dev gtkhash moreutils rename renameutils sharutils dos2unix gdebi synaptic preload xsltproc debconf-utils mokutil libssl-dev libffi-dev python3-dev python3-venv libpam0g-dev autoconf autoconf-archive autogen automake dh-autoreconf pkg-config libpcap-dev libasound2-dev libfontconfig1 clang linux-firmware util-linux linux-tools-common build-essential module-assistant linux-headers-$(uname -r)
     # Net/Geo/Web Tools
@@ -420,7 +426,7 @@ function essential_setup() {
     nala install -y javascript-common libjs-jquery rubygems-integration rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit python3-pip python3-psutil
     # Mesa (if there any problems, install the package: libegl-mesa0)
     nala install -y mesa-utils
-    # file tools
+    # File Tools
     nala install -y reiserfsprogs reiser4progs xfsprogs jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools quota sshfs lvm2 attr jmtpfs
     # Mail
     service sendmail stop >/dev/null 2>&1
@@ -447,7 +453,7 @@ function gateproxy_setup() {
     # DHCP: isc-dhcp-server
     nala install -y isc-dhcp-server
     systemctl disable isc-dhcp-server6
-    # php
+    # PHP
     nala install -y php
     # http server: apache2
     nala install -y apache2 apache2-doc apache2-utils apache2-dev apache2-suexec-pristine libaprutil1t64 libaprutil1-dev libtest-fatal-perl
@@ -484,6 +490,8 @@ function gateproxy_setup() {
     chmod +x setup-repos.sh
     echo "y" | ./setup-repos.sh
     cleanupgrade
+    # Webmin
+    # https://www.maravento.com/2019/06/instalar-modulo-webmin-por-linea-de.html
     nala install -y webmin
     fixbroken
     /usr/share/webmin/install-module.pl $gp/conf/monitor/text-editor.wbm
@@ -491,11 +499,14 @@ function gateproxy_setup() {
     systemctl enable webmin.service
     echo "Webmin Access: https://localhost:10000"
     # Web Admin: cockpit
-    nala install -y cockpit cockpit-storaged cockpit-networkmanager cockpit-packagekit cockpit-machines cockpit-sosreport virt-viewer
+    # https://www.maravento.com/2022/11/cockpit.html
+    nala install -y cockpit cockpit-storaged cockpit-networkmanager cockpit-packagekit cockpit-machines cockpit-sosreport virt-viewer virtiofsd libvirt-daemon-system qemu-system
     systemctl start cockpit cockpit.socket
     systemctl enable --now cockpit cockpit.socket
+    usermod -aG libvirt-qemu $local_user
     echo "Cockpit Access: http://localhost:9090"
     # Process: glances
+    # https://www.maravento.com/2023/04/glances.html
     nala install -y glances
     systemctl enable glances.service
     systemctl stop glances.service
@@ -526,6 +537,7 @@ function gateproxy_setup() {
     nala install -y traceroute         # traceroute google.com
     nala install -y mtr-tiny           # mtr google.com
     # Monitor: lightsquid
+    # https://www.maravento.com/2022/10/lightsquid.html
     nala install -y libcgi-session-perl libgd-gd2-perl
     tar -xf $gp/conf/monitor/lightsquid-1.8.1.tar.gz
     mkdir -p /var/www/lightsquid
@@ -548,6 +560,7 @@ function gateproxy_setup() {
     echo "Lightsquid (first time run): /var/www/lightsquid/lightparser.pl"
     echo "Lightsquid (check bandata IP): cat /etc/acl/{banmonth,bandaily}.txt | uniq"
     # Traffic Reports: Sarg
+    # https://www.maravento.com/2014/03/network-monitor.html
     nala install -y sarg fonts-liberation fonts-dejavu
     fixbroken
     mkdir -p /var/www/squid-reports
@@ -581,6 +594,7 @@ function gateproxy_setup() {
     echo "Unban all: sudo fail2ban-client unban --all"
     echo "Unban Jail: sudo fail2ban-client set <jail_name> unban --all"
     # Logs: ulog, rsyslog
+    # https://www.maravento.com/2014/07/registros-iptables.html
     chown root:root /var/log
     nala install -y ulogd2
     if [ ! -d /var/log/ulog ]; then mkdir -p /var/log/ulog && touch /var/log/ulog/syslogemu.log; fi
@@ -596,6 +610,7 @@ function gateproxy_setup() {
     # Backup: timeshift
     nala install -y timeshift
     # Backup: FreeFileSync
+    # https://www.maravento.com/2014/06/sincronizacion-espejo.html
     chmod +x $gp/conf/scr/ffsupdate.sh
     $gp/conf/scr/ffsupdate.sh
     crontab -l | {
@@ -616,6 +631,7 @@ cleanupgrade
 fixbroken
 
 ### SAMBA (with SHARE folder, Recycle Bin and Audit)
+# https://www.maravento.com/2021/12/samba-full-audit.html
 clear
 echo -e "\n"
 while true; do
