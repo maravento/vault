@@ -161,6 +161,7 @@
 \.A9V9AHU4([a-zA-Z][0-9]*)?(\?.*)?$
 \.aa1([a-zA-Z][0-9]*)?(\?.*)?$
 \.aaa([a-zA-Z][0-9]*)?(\?.*)?$
+\.aaabbbccc([a-zA-Z][0-9]*)?(\?.*)?$
 \.aabn([a-zA-Z][0-9]*)?(\?.*)?$
 \.aajf([a-zA-Z][0-9]*)?(\?.*)?$
 \.aamv([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1060,6 +1061,7 @@
 \.credo([a-zA-Z][0-9]*)?(\?.*)?$
 \.creeper([a-zA-Z][0-9]*)?(\?.*)?$
 \.creepy([a-zA-Z][0-9]*)?(\?.*)?$
+\.CRFILE2([a-zA-Z][0-9]*)?(\?.*)?$
 \.cRh8([a-zA-Z][0-9]*)?(\?.*)?$
 \.crime([a-zA-Z][0-9]*)?(\?.*)?$
 \.crimson([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1079,6 +1081,7 @@
 \.crlk([a-zA-Z][0-9]*)?(\?.*)?$
 \.croc([a-zA-Z][0-9]*)?(\?.*)?$
 \.CrocodileSmile([a-zA-Z][0-9]*)?(\?.*)?$
+\.crone([a-zA-Z][0-9]*)?(\?.*)?$
 \.CroNi.ZoNe([a-zA-Z][0-9]*)?(\?.*)?$
 \.crow([a-zA-Z][0-9]*)?(\?.*)?$
 \.crown([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1138,6 +1141,7 @@
 \.crYptC([a-zA-Z][0-9]*)?(\?.*)?$
 \.CryptConsole3([a-zA-Z][0-9]*)?(\?.*)?$
 \.CryptConsole([a-zA-Z][0-9]*)?(\?.*)?$
+\.cryptdata([a-zA-Z][0-9]*)?(\?.*)?$
 \.crYptD([a-zA-Z][0-9]*)?(\?.*)?$
 \.crypte([a-zA-Z][0-9]*)?(\?.*)?$
 \.crYptE([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1709,6 +1713,7 @@
 \.EncryptedBatch([a-zA-Z][0-9]*)?(\?.*)?$
 \.encryptedbybb([a-zA-Z][0-9]*)?(\?.*)?$
 \.encryptedbyBB([a-zA-Z][0-9]*)?(\?.*)?$
+\.encryptedbybert([a-zA-Z][0-9]*)?(\?.*)?$
 \.EnCrYpTED_BY_dzikusssT3AM_ransomware([a-zA-Z][0-9]*)?(\?.*)?$
 \.ENCRYPTED_BY_pablukl0cker([a-zA-Z][0-9]*)?(\?.*)?$
 \.encryptedJB([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2058,6 +2063,7 @@
 \.GetAnAntivirus([a-zA-Z][0-9]*)?(\?.*)?$
 \.get([a-zA-Z][0-9]*)?(\?.*)?$
 \.GetCrypt([a-zA-Z][0-9]*)?(\?.*)?$
+\.GetFilesBack.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.getrekt([a-zA-Z][0-9]*)?(\?.*)?$
 \.GETREKT([a-zA-Z][0-9]*)?(\?.*)?$
 \.GFS([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2297,6 +2303,7 @@
 \.help_decrypt_your_files.html([a-zA-Z][0-9]*)?(\?.*)?$
 \.HELP_DECRYPT_YOUR_FILES.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.HELPDECYPRT_YOUR_FILES.HTML([a-zA-Z][0-9]*)?(\?.*)?$
+\.HELP_HERE_TO_RESCUE_YOUR_FILES@.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.helpmeencedfiles([a-zA-Z][0-9]*)?(\?.*)?$
 \.helpo([a-zA-Z][0-9]*)?(\?.*)?$
 \.helppme@india.com.ID83994902([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2410,7 +2417,9 @@
 \.HowDecrypt.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.how_recover.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.howrecover+*.txt([a-zA-Z][0-9]*)?(\?.*)?$
+\.HOW_TO_BACK_FILES.html([a-zA-Z][0-9]*)?(\?.*)?$
 \.HOW_TO_DECRYPT_FILES.TXT([a-zA-Z][0-9]*)?(\?.*)?$
+\.howtoDecrypt.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.how_to_recover([a-zA-Z][0-9]*)?(\?.*)?$
 \.How_To_Recover_Files.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.howto_recover_file.txt([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3037,6 +3046,7 @@
 \.Locky([a-zA-Z][0-9]*)?(\?.*)?$
 \.lockymap([a-zA-Z][0-9]*)?(\?.*)?$
 \.Locky_recover_instructions.txt([a-zA-Z][0-9]*)?(\?.*)?$
+\.lockz([a-zA-Z][0-9]*)?(\?.*)?$
 \.logger([a-zA-Z][0-9]*)?(\?.*)?$
 \.Lohodf([a-zA-Z][0-9]*)?(\?.*)?$
 \.lokas([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3628,6 +3638,7 @@
 \.NullByte([a-zA-Z][0-9]*)?(\?.*)?$
 \.numberdot([a-zA-Z][0-9]*)?(\?.*)?$
 \.NUMBERDOT([a-zA-Z][0-9]*)?(\?.*)?$
+\.numec([a-zA-Z][0-9]*)?(\?.*)?$
 \.NURRI([a-zA-Z][0-9]*)?(\?.*)?$
 \.nury([a-zA-Z][0-9]*)?(\?.*)?$
 \.nusar([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3941,6 +3952,7 @@
 \.plex([a-zA-Z][0-9]*)?(\?.*)?$
 \.PLIN([a-zA-Z][0-9]*)?(\?.*)?$
 \.plomb([a-zA-Z][0-9]*)?(\?.*)?$
+\.plu([a-zA-Z][0-9]*)?(\?.*)?$
 \.pluss.executioner([a-zA-Z][0-9]*)?(\?.*)?$
 \.plut([a-zA-Z][0-9]*)?(\?.*)?$
 \.PLUT([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3987,6 +3999,7 @@
 \.powd([a-zA-Z][0-9]*)?(\?.*)?$
 \.powerfuldecrypt([a-zA-Z][0-9]*)?(\?.*)?$
 \.powerfulldecrypt([a-zA-Z][0-9]*)?(\?.*)?$
+\.PowerLocker([a-zA-Z][0-9]*)?(\?.*)?$
 \.PowerLocky([a-zA-Z][0-9]*)?(\?.*)?$
 \.powerranges([a-zA-Z][0-9]*)?(\?.*)?$
 \.PowerWare([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4014,6 +4027,7 @@
 \.prcp([a-zA-Z][0-9]*)?(\?.*)?$
 \.PRCP([a-zA-Z][0-9]*)?(\?.*)?$
 \.predator([a-zA-Z][0-9]*)?(\?.*)?$
+\.pres([a-zA-Z][0-9]*)?(\?.*)?$
 \.PrincessLocker([a-zA-Z][0-9]*)?(\?.*)?$
 \.PRIVAT66([a-zA-Z][0-9]*)?(\?.*)?$
 \.prnds([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4272,6 +4286,7 @@
 \.readme([a-zA-Z][0-9]*)?(\?.*)?$
 \.READ-ME-Nullhexxx.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.readme_txt([a-zA-Z][0-9]*)?(\?.*)?$
+\.READ-ME!.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.Readnet7([a-zA-Z][0-9]*)?(\?.*)?$
 \.Reads([a-zA-Z][0-9]*)?(\?.*)?$
 \.readtext5([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4362,6 +4377,7 @@
 \.resurrection([a-zA-Z][0-9]*)?(\?.*)?$
 \.Retch([a-zA-Z][0-9]*)?(\?.*)?$
 \.RetMyData([a-zA-Z][0-9]*)?(\?.*)?$
+\.RETURN_DATA.html([a-zA-Z][0-9]*)?(\?.*)?$
 \.REV([a-zA-Z][0-9]*)?(\?.*)?$
 \.revenge([a-zA-Z][0-9]*)?(\?.*)?$
 \.REVENGE([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4576,6 +4592,7 @@
 \.sdjm([a-zA-Z][0-9]*)?(\?.*)?$
 \.sdk([a-zA-Z][0-9]*)?(\?.*)?$
 \.sdwwbrb([a-zA-Z][0-9]*)?(\?.*)?$
+\.se7en([a-zA-Z][0-9]*)?(\?.*)?$
 \.sea([a-zA-Z][0-9]*)?(\?.*)?$
 \.seccrypt([a-zA-Z][0-9]*)?(\?.*)?$
 \.secdojo([a-zA-Z][0-9]*)?(\?.*)?$
@@ -5293,6 +5310,7 @@
 \.waqa([a-zA-Z][0-9]*)?(\?.*)?$
 \.waqq([a-zA-Z][0-9]*)?(\?.*)?$
 \.warlocks([a-zA-Z][0-9]*)?(\?.*)?$
+\.warning([a-zA-Z][0-9]*)?(\?.*)?$
 \.warn_wallet([a-zA-Z][0-9]*)?(\?.*)?$
 \.wasted([a-zA-Z][0-9]*)?(\?.*)?$
 \.wasted_info([a-zA-Z][0-9]*)?(\?.*)?$

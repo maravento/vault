@@ -409,25 +409,27 @@ clear
 echo -e "\n"
 function essential_setup() {
     echo "Essential Packages..."
-    # Disk Tools
+    # Disk & Partition Tools
     nala install -y gparted nfs-common ntfs-3g gsmartcontrol qdirstat
     nala install -y --no-install-recommends smartmontools
-    # Fuse
-    nala install -y libfuse2t64 exfat-fuse gvfs-fuse bindfs
-    # Virtual
-    nala install -y libguestfs-tools
-    # Udisk
+    # System Utilities
+    nala install -y trash-cli pm-utils neofetch cpu-x lsof inotify-tools dmidecode idle3 wmctrl pv dpkg ppa-purge deborphan apt-utils gawk gir1.2-gtop-2.0 finger logrotate tree moreutils rename renameutils sharutils dos2unix gdebi synaptic preload debconf-utils mokutil util-linux linux-tools-common
+    # Development Libraries & Build Tools
+    nala install -y uuid-dev libmnl-dev gtkhash libssl-dev libffi-dev python3-dev python3-venv libpam0g-dev autoconf autoconf-archive autogen automake dh-autoreconf pkg-config libpcap-dev libasound2-dev libfontconfig1 clang libuser build-essential module-assistant linux-headers-$(uname -r)
+    # Programming Languages & Environments
+    nala install -y javascript-common libjs-jquery rubygems-integration rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit python3-pip python3-psutil xsltproc
+    # UDisks Tools (runtime + development)
     nala install -y udisks2 udisks2-btrfs udisks2-lvm2 libglib2.0-dev libudisks2-dev liblvm2-dev
-    # Sys Tools
-    nala install -y trash-cli pm-utils neofetch cpu-x lsof inotify-tools dmidecode idle3 wmctrl pv dpkg ppa-purge deborphan apt-utils gawk gir1.2-gtop-2.0 finger logrotate tree uuid-dev libmnl-dev gtkhash moreutils rename renameutils sharutils dos2unix gdebi synaptic preload xsltproc debconf-utils mokutil libssl-dev libffi-dev python3-dev python3-venv libpam0g-dev autoconf autoconf-archive autogen automake dh-autoreconf pkg-config libpcap-dev libasound2-dev libfontconfig1 clang linux-firmware util-linux linux-tools-common build-essential module-assistant linux-headers-$(uname -r)
-    # Net/Geo/Web Tools
+    # File System Utilities
+    nala install -y reiserfsprogs reiser4progs xfsprogs jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools quota lvm2 attr jmtpfs
+    # FUSE Tools
+    nala install -y libfuse2t64 exfat-fuse gvfs-fuse bindfs sshfs
+    # Virtualization Tools
+    nala install -y libguestfs-tools
+    # Network / Geo / Web Tools
     nala install -y conntrack i2c-tools wget bind9-dnsutils geoip-database wsdd
-    # Dev Tools
-    nala install -y javascript-common libjs-jquery rubygems-integration rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit python3-pip python3-psutil
     # Mesa (if there any problems, install the package: libegl-mesa0)
     nala install -y mesa-utils
-    # File Tools
-    nala install -y reiserfsprogs reiser4progs xfsprogs jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools quota sshfs lvm2 attr jmtpfs
     # Mail
     service sendmail stop >/dev/null 2>&1
     update-rc.d -f sendmail remove >/dev/null 2>&1
@@ -646,15 +648,21 @@ ${lang_21[${en}]} (y/n)" answer
         systemctl enable nmbd.service
         systemctl enable winbind.service
         fixbroken
+        groupadd -f sambashare
         mkdir -p $(pwd)/"${lang_22[${en}]}"
-        #chown -R nobody:nogroup $(pwd)/"${lang_22[${en}]}"
-        chown -R $local_user:$local_user $(pwd)/"${lang_22[${en}]}"
-        chmod -R a+rwx $(pwd)/"${lang_22[${en}]}"
-        #chmod -t $(pwd)/"${lang_22[${en}]}"
+        chown -R root:sambashare $(pwd)/"${lang_22[${en}]}"
+        chmod 1777 $(pwd)/"${lang_22[${en}]}"
+        usermod -aG sambashare $local_user
+        mkdir -p $(pwd)/"${lang_22[${en}]}"/DEMO
+        echo "this is a demo file" | tee $(pwd)/"${lang_22[${en}]}"/DEMO/demo.txt
+        # Protect the DEMO folder inside the shared folder
+        for dir in $(find $(pwd)/"${lang_22[${en}]}" -mindepth 1 -maxdepth 1 -type d); do
+          chown root:sambashare "$dir"
+          chmod 777 "$dir"
+        done
         find $gp/conf/samba -type f -print0 | xargs -0 -I "{}" sed -i "s:compartida:${lang_22[${en}]}:g" "{}"
         if [ ! -d /var/lib/samba/usershares ]; then mkdir -p /var/lib/samba/usershares; fi
         chmod 1775 /var/lib/samba/usershares/
-        chmod +t /var/lib/samba/usershares/
         if [ ! -d /var/log/samba ]; then mkdir -p /var/log/samba; fi
         sed -i 's/ \$SMBDOPTIONS//' /lib/systemd/system/smbd.service
         sed -i 's/ \$NMBDOPTIONS//' /lib/systemd/system/nmbd.service
@@ -665,7 +673,6 @@ ${lang_21[${en}]} (y/n)" answer
         cp -f $gp/conf/samba/samba /etc/logrotate.d/samba
         cp -f /etc/samba/smb.conf{,.bak} &>/dev/null
         cp -f $gp/conf/samba/smb.conf /etc/samba/smb.conf
-        #cp -f $gp/conf/samba/libuser.conf /etc/libuser.conf
         chmod +x $gp/conf/samba/sambacron.sh
         $gp/conf/samba/sambacron.sh
         chmod +x $gp/conf/samba/sambaload.sh

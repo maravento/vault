@@ -76,7 +76,7 @@ start() {
     touch "$ACTIVE_FLAG"
     # Create the SSH argument list and check the ports
     PORT_ARGS=''
-    local_ports=()
+    local_ports+=($port)
     for port in $ports; do
         if ss -tuln | grep -q ":$port "; then
             echo "Port $port accessible ✅"
@@ -95,18 +95,28 @@ start() {
     fi
     echo "Starting tunnel with ports: $ports"
 
-    # Run the tunnel in the background
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=60 -o ServerAliveCountMax=30 $PORT_ARGS serveo.net > /tmp/serveo_output.txt 2>&1 &
+    > /tmp/serveo_output.txt
+    ssh -q -T \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -o LogLevel=ERROR \
+    -o ServerAliveInterval=60 \
+    -o ServerAliveCountMax=30 \
+    $PORT_ARGS serveo.net > /tmp/serveo_output.txt 2>&1 &
     SSH_PID=$!
-    
-    # Wait for Serveo to assign the ports
-    sleep 3
-    
-    # Read the output
+
+    for i in {1..10}; do
+        if [ -s /tmp/serveo_output.txt ]; then
+            break
+        fi
+        sleep 1
+    done
+
     output=$(cat /tmp/serveo_output.txt)
+
     echo "Serveo Output:"
     echo "$output"
-    
+
     # Check if the file has content
     if [ -z "$output" ]; then
         echo "Error: Could not get output from Serveo"
@@ -120,7 +130,7 @@ start() {
     echo "$output"
     
     # Check if remote ports were assigned
-    assigned_ports=$(echo "$output" | grep -oP 'Allocated port \K[0-9]+')
+    assigned_ports=$(echo "$output" | grep -oP 'serveo\.net:\K[0-9]+' | head -n ${#local_ports[@]})
     if [ -z "$assigned_ports" ]; then
         echo "The remote ports assigned by Serveo could not be obtained"
         rm -f "$ACTIVE_FLAG"
@@ -158,6 +168,15 @@ start() {
     # Remove flag when finished
     rm -f "$ACTIVE_FLAG"
     echo "The tunnel is now active"
+    
+    # save ports
+    > /tmp/serveo_ports.txt
+    i=0
+    for assigned_port in $assigned_ports; do
+        local_port="${local_ports[$i]}"
+        echo "$local_port:$assigned_port" >> /tmp/serveo_ports.txt
+        ((i++))
+    done
 }
 
 stop() {
@@ -174,11 +193,14 @@ stop() {
             echo "pkill -9 -f \"ssh.*serveo.net\""
         else
             echo "✅ Tunnel successfully stopped"
+            rm -f /tmp/serveo_ports.txt
         fi
     else
         echo "⚠️ There are no active tunnels"
+        rm -f /tmp/serveo_ports.txt
     fi
 }
+
 
 status() {
     if is_running; then
@@ -192,6 +214,20 @@ status() {
         if [ -f "$PID_FILE" ]; then
             echo "PID: $(cat "$PID_FILE" 2>/dev/null || echo "not available")"
         fi
+
+        if [ -f /tmp/serveo_ports.txt ]; then
+            echo "Exposed Ports:"
+            while IFS=: read -r local_port remote_port; do
+                if [[ "$local_port" -eq 22 ]]; then
+                    echo "  Local $local_port ➜ ssh -p $remote_port user@serveo.net"
+                else
+                    echo "  Local $local_port ➜ https://serveo.net:$remote_port"
+                fi
+            done < /tmp/serveo_ports.txt
+        else
+            echo "No port mapping info found."
+        fi
+
     else
         echo "⚠️ The tunnel is NOT running"
     fi
