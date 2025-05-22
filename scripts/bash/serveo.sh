@@ -23,7 +23,7 @@ fi
 # Dependencies
 if ! command -v ssh >/dev/null 2>&1; then
     echo "⚠️ SSH is not installed"
-    echo "sudo apt install openssh-server"
+    echo "run: sudo apt install openssh-server"
     exit 1
 fi
 

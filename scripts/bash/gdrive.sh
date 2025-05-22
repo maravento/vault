@@ -11,6 +11,12 @@
 echo "Gdrive Starting. Wait..."
 printf "\n"
 
+# checking no-root
+if [ "$(id -u)" == "0" ]; then
+    echo "❌ This script should not be run as root."
+    exit 1
+fi
+
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do

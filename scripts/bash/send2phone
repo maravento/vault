@@ -8,14 +8,29 @@
 # Check kdeconnect-cli options
 # https://linuxcommandlibrary.com/man/kdeconnect-cli
 
-# Dependencies:
-# sudo apt install kdeconnect
-
 echo "Start KDE Connect Send. Wait..."
+printf "\n"
 
-# Check if kdeconnect-cli is installed
-if ! command -v kdeconnect-cli &> /dev/null; then
-    echo "kdeconnect-cli is not installed"
+# checking no-root
+if [ "$(id -u)" == "0" ]; then
+    echo "❌ This script should not be run as root."
+    exit 1
+fi
+
+# checking script execution
+if pidof -x $(basename $0) >/dev/null; then
+  for p in $(pidof -x $(basename $0)); do
+    if [ "$p" -ne $$ ]; then
+      echo "Script $0 is already running..."
+      exit
+    fi
+  done
+fi
+
+# Dependencies
+if ! command -v kdeconnect-cli >/dev/null 2>&1; then
+    echo "⚠️ kdeconnect-cli is not installed"
+    echo "run: sudo apt install kdeconnect"
     exit 1
 fi
 

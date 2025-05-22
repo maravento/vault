@@ -651,7 +651,8 @@ ${lang_21[${en}]} (y/n)" answer
         groupadd -f sambashare
         mkdir -p $(pwd)/"${lang_22[${en}]}"
         chown -R root:sambashare $(pwd)/"${lang_22[${en}]}"
-        chmod 1777 $(pwd)/"${lang_22[${en}]}"
+        #chmod 1777 $(pwd)/"${lang_22[${en}]}"
+        chmod 755 $(pwd)/"${lang_22[${en}]}"
         usermod -aG sambashare $local_user
         mkdir -p $(pwd)/"${lang_22[${en}]}"/DEMO
         echo "this is a demo file" | tee $(pwd)/"${lang_22[${en}]}"/DEMO/demo.txt

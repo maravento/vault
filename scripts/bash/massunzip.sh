@@ -7,6 +7,12 @@
 echo "Unzip Files With Pass Starting. Wait..."
 printf "\n"
 
+# checking no-root
+if [ "$(id -u)" == "0" ]; then
+    echo "❌ This script should not be run as root."
+    exit 1
+fi
+
 # checking script execution
 if pidof -x $(basename $0) >/dev/null; then
   for p in $(pidof -x $(basename $0)); do
@@ -17,14 +23,18 @@ if pidof -x $(basename $0) >/dev/null; then
   done
 fi
 
-# check dependencies
-# On Ubuntu Software, activate "multiverse" repo
-pkgs='p7zip-full p7zip-rar'
-if apt-get install -qq $pkgs; then
-  true
-else
-  echo "Error installing $pkgs. Abort"
-  exit
+# Check if 'multiverse' repository is available in APT
+if ! apt-cache policy | grep -qE '/multiverse'; then
+    echo "⚠️ The 'multiverse' repository is not enabled"
+    echo "run: sudo add-apt-repository multiverse && sudo apt update"
+    exit 1
+fi
+
+# Dependencies
+if ! command -v 7z >/dev/null 2>&1; then
+    echo "⚠️ 7z is not installed"
+    echo "run: sudo apt install p7zip-full p7zip-rar"
+    exit 1
 fi
 
 ### PASSWORDS
