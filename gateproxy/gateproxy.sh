@@ -434,6 +434,12 @@ function essential_setup() {
     service sendmail stop >/dev/null 2>&1
     update-rc.d -f sendmail remove >/dev/null 2>&1
     DEBIAN_FRONTEND=noninteractive nala install -y postfix
+    # Fonts
+    nala install -y fonts-lato
+    echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
+    nala install -y ttf-mscorefonts-installer fontconfig
+    fc-cache -f
+    fc-match Ariel
     # ubuntu database
     update-desktop-database
 }
@@ -595,6 +601,7 @@ function gateproxy_setup() {
     echo "Check: sudo fail2ban-client status <jail_name>"
     echo "Unban all: sudo fail2ban-client unban --all"
     echo "Unban Jail: sudo fail2ban-client set <jail_name> unban --all"
+    echo "Lynis Run: lynis -c -Q and log: /var/log/lynis.log"
     # Logs: ulog, rsyslog
     # https://www.maravento.com/2014/07/registros-iptables.html
     chown root:root /var/log
@@ -622,8 +629,6 @@ function gateproxy_setup() {
     # Terminal
     nala install -y tilix shellinabox
     echo "Shellinabox Access: https://localhost:4200/"
-    # Terminal (Running a .desktop file. e.g.: dex foo.desktop)
-    nala install -y dex
 }
 gateproxy_setup
 echo OK
