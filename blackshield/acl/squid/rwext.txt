@@ -356,6 +356,8 @@
 \.aol([a-zA-Z][0-9]*)?(\?.*)?$
 \.aol.com([a-zA-Z][0-9]*)?(\?.*)?$
 \.ap19([a-zA-Z][0-9]*)?(\?.*)?$
+\.apex([a-zA-Z][0-9]*)?(\?.*)?$
+\.APEXNOTE.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.apis([a-zA-Z][0-9]*)?(\?.*)?$
 \.apocalypse([a-zA-Z][0-9]*)?(\?.*)?$
 \.Apocalypse([a-zA-Z][0-9]*)?(\?.*)?$
@@ -482,6 +484,7 @@
 \.back([a-zA-Z][0-9]*)?(\?.*)?$
 \.Back([a-zA-Z][0-9]*)?(\?.*)?$
 \.BACKJOHN([a-zA-Z][0-9]*)?(\?.*)?$
+\.backlock([a-zA-Z][0-9]*)?(\?.*)?$
 \.backmydata([a-zA-Z][0-9]*)?(\?.*)?$
 \.backoff([a-zA-Z][0-9]*)?(\?.*)?$
 \.backup([a-zA-Z][0-9]*)?(\?.*)?$
@@ -537,6 +540,7 @@
 \.bbii([a-zA-Z][0-9]*)?(\?.*)?$
 \.bbnm([a-zA-Z][0-9]*)?(\?.*)?$
 \.bboo([a-zA-Z][0-9]*)?(\?.*)?$
+\.bbq46([a-zA-Z][0-9]*)?(\?.*)?$
 \.bbqb([a-zA-Z][0-9]*)?(\?.*)?$
 \.bbuild([a-zA-Z][0-9]*)?(\?.*)?$
 \.bbyy([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1338,6 +1342,7 @@
 \.DATA_IS_SAFE_YOU_NEED_TO_MAKE_THE_PAYMENT_IN_MAXIM_24_HOURS_OR_ALL_YOUR_FILES_WILL_BE_LOST_FOREVER_PLEASE_BE_REZONABLE_IS_NOT_A_JOKE_TIME_IS_LIMITED([a-zA-Z][0-9]*)?(\?.*)?$
 \.DataKeeper([a-zA-Z][0-9]*)?(\?.*)?$
 \.Datalock([a-zA-Z][0-9]*)?(\?.*)?$
+\.datarip([a-zA-Z][0-9]*)?(\?.*)?$
 \.datastop([a-zA-Z][0-9]*)?(\?.*)?$
 \.DATASTOP([a-zA-Z][0-9]*)?(\?.*)?$
 \.datawait([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1432,6 +1437,7 @@
 \.derpymailorg([a-zA-Z][0-9]*)?(\?.*)?$
 \.DERZKO([a-zA-Z][0-9]*)?(\?.*)?$
 \.DesktopOsiris([a-zA-Z][0-9]*)?(\?.*)?$
+\.desolated([a-zA-Z][0-9]*)?(\?.*)?$
 \.destroy30([a-zA-Z][0-9]*)?(\?.*)?$
 \.destroyer([a-zA-Z][0-9]*)?(\?.*)?$
 \.destroy.executioner([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2153,6 +2159,7 @@
 \.GoTiS([a-zA-Z][0-9]*)?(\?.*)?$
 \.gotmydatafast([a-zA-Z][0-9]*)?(\?.*)?$
 \.GOTYA([a-zA-Z][0-9]*)?(\?.*)?$
+\.govcrypt([a-zA-Z][0-9]*)?(\?.*)?$
 \.GPAA([a-zA-Z][0-9]*)?(\?.*)?$
 \.GPCode([a-zA-Z][0-9]*)?(\?.*)?$
 \.GPGQwerty([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2583,6 +2590,7 @@
 \.ITLOCK([a-zA-Z][0-9]*)?(\?.*)?$
 \.itqw([a-zA-Z][0-9]*)?(\?.*)?$
 \.itrz([a-zA-Z][0-9]*)?(\?.*)?$
+\.itsa([a-zA-Z][0-9]*)?(\?.*)?$
 \.ITTZN([a-zA-Z][0-9]*)?(\?.*)?$
 \.itunes([a-zA-Z][0-9]*)?(\?.*)?$
 \.iudgkwv([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2939,6 +2947,7 @@
 \.leex([a-zA-Z][0-9]*)?(\?.*)?$
 \.legacy([a-zA-Z][0-9]*)?(\?.*)?$
 \.legion([a-zA-Z][0-9]*)?(\?.*)?$
+\.LegionRoot_ReadMe.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.LEGO([a-zA-Z][0-9]*)?(\?.*)?$
 \.leon([a-zA-Z][0-9]*)?(\?.*)?$
 \.leph0uxo([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3201,6 +3210,7 @@
 \.Marduk([a-zA-Z][0-9]*)?(\?.*)?$
 \.mariacbc([a-zA-Z][0-9]*)?(\?.*)?$
 \.mario([a-zA-Z][0-9]*)?(\?.*)?$
+\.mark([a-zA-Z][0-9]*)?(\?.*)?$
 \.Marlboro([a-zA-Z][0-9]*)?(\?.*)?$
 \.marnet2([a-zA-Z][0-9]*)?(\?.*)?$
 \.Marozka([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3622,6 +3632,7 @@
 \.NRCL([a-zA-Z][0-9]*)?(\?.*)?$
 \.NSB([a-zA-Z][0-9]*)?(\?.*)?$
 \.nsmf([a-zA-Z][0-9]*)?(\?.*)?$
+\.nspire([a-zA-Z][0-9]*)?(\?.*)?$
 \.NTB([a-zA-Z][0-9]*)?(\?.*)?$
 \.ntu([a-zA-Z][0-9]*)?(\?.*)?$
 \.ntuseg([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4213,6 +4224,7 @@
 \.rajar([a-zA-Z][0-9]*)?(\?.*)?$
 \.raldge([a-zA-Z][0-9]*)?(\?.*)?$
 \.raldug([a-zA-Z][0-9]*)?(\?.*)?$
+\.RALEIGHRAD([a-zA-Z][0-9]*)?(\?.*)?$
 \.RALord([a-zA-Z][0-9]*)?(\?.*)?$
 \.ram([a-zA-Z][0-9]*)?(\?.*)?$
 \.ramen([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4281,12 +4293,14 @@
 \.ReadDecryptFilesHere.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.Read-for-recovery.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.readinstructions([a-zA-Z][0-9]*)?(\?.*)?$
+\.read_it.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.readlockfiles([a-zA-Z][0-9]*)?(\?.*)?$
 \.ReadManual([a-zA-Z][0-9]*)?(\?.*)?$
 \.readme([a-zA-Z][0-9]*)?(\?.*)?$
 \.READ-ME-Nullhexxx.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.readme_txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.READ-ME!.txt([a-zA-Z][0-9]*)?(\?.*)?$
+\.README-WARNING+.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.Readnet7([a-zA-Z][0-9]*)?(\?.*)?$
 \.Reads([a-zA-Z][0-9]*)?(\?.*)?$
 \.readtext5([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4318,6 +4332,7 @@
 \.RECOVERY_KEY.TXT([a-zA-Z][0-9]*)?(\?.*)?$
 \.recoveryourfiles([a-zA-Z][0-9]*)?(\?.*)?$
 \.RECOVERYOURFILES([a-zA-Z][0-9]*)?(\?.*)?$
+\.RecoverYourFiles.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.rec_rans([a-zA-Z][0-9]*)?(\?.*)?$
 \.recry1([a-zA-Z][0-9]*)?(\?.*)?$
 \.rectot([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4368,6 +4383,7 @@
 \.resq100([a-zA-Z][0-9]*)?(\?.*)?$
 \.restorebackup([a-zA-Z][0-9]*)?(\?.*)?$
 \.restore_fi([a-zA-Z][0-9]*)?(\?.*)?$
+\.RESTORE_FILES_INFO.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.restore_files*.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.restore_files.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.restorefiles.txt([a-zA-Z][0-9]*)?(\?.*)?$
@@ -5076,6 +5092,7 @@
 \.txd0t([a-zA-Z][0-9]*)?(\?.*)?$
 \.txlck([a-zA-Z][0-9]*)?(\?.*)?$
 \.tx_locked([a-zA-Z][0-9]*)?(\?.*)?$
+\.txtme([a-zA-Z][0-9]*)?(\?.*)?$
 \.tyos([a-zA-Z][0-9]*)?(\?.*)?$
 \.tyson([a-zA-Z][0-9]*)?(\?.*)?$
 \.tywd([a-zA-Z][0-9]*)?(\?.*)?$

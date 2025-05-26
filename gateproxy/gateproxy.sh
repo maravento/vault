@@ -148,7 +148,6 @@ function cleanupgrade() {
     echo "${lang_04[${en}]}. ${lang_06[${en}]}"
     nala upgrade --purge -y
     aptitude safe-upgrade -y
-    fc-cache
     sync
     updatedb
 }
@@ -412,28 +411,48 @@ function essential_setup() {
     # Disk & Partition Tools
     nala install -y gparted nfs-common ntfs-3g gsmartcontrol qdirstat
     nala install -y --no-install-recommends smartmontools
+    
     # System Utilities
-    nala install -y trash-cli pm-utils neofetch cpu-x lsof inotify-tools dmidecode idle3 wmctrl pv dpkg ppa-purge deborphan apt-utils gawk gir1.2-gtop-2.0 finger logrotate tree moreutils rename renameutils sharutils dos2unix gdebi synaptic preload debconf-utils mokutil util-linux linux-tools-common
+    nala install -y trash-cli pm-utils neofetch cpu-x lsof inotify-tools dmidecode idle3 wmctrl pv dpkg ppa-purge deborphan apt-utils gawk gir1.2-gtop-2.0 finger logrotate tree moreutils rename renameutils sharutils dos2unix gdebi synaptic preload debconf-utils mokutil util-linux linux-tools-common colordiff
+    
     # Development Libraries & Build Tools
     nala install -y uuid-dev libmnl-dev gtkhash libssl-dev libffi-dev python3-dev python3-venv libpam0g-dev autoconf autoconf-archive autogen automake dh-autoreconf pkg-config libpcap-dev libasound2-dev libfontconfig1 clang libuser build-essential module-assistant linux-headers-$(uname -r)
+    
     # Programming Languages & Environments
     nala install -y javascript-common libjs-jquery rubygems-integration rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit python3-pip python3-psutil xsltproc
+    
     # UDisks Tools (runtime + development)
     nala install -y udisks2 udisks2-btrfs udisks2-lvm2 libglib2.0-dev libudisks2-dev liblvm2-dev
+    
     # File System Utilities
     nala install -y reiserfsprogs reiser4progs xfsprogs jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools quota lvm2 attr jmtpfs
+    
     # FUSE Tools
     nala install -y libfuse2t64 exfat-fuse gvfs-fuse bindfs sshfs
+    
     # Virtualization Tools
-    nala install -y libguestfs-tools
+    nala install -y libguestfs-tools qemu-kvm virt-manager virtinst libvirt-clients bridge-utils
+    systemctl enable --now libvirtd
+    usermod -aG kvm "$local_user"
+    usermod -aG libvirt "$local_user"
+    
     # Network / Geo / Web Tools
     nala install -y conntrack i2c-tools wget bind9-dnsutils geoip-database wsdd
+    
     # Mesa (if there any problems, install the package: libegl-mesa0)
     nala install -y mesa-utils
+    
     # Mail
     service sendmail stop >/dev/null 2>&1
     update-rc.d -f sendmail remove >/dev/null 2>&1
     DEBIAN_FRONTEND=noninteractive nala install -y postfix
+    
+    # Fonts
+    nala install -y fonts-lato fonts-liberation fonts-dejavu
+    echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
+    nala install -y ttf-mscorefonts-installer fontconfig
+    fc-cache -f
+    
     # ubuntu database
     update-desktop-database
 }
@@ -449,14 +468,18 @@ echo -e "\n"
 function gateproxy_setup() {
     echo "Gateproxy Packages..."
     sed -i "/127.0.1.1/r $gp/conf/server/hosts.txt" /etc/hosts
+    
     # ACLs
     cp -rf $gp/acl/* "$aclroute"
     chmod -x "$aclroute"/*
+    
     # DHCP: isc-dhcp-server
     nala install -y isc-dhcp-server
     systemctl disable isc-dhcp-server6
+    
     # PHP
     nala install -y php
+    
     # http server: apache2
     nala install -y apache2 apache2-doc apache2-utils apache2-dev apache2-suexec-pristine libaprutil1t64 libaprutil1-dev libtest-fatal-perl
     systemctl enable apache2.service
@@ -467,6 +490,7 @@ function gateproxy_setup() {
     fixbroken
     cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
     sed -i '/^Listen.*/a Listen 8000\nListen 10100\nListen 10200\nListen 10300' /etc/apache2/ports.conf
+    
     # Proxy: squid-cache
     while pgrep squid > /dev/null; do
         killall -s SIGTERM squid &>/dev/null
@@ -487,11 +511,13 @@ function gateproxy_setup() {
     systemctl enable squid.service
     # Let’s Encrypt certificate for client to Squid proxy encryption (Optional)
     #nala install -y certbot python3-certbot-apache
+    
     # Web Admin: webmin
     curl -o setup-repos.sh https://raw.githubusercontent.com/webmin/webmin/master/setup-repos.sh
     chmod +x setup-repos.sh
     echo "y" | ./setup-repos.sh
     cleanupgrade
+    
     # Webmin
     # https://www.maravento.com/2019/06/instalar-modulo-webmin-por-linea-de.html
     nala install -y webmin
@@ -500,13 +526,15 @@ function gateproxy_setup() {
     find $aclroute -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/dev/null
     systemctl enable webmin.service
     echo "Webmin Access: https://localhost:10000"
+    
     # Web Admin: cockpit
     # https://www.maravento.com/2022/11/cockpit.html
     nala install -y cockpit cockpit-storaged cockpit-networkmanager cockpit-packagekit cockpit-machines cockpit-sosreport virt-viewer virtiofsd libvirt-daemon-system qemu-system
     systemctl start cockpit cockpit.socket
     systemctl enable --now cockpit cockpit.socket
-    usermod -aG libvirt-qemu $local_user
+    usermod -aG libvirt-qemu "$local_user"
     echo "Cockpit Access: http://localhost:9090"
+    
     # Process: glances
     # https://www.maravento.com/2023/04/glances.html
     nala install -y glances
@@ -522,6 +550,8 @@ function gateproxy_setup() {
     systemctl daemon-reload
     systemctl start glances.service
     echo "Glances Access: http://localhost:61208"
+    
+    # Net Pack
     # Net Tools (Replace NIC and IP/CIDR)
     nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
     nala install -y fping              # Net diagnostics: fping -a -g 192.168.1.0/24
@@ -538,6 +568,7 @@ function gateproxy_setup() {
     # Domain/IP Scanning
     nala install -y traceroute         # traceroute google.com
     nala install -y mtr-tiny           # mtr google.com
+    
     # Monitor: lightsquid
     # https://www.maravento.com/2022/10/lightsquid.html
     nala install -y libcgi-session-perl libgd-gd2-perl
@@ -561,9 +592,10 @@ function gateproxy_setup() {
     echo "Lightsquid Usernames: /var/www/lightsquid/realname.cfg"
     echo "Lightsquid (first time run): /var/www/lightsquid/lightparser.pl"
     echo "Lightsquid (check bandata IP): cat /etc/acl/{banmonth,bandaily}.txt | uniq"
+    
     # Traffic Reports: Sarg
     # https://www.maravento.com/2014/03/network-monitor.html
-    nala install -y sarg fonts-liberation fonts-dejavu
+    nala install -y sarg
     fixbroken
     mkdir -p /var/www/squid-reports
     cp -f /etc/sarg/sarg.conf{,.bak} &>/dev/null
@@ -586,6 +618,7 @@ function gateproxy_setup() {
     } | crontab -
     echo "Sarg Access: http://localhost:10300 or http://SERVER_IP:10300/"
     echo "Sarg Usernames: /etc/sarg/usertab (${lang_25[${en}]} 192.168.0.10 GATEPROXY)"
+    
     # Security
     nala install -y ipset lynis fail2ban
     cp $gp/conf/server/jail.local /etc/fail2ban/jail.local
@@ -595,6 +628,8 @@ function gateproxy_setup() {
     echo "Check: sudo fail2ban-client status <jail_name>"
     echo "Unban all: sudo fail2ban-client unban --all"
     echo "Unban Jail: sudo fail2ban-client set <jail_name> unban --all"
+    echo "Lynis Run: lynis -c -Q and log: /var/log/lynis.log"
+    
     # Logs: ulog, rsyslog
     # https://www.maravento.com/2014/07/registros-iptables.html
     chown root:root /var/log
@@ -609,9 +644,9 @@ function gateproxy_setup() {
     nala install -y rsyslog
     # in case rsyslog fails: nala install -y libfastjson4
     systemctl enable rsyslog.service
-    # Backup: timeshift
+    
+    # Backup: Timeshift FreeFileSync
     nala install -y timeshift
-    # Backup: FreeFileSync
     # https://www.maravento.com/2014/06/sincronizacion-espejo.html
     chmod +x $gp/conf/scr/ffsupdate.sh
     $gp/conf/scr/ffsupdate.sh
@@ -619,11 +654,6 @@ function gateproxy_setup() {
         cat
         echo "@weekly /etc/scr/ffsupdate.sh"
     } | crontab -
-    # Terminal
-    nala install -y tilix shellinabox
-    echo "Shellinabox Access: https://localhost:4200/"
-    # Terminal (Running a .desktop file. e.g.: dex foo.desktop)
-    nala install -y dex
 }
 gateproxy_setup
 echo OK
@@ -653,7 +683,7 @@ ${lang_21[${en}]} (y/n)" answer
         chown -R root:sambashare $(pwd)/"${lang_22[${en}]}"
         #chmod 1777 $(pwd)/"${lang_22[${en}]}"
         chmod 755 $(pwd)/"${lang_22[${en}]}"
-        usermod -aG sambashare $local_user
+        usermod -aG sambashare "$local_user"
         mkdir -p $(pwd)/"${lang_22[${en}]}"/DEMO
         echo "this is a demo file" | tee $(pwd)/"${lang_22[${en}]}"/DEMO/demo.txt
         # Protect the DEMO folder inside the shared folder
@@ -891,9 +921,9 @@ systemctl daemon-reexec &>/dev/null
 # Update initramfs (optional)
 #update-initramfs -u -k all
 # Copy HowTo to Desktop..."
-sudo -u $local_user bash -c 'cp $(pwd)/gateproxy/howto/gateproxy.pdf "$(xdg-user-dir DESKTOP)/gateproxy.pdf"'
+sudo -u "$local_user" bash -c 'cp $(pwd)/gateproxy/howto/gateproxy.pdf "$(xdg-user-dir DESKTOP)/gateproxy.pdf"'
 # create alias "upgrade"
-sudo -u $local_user bash -c "echo alias upgrade=\"'sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo fc-cache && sudo sync && sudo snap refresh && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo updatedb'\"" >>/home/$local_user/.bashrc
+sudo -u "$local_user" bash -c "echo alias upgrade=\"'sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo updatedb && sudo snap refresh'\"" >>/home/"$local_user"/.bashrc
 # snap
 snap set system proxy.http!
 snap set system proxy.https!
