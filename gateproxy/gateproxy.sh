@@ -26,7 +26,11 @@ if pidof -x $(basename $0) >/dev/null; then
 fi
 
 # checking dependencies (optional)
-pkg='nala curl software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 p7zip-full p7zip-rar rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar python-is-python3'
+pkg='nala curl software-properties-common apt-transport-https aptitude \
+     net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin \
+     gcc make perl bzip2 p7zip-full p7zip-rar rar unrar unzip zip unace \
+     cabextract arj zlib1g-dev tzdata tar python-is-python3'
+
 if apt-get -qq install $pkg; then
     echo "OK"
 else
@@ -413,28 +417,33 @@ function essential_setup() {
     nala install -y --no-install-recommends smartmontools
     
     # System Utilities
-    nala install -y trash-cli pm-utils neofetch cpu-x lsof inotify-tools dmidecode idle3 wmctrl pv dpkg ppa-purge deborphan apt-utils gawk gir1.2-gtop-2.0 finger logrotate tree moreutils rename renameutils sharutils dos2unix gdebi synaptic preload debconf-utils mokutil util-linux linux-tools-common colordiff
+    nala install -y trash-cli pm-utils neofetch cpu-x lsof inotify-tools dmidecode idle3 \
+                    wmctrl pv dpkg ppa-purge deborphan apt-utils gawk gir1.2-gtop-2.0 \
+                    finger logrotate tree moreutils rename renameutils sharutils dos2unix \
+                    gdebi synaptic preload debconf-utils mokutil util-linux linux-tools-common \
+                    colordiff
     
     # Development Libraries & Build Tools
-    nala install -y uuid-dev libmnl-dev gtkhash libssl-dev libffi-dev python3-dev python3-venv libpam0g-dev autoconf autoconf-archive autogen automake dh-autoreconf pkg-config libpcap-dev libasound2-dev libfontconfig1 clang libuser build-essential module-assistant linux-headers-$(uname -r)
+    nala install -y uuid-dev libmnl-dev gtkhash libssl-dev libffi-dev python3-dev python3-venv \
+                    libpam0g-dev autoconf autoconf-archive autogen automake dh-autoreconf \
+                    pkg-config libpcap-dev libasound2-dev libfontconfig1 clang libuser \
+                    build-essential module-assistant linux-headers-$(uname -r)
     
     # Programming Languages & Environments
-    nala install -y javascript-common libjs-jquery rubygems-integration rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit python3-pip python3-psutil xsltproc
+    nala install -y javascript-common libjs-jquery rubygems-integration rake \
+                    ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet \
+                    ruby-power-assert ruby-test-unit python3-pip python3-psutil xsltproc
     
     # UDisks Tools (runtime + development)
-    nala install -y udisks2 udisks2-btrfs udisks2-lvm2 libglib2.0-dev libudisks2-dev liblvm2-dev
+    nala install -y udisks2 udisks2-btrfs udisks2-lvm2 libglib2.0-dev \
+                    libudisks2-dev liblvm2-dev
     
     # File System Utilities
-    nala install -y reiserfsprogs reiser4progs xfsprogs jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools quota lvm2 attr jmtpfs
+    nala install -y reiserfsprogs reiser4progs xfsprogs jfsutils dosfstools e2fsprogs \
+                    hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools quota lvm2 attr jmtpfs
     
     # FUSE Tools
     nala install -y libfuse2t64 exfat-fuse gvfs-fuse bindfs sshfs
-    
-    # Virtualization Tools
-    nala install -y libguestfs-tools qemu-kvm virt-manager virtinst libvirt-clients bridge-utils
-    systemctl enable --now libvirtd
-    usermod -aG kvm "$local_user"
-    usermod -aG libvirt "$local_user"
     
     # Network / Geo / Web Tools
     nala install -y conntrack i2c-tools wget bind9-dnsutils geoip-database wsdd
@@ -481,7 +490,9 @@ function gateproxy_setup() {
     nala install -y php
     
     # http server: apache2
-    nala install -y apache2 apache2-doc apache2-utils apache2-dev apache2-suexec-pristine libaprutil1t64 libaprutil1-dev libtest-fatal-perl
+    nala install -y apache2 apache2-doc apache2-utils apache2-dev \
+                    apache2-suexec-pristine libaprutil1t64 libaprutil1-dev \
+                    libtest-fatal-perl
     systemctl enable apache2.service
     # To fix apache2 error: Syntax error on line 146 of /etc/apache2/apache2.conf | Cannot load /usr/lib/apache2/modules/mod_dnssd.so
     #nala install -y libapache2-mod-dnssd
@@ -527,12 +538,20 @@ function gateproxy_setup() {
     systemctl enable webmin.service
     echo "Webmin Access: https://localhost:10000"
     
-    # Web Admin: cockpit
+    # Web Admin + Virtualization: Cockpit + QEMU/KVM
     # https://www.maravento.com/2022/11/cockpit.html
-    nala install -y cockpit cockpit-storaged cockpit-networkmanager cockpit-packagekit cockpit-machines cockpit-sosreport virt-viewer virtiofsd libvirt-daemon-system qemu-system
-    systemctl start cockpit cockpit.socket
+    # Virtualization Tools
+    nala install -y qemu-kvm virt-manager virtinst libvirt-clients libvirt-daemon-system
+    usermod -aG kvm "$local_user"
+    usermod -aG libvirt "$local_user"
+    systemctl enable --now libvirtd
+    # Note: For Linux Guest, run: sudo apt install -y qemu-guest-agent
+    # Virtual Tools
+    nala install -y bridge-utils libguestfs-tools
+    # Cockpit
+    nala install -y cockpit cockpit-storaged cockpit-networkmanager cockpit-packagekit \
+                    cockpit-machines cockpit-sosreport virt-viewer virtiofsd qemu-system
     systemctl enable --now cockpit cockpit.socket
-    usermod -aG libvirt-qemu "$local_user"
     echo "Cockpit Access: http://localhost:9090"
     
     # Process: glances
@@ -673,7 +692,8 @@ ${lang_21[${en}]} (y/n)" answer
     [Yy]*)
         # execute command yes
         nala install -y samba samba-common samba-common-bin smbclient winbind cifs-utils
-        #apt -qq install -y --reinstall samba-common samba-common-bin # in case it fails
+        # in case it fails
+        #apt -qq install -y --reinstall samba-common samba-common-bin
         systemctl enable smbd.service
         systemctl enable nmbd.service
         systemctl enable winbind.service
