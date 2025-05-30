@@ -75,15 +75,19 @@ git clone --depth=1 https://github.com/maravento/vault.git
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
+      <strong>This repository</strong>
       <ul>
-        <li>This project includes third-party components.</li>
-        <li>Changes must be submitted via Issues. Pull requests are not accepted.</li>
+        <li>Includes third-party components.</li>
+        <li>Follows a non-standard workflow. Published commits may be rewritten or removed without notice as part of the debugging and improvement process.</li>
+        <li>Does not accept Pull Requests. Changes must be proposed via Issues.</li>
       </ul>
     </td>
     <td style="width: 50%; vertical-align: top;">
+      <strong>Este repositorio</strong>
       <ul>
-        <li>Este proyecto incluye componentes de terceros.</li>
-        <li>Los cambios deben proponerse mediante Issues. No se aceptan Pull Requests.</li>
+        <li>Incluye componentes de terceros.</li>
+        <li>Utiliza un flujo de trabajo no convencional. Los commits publicados pueden ser reescritos o eliminados sin previo aviso como parte del proceso de depuración y mejora.</li>
+        <li>No acepta Pull Requests. Los cambios deben proponerse mediante Issues.</li>
       </ul>
     </td>
   </tr>
