@@ -540,17 +540,18 @@ function gateproxy_setup() {
     
     # Web Admin + Virtualization: Cockpit + QEMU/KVM
     # https://www.maravento.com/2022/11/cockpit.html
-    # Virtualization Tools
-    nala install -y qemu-kvm virt-manager virtinst libvirt-clients libvirt-daemon-system
+    # QEMU/KVM
+    nala install -y qemu-kvm virt-manager virtinst libvirt-clients libvirt-daemon-system \
+                    virtiofsd qemu-system qemu-guest-agent
     usermod -aG kvm "$local_user"
     usermod -aG libvirt "$local_user"
     systemctl enable --now libvirtd
     # Note: For Linux Guest, run: sudo apt install -y qemu-guest-agent
     # Virtual Tools
-    nala install -y bridge-utils libguestfs-tools
+    nala install -y bridge-utils libguestfs-tools ovmf
     # Cockpit
     nala install -y cockpit cockpit-storaged cockpit-networkmanager cockpit-packagekit \
-                    cockpit-machines cockpit-sosreport virt-viewer virtiofsd qemu-system
+                    cockpit-machines cockpit-sosreport virt-viewer
     systemctl enable --now cockpit cockpit.socket
     echo "Cockpit Access: http://localhost:9090"
     
@@ -574,14 +575,15 @@ function gateproxy_setup() {
     # Net Tools (Replace NIC and IP/CIDR)
     nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
     nala install -y fping              # Net diagnostics: fping -a -g 192.168.1.0/24
-    nala install -y ethtool            # Net config: sudo ethtool eth0
+    nala install -y ethtool            # Net config: ethtool eth0
+    nala install -y iperf3             # Net test: On server: iperf3 -s | On client: iperf3 -c server_IP
     # Net Scanning (Replace NIC and IP/CIDR)
-    nala install -y masscan            # sudo masscan --ports 0-65535 192.168.0.0/16
-    nala install -y nbtscan            # sudo nbtscan 192.168.1.0/24
-    nala install -y nast               # sudo nast -m
-    nala install -y arp-scan           # sudo arp-scan --localnet
-    nala install -y arping             # sudo arping -I eth0 192.168.1.1
-    nala install -y netdiscover        # sudo netdiscover
+    nala install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
+    nala install -y nbtscan            # nbtscan 192.168.1.0/24
+    nala install -y nast               # nast -m
+    nala install -y arp-scan           # arp-scan --localnet
+    nala install -y arping             # arping -I eth0 192.168.1.1
+    nala install -y netdiscover        # netdiscover
     # Nmap
     nala install -y nmap python3-nmap ndiff
     # Domain/IP Scanning

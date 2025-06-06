@@ -59,6 +59,7 @@ Tested on: Ubuntu 22.04/24.04 x64
 - [Port Kill (check port with: `sudo netstat -lnp | grep "port"`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/portkill.sh)
 - [Rclone Cloud (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Mount | Umount (start | stop | restart | status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rcloud.sh)
 - [Rclone Sync (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Sync to Download | Upload Folder](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rsync.sh)
+- [Realtek Linux drivers](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/realtekdrv.sh)
 - [Serveo Tunnel (start | stop | status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/serveo.sh)
 - [Squid-OpenSSL (ssl-bump)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/sslbump.sh)
 - [System Migration Tool](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/appbr.sh)
