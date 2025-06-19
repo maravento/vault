@@ -3,10 +3,10 @@
 
 # Cleaner
 # Search and send to trash:
-# - ADS files (Thumbs.db, Zone.Identifier, encryptable, etc.)
-# - macOS system files (e.g., .fuse_hidden*, .spotlight-*, .fseventsd*, .ds_store*, ~lock.*, etc.)
-# - Extended file attributes (e.g., attributes:, etc.)
-# - Crash reports from apport (/var/crash/*crash)
+# - Windows ADS files (e.g., :Zone.Identifier, :encryptable, Thumbs.db)
+# - macOS and Linux system files (e.g., .fuse_hidden*, .spotlight-*, .fseventsd*, .DS_Store, ~lock.*)
+# - Extended attributes and metadata streams (e.g., :attributes:)
+# - Crash reports from Apport (/var/crash/*.crash)
 
 echo "Start Cleaner. Wait..."
 printf "\n"
@@ -36,8 +36,19 @@ else
     exit
 fi
 
-# Find and delete files
-find . -type f -regextype posix-egrep -iregex "^.*(:encryptable|Zone\.identifier|.fuse_hidden*|goutputstream*|.spotlight-*|.fseventsd*|.ds_store*|~lock.*|Thumbs\.db|attributes:).*$" -exec trash {} \; 2>/dev/null
+# Find and delete (to trash) ADS, metadata, and temp files
+find . -type f \( \
+    -iname "Thumbs.db" -o \
+    -iname "*Zone.identifier*" -o \
+    -iname ".fuse_hidden*" -o \
+    -iname "goutputstream*" -o \
+    -iname ".spotlight-*" -o \
+    -iname ".fseventsd*" -o \
+    -iname ".ds_store*" -o \
+    -iname "~lock.*" -o \
+    -iname "*:encryptable*" -o \
+    -iname "*:attributes:*" \
+\) -exec trash {} + 2>/dev/null
 
 # Delete crash reports from apport
 find /var/crash/*crash -type f -exec trash {} \; 2>/dev/null
