@@ -40,7 +40,7 @@ for cmd in curl jq notify-send; do
 done
 if [ -n "$missing" ]; then
     echo "⚠️ Missing dependencies: $missing"
-    echo "Run: sudo apt install curl jq libnotify-bin"
+    echo "Run: sudo apt install $missing"
     exit 1
 fi
 

@@ -34,6 +34,7 @@ python gitfolderdl.py https://github.com/maravento/vault/scripts
 
 Tested on: Ubuntu 22.04/24.04 x64
 
+- [Android 2 PC via scrcpy (start | stop | status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/droid2pc.sh)
 - [ArpON table filter](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arponscan.sh)
 - [Arpwatch (start | stop | status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arpwatch.sh)
 - [Check Bandwidth (Set Minimum Download | Upload Value)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bandwidth.sh)
