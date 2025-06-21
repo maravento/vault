@@ -145,8 +145,8 @@ $iptables -t mangle -A PREROUTING -s 127.0.0.0/8 ! -i lo -j DROP
 echo "Gateway Rules..."
 
 # SYADMIN
-# Audit Ports: ssh (8282) webmin (10000), smbaudit (10100), sqstat audit (10200), sarg audit (10300)
-aports="8282,10000,10100,10200,10300"
+# Audit Ports: webmin (10000), sarg audit (10100)
+aports="10000,10100"
 # add your sysadmin mac address to control audit ports
 sysadmin="00:00:00:00:00:00"
 for mac in $sysadmin; do
@@ -203,68 +203,46 @@ $iptables -t mangle -A PREROUTING -i $lan -j DROP
 ## GATEWAY PORTS ##
 echo "Gateway Ports..."
 
-# RFC 2131 DHCP BOOTP protocol (UDP 67,68), NETBIOS Names and NETBIOS Datagram Service (UDP 137,138), SNMP (UDP 161,162), NTP (UDP 123), Open cups Printing Services (IPP - UDP 631)
-gudp="67,68,137,138,445,161,162,123,631"
-for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
-    $iptables -A INPUT -i $lan -p udp -m multiport --dports $gudp -m mac --mac-source $mac -j ACCEPT
-done
-
-# NETBios Sessions (TCP 139), Microsoft-DS and SMB (TCP 445)
-gtcp="139,445"
-for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
-    $iptables -A INPUT -i $lan -p tcp -m multiport --dports $gtcp -m mac --mac-source $mac -j ACCEPT
-done
-
-## DNS PORTS ##
-echo "DNS Ports..."
-
-# DNS Public Server (Google) + Stubby (127.0.0.1 192.168.X.X)
-dns="8.8.8.8 8.8.4.4 192.168.1.2 127.0.0.1"
-#dns="208.67.222.222 208.67.220.220" # OpenDNS (Alternative)
-
+# DNS 
+# OpenDNS (Optional) + Stubby (127.0.0.1 192.168.X.X)
+#dns="208.67.222.222 208.67.220.220 127.0.0.1 192.168.X.X"
+# Google DNS 
+dns="8.8.8.8 8.8.4.4"
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
     for ip in $dns; do
-        # Multicast DNS (mDNS) (udp 5353)
-        $iptables -A INPUT -i $lan -p udp -s 224.0.0.0/4 -d 5353 -m mac --mac-source $mac -j ACCEPT
-        # Simple Service Discovery Protocol/Universal Plug and Play (SSDP/UPnP) (239.255.255.250) (udp 1900,5000)
-        $iptables -A INPUT -i $lan -p udp -m multiport --dports 1900,5000 -m mac --mac-source $mac -j ACCEPT
-        # Web Service Discovery (WSDD - UDP 3702)
-        $iptables -A INPUT -i $lan -p udp -d 239.255.255.250 --dport 3702 -m mac --mac-source $mac -j ACCEPT
-        # Link-local addresses (LLA)
-        $iptables -A INPUT -i $lan -s 169.254.0.0/16 -m mac --mac-source $mac -j ACCEPT
-        # Link-local Multicast Name Resolution (LLMNR - TCP 5355)
-        $iptables -A INPUT -i $lan -p tcp --dport 5355 -m mac --mac-source $mac -j ACCEPT
-        # DNS (UDP 53), DNS over TLS (DoT - UDP 853), Multicast DNS (mDNS - UDP 5353)
-        $iptables -A INPUT -i $lan -p udp -m multiport --dports 53,853,5353 -m state --state ESTABLISHED -m mac --mac-source $mac -j ACCEPT
-        $iptables -A FORWARD -i $lan -p udp -m multiport --dports 53,853,5353 -m mac --mac-source $mac -j ACCEPT
-        $iptables -A OUTPUT -p udp -m multiport --dports 53,853,5353 -j ACCEPT
+        # DNS (53): TCP,UDP
+        for proto in udp tcp; do
+            $iptables -A FORWARD -i $lan -o $wan -m mac --mac-source $mac -d $ip -p $proto --dport 53 -j ACCEPT
+            $iptables -A FORWARD -i $wan -o $lan -s $ip -p $proto --sport 53 -m state --state ESTABLISHED -j ACCEPT
+        done
+        # DoT (853): TCP
+        $iptables -A FORWARD -i $lan -o $wan -m mac --mac-source $mac -d $ip -p tcp --dport 853 -j ACCEPT
+        $iptables -A FORWARD -i $wan -o $lan -s $ip -p tcp --sport 853 -m state --state ESTABLISHED -j ACCEPT
+        # mDNS (5353): UDP
+        $iptables -A FORWARD -i $lan -o $wan -m mac --mac-source $mac -d $ip -p udp --dport 5353 -j ACCEPT
+        $iptables -A FORWARD -i $wan -o $lan -s $ip -p udp --sport 5353 -m state --state ESTABLISHED -j ACCEPT
+        # LLMNR (5355): UDP
+        $iptables -A FORWARD -i $lan -o $wan -m mac --mac-source $mac -d $ip -p udp --dport 5355 -j ACCEPT
+        $iptables -A FORWARD -i $wan -o $lan -s $ip -p udp --sport 5355 -m state --state ESTABLISHED -j ACCEPT
+        # Multicast DNS (mDNS) (Optional. Check /etc/acl/bogons.txt)
+        #$iptables -A INPUT -i $lan -p udp -s 224.0.0.0/4 --dport 5353 -m mac --mac-source $mac -j ACCEPT
     done
 done
 
-## INTERNET PORTS (FOR CLIENTS) ##
-echo "Internet Ports..."
-
-# Commons Ports (Optional)
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
-    for protocol in tcp udp; do
-        # skype for business, lync -SfB/Lync-, teams (TCP 5061, UDP 40000–49999, TCP/UDP 40000–59999, TCP 55000–65535, TCP 8057, UDP 8104)
-        #$iptables -A INPUT -i $lan -p $protocol -m multiport --dports 3478:3481,8104,50000:60000,8104 -m mac --mac-source $mac -j ACCEPT
-        #$iptables -A FORWARD -i $lan -p $protocol -m multiport --dports 3478:3481,8104,50000:60000,8104 -m mac --mac-source $mac -j ACCEPT
-        # whatsapp (TCP: 4244,5223,5228,5242 TCP/UDP: 59234, 50318 UDP: 3478,45395)
-        #$iptables -A INPUT -i $lan -p $protocol -m multiport --dports 4244:5242,3478,45395,50318,59234 -m mac --mac-source $mac -j ACCEPT
-        #$iptables -A FORWARD -i $lan -p $protocol -m multiport --dports 4244:5242,3478,45395,50318,59234 -m mac --mac-source $mac -j ACCEPT
-        # XMPP (TCP/UDP 5222,5233,5298 TCP 5223,5269,8010), Whatsapp, iChat (TCP/UDP 5222)
-        #$iptables -A INPUT -i $lan -p $protocol --dport xmpp-client -m mac --mac-source $mac -j ACCEPT
-        #$iptables -A INPUT -i $lan -p $protocol -m multiport --dports 5222,5269,5298,8010,5190,5220 -m mac --mac-source $mac -j ACCEPT
-        #$iptables -A FORWARD -i $lan -p $protocol --dport xmpp-client -j ACCEPT
-        #$iptables -A FORWARD -i $lan -p $protocol -m multiport --dports 5222,5269,5298,8010,5190,5220 -m mac --mac-source $mac -j ACCEPT
-        # anydesk
-        #$iptables -A INPUT -i $lan -p $protocol -m multiport --dports 6568,7070 -m mac --mac-source $mac -j ACCEPT
-        #$iptables -A FORWARD -i $lan -p $protocol -m multiport --dports 6568,7070 -m mac --mac-source $mac -j ACCEPT
-        # SMTP/SSMTP/IMAP/IMAPS/POP3/POP3S/POP3PASS (25,106,143,465,587,993,110,995)
-        #$iptables -A INPUT -i $lan -p $protocol -m multiport --dports 25,106,143,465,587,993,110,995 -m mac --mac-source $mac -j ACCEPT
-        #$iptables -A FORWARD -i $lan -p $protocol -m multiport --dports 25,106,143,465,587,993,110,995 -m mac --mac-source $mac -j ACCEPT
-    done
+    # DHCP, SNMP, NTP, IPP
+    $iptables -A INPUT -i $lan -p udp -m multiport --dports 67,68,137,138,161,162,123,631 -m mac --mac-source $mac -j ACCEPT
+    # NETBIOS Sessions, SMB (TCP)
+    $iptables -A INPUT -i $lan -p tcp -m multiport --dports 139,445 -m mac --mac-source $mac -j ACCEPT
+    # SSDP/UPnP (UDP 1900,5000)
+    $iptables -A INPUT -i $lan -p udp -m multiport --dports 1900,5000 -m mac --mac-source $mac -j ACCEPT
+    # WSDD (UDP 3702)
+    $iptables -A INPUT -i $lan -p udp -d 239.255.255.250 --dport 3702 -m mac --mac-source $mac -j ACCEPT
+    # Warning HTML
+    $iptables -A INPUT -i $lan -p tcp --dport 10200 -m mac --mac-source $mac -j ACCEPT
+    # SMTP/SSMTP/IMAP/IMAPS/POP3/POP3S/POP3PASS (25,106,143,465,587,993,110,995)
+    #$iptables -A INPUT -i $lan -p $protocol -m multiport --dports 25,106,143,465,587,993,110,995 -m mac --mac-source $mac -j ACCEPT
+    #$iptables -A FORWARD -i $lan -p $protocol -m multiport --dports 25,106,143,465,587,993,110,995 -m mac --mac-source $mac -j ACCEPT
 done
 
 ## SECURITY RULES ##
@@ -276,9 +254,6 @@ for string in $(echo -e "$bt" | sed -e '/^#/d' -e 's:#.*::g'); do
     $iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo bm -j NFLOG --nflog-prefix 'torrent'
     $iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo bm -j DROP
 done
-
-# Block UDP
-$iptables -A OUTPUT -p udp -j DROP
 
 # syn_flood
 $iptables -A INPUT -p tcp --tcp-flags ALL NONE -j DROP
@@ -299,30 +274,22 @@ $iptables -A syn_flood -j DROP
 $iptables -A INPUT -i $lan -m conntrack --ctstate INVALID -j DROP
 
 # ICMP (ping)
-$iptables -A INPUT -p icmp -j DROP
+$iptables -A INPUT -p icmp --icmp-type echo-request -j DROP
 
-# Limit incoming and outgoing connections.
-#$iptables -A INPUT -p tcp -m connlimit --connlimit-above 50 -j NFLOG --nflog-prefix 'connlimit'
-#$iptables -A INPUT -p tcp -m connlimit --connlimit-above 50 -j REJECT
-#$iptables -A OUTPUT -p tcp --syn -m connlimit --connlimit-above 20 -j DROP
+# Block Spoofed Packets
+for ip in $(sed '/^\s*#/d;/^\s*$/d' "$aclroute/bogons.txt"); do
+    $iptables -A INPUT -i $lan -s $ip -j NFLOG --nflog-prefix 'spoof'
+    $iptables -A INPUT -i $lan -s $ip -j DROP
+done
 
 # Block IPs with more than 10 connections in 10 seconds (INPUT).
 #$iptables -A INPUT -m state --state NEW -m recent --set
 #$iptables -A INPUT -m state --state NEW -m recent --update --seconds 10 --hitcount 10 -j NFLOG --nflog-prefix 'hitcount'
 #$iptables -A INPUT -m state --state NEW -m recent --update --seconds 10 --hitcount 10 -j DROP
 
-# Number of connections per minute from an IP (INPUT).
-#$iptables -A INPUT -p tcp -m conntrack --ctstate NEW -m limit --limit 10/minute --limit-burst 10 -j NFLOG --nflog-prefix 'conntrack'
-#$iptables -A INPUT -p tcp -m conntrack --ctstate NEW -m limit --limit 10/minute --limit-burst 10 -j ACCEPT
-
-# Block Spoofed Packets
-#for ip in $(sed '/#.*/d' $aclroute/ipsreserved.txt); do
-#    $iptables -A INPUT -i $lan -s $ip -j NFLOG --nflog-prefix 'spoof'
-#    $iptables -A INPUT -i $lan -s $ip -j DROP
-#done
-
 # Protection against port scanning
 #$iptables -N port-scanning
+#$iptables -A INPUT -p tcp --tcp-flags SYN,ACK,FIN,RST RST -j port-scanning
 #$iptables -A port-scanning -p tcp --tcp-flags SYN,ACK,FIN,RST RST -m limit --limit 1/s --limit-burst 2 -j RETURN
 #$iptables -A port-scanning -j NFLOG --nflog-prefix 'portscan'
 #$iptables -A port-scanning -j DROP

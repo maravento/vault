@@ -500,7 +500,7 @@ function gateproxy_setup() {
     apt -qq install -y --reinstall apache2-doc
     fixbroken
     cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
-    sed -i '/^Listen.*/a Listen 8000\nListen 10100\nListen 10200\nListen 10300' /etc/apache2/ports.conf
+    sed -i '/^Listen.*/a Listen 8000\nListen 10100\nListen 10200' /etc/apache2/ports.conf
     
     # Proxy: squid-cache
     while pgrep squid > /dev/null; do
@@ -590,30 +590,6 @@ function gateproxy_setup() {
     nala install -y traceroute         # traceroute google.com
     nala install -y mtr-tiny           # mtr google.com
     
-    # Monitor: lightsquid
-    # https://www.maravento.com/2022/10/lightsquid.html
-    nala install -y libcgi-session-perl libgd-gd2-perl
-    tar -xf $gp/conf/monitor/lightsquid-1.8.1.tar.gz
-    mkdir -p /var/www/lightsquid
-    cp -f -R lightsquid-1.8.1/* /var/www/lightsquid/
-    rm -rf lightsquid-1.8.1
-    chmod +x /var/www/lightsquid/*.{cgi,pl}
-    cp -f $gp/conf/monitor/lightsquid.conf /etc/apache2/conf-available/lightsquid.conf
-    a2enmod cgid
-    a2enconf lightsquid
-    crontab -l | {
-        cat
-        echo "*/10 * * * * /var/www/lightsquid/lightparser.pl today"
-    } | crontab -
-    crontab -l | {
-        cat
-        echo "*/12 * * * * /etc/scr/bandata.sh"
-    } | crontab -
-    echo "Lightsquid Access: http://localhost/lightsquid/"
-    echo "Lightsquid Usernames: /var/www/lightsquid/realname.cfg"
-    echo "Lightsquid (first time run): /var/www/lightsquid/lightparser.pl"
-    echo "Lightsquid (check bandata IP): cat /etc/acl/{banmonth,bandaily}.txt | uniq"
-    
     # Traffic Reports: Sarg
     # https://www.maravento.com/2014/03/network-monitor.html
     nala install -y sarg
@@ -637,9 +613,40 @@ function gateproxy_setup() {
         cat
         echo '@weekly find /var/www/squid-reports -name "2*" -mtime +30 -type d -exec rm -rf "{}" \; &> /dev/null'
     } | crontab -
-    echo "Sarg Access: http://localhost:10300 or http://SERVER_IP:10300/"
+    echo "Sarg Access: http://localhost:10100 or http://SERVER_IP:10100/"
     echo "Sarg Usernames: /etc/sarg/usertab (${lang_25[${en}]} 192.168.0.10 GATEPROXY)"
+
+    # Monitor: lightsquid
+    # https://github.com/maravento/vault/tree/master/lightsquid
+    nala install -y libcgi-session-perl libgd-gd2-perl
+    tar -xf $gp/conf/monitor/lightsquid-1.8.1.tar.gz
+    mkdir -p /var/www/lightsquid
+    cp -f -R lightsquid-1.8.1/* /var/www/lightsquid/
+    rm -rf lightsquid-1.8.1
+    chmod +x /var/www/lightsquid/*.{cgi,pl}
+    cp -f $gp/conf/monitor/lightsquid.conf /etc/apache2/conf-available/lightsquid.conf
+    a2enmod cgid
+    a2enconf lightsquid
+    crontab -l | {
+        cat
+        echo "*/10 * * * * /var/www/lightsquid/lightparser.pl today"
+    } | crontab -
+    crontab -l | {
+        cat
+        echo "*/12 * * * * /etc/scr/bandata.sh"
+    } | crontab -
+    echo "Lightsquid Access: http://localhost/lightsquid/"
+    echo "Lightsquid Usernames: /var/www/lightsquid/realname.cfg"
+    echo "Lightsquid (first time run): /var/www/lightsquid/lightparser.pl"
+    echo "Lightsquid (check bandata IP): cat /etc/acl/{banmonth,bandaily}.txt | uniq"
     
+    # Warning for lightsquid (Optional)
+    mkdir -p /var/www/html/warning
+    cp -f $gp/conf/monitor/warning.html /var/www/html/warning/warning.html
+    cp -f $gp/conf/monitor/warning.conf /etc/apache2/sites-available/warning.conf
+    a2ensite warning.conf
+    echo "Lightsquid Warning: http://localhost:10200 or http://SERVER_IP:10200"
+
     # Security
     nala install -y ipset lynis fail2ban
     cp $gp/conf/server/jail.local /etc/fail2ban/jail.local

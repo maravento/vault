@@ -136,7 +136,14 @@ fi
 for ip in $(cat "$block_list_day" "$block_list_week" "$block_list_month" | "$reorganize" | uniq); do
     $ipset -! add bandata "$ip"
 done
-$iptables -t mangle -I PREROUTING -i $lan -m set --match-set bandata src,dst -j DROP
-$iptables -I INPUT -i $lan -m set --match-set bandata src,dst -j DROP
-$iptables -I FORWARD -i $lan -m set --match-set bandata src,dst -j DROP
+# Redirect 80 to 10200 for bandata
+$iptables -t nat -A PREROUTING -i $lan -m set --match-set bandata src -p tcp --dport 80 -j DNAT --to-destination 192.168.0.10:10200
+# Block HTTPS
+$iptables -A FORWARD -i $lan -m set --match-set bandata src -p tcp --dport 443 -j REJECT
+# Deny All
+$iptables -A FORWARD -i $lan -m set --match-set bandata src -j DROP
+
+# Update realname config file (optional)
+realname=/var/www/lightsquid/realname.cfg
+find $aclroute -maxdepth 1 -type f -iname 'mac-*' ! -iname 'mac-unlimited.txt' -exec cat {} + | cut -d";" -f3- | sed -r 's/[;]+/ /g' | sort -n -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4 > $realname
 echo "Done"
