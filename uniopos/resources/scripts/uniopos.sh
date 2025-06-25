@@ -3,13 +3,16 @@
 
 # UniOPOS
 
-# SO: Ubuntu 20.04/22.04 x64
-# Version: Alpha (Use at your own risk)
-
 echo "UniOPOS Start. Wait..."
 printf "\n"
 
-# checking script execution
+# check root
+if [ "$(id -u)" != "0" ]; then
+    echo "This script must be run as root" 1>&2
+    exit 1
+fi
+
+# check script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
         if [ "$p" -ne $$ ]; then
@@ -19,10 +22,12 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
-# checking root
-if [ "$(id -u)" != "0" ]; then
-    echo "This script must be run as root" 1>&2
-    exit 1
+# check SO
+UBUNTU_VERSION=$(lsb_release -rs)
+UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VERSION" != "24.04" ) ]]; then
+    echo "Unsupported system. Use at your own risk"
+    # exit 1
 fi
 
 # WGET
@@ -31,33 +36,6 @@ wgetd='wget -q --show-progress -c --no-check-certificate --retry-connrefused --t
 # LOCAL USER
 local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 
-echo -e "\n"
-# CHECKING SO
-function checkos() {
-    echo "Check OS..."
-    is_uversion=$(lsb_release -sc | grep -P 'focal|jammy')
-    if [ "$is_uversion" ]; then
-        echo "OK. Ubuntu 20.04/22.04"
-    else
-        echo "Aborted installation. Check Minimum Requirements"
-        exit
-    fi
-}
-
-function x64() {
-    echo "Check Architecture x64"
-    ARCHITECTURE=$(uname -m)
-    if [ "${ARCHITECTURE}" == 'x86_64' ]; then
-        echo "OK"
-        checkos
-    else
-        echo "Aborted installation. Check Minimum Requirements"
-        exit
-    fi
-}
-x64
-
-clear
 echo -e "\n"
 echo "    Welcome to uniOPOS Install"
 echo "    uniCenta oPOS Point Of Sale + Dependencies"

@@ -1,16 +1,4 @@
 #!/bin/bash
-### BEGIN INIT INFO
-# Provides:          bandata
-# Required-Start:    $local_fs $remote_fs $network
-# Required-Stop:     $local_fs $remote_fs $network
-# Should-Start:      $named
-# Should-Stop:       $named
-# Default-Start:     2 3 4 5
-# Default-Stop:      0 1 6
-# Short-Description: Start daemon at boot time
-# Description:       Enable service provided by daemon
-### END INIT INFO
-
 # maravento.com
 
 # Bandata for LightSquid
@@ -27,13 +15,13 @@
 echo "Bandata for LightSquid Start. Wait..."
 printf "\n"
 
-# checking root
+# check root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
 
-# checking script execution
+# check script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
         if [ "$p" -ne $$ ]; then
@@ -43,23 +31,16 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
-# checking dependencies (optional)
-pkg='ipset'
-if apt-get -qq install $pkg; then
-    true
-else
-    echo "Error installing $pkg. Abort"
-    exit
-fi
-
 ### VARIABLES
 # ipset/iptables
 iptables=/sbin/iptables
 ipset=/sbin/ipset
 # replace interface (e.g: enpXsX)
 lan="eth1"
-# range
-range="192.168*"
+# lan_prefix
+lan_prefix="192.168."
+# serverip
+serverip="192.168.0.10"
 # today
 today=$(date +"%u")
 # reorganize IP
@@ -69,14 +50,14 @@ report="/var/www/lightsquid/report"
 # path to ACLs folder
 aclroute="/etc/acl"
 # Create folder if doesn't exist
-if [ ! -d "$aclroute" ]; then mkdir -p "$aclroute"; fi &>/dev/null
+mkdir -p "$aclroute" >/dev/null 2>&1
 # path to ACLs files
 allow_list=$aclroute/allowdata.txt
 block_list_day=$aclroute/banday.txt
 block_list_week=$aclroute/banweek.txt
 block_list_month=$aclroute/banmonth.txt
 # Create ACLs files if doesn't exist
-if [[ ! -f {"$allow_list","$block_list_day","$block_list_week","$block_list_month"} ]]; then touch {"$allow_list","$block_list_day","$block_list_week","$block_list_month"}; fi
+touch "$allow_list" "$block_list_day" "$block_list_week" "$block_list_month" >/dev/null 2>&1
 
 ### BANDATA DAY
 echo "Running Bandata Day..."
@@ -92,9 +73,10 @@ else
     echo "Not Weekend"
     (
         cd "$day_logs"
-        for file in "$range"; do
-            if (($(awk <$file '/^total/ {print($2)}') > "$max_bw_day")); then
-                echo $file
+        for file in ${lan_prefix}*; do
+            [ -f "$file" ] || continue
+            if (($(awk '/^total/ {print $2}' "$file") > "$max_bw_day")); then
+                echo "$file"
             fi
         done
     ) >banout_day
@@ -148,7 +130,18 @@ fi
 for ip in $(cat "$block_list_day" "$block_list_week" "$block_list_month" | "$reorganize" | uniq); do
     $ipset -! add bandata "$ip"
 done
-$iptables -t mangle -I PREROUTING -i $lan -m set --match-set bandata src,dst -j DROP
-$iptables -I INPUT -i $lan -m set --match-set bandata src,dst -j DROP
-$iptables -I FORWARD -i $lan -m set --match-set bandata src,dst -j DROP
+
+# Redirect 80
+$iptables -t nat -I PREROUTING -i "$lan" -m set --match-set bandata src -p tcp --dport 80 -j DNAT --to "$server:18880"
+$iptables -I INPUT -i "$lan" -m set --match-set bandata src -p tcp --dport 18880 -j ACCEPT
+# Allow 18880
+$iptables -I INPUT -i $lan -p tcp --dport 18880  -m set --match-set bandata src,dst -j ACCEPT
+$iptables -I FORWARD -i $lan -p tcp --dport 18880  -m set --match-set bandata src,dst -j ACCEPT
+# Redirect 443
+$iptables -I INPUT -i "$lan" -p tcp --dport 18443 -j ACCEPT
+$iptables -t nat -A PREROUTING -i "$lan" -m set --match-set bandata src -p tcp --dport 443 -j DNAT --to-destination "$server:18443"
+# Drop all
+$iptables -I FORWARD -i "$lan" -m set --match-set bandata src -j DROP
+$iptables -I INPUT -i "$lan" -m set --match-set bandata src -j DROP
+
 echo "Done"

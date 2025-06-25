@@ -190,6 +190,7 @@ Fuzz
 FyberSpider
 Fyrebot
 GalaxyBot
+GeedoProductSearch
 Genieo
 GermCrawler
 Getintent

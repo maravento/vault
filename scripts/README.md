@@ -34,6 +34,7 @@ python gitfolderdl.py https://github.com/maravento/vault/scripts
 
 Tested on: Ubuntu 22.04/24.04 x64
 
+- [Android 2 PC via scrcpy (start | stop | status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/droid2pc.sh)
 - [ArpON table filter](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arponscan.sh)
 - [Arpwatch (start | stop | status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arpwatch.sh)
 - [Check Bandwidth (Set Minimum Download | Upload Value)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bandwidth.sh)
@@ -59,6 +60,7 @@ Tested on: Ubuntu 22.04/24.04 x64
 - [Port Kill (check port with: `sudo netstat -lnp | grep "port"`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/portkill.sh)
 - [Rclone Cloud (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Mount | Umount (start | stop | restart | status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rcloud.sh)
 - [Rclone Sync (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Sync to Download | Upload Folder](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rsync.sh)
+- [Realtek Linux drivers](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/realtekdrv.sh)
 - [Serveo Tunnel (start | stop | status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/serveo.sh)
 - [Squid-OpenSSL (ssl-bump)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/sslbump.sh)
 - [System Migration Tool](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/appbr.sh)

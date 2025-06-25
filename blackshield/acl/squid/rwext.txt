@@ -147,6 +147,8 @@
 \.8be1([a-zA-Z][0-9]*)?(\?.*)?$
 \.8c7f([a-zA-Z][0-9]*)?(\?.*)?$
 \.8lock8([a-zA-Z][0-9]*)?(\?.*)?$
+\.8xUsq62([a-zA-Z][0-9]*)?(\?.*)?$
+\.9062([a-zA-Z][0-9]*)?(\?.*)?$
 \.911([a-zA-Z][0-9]*)?(\?.*)?$
 \.96e2([a-zA-Z][0-9]*)?(\?.*)?$
 \.9ECFA84E([a-zA-Z][0-9]*)?(\?.*)?$
@@ -309,6 +311,8 @@
 \.amba([a-zA-Z][0-9]*)?(\?.*)?$
 \.amber([a-zA-Z][0-9]*)?(\?.*)?$
 \.Amelia([a-zA-Z][0-9]*)?(\?.*)?$
+\.ameriwasted([a-zA-Z][0-9]*)?(\?.*)?$
+\.ameriwasted_info([a-zA-Z][0-9]*)?(\?.*)?$
 \.Amigo([a-zA-Z][0-9]*)?(\?.*)?$
 \.AMJIXIUS([a-zA-Z][0-9]*)?(\?.*)?$
 \.Amnesia2([a-zA-Z][0-9]*)?(\?.*)?$
@@ -406,6 +410,7 @@
 \.ASSISTANCE_IN_RECOVERY.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.assm([a-zA-Z][0-9]*)?(\?.*)?$
 \.AstraLocker([a-zA-Z][0-9]*)?(\?.*)?$
+\.asulo([a-zA-Z][0-9]*)?(\?.*)?$
 \.asus([a-zA-Z][0-9]*)?(\?.*)?$
 \.Ataware([a-zA-Z][0-9]*)?(\?.*)?$
 \.Atchbo([a-zA-Z][0-9]*)?(\?.*)?$
@@ -488,6 +493,7 @@
 \.backmydata([a-zA-Z][0-9]*)?(\?.*)?$
 \.backoff([a-zA-Z][0-9]*)?(\?.*)?$
 \.backup([a-zA-Z][0-9]*)?(\?.*)?$
+\.backups([a-zA-Z][0-9]*)?(\?.*)?$
 \.bad([a-zA-Z][0-9]*)?(\?.*)?$
 \.BadBlock([a-zA-Z][0-9]*)?(\?.*)?$
 \.badboy([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1284,6 +1290,7 @@
 \.Cyber_Puffin([a-zA-Z][0-9]*)?(\?.*)?$
 \.CyberSCCP([a-zA-Z][0-9]*)?(\?.*)?$
 \.CyberSoldiersST([a-zA-Z][0-9]*)?(\?.*)?$
+\.CyberVolk_BlackEye([a-zA-Z][0-9]*)?(\?.*)?$
 \.cyborg([a-zA-Z][0-9]*)?(\?.*)?$
 \.cyclone([a-zA-Z][0-9]*)?(\?.*)?$
 \.Cyclone([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1328,6 +1335,7 @@
 \.DARKCRY([a-zA-Z][0-9]*)?(\?.*)?$
 \.darkdev([a-zA-Z][0-9]*)?(\?.*)?$
 \.darkeye([a-zA-Z][0-9]*)?(\?.*)?$
+\.darkhack([a-zA-Z][0-9]*)?(\?.*)?$
 \.darkmystic([a-zA-Z][0-9]*)?(\?.*)?$
 \.darkness([a-zA-Z][0-9]*)?(\?.*)?$
 \.DarkoderCryptor([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1342,6 +1350,7 @@
 \.datah([a-zA-Z][0-9]*)?(\?.*)?$
 \.DATA_IS_SAFE_YOU_NEED_TO_MAKE_THE_PAYMENT_IN_MAXIM_24_HOURS_OR_ALL_YOUR_FILES_WILL_BE_LOST_FOREVER_PLEASE_BE_REZONABLE_IS_NOT_A_JOKE_TIME_IS_LIMITED([a-zA-Z][0-9]*)?(\?.*)?$
 \.DataKeeper([a-zA-Z][0-9]*)?(\?.*)?$
+\.dataleak([a-zA-Z][0-9]*)?(\?.*)?$
 \.Datalock([a-zA-Z][0-9]*)?(\?.*)?$
 \.datarip([a-zA-Z][0-9]*)?(\?.*)?$
 \.datastop([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1482,6 +1491,7 @@
 \.diller13([a-zA-Z][0-9]*)?(\?.*)?$
 \.DilmaLocker([a-zA-Z][0-9]*)?(\?.*)?$
 \.dilmaV1([a-zA-Z][0-9]*)?(\?.*)?$
+\.direwolf([a-zA-Z][0-9]*)?(\?.*)?$
 \.dirk([a-zA-Z][0-9]*)?(\?.*)?$
 \.DirtyDecrypt([a-zA-Z][0-9]*)?(\?.*)?$
 \.disappeared([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2311,6 +2321,7 @@
 \.help_decrypt_your_files.html([a-zA-Z][0-9]*)?(\?.*)?$
 \.HELP_DECRYPT_YOUR_FILES.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.HELPDECYPRT_YOUR_FILES.HTML([a-zA-Z][0-9]*)?(\?.*)?$
+\.helper([a-zA-Z][0-9]*)?(\?.*)?$
 \.HELP_HERE_TO_RESCUE_YOUR_FILES@.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.helpmeencedfiles([a-zA-Z][0-9]*)?(\?.*)?$
 \.helpo([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2432,6 +2443,7 @@
 \.How_To_Recover_Files.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.howto_recover_file.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.HowToRecover.txt([a-zA-Z][0-9]*)?(\?.*)?$
+\.HowToRecoveryFiles.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.HowtoRestore_FILES.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.Howto_Restore_FILES.TXT([a-zA-Z][0-9]*)?(\?.*)?$
 \.HPJ([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3706,6 +3718,7 @@
 \.okokokokok([a-zA-Z][0-9]*)?(\?.*)?$
 \.olduw([a-zA-Z][0-9]*)?(\?.*)?$
 \.oled([a-zA-Z][0-9]*)?(\?.*)?$
+\.ololo([a-zA-Z][0-9]*)?(\?.*)?$
 \.olsavelock([a-zA-Z][0-9]*)?(\?.*)?$
 \.omerta([a-zA-Z][0-9]*)?(\?.*)?$
 \.omfl([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3748,6 +3761,7 @@
 \.ooxa([a-zA-Z][0-9]*)?(\?.*)?$
 \.ooza([a-zA-Z][0-9]*)?(\?.*)?$
 \.openforyou@india.com([a-zA-Z][0-9]*)?(\?.*)?$
+\.OpenMe.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.opensourcemail.org([a-zA-Z][0-9]*)?(\?.*)?$
 \.OpenToYou([a-zA-Z][0-9]*)?(\?.*)?$
 \.OPIX([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4044,6 +4058,7 @@
 \.PrincessLocker([a-zA-Z][0-9]*)?(\?.*)?$
 \.PRIVAT66([a-zA-Z][0-9]*)?(\?.*)?$
 \.prnds([a-zA-Z][0-9]*)?(\?.*)?$
+\.Pro4etiMe_ReadMe.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.PrO([a-zA-Z][0-9]*)?(\?.*)?$
 \.problem([a-zA-Z][0-9]*)?(\?.*)?$
 \.proced([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4090,6 +4105,7 @@
 \.ptqw([a-zA-Z][0-9]*)?(\?.*)?$
 \.ptrz([a-zA-Z][0-9]*)?(\?.*)?$
 \.pubg([a-zA-Z][0-9]*)?(\?.*)?$
+\.Puld39([a-zA-Z][0-9]*)?(\?.*)?$
 \.pulpit([a-zA-Z][0-9]*)?(\?.*)?$
 \.pulsar1([a-zA-Z][0-9]*)?(\?.*)?$
 \.puma([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4303,6 +4319,7 @@
 \.readme_txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.READ-ME!.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.README-WARNING+.txt([a-zA-Z][0-9]*)?(\?.*)?$
+\.README.yAGRTb.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.Readnet7([a-zA-Z][0-9]*)?(\?.*)?$
 \.Reads([a-zA-Z][0-9]*)?(\?.*)?$
 \.readtext5([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4747,6 +4764,8 @@
 \.Slide([a-zA-Z][0-9]*)?(\?.*)?$
 \.slime([a-zA-Z][0-9]*)?(\?.*)?$
 \.slvpawned([a-zA-Z][0-9]*)?(\?.*)?$
+\.SM$LE([a-zA-Z][0-9]*)?(\?.*)?$
+\.SM$LE-read-it.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.sMilE([a-zA-Z][0-9]*)?(\?.*)?$
 \.SMOCK([a-zA-Z][0-9]*)?(\?.*)?$
 \.SMOK([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4791,6 +4810,7 @@
 \.spade([a-zA-Z][0-9]*)?(\?.*)?$
 \.Spade([a-zA-Z][0-9]*)?(\?.*)?$
 \.spare([a-zA-Z][0-9]*)?(\?.*)?$
+\.spark([a-zA-Z][0-9]*)?(\?.*)?$
 \.spartacus([a-zA-Z][0-9]*)?(\?.*)?$
 \.Spartacus([a-zA-Z][0-9]*)?(\?.*)?$
 \.SpartCript([a-zA-Z][0-9]*)?(\?.*)?$
@@ -5214,6 +5234,7 @@
 \.velar([a-zA-Z][0-9]*)?(\?.*)?$
 \.velikasrbija([a-zA-Z][0-9]*)?(\?.*)?$
 \.velso([a-zA-Z][0-9]*)?(\?.*)?$
+\.veluth.readme.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.vendetta2([a-zA-Z][0-9]*)?(\?.*)?$
 \.vendetta([a-zA-Z][0-9]*)?(\?.*)?$
 \.VENDETTA([a-zA-Z][0-9]*)?(\?.*)?$
@@ -5588,6 +5609,7 @@
 \.XYZWare([a-zA-Z][0-9]*)?(\?.*)?$
 \.xz([a-zA-Z][0-9]*)?(\?.*)?$
 \.XZZX([a-zA-Z][0-9]*)?(\?.*)?$
+\.yAGRTb([a-zA-Z][0-9]*)?(\?.*)?$
 \.yahoo.com([a-zA-Z][0-9]*)?(\?.*)?$
 \.yahoo.com.cryptotes([a-zA-Z][0-9]*)?(\?.*)?$
 \.Yakes([a-zA-Z][0-9]*)?(\?.*)?$
@@ -5763,6 +5785,7 @@
 \.Zucdxx([a-zA-Z][0-9]*)?(\?.*)?$
 \.zuzya([a-zA-Z][0-9]*)?(\?.*)?$
 \.Zv7uN([a-zA-Z][0-9]*)?(\?.*)?$
+\.ZV([a-zA-Z][0-9]*)?(\?.*)?$
 \.ZW([a-zA-Z][0-9]*)?(\?.*)?$
 \.Zwbowhtlni([a-zA-Z][0-9]*)?(\?.*)?$
 \.zwer([a-zA-Z][0-9]*)?(\?.*)?$

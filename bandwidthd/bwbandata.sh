@@ -22,13 +22,13 @@
 # adjust the variable "max_bandwidth", according to your needs
 # can use fractions of bandwidth. Eg: 1.2G, 3.9G...
 
-# checking root
+# check root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
 
-# checking script execution
+# check script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
         if [ "$p" -ne $$ ]; then
@@ -36,15 +36,6 @@ if pidof -x $(basename $0) >/dev/null; then
             exit
         fi
     done
-fi
-
-# checking dependencies (optional)
-pkg='ipset'
-if apt-get -qq install $pkg; then
-    true
-else
-    echo "Error installing $pkg. Abort"
-    exit
 fi
 
 echo "Start BanData for BandwidthD..."
@@ -62,13 +53,12 @@ today=$(date +"%u")
 reorganize="sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n"
 # path to ACLs folder
 aclroute="/etc/acl"
-# Create folder if doesn't exist
-if [ ! -d "$aclroute" ]; then mkdir -p "$aclroute"; fi &>/dev/null
+mkdir -p "$aclroute" >/dev/null 2>&1
 # path to ACLs
 allow_list=$aclroute/bwallowdata.txt
 block_list=$aclroute/bwbandata.txt
 # Create ACLs if doesn't exist
-if [[ ! -f {"$allow_list","$block_list"} ]]; then touch {"$allow_list","$block_list"}; fi
+touch {"$allow_list","$block_list"} >/dev/null 2>&1
 
 ### BANDATA FOR BANDWIDTHD
 # maximum daily data consumption: 1 Gbyte = 1G

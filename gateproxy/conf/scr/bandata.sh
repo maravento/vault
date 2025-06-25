@@ -15,13 +15,13 @@
 echo "Bandata for LightSquid Start. Wait..."
 printf "\n"
 
-# checking root
+# check root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
 
-# checking script execution
+# check script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
         if [ "$p" -ne $$ ]; then
@@ -29,15 +29,6 @@ if pidof -x $(basename $0) >/dev/null; then
             exit
         fi
     done
-fi
-
-# checking dependencies (optional)
-pkg='ipset'
-if apt-get -qq install $pkg; then
-    true
-else
-    echo "Error installing $pkg. Abort"
-    exit
 fi
 
 ### VARIABLES
@@ -48,6 +39,8 @@ ipset=/sbin/ipset
 lan="eth1"
 # range
 range="192.168*"
+# server ip
+serverip="192.168.0.10"
 # today
 today=$(date +"%u")
 # reorganize IP
@@ -56,8 +49,7 @@ reorganize="sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n"
 report="/var/www/lightsquid/report"
 # path to ACLs folder
 aclroute="/etc/acl"
-# Create folder if doesn't exist
-if [ ! -d "$aclroute" ]; then mkdir -p "$aclroute"; fi &>/dev/null
+mkdir -p "$aclroute" >/dev/null 2>&1
 # path to ACLs files
 allow_list=$aclroute/allowdata.txt
 block_list_day=$aclroute/banday.txt
@@ -136,7 +128,21 @@ fi
 for ip in $(cat "$block_list_day" "$block_list_week" "$block_list_month" | "$reorganize" | uniq); do
     $ipset -! add bandata "$ip"
 done
-$iptables -t mangle -I PREROUTING -i $lan -m set --match-set bandata src,dst -j DROP
-$iptables -I INPUT -i $lan -m set --match-set bandata src,dst -j DROP
-$iptables -I FORWARD -i $lan -m set --match-set bandata src,dst -j DROP
+
+# Redirect 80
+$iptables -t nat -I PREROUTING -i "$lan" -m set --match-set bandata src -p tcp --dport 80 -j DNAT --to "$serverip:18880"
+$iptables -I INPUT -i "$lan" -m set --match-set bandata src -p tcp --dport 18880 -j ACCEPT
+# Allow 18880
+$iptables -I INPUT -i $lan -p tcp --dport 18880  -m set --match-set bandata src,dst -j ACCEPT
+$iptables -I FORWARD -i $lan -p tcp --dport 18880  -m set --match-set bandata src,dst -j ACCEPT
+# Redirect 443
+$iptables -I INPUT -i "$lan" -p tcp --dport 18443 -j ACCEPT
+$iptables -t nat -A PREROUTING -i "$lan" -m set --match-set bandata src -p tcp --dport 443 -j DNAT --to-destination "$serverip:18443"
+# Drop all
+$iptables -I FORWARD -i "$lan" -m set --match-set bandata src -j DROP
+$iptables -I INPUT -i "$lan" -m set --match-set bandata src -j DROP
+
+# Update realname config file (optional)
+realname=/var/www/lightsquid/realname.cfg
+find $aclroute -maxdepth 1 -type f -iname 'mac-*' ! -iname 'mac-unlimited.txt' -exec cat {} + | cut -d";" -f3- | sed -r 's/[;]+/ /g' | sort -n -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4 > $realname
 echo "Done"

@@ -7,6 +7,27 @@
 echo "Serveo Tunnel Starting. Wait..."
 printf "\n"
 
+# check no-root
+if [ "$(id -u)" == "0" ]; then
+    echo "❌ This script should not be run as root."
+    exit 1
+fi
+
+# check SO
+UBUNTU_VERSION=$(lsb_release -rs)
+UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VERSION" != "24.04" ) ]]; then
+    echo "Unsupported system. Use at your own risk"
+    # exit 1
+fi
+
+# check dependencies
+if ! command -v ssh >/dev/null 2>&1; then
+    echo "⚠️ SSH is not installed"
+    echo "run: sudo apt install openssh-server"
+    exit 1
+fi
+
 SCRIPT_NAME=$(basename "$0")
 PID_FILE="/tmp/${SCRIPT_NAME}.pid"
 ACTIVE_FLAG="/tmp/${SCRIPT_NAME}_active"
@@ -14,20 +35,7 @@ ACTIVE_FLAG="/tmp/${SCRIPT_NAME}_active"
 # Local User
 local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 
-# checking no-root
-if [ "$(id -u)" == "0" ]; then
-    echo "❌ This script should not be run as root."
-    exit 1
-fi
-
-# Dependencies
-if ! command -v ssh >/dev/null 2>&1; then
-    echo "⚠️ SSH is not installed"
-    echo "run: sudo apt install openssh-server"
-    exit 1
-fi
-
-# checking script execution
+# check serveo
 is_running() {
     if pgrep -f "ssh.*serveo.net" > /dev/null; then
         return 0
