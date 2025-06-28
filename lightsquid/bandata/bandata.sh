@@ -4,6 +4,7 @@
 # Bandata for LightSquid
 # Data Plan for LocalNet
 # https://www.maravento.com/2022/10/lightsquid.html
+# https://www.maravento.com/2025/06/https-302.html
 
 # Instructions:
 # Default: max 1G (GBytes) day / 5G (GBytes) week / 20G (GBytes) month

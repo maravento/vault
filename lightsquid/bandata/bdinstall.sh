@@ -2,6 +2,8 @@
 # maravento.com
 
 # Bandata Install
+# https://www.maravento.com/2022/10/lightsquid.html
+# https://www.maravento.com/2025/06/https-302.html
 
 echo "Bandata Install. Wait..."
 printf "\n"

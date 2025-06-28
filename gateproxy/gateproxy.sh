@@ -895,13 +895,6 @@ tee -a /etc/rsyslog.conf >/dev/null <<EOT
 *.none    /usr/local/ddos/ddos.log
 EOT
 
-# change value for your limit open files
-openfiles="65535"
-
-# change value for your limit watched files (error-enospc)
-# note: clean regularly /tmp/
-watchedfiles="65535"
-
 # backup conf files
 cp -f /etc/security/limits.conf{,.bak} &>/dev/null
 cp -f /etc/systemd/system.conf{,.bak} &>/dev/null
@@ -911,33 +904,34 @@ cp -f /etc/hosts{,.bak} &>/dev/null
 
 # adding parameters
 tee -a /etc/security/limits.conf >/dev/null <<EOT
-* soft  nproc   $openfiles
-* hard  nproc   $openfiles
-* soft  nofile  $openfiles
-* hard  nofile  $openfiles
-root  soft  nproc   $openfiles
-root  hard  nproc   $openfiles
-root  soft  nofile  $openfiles
-root  hard  nofile  $openfiles
+*       soft    nproc   65535
+*       hard    nproc   65535
+*       soft    nofile  65535
+*       hard    nofile  65535
+root    soft    nproc   65535
+root    hard    nproc   65535
+root    soft    nofile  65535
+root    hard    nofile  65535
 EOT
 tee -a /etc/sysctl.conf >/dev/null <<EOT
 # System optimization
-fs.file-max = $openfiles
-net.core.somaxconn = $openfiles
+fs.file-max = 65535
+fs.inotify.max_user_watches = 65535
 vm.overcommit_memory = 1
-fs.inotify.max_user_watches = $watchedfiles
-net.ipv4.ip_forward=1
-vm.swappiness=10
-# TCP optimization
-net.core.rmem_max=16777216
-net.core.wmem_max=16777216
-net.ipv4.tcp_rmem=4096 87380 16777216
-net.ipv4.tcp_wmem=4096 65536 16777216
-net.ipv4.tcp_congestion_control=bbr
+vm.swappiness = 10
+# TCP/NET optimization
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.ipv4.tcp_rmem = 4096 87380 16777216
+net.ipv4.tcp_wmem = 4096 65536 16777216
+net.core.somaxconn = 65535
+net.ipv4.ip_forward = 1
+net.ipv4.tcp_congestion_control = bbr
 EOT
-sh -c 'echo "DefaultLimitNOFILE='$openfiles'" >> /etc/systemd/system.conf'
-sh -c 'echo "DefaultLimitNOFILE='$openfiles'" >> /etc/systemd/user.conf'
+echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/system.conf >/dev/null
+echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/user.conf >/dev/null
 sysctl -p
+
 echo "Apache Config..."
 cp -f /etc/apache2/apache2.conf{,.bak} &>/dev/null
 #echo 'RequestReadTimeout header=10-20,MinRate=500 body=20,MinRate=500' | tee -a /etc/apache2/apache2.conf # optional
