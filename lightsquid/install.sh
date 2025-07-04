@@ -1,25 +1,22 @@
 #!/bin/bash
 # maravento.com
 
-# Net Report
-
-echo "Net Report Starting. Wait..."
-printf "\n"
+# Lightsquid install
 
 # check root
 if [ "$(id -u)" != "0" ]; then
-    echo "This script must be run as root" 1>&2
-    exit 1
+  echo "This script must be run as root" 1>&2
+  exit 1
 fi
 
 # check script execution
 if pidof -x $(basename $0) >/dev/null; then
-    for p in $(pidof -x $(basename $0)); do
-        if [ "$p" -ne $$ ]; then
-            echo "Script $0 is already running..."
-            exit
-        fi
-    done
+  for p in $(pidof -x $(basename $0)); do
+    if [ "$p" -ne $$ ]; then
+      echo "Script $0 is already running..."
+      exit
+    fi
+  done
 fi
 
 # check SO
@@ -31,7 +28,7 @@ if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VER
 fi
 
 # check dependencies
-pkgs='nmap xsltproc arp-scan'
+pkgs='wget git tar squid apache2 ipset libnotify-bin nbtscan libcgi-session-perl libgd-perl python-is-python3'
 missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
 unavailable=""
 for p in $missing; do
@@ -63,34 +60,36 @@ else
 fi
 
 ### VARIABLES
-# LOCAL USER
-local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
+SCRIPT_PATH="$(realpath "$0")"
+ls=$(pwd)/lightsquid
 
-### NETREPORT
-# Option 1: Intensive | Deep
-nmap -v -sSUV --version-light -r -T4 -Pn -O -F --script smb-os-discovery.nse 192.168.0.0/24 -oX netreport.xml
-xsltproc netreport.xml -o netreport.html
-chown $local_user:$local_user netreport.html
-sudo -u $local_user bash -c 'firefox netreport.html' &
+echo "Lightsquid install..."
 
-# Option 2: Intensive | Deep
-#wget https://raw.githubusercontent.com/honze-net/nmap-bootstrap-xsl/master/nmap-bootstrap.xsl
-#nmap -sS -T4 -A -sC -oA scanme --stylesheet nmap-bootstrap.xsl 192.168.0.0/24
-#xsltproc -o scanme.html nmap-bootstrap.xsl scanme.xml
-#chown $myuser:$myuser scanme.html
-#sudo -u $myuser bash -c 'firefox nscanme.html' &
+wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+chmod +x gitfolderdl.py
+python gitfolderdl.py https://github.com/maravento/vault/lightsquid
+cd $ls || exit
+tar -xf lightsquid-1.8.1.tar.gz
+mkdir -p /var/www/lightsquid
+cp -f -R lightsquid-1.8.1/* /var/www/lightsquid/
+cp -f lightsquid.conf /etc/apache2/conf-available/lightsquid.conf
+chmod -R 775 /var/www/lightsquid/
+chown -R www-data:www-data /var/www/lightsquid
+chmod +x /var/www/lightsquid/*.{cgi,pl}
+a2enmod cgid
+a2enconf lightsquid
+systemctl restart apache2.service
 
-# Option 3: Light
-#range=192.168.1
-#for i in {1..254}; do
-#echo -n -e "$i      \r"
-#timeout --preserve-status .2  ping -c1 -q $range.$i &> /dev/null
-#[ $? -eq 0 ] && echo $range.$i
-#done
+# crontab
+crontab -l | {
+  cat
+  echo "*/10 * * * * /var/www/lightsquid/lightparser.pl today"
+} | crontab -
 
-# Option 4: Light
-#arp-scan --localnet
+# end
+echo "done"
+echo "Lightsquid Access: http://localhost/lightsquid/index.cgi"
+notify-send "LightSquid Done" "$(date)" -i checkbox
 
-# Option 5: Fast
-# nmap -sn 192.168.1.0/24
-echo "Done"
+[ -d "$ls" ] && rm -rf "$ls"
+(sleep 2 && rm -- "$SCRIPT_PATH") &

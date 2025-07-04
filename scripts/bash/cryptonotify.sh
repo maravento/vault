@@ -15,13 +15,13 @@ printf "\n"
 
 local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 
-# Avoid running as root
+# check no-root
 if [ "$(id -u)" -eq 0 ]; then
     echo "❌ This script should not be run as root."
     exit 1
 fi
 
-# checking script execution
+# check script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
         if [ "$p" -ne $$ ]; then
@@ -31,18 +31,23 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
-# Check dependencies
-missing=""
-for cmd in curl jq notify-send; do
-    if ! command -v $cmd >/dev/null 2>&1; then
-        missing+="$cmd "
-    fi
-done
-if [ -n "$missing" ]; then
-    echo "⚠️ Missing dependencies: $missing"
-    echo "Run: sudo apt install curl jq libnotify-bin"
-    exit 1
+# check SO
+UBUNTU_VERSION=$(lsb_release -rs)
+UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VERSION" != "24.04" ) ]]; then
+    echo "Unsupported system. Use at your own risk"
+    # exit 1
 fi
+
+# check dependencies
+pkgs='curl jq notify-send'
+for pkg in $pkgs; do
+  dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {
+    echo "❌ '$pkg' is not installed. Run:"
+    echo "sudo apt install $pkg"
+    exit 1
+  }
+done
 
 # Crypto Top 5
 top5=$(curl -s "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=5&page=1")

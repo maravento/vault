@@ -5,12 +5,12 @@
 
 # Note: &>/dev/nul is an abbreviation for >/dev/null 2>&1
 
-# checking root
+# check root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
-# checking script execution
+# check script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
         if [ "$p" -ne $$ ]; then
@@ -20,14 +20,26 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
-# check dependencies
-pkg='wget git tar apache2 squid libnotify-bin php php-cli libapache2-mod-php python-is-python3'
-if apt-get -qq install $pkg; then
-    true
-else
-    echo "Error installing $pkg. Abort"
-    exit
+# check SO
+UBUNTU_VERSION=$(lsb_release -rs)
+UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VERSION" != "24.04" ) ]]; then
+    echo "Unsupported system. Use at your own risk"
+    # exit 1
 fi
+
+# check dependencies
+pkgs='wget git tar apache2 squid libnotify-bin php php-cli libapache2-mod-php python-is-python3'
+missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
+if [ -n "$missing" ]; then
+  echo "Installing: $missing"
+  apt-get -qq update
+  apt-get -y install $missing || {
+    echo "Error installing required packages: $missing"
+    exit 1
+  }
+fi
+echo "Dependencies OK"
 
 ### VARIABLES
 sq=$(pwd)/sqstat

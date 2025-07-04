@@ -11,6 +11,29 @@
 # Usage:
 #  ./watchdir.sh {start|stop|status}
 
+# check no-root
+if [ "$(id -u)" == "0" ]; then
+    echo "❌ This script should not be run as root"
+    #exit 1
+fi
+
+# check SO
+UBUNTU_VERSION=$(lsb_release -rs)
+UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VERSION" != "24.04" ) ]]; then
+    echo "Unsupported system. Use at your own risk"
+    # exit 1
+fi
+
+# Check dependencies
+for pkg in inotify-tools trash-cli; do
+  dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {
+    echo "❌ '$pkg' is not installed. Run:"
+    echo "sudo apt install $pkg"
+    exit 1
+  }
+done
+
 # local user
 local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 user_base=$(getent passwd "$local_user" | cut -d: -f6)
@@ -43,14 +66,6 @@ DELETE_DIR="/home/$local_user/delete"
 LIMIT=$((1024*1024*1024))
 
 #####################
-
-# Check dependencies
-for pkg in inotify-tools trash-cli; do
-    dpkg -s "$pkg" >/dev/null 2>&1 || {
-        echo "❌ '$pkg' is missing. Run: sudo apt install $pkg"
-        exit 1
-    }
-done
 
 # Handle a new file or empty directory creation event
 handle_new_file() {
