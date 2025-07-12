@@ -27,6 +27,8 @@ fi
 aclroute="/etc/acl"
 # local user
 local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
+# date
+date=$(date)
 
 ### LEASES
 function is_iscdhcp() {
@@ -195,7 +197,7 @@ class "blockdhcp" {
         rm -f "$file_temp"
     }
 
-    function clean_local_list {
+    function clean_proxy_list {
         # Removes entries added to the mac-unlimited acl from mac-unlimited / Elimina de mac-unlimited las entradas añadidas a la acl mac-unlimited
         while read line; do
             mac_actual=$(echo "$line" | cut -d ';' -f 2)
@@ -211,20 +213,11 @@ class "blockdhcp" {
         done <"$aclroute"/mac-unlimited.txt
     }
 
-    function clean_limit_list {
-        # Removes the entries added to the privileged acl from the local list / Elimina de la acl local las entradas añadidas al acl privilegiados
-        while read line; do
-            mac_actual=$(echo "$line" | cut -d ';' -f 2)
-            sed -i "/$mac_actual/d" "$aclroute"/mac-limited.txt
-        done <"$aclroute"/mac-unlimited.txt
-    }
-
     function clean_acl {
         # Remove blank lines from acl / Elimina lineas en blanco de las acl
         sed '/^$/d' -i "$aclroute"/blockdhcp.txt
         sed '/^$/d' -i "$aclroute"/mac-proxy.txt
         sed '/^$/d' -i "$aclroute"/mac-transparent.txt
-        sed '/^$/d' -i "$aclroute"/mac-limited.txt
         sed '/^$/d' -i "$aclroute"/mac-unlimited.txt
     }
 
@@ -236,15 +229,13 @@ class "blockdhcp" {
         sort -n -t . -k 3,3 -k 4,4 "$aclroute"/blockdhcp.txt -o "$aclroute"/blockdhcp.txt
         sort -n -t . -k 3,3 -k 4,4 "$aclroute"/mac-proxy.txt -u -o "$aclroute"/mac-proxy.txt
         sort -n -t . -k 3,3 -k 4,4 "$aclroute"/mac-transparent.txt -u -o "$aclroute"/mac-transparent.txt
-        sort -n -t . -k 3,3 -k 4,4 "$aclroute"/mac-limited.txt -u -o "$aclroute"/mac-limited.txt
         sort -n -t . -k 3,3 -k 4,4 "$aclroute"/mac-unlimited.txt -u -o "$aclroute"/mac-unlimited.txt
     }
 
     clean_acl
     clean_block_list
-    clean_local_list
+    clean_proxy_list
     clean_transparent_list
-    clean_limit_list
 
     /etc/init.d/isc-dhcp-server stop
     read_leases

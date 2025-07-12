@@ -33,7 +33,7 @@ if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VER
 fi
 
 # check dependencies
-pkgs='ipset apache2 libnotify-bin'
+pkgs='ipset apache2 libnotify-bin coreutils'
 missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
 unavailable=""
 for p in $missing; do
@@ -200,8 +200,8 @@ tee /etc/apache2/sites-available/warning-ssl.conf >/dev/null << EOL
     DocumentRoot /var/www/html/warning
 
     SSLEngine on
-    SSLCertificateFile /etc/ssl/certs/cert.pem
-    SSLCertificateKeyFile /etc/ssl/private/key.pem
+    SSLCertificateFile /etc/ssl/certs/warning.cert.pem
+    SSLCertificateKeyFile /etc/ssl/private/warning.key.pem
 
     <Directory /var/www/html/warning>
         DirectoryIndex warning.html
@@ -248,11 +248,37 @@ crontab -l | {
   echo "*/12 * * * * /etc/scr/bandata.sh"
 } | crontab -
 
-mkdir -p /etc/ssl/private /etc/ssl/certs
+cat > /tmp/warning_openssl.cnf <<EOF
+[req]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_req
+prompt = no
+
+[req_distinguished_name]
+C = CO
+ST = Some-State
+L = City
+O = CaptivePortal
+CN = ${serverip}
+
+[v3_req]
+basicConstraints = critical,CA:FALSE
+subjectAltName = @alt_names
+
+[alt_names]
+IP.1 = ${serverip}
+EOF
+
+# SSL
 openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
-  -keyout /etc/ssl/private/key.pem \
-  -out /etc/ssl/certs/cert.pem \
-  -subj "/C=CO/ST=Some-State/L=City/O=CaptivePortal/CN=${serverip}" >/dev/null 2>&1
+    -keyout /etc/ssl/private/warning.key.pem \
+    -out /etc/ssl/certs/warning.cert.pem \
+    -config /tmp/warning_openssl.cnf \
+    -extensions v3_req \
+    > /dev/null 2> /tmp/openssl_error.log
+
+cat /tmp/warning_openssl.cnf
+rm -f /tmp/warning_openssl.cnf
 
 a2ensite -q warning.conf  
 a2ensite -q warning-ssl.conf
@@ -262,7 +288,7 @@ a2enmod rewrite
 update-ca-certificates -f >/dev/null 2>&1
 systemctl daemon-reload
 systemctl restart apache2
-echo "Warning: http://$serverip:18880 y HTTPS: https://$serverip:18443"
+echo "Access: http://$serverip:18880 y HTTPS: https://$serverip:18443"
 
 # end
 echo "done"
