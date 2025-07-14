@@ -6,13 +6,13 @@
 # Warning
 # Use it only in case of attack or illegal access to your network
 
-# checking root
+# check root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
 
-# checking script execution
+# check script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
         if [ "$p" -ne $$ ]; then
@@ -30,10 +30,6 @@ echo "Iptables NetCut. Wait..."
 printf "\n"
 
 ### VARIABLES
-# paths
-ip6tables=/usr/sbin/ip6tables
-iptables=/usr/sbin/iptables
-ipset=/usr/sbin/ipset
 # interfaces
 wan=eth0
 lan=eth1
@@ -48,31 +44,31 @@ netmask=24
 echo "Load Kerner Rules..."
 
 ### Zero all packets and counters ###
-$iptables -F
-$iptables -X
-$iptables -t nat -F
-$iptables -t nat -X
-$iptables -t mangle -F
-$iptables -t mangle -X
-$iptables -t raw -F
-$iptables -t raw -X
-$iptables -t security -F
-$iptables -t security -X
-$iptables -Z
-$iptables -t nat -Z
-$iptables -t mangle -Z
+iptables -F
+iptables -X
+iptables -t nat -F
+iptables -t nat -X
+iptables -t mangle -F
+iptables -t mangle -X
+iptables -t raw -F
+iptables -t raw -X
+iptables -t security -F
+iptables -t security -X
+iptables -Z
+iptables -t nat -Z
+iptables -t mangle -Z
 
 echo "Drop All..."
 
 ### Global Policies IPv4
-$iptables -P INPUT DROP
-$iptables -P FORWARD DROP
-$iptables -P OUTPUT DROP
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+iptables -P OUTPUT DROP
 
 ### Global Policies IPv6
-$ip6tables -P INPUT DROP
-$ip6tables -P FORWARD DROP
-$ip6tables -P OUTPUT DROP
+ip6tables -P INPUT DROP
+ip6tables -P FORWARD DROP
+ip6tables -P OUTPUT DROP
 
 echo "Blackhole..."
 

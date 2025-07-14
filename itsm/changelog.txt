@@ -1,8 +1,14 @@
 ﻿## CHANGELOG
 # ITSM - IT Service Management & CMDB Portable
- 
-# by Maravento Studio
-# https://www.maravento.com
+# maravento.com
+
+2025.07.01
+Update: windows_10_cmake_Release_graphviz-install-13.1.0-win64
+
+2025.06.18
+Update: windows_10_cmake_Release_graphviz-install-13.0.1-win64
+Update: Visual C++ v0.92.0
+Added: apcu v8.4 x64 ts/nts (Pending implementation)
 
 2025.05.04
 Update: glpi-10.0.18

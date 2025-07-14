@@ -6,20 +6,28 @@
 echo "Squid SSL-Bump. Wait..."
 echo
 
-# Checking root
+# check root
 if [ "$(id -u)" != "0" ]; then
-    echo "This script must be run as root."
+    echo "This script must be run as root" 1>&2
     exit 1
 fi
 
-# Checking for duplicate script execution
-if pidof -x "$(basename "$0")" >/dev/null; then
-    for p in $(pidof -x "$(basename "$0")"); do
+# check script execution
+if pidof -x $(basename $0) >/dev/null; then
+    for p in $(pidof -x $(basename $0)); do
         if [ "$p" -ne $$ ]; then
-            echo "The script is already running."
+            echo "Script $0 is already running..."
             exit
         fi
     done
+fi
+
+# check SO
+UBUNTU_VERSION=$(lsb_release -rs)
+UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VERSION" != "24.04" ) ]]; then
+    echo "Unsupported system. Use at your own risk"
+    # exit 1
 fi
 
 # Function: Remove regular squid and install squid-openssl

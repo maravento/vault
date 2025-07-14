@@ -7,7 +7,7 @@
 echo "Blackshield Start. Wait..."
 printf "\n"
 
-# checking script execution
+# check script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
         if [ "$p" -ne $$ ]; then
@@ -15,6 +15,14 @@ if pidof -x $(basename $0) >/dev/null; then
             exit
         fi
     done
+fi
+
+# check SO
+UBUNTU_VERSION=$(lsb_release -rs)
+UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VERSION" != "24.04" ) ]]; then
+    echo "Unsupported system. Use at your own risk"
+    # exit 1
 fi
 
 ### VARIABLES

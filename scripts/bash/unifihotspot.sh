@@ -19,13 +19,13 @@
 echo "Unifi Hotspot Starting. Wait..."
 printf "\n"
 
-# checking root
+# check root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
 
-# checking script execution
+# check script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
         if [ "$p" -ne $$ ]; then
@@ -35,7 +35,13 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
-echo "Unifi Hotspot for Iptables. Wait..."
+# check SO
+UBUNTU_VERSION=$(lsb_release -rs)
+UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VERSION" != "24.04" ) ]]; then
+    echo "Unsupported system. Use at your own risk"
+    # exit 1
+fi
 
 # Allow List
 MAC_LIST="/etc/acl/mac-hotspot.txt"
@@ -65,16 +71,13 @@ fi &>/dev/null
 wan=enp2s0
 lan=enp2s1
 
-# Iptables Path
-iptables=/usr/sbin/iptables
-
 # Linux Server IP
 # replace the IP with that of your server
-ipserver=192.168.1.2
+serverip=192.168.0.10
 
 # IP and Range assignment to Hotspot Clients
 # IMPORTANT: Must match CIDR range set in configuration on Unifi Hotspot
-IP="192.168.1"
+IP="192.168.0"
 RANGE_INI=160
 RANGE_END=200
 
@@ -92,7 +95,7 @@ expiration_seconds=3600
 # WARNING: Add HTTPS (443) port, in case of transparent proxy or non-proxy
 localports="67,68,137:139,445,162,631,8000,3128,53,853"
 
-# Checking Rsyslog
+# check Rsyslog
 function create_rsyslog_config() {
     local UNIFI_RSYSLOG="/etc/rsyslog.d/hotspot.conf"
     # Check if the rsyslog configuration file exists, if not, create it
@@ -124,15 +127,15 @@ function unifi_rules() {
     add_or_update_rule() {
         local table="$1"
         local rule="$2"
-        if ! $iptables -t "$table" -C $rule &>/dev/null; then
-            $iptables -t "$table" -I $rule &>/dev/null
+        if ! iptables -t "$table" -C $rule &>/dev/null; then
+            iptables -t "$table" -I $rule &>/dev/null
         fi
     }
 
     # Configure rules for ports
     for protocol in tcp udp; do
-        add_or_update_rule "filter" "INPUT -i $lan -d $ipserver -p $protocol -m multiport --dports $uports -j ACCEPT"
-        add_or_update_rule "filter" "FORWARD -i $lan -d $ipserver -p $protocol -m multiport --dports $uports -j ACCEPT"
+        add_or_update_rule "filter" "INPUT -i $lan -d $serverip -p $protocol -m multiport --dports $uports -j ACCEPT"
+        add_or_update_rule "filter" "FORWARD -i $lan -d $serverip -p $protocol -m multiport --dports $uports -j ACCEPT"
         add_or_update_rule "filter" "OUTPUT -p $protocol -m multiport --dports $uports -j ACCEPT"
     done
     
@@ -151,16 +154,16 @@ function del_ipt_hotspot () {
     for mac in $(awk -F";" '{print $2}' $MAC_LIST); do
     (
         for protocol in tcp udp; do
-            $iptables -D INPUT -i $lan -p $protocol -m multiport --dports $localports -m mac --mac-source "$mac" -j ACCEPT
-            $iptables -D FORWARD -i $lan -p $protocol -m multiport --dports $localports -o $wan -m mac --mac-source "$mac" -j ACCEPT
-            $iptables -D OUTPUT -p $protocol -m multiport --dports $localports -j ACCEPT
+            iptables -D INPUT -i $lan -p $protocol -m multiport --dports $localports -m mac --mac-source "$mac" -j ACCEPT
+            iptables -D FORWARD -i $lan -p $protocol -m multiport --dports $localports -o $wan -m mac --mac-source "$mac" -j ACCEPT
+            iptables -D OUTPUT -p $protocol -m multiport --dports $localports -j ACCEPT
         done
     ) 2>/dev/null
     done
 }
 del_ipt_hotspot
 
-# Checking Timestamp (MACs in mac-hotspot.txt and removing expired)
+# check Timestamp (MACs in mac-hotspot.txt and removing expired)
 function check_timestamps() {
     local current_time=$(date +'%s')
     local macs_to_remove=()
@@ -207,7 +210,7 @@ function add_mac() {
     sort -u -o "$MAC_LIST" "$MAC_LIST"
 }
 
-# Checking MACs from Blocklist (is already registered)
+# check MACs from Blocklist (is already registered)
 function remove_mac_from_blocklist() {
     local mac="$1"
     if grep -q "$mac" "$MAC_BLACKLIST"; then
@@ -219,7 +222,7 @@ function remove_mac_from_blocklist() {
     fi
 }
 
-# Checking MACs from Allowlist (is already registered)
+# check MACs from Allowlist (is already registered)
 function remove_mac_from_allowlist() {
     local mac="$1"
     # If there are more lists to check
@@ -274,9 +277,9 @@ function add_ipt_hotspot() {
     for mac in $(awk -F";" '{print $2}' $MAC_LIST); do
     (
         for protocol in tcp udp; do
-            $iptables -I INPUT -i $lan -p $protocol -m multiport --dports $localports -m mac --mac-source "$mac" -j ACCEPT
-            $iptables -I FORWARD -i $lan -p $protocol -m multiport --dports $localports -o $wan -m mac --mac-source "$mac" -j ACCEPT
-            $iptables -I OUTPUT -p $protocol -m multiport --dports $localports -j ACCEPT
+            iptables -I INPUT -i $lan -p $protocol -m multiport --dports $localports -m mac --mac-source "$mac" -j ACCEPT
+            iptables -I FORWARD -i $lan -p $protocol -m multiport --dports $localports -o $wan -m mac --mac-source "$mac" -j ACCEPT
+            iptables -I OUTPUT -p $protocol -m multiport --dports $localports -j ACCEPT
         done
     ) 2>/dev/null
     done

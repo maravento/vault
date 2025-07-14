@@ -180,8 +180,6 @@ http_access deny all
 #### Global Variables
 
 ```bash
-iptables=/sbin/iptables
-ipset=/sbin/ipset
 # Replace LAN (eth1)
 ip -o link | awk '$2 != "lo:" {print $2, $(NF-2)}'
 enp2s1: 08:00:27:XX:XX:XX
@@ -196,8 +194,8 @@ lan=enp2s1
 # Block: Hex-String
 hstring=$(curl -s https://raw.githubusercontent.com/maravento/vault/master/blackshield/acl/ipt/hexstring.txt)
 for string in $(echo -e "$hstring" | sed -e '/^#/d' -e 's:#.*::g'); do
-    $iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j NFLOG --nflog-prefix 'Illegal-HexString'
-    $iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j DROP
+    iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j NFLOG --nflog-prefix 'Illegal-HexString'
+    iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j DROP
 done
 ```
 
@@ -216,8 +214,8 @@ Jul  8 18:42:36 user Illegal-HexString IN=enp2s1 OUT=enp2s0 MAC=94:18:82:XX:XX:X
 # Lock: BitTorrent Protocol
 bt=$(curl -s https://raw.githubusercontent.com/maravento/vault/master/blackshied/acl/ipt/torrent.txt)
 for string in $(echo -e "$bt" | sed -e '/^#/d' -e 's:#.*::g'); do
-    $iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j NFLOG --nflog-prefix 'BitTorrent'
-    $iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j DROP
+    iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j NFLOG --nflog-prefix 'BitTorrent'
+    iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j DROP
 done
 ```
 
@@ -236,8 +234,8 @@ Jul  9 09:36:12 user BitTorrent IN=enp2s1 OUT=enp2s0 MAC=94:18:82:XX:XX:XX:08:00
 # Lock: Tor
 tor=$(curl -s https://raw.githubusercontent.com/maravento/vault/master/blackshield/acl/ipt/tor.txt)
 for string in `echo -e "$tor" | sed -e '/^#/d' -e 's:#.*::g'`; do
-    $iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j NFLOG --nflog-prefix 'Tor'
-    $iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j DROP
+    iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j NFLOG --nflog-prefix 'Tor'
+    iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j DROP
 done
 ```
 

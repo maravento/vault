@@ -7,13 +7,13 @@
 echo "Unzip Files With Pass Starting. Wait..."
 printf "\n"
 
-# checking no-root
+# check no-root
 if [ "$(id -u)" == "0" ]; then
     echo "❌ This script should not be run as root."
     exit 1
 fi
 
-# checking script execution
+# check script execution
 if pidof -x $(basename $0) >/dev/null; then
   for p in $(pidof -x $(basename $0)); do
     if [ "$p" -ne $$ ]; then
@@ -23,17 +23,25 @@ if pidof -x $(basename $0) >/dev/null; then
   done
 fi
 
+# check SO
+UBUNTU_VERSION=$(lsb_release -rs)
+UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VERSION" != "24.04" ) ]]; then
+    echo "Unsupported system. Use at your own risk"
+    # exit 1
+fi
+
 # Check if 'multiverse' repository is available in APT
 if ! apt-cache policy | grep -qE '/multiverse'; then
-    echo "⚠️ The 'multiverse' repository is not enabled"
-    echo "run: sudo add-apt-repository multiverse && sudo apt update"
+    echo "⚠️ The 'multiverse' repository is not enabled. Run:"
+    echo "sudo add-apt-repository multiverse && sudo apt update"
     exit 1
 fi
 
 # Dependencies
 if ! command -v 7z >/dev/null 2>&1; then
-    echo "⚠️ 7z is not installed"
-    echo "run: sudo apt install p7zip-full p7zip-rar"
+    echo "⚠️ 7z is not installed. Run:"
+    echo "sudo apt install p7zip-full p7zip-rar"
     exit 1
 fi
 

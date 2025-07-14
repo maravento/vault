@@ -1,0 +1,30 @@
+# RFC1122 - Self-identification
+0.0.0.0/8
+# RFC1918 - Private
+#10.0.0.0/8
+#172.16.0.0/12
+#192.168.0.0/16
+# RFC6598 - Shared Address Space
+100.64.0.0/10
+# RFC1122 - Loopback
+127.0.0.0/8
+# RFC3927 - Link-local (APIPA)
+169.254.0.0/16
+# RFC5737 - Test-nets
+192.0.2.0/24
+198.51.100.0/24
+203.0.113.0/24
+# RFC3068, RFC6751 - 6to4/6a44 Anycast
+192.88.99.0/24
+192.88.99.2/32
+# RFC5736 - IANA special purpose
+192.0.0.0/24
+# RFC2544 - Benchmark testing
+198.18.0.0/15
+# RFC5771, RFC6034, RFC2365 - Multicast
+224.0.0.0/4
+# RFC1112 - Reserved (Class E)
+240.0.0.0/4
+# RFC919, RFC922 - Broadcast
+255.255.255.255/32
+

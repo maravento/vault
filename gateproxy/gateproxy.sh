@@ -6,16 +6,18 @@
 
 # Note: &>/dev/nul is an abbreviation for >/dev/null 2>&1
 
+clear
+echo -e "\n"
 echo "Gateproxy Start. Wait..."
 printf "\n"
 
-# checking root
+# check root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
 
-# checking script execution
+# check script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
         if [ "$p" -ne $$ ]; then
@@ -23,19 +25,6 @@ if pidof -x $(basename $0) >/dev/null; then
             exit
         fi
     done
-fi
-
-# checking dependencies (optional)
-pkg='nala curl software-properties-common apt-transport-https aptitude \
-     net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin \
-     gcc make perl bzip2 p7zip-full p7zip-rar rar unrar unzip zip unace \
-     cabextract arj zlib1g-dev tzdata tar python-is-python3'
-
-if apt-get -qq install $pkg; then
-    echo "OK"
-else
-    echo "Error installing $pkg. Abort"
-    exit
 fi
 
 ### LANGUAGE EN-ES
@@ -68,68 +57,109 @@ lang_25=("e.g." "e.j.")
 test "${LANG:0:2}" == "en"
 en=$?
 
-### CHECK SO
-clear
-echo -e "\n"
+### CHECK SO & DESKTOP
 echo "${lang_01[${en}]}"
-function is_ubuntu() {
-    is_uversion=$(lsb_release -sc | grep 'noble')
-    if [ "$is_uversion" ]; then
-        echo "OK. Ubuntu 24.04.x"
-    else
-        echo "${lang_02[${en}]}"
-        exit
-    fi
-}
-is_ubuntu
-
-### CHECK DESKTOP
+# Get the current desktop environment in lowercase
 DESKTOP_ENV=$(echo "$XDG_CURRENT_DESKTOP" | tr '[:upper:]' '[:lower:]')
+# Get the Ubuntu version number (e.g., 22.04, 24.04)
 UBUNTU_VERSION=$(lsb_release -rs)
-[[ "$UBUNTU_VERSION" != "24.04" || ( "$DESKTOP_ENV" != "mate" && "$DESKTOP_ENV" != "cinnamon" ) ]] && \
-echo "It is recommended to use the MATE or Cinnamon desktops"
+# Get the distribution ID (e.g., Ubuntu)
+UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+
+# Check if the system is Ubuntu and the version is either 22.04 or 24.04
+if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VERSION" != "24.04" ) ]]; then
+    echo "Unsupported system. Use at your own risk"
+    # Uncomment the next line if you want to abort execution on unsupported systems
+    # exit 1
+else
+    # Warn the user if the desktop environment is not MATE or Cinnamon
+    if [[ "$DESKTOP_ENV" != "mate" && "$DESKTOP_ENV" != "cinnamon" ]]; then
+        echo "MATE or Cinnamon desktop recommended"
+    fi
+fi
 
 ### VARIABLES
+SCRIPT_PATH="$(realpath "$0")"
 gp=$(pwd)/gateproxy
 zone=/etc/zones
-if [ ! -d $zone ]; then mkdir -p $zone; fi &>/dev/null
+mkdir -p "$zone" >/dev/null 2>&1
 aclroute=/etc/acl
-if [ ! -d $aclroute ]; then mkdir -p $aclroute; fi &>/dev/null
+mkdir -p "$aclroute" >/dev/null 2>&1
 scr=/etc/scr
-if [ ! -d $scr ]; then mkdir -p $scr; fi &>/dev/null
-
-# LOCAL USER
+mkdir -p "$scr" >/dev/null 2>&1
 local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 
-### BASIC
-# kill
-fuser -vki /var/lib/dpkg/lock &>/dev/null
-killall apt-get &>/dev/null
-killall -s SIGTERM apt apt-get &>/dev/null
-rm /var/cache/apt/archives/lock &>/dev/null
-rm /var/cache/debconf/*.dat &>/dev/null
-rm /var/lib/apt/lists/lock &>/dev/null
-rm /var/lib/dpkg/lock &>/dev/null
-# clean list
-rm -rf /var/lib/apt/lists/*
-# dpkg
-dpkg --configure -a
-# repos
-repos=("main" "universe" "restricted" "multiverse")
-enabled_repos=$(apt-cache policy | grep http | awk '{print $3}' | sort -u)
-for repo in "${repos[@]}"; do
-    if ! echo "$enabled_repos" | grep -qw "$repo"; then
-        echo "Add: $repo"
-        add-apt-repository "$repo" -y
-    else
-        echo "$repo is already enabled"
+# ppa
+file="/etc/apt/sources.list.d/ubuntu.sources"
+required_components=("main" "restricted" "universe" "multiverse")
+changed=0
+
+while IFS= read -r line; do
+    if [[ "$line" =~ ^Components: ]]; then
+        read -ra found <<< "${line#Components: }"
+
+        for required in "${required_components[@]}"; do
+            if ! printf '%s\n' "${found[@]}" | grep -qx "$required"; then
+                echo "Missing '$required' in: $line"
+                sed -i "s|^$line|Components: ${required_components[*]}|" "$file"
+                changed=1
+                break
+            fi
+        done
+
+        if [[ $changed -eq 0 ]]; then
+            echo "All components present in: $line"
+        fi
     fi
+done < <(grep "^Components:" "$file")
+
+if [[ $changed -eq 1 ]]; then
+    echo "Updating package list. Wait..."
+    apt update > /dev/null 2>&1
+else
+    echo "No changes made. No update needed."
+fi
+
+# check dependencies
+pkgs='nala curl software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 p7zip-full p7zip-rar rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar python-is-python3 coreutils dconf-editor'
+missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
+unavailable=""
+for p in $missing; do
+    apt-cache show "$p" &>/dev/null || unavailable+=" $p"
 done
-apt update
+if [ -n "$unavailable" ]; then
+    echo "Missing dependencies not found in APT:"
+    for u in $unavailable; do echo "   - $u"; done
+    echo "Please install them manually or enable the required repositories."
+    exit 1
+fi
+if [ -n "$missing" ]; then
+    echo "🔧 Releasing APT/DKPG locks..."
+    killall -q apt apt-get dpkg 2>/dev/null
+    rm -f /var/lib/apt/lists/lock
+    rm -f /var/cache/apt/archives/lock
+    rm -f /var/lib/dpkg/lock
+    rm -f /var/lib/dpkg/lock-frontend
+    rm -rf /var/lib/apt/lists/*
+    dpkg --configure -a
+    echo "Installing: $missing"
+    apt-get -qq update
+    if ! apt-get -y install $missing; then
+        echo "Error installing: $missing"
+        exit 1
+    fi
+else
+    echo "✅ Dependencies OK"
+fi
+
+### BASIC
 # time
-apt -qq install -y --reinstall systemd-timesyncd
+apt purge -y ntp ntpdate chrony &>/dev/null
+apt install -y --reinstall systemd-timesyncd &>/dev/null
 hwclock -w &>/dev/null
+systemctl enable --now systemd-timesyncd &>/dev/null
 timedatectl set-ntp true &>/dev/null
+timedatectl status | grep -E "NTP|synchroniz"
 # install | remove
 apt -qq install -y apt-file
 apt-file update
@@ -228,13 +258,51 @@ echo "    ${lang_14[${en}]}"
 echo "    OS:       Ubuntu 24.04.x"
 echo "    CPU:      Intel Core i5/Xeon/AMD Ryzen 5 (≥ 3.0 GHz)"
 echo "    NIC:      2 (WAN & LAN)"
-echo "    RAM:      6 GB for cache_mem (≥ 12 GB total RAM recommended)"
+echo "    RAM:      4 GB for cache_mem (≥ 12 GB total RAM recommended)"
 echo "    Storage:  100 GB SSD for cache_dir rock"
 echo -e "\n"
 echo "    ${lang_15[${en}]}"
 echo -e "\n"
 read RES
 clear
+
+echo -e "\n"
+while true; do
+    read -p "${lang_19[${en}]} Server IP 192.168.0.10? (y/n): " change_ip
+    case "$change_ip" in
+        [Yy]*)
+            while true; do
+                read -p "${lang_17[${en}]} IP (${lang_25[${en}]} 192.168.0.10): " input_ip
+                serveripNEW=$(echo "$input_ip" | grep -E '^(([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])$')
+                if [ "$serveripNEW" ]; then
+                    serverip="$serveripNEW"
+
+                    find "$gp/conf" -type f -print0 | while IFS= read -r -d '' file; do
+                        sed -i "s:192.168.0.10:$serveripNEW:g" "$file"
+                    done
+
+                    find "$gp/acl" -type f \( -name "mac-*" -o -name "blockdhcp*" \) -print0 | while IFS= read -r -d '' file; do
+                        sed -i "s:192.168.0\.:$(echo "$serveripNEW" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" "$file"
+                    done
+
+                    echo "${lang_18[${en}]} IP $serverip :OK"
+                    break
+                else
+                    echo "${lang_18[${en}]} IP incorrect"
+                fi
+            done
+            break
+            ;;
+        [Nn]*)
+            serverip="192.168.0.10"
+            echo "Default IP: $serverip"
+            break
+            ;;
+        *)
+            echo "${lang_07[${en}]}: YES (y) or NO (n)"
+            ;;
+    esac
+done
 
 ### PARAMETERS
 is_ask() {
@@ -268,21 +336,6 @@ is_ask() {
             ;;
         esac
     done
-}
-# gateway
-function is_gateway() {
-    read -p "${lang_17[${en}]} IP (${lang_25[${en}]} 192.168.0.10): " GATEWAY
-    GATEWAYNEW=$(echo "$GATEWAY" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
-
-    if [ "$GATEWAYNEW" ]; then
-        find $gp/conf -type f -print0 | while IFS= read -r -d '' file; do
-            sed -i "s:192.168.0.10:$GATEWAYNEW:g" "$file"
-        done
-        find $gp/acl -type f \( -name "mac-*" -o -name "blockdhcp*" \) -print0 | while IFS= read -r -d '' file; do
-            sed -i "s:192.168.0\.:$(echo "$GATEWAYNEW" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" "$file"
-        done
-        echo "${lang_18[${en}]} IP $GATEWAY and Range :OK"
-    fi
 }
 
 # netmask
@@ -376,13 +429,12 @@ function is_port() {
 echo -e "\n"
 while true; do
     read -p "${lang_16[${en}]}
-Gateway 192.168.0.10, Mask 255.255.255.0, Network /24, DNS 8.8.8.8 8.8.4.4,
-Localnet 192.168.0.0, Broadcast 192.168.0.255, DHCP-Range ini-100 end-250, Proxy 3128
+Mask 255.255.255.0, Network /24, DNS 8.8.8.8 8.8.4.4, Localnet 192.168.0.0
+Broadcast 192.168.0.255, DHCP Range ini-100 end-250, Proxy Port 3128
     ${lang_19[${en}]} (y/n)" answer
     case $answer in
     [Yy]*)
         # execute command yes
-        is_ask "${lang_19[${en}]} Gateway 192.168.0.10? (y/n)" "${lang_18[${en}]} IP incorrect" is_gateway
         is_ask "${lang_19[${en}]} Mask 255.255.255.0? (y/n)" "${lang_18[${en}]} Mask incorrect" is_mask1
         is_ask "${lang_19[${en}]} Sub-Mask /24? (y/n)" "${lang_18[${en}]} Sub-Mask incorrect" is_mask2
         is_ask "${lang_19[${en}]} DNS1 8.8.8.8? (y/n)" "${lang_18[${en}]} DNS1 incorrect" is_dns1
@@ -410,62 +462,63 @@ done
 ### ESSENTIAL
 clear
 echo -e "\n"
-function essential_setup() {
-    echo "Essential Packages..."
-    # Disk & Partition Tools
-    nala install -y gparted nfs-common ntfs-3g gsmartcontrol qdirstat
-    nala install -y --no-install-recommends smartmontools
+echo "Essential Packages..."
+# Disk & Partition Tools
+nala install -y gparted nfs-common ntfs-3g gsmartcontrol qdirstat gnome-disk-utility
+nala install -y --no-install-recommends smartmontools
     
-    # System Utilities
-    nala install -y trash-cli pm-utils neofetch cpu-x lsof inotify-tools dmidecode idle3 \
-                    wmctrl pv dpkg ppa-purge deborphan apt-utils gawk gir1.2-gtop-2.0 \
-                    finger logrotate tree moreutils rename renameutils sharutils dos2unix \
-                    gdebi synaptic preload debconf-utils mokutil util-linux linux-tools-common \
-                    colordiff
+# System Utilities
+nala install -y trash-cli pm-utils neofetch cpu-x lsof inotify-tools dmidecode idle3 \
+                wmctrl pv dpkg ppa-purge deborphan apt-utils gawk gir1.2-gtop-2.0 \
+                finger logrotate tree moreutils rename renameutils sharutils dos2unix \
+                gdebi synaptic preload debconf-utils mokutil util-linux linux-tools-common \
+                colordiff
     
-    # Development Libraries & Build Tools
-    nala install -y uuid-dev libmnl-dev gtkhash libssl-dev libffi-dev python3-dev python3-venv \
-                    libpam0g-dev autoconf autoconf-archive autogen automake dh-autoreconf \
-                    pkg-config libpcap-dev libasound2-dev libfontconfig1 clang libuser \
-                    build-essential module-assistant linux-headers-$(uname -r)
+# Development Libraries & Build Tools
+nala install -y uuid-dev libmnl-dev gtkhash libssl-dev libffi-dev python3-dev python3-venv \
+                libpam0g-dev autoconf autoconf-archive autogen automake dh-autoreconf \
+                pkg-config libpcap-dev libasound2-dev libfontconfig1 clang libuser \
+                build-essential module-assistant linux-headers-$(uname -r)
     
-    # Programming Languages & Environments
-    nala install -y javascript-common libjs-jquery rubygems-integration rake \
-                    ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet \
-                    ruby-power-assert ruby-test-unit python3-pip python3-psutil xsltproc
+# Programming Languages & Environments
+nala install -y javascript-common libjs-jquery rubygems-integration rake \
+                ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet \
+                ruby-power-assert ruby-test-unit python3-pip python3-psutil xsltproc
     
-    # UDisks Tools (runtime + development)
-    nala install -y udisks2 udisks2-btrfs udisks2-lvm2 libglib2.0-dev \
-                    libudisks2-dev liblvm2-dev
+# UDisks Tools (runtime + development)
+nala install -y udisks2 udisks2-btrfs udisks2-lvm2 libglib2.0-dev \
+                libudisks2-dev liblvm2-dev
     
-    # File System Utilities
-    nala install -y reiserfsprogs reiser4progs xfsprogs jfsutils dosfstools e2fsprogs \
-                    hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools quota lvm2 attr jmtpfs
+# File System Utilities
+nala install -y reiserfsprogs reiser4progs xfsprogs jfsutils dosfstools e2fsprogs \
+                hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools quota lvm2 attr jmtpfs
     
-    # FUSE Tools
-    nala install -y libfuse2t64 exfat-fuse gvfs-fuse bindfs sshfs
+# FUSE Tools
+nala install -y libfuse2t64 exfat-fuse gvfs-fuse bindfs sshfs
     
-    # Network / Geo / Web Tools
-    nala install -y conntrack i2c-tools wget bind9-dnsutils geoip-database wsdd
+# Network / Geo / Web Tools
+nala install -y conntrack i2c-tools wget bind9-dnsutils geoip-database wsdd
     
-    # Mesa (if there any problems, install the package: libegl-mesa0)
-    nala install -y mesa-utils
+# Mesa (if there any problems, install the package: libegl-mesa0)
+nala install -y mesa-utils
     
-    # Mail
-    service sendmail stop >/dev/null 2>&1
-    update-rc.d -f sendmail remove >/dev/null 2>&1
-    DEBIAN_FRONTEND=noninteractive nala install -y postfix
+# Mail
+service sendmail stop >/dev/null 2>&1
+update-rc.d -f sendmail remove >/dev/null 2>&1
+DEBIAN_FRONTEND=noninteractive nala install -y postfix
+
+# Search tool
+add-apt-repository -y ppa:christian-boxdoerfer/fsearch-stable
+nala install -y fsearch
     
-    # Fonts
-    nala install -y fonts-lato fonts-liberation fonts-dejavu
-    echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
-    nala install -y ttf-mscorefonts-installer fontconfig
-    fc-cache -f
+# Fonts
+nala install -y fonts-lato fonts-liberation fonts-dejavu
+echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
+nala install -y ttf-mscorefonts-installer fontconfig
+fc-cache -f
     
-    # ubuntu database
-    update-desktop-database
-}
-essential_setup
+# ubuntu database
+update-desktop-database
 echo OK
 sleep 1
 
@@ -474,207 +527,260 @@ fixbroken
 
 ### SETUP
 echo -e "\n"
-function gateproxy_setup() {
-    echo "Gateproxy Packages..."
-    sed -i "/127.0.1.1/r $gp/conf/server/hosts.txt" /etc/hosts
+echo "Gateproxy Packages..."
+sed -i "/127.0.1.1/r $gp/conf/server/hosts.txt" /etc/hosts
+
+# ACLs
+cp -rf $gp/acl/* "$aclroute"
+chmod -x "$aclroute"/*
+
+# DHCP: isc-dhcp-server
+nala install -y isc-dhcp-server
+systemctl disable isc-dhcp-server6
+
+# PHP
+nala install -y php
+
+# http server: apache2
+nala install -y apache2 apache2-doc apache2-utils apache2-dev \
+                apache2-suexec-pristine libaprutil1t64 libaprutil1-dev \
+                libtest-fatal-perl
+systemctl enable apache2.service
+# To fix apache2 error: Syntax error on line 146 of /etc/apache2/apache2.conf | Cannot load /usr/lib/apache2/modules/mod_dnssd.so
+#nala install -y libapache2-mod-dnssd
+# To fix apache2-doc error:
+apt -qq install -y --reinstall apache2-doc
+fixbroken
+cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
+sed -i '/^Listen.*/a Listen 18800\nListen 18801' /etc/apache2/ports.conf
+
+# Proxy: squid-cache
+while pgrep squid > /dev/null; do
+    killall -s SIGTERM squid &>/dev/null
+    sleep 5
+done
+nala purge -y squid* &>/dev/null
+rm -rf /var/spool/squid* /var/log/squid* /etc/squid* /dev/shm/* &>/dev/null
+#DEBIAN_FRONTEND=noninteractive nala install -y --no-install-recommends squid-openssl
+nala install -y squid-openssl squid-langpack squid-common squidclient squid-purge
+fixbroken
+mkdir -p "/var/log/squid" >/dev/null 2>&1
+touch /var/log/squid/{access,cache,store,deny}.log >/dev/null 2>&1
+chown -R proxy:proxy /var/log/squid
+systemctl enable squid.service
+# Let’s Encrypt certificate for client to Squid proxy encryption (Optional)
+#nala install -y certbot python3-certbot-apache
     
-    # ACLs
-    cp -rf $gp/acl/* "$aclroute"
-    chmod -x "$aclroute"/*
+# Web Admin: webmin
+curl -o setup-repos.sh https://raw.githubusercontent.com/webmin/webmin/master/setup-repos.sh
+chmod +x setup-repos.sh
+echo "y" | ./setup-repos.sh
+cleanupgrade
+
+# Webmin
+# https://www.maravento.com/2019/06/instalar-modulo-webmin-por-linea-de.html
+nala install -y webmin
+fixbroken
+/usr/share/webmin/install-module.pl $gp/conf/monitor/text-editor.wbm
+find $aclroute -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/dev/null
+systemctl enable webmin.service
+echo "Webmin Access: https://localhost:10000"
     
-    # DHCP: isc-dhcp-server
-    nala install -y isc-dhcp-server
-    systemctl disable isc-dhcp-server6
+# Web Admin + Virtualization: Cockpit + QEMU/KVM
+# https://www.maravento.com/2022/11/cockpit.html
+# QEMU/KVM
+nala install -y qemu-kvm virt-manager virtinst libvirt-clients libvirt-daemon-system \
+                virtiofsd qemu-system qemu-guest-agent
+usermod -aG kvm "$local_user"
+usermod -aG libvirt "$local_user"
+systemctl enable --now libvirtd
+# Note: For Linux Guest, run: sudo apt install -y qemu-guest-agent
+# Virtual Tools
+nala install -y bridge-utils libguestfs-tools ovmf
+# Cockpit
+nala install -y cockpit cockpit-storaged cockpit-networkmanager cockpit-packagekit \
+                cockpit-machines cockpit-sosreport virt-viewer
+systemctl enable --now cockpit cockpit.socket
+echo "Cockpit Access: http://localhost:9090"
     
-    # PHP
-    nala install -y php
+# Process: glances
+# https://www.maravento.com/2023/04/glances.html
+nala install -y glances
+systemctl enable glances.service
+systemctl stop glances.service
+export GLANCES_VERSION=$(glances -V | head -n 1 | awk '{print $2}' | sed 's/^v//')
+wget "https://github.com/nicolargo/glances/archive/refs/tags/v${GLANCES_VERSION}.tar.gz"
+tar -xzf v${GLANCES_VERSION}.tar.gz
+rm v${GLANCES_VERSION}.tar.gz
+cp -r glances-${GLANCES_VERSION}/glances/outputs/static/public/ /usr/lib/python3/dist-packages/glances/outputs/static/
+rm -rf glances-${GLANCES_VERSION}
+sed -i '/ExecStart=\/usr\/bin\/glances -s -B 127.0.0.1/c\ExecStart=\/usr\/bin\/glances -w -B 0.0.0.0 -t 10 -p 61208' /usr/lib/systemd/system/glances.service
+systemctl daemon-reload
+systemctl start glances.service
+echo "Glances Access: http://localhost:61208"
     
-    # http server: apache2
-    nala install -y apache2 apache2-doc apache2-utils apache2-dev \
-                    apache2-suexec-pristine libaprutil1t64 libaprutil1-dev \
-                    libtest-fatal-perl
-    systemctl enable apache2.service
-    # To fix apache2 error: Syntax error on line 146 of /etc/apache2/apache2.conf | Cannot load /usr/lib/apache2/modules/mod_dnssd.so
-    #nala install -y libapache2-mod-dnssd
-    # To fix apache2-doc error:
-    apt -qq install -y --reinstall apache2-doc
-    fixbroken
-    cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
-    sed -i '/^Listen.*/a Listen 8000\nListen 10100\nListen 10200\nListen 10300' /etc/apache2/ports.conf
+# Net Pack
+# Net Tools (Replace NIC and IP/CIDR)
+nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
+nala install -y fping              # Net diagnostics: fping -a -g 192.168.1.0/24
+nala install -y ethtool            # Net config: ethtool eth0
+
+# Net test: On server: iperf3 -s | On client: iperf3 -c serverip
+DEBIAN_FRONTEND=noninteractive nala install -y iperf3  2>/dev/null
+
+# Net Scanning (Replace NIC and IP/CIDR)
+nala install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
+nala install -y nbtscan            # nbtscan 192.168.1.0/24
+nala install -y nast               # nast -m
+nala install -y arp-scan           # arp-scan --localnet
+nala install -y arping             # arping -I eth0 192.168.1.1
+nala install -y netdiscover        # netdiscover
+# Nmap
+nala install -y nmap python3-nmap ndiff
+# Domain/IP Scanning
+nala install -y traceroute         # traceroute google.com
+nala install -y mtr-tiny           # mtr google.com
     
-    # Proxy: squid-cache
-    while pgrep squid > /dev/null; do
-        killall -s SIGTERM squid &>/dev/null
-        sleep 5
-    done
-    nala purge -y squid* &>/dev/null
-    rm -rf /var/spool/squid* /var/log/squid* /etc/squid* /dev/shm/* &>/dev/null
-    #DEBIAN_FRONTEND=noninteractive nala install -y --no-install-recommends squid-openssl
-    nala install -y squid-openssl squid-langpack squid-common squidclient squid-purge
-    fixbroken
-    if [ ! -d /var/log/squid ]; then
-        mkdir -p /var/log/squid
-    fi &>/dev/null
-    if [[ ! -f /var/log/squid/{access,cache,store,deny}.log ]]; then
-        touch /var/log/squid/{access,cache,store,deny}.log
-    fi &>/dev/null
-    chown -R proxy:proxy /var/log/squid
-    systemctl enable squid.service
-    # Let’s Encrypt certificate for client to Squid proxy encryption (Optional)
-    #nala install -y certbot python3-certbot-apache
+# Traffic Reports: Sarg
+# https://www.maravento.com/2014/03/network-monitor.html
+nala install -y sarg
+fixbroken
+mkdir -p /var/www/squid-reports
+cp -f /etc/sarg/sarg.conf{,.bak} &>/dev/null
+cp -f $gp/conf/monitor/sarg.conf /etc/sarg/sarg.conf
+chmod -x /etc/sarg/sarg.conf
+cp -f /etc/sarg/usertab{,.bak} &>/dev/null
+cp -f $gp/conf/monitor/usertab /etc/sarg/usertab
+chmod -x /etc/sarg/usertab
+cp -f $gp/conf/monitor/sargaudit.conf /etc/apache2/sites-available/sargaudit.conf
+chmod 644 /etc/apache2/sites-available/sargaudit.conf
+a2ensite -q sargaudit.conf
+sarg -f /etc/sarg/sarg.conf -l /var/log/squid/access.log &>/dev/null
+crontab -l | {
+    cat
+    echo "@daily sarg -l /var/log/squid/access.log -o /var/www/squid-reports &> /dev/null"
+} | crontab -
+crontab -l | {
+    cat
+    echo '@weekly find /var/www/squid-reports -name "2*" -mtime +30 -type d -exec rm -rf "{}" \; &> /dev/null'
+} | crontab -
+echo "Sarg Access: http://localhost:18801 or http://$serverip:18801/"
+echo "Sarg Usernames: /etc/sarg/usertab (${lang_25[${en}]} 192.168.0.10 GATEPROXY)"
+
+# Monitor: lightsquid
+# https://github.com/maravento/vault/tree/master/lightsquid
+nala install -y libcgi-session-perl libgd-perl
+tar -xf $gp/conf/monitor/lightsquid-1.8.1.tar.gz
+mkdir -p /var/www/lightsquid
+cp -f -R lightsquid-1.8.1/* /var/www/lightsquid/
+rm -rf lightsquid-1.8.1
+chmod +x /var/www/lightsquid/*.{cgi,pl}
+cp -f $gp/conf/monitor/lightsquid.conf /etc/apache2/conf-available/lightsquid.conf
+a2enmod cgid
+a2enconf lightsquid
+crontab -l | {
+    cat
+    echo "*/10 * * * * /var/www/lightsquid/lightparser.pl today"
+} | crontab -
+crontab -l | {
+    cat
+    echo "#*/12 * * * * /etc/scr/bandata.sh"
+} | crontab -
+echo "Lightsquid Access: http://localhost/lightsquid/"
+echo "Lightsquid Usernames: /var/www/lightsquid/realname.cfg"
+echo "Lightsquid (first time run): /var/www/lightsquid/lightparser.pl"
+echo "Lightsquid (check bandata IP): cat /etc/acl/{banmonth,bandaily}.txt | uniq"
     
-    # Web Admin: webmin
-    curl -o setup-repos.sh https://raw.githubusercontent.com/webmin/webmin/master/setup-repos.sh
-    chmod +x setup-repos.sh
-    echo "y" | ./setup-repos.sh
-    cleanupgrade
+# Warning for lightsquid-bandata
+mkdir -p /var/www/html/warning
+chown -R www-data:www-data /var/www/html/warning
+escaped_serverip=$(echo "$serverip" | sed 's/\./\\\\./g')
+sed -i "s/192\\\\.168\\\\.0\\\\.10/$escaped_serverip/g" $gp/conf/monitor/warning.html
+cp -f $gp/conf/monitor/warning.html /var/www/html/warning/warning.html
+# http
+cp -f $gp/conf/monitor/warning.conf /etc/apache2/sites-available/warning.conf
+chmod 644 /etc/apache2/sites-available/warning.conf
+touch /var/log/apache2/{warning_access,warning_error}.log
+grep -q 'Listen 0.0.0.0:18880' /etc/apache2/ports.conf || echo 'Listen 0.0.0.0:18880' >> /etc/apache2/ports.conf
+a2ensite -q warning.conf
+# https
+: "${serverip:?WARNING: Server IP variable is not defined}"
+cat > /tmp/warning_openssl.cnf <<EOF
+[req]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_req
+prompt = no
+
+[req_distinguished_name]
+C = CO
+ST = Some-State
+L = City
+O = CaptivePortal
+CN = ${serverip}
+
+[v3_req]
+basicConstraints = critical,CA:FALSE
+subjectAltName = @alt_names
+
+[alt_names]
+IP.1 = ${serverip}
+EOF
+
+# SSL
+openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
+    -keyout /etc/ssl/private/warning.key.pem \
+    -out /etc/ssl/certs/warning.cert.pem \
+    -config /tmp/warning_openssl.cnf \
+    -extensions v3_req \
+    > /dev/null 2> /tmp/openssl_error.log
+
+cat /tmp/warning_openssl.cnf
+rm -f /tmp/warning_openssl.cnf
+cp -f $gp/conf/monitor/warning-ssl.conf /etc/apache2/sites-available/warning-ssl.conf
+chmod 644 /etc/apache2/sites-available/warning-ssl.conf
+touch /var/log/apache2/{warning_ssl_access,warning_ssl_error}.log
+grep -q 'Listen 0.0.0.0:18443' /etc/apache2/ports.conf || echo 'Listen 0.0.0.0:18443' >> /etc/apache2/ports.conf
+a2ensite -q warning-ssl.conf
+a2enmod ssl
+a2enmod rewrite
+echo "Warning: http://$serverip:18880 - HTTPS: https://$serverip:18443"
+
+# Security
+nala install -y ipset lynis fail2ban
+cp $gp/conf/server/jail.local /etc/fail2ban/jail.local
+cp $gp/conf/server/cockpit.conf /etc/fail2ban/filter.d/cockpit.conf
+sed -i 's/^#\?allowipv6 *= *.*/allowipv6 = 0/' /etc/fail2ban/fail2ban.conf
+systemctl enable fail2ban.service
+echo "Check: sudo fail2ban-client status <jail_name>"
+echo "Unban all: sudo fail2ban-client unban --all"
+echo "Unban Jail: sudo fail2ban-client set <jail_name> unban --all"
+echo "Lynis Run: lynis -c -Q and log: /var/log/lynis.log"
     
-    # Webmin
-    # https://www.maravento.com/2019/06/instalar-modulo-webmin-por-linea-de.html
-    nala install -y webmin
-    fixbroken
-    /usr/share/webmin/install-module.pl $gp/conf/monitor/text-editor.wbm
-    find $aclroute -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/dev/null
-    systemctl enable webmin.service
-    echo "Webmin Access: https://localhost:10000"
+# Logs: ulog, rsyslog
+# https://www.maravento.com/2014/07/registros-iptables.html
+chown root:root /var/log
+nala install -y ulogd2
+mkdir -p /var/log/ulog >/dev/null 2>&1
+touch /var/log/ulog/syslogemu.log >/dev/null 2>&1
+usermod -a -G ulog "$USER"
+crontab -l | {
+    cat
+    echo "#*/10 * * * * /etc/scr/banip.sh"
+} | crontab -
+echo "Ulog Access: /var/log/ulog/syslogemu.log"
+nala install -y rsyslog
+# in case rsyslog fails: nala install -y libfastjson4
+systemctl enable rsyslog.service
     
-    # Web Admin + Virtualization: Cockpit + QEMU/KVM
-    # https://www.maravento.com/2022/11/cockpit.html
-    # Virtualization Tools
-    nala install -y qemu-kvm virt-manager virtinst libvirt-clients libvirt-daemon-system
-    usermod -aG kvm "$local_user"
-    usermod -aG libvirt "$local_user"
-    systemctl enable --now libvirtd
-    # Note: For Linux Guest, run: sudo apt install -y qemu-guest-agent
-    # Virtual Tools
-    nala install -y bridge-utils libguestfs-tools
-    # Cockpit
-    nala install -y cockpit cockpit-storaged cockpit-networkmanager cockpit-packagekit \
-                    cockpit-machines cockpit-sosreport virt-viewer virtiofsd qemu-system
-    systemctl enable --now cockpit cockpit.socket
-    echo "Cockpit Access: http://localhost:9090"
-    
-    # Process: glances
-    # https://www.maravento.com/2023/04/glances.html
-    nala install -y glances
-    systemctl enable glances.service
-    systemctl stop glances.service
-    export GLANCES_VERSION=$(glances -V | head -n 1 | awk '{print $2}' | sed 's/^v//')
-    wget "https://github.com/nicolargo/glances/archive/refs/tags/v${GLANCES_VERSION}.tar.gz"
-    tar -xzf v${GLANCES_VERSION}.tar.gz
-    rm v${GLANCES_VERSION}.tar.gz
-    cp -r glances-${GLANCES_VERSION}/glances/outputs/static/public/ /usr/lib/python3/dist-packages/glances/outputs/static/
-    rm -rf glances-${GLANCES_VERSION}
-    sed -i '/ExecStart=\/usr\/bin\/glances -s -B 127.0.0.1/c\ExecStart=\/usr\/bin\/glances -w -B 0.0.0.0 -t 10 -p 61208' /usr/lib/systemd/system/glances.service
-    systemctl daemon-reload
-    systemctl start glances.service
-    echo "Glances Access: http://localhost:61208"
-    
-    # Net Pack
-    # Net Tools (Replace NIC and IP/CIDR)
-    nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
-    nala install -y fping              # Net diagnostics: fping -a -g 192.168.1.0/24
-    nala install -y ethtool            # Net config: sudo ethtool eth0
-    # Net Scanning (Replace NIC and IP/CIDR)
-    nala install -y masscan            # sudo masscan --ports 0-65535 192.168.0.0/16
-    nala install -y nbtscan            # sudo nbtscan 192.168.1.0/24
-    nala install -y nast               # sudo nast -m
-    nala install -y arp-scan           # sudo arp-scan --localnet
-    nala install -y arping             # sudo arping -I eth0 192.168.1.1
-    nala install -y netdiscover        # sudo netdiscover
-    # Nmap
-    nala install -y nmap python3-nmap ndiff
-    # Domain/IP Scanning
-    nala install -y traceroute         # traceroute google.com
-    nala install -y mtr-tiny           # mtr google.com
-    
-    # Monitor: lightsquid
-    # https://www.maravento.com/2022/10/lightsquid.html
-    nala install -y libcgi-session-perl libgd-gd2-perl
-    tar -xf $gp/conf/monitor/lightsquid-1.8.1.tar.gz
-    mkdir -p /var/www/lightsquid
-    cp -f -R lightsquid-1.8.1/* /var/www/lightsquid/
-    rm -rf lightsquid-1.8.1
-    chmod +x /var/www/lightsquid/*.{cgi,pl}
-    cp -f $gp/conf/monitor/lightsquid.conf /etc/apache2/conf-available/lightsquid.conf
-    a2enmod cgid
-    a2enconf lightsquid
-    crontab -l | {
-        cat
-        echo "*/10 * * * * /var/www/lightsquid/lightparser.pl today"
-    } | crontab -
-    crontab -l | {
-        cat
-        echo "*/12 * * * * /etc/scr/bandata.sh"
-    } | crontab -
-    echo "Lightsquid Access: http://localhost/lightsquid/"
-    echo "Lightsquid Usernames: /var/www/lightsquid/realname.cfg"
-    echo "Lightsquid (first time run): /var/www/lightsquid/lightparser.pl"
-    echo "Lightsquid (check bandata IP): cat /etc/acl/{banmonth,bandaily}.txt | uniq"
-    
-    # Traffic Reports: Sarg
-    # https://www.maravento.com/2014/03/network-monitor.html
-    nala install -y sarg
-    fixbroken
-    mkdir -p /var/www/squid-reports
-    cp -f /etc/sarg/sarg.conf{,.bak} &>/dev/null
-    cp -f $gp/conf/monitor/sarg.conf /etc/sarg/sarg.conf
-    chmod -x /etc/sarg/sarg.conf
-    cp -f /etc/sarg/usertab{,.bak} &>/dev/null
-    cp -f $gp/conf/monitor/usertab /etc/sarg/usertab
-    chmod -x /etc/sarg/usertab
-    cp -f $gp/conf/monitor/sargaudit.conf /etc/apache2/sites-available/sargaudit.conf
-    chmod -x /etc/apache2/sites-available/sargaudit.conf
-    a2ensite -q sargaudit.conf
-    sarg -f /etc/sarg/sarg.conf -l /var/log/squid/access.log &>/dev/null
-    crontab -l | {
-        cat
-        echo "@daily sarg -l /var/log/squid/access.log -o /var/www/squid-reports &> /dev/null"
-    } | crontab -
-    crontab -l | {
-        cat
-        echo '@weekly find /var/www/squid-reports -name "2*" -mtime +30 -type d -exec rm -rf "{}" \; &> /dev/null'
-    } | crontab -
-    echo "Sarg Access: http://localhost:10300 or http://SERVER_IP:10300/"
-    echo "Sarg Usernames: /etc/sarg/usertab (${lang_25[${en}]} 192.168.0.10 GATEPROXY)"
-    
-    # Security
-    nala install -y ipset lynis fail2ban
-    cp $gp/conf/server/jail.local /etc/fail2ban/jail.local
-    cp $gp/conf/server/cockpit.conf /etc/fail2ban/filter.d/cockpit.conf
-    sed -i 's/^#\?allowipv6 *= *.*/allowipv6 = 0/' /etc/fail2ban/fail2ban.conf
-    systemctl enable fail2ban.service
-    echo "Check: sudo fail2ban-client status <jail_name>"
-    echo "Unban all: sudo fail2ban-client unban --all"
-    echo "Unban Jail: sudo fail2ban-client set <jail_name> unban --all"
-    echo "Lynis Run: lynis -c -Q and log: /var/log/lynis.log"
-    
-    # Logs: ulog, rsyslog
-    # https://www.maravento.com/2014/07/registros-iptables.html
-    chown root:root /var/log
-    nala install -y ulogd2
-    if [ ! -d /var/log/ulog ]; then mkdir -p /var/log/ulog && touch /var/log/ulog/syslogemu.log; fi
-    usermod -a -G ulog "$USER"
-    crontab -l | {
-        cat
-        echo "#*/10 * * * * /etc/scr/banip.sh"
-    } | crontab -
-    echo "Ulog Access: /var/log/ulog/syslogemu.log"
-    nala install -y rsyslog
-    # in case rsyslog fails: nala install -y libfastjson4
-    systemctl enable rsyslog.service
-    
-    # Backup: Timeshift FreeFileSync
-    nala install -y timeshift
-    # https://www.maravento.com/2014/06/sincronizacion-espejo.html
-    chmod +x $gp/conf/scr/ffsupdate.sh
-    $gp/conf/scr/ffsupdate.sh
-    crontab -l | {
-        cat
-        echo "@weekly /etc/scr/ffsupdate.sh"
-    } | crontab -
-}
-gateproxy_setup
+# Backup: Timeshift FreeFileSync
+nala install -y timeshift
+# https://www.maravento.com/2014/06/sincronizacion-espejo.html
+chmod +x $gp/conf/scr/ffsupdate.sh
+$gp/conf/scr/ffsupdate.sh
+crontab -l | {
+    cat
+    echo "@weekly /etc/scr/ffsupdate.sh"
+} | crontab -
 echo OK
 sleep 1
 
@@ -712,11 +818,12 @@ ${lang_21[${en}]} (y/n)" answer
           chmod 777 "$dir"
         done
         find $gp/conf/samba -type f -print0 | xargs -0 -I "{}" sed -i "s:compartida:${lang_22[${en}]}:g" "{}"
-        if [ ! -d /var/lib/samba/usershares ]; then mkdir -p /var/lib/samba/usershares; fi
+        mkdir -p /var/lib/samba/usershares >/dev/null 2>&1
         chmod 1775 /var/lib/samba/usershares/
-        if [ ! -d /var/log/samba ]; then mkdir -p /var/log/samba; fi
+        mkdir -p /var/log/samba >/dev/null 2>&1
         sed -i 's/ \$SMBDOPTIONS//' /lib/systemd/system/smbd.service
         sed -i 's/ \$NMBDOPTIONS//' /lib/systemd/system/nmbd.service
+        touch /var/log/samba/log.{samba,audit}
         chown root:adm /var/log/samba/log.{samba,audit}
         chmod 640 /var/log/samba/log.{samba,audit}
         usermod -aG adm syslog
@@ -740,10 +847,14 @@ ${lang_21[${en}]} (y/n)" answer
         sed -i "/# First some standard log files.  Log by facility./i # fullaudit\nif \$programname == 'smbd_audit' and not (\$msg contains 'pam_unix') then {\n    action(type=\"omfile\" file=\"/var/log/samba/log.audit\")\n    stop\n}" /etc/rsyslog.d/50-default.conf
         cp -f /etc/logrotate.d/rsyslog{,.bak} &>/dev/null
         sed -i '/sharedscripts/a \    create 0644 syslog adm' /etc/logrotate.d/rsyslog
-        # state file /var/lib/logrotate/status is world-readable
-        rm -f /var/lib/logrotate/status.lock
-        chmod 640 /var/lib/logrotate/status
-        chown root:root /var/lib/logrotate/status
+        logrotate -s /var/lib/logrotate/status -f /etc/logrotate.conf > /dev/null 2>&1 || echo "⚠️ Error: logrotate status fail"
+        rm -f /var/lib/logrotate/status.lock &>/dev/null
+        if [ -f /var/lib/logrotate/status ]; then
+            chmod 640 /var/lib/logrotate/status
+            chown root:root /var/lib/logrotate/status
+        else
+            echo "⚠️ Warning: /var/lib/logrotate/status was not created"
+        fi
         echo "Samba Log: /var/log/samba/log.audit"
         echo "check smb.conf: testparm"
         break
@@ -808,8 +919,9 @@ chown -R root:root $scr/*
 chmod -R +x $scr/*
 # Choose your security level: "Secure Share Memory" (optional)
 #echo 'none /run/shm tmpfs defaults,ro 0 0' | tee -a /etc/fstab &> /dev/null
+#echo 'tmpfs /tmp tmpfs defaults,size=30%,nofail,noatime,mode=1777 0 0' | tee -a /etc/fstab &> /dev/null
 # alternative
-echo 'tmpfs /tmp tmpfs defaults,size=30%,nofail,noatime,mode=1777 0 0' | tee -a /etc/fstab &> /dev/null
+echo 'tmpfs /tmp tmpfs defaults,size=512M,nofail,noatime,mode=1777 0 0' | tee -a /etc/fstab &> /dev/null
 echo OK
 sleep 1
 
@@ -828,7 +940,7 @@ chmod -x /etc/apache2/sites-available/proxy.conf
 a2ensite -q proxy.conf
 chmod -R 755 /var/www/
 apachectl -t -D DUMP_INCLUDES -S
-echo "WPAD-PAC Proxy Auto Access: http://SERVER_IP:8000/proxy.pac"
+echo "WPAD-PAC Proxy Auto Access: http://SERVER_IP:18800/proxy.pac"
 echo OK
 sleep 1
 
@@ -839,13 +951,6 @@ tee -a /etc/rsyslog.conf >/dev/null <<EOT
 *.none    /usr/local/ddos/ddos.log
 EOT
 
-# change value for your limit open files
-openfiles="65535"
-
-# change value for your limit watched files (error-enospc)
-# note: clean regularly /tmp/
-watchedfiles="65535"
-
 # backup conf files
 cp -f /etc/security/limits.conf{,.bak} &>/dev/null
 cp -f /etc/systemd/system.conf{,.bak} &>/dev/null
@@ -855,26 +960,35 @@ cp -f /etc/hosts{,.bak} &>/dev/null
 
 # adding parameters
 tee -a /etc/security/limits.conf >/dev/null <<EOT
-* soft  nproc   $openfiles
-* hard  nproc   $openfiles
-* soft  nofile  $openfiles
-* hard  nofile  $openfiles
-root  soft  nproc   $openfiles
-root  hard  nproc   $openfiles
-root  soft  nofile  $openfiles
-root  hard  nofile  $openfiles
+*       soft    nproc   65535
+*       hard    nproc   65535
+*       soft    nofile  65535
+*       hard    nofile  65535
+root    soft    nproc   65535
+root    hard    nproc   65535
+root    soft    nofile  65535
+root    hard    nofile  65535
 EOT
 tee -a /etc/sysctl.conf >/dev/null <<EOT
-fs.file-max = $openfiles
-net.core.somaxconn = $openfiles
+# System optimization
+fs.file-max = 65535
+fs.inotify.max_user_watches = 65535
 vm.overcommit_memory = 1
-fs.inotify.max_user_watches = $watchedfiles
-net.ipv4.ip_forward=1
-vm.swappiness=10
+vm.swappiness = 10
+# TCP/NET optimization
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.ipv4.tcp_rmem = 4096 87380 16777216
+net.ipv4.tcp_wmem = 4096 65536 16777216
+net.core.somaxconn = 65535
+net.ipv4.ip_forward = 1
+# Optional
+net.ipv4.tcp_congestion_control = bbr
 EOT
-sh -c 'echo "DefaultLimitNOFILE='$openfiles'" >> /etc/systemd/system.conf'
-sh -c 'echo "DefaultLimitNOFILE='$openfiles'" >> /etc/systemd/user.conf'
+echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/system.conf >/dev/null
+echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/user.conf >/dev/null
 sysctl -p
+
 echo "Apache Config..."
 cp -f /etc/apache2/apache2.conf{,.bak} &>/dev/null
 #echo 'RequestReadTimeout header=10-20,MinRate=500 body=20,MinRate=500' | tee -a /etc/apache2/apache2.conf # optional
@@ -940,10 +1054,10 @@ fixbroken
 systemctl daemon-reexec &>/dev/null
 # Update initramfs (optional)
 #update-initramfs -u -k all
-# Copy HowTo to Desktop..."
-sudo -u "$local_user" bash -c 'cp $(pwd)/gateproxy/howto/gateproxy.pdf "$(xdg-user-dir DESKTOP)/gateproxy.pdf"'
 # create alias "upgrade"
 sudo -u "$local_user" bash -c "echo alias upgrade=\"'sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo updatedb && sudo snap refresh'\"" >>/home/"$local_user"/.bashrc
+sudo -u "$local_user" bash -c "echo alias server=\"'sudo /etc/scr/serverload.sh'\"" >>/home/"$local_user"/.bashrc
+sudo -u "$local_user" bash -c "echo alias cleaner=\"'sudo /etc/scr/cleaner.sh'\"" >>/home/"$local_user"/.bashrc
 # snap
 snap set system proxy.http!
 snap set system proxy.https!
@@ -959,12 +1073,18 @@ echo -e "\n"
 echo "${lang_24[${en}]}"
 echo "after reboot, run: systemctl list-units --type service --state running,failed"
 read RES
-rm -rfv $gp *tar.gz *.sh *.deb *.txt
+rm -rfv *tar.gz *.sh *.deb *.txt
 journalctl --rotate
 journalctl --vacuum-time=1s
 systemctl restart systemd-journald
 systemctl daemon-reexec
 systemctl daemon-reload
+update-ca-certificates -f
+systemctl reload apache2
+a2query -s
 #apt -qq -y remove --purge `deborphan --guess-all` # optional
 #dpkg -l | grep "^rc" | cut -d " " -f 3 | xargs dpkg --purge &> /dev/null # optional
 reboot
+
+[ -d "$gp" ] && rm -rf "$gp"
+(sleep 2 && rm -- "$SCRIPT_PATH") &

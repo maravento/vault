@@ -1,21 +1,10 @@
 #!/bin/bash
-### BEGIN INIT INFO
-# Provides:          bandata
-# Required-Start:    $local_fs $remote_fs $network
-# Required-Stop:     $local_fs $remote_fs $network
-# Should-Start:      $named
-# Should-Stop:       $named
-# Default-Start:     2 3 4 5
-# Default-Stop:      0 1 6
-# Short-Description: Start daemon at boot time
-# Description:       Enable service provided by daemon
-### END INIT INFO
-
 # maravento.com
 
 # Bandata for LightSquid
 # Data Plan for LocalNet
 # https://www.maravento.com/2022/10/lightsquid.html
+# https://www.maravento.com/2025/06/https-302.html
 
 # Instructions:
 # Default: max 1G (GBytes) day / 5G (GBytes) week / 20G (GBytes) month
@@ -27,13 +16,13 @@
 echo "Bandata for LightSquid Start. Wait..."
 printf "\n"
 
-# checking root
+# check root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
 
-# checking script execution
+# check script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
         if [ "$p" -ne $$ ]; then
@@ -43,21 +32,11 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
-# checking dependencies (optional)
-pkg='ipset'
-if apt-get -qq install $pkg; then
-    true
-else
-    echo "Error installing $pkg. Abort"
-    exit
-fi
-
 ### VARIABLES
-# ipset/iptables
-iptables=/sbin/iptables
-ipset=/sbin/ipset
 # replace interface (e.g: enpXsX)
 lan="eth1"
+# server IP
+serverip="192.168.0.10"
 # range
 range="192.168*"
 # today
@@ -65,20 +44,20 @@ today=$(date +"%u")
 # reorganize IP
 reorganize="sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n"
 # path to reports
-report="/var/www/lightsquid/report"
+report=/var/www/lightsquid/report
 # path to ACLs folder
-aclroute="/etc/acl"
+aclroute=/etc/acl
 # Create folder if doesn't exist
-if [ ! -d "$aclroute" ]; then mkdir -p "$aclroute"; fi &>/dev/null
+if [ ! -d $aclroute ]; then mkdir -p $aclroute; fi &>/dev/null
 # path to ACLs files
 allow_list=$aclroute/allowdata.txt
 block_list_day=$aclroute/banday.txt
 block_list_week=$aclroute/banweek.txt
 block_list_month=$aclroute/banmonth.txt
 # Create ACLs files if doesn't exist
-if [[ ! -f {"$allow_list","$block_list_day","$block_list_week","$block_list_month"} ]]; then touch {"$allow_list","$block_list_day","$block_list_week","$block_list_month"}; fi
+if [[ ! -f {$allow_list,$block_list_day,$block_list_week,$block_list_month} ]]; then touch {$allow_list,$block_list_day,$block_list_week,$block_list_month}; fi
 
-### BANDATA DAY
+### BANDATA DAY (1G daily)
 echo "Running Bandata Day..."
 max_bandwidth_day="1G"
 max_bw_day=$(echo "$max_bandwidth_day" | tr '.' ',' | numfmt --from=iec)
@@ -87,22 +66,21 @@ day_logs=$report/$(date +"%Y%m%d")
 # bandata day rule
 if [[ "$today" -eq 6 || "$today" -eq 7 ]]; then
     echo "Weekend Excluded"
-    cat /dev/null > "$block_list_day"
+    cat /dev/null >$block_list_day
 else
-    echo "Not Weekend"
     (
-        cd "$day_logs"
-        for file in "$range"; do
-            if (($(awk <$file '/^total/ {print($2)}') > "$max_bw_day")); then
+        cd $day_logs
+        for file in $range; do
+            if (($(awk <$file '/^total/ {print($2)}') > $max_bw_day)); then
                 echo $file
             fi
         done
     ) >banout_day
-    cat banout_day | grep -wvf "$allow_list" | "$reorganize" | uniq > "$block_list_day"
+    cat banout_day | grep -wvf $allow_list | $reorganize | uniq >$block_list_day
 fi
 echo "OK"
 
-### BANDWIDTH WEEK
+### BANDWIDTH WEEK (5G weekly MON-FRI)
 echo "Running Bandata Week..."
 max_bandwidth_week="5G"
 max_bw_week=$(echo $max_bandwidth_week | tr '.' ',' | numfmt --from=iec)
@@ -115,11 +93,11 @@ if [ "$today" -eq 1 ]; then
     folders=$(find "$report" -type f | grep -F -f <(echo -e "$weekday_logs"))
     totals=$(echo "$folders" | xargs -I {} awk '/^total:/{sub(".*/", "", FILENAME); print FILENAME" "$NF}' {})
     ips=$(echo "$totals" | awk '{ arr[$1]+=$2 } END { for (key in arr) printf("%s\t%s\n", arr[key], key) }' | sort -k1,1)
-    echo "$ips" | awk -v max_bw_week="$max_bw_week" '$1 > max_bw_week {print $2}' | grep -wvf "$allow_list" | "$reorganize" | uniq > "$block_list_week"
+    echo "$ips" | awk -v max_bw_week="$max_bw_week" '$1 > max_bw_week {print $2}' | grep -wvf "$allow_list" | $reorganize | uniq >"$block_list_week"
 fi
 echo "OK"
 
-### BANDATA MONTH
+### BANDATA MONTH (20G monthly = 5G weekly x 4 weeks)
 echo "Running Bandata Month..."
 max_bandwidth_month="20G"
 max_bw_month=$(echo $max_bandwidth_month | tr '.' ',' | numfmt --from=iec)
@@ -134,21 +112,44 @@ weekend_logs=$(
 folders=$(find $month_logs -type f | grep -vf <(echo "$weekend_logs"))
 totals=$(echo "$folders" | xargs -I {} awk '/^total:/{sub(".*/", "", FILENAME); print FILENAME" "$NF}' {})
 ips=$(echo "$totals" | awk '{ arr[$1]+=$2 } END { for (key in arr) printf("%s\t%s\n", arr[key], key) }' | sort -k1,1)
-echo "$ips" | awk '$1 > '$max_bw_month' {print $2}' | grep -wvf $allow_list | "$reorganize" | uniq > "$block_list_month"
+echo "$ips" | awk '$1 > '$max_bw_month' {print $2}' | grep -wvf $allow_list | $reorganize | uniq >$block_list_month
 echo "OK"
 
 ### IPSET/IPTABLES FOR BANDATA
 echo "Running Ipset/Iptables Rules..."
-$ipset -L bandata >/dev/null 2>&1
+ipset -L bandata >/dev/null 2>&1
 if [ $? -ne 0 ]; then
-    $ipset -! create bandata hash:net family inet hashsize 1024 maxelem 65536
+    ipset -! create bandata hash:net family inet hashsize 1024 maxelem 65536
 else
-    $ipset -! flush bandata
+    ipset -! flush bandata
 fi
-for ip in $(cat "$block_list_day" "$block_list_week" "$block_list_month" | "$reorganize" | uniq); do
-    $ipset -! add bandata "$ip"
-done
-$iptables -t mangle -I PREROUTING -i $lan -m set --match-set bandata src,dst -j DROP
-$iptables -I INPUT -i $lan -m set --match-set bandata src,dst -j DROP
-$iptables -I FORWARD -i $lan -m set --match-set bandata src,dst -j DROP
+
+# Load IPs to bandata
+all_bans=$(cat $block_list_day $block_list_week $block_list_month | $reorganize | uniq)
+
+if [ -n "$all_bans" ]; then
+    echo "$all_bans" | while read ip; do
+        ipset -! add bandata "$ip"
+    done
+
+    echo "Applying iptables rules..."
+
+    # Allow HTTP Virtualhost (18880/TCP) for bandata
+    iptables -A INPUT -i $lan -m set --match-set bandata src -p tcp --dport 18880 -j ACCEPT
+    iptables -A FORWARD -i $lan -m set --match-set bandata src -p tcp --dport 18880 -j ACCEPT
+    # Allow HTTPs Virtualhost (18443/TCP) for bandata (Optional - uncomment them if you need them)
+    #iptables -A INPUT -i $lan -m set --match-set bandata src -p tcp --dport 18443 -j ACCEPT
+    #iptables -A FORWARD -i $lan -m set --match-set bandata src -p tcp --dport 18443 -j ACCEPT
+    # Allow DNS (53/UDP) for bandata
+    iptables -A INPUT -i $lan -m set --match-set bandata src -p udp --dport 53 -j ACCEPT
+    iptables -A FORWARD -i $lan -m set --match-set bandata src -p udp --dport 53 -j ACCEPT
+    # Redirect HTTP (80/TCP) for bandata
+    iptables -t nat -A PREROUTING -i $lan -m set --match-set bandata src -p tcp --dport 80 -j DNAT --to-destination $serverip:18880
+    # Drop all for bandata
+    iptables -A INPUT -i $lan -m set --match-set bandata src -j DROP
+    iptables -A FORWARD -i $lan -m set --match-set bandata src -j DROP
+else
+    echo "There are no IPs in bandata"
+fi
+
 echo "Done"

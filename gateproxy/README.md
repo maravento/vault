@@ -32,7 +32,7 @@ python gitfolderdl.py https://github.com/maravento/vault/gateproxy
 
 | OS | CPU | NIC | RAM | Storage | HowTO |
 | :---: | :---: | :---: | :---: | :---: | :---: |
-| Ubuntu 24.04.x | Intel Core i5/Xeon/AMD Ryzen 5 (≥ 3.0 GHz) | 2 (WAN & LAN) | 6 GB (cache_mem) | 100 GB SSD (cache_dir rock) | [PDF](https://raw.githubusercontent.com/maravento/vault/master/gateproxy/howto/gateproxy.pdf) |
+| Ubuntu 24.04.x | Intel Core i5/Xeon/AMD Ryzen 5 (≥ 3.0 GHz) | 2 (WAN & LAN) | 4 GB (cache_mem) | 100 GB SSD (cache_dir rock) | [PDF](https://raw.githubusercontent.com/maravento/vault/master/gateproxy/howto/gateproxy.pdf) |
 
 ## HOW TO USE
 

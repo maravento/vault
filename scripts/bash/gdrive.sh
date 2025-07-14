@@ -11,13 +11,13 @@
 echo "Gdrive Starting. Wait..."
 printf "\n"
 
-# checking no-root
+# check no-root
 if [ "$(id -u)" == "0" ]; then
     echo "❌ This script should not be run as root."
     exit 1
 fi
 
-# checking script execution
+# check script execution
 if pidof -x $(basename $0) >/dev/null; then
     for p in $(pidof -x $(basename $0)); do
         if [ "$p" -ne $$ ]; then
@@ -27,15 +27,24 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
-# checking dependencies
-pkgs='google-drive-ocamlfuse install libcurl3-gnutls libfuse2 libsqlite3-0'
-status="$(dpkg-query -W --showformat='${db:Status-Status}' "$pkgs" 2>&1)"
-if [ ! $? = 0 ] || [ ! "$status" = installed ]; then
-    sudo add-apt-repository -y ppa:alessandro-strada/ppa &>/dev/null
-    sudo apt-get install -qq $pkgs
-else
-    true
+# check SO
+UBUNTU_VERSION=$(lsb_release -rs)
+UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VERSION" != "24.04" ) ]]; then
+    echo "Unsupported system. Use at your own risk"
+    # exit 1
 fi
+
+# check dependencies
+pkgs='google-drive-ocamlfuse libcurl3-gnutls libfuse2 libsqlite3-0'
+for pkg in $pkgs; do
+  dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {
+    echo "❌ '$pkg' is not installed. Run:"
+    echo "sudo add-apt-repository -y ppa:alessandro-strada/ppa"
+    echo "sudo apt install $pkg"
+    exit 1
+  }
+done
 
 ### VARIABLES
 # LOCAL USER (sudo user no root)

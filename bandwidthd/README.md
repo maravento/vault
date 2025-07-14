@@ -67,24 +67,6 @@ wget -c https://raw.githubusercontent.com/maravento/vault/master/bandwidthd/bwin
 
 [![Image](https://raw.githubusercontent.com/maravento/vault/master/bandwidthd/img/bandwidthd.png)](https://www.maravento.com/)
 
-### Virtualhost
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; white-space: nowrap;">
-      BandwidthD works on port 80 and this can cause conflicts with other applications using this port and the configuration file has no option to change it, so the install script sets up a virtualhost on port 41000. To change it, for example, for 42000 or whatever, run:
-    </td>
-    <td style="width: 50%; white-space: nowrap;">
-      BandwidthD trabaja por el puerto 80 y esto puede generar conflictos con otras aplicaciones que usen este puerto y el archivo de configuración no tiene opción para cambiarlo, por tanto, el script de instalación configura un virtualhost en el puerto 41000. Para cambiarlo, por ejemplo, por 42000 o cualquier otro, ejecute:
-    </td>
-  </tr>
-</table>
-
-```bash
-sudo sed -i "s:41000:42000:g" /etc/apache2/sites-available/bandwidthd.conf
-sudo sed -i "s:41000:42000:g" /etc/apache2/port.conf
-```
-
 ### Logs
 
 <table width="100%">
@@ -189,9 +171,9 @@ sudo bandwidthd -l
 sudo cat /etc/bandwidthd/bandwidthd.conf | grep subnet
 # matches none of these subnets will be ignored.
 #subnet 192.168.0.0/24
-subnet 169.254.0.0/16 # LAN
-subnet 192.168.0.0/24 # WAN
-subnet 192.168.122.0/24 # others interfaces
+
+subnet 192.168.1.0/24 # LAN
+subnet 192.168.122.0/24 # WAN
 ```
 
 <table width="100%">
@@ -207,9 +189,9 @@ subnet 192.168.122.0/24 # others interfaces
 
 ```bash
 # Example for LAN
-sudo sed -i "s:169.254.0.0/16:XXX.XXX.XX.0/24:g" /etc/bandwidthd/bandwidthd.conf
+sudo sed -i "s:192.168.1.0/24:XXX.XXX.XXX.0/24:g" /etc/bandwidthd/bandwidthd.conf
 # Example for WAN
-sudo sed -i "s:192.168.0.0/24:XXX.XXX.XX.0/24:g" /etc/bandwidthd/bandwidthd.conf
+sudo sed -i "s:192.168.122.0/24:XXX.XXX.XXX.0/24:g" /etc/bandwidthd/bandwidthd.conf
 ```
 
 <table width="100%">

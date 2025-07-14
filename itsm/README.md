@@ -49,7 +49,7 @@
 
 | File | OS | Size |
 | :---: | :---: | :---: |
-| [itsm.exe (.zip)](https://mega.nz/file/HQsigapY#7zx_nraWiRCvTf8hr1sdmU5_tMHyv2_9igk18nsULV4) | Windows 10/11 x64 | 127 MB |
+| [itsm.exe (.zip)](https://mega.nz/file/eMllwLAB#ecwadxaktU1PzKVyYXE40M37kFPmacMOSZ2TQg6fHL8) | Windows 10/11 x64 | 127,2 MB |
 
 ## Supported Versions
 
@@ -316,6 +316,7 @@ Package: ITSM
 
 - [7zSFX Builder](https://sourceforge.net/projects/s-zipsfxbuilder/)
 - [ACPU](https://github.com/krakjoe/apcu)
+- [ACPU Main](https://pecl.php.net/package/APCu)
 - [Checksum Control](https://sourceforge.net/projects/checksumcontrol/)
 - [curl for Windows](https://curl.se/windows/)
 - [Find & Replace Tool](https://findandreplace.io/)
