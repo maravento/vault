@@ -331,11 +331,11 @@ iptables -A OUTPUT -m set --match-set blockports src -j DROP
 ## ACL RULES ##
 echo "ACL Rules..."
 
-# MACTRANSPARENT (Not recommended) (Default for http: 80. Default for squid: 8080 change to squid transparent-intercept port: 8080)
+# MACTRANSPARENT (Not recommended) (Default for http: 80. Default for squid: 3129 change to squid transparent-intercept port: 3129)
 #for mac in $(awk -F";" '{print $2}' $aclroute/mac-transparent.txt); do
-#    iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m mac --mac-source $mac -j REDIRECT --to-port 8080
-#    iptables -A INPUT -i $lan -p tcp -m multiport --dports 443,8080 -m mac --mac-source $mac -j ACCEPT
-#    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 443,8080 -m mac --mac-source $mac -j ACCEPT
+#    iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m mac --mac-source $mac -j REDIRECT --to-port 3129
+#    iptables -A INPUT -i $lan -p tcp -m multiport --dports 443,3129 -m mac --mac-source $mac -j ACCEPT
+#    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 443,3129 -m mac --mac-source $mac -j ACCEPT
 #done
 
 # MACPROXY (Port 18800 to 3128 - Opcion 252 DHCP)
