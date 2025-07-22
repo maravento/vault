@@ -148,7 +148,7 @@ iptables -t nat -A POSTROUTING -s $local/$netmask -o $wan -j MASQUERADE
 # LAN ---> PROXY <--- INTERNET
 iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 iptables -A OUTPUT -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
-iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
 
 # MACUNLIMITED (For Access Points, Switch, etc)
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-unlimited.txt); do
@@ -186,33 +186,39 @@ iptables -t mangle -A PREROUTING -i $lan -j DROP
 ## SERVER PORTS ##
 echo "Server Ports..."
 
-# DNS 
-# OpenDNS (Alternative)
-#dns="208.67.222.222 208.67.220.220"
-# Stubby (127.0.0.1 192.168.X.X) (Alternative)
-#dns="127.0.0.1 192.168.X.X"
-# Google DNS 
+# Warning Page
+iptables -A INPUT -i $lan -p tcp -m multiport --dports 18443,18880 -j ACCEPT
+iptables -A FORWARD -i $lan -p tcp -m multiport --dports 18443,18880 -j ACCEPT
+
+# DNS
 dns="8.8.8.8 8.8.4.4"
-for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
-    for ip in $dns; do
-        # DNS (53): TCP,UDP
-        for proto in udp tcp; do
-            iptables -A FORWARD -i $lan -o $wan -m mac --mac-source $mac -d $ip -p $proto --dport 53 -j ACCEPT
-            iptables -A FORWARD -i $wan -o $lan -s $ip -p $proto --sport 53 -m state --state ESTABLISHED -j ACCEPT
-        done
-        # DoT (853): TCP
-        iptables -A FORWARD -i $lan -o $wan -m mac --mac-source $mac -d $ip -p tcp --dport 853 -j ACCEPT
-        iptables -A FORWARD -i $wan -o $lan -s $ip -p tcp --sport 853 -m state --state ESTABLISHED -j ACCEPT
-        # mDNS (5353): UDP
-        iptables -A FORWARD -i $lan -o $wan -m mac --mac-source $mac -d $ip -p udp --dport 5353 -j ACCEPT
-        iptables -A FORWARD -i $wan -o $lan -s $ip -p udp --sport 5353 -m state --state ESTABLISHED -j ACCEPT
-        # LLMNR (5355): UDP
-        iptables -A FORWARD -i $lan -o $wan -m mac --mac-source $mac -d $ip -p udp --dport 5355 -j ACCEPT
-        iptables -A FORWARD -i $wan -o $lan -s $ip -p udp --sport 5355 -m state --state ESTABLISHED -j ACCEPT
-        # Multicast DNS (mDNS) (Optional. Check /etc/acl/bogons.txt)
-        #iptables -A INPUT -i $lan -p udp -s 224.0.0.0/4 --dport 5353 -m mac --mac-source $mac -j ACCEPT
-    done
+# Optional
+#dns="1.1.1.1 1.0.0.1"
+for ip in $dns; do
+    # DNS (Do53/DoT)
+    iptables -A OUTPUT -d $ip -p udp --dport 53 -j ACCEPT
+    iptables -A OUTPUT -d $ip -p tcp -m multiport --dports 53,853 -j ACCEPT
+
+    # DNS to the firewall
+    iptables -A INPUT -s $ip -p udp --sport 53 -m state --state ESTABLISHED -j ACCEPT
+    iptables -A INPUT -s $ip -p tcp -m multiport --sports 53,853 -m state --state ESTABLISHED -j ACCEPT
+
+    # LAN queries DNS and DoT
+    iptables -A FORWARD -i $lan -d $ip -p udp --dport 53 -j ACCEPT
+    iptables -A FORWARD -i $lan -d $ip -p tcp -m multiport --dports 53,853 -j ACCEPT
+
+    # Responses to LAN
+    iptables -A FORWARD -s $ip -o $lan -p udp --sport 53 -m state --state ESTABLISHED -j ACCEPT
+    iptables -A FORWARD -s $ip -o $lan -p tcp -m multiport --sports 53,853 -m state --state ESTABLISHED -j ACCEPT
 done
+
+# mDNS multicast local
+iptables -A INPUT -i $lan -s 224.0.0.251 -d 224.0.0.251 -p udp --dport 5353 -j ACCEPT
+iptables -A OUTPUT -o $lan -d 224.0.0.251 -p udp --sport 5353 -j ACCEPT
+
+# LLMNR (Windows)
+iptables -A INPUT -i $lan -s 224.0.0.252 -d 224.0.0.252 -p udp --dport 5355 -j ACCEPT
+iptables -A OUTPUT -o $lan -d 224.0.0.252 -p udp --sport 5355 -j ACCEPT
 
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
     # DHCP, SNMP, NTP, IPP
@@ -331,11 +337,10 @@ iptables -A OUTPUT -m set --match-set blockports src -j DROP
 ## ACL RULES ##
 echo "ACL Rules..."
 
-# MACTRANSPARENT (Not recommended) (Default for http: 80. Default for squid: 8080 change to squid transparent-intercept port: 8080)
+# MACTRANSPARENT (Not recommended)
 #for mac in $(awk -F";" '{print $2}' $aclroute/mac-transparent.txt); do
-#    iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m mac --mac-source $mac -j REDIRECT --to-port 8080
-#    iptables -A INPUT -i $lan -p tcp -m multiport --dports 443,8080 -m mac --mac-source $mac -j ACCEPT
-#    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 443,8080 -m mac --mac-source $mac -j ACCEPT
+#    iptables -A INPUT -i $lan -p tcp -m multiport --dports 443,80,853 -m mac --mac-source $mac -j ACCEPT
+#    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 443,80,853 -m mac --mac-source $mac -j ACCEPT
 #done
 
 # MACPROXY (Port 18800 to 3128 - Opcion 252 DHCP)

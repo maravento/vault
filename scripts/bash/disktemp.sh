@@ -32,7 +32,7 @@ if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VER
 fi
 
 # check dependencies
-pkgs='notify-osd libnotify-bin inxi'
+pkgs='libnotify-bin inxi'
 missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
 unavailable=""
 for p in $missing; do

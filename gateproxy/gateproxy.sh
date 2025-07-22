@@ -228,6 +228,7 @@ function local_interface() {
     read -p "${lang_17[${en}]} ${lang_12[${en}]} (${lang_25[${en}]} enpXsX): " ETH1
     if [ "$ETH1" ]; then
         find $gp/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
+        export LAN_INTERFACE="$ETH1"
     fi
 }
 
@@ -537,6 +538,7 @@ chmod -x "$aclroute"/*
 # DHCP: isc-dhcp-server
 nala install -y isc-dhcp-server
 systemctl disable isc-dhcp-server6
+sed -i "s/^INTERFACESv4=.*/INTERFACESv4=\"$LAN_INTERFACE\"/" /etc/default/isc-dhcp-server
 
 # PHP
 nala install -y php
@@ -572,13 +574,11 @@ systemctl enable squid.service
 #nala install -y certbot python3-certbot-apache
     
 # Web Admin: webmin
+# https://www.maravento.com/2019/06/instalar-modulo-webmin-por-linea-de.html
 curl -o setup-repos.sh https://raw.githubusercontent.com/webmin/webmin/master/setup-repos.sh
 chmod +x setup-repos.sh
 echo "y" | ./setup-repos.sh
 cleanupgrade
-
-# Webmin
-# https://www.maravento.com/2019/06/instalar-modulo-webmin-por-linea-de.html
 nala install -y webmin
 fixbroken
 /usr/share/webmin/install-module.pl $gp/conf/monitor/text-editor.wbm
@@ -586,7 +586,7 @@ find $aclroute -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/dev/nu
 systemctl enable webmin.service
 echo "Webmin Access: https://localhost:10000"
     
-# Web Admin + Virtualization: Cockpit + QEMU/KVM
+# Web Admin + Virtualization:
 # https://www.maravento.com/2022/11/cockpit.html
 # QEMU/KVM
 nala install -y qemu-kvm virt-manager virtinst libvirt-clients libvirt-daemon-system \
@@ -600,6 +600,7 @@ nala install -y bridge-utils libguestfs-tools ovmf
 # Cockpit
 nala install -y cockpit cockpit-storaged cockpit-networkmanager cockpit-packagekit \
                 cockpit-machines cockpit-sosreport virt-viewer
+cp $gp/conf/server/cockpit.conf /etc/fail2ban/filter.d/cockpit.conf
 systemctl enable --now cockpit cockpit.socket
 echo "Cockpit Access: http://localhost:9090"
     
@@ -624,10 +625,8 @@ echo "Glances Access: http://localhost:61208"
 nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
 nala install -y fping              # Net diagnostics: fping -a -g 192.168.1.0/24
 nala install -y ethtool            # Net config: ethtool eth0
-
 # Net test: On server: iperf3 -s | On client: iperf3 -c serverip
 DEBIAN_FRONTEND=noninteractive nala install -y iperf3  2>/dev/null
-
 # Net Scanning (Replace NIC and IP/CIDR)
 nala install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
 nala install -y nbtscan            # nbtscan 192.168.1.0/24
@@ -701,7 +700,7 @@ cp -f $gp/conf/monitor/warning.html /var/www/html/warning/warning.html
 cp -f $gp/conf/monitor/warning.conf /etc/apache2/sites-available/warning.conf
 chmod 644 /etc/apache2/sites-available/warning.conf
 touch /var/log/apache2/{warning_access,warning_error}.log
-grep -q 'Listen 0.0.0.0:18880' /etc/apache2/ports.conf || echo 'Listen 0.0.0.0:18880' >> /etc/apache2/ports.conf
+grep -q 'Listen 18880' /etc/apache2/ports.conf || echo 'Listen 18880' >> /etc/apache2/ports.conf
 a2ensite -q warning.conf
 # https
 : "${serverip:?WARNING: Server IP variable is not defined}"
@@ -739,24 +738,29 @@ rm -f /tmp/warning_openssl.cnf
 cp -f $gp/conf/monitor/warning-ssl.conf /etc/apache2/sites-available/warning-ssl.conf
 chmod 644 /etc/apache2/sites-available/warning-ssl.conf
 touch /var/log/apache2/{warning_ssl_access,warning_ssl_error}.log
-grep -q 'Listen 0.0.0.0:18443' /etc/apache2/ports.conf || echo 'Listen 0.0.0.0:18443' >> /etc/apache2/ports.conf
+grep -q 'Listen 18443' /etc/apache2/ports.conf || echo 'Listen 18443' >> /etc/apache2/ports.conf
 a2ensite -q warning-ssl.conf
 a2enmod ssl
 a2enmod rewrite
 echo "Warning: http://$serverip:18880 - HTTPS: https://$serverip:18443"
 
-# Security
-nala install -y ipset lynis fail2ban
+# Security:
+# fail2ban
+nala install -y fail2ban
 cp $gp/conf/server/jail.local /etc/fail2ban/jail.local
-cp $gp/conf/server/cockpit.conf /etc/fail2ban/filter.d/cockpit.conf
 sed -i 's/^#\?allowipv6 *= *.*/allowipv6 = 0/' /etc/fail2ban/fail2ban.conf
 systemctl enable fail2ban.service
 echo "Check: sudo fail2ban-client status <jail_name>"
 echo "Unban all: sudo fail2ban-client unban --all"
 echo "Unban Jail: sudo fail2ban-client set <jail_name> unban --all"
+# lynis
+nala install -y lynis
 echo "Lynis Run: lynis -c -Q and log: /var/log/lynis.log"
+# ipset
+nala install -y ipset
     
-# Logs: ulog, rsyslog
+# Logs: 
+# ulog2
 # https://www.maravento.com/2014/07/registros-iptables.html
 chown root:root /var/log
 nala install -y ulogd2
@@ -768,12 +772,16 @@ crontab -l | {
     echo "#*/10 * * * * /etc/scr/banip.sh"
 } | crontab -
 echo "Ulog Access: /var/log/ulog/syslogemu.log"
+# rsyslog
+# in case fails: nala install -y libfastjson4
 nala install -y rsyslog
-# in case rsyslog fails: nala install -y libfastjson4
 systemctl enable rsyslog.service
     
-# Backup: Timeshift FreeFileSync
+# Backup: 
+# Timeshift
 nala install -y timeshift
+# FreeFileSync
+nala install -y libatk-adaptor libgail-common
 # https://www.maravento.com/2014/06/sincronizacion-espejo.html
 chmod +x $gp/conf/scr/ffsupdate.sh
 $gp/conf/scr/ffsupdate.sh
@@ -909,9 +917,6 @@ cp -f $gp/conf/server/squid.conf /etc/squid/squid.conf
 chmod -x /etc/squid/squid.conf
 cp -f /etc/default/isc-dhcp-server{,.bak} &>/dev/null
 cp -f $gp/conf/server/isc-dhcp-server /etc/default/isc-dhcp-server
-cp -f /etc/dhcp/dhclient.conf{,.bak} &>/dev/null
-cp -f $gp/conf/server/dhclient.conf /etc/dhcp/dhclient.conf
-chmod -x /etc/dhcp/dhclient.conf
 cp -f $gp/conf/server/config.yaml /etc/netplan/config.yaml
 chmod -x /etc/netplan/config.yaml
 cp -fr $gp/conf/scr/* $scr

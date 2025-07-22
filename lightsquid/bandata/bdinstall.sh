@@ -83,6 +83,12 @@ tee /var/www/html/warning/warning.html >/dev/null << EOL
   <meta charset="UTF-8">
   <title>Acceso restringido | Restricted Access</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+   <meta http-equiv="refresh" content="0;url=warning.html">
+  <script>
+    window.location.replace("warning.html");
+  </script>
+  
   <style>
     body {
       background: #f2f5f8;
@@ -173,6 +179,9 @@ tee /etc/apache2/sites-available/warning.conf >/dev/null << EOL
 <VirtualHost *:18880>
     ServerAdmin webmaster@localhost
     DocumentRoot /var/www/html/warning
+    
+    ServerName portal.local
+    ServerAlias *
 
     <Directory /var/www/html/warning>
         DirectoryIndex warning.html
@@ -182,8 +191,12 @@ tee /etc/apache2/sites-available/warning.conf >/dev/null << EOL
     </Directory>
     
     Alias /generate_204 /var/www/html/warning/warning.html
-    Alias /ncsi.txt /var/www/html/warning/warning.html
+    Alias /connecttest.txt /var/www/html/warning/warning.html
     Alias /hotspot-detect.html /var/www/html/warning/warning.html
+    Alias /check_network_status.txt /var/www/html/warning/warning.html
+    Alias /success.txt /var/www/html/warning/warning.html
+    Alias /ncsi.txt /var/www/html/warning/warning.html
+    Alias /library/test/success.html /var/www/html/warning/warning.html
 
     RewriteEngine On
 
@@ -203,6 +216,9 @@ tee /etc/apache2/sites-available/warning-ssl.conf >/dev/null << EOL
 <VirtualHost *:18443>
     ServerAdmin webmaster@localhost
     DocumentRoot /var/www/html/warning
+    
+    ServerName portal.local
+    ServerAlias *
 
     SSLEngine on
     SSLCertificateFile /etc/ssl/certs/warning.cert.pem
@@ -215,10 +231,6 @@ tee /etc/apache2/sites-available/warning-ssl.conf >/dev/null << EOL
         Require all granted
     </Directory>
     
-    Alias /generate_204 /var/www/html/warning/warning.html
-    Alias /ncsi.txt /var/www/html/warning/warning.html
-    Alias /hotspot-detect.html /var/www/html/warning/warning.html
-
     RewriteEngine On
 
     RewriteCond %{REQUEST_URI} !^/warning\.html$
@@ -232,8 +244,8 @@ EOL
 chmod 644 /etc/apache2/sites-available/warning-ssl.conf
 touch /var/log/apache2/{warning_ssl_access,warning_ssl_error}.log
 
-grep -q 'Listen 0.0.0.0:18880' /etc/apache2/ports.conf || echo 'Listen 0.0.0.0:18880' >> /etc/apache2/ports.conf
-grep -q 'Listen 0.0.0.0:18443' /etc/apache2/ports.conf || echo 'Listen 0.0.0.0:18443' >> /etc/apache2/ports.conf
+grep -q 'Listen 18880' /etc/apache2/ports.conf || echo 'Listen 18880' >> /etc/apache2/ports.conf
+grep -q 'Listen 18443' /etc/apache2/ports.conf || echo 'Listen 18443' >> /etc/apache2/ports.conf
 
 # bandata config
 read -p "Enter your Server IP for LAN (default: 192.168.0.10): " serverip

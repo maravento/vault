@@ -129,24 +129,35 @@ all_bans=$(cat $block_list_day $block_list_week $block_list_month | $reorganize 
 if [ -n "$all_bans" ]; then
     echo "$all_bans" | while read ip; do
         ipset -! add bandata "$ip"
+        ipset list bandata | sed -n '/Members:/,/^$/p' | sed '/^$/d'
     done
 
     echo "Applying iptables rules..."
 
-    # Allow HTTP Virtualhost (18880/TCP) for bandata
-    iptables -A INPUT -i $lan -m set --match-set bandata src -p tcp --dport 18880 -j ACCEPT
-    iptables -A FORWARD -i $lan -m set --match-set bandata src -p tcp --dport 18880 -j ACCEPT
-    # Allow HTTPs Virtualhost (18443/TCP) for bandata (Optional - uncomment them if you need them)
-    #iptables -A INPUT -i $lan -m set --match-set bandata src -p tcp --dport 18443 -j ACCEPT
-    #iptables -A FORWARD -i $lan -m set --match-set bandata src -p tcp --dport 18443 -j ACCEPT
-    # Allow DNS (53/UDP) for bandata
-    iptables -A INPUT -i $lan -m set --match-set bandata src -p udp --dport 53 -j ACCEPT
-    iptables -A FORWARD -i $lan -m set --match-set bandata src -p udp --dport 53 -j ACCEPT
-    # Redirect HTTP (80/TCP) for bandata
-    iptables -t nat -A PREROUTING -i $lan -m set --match-set bandata src -p tcp --dport 80 -j DNAT --to-destination $serverip:18880
-    # Drop all for bandata
-    iptables -A INPUT -i $lan -m set --match-set bandata src -j DROP
-    iptables -A FORWARD -i $lan -m set --match-set bandata src -j DROP
+    # NAT
+    sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1
+    # Allow HTTP Virtualhost (18880/TCP)
+    iptables -I INPUT -i $lan -m set --match-set bandata src -p tcp -m multiport --dports 18880 -j ACCEPT
+    iptables -I FORWARD -i $lan -m set --match-set bandata src -p tcp -m multiport --dports 18880 -j ACCEPT
+    iptables -I INPUT -p tcp -s $serverip --sport 18880 -m state --state ESTABLISHED,RELATED -j ACCEPT
+    iptables -I FORWARD -p tcp -s $serverip --sport 18880 -m state --state ESTABLISHED,RELATED -j ACCEPT
+    # Allow HTTPs Virtualhost (18443/TCP) - Optional -
+    #iptables -I INPUT -i $lan -m set --match-set bandata src -p tcp -m multiport --dports 18880 -j ACCEPT
+    #iptables -I FORWARD -i $lan -m set --match-set bandata src -p tcp -m multiport --dports 18880 -j ACCEPT
+    #iptables -I INPUT -p tcp -s $serverip --sport 18443 -m state --state ESTABLISHED,RELATED -j ACCEPT
+    #iptables -I FORWARD -p tcp -s $serverip --sport 18443 -m state --state ESTABLISHED,RELATED -j ACCEPT
+    # Allow DNS (53/UDP)
+    iptables -I INPUT -i $lan -m set --match-set bandata src -p udp --dport 53 -j ACCEPT
+    iptables -I FORWARD -i $lan -m set --match-set bandata src -p udp --dport 53 -j ACCEPT
+    # Redirect HTTP (80,8080/TCP) Proxy (Squid 3128)
+    iptables -t nat -I PREROUTING -i $lan -m set --match-set bandata src -p tcp -m multiport --dports 80,8080,3128 -j DNAT --to-destination $serverip:18880
+    # Soft Block: DoT (TCP/853), HTTPs (TCP/443)
+    iptables -I INPUT -i $lan -m set --match-set bandata src -p tcp -m multiport --dports 853,443 -j REJECT --reject-with tcp-reset
+    iptables -I FORWARD -i $lan -m set --match-set bandata src -p tcp -m multiport --dports 853,443 -j REJECT --reject-with tcp-reset
+    # Hard Drop: all for bandata
+    #iptables -I INPUT -i $lan -m set --match-set bandata src -j DROP
+    #iptables -I FORWARD -i $lan -m set --match-set bandata src -j DROP
+    iptables -I FORWARD -i $lan -m set --match-set bandata src -j LOG --log-prefix "BANDATA: "
 else
     echo "There are no IPs in bandata"
 fi
