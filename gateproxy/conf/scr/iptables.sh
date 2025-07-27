@@ -150,11 +150,10 @@ iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 iptables -A OUTPUT -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
 iptables -A FORWARD -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
 
-# MACUNLIMITED (For Access Points, Switch, etc)
-for mac in $(awk -F";" '{print $2}' $aclroute/mac-unlimited.txt); do
-    iptables -A INPUT -i $lan -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -m mac --mac-source $mac -j ACCEPT
-done
+# DROP LAN2WAN
+iptables -A INPUT -i $wan -s 10.0.0.0/8 -j DROP
+iptables -A INPUT -i $wan -s 172.16.0.0/12 -j DROP
+iptables -A INPUT -i $wan -s 192.168.0.0/16 -j DROP
 
 ## MAC ACCESS RULE ##
 echo "MAC Access..."
@@ -183,12 +182,18 @@ create_acl() {
 create_acl $mac2ip
 iptables -t mangle -A PREROUTING -i $lan -j DROP
 
-## SERVER PORTS ##
-echo "Server Ports..."
+# MACUNLIMITED (For Access Points, Switch, etc)
+for mac in $(awk -F";" '{print $2}' $aclroute/mac-unlimited.txt); do
+    iptables -A INPUT -i $lan -m mac --mac-source $mac -j ACCEPT
+    iptables -A FORWARD -i $lan -m mac --mac-source $mac -j ACCEPT
+done
 
-# Warning Page
-iptables -A INPUT -i $lan -p tcp -m multiport --dports 18443,18880 -j ACCEPT
-iptables -A FORWARD -i $lan -p tcp -m multiport --dports 18443,18880 -j ACCEPT
+## SERVER PORTS ##
+echo "Server Rules..."
+
+# Warning page, wpad, NTP
+iptables -A INPUT -i $lan -p tcp -m multiport --dports 80,18443,18880,18800,123 -j ACCEPT
+iptables -A FORWARD -i $lan -p tcp -m multiport --dports 80,18443,18880,18800,123 -j ACCEPT
 
 # DNS
 dns="8.8.8.8 8.8.4.4"
@@ -212,13 +217,14 @@ for ip in $dns; do
     iptables -A FORWARD -s $ip -o $lan -p tcp -m multiport --sports 53,853 -m state --state ESTABLISHED -j ACCEPT
 done
 
-# mDNS multicast local
-iptables -A INPUT -i $lan -s 224.0.0.251 -d 224.0.0.251 -p udp --dport 5353 -j ACCEPT
-iptables -A OUTPUT -o $lan -d 224.0.0.251 -p udp --sport 5353 -j ACCEPT
+# mDNS multicast
+iptables -A INPUT -i $lan -s $local/$netmask -d 224.0.0.251 -p udp --dport 5353 -j ACCEPT
 
 # LLMNR (Windows)
-iptables -A INPUT -i $lan -s 224.0.0.252 -d 224.0.0.252 -p udp --dport 5355 -j ACCEPT
-iptables -A OUTPUT -o $lan -d 224.0.0.252 -p udp --sport 5355 -j ACCEPT
+iptables -A INPUT -i $lan -s $local/$netmask -d 224.0.0.252 -p udp --dport 5355 -j ACCEPT
+
+# IGMP
+iptables -A INPUT -i $lan -p igmp -s $local/$netmask -d 224.0.0.0/4 -j ACCEPT
 
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
     # DHCP, SNMP, NTP, IPP
@@ -246,42 +252,40 @@ echo "Security Rules..."
 #    iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo bm -j DROP
 #done
 
-# syn_flood
-iptables -A INPUT -i $lan -p tcp --tcp-flags ALL NONE -j DROP
-iptables -A INPUT -i $lan -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
-iptables -A INPUT -i $lan -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
-iptables -A INPUT -i $lan -p tcp --tcp-flags FIN,RST FIN,RST -j DROP
-iptables -A INPUT -i $lan -p tcp --tcp-flags ACK,FIN FIN -j DROP
-iptables -A INPUT -i $lan -p tcp --tcp-flags ACK,PSH PSH -j DROP
-iptables -A INPUT -i $lan -p tcp --tcp-flags ACK,URG URG -j DROP
-
-iptables -N syn_flood
-iptables -A INPUT -i $lan -p tcp --syn -j syn_flood
-iptables -A syn_flood -m limit --limit 500/s --limit-burst 2000 -j RETURN
-iptables -A syn_flood -j NFLOG --nflog-prefix 'synflood'
-iptables -A syn_flood -j DROP
-
 # Invalid Packages
 iptables -A INPUT -i $lan -m conntrack --ctstate INVALID -j DROP
 
-# Block Spoofed Packets
-for ip in $(sed '/^\s*#/d;/^\s*$/d' "$aclroute/bogons.txt"); do
-    iptables -A INPUT -i $lan -s $ip -j NFLOG --nflog-prefix 'spoof'
-    iptables -A INPUT -i $lan -s $ip -j DROP
-done
+# syncflood
+iptables -N syn_flood
+iptables -A INPUT -i $lan -p tcp --syn -j syn_flood
+iptables -A syn_flood -m limit --limit 50/s --limit-burst 200 -j RETURN
+iptables -A syn_flood -j NFLOG --nflog-prefix 'synflood'
+iptables -A syn_flood -j DROP
+# synflood (Optional)
+#iptables -A INPUT -i $lan -p tcp --tcp-flags ALL NONE -j DROP
+#iptables -A INPUT -i $lan -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
+#iptables -A INPUT -i $lan -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
+#iptables -A INPUT -i $lan -p tcp --tcp-flags FIN,RST FIN,RST -j DROP
+#iptables -A INPUT -i $lan -p tcp --tcp-flags ACK,FIN FIN -j DROP
+#iptables -A INPUT -i $lan -p tcp --tcp-flags ACK,PSH PSH -j DROP
+#iptables -A INPUT -i $lan -p tcp --tcp-flags ACK,URG URG -j DROP
+
+# Block Spoofed Packets (Optional)
+#for ip in $(sed '/^\s*#/d;/^\s*$/d' "$aclroute/bogons.txt"); do
+#    iptables -A INPUT -i $lan -s $ip -j NFLOG --nflog-prefix 'spoof'
+#    iptables -A INPUT -i $lan -s $ip -j DROP
+#done
 
 # ICMP (ping) (Optional)
-#iptables -A INPUT -i $lan -p icmp --icmp-type echo-request -j DROP
-
-# Block IPs with more than 10 connections in 10 seconds (INPUT) (optional)
-#iptables -A INPUT -m state --state NEW -m recent --set
-#iptables -A INPUT -m state --state NEW -m recent --update --seconds 10 --hitcount 10 -j NFLOG --nflog-prefix 'hitcount'
-#iptables -A INPUT -m state --state NEW -m recent --update --seconds 10 --hitcount 10 -j DROP
+#iptables -A OUTPUT -o $lan -p icmp --icmp-type echo-request -j ACCEPT
+#iptables -A INPUT -i $lan -p icmp --icmp-type echo-reply   -j ACCEPT
+#iptables -A INPUT -i $lan -p icmp --icmp-type echo-request -m limit --limit 5/s --limit-burst 10 -j ACCEPT
+#iptables -A OUTPUT -o $lan -p icmp --icmp-type echo-reply -j ACCEPT
 
 # Protection against port scanning (optional)
 #iptables -N port-scanning
-#iptables -A INPUT -p tcp --tcp-flags SYN,ACK,FIN,RST RST -j port-scanning
-#iptables -A port-scanning -p tcp --tcp-flags SYN,ACK,FIN,RST RST -m limit --limit 1/s --limit-burst 2 -j RETURN
+#iptables -A INPUT -p tcp --tcp-flags ALL RST -j port-scanning
+#iptables -A port-scanning -p tcp --tcp-flags ALL RST -m limit --limit 1/s --limit-burst 2 -j RETURN
 #iptables -A port-scanning -j NFLOG --nflog-prefix 'portscan'
 #iptables -A port-scanning -j DROP
 
@@ -317,7 +321,7 @@ done
 
 # BLOCKPORTS (Remove or add ports to block TCP/UDP):
 # path: /etc/acl/blockports.txt
-# Echo (7), CHARGEN (19), 6to4 (41,43,44,58,59,60,3544), FINGER (79), SSDP (1900), TOR Ports (9001,9050,9150), Brave Tor (9001:9004,9090,9101:9103,9030,9031,9050), IRC (6660-6669), Trojans/Metasploit (4444), SQL inyection/XSS (8088, 8888), bittorrent (6881-6889 58251,58252,58687,6969) others P2P (1337,2760,4662,4672), Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560), WINS (42), BTC/ETH (8332,8333,8545,30303)
+# Echo (7), CHARGEN (19), 6to4 (41,43,44,58,59,60,3544), FINGER (79), ms-rtc-port (3289), TOR Ports (9001,9050,9150), Brave Tor (9001:9004,9090,9101:9103,9030,9031,9050), IRC (6660-6669), Trojans/Metasploit (4444), SQL inyection/XSS (8088, 8888), bittorrent (6881-6889 58251,58252,58687,6969) others P2P (1337,2760,4662,4672), Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560), WINS (42), BTC/ETH (8332,8333,8545,30303)
 ipset -L blockports >/dev/null 2>&1
 if [ $? -ne 0 ]; then
     ipset -! create blockports bitmap:port range 0-65535
@@ -327,12 +331,12 @@ fi
 for blports in $(cat $aclroute/blockports.txt | sort -V -u); do
     ipset -! add blockports $blports
 done
-iptables -A INPUT -i $lan -m set --match-set blockports src -j NFLOG --nflog-prefix 'blockports'
-iptables -A INPUT -i $lan -m set --match-set blockports src -j DROP
-iptables -A FORWARD -i $lan -m set --match-set blockports src -j NFLOG --nflog-prefix 'blockports'
-iptables -A FORWARD -i $lan -m set --match-set blockports src -j DROP
-iptables -A OUTPUT -m set --match-set blockports src -j NFLOG --nflog-prefix 'blockports'
-iptables -A OUTPUT -m set --match-set blockports src -j DROP
+iptables -A INPUT -i $lan -m set --match-set blockports dst -j NFLOG --nflog-prefix 'blockports'
+iptables -A INPUT -i $lan -m set --match-set blockports dts -j DROP
+iptables -A FORWARD -i $lan -m set --match-set blockports dst -j NFLOG --nflog-prefix 'blockports'
+iptables -A FORWARD -i $lan -m set --match-set blockports dst -j DROP
+iptables -A OUTPUT -m set --match-set blockports dst -j NFLOG --nflog-prefix 'blockports'
+iptables -A OUTPUT -m set --match-set blockports dst -j DROP
 
 ## ACL RULES ##
 echo "ACL Rules..."

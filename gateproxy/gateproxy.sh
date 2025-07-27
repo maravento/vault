@@ -569,6 +569,9 @@ fixbroken
 mkdir -p "/var/log/squid" >/dev/null 2>&1
 touch /var/log/squid/{access,cache,store,deny}.log >/dev/null 2>&1
 chown -R proxy:proxy /var/log/squid
+mkdir -p "/var/spool/squid/rock" >/dev/null 2>&1
+chown -R proxy:proxy /var/spool/squid/rock
+chmod -R 750 /var/spool/squid
 systemctl enable squid.service
 # Let’s Encrypt certificate for client to Squid proxy encryption (Optional)
 #nala install -y certbot python3-certbot-apache
