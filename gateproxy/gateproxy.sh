@@ -696,8 +696,8 @@ echo "Lightsquid (check bandata IP): cat /etc/acl/{banmonth,bandaily}.txt | uniq
 # Warning for lightsquid-bandata
 mkdir -p /var/www/html/warning
 chown -R www-data:www-data /var/www/html/warning
-escaped_serverip=$(echo "$serverip" | sed 's/\./\\\\./g')
-sed -i "s/192\\\\.168\\\\.0\\\\.10/$escaped_serverip/g" $gp/conf/monitor/warning.html
+#escaped_serverip=$(echo "$serverip" | sed 's/\./\\\\./g')
+#sed -i "s/192\\\\.168\\\\.0\\\\.10/$escaped_serverip/g" $gp/conf/monitor/warning.html
 cp -f $gp/conf/monitor/warning.html /var/www/html/warning/warning.html
 # http
 cp -f $gp/conf/monitor/warning.conf /etc/apache2/sites-available/warning.conf
@@ -944,7 +944,7 @@ sed -i '/DocumentRoot/{
 mkdir -p /var/www/wpad
 cp -fr $gp/conf/wpad/* /var/www/wpad/
 cp -f $gp/conf/server/proxy.conf /etc/apache2/sites-available/proxy.conf
-chmod -x /etc/apache2/sites-available/proxy.conf
+chmod 644 /etc/apache2/sites-available/proxy.conf
 a2ensite -q proxy.conf
 chmod -R 755 /var/www/
 apachectl -t -D DUMP_INCLUDES -S

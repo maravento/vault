@@ -157,7 +157,7 @@ if [ -n "$all_bans" ]; then
     # Hard Drop: all for bandata
     #iptables -I INPUT -i $lan -m set --match-set bandata src -j DROP
     #iptables -I FORWARD -i $lan -m set --match-set bandata src -j DROP
-    iptables -I FORWARD -i $lan -m set --match-set bandata src -j LOG --log-prefix "BANDATA: "
+    iptables -I FORWARD -i $lan -m set --match-set bandata src -j NFLOG --nflog-prefix "BANDATA: "
 else
     echo "There are no IPs in bandata"
 fi
