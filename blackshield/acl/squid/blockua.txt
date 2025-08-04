@@ -17,6 +17,8 @@ AiHitBot
 Aipbot
 Alexibot
 ALittle Client
+Aliyun
+AliyunSecBot
 Alligator
 AllSubmitter
 AlphaBot
@@ -125,6 +127,7 @@ DatabaseDriverMysqli
 DataCha0s
 dataforseobot
 dataforseo.com
+dataprovider
 DBLBot
 demandbase-bot
 Demon

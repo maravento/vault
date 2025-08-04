@@ -26,8 +26,21 @@ fi
 
 infile="$1"
 
-# pp = parallel processes (high resource consumption!)
-pp="${2:-100}"
+# Determine number of parallel processes
+#   PROCS=$(($(nproc)))      # Conservative (network-friendly)
+#   PROCS=$(($(nproc) * 2))  # Balanced
+#   PROCS=$(($(nproc) * 4))  # Aggressive (default)
+#   PROCS=$(($(nproc) * 8))  # Extreme (8 or higher, use with caution)
+#
+# Example: Core i5 with 4 physical cores and 8 threads (Hyper-Threading)
+#   nproc          → 8
+#   PROCS=$((8 * 4)) → 32 parallel queries
+#
+# Adjust based on:
+# - Your CPU
+# - Your network (bandwidth/latency)
+# - Desired balance between speed and system load
+PROCS=$(($(nproc) * 4))
 
 # Check if the file exists
 if [ ! -f "$infile" ]; then
@@ -44,7 +57,7 @@ if [ -s dnslookup ]; then
 	awk 'FNR==NR {seen[$2]=1;next} seen[$1]!=1' dnslookup clean
 else
 	cat clean
-fi | xargs -I {} -P $pp sh -c "if host {} >/dev/null; then echo HIT {}; else echo FAULT {}; fi" >>dnslookup
+fi | xargs -I {} -P $PROCS sh -c "if host {} >/dev/null; then echo HIT {}; else echo FAULT {}; fi" >>dnslookup
 sed '/^FAULT/d' dnslookup | awk '{print $2}' | awk '{print "."$1}' | sort -u >hit.txt
 sed '/^HIT/d' dnslookup | awk '{print $2}' | awk '{print "."$1}' | sort -u >>fault.txt
 sort -o fault.txt -u fault.txt
@@ -55,7 +68,7 @@ if [ -s dnslookup2 ]; then
 	awk 'FNR==NR {seen[$2]=1;next} seen[$1]!=1' dnslookup2 step2
 else
 	cat step2
-fi | xargs -I {} -P $pp sh -c "if host {} >/dev/null; then echo HIT {}; else echo FAULT {}; fi" >>dnslookup2
+fi | xargs -I {} -P $PROCS sh -c "if host {} >/dev/null; then echo HIT {}; else echo FAULT {}; fi" >>dnslookup2
 sed '/^FAULT/d' dnslookup2 | awk '{print $2}' | awk '{print "."$1}' | sort -u >>hit.txt
 sed '/^HIT/d' dnslookup2 | awk '{print $2}' | awk '{print "."$1}' | sort -u >fault.txt
 comm -23 <(sort $infile) <(sort hit.txt) >outdiff.txt
