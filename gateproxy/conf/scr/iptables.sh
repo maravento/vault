@@ -35,6 +35,8 @@ lan=eth1
 # IP/netmask
 local=192.168.0.0
 netmask=24
+# Broadcast
+broadcast=192.168.0.255
 # IP/MAC server
 # Command to get active interfaces (except lo) (Name/IPv4/MAC) (Replace with your server IPv4/MAC):
 # join <(ip -o -br link | sort) <(ip -o -br addr | sort) | awk '$2=="UP" {print $1,$6,$3}' | sed -Ee 's./[0-9]+..'
@@ -127,7 +129,7 @@ iptables -P INPUT ACCEPT
 iptables -P FORWARD ACCEPT
 iptables -P OUTPUT ACCEPT
 
-### Global Policies IPv6
+### Global Policies IPv6 (Optional)
 #ip6tables -P INPUT DROP
 #ip6tables -P FORWARD DROP
 #ip6tables -P OUTPUT DROP
@@ -150,10 +152,37 @@ iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 iptables -A OUTPUT -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
 iptables -A FORWARD -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
 
-# DROP LAN2WAN
+# DROP LAN2WAN (Optional)
 iptables -A INPUT -i $wan -s 10.0.0.0/8 -j DROP
 iptables -A INPUT -i $wan -s 172.16.0.0/12 -j DROP
-iptables -A INPUT -i $wan -s 192.168.0.0/16 -j DROP
+
+# Broadcast
+iptables -A INPUT -i $lan -s $local/$netmask -d $broadcast -p udp -j ACCEPT
+
+# DHCP
+iptables -A INPUT -i $lan -p udp -m multiport --dports 67,68 -j ACCEPT
+iptables -A OUTPUT -o $lan -p udp -m multiport --sport 67,68 -j ACCEPT
+
+# Warning Page, Wpad, NTP
+iptables -A INPUT -i $lan -p tcp -m multiport --dports 80,18443,18880,18800,123 -j ACCEPT
+iptables -A FORWARD -i $lan -p tcp -m multiport --dports 80,18443,18880,18800,123 -j ACCEPT
+
+# DNS
+dns="8.8.8.8 8.8.4.4 1.1.1.1 1.0.0.1"
+for ip in $dns; do
+    # DNS
+    for proto in tcp udp; do
+        iptables -A OUTPUT -d $ip -p $proto --dport 53 -j ACCEPT
+        iptables -A INPUT -s $ip -p $proto --sport 53 -m state --state ESTABLISHED,RELATED -j ACCEPT
+        iptables -A FORWARD -i $lan -d $ip -p $proto --dport 53 -j ACCEPT
+        iptables -A FORWARD -o $lan -s $ip -p $proto --sport 53 -m state --state ESTABLISHED,RELATED -j ACCEPT
+    done
+    # DNS over TLS (DoT)
+    iptables -A OUTPUT -d $ip -p tcp --dport 853 -j ACCEPT
+    iptables -A INPUT -s $ip -p tcp --sport 853 -m state --state ESTABLISHED,RELATED -j ACCEPT
+    iptables -A FORWARD -i $lan -d $ip -p tcp --dport 853 -j ACCEPT
+    iptables -A FORWARD -o $lan -s $ip -p tcp --sport 853 -m state --state ESTABLISHED,RELATED -j ACCEPT
+done
 
 ## MAC ACCESS RULE ##
 echo "MAC Access..."
@@ -191,55 +220,31 @@ done
 ## SERVER PORTS ##
 echo "Server Rules..."
 
-# Warning page, wpad, NTP
-iptables -A INPUT -i $lan -p tcp -m multiport --dports 80,18443,18880,18800,123 -j ACCEPT
-iptables -A FORWARD -i $lan -p tcp -m multiport --dports 80,18443,18880,18800,123 -j ACCEPT
-
-# DNS
-dns="8.8.8.8 8.8.4.4"
-# Optional
-#dns="1.1.1.1 1.0.0.1"
-for ip in $dns; do
-    # DNS (Do53/DoT)
-    iptables -A OUTPUT -d $ip -p udp --dport 53 -j ACCEPT
-    iptables -A OUTPUT -d $ip -p tcp -m multiport --dports 53,853 -j ACCEPT
-
-    # DNS to the firewall
-    iptables -A INPUT -s $ip -p udp --sport 53 -m state --state ESTABLISHED -j ACCEPT
-    iptables -A INPUT -s $ip -p tcp -m multiport --sports 53,853 -m state --state ESTABLISHED -j ACCEPT
-
-    # LAN queries DNS and DoT
-    iptables -A FORWARD -i $lan -d $ip -p udp --dport 53 -j ACCEPT
-    iptables -A FORWARD -i $lan -d $ip -p tcp -m multiport --dports 53,853 -j ACCEPT
-
-    # Responses to LAN
-    iptables -A FORWARD -s $ip -o $lan -p udp --sport 53 -m state --state ESTABLISHED -j ACCEPT
-    iptables -A FORWARD -s $ip -o $lan -p tcp -m multiport --sports 53,853 -m state --state ESTABLISHED -j ACCEPT
-done
-
-# mDNS multicast
-iptables -A INPUT -i $lan -s $local/$netmask -d 224.0.0.251 -p udp --dport 5353 -j ACCEPT
-
-# LLMNR (Windows)
-iptables -A INPUT -i $lan -s $local/$netmask -d 224.0.0.252 -p udp --dport 5355 -j ACCEPT
-
-# IGMP
-iptables -A INPUT -i $lan -p igmp -s $local/$netmask -d 224.0.0.0/4 -j ACCEPT
-
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
-    # DHCP, SNMP, NTP, IPP
-    iptables -A INPUT -i $lan -p udp -m multiport --dports 67,68,137,138,161,162,123,631 -m mac --mac-source $mac -j ACCEPT
-    # NETBIOS Sessions, SMB (TCP)
+    # mDNS/Bonjour (5353), LLMNR (5355)
+    iptables -A INPUT -i $lan -d 224.0.0.251 -p udp --dport 5353 -m mac --mac-source $mac -j ACCEPT
+    iptables -A FORWARD -i $lan -o $lan -d 224.0.0.251 -p udp --dport 5353 -m mac --mac-source $mac -j ACCEPT
+    iptables -A INPUT -i $lan -d 224.0.0.252 -p udp --dport 5355 -m mac --mac-source $mac -j ACCEPT
+    iptables -A FORWARD -i $lan -o $lan -d 224.0.0.252 -p udp --dport 5355 -m mac --mac-source $mac -j ACCEPT
+    # SSDP/UPnP
+    iptables -A INPUT -i $lan -d 239.255.255.250 -p udp --dport 1900 -m mac --mac-source $mac -j ACCEPT
+    iptables -A FORWARD -i $lan -o $lan -d 239.255.255.250 -p udp --dport 1900 -m mac --mac-source $mac -j ACCEPT
+    iptables -A FORWARD -i $lan -o $lan -p udp -m multiport --dports 1900,5000 -m mac --mac-source $mac -j ACCEPT
+    # DLNA
+    iptables -A FORWARD -i $lan -o $lan -p tcp -m multiport --dports 2869,8200,10243 -m mac --mac-source $mac -j ACCEPT
+    # IGMP
+    iptables -A FORWARD -i $lan -o $lan -p igmp -m mac --mac-source $mac -j ACCEPT
+    # NetBIOS
+    iptables -A INPUT -i $lan -p udp -m multiport --dports 137,138 -m mac --mac-source $mac -j ACCEPT
+    # SMB
     iptables -A INPUT -i $lan -p tcp -m multiport --dports 139,445 -m mac --mac-source $mac -j ACCEPT
-    # SSDP/UPnP (UDP 1900,5000)
-    iptables -A INPUT -i $lan -p udp -m multiport --dports 1900,5000 -m mac --mac-source $mac -j ACCEPT
-    # WSDD (UDP 3702)
-    iptables -A INPUT -i $lan -p udp -d 239.255.255.250 --dport 3702 -m mac --mac-source $mac -j ACCEPT
-    # SMTP/SSMTP/IMAP/IMAPS/POP3/POP3S/POP3PASS (25,106,143,465,587,993,110,995)
-    for proto in tcp udp; do
-        iptables -A INPUT -i $lan -p $proto -m multiport --dports 25,106,143,465,587,993,110,995 -m mac --mac-source $mac -j ACCEPT
-        iptables -A FORWARD -i $lan -p $proto -m multiport --dports 25,106,143,465,587,993,110,995 -m mac --mac-source $mac -j ACCEPT
-    done
+    # Print: SNMP, SLP, ENPC
+    iptables -A INPUT -i $lan -p udp -m multiport --dports 161,162,427,3289 -m mac --mac-source $mac -j ACCEPT
+    iptables -A INPUT -i $lan -p tcp --dport 3289 -m mac --mac-source $mac -j ACCEPT
+    # Print: IPP, Raw printing, LPD
+    iptables -A INPUT -i $lan -p tcp -m multiport --dports 631,9100,515 -m mac --mac-source $mac -j ACCEPT
+    # Email: SMTP (25, 465, 587), IMAP (143, 993), POP3 (110, 995).
+    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 25,465,587,143,993,110,995 -m mac --mac-source $mac -j ACCEPT
 done
 
 ## SECURITY RULES ##
@@ -321,7 +326,7 @@ iptables -A syn_flood -j DROP
 
 # BLOCKPORTS (Remove or add ports to block TCP/UDP):
 # path: /etc/acl/blockports.txt
-# Echo (7), CHARGEN (19), 6to4 (41,43,44,58,59,60,3544), FINGER (79), ms-rtc-port (3289), TOR Ports (9001,9050,9150), Brave Tor (9001:9004,9090,9101:9103,9030,9031,9050), IRC (6660-6669), Trojans/Metasploit (4444), SQL inyection/XSS (8088, 8888), bittorrent (6881-6889 58251,58252,58687,6969) others P2P (1337,2760,4662,4672), Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560), WINS (42), BTC/ETH (8332,8333,8545,30303)
+# Echo (7), CHARGEN (19), 6to4 (41,43,44,58,59,60,3544), FINGER (79), TOR Ports (9001,9050,9150), Brave Tor (9001:9004,9090,9101:9103,9030,9031,9050), IRC (6660-6669), Trojans/Metasploit (4444), SQL inyection/XSS (8088, 8888), bittorrent (6881-6889 58251,58252,58687,6969) others P2P (1337,2760,4662,4672), Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560), WINS (42), BTC/ETH (8332,8333,8545,30303)
 ipset -L blockports >/dev/null 2>&1
 if [ $? -ne 0 ]; then
     ipset -! create blockports bitmap:port range 0-65535
@@ -343,8 +348,8 @@ echo "ACL Rules..."
 
 # MACTRANSPARENT (Not recommended)
 #for mac in $(awk -F";" '{print $2}' $aclroute/mac-transparent.txt); do
-#    iptables -A INPUT -i $lan -p tcp -m multiport --dports 443,80,853 -m mac --mac-source $mac -j ACCEPT
-#    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 443,80,853 -m mac --mac-source $mac -j ACCEPT
+#    iptables -A INPUT -i $lan -p tcp -m multiport --dports 443,853 -m mac --mac-source $mac -j ACCEPT
+#    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 443,853 -m mac --mac-source $mac -j ACCEPT
 #done
 
 # MACPROXY (Port 18800 to 3128 - Opcion 252 DHCP)
