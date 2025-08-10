@@ -4,6 +4,10 @@
 # Serveo tunnel start | stop | status
 # https://serveo.net/
 
+# ⚠ Before using this script:
+# - Register on the tunnel service website with your email address.
+# - The server fingerprint will be automatically managed by this script.
+
 echo "Serveo Tunnel Starting. Wait..."
 printf "\n"
 
@@ -26,6 +30,20 @@ if ! command -v ssh >/dev/null 2>&1; then
     echo "⚠️ SSH is not installed"
     echo "run: sudo apt install openssh-server"
     exit 1
+fi
+
+# check service
+if ! nc -z serveo.net 22; then
+    echo "Serveo Offline"
+    exit 1
+fi
+
+# check fingerprint
+if grep -q "serveo.net" ~/.ssh/known_hosts; then
+    echo "Fingerprint OK (serveo.net)"
+else
+    ssh-keyscan -t rsa serveo.net >> ~/.ssh/known_hosts && \
+    echo "Fingerprint Add (serveo.net)"
 fi
 
 SCRIPT_NAME=$(basename "$0")
@@ -104,13 +122,9 @@ start() {
     echo "Starting tunnel with ports: $ports"
 
     > /tmp/serveo_output.txt
-    ssh -q -T \
-    -o StrictHostKeyChecking=no \
-    -o UserKnownHostsFile=/dev/null \
-    -o LogLevel=ERROR \
-    -o ServerAliveInterval=60 \
-    -o ServerAliveCountMax=30 \
-    $PORT_ARGS serveo.net > /tmp/serveo_output.txt 2>&1 &
+    # OPCIONAL: Add the following options if you do not want to use SSH fingerprint verification
+    # -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+    ssh -q -T -o LogLevel=ERROR -o ServerAliveInterval=60 -o ServerAliveCountMax=30 ${PORT_ARGS:-} serveo.net > /tmp/serveo_output.txt 2>&1 &
     SSH_PID=$!
 
     for i in {1..10}; do
