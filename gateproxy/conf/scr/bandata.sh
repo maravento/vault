@@ -144,7 +144,7 @@ if [ -n "$all_bans" ]; then
     for url in $captive_urls; do
         iptables -t nat -I PREROUTING $pos -i $lan -m set --match-set bandata src -p tcp --dport 80 -m string --string "Host: $url" --algo bm -j DNAT --to-destination $serverip:18880
         pos=$((pos+1))
-        iptables -t nat -I PREROUTING $pos -i $lan -m set --match-set bandata src -p tcp --dport 443 -m string --string "$url" --algo bm -j DNAT --to-destination $serverip:18880
+        iptables -t nat -I PREROUTING $pos -i $lan -m set --match-set bandata src -p tcp -m multiport --dports 443,3128 -m string --string "$url" --algo bm -j DNAT --to-destination $serverip:18880
         pos=$((pos+1))
     done
 

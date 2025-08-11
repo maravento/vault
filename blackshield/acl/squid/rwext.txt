@@ -679,6 +679,7 @@
 \.blank([a-zA-Z][0-9]*)?(\?.*)?$
 \.blassa([a-zA-Z][0-9]*)?(\?.*)?$
 \.blaze([a-zA-Z][0-9]*)?(\?.*)?$
+\.BL@CKLOCKED([a-zA-Z][0-9]*)?(\?.*)?$
 \.bleep([a-zA-Z][0-9]*)?(\?.*)?$
 \.bleepYourFiles([a-zA-Z][0-9]*)?(\?.*)?$
 \.blend([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1301,6 +1302,7 @@
 \.Cyber_Puffin([a-zA-Z][0-9]*)?(\?.*)?$
 \.CyberSCCP([a-zA-Z][0-9]*)?(\?.*)?$
 \.CyberSoldiersST([a-zA-Z][0-9]*)?(\?.*)?$
+\.cybertron18([a-zA-Z][0-9]*)?(\?.*)?$
 \.CyberVolk_BlackEye([a-zA-Z][0-9]*)?(\?.*)?$
 \.cyborg([a-zA-Z][0-9]*)?(\?.*)?$
 \.cyclone([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1363,6 +1365,7 @@
 \.DataKeeper([a-zA-Z][0-9]*)?(\?.*)?$
 \.dataleak([a-zA-Z][0-9]*)?(\?.*)?$
 \.Datalock([a-zA-Z][0-9]*)?(\?.*)?$
+\.DATA_RECOVERY.html([a-zA-Z][0-9]*)?(\?.*)?$
 \.datarip([a-zA-Z][0-9]*)?(\?.*)?$
 \.datastop([a-zA-Z][0-9]*)?(\?.*)?$
 \.DATASTOP([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1473,6 +1476,7 @@
 \.DEUS([a-zA-Z][0-9]*)?(\?.*)?$
 \.deuscrypt([a-zA-Z][0-9]*)?(\?.*)?$
 \.DEUSCRYPT([a-zA-Z][0-9]*)?(\?.*)?$
+\.dev([a-zA-Z][0-9]*)?(\?.*)?$
 \.dever([a-zA-Z][0-9]*)?(\?.*)?$
 \.devil([a-zA-Z][0-9]*)?(\?.*)?$
 \.devinn([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2459,6 +2463,7 @@
 \.howto_recover_file.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.HowToRecover.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.HowToRecoveryFiles.txt([a-zA-Z][0-9]*)?(\?.*)?$
+\.HOW_TO_RECOVERY_FILES.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.HowtoRestore_FILES.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.Howto_Restore_FILES.TXT([a-zA-Z][0-9]*)?(\?.*)?$
 \.HPJ([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2636,6 +2641,7 @@
 \.jabber.mipt.ru([a-zA-Z][0-9]*)?(\?.*)?$
 \.jackalock([a-zA-Z][0-9]*)?(\?.*)?$
 \.jack([a-zA-Z][0-9]*)?(\?.*)?$
+\.jackpot27([a-zA-Z][0-9]*)?(\?.*)?$
 \.Jack.Pot([a-zA-Z][0-9]*)?(\?.*)?$
 \.jaff([a-zA-Z][0-9]*)?(\?.*)?$
 \.Jager([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2890,6 +2896,7 @@
 \.KratosCrypt([a-zA-Z][0-9]*)?(\?.*)?$
 \.kraussmfz([a-zA-Z][0-9]*)?(\?.*)?$
 \.kr([a-zA-Z][0-9]*)?(\?.*)?$
+\.KREMLIN([a-zA-Z][0-9]*)?(\?.*)?$
 \.Krider([a-zA-Z][0-9]*)?(\?.*)?$
 \.Kriptor([a-zA-Z][0-9]*)?(\?.*)?$
 \.Kriptovor([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2989,6 +2996,7 @@
 \.letmetrydecfiles([a-zA-Z][0-9]*)?(\?.*)?$
 \.leto([a-zA-Z][0-9]*)?(\?.*)?$
 \.letsgo290([a-zA-Z][0-9]*)?(\?.*)?$
+\.level([a-zA-Z][0-9]*)?(\?.*)?$
 \.lexei8bo([a-zA-Z][0-9]*)?(\?.*)?$
 \.Lexus([a-zA-Z][0-9]*)?(\?.*)?$
 \.lezp([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4346,6 +4354,7 @@
 \.README_XENTARI.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.README.yAGRTb.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.Readnet7([a-zA-Z][0-9]*)?(\?.*)?$
+\.READ_NOTE.html([a-zA-Z][0-9]*)?(\?.*)?$
 \.Reads([a-zA-Z][0-9]*)?(\?.*)?$
 \.readtext5([a-zA-Z][0-9]*)?(\?.*)?$
 \.ReadTheInstructions([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4433,6 +4442,7 @@
 \.restore_files*.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.restore_files.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.restorefiles.txt([a-zA-Z][0-9]*)?(\?.*)?$
+\.restoremydata.pw([a-zA-Z][0-9]*)?(\?.*)?$
 \.Restore-My-file-Kavva.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.RESTORE-MY-FILES.TXT([a-zA-Z][0-9]*)?(\?.*)?$
 \.restoreserver([a-zA-Z][0-9]*)?(\?.*)?$
