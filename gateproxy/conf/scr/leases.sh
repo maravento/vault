@@ -170,9 +170,9 @@ class "blockdhcp" {
     option broadcast-address $serv_broadcast;
     #option domain-name \"example.org\";
     option domain-name-servers $serv_dns;
-    min-lease-time 2592000; # 30 days
-    default-lease-time 2592000; # 30 days
-    max-lease-time 2592000; # 30 days
+    min-lease-time 43200;     # 12 hours
+    default-lease-time 43200; # 12 hours
+    max-lease-time 43200;     # 12 hours
     pool {
         min-lease-time 60;
         default-lease-time 60;

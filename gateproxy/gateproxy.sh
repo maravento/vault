@@ -174,6 +174,12 @@ ifconfig lo 127.0.0.1
 cp /etc/crontab{,.bak} &>/dev/null
 crontab /etc/crontab &>/dev/null
 cp /etc/apt/sources.list{,.bak} &>/dev/null
+# Disable NFS (Network File System) / NIS (Network Information Service)
+if systemctl list-unit-files | grep -q '^rpcbind'; then
+    systemctl stop rpcbind.service rpcbind.socket &>/dev/null || true
+    systemctl disable rpcbind.service rpcbind.socket &>/dev/null || true
+    systemctl mask rpcbind.service rpcbind.socket &>/dev/null || true
+fi
 
 ### CLEAN | UPDATE
 clear
@@ -705,7 +711,7 @@ chmod 644 /etc/apache2/sites-available/warning.conf
 touch /var/log/apache2/{warning_access,warning_error}.log
 grep -q 'Listen 18880' /etc/apache2/ports.conf || echo 'Listen 18880' >> /etc/apache2/ports.conf
 a2ensite -q warning.conf
-# https
+# https (Optional)
 : "${serverip:?WARNING: Server IP variable is not defined}"
 cat > /tmp/warning_openssl.cnf <<EOF
 [req]

@@ -44,7 +44,7 @@ function vboxinstall() {
     apt-get update
     # install vbox
     apt-get -y install linux-headers-$(uname -r) build-essential gcc make perl dkms bridge-utils
-    apt-get -y install virtualbox-7.1
+    apt-get -y install virtualbox-7.2
     dpkg --configure -a
     apt-get -f -y install
     # configure

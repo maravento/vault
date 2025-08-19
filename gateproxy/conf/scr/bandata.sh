@@ -4,6 +4,7 @@
 # Bandata for LightSquid
 # Data Plan for LocalNet
 # https://www.maravento.com/2022/10/lightsquid.html
+# https://www.maravento.com/2025/06/https-302.html
 
 # Instructions:
 # Default: max 1G (GBytes) day / 5G (GBytes) week / 20G (GBytes) month
@@ -132,11 +133,27 @@ sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1
 # Load IPs to bandata
 all_bans=$(cat $block_list_day $block_list_week $block_list_month | $reorganize | uniq)
 
+# uncomment all lines on mac-*
+for file in $aclroute/mac-*; do
+    sed -i 's/^#\(.*;.*\)/\1/' "$file"
+done
+
 if [ -n "$all_bans" ]; then
     echo "$all_bans" | while read ip; do
         ipset -! add bandata "$ip"
-        ipset list bandata | sed -n '/Members:/,/^$/p' | sed '/^$/d'
+        echo "Ban List:"
+        ipset list bandata 2>/dev/null | sed -n '/Members:/,/^$/p' | sed '/^$/d' | sed '1d'
+
+        # Find the IP in mac-* and comment it if it exists
+        for file in $aclroute/mac-*; do
+            if grep -q ";$ip;" "$file"; then
+                sed -i "s/^\([^#].*;$ip;.*\)/#\1/" "$file"
+            fi
+        done
     done
+    
+    # Restart DHCP
+    /etc/scr/leases.sh
     
     pos=1
 
@@ -144,12 +161,10 @@ if [ -n "$all_bans" ]; then
     for url in $captive_urls; do
         iptables -t nat -I PREROUTING $pos -i $lan -m set --match-set bandata src -p tcp --dport 80 -m string --string "Host: $url" --algo bm -j DNAT --to-destination $serverip:18880
         pos=$((pos+1))
-        iptables -t nat -I PREROUTING $pos -i $lan -m set --match-set bandata src -p tcp --dport 443 -m string --string "$url" --algo bm -j DNAT --to-destination $serverip:18880
-        pos=$((pos+1))
     done
 
-    # Redirect: Generic HTTP and Proxy 3128
-    iptables -t nat -I PREROUTING $pos -i $lan -m set --match-set bandata src -p tcp -m multiport --dports 80,3128 -j DNAT --to-destination $serverip:18880
+    # Redirect: Generic HTTP
+    iptables -t nat -I PREROUTING $pos -i $lan -m set --match-set bandata src -p tcp --dport 80 -j DNAT --to-destination $serverip:18880
 
     # Allow: INPUT (Optional: 18443)
     iptables -I INPUT 1 -i $lan -m set --match-set bandata src -p tcp -m multiport --dports 18443,18880 -j ACCEPT
@@ -160,7 +175,7 @@ if [ -n "$all_bans" ]; then
     iptables -I FORWARD 2 -i $lan -m set --match-set bandata src -p udp --dport 53 -j ACCEPT
 
     # Block: FORWARD
-    iptables -I FORWARD 3 -i $lan -m set --match-set bandata src -p tcp -m multiport --dports 80,443,853,3128 -j REJECT --reject-with tcp-reset
+    iptables -I FORWARD 3 -i $lan -m set --match-set bandata src -p tcp -m multiport --dports 443,853 -j REJECT --reject-with tcp-reset
     
 else
     echo "There are no IPs in bandata"

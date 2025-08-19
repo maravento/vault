@@ -130,59 +130,27 @@ iptables -P FORWARD ACCEPT
 iptables -P OUTPUT ACCEPT
 
 ### Global Policies IPv6 (Optional)
-#ip6tables -P INPUT DROP
-#ip6tables -P FORWARD DROP
-#ip6tables -P OUTPUT DROP
+ip6tables -P INPUT DROP
+ip6tables -P FORWARD DROP
+ip6tables -P OUTPUT DROP
 
 # LOOPBACK
-iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT  -i lo -j ACCEPT
 iptables -A OUTPUT -o lo -j ACCEPT
-
-# LOCALHOST
-iptables -t mangle -A PREROUTING -s 127.0.0.0/8 ! -i lo -j DROP
-
-## SERVER RULES ##
-echo "Server Rules..."
-
-# MASQUERADE (share internet with LAN)
-iptables -t nat -A POSTROUTING -s $local/$netmask -o $wan -j MASQUERADE
-
-# LAN ---> PROXY <--- INTERNET
-iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-iptables -A OUTPUT -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
-iptables -A FORWARD -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+iptables -A INPUT -s 127.0.0.0/8 ! -i lo -j DROP
 
 # DROP LAN2WAN (Optional)
 iptables -A INPUT -i $wan -s 10.0.0.0/8 -j DROP
 iptables -A INPUT -i $wan -s 172.16.0.0/12 -j DROP
-
-# Broadcast
-iptables -A INPUT -i $lan -s $local/$netmask -d $broadcast -p udp -j ACCEPT
+iptables -A INPUT -i $wan -s 192.168.0.0/24 -j DROP # Warning: check range
 
 # DHCP
 iptables -A INPUT -i $lan -p udp -m multiport --dports 67,68 -j ACCEPT
 iptables -A OUTPUT -o $lan -p udp -m multiport --sport 67,68 -j ACCEPT
 
-# Warning Page, Wpad, NTP
-iptables -A INPUT -i $lan -p tcp -m multiport --dports 80,18443,18880,18800,123 -j ACCEPT
-iptables -A FORWARD -i $lan -p tcp -m multiport --dports 80,18443,18880,18800,123 -j ACCEPT
-
-# DNS
-dns="8.8.8.8 8.8.4.4 1.1.1.1 1.0.0.1"
-for ip in $dns; do
-    # DNS
-    for proto in tcp udp; do
-        iptables -A OUTPUT -d $ip -p $proto --dport 53 -j ACCEPT
-        iptables -A INPUT -s $ip -p $proto --sport 53 -m state --state ESTABLISHED,RELATED -j ACCEPT
-        iptables -A FORWARD -i $lan -d $ip -p $proto --dport 53 -j ACCEPT
-        iptables -A FORWARD -o $lan -s $ip -p $proto --sport 53 -m state --state ESTABLISHED,RELATED -j ACCEPT
-    done
-    # DNS over TLS (DoT)
-    iptables -A OUTPUT -d $ip -p tcp --dport 853 -j ACCEPT
-    iptables -A INPUT -s $ip -p tcp --sport 853 -m state --state ESTABLISHED,RELATED -j ACCEPT
-    iptables -A FORWARD -i $lan -d $ip -p tcp --dport 853 -j ACCEPT
-    iptables -A FORWARD -o $lan -s $ip -p tcp --sport 853 -m state --state ESTABLISHED,RELATED -j ACCEPT
-done
+# NTP
+iptables -A INPUT -i $lan -p tcp --dport 123 -j ACCEPT
+iptables -A FORWARD -i $lan -p tcp --dport 123 -j ACCEPT
 
 ## MAC ACCESS RULE ##
 echo "MAC Access..."
@@ -220,6 +188,39 @@ done
 ## SERVER PORTS ##
 echo "Server Rules..."
 
+# Block HTTPS/DoT Direct (Force all traffic through proxy)
+for proto in tcp udp; do
+    iptables -A INPUT -i $lan -p $proto -m multiport --dports 443,853 -j DROP
+    iptables -A FORWARD -i $lan -p $proto -m multiport --dports 443,853 -j DROP
+done
+
+# Warning Page HTTP (TCP 18880). Optional: HTTPS (18443)
+for mac in $(awk -F";" '{print $2}' $aclroute/mac-*.txt); do
+    iptables -A INPUT -i $lan -p tcp -m multiport --dports 18880,18443 -m mac --mac-source $mac -j ACCEPT
+    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 18880,18443 -m mac --mac-source $mac -j ACCEPT
+    iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -j DNAT --to-destination $serverip:18880
+done
+
+# MASQUERADE (share internet with LAN)
+iptables -t nat -A POSTROUTING -s $local/$netmask -o $wan -j MASQUERADE
+
+# LAN ---> PROXY <--- INTERNET
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A OUTPUT -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+
+# Broadcast
+iptables -A INPUT -i $lan -s $local/$netmask -d $broadcast -p udp -j ACCEPT
+
+# DNS
+dns="8.8.8.8 8.8.4.4"
+for ip in $dns; do
+    iptables -A OUTPUT -d $ip -p udp --dport 53 -j ACCEPT
+    iptables -A OUTPUT -d $ip -p tcp --dport 53 -j ACCEPT
+    iptables -A INPUT -s $ip -p udp --sport 53 -m state --state ESTABLISHED -j ACCEPT
+    iptables -A INPUT -s $ip -p tcp --sport 53 -m state --state ESTABLISHED -j ACCEPT
+done
+
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
     # mDNS/Bonjour (5353), LLMNR (5355)
     iptables -A INPUT -i $lan -d 224.0.0.251 -p udp --dport 5353 -m mac --mac-source $mac -j ACCEPT
@@ -245,6 +246,8 @@ for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
     iptables -A INPUT -i $lan -p tcp -m multiport --dports 631,9100,515 -m mac --mac-source $mac -j ACCEPT
     # Email: SMTP (25, 465, 587), IMAP (143, 993), POP3 (110, 995).
     iptables -A FORWARD -i $lan -p tcp -m multiport --dports 25,465,587,143,993,110,995 -m mac --mac-source $mac -j ACCEPT
+    # WSDD (UDP)
+    iptables -A FORWARD -i $lan -d 239.255.255.250 -p udp --dport 3702 -m mac --mac-source $mac -j ACCEPT
 done
 
 ## SECURITY RULES ##
