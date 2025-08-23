@@ -124,59 +124,31 @@ else
     ipset -! flush bandata
 fi
 
-# Captive Portal Detection (CPD)
-captive_urls="apple.com connectivitycheck.gstatic.com clients3.google.com android.clients.google.com msftconnecttest.com detectportal.firefox.com nmcheck.gnome.org"
-
 # NAT
 sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1
 
 # Load IPs to bandata
 all_bans=$(cat $block_list_day $block_list_week $block_list_month | $reorganize | uniq)
 
-# uncomment all lines on mac-*
-for file in $aclroute/mac-*; do
-    sed -i 's/^#\(.*;.*\)/\1/' "$file"
-done
-
 if [ -n "$all_bans" ]; then
-    echo "$all_bans" | while read ip; do
-        ipset -! add bandata "$ip"
-        echo "Ban List:"
-        ipset list bandata 2>/dev/null | sed -n '/Members:/,/^$/p' | sed '/^$/d' | sed '1d'
-
-        # Find the IP in mac-* and comment it if it exists
-        for file in $aclroute/mac-*; do
-            if grep -q ";$ip;" "$file"; then
-                sed -i "s/^\([^#].*;$ip;.*\)/#\1/" "$file"
-            fi
-        done
+    for ip in $all_bans; do
+        ipset -exist add bandata "$ip"
     done
+    echo "Ban IPs (out: /etc/acl/bandata.txt)"
+    ipset list bandata 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | sort -V | tee /etc/acl/bandata.txt
+
+    echo "Applying iptables rules..."
     
-    # Restart DHCP
-    /etc/scr/leases.sh
+    iptables -I FORWARD 1 -i $lan -m set --match-set bandata src -p udp --dport 53 -j ACCEPT
+    iptables -I FORWARD 2 -i $lan -m set --match-set bandata src -p tcp --dport 80 -j ACCEPT
+    iptables -I FORWARD 3 -i $lan -m set --match-set bandata src -p tcp --dport 18880 -j ACCEPT
+    iptables -I FORWARD 4 -i $lan -m set --match-set bandata src -j DROP 
     
-    pos=1
-
-    # Redirect: string
-    for url in $captive_urls; do
-        iptables -t nat -I PREROUTING $pos -i $lan -m set --match-set bandata src -p tcp --dport 80 -m string --string "Host: $url" --algo bm -j DNAT --to-destination $serverip:18880
-        pos=$((pos+1))
-    done
-
-    # Redirect: Generic HTTP
-    iptables -t nat -I PREROUTING $pos -i $lan -m set --match-set bandata src -p tcp --dport 80 -j DNAT --to-destination $serverip:18880
-
-    # Allow: INPUT (Optional: 18443)
-    iptables -I INPUT 1 -i $lan -m set --match-set bandata src -p tcp -m multiport --dports 18443,18880 -j ACCEPT
-    iptables -I INPUT 2 -i $lan -m set --match-set bandata src -p udp --dport 53 -j ACCEPT
-
-    # Allow: FORWARD (Optional: 18443)
-    iptables -I FORWARD 1 -i $lan -m set --match-set bandata src -p tcp -m multiport --dports 18443,18880 -j ACCEPT
-    iptables -I FORWARD 2 -i $lan -m set --match-set bandata src -p udp --dport 53 -j ACCEPT
-
-    # Block: FORWARD
-    iptables -I FORWARD 3 -i $lan -m set --match-set bandata src -p tcp -m multiport --dports 443,853 -j REJECT --reject-with tcp-reset
+    iptables -I INPUT 1 -i $lan -m set --match-set bandata src -p tcp --dport 18880 -j ACCEPT
+    iptables -I INPUT 2 -i $lan -m set --match-set bandata src -j DROP
     
+    iptables -t nat -I PREROUTING 1 -i $lan -m set --match-set bandata src -p tcp --dport 80 -j REDIRECT --to-port 18880
+ 
 else
     echo "There are no IPs in bandata"
 fi

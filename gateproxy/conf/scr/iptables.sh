@@ -32,9 +32,11 @@ aclroute=/etc/acl
 # interfaces
 wan=eth0
 lan=eth1
-# IP/netmask
-local=192.168.0.0
+# LAN IP/netmask
+localnet=192.168.0.0
 netmask=24
+# WAN IP/netmask
+wan_net=$(ip -o -f inet addr show "$wan" | awk '{split($4,a,"/"); split(a[1],b,"."); print b[1]"."b[2]"."b[3]".0/"a[2]; exit}')
 # Broadcast
 broadcast=192.168.0.255
 # IP/MAC server
@@ -96,7 +98,7 @@ sysctl -w net.ipv4.tcp_syn_retries=5 >/dev/null 2>&1
 # Disable IPv4 ICMP Redirect Acceptance
 sysctl -w net.ipv4.conf.all.accept_redirects=0 >/dev/null 2>&1
 sysctl -w net.ipv4.conf.default.accept_redirects=0 >/dev/null 2>&1
-# Ignore all incoming ICMP echo requests
+# Ignore all incoming ICMP echo requests (=0 ACCEPT)
 sysctl -w net.ipv4.icmp_echo_ignore_all=1 >/dev/null 2>&1
 # Disables packet forwarding (NAT)
 sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1
@@ -124,36 +126,59 @@ sysctl -w net.ipv4.ip_no_pmtu_disc=1 >/dev/null 2>&1
 ## GLOBAL RULES ##
 echo "Global Rules..."
 
-# Global Policies IPv4 (DROP or ACCEPT)
+# IPv4
 iptables -P INPUT ACCEPT
 iptables -P FORWARD ACCEPT
 iptables -P OUTPUT ACCEPT
 
-### Global Policies IPv6 (Optional)
+# IPv6
 ip6tables -P INPUT DROP
 ip6tables -P FORWARD DROP
 ip6tables -P OUTPUT DROP
 
 # LOOPBACK
-iptables -A INPUT  -i lo -j ACCEPT
+iptables -A INPUT -i lo -j ACCEPT
 iptables -A OUTPUT -o lo -j ACCEPT
 iptables -A INPUT -s 127.0.0.0/8 ! -i lo -j DROP
 
-# DROP LAN2WAN (Optional)
-iptables -A INPUT -i $wan -s 10.0.0.0/8 -j DROP
-iptables -A INPUT -i $wan -s 172.16.0.0/12 -j DROP
-iptables -A INPUT -i $wan -s 192.168.0.0/24 -j DROP # Warning: check range
+# WAN
+# ALLOW
+iptables -A INPUT -i $wan -s $wan_net -j ACCEPT
+# DROP
+iptables -A INPUT -i $wan -s 10.0.0.0/8   -j DROP
+iptables -A INPUT -i $wan -s 172.16.0.0/12  -j DROP
+iptables -A INPUT -i $wan -s 192.168.0.0/16 -j DROP
+# STATE
+iptables -A INPUT -i $wan -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -A OUTPUT -o $wan -m conntrack --ctstate NEW,ESTABLISHED,RELATED -j ACCEPT
 
+# LAN
+# DROP DIRECT: LAN 2 WAN
+iptables -A INPUT -i $lan -d $wan_net -j DROP
+iptables -A FORWARD -i $lan -d $wan_net -j DROP
+# MASQUERADE (share internet with LAN)
+iptables -t nat -A POSTROUTING -s $localnet/$netmask -o $wan -j MASQUERADE
+# LAN ---> PROXY <--- INTERNET
+iptables -A INPUT -i $lan -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -i $lan -o $wan -m conntrack --ctstate NEW,ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -i $wan -o $lan -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -A OUTPUT -o $lan -m conntrack --ctstate NEW,ESTABLISHED,RELATED -j ACCEPT
 # DHCP
-iptables -A INPUT -i $lan -p udp -m multiport --dports 67,68 -j ACCEPT
-iptables -A OUTPUT -o $lan -p udp -m multiport --sport 67,68 -j ACCEPT
-
+iptables -A INPUT -i $lan -p udp --sport 68 --dport 67 -s $localnet/$netmask -j ACCEPT
+iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -d $localnet/$netmask -j ACCEPT
 # NTP
-iptables -A INPUT -i $lan -p tcp --dport 123 -j ACCEPT
-iptables -A FORWARD -i $lan -p tcp --dport 123 -j ACCEPT
+iptables -A INPUT -i $lan -p udp --dport 123 -s $localnet/$netmask -j ACCEPT
+iptables -A FORWARD -i $lan -p udp --dport 123 -s $localnet/$netmask -j ACCEPT
+# UDP anti-flood (Global Limit)
+# LAN 2 Firewall
+iptables -A INPUT -i $lan -p udp -m limit --limit 3000/min --limit-burst 150 -j ACCEPT
+# LAN 2 WAN
+iptables -A FORWARD -i $lan -o $wan -p udp -m limit --limit 8000/min --limit-burst 400 -j ACCEPT
+# VLANs/LAN
+iptables -A FORWARD -i $lan -o $lan -p udp -m limit --limit 20000/min --limit-burst 800 -j ACCEPT
 
-## MAC ACCESS RULE ##
-echo "MAC Access..."
+## MAC RULES ##
+echo "MAC Rules..."
 
 dhcp_conf=/etc/dhcp/dhcpd.conf
 # path ips-mac dhcp
@@ -185,69 +210,80 @@ for mac in $(awk -F";" '{print $2}' $aclroute/mac-unlimited.txt); do
     iptables -A FORWARD -i $lan -m mac --mac-source $mac -j ACCEPT
 done
 
-## SERVER PORTS ##
-echo "Server Rules..."
+## PORT RULES ##
+echo "Port Rules..."
 
-# Block HTTPS/DoT Direct (Force all traffic through proxy)
-for proto in tcp udp; do
-    iptables -A INPUT -i $lan -p $proto -m multiport --dports 443,853 -j DROP
-    iptables -A FORWARD -i $lan -p $proto -m multiport --dports 443,853 -j DROP
+# BLOCKPORTS
+# path: /etc/acl/blockports.txt
+# Block Direct Connections:
+# HTTPs (443), HTTPs Fallback (4444,8443,9443), DoT (853), DNS over QUIC DoQ (784), DoQ Fallback (8853), OpenVPN (1194), L2TP/IPsec (1701), IPsec IKE (500), IPsec NAT-T (4500), WireGuard (51820), SOCKS5 proxies (1080), Shadowsocks (7300), HTTP-Proxy Alternative (8080,8000,3129,3130).
+# Block legacy, risky or potentially abusive services:
+# Echo (7), CHARGEN (19), FTP (20,21), SSH (22), 6to4 (41,43,44,58,59,60,3544), FINGER (79), TOR Ports (9001,9050,9150), Brave Tor (9001:9004,9090,9101:9103,9030,9031,9050), IRC (6660-6669), Trojans/Metasploit (4444), SQL inyection/XSS (8088, 8888), bittorrent (6881-6889 58251,58252,58687,6969) others P2P (1337,2760,4662,4672), Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560), WINS (42), BTC/ETH (8332,8333,8545,30303).
+ipset -L blockports >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+    ipset -! create blockports bitmap:port range 0-65535
+else
+    ipset -! flush blockports
+fi
+for blports in $(cat $aclroute/blockports.txt | sort -V -u); do
+    ipset -exist add blockports $blports
 done
+#iptables -A FORWARD -i $lan -m set --match-set blockports dst -j NFLOG --nflog-prefix 'blockports' # Optional
+iptables -A FORWARD -i $lan -m set --match-set blockports dst -j DROP
+iptables -A OUTPUT -m set --match-set blockports dst -j DROP
 
-# Warning Page HTTP (TCP 18880). Optional: HTTPS (18443)
+# Warning Page HTTP (TCP 18880)
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-*.txt); do
-    iptables -A INPUT -i $lan -p tcp -m multiport --dports 18880,18443 -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 18880,18443 -m mac --mac-source $mac -j ACCEPT
-    iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -j DNAT --to-destination $serverip:18880
+    iptables -A INPUT -i $lan -p tcp --dport 18880 -m mac --mac-source $mac -j ACCEPT
+    iptables -A FORWARD -i $lan -p tcp --dport 18880 -m mac --mac-source $mac -j ACCEPT
 done
-
-# MASQUERADE (share internet with LAN)
-iptables -t nat -A POSTROUTING -s $local/$netmask -o $wan -j MASQUERADE
-
-# LAN ---> PROXY <--- INTERNET
-iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-iptables -A OUTPUT -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
-iptables -A FORWARD -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
-
-# Broadcast
-iptables -A INPUT -i $lan -s $local/$netmask -d $broadcast -p udp -j ACCEPT
 
 # DNS
-dns="8.8.8.8 8.8.4.4"
+dns="8.8.8.8 1.1.1.1"
 for ip in $dns; do
     iptables -A OUTPUT -d $ip -p udp --dport 53 -j ACCEPT
     iptables -A OUTPUT -d $ip -p tcp --dport 53 -j ACCEPT
     iptables -A INPUT -s $ip -p udp --sport 53 -m state --state ESTABLISHED -j ACCEPT
     iptables -A INPUT -s $ip -p tcp --sport 53 -m state --state ESTABLISHED -j ACCEPT
 done
+for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
+    for ip in $dns; do
+        iptables -A FORWARD -i $lan -o $wan -m mac --mac-source $mac -d $ip -p udp --dport 53 -j ACCEPT
+        iptables -A FORWARD -i $lan -o $wan -m mac --mac-source $mac -d $ip -p tcp --dport 53 -j ACCEPT
+    done
+done
+iptables -A FORWARD -i $lan -o $wan -p udp --dport 53 -j DROP
+iptables -A FORWARD -i $lan -o $wan -p tcp --dport 53 -j DROP
 
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
-    # mDNS/Bonjour (5353), LLMNR (5355)
+    # mDNS / Bonjour
     iptables -A INPUT -i $lan -d 224.0.0.251 -p udp --dport 5353 -m mac --mac-source $mac -j ACCEPT
     iptables -A FORWARD -i $lan -o $lan -d 224.0.0.251 -p udp --dport 5353 -m mac --mac-source $mac -j ACCEPT
+    # LLMNR
     iptables -A INPUT -i $lan -d 224.0.0.252 -p udp --dport 5355 -m mac --mac-source $mac -j ACCEPT
     iptables -A FORWARD -i $lan -o $lan -d 224.0.0.252 -p udp --dport 5355 -m mac --mac-source $mac -j ACCEPT
-    # SSDP/UPnP
+    # SSDP / UPnP
     iptables -A INPUT -i $lan -d 239.255.255.250 -p udp --dport 1900 -m mac --mac-source $mac -j ACCEPT
     iptables -A FORWARD -i $lan -o $lan -d 239.255.255.250 -p udp --dport 1900 -m mac --mac-source $mac -j ACCEPT
     iptables -A FORWARD -i $lan -o $lan -p udp -m multiport --dports 1900,5000 -m mac --mac-source $mac -j ACCEPT
-    # DLNA
-    iptables -A FORWARD -i $lan -o $lan -p tcp -m multiport --dports 2869,8200,10243 -m mac --mac-source $mac -j ACCEPT
-    # IGMP
-    iptables -A FORWARD -i $lan -o $lan -p igmp -m mac --mac-source $mac -j ACCEPT
-    # NetBIOS
-    iptables -A INPUT -i $lan -p udp -m multiport --dports 137,138 -m mac --mac-source $mac -j ACCEPT
-    # SMB
-    iptables -A INPUT -i $lan -p tcp -m multiport --dports 139,445 -m mac --mac-source $mac -j ACCEPT
-    # Print: SNMP, SLP, ENPC
+    # WSD
+    iptables -A INPUT -i $lan -d 239.255.255.250 -p udp --dport 3702 -m mac --mac-source $mac -j ACCEPT
+    iptables -A FORWARD -i $lan -d 239.255.255.250 -p udp --dport 3702 -m mac --mac-source $mac -j ACCEPT
+    # SNMP, SLP, ENPC
     iptables -A INPUT -i $lan -p udp -m multiport --dports 161,162,427,3289 -m mac --mac-source $mac -j ACCEPT
     iptables -A INPUT -i $lan -p tcp --dport 3289 -m mac --mac-source $mac -j ACCEPT
-    # Print: IPP, Raw printing, LPD
+    # IPP, RAW, LPD
     iptables -A INPUT -i $lan -p tcp -m multiport --dports 631,9100,515 -m mac --mac-source $mac -j ACCEPT
-    # Email: SMTP (25, 465, 587), IMAP (143, 993), POP3 (110, 995).
-    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 25,465,587,143,993,110,995 -m mac --mac-source $mac -j ACCEPT
-    # WSDD (UDP)
-    iptables -A FORWARD -i $lan -d 239.255.255.250 -p udp --dport 3702 -m mac --mac-source $mac -j ACCEPT
+    # SMB
+    iptables -A INPUT -i $lan -p tcp -m multiport --dports 139,445 -m mac --mac-source $mac -j ACCEPT
+    # NetBIOS
+    iptables -A INPUT -i $lan -p udp -m multiport --dports 137,138 -m mac --mac-source $mac -j ACCEPT
+    # DLNA / UPNP AV
+    iptables -A FORWARD -i $lan -o $lan -p tcp -m multiport --dports 2869,8200,10243 -m mac --mac-source $mac -j ACCEPT
+    # IGMP (Optional)
+    #iptables -A FORWARD -i $lan -o $lan -p igmp -m mac --mac-source $mac -j ACCEPT
+    # Email: SMTP (25, 465, 587), IMAP (143, 993), POP3 (110, 995). (Optional)
+    #iptables -A FORWARD -i $lan -p tcp -m multiport --dports 25,465,587,143,993,110,995 -m mac --mac-source $mac -j ACCEPT
 done
 
 ## SECURITY RULES ##
@@ -260,109 +296,72 @@ echo "Security Rules..."
 #    iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo bm -j DROP
 #done
 
-# Invalid Packages
-iptables -A INPUT -i $lan -m conntrack --ctstate INVALID -j DROP
-
-# syncflood
-iptables -N syn_flood
-iptables -A INPUT -i $lan -p tcp --syn -j syn_flood
-iptables -A syn_flood -m limit --limit 50/s --limit-burst 200 -j RETURN
-iptables -A syn_flood -j NFLOG --nflog-prefix 'synflood'
-iptables -A syn_flood -j DROP
-# synflood (Optional)
-#iptables -A INPUT -i $lan -p tcp --tcp-flags ALL NONE -j DROP
-#iptables -A INPUT -i $lan -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
-#iptables -A INPUT -i $lan -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
-#iptables -A INPUT -i $lan -p tcp --tcp-flags FIN,RST FIN,RST -j DROP
-#iptables -A INPUT -i $lan -p tcp --tcp-flags ACK,FIN FIN -j DROP
-#iptables -A INPUT -i $lan -p tcp --tcp-flags ACK,PSH PSH -j DROP
-#iptables -A INPUT -i $lan -p tcp --tcp-flags ACK,URG URG -j DROP
-
 # Block Spoofed Packets (Optional)
 #for ip in $(sed '/^\s*#/d;/^\s*$/d' "$aclroute/bogons.txt"); do
 #    iptables -A INPUT -i $lan -s $ip -j NFLOG --nflog-prefix 'spoof'
 #    iptables -A INPUT -i $lan -s $ip -j DROP
 #done
 
+# Invalid Packages
+iptables -A INPUT -i $lan -m conntrack --ctstate INVALID -j DROP
+
+# syncflood
+iptables -N syn_flood
+iptables -A INPUT -i $wan -p tcp --syn -j syn_flood
+iptables -A INPUT -i $lan -p tcp --syn -j syn_flood
+iptables -A syn_flood -i $wan -m limit --limit 50/s --limit-burst 200 -j RETURN
+iptables -A syn_flood -i $lan -m limit --limit 200/s --limit-burst 500 -j RETURN
+iptables -A syn_flood -j NFLOG --nflog-prefix 'SYNFLOOD'
+iptables -A syn_flood -j DROP
+
+# Protection against port scanning
+#iptables -N PORTSCAN
+#iptables -A INPUT -m recent --name portscan_blocked --rcheck --seconds 3600 -j DROP
+#iptables -A INPUT -p tcp --syn -m recent --name portscan --rcheck --seconds 30 --hitcount 8 -j PORTSCAN
+#iptables -A INPUT -p tcp --syn -m recent --name portscan --set
+#iptables -A PORTSCAN -j NFLOG --nflog-prefix "PORTSCAN_DETECTED"
+#iptables -A PORTSCAN -m recent --name portscan_blocked --set
+#iptables -A PORTSCAN -j DROP
+
+# TCP flags
+#iptables -A INPUT -p tcp --tcp-flags ALL NONE -j DROP
+#iptables -A INPUT -p tcp --tcp-flags ALL FIN,URG,PSH -j DROP
+#iptables -A INPUT -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
+#iptables -A INPUT -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
+#iptables -A INPUT -p tcp --tcp-flags ALL ALL -j DROP
+#iptables -A INPUT -p tcp --tcp-flags SYN,ACK SYN,ACK -m state --state NEW -j DROP
+
 # ICMP (ping) (Optional)
-#iptables -A OUTPUT -o $lan -p icmp --icmp-type echo-request -j ACCEPT
-#iptables -A INPUT -i $lan -p icmp --icmp-type echo-reply   -j ACCEPT
-#iptables -A INPUT -i $lan -p icmp --icmp-type echo-request -m limit --limit 5/s --limit-burst 10 -j ACCEPT
-#iptables -A OUTPUT -o $lan -p icmp --icmp-type echo-reply -j ACCEPT
-
-# Protection against port scanning (optional)
-#iptables -N port-scanning
-#iptables -A INPUT -p tcp --tcp-flags ALL RST -j port-scanning
-#iptables -A port-scanning -p tcp --tcp-flags ALL RST -m limit --limit 1/s --limit-burst 2 -j RETURN
-#iptables -A port-scanning -j NFLOG --nflog-prefix 'portscan'
-#iptables -A port-scanning -j DROP
-
-# BLOCKZONE (optional)
-# https://github.com/maravento/blackip
-# select country to block and ip/range
-# http://www.ipdeny.com/ipblocks/
-#zone=/etc/zones
-#mkdir -p $zone >/dev/null 2>&1
-# ipset rules
-#ipset -L blockzone >/dev/null 2>&1
-#if [ $? -ne 0 ]; then
-    #echo "set blockzone does not exist. create set..."
-    #ipset -! create blockzone hash:net family inet hashsize 1024 maxelem 10000000
-#else
-    #echo "set blockzone exist. flush set..."
-    #ipset -! flush blockzone
-#fi
-#ipset -! save > /tmp/ipset_blockzone.txt
-# read file and sort (v8.32 or later)
-#cat $zone/{cn,ru}.zone $aclroute/blackip.txt | sort -V -u | while read line; do
-# optional: if there are commented lines
-#if [ "${line:0:1}" = "#" ]; then
-    #continue
-#fi
-# adding IPv4 addresses to the tmp list
-#echo "add blockzone $line" >> /tmp/ipset_blockzone.txt
+# WARNING: 
+# You need to change the following kernel parameter in the header of this script: 
+# sysctl -w net.ipv4.icmp_echo_ignore_all=0 >/dev/null 2>&1
+# WAN → SERVER
+#iptables -A INPUT -i $wan -p icmp --icmp-type echo-request -j DROP
+# LAN → SERVER
+#for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
+#    iptables -A INPUT -i $lan -p icmp --icmp-type echo-request -m mac --mac-source $mac -j ACCEPT
 #done
-# adding the tmp list of IPv4 addresses to the ddosip set of ipset
-#ipset -! restore < /tmp/ipset_blockzone.txt
-# iptables rules
-#iptables -A INPUT -m set --match-set blockzone src -j DROP
-
-# BLOCKPORTS (Remove or add ports to block TCP/UDP):
-# path: /etc/acl/blockports.txt
-# Echo (7), CHARGEN (19), 6to4 (41,43,44,58,59,60,3544), FINGER (79), TOR Ports (9001,9050,9150), Brave Tor (9001:9004,9090,9101:9103,9030,9031,9050), IRC (6660-6669), Trojans/Metasploit (4444), SQL inyection/XSS (8088, 8888), bittorrent (6881-6889 58251,58252,58687,6969) others P2P (1337,2760,4662,4672), Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560), WINS (42), BTC/ETH (8332,8333,8545,30303)
-ipset -L blockports >/dev/null 2>&1
-if [ $? -ne 0 ]; then
-    ipset -! create blockports bitmap:port range 0-65535
-else
-    ipset -! flush blockports
-fi
-for blports in $(cat $aclroute/blockports.txt | sort -V -u); do
-    ipset -! add blockports $blports
-done
-iptables -A INPUT -i $lan -m set --match-set blockports dst -j NFLOG --nflog-prefix 'blockports'
-iptables -A INPUT -i $lan -m set --match-set blockports dts -j DROP
-iptables -A FORWARD -i $lan -m set --match-set blockports dst -j NFLOG --nflog-prefix 'blockports'
-iptables -A FORWARD -i $lan -m set --match-set blockports dst -j DROP
-iptables -A OUTPUT -m set --match-set blockports dst -j NFLOG --nflog-prefix 'blockports'
-iptables -A OUTPUT -m set --match-set blockports dst -j DROP
+#iptables -A OUTPUT -o $lan -p icmp --icmp-type echo-reply -j ACCEPT
+#iptables -A INPUT -p icmp -j DROP
 
 ## ACL RULES ##
 echo "ACL Rules..."
 
-# MACTRANSPARENT (Not recommended)
+# MACTRANSPARENT (WARNING: Not recommended)
 #for mac in $(awk -F";" '{print $2}' $aclroute/mac-transparent.txt); do
-#    iptables -A INPUT -i $lan -p tcp -m multiport --dports 443,853 -m mac --mac-source $mac -j ACCEPT
-#    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 443,853 -m mac --mac-source $mac -j ACCEPT
+#    iptables -A INPUT -i $lan -p tcp -m multiport --dports 80,443,853 -m mac --mac-source $mac -j ACCEPT
+#    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 80,443,853 -m mac --mac-source $mac -j ACCEPT
 #done
 
-# MACPROXY (Port 18800 to 3128 - Opcion 252 DHCP)
+# MACPROXY (PAC port 18800, HTTP 80 to 3128 - Opcion 252 DHCP)
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-proxy.txt); do
     iptables -A INPUT -i $lan -p tcp -m multiport --dports 18800,3128 -m mac --mac-source $mac -j ACCEPT
     iptables -A FORWARD -i $lan -p tcp -m multiport --dports 18800,3128 -m mac --mac-source $mac -j ACCEPT
+    iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m mac --mac-source $mac -j REDIRECT --to-port 3128
 done
 
 ## END ## 
-echo "Drop All..."
+echo "DROP All..."
 iptables -A INPUT -s 0.0.0.0/0 -j NFLOG --nflog-prefix 'final-input-drop: '
 iptables -A INPUT -s 0.0.0.0/0 -j DROP
 iptables -A FORWARD -d 0.0.0.0/0 -j NFLOG --nflog-prefix 'final-forward-drop: '

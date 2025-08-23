@@ -44,9 +44,7 @@ function is_iscdhcp() {
     serv_end_range_block=192.168.0.250
     serv_broadcast=192.168.0.255
     serv_mask=255.255.255.0
-    serv_dns=8.8.8.8,8.8.4.4
-    #serv_dns=1.0.0.1,1.1.1.1
-    #serv_dns=192.168.0.10
+    serv_dns=8.8.8.8,1.1.1.1
 
     function read_leases {
         # Reading the dhcp_leases entries. Format / Leyendo las entradas de dhcp_leases. Formato:
