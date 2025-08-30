@@ -49,7 +49,7 @@
 
 | File | OS | Size |
 | :---: | :---: | :---: |
-| [itsm.exe (.zip)](https://mega.nz/file/eZ0AEZaK#mNvOfJ0lklv_eITycEpnwhct-NLW3hUe5pZaEPwTGP4) | Windows 10/11 x64 | 127,1 MB |
+| [itsm.exe (.zip)](https://mega.nz/file/jBVj0LpB#Mh4KPG8bXJjGgmRau-AuAXe1nM8IkovsoyJasgE21RQ) | Windows 10/11 x64 | 127,1 MB |
 
 ## Supported Versions
 
