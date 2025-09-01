@@ -44,9 +44,7 @@ function is_iscdhcp() {
     serv_end_range_block=192.168.0.250
     serv_broadcast=192.168.0.255
     serv_mask=255.255.255.0
-    serv_dns=8.8.8.8,8.8.4.4
-    #serv_dns=1.0.0.1,1.1.1.1
-    #serv_dns=192.168.0.10
+    serv_dns=8.8.8.8,1.1.1.1
 
     function read_leases {
         # Reading the dhcp_leases entries. Format / Leyendo las entradas de dhcp_leases. Formato:
@@ -170,9 +168,9 @@ class "blockdhcp" {
     option broadcast-address $serv_broadcast;
     #option domain-name \"example.org\";
     option domain-name-servers $serv_dns;
-    min-lease-time 2592000; # 30 days
-    default-lease-time 2592000; # 30 days
-    max-lease-time 2592000; # 30 days
+    min-lease-time 43200;     # 12 hours
+    default-lease-time 43200; # 12 hours
+    max-lease-time 43200;     # 12 hours
     pool {
         min-lease-time 60;
         default-lease-time 60;

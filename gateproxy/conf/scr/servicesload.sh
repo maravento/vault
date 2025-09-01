@@ -69,6 +69,7 @@ else
     echo -e "\n"
     for pid in $(ps -ef | grep "[s]quid" | awk '{print $2}'); do
         kill -9 "$pid" &>/dev/null
+        rm -f /run/squid.pid &>/dev/null
     done
     sleep "${sleep_time}"
     systemctl start squid.service

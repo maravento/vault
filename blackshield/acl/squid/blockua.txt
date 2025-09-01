@@ -12,6 +12,7 @@ adscanner
 AdsTxtCrawlerTP
 AfD-Verbotsverfahren
 AhrefsBot
+Ai2Bot
 AIBOT
 AiHitBot
 Aipbot
@@ -19,6 +20,7 @@ Alexibot
 ALittle Client
 Aliyun
 AliyunSecBot
+allenai.org
 Alligator
 AllSubmitter
 AlphaBot

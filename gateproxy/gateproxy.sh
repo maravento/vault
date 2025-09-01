@@ -174,6 +174,12 @@ ifconfig lo 127.0.0.1
 cp /etc/crontab{,.bak} &>/dev/null
 crontab /etc/crontab &>/dev/null
 cp /etc/apt/sources.list{,.bak} &>/dev/null
+# Disable NFS (Network File System) / NIS (Network Information Service)
+if systemctl list-unit-files | grep -q '^rpcbind'; then
+    systemctl stop rpcbind.service rpcbind.socket &>/dev/null || true
+    systemctl disable rpcbind.service rpcbind.socket &>/dev/null || true
+    systemctl mask rpcbind.service rpcbind.socket &>/dev/null || true
+fi
 
 ### CLEAN | UPDATE
 clear
@@ -563,16 +569,21 @@ while pgrep squid > /dev/null; do
 done
 nala purge -y squid* &>/dev/null
 rm -rf /var/spool/squid* /var/log/squid* /etc/squid* /dev/shm/* &>/dev/null
+rm -f /run/squid.pid &>/dev/null
 #DEBIAN_FRONTEND=noninteractive nala install -y --no-install-recommends squid-openssl
 nala install -y squid-openssl squid-langpack squid-common squidclient squid-purge
 fixbroken
-mkdir -p "/var/log/squid" >/dev/null 2>&1
+mkdir -p /var/log/squid >/dev/null 2>&1
 touch /var/log/squid/{access,cache,store,deny}.log >/dev/null 2>&1
-chown -R proxy:proxy /var/log/squid
-mkdir -p "/var/spool/squid/rock" >/dev/null 2>&1
+chown proxy:adm /var/log/squid/*.log
+chmod 640 /var/log/squid/*.log
+mkdir -p /var/spool/squid/rock >/dev/null 2>&1
 chown -R proxy:proxy /var/spool/squid/rock
-chmod -R 750 /var/spool/squid
+chmod -R 700 /var/spool/squid/rock
 systemctl enable squid.service
+squid -z
+cp -f /etc/logrotate.d/squid{,.bak} &>/dev/null
+sed -i '/sharedscripts/a \    create 0644 proxy adm' /etc/logrotate.d/squid
 # Let’s Encrypt certificate for client to Squid proxy encryption (Optional)
 #nala install -y certbot python3-certbot-apache
     
@@ -704,48 +715,9 @@ cp -f $gp/conf/monitor/warning.conf /etc/apache2/sites-available/warning.conf
 chmod 644 /etc/apache2/sites-available/warning.conf
 touch /var/log/apache2/{warning_access,warning_error}.log
 grep -q 'Listen 18880' /etc/apache2/ports.conf || echo 'Listen 18880' >> /etc/apache2/ports.conf
-a2ensite -q warning.conf
-# https
-: "${serverip:?WARNING: Server IP variable is not defined}"
-cat > /tmp/warning_openssl.cnf <<EOF
-[req]
-distinguished_name = req_distinguished_name
-x509_extensions = v3_req
-prompt = no
-
-[req_distinguished_name]
-C = CO
-ST = Some-State
-L = City
-O = CaptivePortal
-CN = ${serverip}
-
-[v3_req]
-basicConstraints = critical,CA:FALSE
-subjectAltName = @alt_names
-
-[alt_names]
-IP.1 = ${serverip}
-EOF
-
-# SSL
-openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
-    -keyout /etc/ssl/private/warning.key.pem \
-    -out /etc/ssl/certs/warning.cert.pem \
-    -config /tmp/warning_openssl.cnf \
-    -extensions v3_req \
-    > /dev/null 2> /tmp/openssl_error.log
-
-cat /tmp/warning_openssl.cnf
-rm -f /tmp/warning_openssl.cnf
-cp -f $gp/conf/monitor/warning-ssl.conf /etc/apache2/sites-available/warning-ssl.conf
-chmod 644 /etc/apache2/sites-available/warning-ssl.conf
-touch /var/log/apache2/{warning_ssl_access,warning_ssl_error}.log
-grep -q 'Listen 18443' /etc/apache2/ports.conf || echo 'Listen 18443' >> /etc/apache2/ports.conf
-a2ensite -q warning-ssl.conf
-a2enmod ssl
 a2enmod rewrite
-echo "Warning: http://$serverip:18880 - HTTPS: https://$serverip:18443"
+a2ensite -q warning.conf
+echo "Warning: http://$serverip:18880"
 
 # Security:
 # fail2ban

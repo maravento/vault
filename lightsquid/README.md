@@ -333,7 +333,7 @@ wget -c https://raw.githubusercontent.com/maravento/vault/master/lightsquid/band
 [![Image](https://raw.githubusercontent.com/maravento/vault/master/lightsquid/img/warning.png)](https://www.maravento.com/)
 
 ```bash
-http://SERVERIP:18880 or HTTPS: https://SERVERIP:18443"
+http://SERVERIP:18880 or http://localhost:18880
 ```
 
 ### Server IP | LocalNet Prefix
