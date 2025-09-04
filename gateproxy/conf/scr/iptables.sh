@@ -1,7 +1,7 @@
 #!/bin/bash
 # maravento.com
 
-## Iptables Firewall
+## Iptables/Ipset Firewall O(1)
 ## Verify: iptables -L -n / iptables -nvL / iptables -Ln -t mangle / iptables -Ln -t nat
 ## Sockets: ss -ltuna
 ## Ports: /etc/services
@@ -178,12 +178,34 @@ iptables -A FORWARD -p tcp --dport 7680 -s $localnet/$netmask -d $localnet/$netm
 ## MAC RULES ##
 echo "MAC Rules..."
 
+# MACUNLIMITED (For Access Points, Switch, etc)
+ipset -L macunlimited >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+    ipset -! create macunlimited hash:mac
+else
+    ipset -! flush macunlimited
+fi
+for mac in $(awk -F";" '{print $2}' $aclroute/mac-unlimited.txt); do
+    ipset -exist add macunlimited $mac
+done
+iptables -t mangle -A PREROUTING -i $lan -m set --match-set macunlimited src -j ACCEPT
+iptables -A FORWARD -i $lan -m set --match-set macunlimited src -j ACCEPT
+iptables -A INPUT -i $lan -m set --match-set macunlimited src -j ACCEPT
+
+# MAC+IP
 dhcp_conf=/etc/dhcp/dhcpd.conf
 # path ips-mac dhcp
 path_ips=$aclroute/dhcp_ip.txt
 path_macs=$aclroute/dhcp_mac.txt
 # mac2ip
 mac2ip=$(sed -n '/^\s\+hardware\|^\s\+fixed/ s:hardware ethernet \|fixed-address ::p' $dhcp_conf | sed 's/;//')
+# rule mac2ip
+ipset -L macipset >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+    ipset -! create macipset hash:ip,mac
+else
+    ipset -! flush macipset
+fi
 create_acl() {
     ips="# ips"
     macs="# macs"
@@ -192,7 +214,8 @@ create_acl() {
         shift
         ip="$1"
         shift
-        iptables -t mangle -A PREROUTING -i $lan -m mac --mac-source $mac -s $ip -j ACCEPT
+        # Add MAC+IP to set
+        ipset -exist add macipset $ip,$mac
         ips="$ips\n$ip"
         macs="$macs\n$mac"
     done
@@ -200,14 +223,8 @@ create_acl() {
     echo -e $macs > $path_macs
 }
 create_acl $mac2ip
+iptables -t mangle -A PREROUTING -i $lan -m set --match-set macipset src,src -j ACCEPT
 iptables -t mangle -A PREROUTING -i $lan -j DROP
-
-# MACUNLIMITED (For Access Points, Switch, etc)
-for mac in $(awk -F";" '{print $2}' $aclroute/mac-unlimited.txt); do
-    iptables -t mangle -A PREROUTING -i $lan -m mac --mac-source $mac -j ACCEPT
-    iptables -A INPUT -i $lan -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -m mac --mac-source $mac -j ACCEPT
-done
 
 ## SERVER RULES ##
 echo "Server Rules..."
@@ -234,76 +251,89 @@ for proto in tcp udp; do
     done
 done
 
-# Warning Page HTTP (TCP 18880)
-for mac in $(awk -F";" '{print $2}' $aclroute/mac-*.txt); do
-    iptables -A INPUT -i $lan -p tcp --dport 18880 -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -p tcp --dport 18880 -m mac --mac-source $mac -j ACCEPT
-done
-
 # DNS
+# For DNS servers
 dns="8.8.8.8 1.1.1.1"
+ipset -L dnsservers >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+    ipset -! create dnsservers hash:ip
+else
+    ipset -! flush dnsservers
+fi
 for ip in $dns; do
-    iptables -A OUTPUT -d $ip -p udp --dport 53 -j ACCEPT
-    iptables -A OUTPUT -d $ip -p tcp --dport 53 -j ACCEPT
-    iptables -A INPUT -s $ip -p udp --sport 53 -m state --state ESTABLISHED -j ACCEPT
-    iptables -A INPUT -s $ip -p tcp --sport 53 -m state --state ESTABLISHED -j ACCEPT
+    ipset -exist add dnsservers $ip
 done
+iptables -A OUTPUT -m set --match-set dnsservers dst -p udp --dport 53 -j ACCEPT
+iptables -A OUTPUT -m set --match-set dnsservers dst -p tcp --dport 53 -j ACCEPT
+iptables -A INPUT -m set --match-set dnsservers src -p udp --sport 53 -m state --state ESTABLISHED -j ACCEPT
+iptables -A INPUT -m set --match-set dnsservers src -p tcp --sport 53 -m state --state ESTABLISHED -j ACCEPT
+# For MACs
+ipset -L macdns >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+    ipset -! create macdns hash:mac
+else
+    ipset -! flush macdns
+fi
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
-    for ip in $dns; do
-        iptables -A FORWARD -i $lan -o $wan -m mac --mac-source $mac -d $ip -p udp --dport 53 -j ACCEPT
-        iptables -A FORWARD -i $lan -o $wan -m mac --mac-source $mac -d $ip -p tcp --dport 53 -j ACCEPT
-    done
+    ipset -exist add macdns $mac
 done
+iptables -A FORWARD -i $lan -o $wan -m set --match-set macdns src -m set --match-set dnsservers dst -p udp --dport 53 -j ACCEPT
+iptables -A FORWARD -i $lan -o $wan -m set --match-set macdns src -m set --match-set dnsservers dst -p tcp --dport 53 -j ACCEPT
+# Block DNS
 iptables -A FORWARD -i $lan -o $wan -p udp --dport 53 -j DROP
 iptables -A FORWARD -i $lan -o $wan -p tcp --dport 53 -j DROP
 
+# PORTS
+ipset list macdiscovery >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+    ipset -! create macdiscovery hash:mac
+else
+    ipset -! flush macdiscovery
+fi
+
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
-    # DISCOVERY & MULTICAST #
-    # mDNS / Bonjour / AirPrint
-    iptables -A INPUT -i $lan -d 224.0.0.251 -p udp --dport 5353 -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -o $lan -d 224.0.0.251 -p udp --dport 5353 -m mac --mac-source $mac -j ACCEPT
-    # LLMNR (optional)
-    # iptables -A INPUT -i $lan -d 224.0.0.252 -p udp --dport 5355 -m mac --mac-source $mac -j ACCEPT
-    # iptables -A FORWARD -i $lan -o $lan -d 224.0.0.252 -p udp --dport 5355 -m mac --mac-source $mac -j ACCEPT
-    iptables -A INPUT  -i $lan -p udp --dport 5355 -d 224.0.0.252  -m mac --mac-source $mac -j ACCEPT
-    iptables -A OUTPUT -o $lan -p udp --sport 5355 -j ACCEPT
-    iptables -A FORWARD -i $lan -o $lan -d 224.0.0.252 -p udp --dport 5355 -m mac --mac-source $mac -j ACCEPT
-    # SSDP / UPnP
-    iptables -A INPUT -i $lan -d 239.255.255.250 -p udp --dport 1900 -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -o $lan -d 239.255.255.250 -p udp --dport 1900 -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -o $lan -p udp -m multiport --dports 1900,5000 -m mac --mac-source $mac -j ACCEPT
-    # WSD
-    iptables -A INPUT -i $lan -d 239.255.255.250 -p udp --dport 3702 -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -o $lan -d 239.255.255.250 -p udp --dport 3702 -m mac --mac-source $mac -j ACCEPT
-    iptables -A INPUT -i $lan -p tcp -m multiport --dports 5357,5358 -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 5357,5358 -m mac --mac-source $mac -j ACCEPT
-
-    # PRINTERS & SCANNERS #
-    iptables -A INPUT -i $lan -p udp -m multiport --dports 161,162 -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -p udp -m multiport --dports 161,162 -m mac --mac-source $mac -j ACCEPT
-    iptables -A INPUT -i $lan -p udp --dport 631 -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -p udp --dport 631 -m mac --mac-source $mac -j ACCEPT
-    iptables -A INPUT -i $lan -p tcp -m multiport --dports 631,9100 -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 631,9100 -m mac --mac-source $mac -j ACCEPT
-
-    # FILE SHARING SMB #
-    iptables -A INPUT  -i $lan -p tcp -m multiport --dports 139,445 -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 139,445 -m mac --mac-source $mac -j ACCEPT
-    iptables -A OUTPUT -o $lan -p tcp -m multiport --sports 139,445 -j ACCEPT
-    
-    # NETBIOS #
-    iptables -A INPUT  -i $lan -p udp -m multiport --dports 137,138 -m mac --mac-source $mac -j ACCEPT
-    iptables -A OUTPUT -o $lan -p udp -m multiport --sports 137,138 -j ACCEPT
-    
-    # MULTIMEDIA & STREAMING #
-    iptables -A FORWARD -i $lan -o $lan -p tcp -m multiport --dports 2869,8200,10243 -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -o $lan -p igmp -m mac --mac-source $mac -j ACCEPT
-
-    # MESSAGING & EMAIL #
-    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 465,587,143,993,110,995 -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -p tcp --dport 5222 -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -p tcp --dport 5228 -m mac --mac-source $mac -j ACCEPT
+    ipset -exist add macdiscovery $mac
 done
+# WARNING PAGE HTTP (TCP 18880)
+iptables -A INPUT -i $lan -p tcp --dport 18880  -m set --match-set macdiscovery src -j ACCEPT
+iptables -A FORWARD -i $lan -p tcp --dport 18880 -m set --match-set macdiscovery src -j ACCEPT
+# mDNS / Bonjour / AirPrint
+iptables -A INPUT -i $lan -d 224.0.0.251 -p udp --dport 5353 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A FORWARD -i $lan -o $lan -d 224.0.0.251 -p udp --dport 5353 -m set --match-set macdiscovery src -j ACCEPT
+# LLMNR
+iptables -A INPUT -i $lan -p udp --dport 5355 -d 224.0.0.252 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A OUTPUT -o $lan -p udp --sport 5355 -j ACCEPT
+iptables -A FORWARD -i $lan -o $lan -d 224.0.0.252 -p udp --dport 5355 -m set --match-set macdiscovery src -j ACCEPT
+# SSDP / UPnP
+iptables -A INPUT -i $lan -d 239.255.255.250 -p udp --dport 1900 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A FORWARD -i $lan -o $lan -d 239.255.255.250 -p udp --dport 1900 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A FORWARD -i $lan -o $lan -p udp -m multiport --dports 1900,5000 -m set --match-set macdiscovery src -j ACCEPT
+# WSD
+iptables -A INPUT -i $lan -d 239.255.255.250 -p udp --dport 3702 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A FORWARD -i $lan -o $lan -d 239.255.255.250 -p udp --dport 3702 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A INPUT -i $lan -p tcp -m multiport --dports 5357,5358 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A FORWARD -i $lan -p tcp -m multiport --dports 5357,5358 -m set --match-set macdiscovery src -j ACCEPT
+# PRINTERS & SCANNERS
+iptables -A INPUT -i $lan -p udp -m multiport --dports 161,162 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A FORWARD -i $lan -p udp -m multiport --dports 161,162 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A INPUT -i $lan -p udp --dport 631 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A FORWARD -i $lan -p udp --dport 631 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A INPUT -i $lan -p tcp -m multiport --dports 631,9100 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A FORWARD -i $lan -p tcp -m multiport --dports 631,9100 -m set --match-set macdiscovery src -j ACCEPT
+# FILE SHARING SMB
+iptables -A INPUT -i $lan -p tcp -m multiport --dports 139,445 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A FORWARD -i $lan -p tcp -m multiport --dports 139,445 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A OUTPUT -o $lan -p tcp -m multiport --sports 139,445 -j ACCEPT
+# NETBIOS
+iptables -A INPUT -i $lan -p udp -m multiport --dports 137,138 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A OUTPUT -o $lan -p udp -m multiport --sports 137,138 -j ACCEPT
+# MULTIMEDIA & STREAMING
+iptables -A FORWARD -i $lan -o $lan -p tcp -m multiport --dports 2869,8200,10243 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A FORWARD -i $lan -o $lan -p igmp -m set --match-set macdiscovery src -j ACCEPT
+# MESSAGING & EMAIL
+iptables -A FORWARD -i $lan -p tcp -m multiport --dports 465,587,143,993,110,995 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A FORWARD -i $lan -p tcp --dport 5222 -m set --match-set macdiscovery src -j ACCEPT
+iptables -A FORWARD -i $lan -p tcp --dport 5228 -m set --match-set macdiscovery src -j ACCEPT
 
 ## SECURITY RULES ##
 echo "Security Rules..."
@@ -359,33 +389,47 @@ iptables -A syn_flood -j DROP
 #iptables -A FORWARD -m mark --mark 999 -j DROP
 
 # ICMP (ping) (Optional)
-# WARNING: 
-# You need to change the following kernel parameter in the header of this script: 
+# WARNING: You need to change the following kernel parameter in the header of this script: 
 # sysctl -w net.ipv4.icmp_echo_ignore_all=0 >/dev/null 2>&1
+# ICMP essential
+#iptables -A INPUT -p icmp --icmp-type destination-unreachable -j ACCEPT
+#iptables -A INPUT -p icmp --icmp-type time-exceeded -j ACCEPT
+#iptables -A INPUT -p icmp --icmp-type parameter-problem -j ACCEPT
 # WAN → SERVER
 #iptables -A INPUT -i $wan -p icmp --icmp-type echo-request -j DROP
-# LAN → SERVER
-#for mac in $(awk -F";" '{print $2}' $aclroute/mac-*); do
-# iptables -A INPUT -i $lan -p icmp --icmp-type echo-request -m mac --mac-source $mac -j ACCEPT
-#done
-#iptables -A OUTPUT -o $lan -p icmp --icmp-type echo-reply -j ACCEPT
-#iptables -A INPUT -p icmp -j DROP
+# LAN → SERVER  
+#iptables -A INPUT -i $lan -p icmp --icmp-type echo-request -j ACCEPT
 
 ## ACL RULES ##
 echo "ACL Rules..."
 
 # MACTRANSPARENT (WARNING: Not recommended) (check blockports.txt)
+#ipset -L mactransparent >/dev/null 2>&1
+#if [ $? -ne 0 ]; then
+#    ipset -! create mactransparent hash:mac
+#else
+#    ipset -! flush mactransparent
+#fi
 #for mac in $(awk -F";" '{print $2}' $aclroute/mac-transparent.txt); do
-    #iptables -A INPUT -i $lan -p tcp -m multiport --dports 80,443,853 -m mac --mac-source $mac -j ACCEPT
-    #iptables -A FORWARD -i $lan -p tcp -m multiport --dports 80,443,853 -m mac --mac-source $mac -j ACCEPT
+#    ipset -exist add mactransparent $mac
 #done
+#iptables -A INPUT -i $lan -p tcp -m multiport --dports 80,443,853 -m set --match-set mactransparent src -j ACCEPT
+#iptables -A FORWARD -i $lan -p tcp -m multiport --dports 80,443,853 -m set --match-set mactransparent src -j ACCEPT
 
 # MACPROXY (PAC 18800 - Opcion 252 DHCP, HTTP 80 to 3128)
+ipset -L macproxy >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+    ipset -! create macproxy hash:mac
+else
+    ipset -! flush macproxy
+fi
+
 for mac in $(awk -F";" '{print $2}' $aclroute/mac-proxy.txt); do
-    iptables -A INPUT -i $lan -p tcp -m multiport --dports 18800,3128 -m mac --mac-source $mac -j ACCEPT
-    iptables -A FORWARD -i $lan -p tcp -m multiport --dports 18800,3128 -m mac --mac-source $mac -j ACCEPT
-    iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m mac --mac-source $mac -j REDIRECT --to-port 3128
+    ipset -exist add macproxy $mac
 done
+iptables -A INPUT -i $lan -p tcp -m multiport --dports 18800,3128 -m set --match-set macproxy src -j ACCEPT
+iptables -A FORWARD -i $lan -p tcp -m multiport --dports 18800,3128 -m set --match-set macproxy src -j ACCEPT
+iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m set --match-set macproxy src -j REDIRECT --to-port 3128
 
 ## END ## 
 echo "DROP All..."
