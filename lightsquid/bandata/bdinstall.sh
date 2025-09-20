@@ -234,8 +234,7 @@ EOL
 
 chmod 644 /etc/apache2/sites-available/warning.conf
 touch /var/log/apache2/{warning_access,warning_error}.log
-
-grep -q 'Listen 18880' /etc/apache2/ports.conf || echo 'Listen 18880' >> /etc/apache2/ports.conf
+grep -qxF 'Listen 0.0.0.0:18880' /etc/apache2/ports.conf || grep -qxF 'Listen 18880' /etc/apache2/ports.conf || echo 'Listen 0.0.0.0:18880' >> /etc/apache2/ports.conf
 
 # bandata config
 read -p "Enter your Server IP for LAN (default: 192.168.0.10): " serverip
