@@ -49,7 +49,7 @@
 
 | File | OS | Size |
 | :---: | :---: | :---: |
-| [itsm.exe (.zip)](https://mega.nz/file/eZ0AEZaK#mNvOfJ0lklv_eITycEpnwhct-NLW3hUe5pZaEPwTGP4) | Windows 10/11 x64 | 127,1 MB |
+| [itsm.exe (.zip)](https://mega.nz/file/DdtHGZKJ#Plas2Ufr2ZwCUATtryV_OebaVQbhZRtpnSDRlUfyOpM) | Windows 10/11 x64 | 126,9 MB |
 
 ## Supported Versions
 
@@ -66,20 +66,20 @@
 
 ### Web-based ITSM solutions
 
-- [glpi-10.0.19](https://glpi-project.org/downloads/)
-- [iTop-3.2.1-1-16749](https://sourceforge.net/projects/itop/files/itop/)
+- [glpi-10.0.20](https://glpi-project.org/downloads/)
+- [iTop-3.2.2-1-17851](https://sourceforge.net/projects/itop/files/itop/)
 
 ### Stacks
 
-- [WampServer v3.x x64](https://wampserver.aviatechno.net/)
-- [XAMPP v8.x x64](https://sourceforge.net/projects/xampp/files/)
-- [Uniform Server v15.x ZeroXV (UZero)](https://sourceforge.net/projects/miniserver/files/)
+- [WampServer v3.3.x x64](https://wampserver.aviatechno.net/)
+- [XAMPP v8.2.12 x64](https://sourceforge.net/projects/xampp/files/)
+- [Uniform Server v15.0.2 ZeroXV (UZero)](https://sourceforge.net/projects/miniserver/files/)
 
 ### Dependencies (Included)
 
 - [Microsoft Visual C++ Redistributable Runtimes](https://github.com/abbodi1406/vcredist)
-- [graphviz v13.x x64](https://graphviz.org/download/)
-- [apcu v8.x x64 ts](https://github.com/krakjoe/apcu)
+- [graphviz v14 x64](https://graphviz.org/download/)
+- [apcu v8.3 x64 ts](https://github.com/krakjoe/apcu)
 
 ### Prerequisites
 

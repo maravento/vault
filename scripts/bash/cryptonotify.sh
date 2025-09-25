@@ -40,13 +40,13 @@ if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VER
 fi
 
 # check dependencies
-pkgs='curl jq notify-send'
+pkgs='curl jq libnotify-bin'
 for pkg in $pkgs; do
-  dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {
+  if ! dpkg -s "$pkg" &>/dev/null; then
     echo "❌ '$pkg' is not installed. Run:"
     echo "sudo apt install $pkg"
     exit 1
-  }
+  fi
 done
 
 # Crypto Top 5

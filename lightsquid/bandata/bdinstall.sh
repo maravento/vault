@@ -81,13 +81,8 @@ tee /var/www/html/warning/warning.html >/dev/null << EOL
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Acceso restringido | Restricted Access</title>
+  <title>Restricted Access</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
-   <meta http-equiv="refresh" content="0;url=warning.html">
-  <script>
-    window.location.replace("warning.html");
-  </script>
   
   <style>
     body {
@@ -180,7 +175,7 @@ tee /etc/apache2/sites-available/warning.conf >/dev/null << EOL
     ServerAdmin webmaster@localhost
     DocumentRoot /var/www/html/warning
     
-    ServerName portal.local
+    ServerName captive.portal
     ServerAlias *
 
     <Directory /var/www/html/warning>
@@ -190,19 +185,47 @@ tee /etc/apache2/sites-available/warning.conf >/dev/null << EOL
         Require all granted
     </Directory>
     
-    Alias /generate_204 /var/www/html/warning/warning.html
-    Alias /connecttest.txt /var/www/html/warning/warning.html
-    Alias /hotspot-detect.html /var/www/html/warning/warning.html
-    Alias /check_network_status.txt /var/www/html/warning/warning.html
-    Alias /success.txt /var/www/html/warning/warning.html
+    # Windows (NCSI - MSFT Connect Test)
     Alias /ncsi.txt /var/www/html/warning/warning.html
+    Alias /connecttest.txt /var/www/html/warning/warning.html
+    Alias /redirect /var/www/html/warning/warning.html
+    Alias /msftconnecttest/redir.htm /var/www/html/warning/warning.html
+    Alias /ncsi/redirect /var/www/html/warning/warning.html
+
+    # Microsoft Edge (Chromium)
+    Alias /captiveportal/generate_204 /var/www/html/warning/warning.html
+    Alias /edge-captiveportal/generate_204 /var/www/html/warning/warning.html
+
+    # Android (Google Captive Portal Check)
+    Alias /generate_204 /var/www/html/warning/warning.html
+    Alias /gen_204 /var/www/html/warning/warning.html
+    Alias /mobile/status.php /var/www/html/warning/warning.html
+
+    # Apple iOS - macOS
+    Alias /hotspot-detect.html /var/www/html/warning/warning.html
     Alias /library/test/success.html /var/www/html/warning/warning.html
+    Alias /success.txt /var/www/html/warning/warning.html
+    Alias /hotspot.txt /var/www/html/warning/warning.html
+
+    # Firefox Captive Portal
+    Alias /captive-portal-success.html /var/www/html/warning/warning.html
+
+    # GNOME / KDE (Linux)
+    Alias /nmcheck.txt /var/www/html/warning/warning.html
+    Alias /check_network_status.txt /var/www/html/warning/warning.html
+    Alias /conncheck.html /var/www/html/warning/warning.html
+    Alias /check_network.txt /var/www/html/warning/warning.html
+
+    # Extras
+    Alias /favicon.ico /var/www/html/warning/warning.html
+    Alias /success.html /var/www/html/warning/warning.html
+    Alias /success /var/www/html/warning/warning.html
 
     RewriteEngine On
 
     RewriteCond %{REQUEST_URI} !^/warning\.html$
-    RewriteCond %{HTTP_HOST} !^192\.168\.0\.10$
-    RewriteRule ^.*$ http://192.168.0.10:18880/warning.html [R=302,L]
+    RewriteCond %{REQUEST_URI} !^/$
+    RewriteRule ^.*$ /warning.html [L]
 
     ErrorLog ${APACHE_LOG_DIR}/warning_error.log
     CustomLog ${APACHE_LOG_DIR}/warning_access.log combined
@@ -211,48 +234,12 @@ EOL
 
 chmod 644 /etc/apache2/sites-available/warning.conf
 touch /var/log/apache2/{warning_access,warning_error}.log
-
-tee /etc/apache2/sites-available/warning-ssl.conf >/dev/null << EOL
-<VirtualHost *:18443>
-    ServerAdmin webmaster@localhost
-    DocumentRoot /var/www/html/warning
-    
-    ServerName portal.local
-    ServerAlias *
-
-    SSLEngine on
-    SSLCertificateFile /etc/ssl/certs/warning.cert.pem
-    SSLCertificateKeyFile /etc/ssl/private/warning.key.pem
-
-    <Directory /var/www/html/warning>
-        DirectoryIndex warning.html
-        Options -Indexes +FollowSymLinks
-        AllowOverride None
-        Require all granted
-    </Directory>
-    
-    RewriteEngine On
-
-    RewriteCond %{REQUEST_URI} !^/warning\.html$
-    RewriteRule ^.*$ /warning.html [R=302,L]
-
-    ErrorLog ${APACHE_LOG_DIR}/warning_ssl_error.log
-    CustomLog ${APACHE_LOG_DIR}/warning_ssl_access.log combined
-</VirtualHost>
-EOL
-
-chmod 644 /etc/apache2/sites-available/warning-ssl.conf
-touch /var/log/apache2/{warning_ssl_access,warning_ssl_error}.log
-
-grep -q 'Listen 18880' /etc/apache2/ports.conf || echo 'Listen 18880' >> /etc/apache2/ports.conf
-grep -q 'Listen 18443' /etc/apache2/ports.conf || echo 'Listen 18443' >> /etc/apache2/ports.conf
+grep -qxF 'Listen 0.0.0.0:18880' /etc/apache2/ports.conf || grep -qxF 'Listen 18880' /etc/apache2/ports.conf || echo 'Listen 0.0.0.0:18880' >> /etc/apache2/ports.conf
 
 # bandata config
 read -p "Enter your Server IP for LAN (default: 192.168.0.10): " serverip
 serverip=${serverip:-192.168.0.10}
-sed -i "s:192.168.0.10:$serverip:g" /etc/apache2/sites-available/warning.conf $scr/bandata.sh
-escaped_serverip=$(echo "$serverip" | sed 's/\./\\\\./g')
-sed -i "s/192\\\\.168\\\\.0\\\\.10/$escaped_serverip/g" /etc/apache2/sites-available/warning.conf
+sed -i "s:192.168.0.10:$serverip:g" $scr/bandata.sh
 
 read -p "Enter your LAN PREFIX (default: 192.168.): " LANPREFIX
 LANPREFIX=${LANPREFIX:-192.168*}
@@ -269,47 +256,11 @@ crontab -l | {
   echo "*/12 * * * * /etc/scr/bandata.sh"
 } | crontab -
 
-cat > /tmp/warning_openssl.cnf <<EOF
-[req]
-distinguished_name = req_distinguished_name
-x509_extensions = v3_req
-prompt = no
-
-[req_distinguished_name]
-C = CO
-ST = Some-State
-L = City
-O = CaptivePortal
-CN = ${serverip}
-
-[v3_req]
-basicConstraints = critical,CA:FALSE
-subjectAltName = @alt_names
-
-[alt_names]
-IP.1 = ${serverip}
-EOF
-
-# SSL
-openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
-    -keyout /etc/ssl/private/warning.key.pem \
-    -out /etc/ssl/certs/warning.cert.pem \
-    -config /tmp/warning_openssl.cnf \
-    -extensions v3_req \
-    > /dev/null 2> /tmp/openssl_error.log
-
-cat /tmp/warning_openssl.cnf
-rm -f /tmp/warning_openssl.cnf
-
-a2ensite -q warning.conf  
-a2ensite -q warning-ssl.conf
-a2enmod ssl
 a2enmod rewrite
-
-update-ca-certificates -f >/dev/null 2>&1
+a2ensite -q warning.conf
 systemctl daemon-reload
 systemctl restart apache2
-echo "Access: http://$serverip:18880 y HTTPS: https://$serverip:18443"
+echo "Access: http://$serverip:18880 or http://localhost:18880"
 
 # end
 echo "done"

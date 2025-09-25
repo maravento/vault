@@ -1,5 +1,7 @@
 #!/bin/bash
 # maravento.com
+# WARNING: 
+# This script is under review. We do not recommend its use.
 
 # Unifi Hotspot Client Access via Linux Server with Iptables
 
