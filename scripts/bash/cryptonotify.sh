@@ -1,5 +1,6 @@
 #!/bin/bash
-
+# maravento.com
+#
 # Top 5 Crypto Price Notifier
 # ---------------------------
 # This script fetches the current USD prices of the top 5 cryptocurrencies by market capitalization

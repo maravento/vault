@@ -1,6 +1,6 @@
 #!/bin/bash
 # maravento.com
-
+#
 # Virtual Hard Disk (VHD) image (.img) with loop or kpartx - Create and Mount | Umount
 # https://www.maravento.com/2018/03/disco-virtual.html
 

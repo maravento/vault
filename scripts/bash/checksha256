@@ -1,0 +1,166 @@
+#!/bin/bash
+# maravento.com
+#
+# checksha256 - Verify SHA256 checksum of selected file
+#
+# Nautilus Path: ~/.local/share/nautilus/scripts or ~/.config/nautilus/scripts
+# Caja Path: ~/.config/caja/scripts
+# Thunar Path: ~/.local/share/Thunar/scripts or ~/.config/Thunar/scripts
+# Nemo Path: ~/.local/share/nemo/scripts
+
+echo "Start CheckSHA265. Wait..."
+printf "\n"
+
+# check no-root
+if [ "$(id -u)" == "0" ]; then
+    echo "❌ This script should not be run as root."
+    exit 1
+fi
+
+# check script execution
+if pidof -x $(basename $0) >/dev/null; then
+  for p in $(pidof -x $(basename $0)); do
+    if [ "$p" -ne $$ ]; then
+      echo "Script $0 is already running..."
+      exit
+    fi
+  done
+fi
+
+# Function to show error and exit
+show_error() {
+    zenity --error --title="SHA256 Verification" --text="$1"
+    exit 1
+}
+
+# Function to show info
+show_info() {
+    zenity --info --title="SHA256 Verification" --text="$1"
+}
+
+# Check if zenity is available
+if ! command -v zenity &> /dev/null; then
+    echo "Error: zenity is required but not installed."
+    exit 1
+fi
+
+# Check if sha256sum is available
+if ! command -v sha256sum &> /dev/null; then
+    show_error "Error: sha256sum is required but not installed."
+fi
+
+# Get the selected file (universal file manager detection)
+if [ -n "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS" ]; then
+    # Nautilus or Caja - get first line only
+    original_file=$(echo "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS" | head -n1)
+elif [ -n "$THUNAR_SELECTION" ]; then
+    # Thunar - get first line only
+    original_file=$(echo "$THUNAR_SELECTION" | head -n1)
+elif [ -n "$NEMO_SCRIPT_SELECTED_FILE_PATHS" ]; then
+    # Nemo (Linux Mint) - get first line only
+    original_file=$(echo "$NEMO_SCRIPT_SELECTED_FILE_PATHS" | head -n1)
+elif [ $# -eq 1 ]; then
+    # Called from command line with argument
+    original_file="$1"
+else
+    # No file provided, ask user to select
+    original_file=$(zenity --file-selection \
+                           --title="Select the original file to verify")
+    [ $? -ne 0 ] && exit 0
+fi
+
+# Check if original file exists and is readable
+if [ ! -f "$original_file" ]; then
+    show_error "File does not exist: $original_file"
+fi
+
+if [ ! -r "$original_file" ]; then
+    show_error "Cannot read file: $original_file"
+fi
+
+# Get file info for display
+original_filename=$(basename "$original_file")
+original_dir=$(dirname "$original_file")
+
+# Look for checksum file with same name + .sha256 extension
+checksum_file="${original_file}.sha256"
+
+# If not found, ask user to locate it
+if [ ! -f "$checksum_file" ]; then
+    zenity --info \
+           --title="SHA256 Verification" \
+           --text="Checksum file not found:\n$(basename "$checksum_file")\n\nPlease select the .sha256 checksum file manually."
+    
+    checksum_file=$(zenity --file-selection \
+                           --title="Select the .sha256 checksum file for: $original_filename" \
+                           --file-filter="SHA256 files (*.sha256) | *.sha256" \
+                           --file-filter="All files | *")
+    
+    # If user cancelled the file selection
+    if [ $? -ne 0 ] || [ -z "$checksum_file" ]; then
+        show_error "No checksum file selected. Verification cancelled."
+    fi
+fi
+
+# Validate checksum file
+if [ ! -f "$checksum_file" ]; then
+    show_error "Checksum file does not exist: $(basename "$checksum_file")"
+fi
+
+if [ ! -r "$checksum_file" ]; then
+    show_error "Cannot read checksum file: $(basename "$checksum_file")"
+fi
+
+if [ ! -s "$checksum_file" ]; then
+    show_error "Checksum file is empty: $(basename "$checksum_file")"
+fi
+
+# Extract hash from checksum file
+# Get the first valid hash from the file
+hash=$(head -n1 "$checksum_file" | awk '{print $1}')
+
+# Clean any whitespace
+hash=$(echo "$hash" | tr -d '[:space:]')
+
+# Validate hash format (SHA256 should be 64 hex characters)
+if [[ ! "$hash" =~ ^[a-fA-F0-9]{64}$ ]]; then
+    show_error "Invalid SHA256 hash format in checksum file.\n\nExpected: 64 hexadecimal characters\nFound: $hash\n\nChecksum file: $(basename "$checksum_file")"
+fi
+
+# Create temporary manifest with correct path
+tmpmanifest=$(mktemp)
+if [ $? -ne 0 ]; then
+    show_error "Failed to create temporary file."
+fi
+
+# Ensure cleanup on exit
+trap "rm -f '$tmpmanifest'" EXIT
+
+# Show progress dialog while calculating
+(
+echo "10" ; echo "# Reading checksum file..." ; sleep 0.3
+echo "40" ; echo "# Calculating SHA256 hash..." ; sleep 0.5
+echo "90" ; echo "# Comparing checksums..." ; sleep 0.3
+echo "100" ; echo "# Complete!"
+) | zenity --progress \
+           --title="SHA256 Verification" \
+           --text="Verifying: $original_filename" \
+           --percentage=0 \
+           --auto-close \
+           --no-cancel &
+
+progress_pid=$!
+
+# Calculate actual hash of the file
+actual_hash=$(sha256sum "$original_file" | awk '{print $1}')
+
+# Kill progress dialog
+kill $progress_pid 2>/dev/null
+wait $progress_pid 2>/dev/null
+
+# Compare hashes directly (case insensitive)
+if [ "${hash,,}" = "${actual_hash,,}" ]; then
+    show_info "✅ VERIFICATION SUCCESSFUL\n\n📁 File: $original_filename\n🔐 Hash: $hash\n✅ Status: INTEGRITY VERIFIED\n\nThe file has not been corrupted or modified."
+else
+    show_error "❌ VERIFICATION FAILED\n\n📁 File: $original_filename\n🔐 Expected: $hash\n💥 Actual:   $actual_hash\n❌ Status: CHECKSUMS DO NOT MATCH\n\nThe file may be corrupted, incomplete, or modified."
+fi

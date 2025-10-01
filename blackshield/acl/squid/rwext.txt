@@ -2516,6 +2516,7 @@
 \.hyena([a-zA-Z][0-9]*)?(\?.*)?$
 \.HYENA([a-zA-Z][0-9]*)?(\?.*)?$
 \.hyj([a-zA-Z][0-9]*)?(\?.*)?$
+\.hype([a-zA-Z][0-9]*)?(\?.*)?$
 \.IAMREADYTOPAY.TXT([a-zA-Z][0-9]*)?(\?.*)?$
 \.iaufkakfhsaraf([a-zA-Z][0-9]*)?(\?.*)?$
 \.ICE([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4366,6 +4367,7 @@
 \.readlockfiles([a-zA-Z][0-9]*)?(\?.*)?$
 \.ReadManual([a-zA-Z][0-9]*)?(\?.*)?$
 \.readme([a-zA-Z][0-9]*)?(\?.*)?$
+\.readmefordecrypt.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.read_me_fucking_bitch([a-zA-Z][0-9]*)?(\?.*)?$
 \.README-GENTLEMEN.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.READ-ME-Nullhexxx.txt([a-zA-Z][0-9]*)?(\?.*)?$
