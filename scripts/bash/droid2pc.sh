@@ -1,4 +1,5 @@
 #!/bin/bash
+# maravento.com
 #
 # droid2pc - Control and mirror Android devices to PC via scrcpy
 #

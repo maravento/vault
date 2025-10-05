@@ -1,6 +1,6 @@
 #!/bin/bash
 # maravento.com
-
+#
 # IP Kill
 
 echo "IP Kill Starting. Wait..."

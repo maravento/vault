@@ -303,30 +303,25 @@ iptables -A INPUT -i $lan -d 239.255.255.250 -p udp --dport 3702 -m set --match-
 iptables -A FORWARD -i $lan -o $lan -d 239.255.255.250 -p udp --dport 3702 -m set --match-set macports src -j ACCEPT
 iptables -A INPUT -i $lan -p tcp -m multiport --dports 5357,5358 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i $lan -p tcp -m multiport --dports 5357,5358 -m set --match-set macports src -j ACCEPT
-# PRINTERS & SCANNERS UDP: SNMP (161,162) + IPP (631)
-iptables -A INPUT -i $lan -p udp -m multiport --dports 161,162,631 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i $lan -p udp -m multiport --dports 161,162,631 -m set --match-set macports src -j ACCEPT
-# PRINTERS & SCANNERS TCP: IPP (631) + JetDirect/RAW (9100)
-iptables -A INPUT -i $lan -p tcp -m multiport --dports 631,9100 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i $lan -p tcp -m multiport --dports 631,9100 -m set --match-set macports src -j ACCEPT
-# FILE SHARING SMB
+# PRINTERS & SCANNERS UDP: SNMP (161,162) + IPP (631) + prnrequest/prnstatus (3910/3911)
+iptables -A INPUT -i $lan -p udp -m multiport --dports 161,162,631,3910,3911 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i $lan -p udp -m multiport --dports 161,162,631,3910,3911 -m set --match-set macports src -j ACCEPT
+# PRINTERS & SCANNERS TCP: IPP (631) + JetDirect/RAW (9100) + prnrequest/prnstatus (3910/3911)
+iptables -A INPUT -i $lan -p tcp -m multiport --dports 631,9100,3910,3911 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i $lan -p tcp -m multiport --dports 631,9100,3910,3911 -m set --match-set macports src -j ACCEPT
+# STUN / TURN - VoIP, WebRTC, Videoconference (TCP via Squid)
+iptables -A FORWARD -i $lan -p udp -m multiport --dports 3478,19302:19309 -m set --match-set macports src -j ACCEPT
+# FILE SHARING SAMBA (SMB)
 iptables -A INPUT -i $lan -p tcp -m multiport --dports 139,445 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i $lan -p tcp -m multiport --dports 139,445 -m set --match-set macports src -j ACCEPT
-iptables -A OUTPUT -o $lan -p tcp -m multiport --sports 139,445 -j ACCEPT
 # MULTIMEDIA & STREAMING (Optional)
 iptables -A FORWARD -i $lan -o $lan -p tcp -m multiport --dports 2869,8200,10243 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i $lan -o $lan -p igmp -m set --match-set macports src -j ACCEPT
-# STUN / TURN - VoIP, WebRTC, Videoconference (Optional)
-iptables -A INPUT -i $lan -p udp --dport 3478 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i $lan -p udp --dport 3478 -m set --match-set macports src -j ACCEPT
-iptables -A INPUT -i $lan -p tcp --dport 3478 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i $lan -p tcp --dport 3478 -m set --match-set macports src -j ACCEPT
 # MESSAGING & EMAIL (Optional)
 iptables -A FORWARD -i $lan -p tcp -m multiport --dports 465,587,143,993,110,995,5222,5228 -m set --match-set macports src -j ACCEPT
-# NETBIOS (Optional)
+# NETBIOS NMBD (Optional)
 #iptables -A INPUT -i $lan -p udp -m multiport --dports 137,138 -m set --match-set macports src -j ACCEPT
 #iptables -A FORWARD -i $lan -o $lan -p udp -m multiport --dports 137,138 -m set --match-set macports src -j ACCEPT
-#iptables -A OUTPUT -o $lan -p udp -m multiport --sports 137,138 -j ACCEPT
 
 echo OK
 

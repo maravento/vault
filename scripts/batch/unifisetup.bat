@@ -1,7 +1,7 @@
 @echo off
 :: maravento.com
 
-:: UniFi Network Server Setup UNS + JRE as a Service
+:: UniFi Setup + JRE as a Service
 :: For Windows 10/11
 :: https://www.maravento.com/2025/02/unifi-como-servicio.html
 
@@ -11,7 +11,7 @@
 ::   Default Path: C:\Windows\System32\curl.exe
 ::   If you don't have curl installed, you can download it from:
 ::   https://curl.se/download.html
-:: - Unifi Network Server UNS (.exe)
+:: - Unifi Network (.exe)
 ::   https://ui.com/download/releases/network-server
 :: - Eclipse Temurin from Java Adoptium JRE x64 LTS (.msi)
 ::   https://adoptium.net/es/temurin/releases/?os=windows&arch=x64&package=jre
@@ -20,13 +20,13 @@
 :: - Run it by double-clicking and accepting the privilege elevation
 :: - Follow the on-screen instructions
 
-:: Access UNS by localhost:
+:: Access UN by localhost:
 :: https://localhost:8443
 
-:: Access UNS by IP:
+:: Access UN by IP:
 :: Edit the file:
 :: "%UserProfile%\Ubiquiti UniFi\data\system.properties"
-:: Add the following line with the IP of the PC/Server where UNS is installed. E.g:
+:: Add the following line with the IP of the PC/Server where UN is installed. E.g:
 :: system_ip=192.168.1.10
 :: Save changes and reboot. You can now access the URL:
 :: https://192.168.1.10:8443
@@ -57,7 +57,7 @@ if NOT EXIST "%PROGRAMFILES(X86)%" (
 )
 
 :check_path
-set "installpath=%HOMEDRIVE%\uns"
+set "installpath=%HOMEDRIVE%\unifi"
 if not exist "%installpath%" (
     mkdir "%installpath%"
 )
@@ -71,10 +71,10 @@ cd /d "%installpath%" || (
 :menu
 cls
 echo.
-echo Unifi Network Server as a Service
+echo Unifi Network as a Service
 echo.
-echo 1. Install UNS + JRE
-echo 2. Remove UNS + JRE
+echo 1. Install Unifi + JRE
+echo 2. Remove Unifi + JRE
 echo 3. Backup Configuration
 echo 4. Add IPv4 address
 echo 5. Exit
@@ -95,7 +95,7 @@ goto :menu
 
 :backup
 set "unifidir=%UserProfile%\Ubiquiti UniFi\data\backup\autobackup"
-set "backupdir=%HOMEDRIVE%\uns\backup"
+set "backupdir=%HOMEDRIVE%\unifi\backup"
 :: Get the date in YYYYMMDD format
 for /f "tokens=*" %%I in ('PowerShell -Command "Get-Date -Format 'yyyyMMdd'"') do set "date=%%I"
 :: Check if the backup directory exists
@@ -196,7 +196,7 @@ if %errorlevel% equ 0 (
     )
 )
 
-:check_uns
+:check_un
 if exist "%UserProfile%\Ubiquiti UniFi\" (
     echo The folder "%UserProfile%\Ubiquiti UniFi\" already exists
     echo Uninstall Unifi, delete folder and run the script again
@@ -214,9 +214,9 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-:install_uns
+:install_un
 echo.
-echo Getting the latest version of UNS...
+echo Getting the latest version of Unifi...
 curl -s https://download.svc.ui.com/v1/software-downloads > temp.json
 :: 9x
 for /f "delims=" %%a in ('powershell -Command "(Get-Content temp.json | ConvertFrom-Json).downloads[0].version"') do set "version=%%a"
@@ -225,7 +225,7 @@ for /f "delims=" %%a in ('powershell -Command "(Get-Content temp.json | ConvertF
 echo Latest: %version%
 if defined version_86x echo Older: %version_86x%
 echo.
-echo Select a UNS Version to Install:
+echo Select a Unifi Version to Install:
 echo 1. Latest: %version%
 if defined version_86x echo 2. Older: %version_86x%
 set /p choice="Enter your option (1/2): "
@@ -236,11 +236,11 @@ if not defined selected_version (
     exit /b 1
 )
 echo.
-echo Downloading UNS version %selected_version%...
+echo Downloading Unifi version %selected_version%...
 curl -# -L -o "UniFi-installer.exe" "https://dl.ui.com/unifi/%selected_version%/UniFi-installer.exe"
 set download_status=!errorlevel!
 if !download_status! neq 0 (
-    echo Error downloading UNS.
+    echo Error downloading Unifi.
     echo.
     pause
     exit /b 1
@@ -248,7 +248,7 @@ if !download_status! neq 0 (
 del temp.json
 echo OK
 echo.
-echo Installing UNS...
+echo Installing Unifi...
 "UniFi-installer.exe" /S
 :wait_for_install
 timeout /t 10 /nobreak >nul
@@ -318,7 +318,7 @@ if !errorlevel! NEQ 0 (
 echo OK
 
 echo.
-echo Setup UNS as a Service...
+echo Setup Unifi as a Service...
 cd "%UserProfile%\Ubiquiti UniFi\" || (
     echo Failed to change directory to "%UserProfile%\Ubiquiti UniFi\"
     echo.
@@ -357,9 +357,9 @@ netsh advfirewall firewall delete rule name="Unifi UDP in 10001,3478" >nul 2>&1
 netsh advfirewall firewall delete rule name="Unifi UDP out 10001,3478" >nul 2>&1
 echo OK
 
-:uninstall_uns
+:uninstall_un
 echo.
-echo Uninstall UNS...
+echo Uninstall Unifi...
 net stop UniFi >nul 2>&1
 cd "%UserProfile%\Ubiquiti UniFi\" || (
     echo Failed to change directory to "%UserProfile%\Ubiquiti UniFi\"
@@ -382,13 +382,13 @@ if exist "%uninstall_path%" (
 	echo OK
 	goto :msi
 )
-echo UNS Uninstaller not found
+echo Unifi Uninstaller not found
 exit /b 1
 
 :msi
 echo.
 echo Uninstall JRE...
-set "installpath=%HOMEDRIVE%\uns"
+set "installpath=%HOMEDRIVE%\unifi"
 cd /d "%installpath%"
 set "latest_msi="
 for /f "delims=" %%f in ('dir /b /a-d /o-d /t:c "OpenJDK*-jre_x64_windows_hotspot_*.msi" 2^>nul') do (

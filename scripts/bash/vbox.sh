@@ -1,7 +1,7 @@
 #!/bin/bash
 # maravento.com
-
-# Virtualbox 7.1 install | remove
+#
+# Virtualbox 7.2 install | remove
 # tested: Ubuntu 24.04
 
 echo "Virtualbox Install | Remove Starting. Wait..."

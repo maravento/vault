@@ -1,5 +1,6 @@
 #!/bin/bash
-
+# maravento.com
+#
 # Watch Directories Script
 # https://www.maravento.com/2025/05/control-de-carpetas-compartidas.html
 #
