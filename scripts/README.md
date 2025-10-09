@@ -67,6 +67,7 @@ Tested on: Ubuntu 22.04/24.04 x64
 - [Rclone Cloud (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Mount|Umount (start|stop|status|restart)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rcloud.sh)
 - [Rclone Sync (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Sync to Download|Upload Folder](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rsync.sh)
 - [Realtek Linux drivers](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/realtekdrv.sh)
+- [Rustdesk Client (Install|Uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rustdesk.sh)
 - [Serveo Tunnel (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/serveo.sh)
 - [Squid Analysis Tool)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/squidtool.sh)
 - [Squid-OpenSSL (ssl-bump)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/sslbump.sh)

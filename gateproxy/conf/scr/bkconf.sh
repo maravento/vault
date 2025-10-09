@@ -12,9 +12,21 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
+# LOCAL USER
+# Get real user (not root) - multiple fallback methods
+local_user=$(logname 2>/dev/null || echo "$SUDO_USER")
+# If not found or is root, try detecting active graphical user
+if [ -z "$local_user" ] || [ "$local_user" = "root" ]; then
+    local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}')
+fi
+# As a final fallback, take the first logged user
+if [ -z "$local_user" ]; then
+    local_user=$(who | head -1 | awk '{print $1}')
+fi
+# Clean possible spaces or line breaks
+local_user=$(echo "$local_user" | xargs)
+
 ### VARIABLES
-# local user
-local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 # path to cloud
 bkconfig="/home/$local_user/bkconf"
 mkdir -p "$bkconfig" >/dev/null 2>&1

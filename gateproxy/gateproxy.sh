@@ -27,6 +27,20 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
+# LOCAL USER
+# Get real user (not root) - multiple fallback methods
+local_user=$(logname 2>/dev/null || echo "$SUDO_USER")
+# If not found or is root, try detecting active graphical user
+if [ -z "$local_user" ] || [ "$local_user" = "root" ]; then
+    local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}')
+fi
+# As a final fallback, take the first logged user
+if [ -z "$local_user" ]; then
+    local_user=$(who | head -1 | awk '{print $1}')
+fi
+# Clean possible spaces or line breaks
+local_user=$(echo "$local_user" | xargs)
+
 ### LANGUAGE EN-ES
 lang_01=("Check System..." "Verificando Sistema...")
 lang_02=("Aborted installation. Check the Minimum Requirements" "Instalacion Abortada. Verifique los Requisitos Mínimos")
@@ -86,7 +100,6 @@ aclroute=/etc/acl
 mkdir -p "$aclroute" >/dev/null 2>&1
 scr=/etc/scr
 mkdir -p "$scr" >/dev/null 2>&1
-local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 
 # ppa
 file="/etc/apt/sources.list.d/ubuntu.sources"
@@ -942,18 +955,7 @@ root    hard    nofile  65535
 EOT
 tee -a /etc/sysctl.conf >/dev/null <<EOT
 # System optimization
-fs.file-max = 65535
-fs.inotify.max_user_watches = 65535
-vm.overcommit_memory = 1
 vm.swappiness = 10
-# TCP/NET optimization
-net.core.rmem_max = 16777216
-net.core.wmem_max = 16777216
-net.ipv4.tcp_rmem = 4096 87380 16777216
-net.ipv4.tcp_wmem = 4096 65536 16777216
-net.core.somaxconn = 65535
-net.ipv4.ip_forward = 1
-# Optional
 net.ipv4.tcp_congestion_control = bbr
 EOT
 echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/system.conf >/dev/null

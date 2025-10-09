@@ -49,7 +49,7 @@
 
 | File | OS | Size |
 | :---: | :---: | :---: |
-| [itsm.exe (.zip)](https://mega.nz/file/DdtHGZKJ#Plas2Ufr2ZwCUATtryV_OebaVQbhZRtpnSDRlUfyOpM) | Windows 10/11 x64 | 126,9 MB |
+| [itsm.exe (.zip)](https://mega.nz/file/DVVl3LbJ#rEGlteCN9L5b6pbhH5YdqK4AqBt4aH2EAfCxuVyInN8) | Windows 10/11 x64 | 152,4 MB |
 
 ## Supported Versions
 
@@ -66,14 +66,14 @@
 
 ### Web-based ITSM solutions
 
-- [glpi-10.0.20](https://glpi-project.org/downloads/)
-- [iTop-3.2.2-1-17851](https://sourceforge.net/projects/itop/files/itop/)
+- [glpi-11.x](https://glpi-project.org/downloads/)
+- [iTop-3.2.x](https://sourceforge.net/projects/itop/files/itop/)
 
 ### Stacks
 
 - [WampServer v3.3.x x64](https://wampserver.aviatechno.net/)
-- [XAMPP v8.2.12 x64](https://sourceforge.net/projects/xampp/files/)
-- [Uniform Server v15.0.2 ZeroXV (UZero)](https://sourceforge.net/projects/miniserver/files/)
+- [XAMPP v8.2.x x64](https://sourceforge.net/projects/xampp/files/)
+- [Uniform Server v15.x ZeroXV (UZero)](https://sourceforge.net/projects/miniserver/files/)
 
 ### Dependencies (Included)
 

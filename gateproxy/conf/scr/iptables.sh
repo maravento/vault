@@ -93,52 +93,130 @@ ip route del blackhole 0.0.0.0/0 2>/dev/null || true
 #conntrack -F 2>/dev/null || true
 
 # IPv4
-# Disables IP source routing
-sysctl -w net.ipv4.conf.all.send_redirects=0 >/dev/null 2>&1
-sysctl -w net.ipv4.conf.default.send_redirects=0 >/dev/null 2>&1
-# Enable Log Spoofed Packets, Source aclrouted Packets, Redirect Packets
-sysctl -w net.ipv4.conf.all.log_martians=1 >/dev/null 2>&1
-sysctl -w net.ipv4.conf.default.log_martians=1 >/dev/null 2>&1
-# Helps against MITM attacks (If you have problems with your lan, change to 1)
+##### 🧩 SYSTEM OPTIMIZATION #####
+sysctl -w fs.file-max=2097152 >/dev/null 2>&1
+sysctl -w fs.inotify.max_user_watches=524288 >/dev/null 2>&1
+sysctl -w vm.overcommit_memory=1 >/dev/null 2>&1
+sysctl -w net.core.somaxconn=65535 >/dev/null 2>&1
+
+##### ⚙️ CONNECTION TRACKING #####
+# Increase connection tracking table size for high concurrency
+sysctl -w net.netfilter.nf_conntrack_max=524288 >/dev/null 2>&1
+sysctl -w net.netfilter.nf_conntrack_buckets=131072 >/dev/null 2>&1
+
+##### 🔒 SECURITY & NETWORK HARDENING #####
+# Disable IP source routing (prevents IP spoofing and routing attacks)
+sysctl -w net.ipv4.conf.all.accept_source_route=0 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.default.accept_source_route=0 >/dev/null 2>&1
+# Disable secure redirects (protects against malicious router advertisements)
+# If you experience LAN routing issues, you can temporarily set this to 1.
 sysctl -w net.ipv4.conf.all.secure_redirects=0 >/dev/null 2>&1
 sysctl -w net.ipv4.conf.default.secure_redirects=0 >/dev/null 2>&1
-# Don't proxy arp for anyone
-sysctl -w net.ipv4.conf.all.arp_filter=1 >/dev/null 2>&1
-# Increase the networking port range (default 32768 60999)
-sysctl -w net.ipv4.ip_local_port_range="1024 65535" >/dev/null 2>&1
-# Enable a fix for RFC1337 - time-wait assassination hazards in TCP
-sysctl -w net.ipv4.tcp_rfc1337=1 >/dev/null 2>&1
-# Block SYN attacks
+# Log packets with impossible or spoofed source addresses ("martians")
+sysctl -w net.ipv4.conf.all.log_martians=1 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.default.log_martians=1 >/dev/null 2>&1
+# Enable strict reverse path filtering (drops packets with spoofed source IPs)
+sysctl -w net.ipv4.conf.all.rp_filter=1 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.default.rp_filter=1 >/dev/null 2>&1
+
+##### 🌐 NETWORK PERFORMANCE & TCP PROTECTION #####
+# ⚙️ Optimized TCP/IP parameters for high-performance and secure routing
+# Enable TCP SYN cookies (protects against SYN flood attacks)
+sysctl -w net.ipv4.tcp_syncookies=1 >/dev/null 2>&1
+# Increase SYN backlog queue and tune retries (helps prevent SYN flood)
 sysctl -w net.ipv4.tcp_max_syn_backlog=20000 >/dev/null 2>&1
-sysctl -w net.ipv4.tcp_synack_retries=1 >/dev/null 2>&1
-sysctl -w net.ipv4.tcp_syn_retries=5 >/dev/null 2>&1
-# Disable IPv4 ICMP Redirect Acceptance
+sysctl -w net.ipv4.tcp_syn_retries=2 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_synack_retries=2 >/dev/null 2>&1
+# Enable RFC1337 fix (protects against TCP TIME-WAIT assassination)
+sysctl -w net.ipv4.tcp_rfc1337=1 >/dev/null 2>&1
+# Expand available local port range (default: 32768–60999)
+sysctl -w net.ipv4.ip_local_port_range="10000 65535" >/dev/null 2>&1
+# Reduce TCP FIN timeout (faster cleanup for orphaned sockets)
+sysctl -w net.ipv4.tcp_fin_timeout=30 >/dev/null 2>&1
+# TCP keepalive settings (balance connection stability and resource usage)
+sysctl -w net.ipv4.tcp_keepalive_time=300 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_keepalive_intvl=15 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_keepalive_probes=5 >/dev/null 2>&1
+# Enable TCP Fast Open (reduces latency for repeated connections)
+sysctl -w net.ipv4.tcp_fastopen=3 >/dev/null 2>&1
+# Enable TCP performance features
+sysctl -w net.ipv4.tcp_window_scaling=1 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_timestamps=1 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_sack=1 >/dev/null 2>&1
+# Increase socket buffers
+sysctl -w net.core.rmem_max=16777216 >/dev/null 2>&1
+sysctl -w net.core.wmem_max=16777216 >/dev/null 2>&1
+sysctl -w net.core.rmem_default=262144 >/dev/null 2>&1
+sysctl -w net.core.wmem_default=262144 >/dev/null 2>&1
+# TCP buffer auto-tuning
+sysctl -w net.ipv4.tcp_rmem="4096 87380 16777216" >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_wmem="4096 65536 16777216" >/dev/null 2>&1
+# Enable PMTU discovery (recommended: automatic MTU adjustment)
+sysctl -w net.ipv4.ip_no_pmtu_disc=0 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_mtu_probing=1 >/dev/null 2>&1
+# Increase network queue size (handles bursts of incoming packets)
+sysctl -w net.core.netdev_max_backlog=20000 >/dev/null 2>&1
+# Increase TIME_WAIT socket capacity (important for busy NAT or proxy servers)
+sysctl -w net.ipv4.tcp_max_tw_buckets=1000000 >/dev/null 2>&1
+# Allow safe TIME_WAIT socket reuse (improves connection efficiency)
+sysctl -w net.ipv4.tcp_tw_reuse=1 >/dev/null 2>&1
+
+##### 🔁 ROUTING & FORWARDING #####
+# Enable packet forwarding (required for NAT/routing)
+sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1
+
+##### 🧩 ARP OPTIMIZATION #####
+# Enable ARP filtering (prevents incorrect replies when multiple interfaces exist)
+sysctl -w net.ipv4.conf.all.arp_filter=1 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.default.arp_filter=1 >/dev/null 2>&1
+# ARP announce mode - only reply for local addresses
+sysctl -w net.ipv4.conf.all.arp_announce=2 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.default.arp_announce=2 >/dev/null 2>&1
+# ARP ignore mode - only respond to ARPs for IPs on receiving interface
+sysctl -w net.ipv4.conf.all.arp_ignore=1 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.default.arp_ignore=1 >/dev/null 2>&1
+# ARP cache tuning: reduce broadcast frequency and improve efficiency
+sysctl -w net.ipv4.neigh.default.gc_stale_time=300 >/dev/null 2>&1
+sysctl -w net.ipv4.neigh.default.gc_thresh1=128 >/dev/null 2>&1
+sysctl -w net.ipv4.neigh.default.gc_thresh2=512 >/dev/null 2>&1
+sysctl -w net.ipv4.neigh.default.gc_thresh3=1024 >/dev/null 2>&1
+# Reduce ARP broadcast retries (limits ARP noise in large LANs)
+sysctl -w net.ipv4.neigh.default.ucast_solicit=3 >/dev/null 2>&1
+sysctl -w net.ipv4.neigh.default.mcast_solicit=2 >/dev/null 2>&1
+# Base reachable time for neighbor entries
+sysctl -w net.ipv4.neigh.default.base_reachable_time_ms=300000 >/dev/null 2>&1
+
+##### 🧱 KERNEL & FILESYSTEM HARDENING #####
+# Enable full ASLR (Address Space Layout Randomization)
+sysctl -w kernel.randomize_va_space=2 >/dev/null 2>&1
+# Protect hardlinks (prevents privilege escalation attacks)
+sysctl -w fs.protected_hardlinks=1 >/dev/null 2>&1
+# Protect symlinks (prevents unauthorized link access in shared directories)
+sysctl -w fs.protected_symlinks=1 >/dev/null 2>&1
+
+##### 📡 ICMP #####
+# Disable sending ICMP redirects (prevents MITM via route manipulation)
+sysctl -w net.ipv4.conf.all.send_redirects=0 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.default.send_redirects=0 >/dev/null 2>&1
+# Disable accepting ICMP redirects from other hosts (security hardening)
 sysctl -w net.ipv4.conf.all.accept_redirects=0 >/dev/null 2>&1
 sysctl -w net.ipv4.conf.default.accept_redirects=0 >/dev/null 2>&1
-# Ignore all incoming ICMP echo requests (=0 ACCEPT)
-sysctl -w net.ipv4.icmp_echo_ignore_all=1 >/dev/null 2>&1
-# Disables packet forwarding (NAT)
-sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1
-# length of time an orphaned (unreferenced) connection will wait before it is aborted
-sysctl -w net.ipv4.tcp_fin_timeout=30 >/dev/null 2>&1
-# frequency of TCP keepalive probes sent before deciding that a connection is broken
-sysctl -w net.ipv4.tcp_keepalive_probes=5 >/dev/null 2>&1
-# determines how often TCP keepalive packets are sent to keep a connection alive
-sysctl -w net.ipv4.tcp_keepalive_intvl=15 >/dev/null 2>&1
-# specify the maximum number of packets per processing queue
-sysctl -w net.core.netdev_max_backlog=20000 >/dev/null 2>&1
-# pmtu
-sysctl -w net.ipv4.ip_no_pmtu_disc=1 >/dev/null 2>&1
+# Allow normal ICMP echo requests (ping)
+sysctl -w net.ipv4.icmp_echo_ignore_all=0 >/dev/null 2>&1
+# Ignore ICMP echo requests sent to broadcast addresses (Smurf attack prevention)
+sysctl -w net.ipv4.icmp_echo_ignore_broadcasts=1 >/dev/null 2>&1
+# Ignore bogus or malformed ICMP error responses
+sysctl -w net.ipv4.icmp_ignore_bogus_error_responses=1 >/dev/null 2>&1
+# Rate limit ICMP message generation (100 ms minimum interval)
+sysctl -w net.ipv4.icmp_ratelimit=100 >/dev/null 2>&1
 
-# Enabled by default on Ubuntu 24.04
-# syncookies
-#sysctl -w net.ipv4.tcp_syncookies=1 >/dev/null 2>&1
-# protect hardlinks
-#fs.protected_hardlinks=1 >/dev/null 2>&1
-# enable full ASLR
-#kernel.randomize_va_space=2 >/dev/null 2>&1
-# disable IP source routing (security)
-#sysctl -w net.ipv4.conf.default.accept_source_route=1
+# IPv6
+# Important: If you set "=1" (disable IPv6), Squid it will display the message:
+# WARNING: BCP 177 violation. Detected non-functional IPv6 loopback
+#sysctl -w net.ipv6.conf.all.disable_ipv6=0 >/dev/null 2>&1
+#sysctl -w net.ipv6.conf.default.disable_ipv6=0 >/dev/null 2>&1
+#sysctl -w net.ipv6.conf.lo.disable_ipv6=0 >/dev/null 2>&1
+#sysctl -w net.ipv6.conf."$lan".disable_ipv6=0 >/dev/null 2>&1
 
 echo OK
 
@@ -161,8 +239,8 @@ iptables -A OUTPUT -o lo -j ACCEPT
 iptables -A INPUT -s 127.0.0.0/8 ! -i lo -j DROP
 
 # WAN DROP (Optional: Uncomment the ones you need)
-#iptables -A INPUT -i $wan -s 10.0.0.0/8 -j DROP
-#iptables -A INPUT -i $wan -s 172.16.0.0/12 -j DROP
+iptables -A INPUT -i $wan -s 10.0.0.0/8 -j DROP
+iptables -A INPUT -i $wan -s 172.16.0.0/12 -j DROP
 #iptables -A INPUT -i $wan -s 192.168.0.0/16 -j DROP
 
 # MASQUERADE (share internet with LAN)
