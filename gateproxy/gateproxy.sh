@@ -1031,6 +1031,8 @@ systemctl daemon-reexec &>/dev/null
 sudo -u "$local_user" bash -c "echo alias upgrade=\"'sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo updatedb && sudo snap refresh'\"" >>/home/"$local_user"/.bashrc
 sudo -u "$local_user" bash -c "echo alias server=\"'sudo /etc/scr/serverload.sh'\"" >>/home/"$local_user"/.bashrc
 sudo -u "$local_user" bash -c "echo alias cleaner=\"'sudo /etc/scr/cleaner.sh'\"" >>/home/"$local_user"/.bashrc
+# IPv4 priority
+sed -i 's/^#\s*precedence ::ffff:0:0\/96\s\+100/precedence ::ffff:0:0\/96  100/' /etc/gai.conf
 # snap
 snap set system proxy.http!
 snap set system proxy.https!
@@ -1050,13 +1052,14 @@ echo "${lang_24[$lang]}"
 echo "after reboot, run: systemctl list-units --type service --state running,failed"
 read RES
 rm -rfv *tar.gz *.sh *.deb *.txt
-journalctl --rotate
-journalctl --vacuum-time=1s
-systemctl restart systemd-journald
 systemctl daemon-reexec
 systemctl daemon-reload
 update-ca-certificates -f
 systemctl reload apache2
+systemctl restart systemd-resolved
+journalctl --rotate
+journalctl --vacuum-time=1s
+systemctl restart systemd-journald
 a2query -s
 #apt -qq -y remove --purge `deborphan --guess-all` # optional
 #dpkg -l | grep "^rc" | cut -d " " -f 3 | xargs dpkg --purge &> /dev/null # optional
