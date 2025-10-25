@@ -49,7 +49,7 @@
 
 | File | OS | Size |
 | :---: | :---: | :---: |
-| [itsm.exe (.zip)](https://mega.nz/file/DdtHGZKJ#Plas2Ufr2ZwCUATtryV_OebaVQbhZRtpnSDRlUfyOpM) | Windows 10/11 x64 | 126,9 MB |
+| [itsm.exe (.zip)](https://mega.nz/file/DVVl3LbJ#rEGlteCN9L5b6pbhH5YdqK4AqBt4aH2EAfCxuVyInN8) | Windows 10/11 x64 | 152,4 MB |
 
 ## Supported Versions
 
@@ -66,14 +66,14 @@
 
 ### Web-based ITSM solutions
 
-- [glpi-10.0.20](https://glpi-project.org/downloads/)
-- [iTop-3.2.2-1-17851](https://sourceforge.net/projects/itop/files/itop/)
+- [glpi-11.x](https://glpi-project.org/downloads/)
+- [iTop-3.2.x](https://sourceforge.net/projects/itop/files/itop/)
 
 ### Stacks
 
 - [WampServer v3.3.x x64](https://wampserver.aviatechno.net/)
-- [XAMPP v8.2.12 x64](https://sourceforge.net/projects/xampp/files/)
-- [Uniform Server v15.0.2 ZeroXV (UZero)](https://sourceforge.net/projects/miniserver/files/)
+- [XAMPP v8.2.x x64](https://sourceforge.net/projects/xampp/files/)
+- [Uniform Server v15.x ZeroXV (UZero)](https://sourceforge.net/projects/miniserver/files/)
 
 ### Dependencies (Included)
 
@@ -315,15 +315,15 @@ Package: ITSM
 ---
 
 - [7zSFX Builder](https://sourceforge.net/projects/s-zipsfxbuilder/)
-- [ACPU](https://github.com/krakjoe/apcu)
 - [ACPU Main](https://pecl.php.net/package/APCu)
-- [Checksum Control](https://sourceforge.net/projects/checksumcontrol/)
+- [ACPU](https://github.com/krakjoe/apcu)
 - [curl for Windows](https://curl.se/windows/)
 - [Find & Replace Tool](https://findandreplace.io/)
 - [GLPI](https://glpi-project.org/downloads/)
 - [graphviz](https://graphviz.org/download/)
 - [iTop](https://sourceforge.net/projects/itop/files/itop/)
 - [Quick Batch File Compiler](https://www.abyssmedia.com/quickbfc/)
+- [RapidCRC Unicode](https://www.ov2.eu/programs/rapidcrc-unicode)
 - [Resource Turner](http://www.restuner.com/)
 - [stahlworks unzip and gzip](http://stahlworks.com/dev/index.php?tool=zipunzip)
 - [tartool](https://github.com/senthilrajasek/tartool)

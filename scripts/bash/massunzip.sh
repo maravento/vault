@@ -1,6 +1,6 @@
 #!/bin/bash
 # maravento.com
-
+#
 # Mass decompression with password
 # https://www.maravento.com/2020/05/descompresion-masiva-de-archivos.html
 

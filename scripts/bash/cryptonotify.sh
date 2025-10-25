@@ -1,5 +1,6 @@
 #!/bin/bash
-
+# maravento.com
+#
 # Top 5 Crypto Price Notifier
 # ---------------------------
 # This script fetches the current USD prices of the top 5 cryptocurrencies by market capitalization
@@ -12,8 +13,6 @@
 
 echo "Top 5 Crypto Price Notifier Starting. Wait..."
 printf "\n"
-
-local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 
 # check no-root
 if [ "$(id -u)" -eq 0 ]; then
@@ -48,6 +47,20 @@ for pkg in $pkgs; do
     exit 1
   fi
 done
+
+# LOCAL USER
+# Get real user (not root) - multiple fallback methods
+local_user=$(logname 2>/dev/null || echo "$SUDO_USER")
+# If not found or is root, try detecting active graphical user
+if [ -z "$local_user" ] || [ "$local_user" = "root" ]; then
+    local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}')
+fi
+# As a final fallback, take the first logged user
+if [ -z "$local_user" ]; then
+    local_user=$(who | head -1 | awk '{print $1}')
+fi
+# Clean possible spaces or line breaks
+local_user=$(echo "$local_user" | xargs)
 
 # Crypto Top 5
 top5=$(curl -s "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=5&page=1")

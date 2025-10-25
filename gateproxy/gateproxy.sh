@@ -27,6 +27,20 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
+# LOCAL USER
+# Get real user (not root) - multiple fallback methods
+local_user=$(logname 2>/dev/null || echo "$SUDO_USER")
+# If not found or is root, try detecting active graphical user
+if [ -z "$local_user" ] || [ "$local_user" = "root" ]; then
+    local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}')
+fi
+# As a final fallback, take the first logged user
+if [ -z "$local_user" ]; then
+    local_user=$(who | head -1 | awk '{print $1}')
+fi
+# Clean possible spaces or line breaks
+local_user=$(echo "$local_user" | xargs)
+
 ### LANGUAGE EN-ES
 lang_01=("Check System..." "Verificando Sistema...")
 lang_02=("Aborted installation. Check the Minimum Requirements" "Instalacion Abortada. Verifique los Requisitos Mínimos")
@@ -86,7 +100,6 @@ aclroute=/etc/acl
 mkdir -p "$aclroute" >/dev/null 2>&1
 scr=/etc/scr
 mkdir -p "$scr" >/dev/null 2>&1
-local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 
 # ppa
 file="/etc/apt/sources.list.d/ubuntu.sources"
@@ -534,7 +547,9 @@ fixbroken
 ### SETUP
 echo -e "\n"
 echo "Gateproxy Packages..."
-sed -i "/127.0.1.1/r $gp/conf/server/hosts.txt" /etc/hosts
+sed -i "/^127\.0\.1\.1/ r $gp/conf/server/hosts.txt" /etc/hosts
+sed -i '/^\s*\(fe00::\|ff00::\|ff02::\)/ s/^/#/' /etc/hosts
+grep -q "ipv6.msftncsi.com" /etc/hosts || echo "$serverip ipv6.msftncsi.com ipv6.msftconnecttest.com" | tee -a /etc/hosts
 
 # ACLs
 cp -rf $gp/acl/* "$aclroute"
@@ -574,7 +589,7 @@ nala install -y squid-openssl squid-langpack squid-common squidclient squid-purg
 fixbroken
 mkdir -p /var/log/squid >/dev/null 2>&1
 touch /var/log/squid/{access,cache,store,deny}.log >/dev/null 2>&1
-chown proxy:adm /var/log/squid/*.log
+chown proxy:proxy /var/log/squid/*.log
 chmod 640 /var/log/squid/*.log
 mkdir -p /var/spool/squid/rock >/dev/null 2>&1
 chown -R proxy:proxy /var/spool/squid/rock
@@ -582,7 +597,7 @@ chmod -R 700 /var/spool/squid/rock
 systemctl enable squid.service
 squid -z
 cp -f /etc/logrotate.d/squid{,.bak} &>/dev/null
-sed -i '/sharedscripts/a \    create 0644 proxy adm' /etc/logrotate.d/squid
+sed -i '/sharedscripts/a \    create 0644 proxy proxy' /etc/logrotate.d/squid
 # Let’s Encrypt certificate for client to Squid proxy encryption (Optional)
 #nala install -y certbot python3-certbot-apache
     
@@ -615,43 +630,10 @@ nala install -y cockpit cockpit-storaged cockpit-networkmanager cockpit-packagek
                 cockpit-machines cockpit-sosreport virt-viewer
 cp $gp/conf/server/cockpit.conf /etc/fail2ban/filter.d/cockpit.conf
 systemctl enable --now cockpit cockpit.socket
+# Performance Co-Pilot (PCP)
+nala install -y pcp cockpit-pcp
+systemctl enable --now pmcd pmlogger
 echo "Cockpit Access: http://localhost:9090"
-    
-# Process: glances
-# https://www.maravento.com/2023/04/glances.html
-nala install -y glances
-systemctl enable glances.service
-systemctl stop glances.service
-export GLANCES_VERSION=$(glances -V | head -n 1 | awk '{print $2}' | sed 's/^v//')
-wget "https://github.com/nicolargo/glances/archive/refs/tags/v${GLANCES_VERSION}.tar.gz"
-tar -xzf v${GLANCES_VERSION}.tar.gz
-rm v${GLANCES_VERSION}.tar.gz
-cp -r glances-${GLANCES_VERSION}/glances/outputs/static/public/ /usr/lib/python3/dist-packages/glances/outputs/static/
-rm -rf glances-${GLANCES_VERSION}
-sed -i '/ExecStart=\/usr\/bin\/glances -s -B 127.0.0.1/c\ExecStart=\/usr\/bin\/glances -w -B 0.0.0.0 -t 10 -p 61208' /usr/lib/systemd/system/glances.service
-systemctl daemon-reload
-systemctl start glances.service
-echo "Glances Access: http://localhost:61208"
-    
-# Net Pack
-# Net Tools (Replace NIC and IP/CIDR)
-nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
-nala install -y fping              # Net diagnostics: fping -a -g 192.168.1.0/24
-nala install -y ethtool            # Net config: ethtool eth0
-# Net test: On server: iperf3 -s | On client: iperf3 -c serverip
-DEBIAN_FRONTEND=noninteractive nala install -y iperf3  2>/dev/null
-# Net Scanning (Replace NIC and IP/CIDR)
-nala install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
-nala install -y nbtscan            # nbtscan 192.168.1.0/24
-nala install -y nast               # nast -m
-nala install -y arp-scan           # arp-scan --localnet
-nala install -y arping             # arping -I eth0 192.168.1.1
-nala install -y netdiscover        # netdiscover
-# Nmap
-nala install -y nmap python3-nmap ndiff
-# Domain/IP Scanning
-nala install -y traceroute         # traceroute google.com
-nala install -y mtr-tiny           # mtr google.com
     
 # Traffic Reports: Sarg
 # https://www.maravento.com/2014/03/network-monitor.html
@@ -719,6 +701,26 @@ grep -qxF 'Listen 0.0.0.0:18880' /etc/apache2/ports.conf || grep -qxF 'Listen 18
 a2enmod rewrite
 a2ensite -q warning.conf
 echo "Warning: http://$serverip:18880"
+
+# Net Pack
+# Net Tools (Replace NIC and IP/CIDR)
+nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
+nala install -y fping              # Net diagnostics: fping -a -g 192.168.1.0/24
+nala install -y ethtool            # Net config: ethtool eth0
+# Net test: On server: iperf3 -s | On client: iperf3 -c serverip
+DEBIAN_FRONTEND=noninteractive nala install -y iperf3  2>/dev/null
+# Net Scanning (Replace NIC and IP/CIDR)
+nala install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
+nala install -y nbtscan            # nbtscan 192.168.1.0/24
+nala install -y nast               # nast -m
+nala install -y arp-scan           # arp-scan --localnet
+nala install -y arping             # arping -I eth0 192.168.1.1
+nala install -y netdiscover        # netdiscover
+# Nmap
+nala install -y nmap python3-nmap ndiff
+# Domain/IP Scanning
+nala install -y traceroute         # traceroute google.com
+nala install -y mtr-tiny           # mtr google.com
 
 # Security:
 # fail2ban
@@ -808,7 +810,7 @@ ${lang_21[$lang]} (y/n)" answer
         sed -i 's/ \$SMBDOPTIONS//' /lib/systemd/system/smbd.service
         sed -i 's/ \$NMBDOPTIONS//' /lib/systemd/system/nmbd.service
         touch /var/log/samba/log.{samba,audit}
-        chown root:adm /var/log/samba/log.{samba,audit}
+        chown syslog:adm /var/log/samba/log.{samba,audit}
         chmod 640 /var/log/samba/log.{samba,audit}
         usermod -aG adm syslog
         cp -f /etc/logrotate.d/samba{,.bak} &>/dev/null
@@ -904,7 +906,7 @@ chmod -R +x $scr/*
 #echo 'none /run/shm tmpfs defaults,ro 0 0' | tee -a /etc/fstab &> /dev/null
 #echo 'tmpfs /tmp tmpfs defaults,size=30%,nofail,noatime,mode=1777 0 0' | tee -a /etc/fstab &> /dev/null
 # alternative
-echo 'tmpfs /tmp tmpfs defaults,size=512M,nofail,noatime,mode=1777 0 0' | tee -a /etc/fstab &> /dev/null
+echo 'tmpfs /tmp tmpfs defaults,size=2G,nofail,noatime,mode=1777 0 0' | tee -a /etc/fstab &> /dev/null
 echo OK
 sleep 1
 
@@ -955,18 +957,7 @@ root    hard    nofile  65535
 EOT
 tee -a /etc/sysctl.conf >/dev/null <<EOT
 # System optimization
-fs.file-max = 65535
-fs.inotify.max_user_watches = 65535
-vm.overcommit_memory = 1
 vm.swappiness = 10
-# TCP/NET optimization
-net.core.rmem_max = 16777216
-net.core.wmem_max = 16777216
-net.ipv4.tcp_rmem = 4096 87380 16777216
-net.ipv4.tcp_wmem = 4096 65536 16777216
-net.core.somaxconn = 65535
-net.ipv4.ip_forward = 1
-# Optional
 net.ipv4.tcp_congestion_control = bbr
 EOT
 echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/system.conf >/dev/null
@@ -1042,12 +1033,17 @@ systemctl daemon-reexec &>/dev/null
 sudo -u "$local_user" bash -c "echo alias upgrade=\"'sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo updatedb && sudo snap refresh'\"" >>/home/"$local_user"/.bashrc
 sudo -u "$local_user" bash -c "echo alias server=\"'sudo /etc/scr/serverload.sh'\"" >>/home/"$local_user"/.bashrc
 sudo -u "$local_user" bash -c "echo alias cleaner=\"'sudo /etc/scr/cleaner.sh'\"" >>/home/"$local_user"/.bashrc
+# IPv4 priority
+sed -i 's/^#\s*precedence ::ffff:0:0\/96\s\+100/precedence ::ffff:0:0\/96  100/' /etc/gai.conf
 # snap
 snap set system proxy.http!
 snap set system proxy.https!
 snap refresh snapd
 systemctl restart snapd
 snap refresh
+# logs
+chmod 755 /var/log
+chown root:root /var/log
 
 cleanupgrade
 fixbroken
@@ -1058,13 +1054,14 @@ echo "${lang_24[$lang]}"
 echo "after reboot, run: systemctl list-units --type service --state running,failed"
 read RES
 rm -rfv *tar.gz *.sh *.deb *.txt
-journalctl --rotate
-journalctl --vacuum-time=1s
-systemctl restart systemd-journald
 systemctl daemon-reexec
 systemctl daemon-reload
 update-ca-certificates -f
 systemctl reload apache2
+systemctl restart systemd-resolved
+journalctl --rotate
+journalctl --vacuum-time=1s
+systemctl restart systemd-journald
 a2query -s
 #apt -qq -y remove --purge `deborphan --guess-all` # optional
 #dpkg -l | grep "^rc" | cut -d " " -f 3 | xargs dpkg --purge &> /dev/null # optional

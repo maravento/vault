@@ -1,10 +1,13 @@
 #!/bin/bash
 # maravento.com
-
-# Send files to phone with KDE Connect
-# Nautilus Path:  .config/nautilus/scripts
-# Caja Path:  .config/caja/scripts
-
+#
+# Send files to phone with KDE Connect (Universal file manager support)
+#
+# Nautilus Path: ~/.local/share/nautilus/scripts or ~/.config/nautilus/scripts
+# Caja Path: ~/.config/caja/scripts
+# Thunar Path: ~/.local/share/Thunar/scripts or ~/.config/Thunar/scripts
+# Nemo Path: ~/.local/share/nemo/scripts
+#
 # Check kdeconnect-cli options
 # https://linuxcommandlibrary.com/man/kdeconnect-cli
 
@@ -27,14 +30,6 @@ if pidof -x $(basename $0) >/dev/null; then
   done
 fi
 
-# check SO
-UBUNTU_VERSION=$(lsb_release -rs)
-UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
-if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VERSION" != "24.04" ) ]]; then
-    echo "Unsupported system. Use at your own risk"
-    # exit 1
-fi
-
 # check dependencies
 for pkg in kdeconnect-cli; do
   dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {
@@ -44,36 +39,81 @@ for pkg in kdeconnect-cli; do
   }
 done
 
-# Verify that at least one file was passed as an argument
-if (( $# == 0 )); then
+# Get files from file manager selection or command line arguments (universal detection)
+files=()
+
+if [ -n "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS" ]; then
+    # Called from Nautilus or Caja - split the paths
+    IFS=$'\n' read -d '' -r -a files <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+elif [ -n "$THUNAR_SELECTION" ]; then
+    # Called from Thunar - split the paths
+    IFS=$'\n' read -d '' -r -a files <<< "$THUNAR_SELECTION"
+elif [ -n "$NEMO_SCRIPT_SELECTED_FILE_PATHS" ]; then
+    # Called from Nemo - split the paths
+    IFS=$'\n' read -d '' -r -a files <<< "$NEMO_SCRIPT_SELECTED_FILE_PATHS"
+elif [ "$#" -gt 0 ]; then
+    # Called from command line with arguments
+    files=("$@")
+else
     echo "Usage: $0 file [file...]"
+    echo "Or run from your file manager's context menu"
+    exit 1
+fi
+
+# Verify that at least one file was passed
+if [ "${#files[@]}" -eq 0 ]; then
+    echo "❌ No files selected"
     exit 1
 fi
 
 # Get list of kdeconnect devices
-devices="$(kdeconnect-cli -a)"
+devices="$(kdeconnect-cli -a 2>/dev/null)"
 
 # Check if devices are connected and accessible
 if [[ -z "$devices" ]]; then
-    echo "No connected or accessible kdeconnect devices found"
+    echo "❌ No connected or accessible kdeconnect devices found"
     exit 1
 fi
 
 # Get the first available device
 phone_id="$(echo "$devices" | grep -oP '(\w+:\s[\w-]+)' | head -1 | awk '{print $2}')"
 
+if [[ -z "$phone_id" ]]; then
+    echo "❌ Could not determine phone ID"
+    exit 1
+fi
+
+echo "📱 Using device: $phone_id"
+printf "\n"
+
 # Iterate over the files and send them one by one
-for file in "$@"; do
+total_files="${#files[@]}"
+current=0
+
+for file in "${files[@]}"; do
+    current=$((current + 1))
     base="$(basename -- "$file")"
-
-    # Try to send the file to the phone
-    if kdeconnect-cli --device "$phone_id" --share "$file"; then
-        echo "File sent: $base"
-    else
-        echo "Error sending file: $base"
+    
+    echo "[$current/$total_files] Sending: $base"
+    
+    # Check if file exists
+    if [ ! -f "$file" ]; then
+        echo "⚠️  File not found: $file"
+        continue
     fi
-
-    # Wait 2 seconds before continuing
-    sleep 2
+    
+    # Try to send the file to the phone
+    if kdeconnect-cli --device "$phone_id" --share "$file" 2>/dev/null; then
+        echo "✅ File sent: $base"
+    else
+        echo "❌ Error sending file: $base"
+    fi
+    
+    # Wait 2 seconds before continuing (except for last file)
+    if [ $current -lt $total_files ]; then
+        sleep 2
+    fi
 done
-echo Done
+
+printf "\n"
+echo "✅ Done. Sent $current of $total_files file(s)"

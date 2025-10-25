@@ -1,9 +1,10 @@
 #!/bin/bash
 # maravento.com
+#
+# Unifi Hotspot Client Access via Linux Server with Iptables
+
 # WARNING: 
 # This script is under review. We do not recommend its use.
-
-# Unifi Hotspot Client Access via Linux Server with Iptables
 
 # Diclaimer:
 # This is an experimental script and depends on external components, such as dhcp, iptables, etc. Its operation is not guaranteed in Linux environments

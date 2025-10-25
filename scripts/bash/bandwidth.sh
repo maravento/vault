@@ -1,6 +1,6 @@
 #!/bin/bash
 # maravento.com
-
+#
 # Check Bandwidth
 # Source: https://github.com/sivel/speedtest-cli
 

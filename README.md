@@ -60,6 +60,7 @@ git clone --depth=1 https://github.com/maravento/vault.git
 - [gateproxy](https://github.com/maravento/vault/tree/master/gateproxy)
 - [itsm](https://github.com/maravento/vault/tree/master/itsm)
 - [lightsquid](https://github.com/maravento/vault/tree/master/lightsquid)
+- [netscan](https://github.com/maravento/vault/tree/master/netscan)
 - [scripts](https://github.com/maravento/vault/tree/master/scripts)
 - [sqstat](https://github.com/maravento/vault/tree/master/sqstat)
 - [stack](https://github.com/maravento/vault/tree/master/stack)

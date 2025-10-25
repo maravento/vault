@@ -1,6 +1,6 @@
 #!/bin/bash
 # maravento.com
-
+#
 # Cleaner
 # Search and send to trash:
 # - Windows ADS files (e.g., :Zone.Identifier, :encryptable, Thumbs.db)

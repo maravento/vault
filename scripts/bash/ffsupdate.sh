@@ -1,6 +1,6 @@
 #!/bin/bash
 # maravento.com
-
+#
 # FreeFileSync Update
 
 echo "FreeFileSync Update Starting. Wait..."

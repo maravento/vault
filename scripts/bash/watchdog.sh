@@ -1,6 +1,6 @@
 #!/bin/bash
 # maravento.com
-
+#
 # Internet Watchdog Script
 #
 # This script monitors Internet connectivity by pinging a public IP (default: 1.1.1.1)
