@@ -1,6 +1,6 @@
 #!/bin/bash
 # maravento.com
-
+#
 #========================================
 # SQUID ANALYSIS TOOL
 # squidtools.sh
@@ -108,11 +108,11 @@ squid_filter() {
 
     if [[ "$IPNEW" ]]; then
         perl -pe 's/[\d\.]+/localtime($&)/e' "$ACCESS_LOG" \
-        | grep --color=always "$IPNEW" \
-        | grep -i --color=always -E "$WORD" >> "$LOG_FILE"
+        | grep "$IPNEW" \
+        | grep -i -E "$WORD" >> "$LOG_FILE"
     else
         perl -pe 's/[\d\.]+/localtime($&)/e' "$ACCESS_LOG" \
-        | grep -i --color=always -E "$WORD" >> "$LOG_FILE"
+        | grep -i -E "$WORD" >> "$LOG_FILE"
     fi
 
     if [ $? -gt 0 ]; then
@@ -143,7 +143,7 @@ squid_audit() {
 
     perl -pe 's/[\d\.]+/localtime($&)/e' "$CACHE_LOG" \
     | grep -i "clientAccessCheckDone" \
-    | grep -i --color=always -E "$WORD" >> "$LOG_FILE"
+    | grep -i -E "$WORD" >> "$LOG_FILE"
 
     if [ $? -gt 0 ]; then
         echo "No records found for: $WORD" >> "$LOG_FILE"

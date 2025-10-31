@@ -1,6 +1,6 @@
 #!/bin/bash
 # maravento.com
-
+#
 # WinPower Monitor Script for Linux
 # Controls WinPower UPS software components installed in /opt/MonitorSoftware:
 # - Agent: UPS monitoring core

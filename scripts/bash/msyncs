@@ -1,6 +1,6 @@
 #!/bin/bash
 # maravento.com
-
+#
 # Launch MEGAsync Instances
 # Tested: Ubuntu 24.04 LTS
 # Fork: https://github.com/NicoVarg99/MEGA-Instances

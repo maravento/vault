@@ -72,20 +72,35 @@
       <line x1="50" y1="30" x2="50" y2="55" stroke="#000" stroke-width="6" stroke-linecap="round"/>
     </svg>
 
-    <h1>Acceso restringido<br>
-    Restricted Access</h1>
-    <p>Ha superado la cuota de datos asignada<br>
-    You have exceeded your allotted data quota</p>
+    <h1 style="margin-bottom: 0.5em;">
+      ACCESO RESTRINGIDO<br>
+      RESTRICTED ACCESS
+    </h1>
+
+    <p style="
+      white-space: nowrap;
+      font-weight: bold;
+      color: black;
+      background-color: #ff0000;
+      padding: 6px 10px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-top: 0.5em;
+    ">
+      Ha superado la cuota de datos asignada<br>
+      You have exceeded your allotted data quota
+    </p>
+
     <div class="quota">
       <ul>
-        <li><strong>Diario | Daily:</strong> 1 GB</li>
-        <li><strong>Semanal | Weekly:</strong> 5 GB</li>
-        <li><strong>Mensual | Monthly:</strong> 20 GB</li>
+        <li>Diario | Daily: <strong>1 GB</strong></li>
+        <li>Semanal | Weekly: <strong>5 GB</strong></li>
+        <li>Mensual | Monthly: <strong>20 GB</strong></li>
       </ul>
     </div>
-    <div class="footer">
-      El acceso se restaurará automáticamente cuando se renueve su cuota.<br>
-      Access will be restored automatically when your quota renews.
+    <div class="footer" style="color: #222;">
+      El acceso se restaurará al día siguiente o al renovarse la cuota<br>
+      Access will be restored the next day or when the quota is renewed
     </div>
   </div>
 </body>

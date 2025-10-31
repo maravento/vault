@@ -93,52 +93,133 @@ ip route del blackhole 0.0.0.0/0 2>/dev/null || true
 #conntrack -F 2>/dev/null || true
 
 # IPv4
-# Disables IP source routing
-sysctl -w net.ipv4.conf.all.send_redirects=0 >/dev/null 2>&1
-sysctl -w net.ipv4.conf.default.send_redirects=0 >/dev/null 2>&1
-# Enable Log Spoofed Packets, Source aclrouted Packets, Redirect Packets
-sysctl -w net.ipv4.conf.all.log_martians=1 >/dev/null 2>&1
-sysctl -w net.ipv4.conf.default.log_martians=1 >/dev/null 2>&1
-# Helps against MITM attacks (If you have problems with your lan, change to 1)
+##### 🧩 SYSTEM OPTIMIZATION #####
+sysctl -w fs.file-max=2097152 >/dev/null 2>&1
+sysctl -w fs.inotify.max_user_watches=524288 >/dev/null 2>&1
+sysctl -w vm.overcommit_memory=1 >/dev/null 2>&1
+sysctl -w net.core.somaxconn=65535 >/dev/null 2>&1
+
+##### ⚙️ CONNECTION TRACKING #####
+# Increase connection tracking table size for high concurrency
+sysctl -w net.netfilter.nf_conntrack_max=524288 >/dev/null 2>&1
+sysctl -w net.netfilter.nf_conntrack_buckets=131072 >/dev/null 2>&1
+
+##### 🔒 SECURITY & NETWORK HARDENING #####
+# Disable IP source routing (prevents IP spoofing and routing attacks)
+sysctl -w net.ipv4.conf.all.accept_source_route=0 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.default.accept_source_route=0 >/dev/null 2>&1
+# Disable secure redirects (protects against malicious router advertisements)
+# If you experience LAN routing issues, you can temporarily set this to 1.
 sysctl -w net.ipv4.conf.all.secure_redirects=0 >/dev/null 2>&1
 sysctl -w net.ipv4.conf.default.secure_redirects=0 >/dev/null 2>&1
-# Don't proxy arp for anyone
-sysctl -w net.ipv4.conf.all.arp_filter=1 >/dev/null 2>&1
-# Increase the networking port range (default 32768 60999)
-sysctl -w net.ipv4.ip_local_port_range="1024 65535" >/dev/null 2>&1
-# Enable a fix for RFC1337 - time-wait assassination hazards in TCP
-sysctl -w net.ipv4.tcp_rfc1337=1 >/dev/null 2>&1
-# Block SYN attacks
+# Log packets with impossible or spoofed source addresses ("martians")
+sysctl -w net.ipv4.conf.all.log_martians=1 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.default.log_martians=1 >/dev/null 2>&1
+
+##### 🛡️ FILTER #####
+# Enable strict reverse path filtering (drops packets with spoofed source IPs)
+# Loose Mode = 2 (for networks with bonding, multiple gateways, or complex routing)
+# Strict Mode = 1 (The packet must return through the same interface it arrived on.)
+# Disable = 0
+sysctl -w net.ipv4.conf.all.rp_filter=1 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.default.rp_filter=1 >/dev/null 2>&1
+
+##### 🌐 NETWORK PERFORMANCE & TCP PROTECTION #####
+# ⚙️ Optimized TCP/IP parameters for high-performance and secure routing
+# Enable TCP SYN cookies (protects against SYN flood attacks)
+sysctl -w net.ipv4.tcp_syncookies=1 >/dev/null 2>&1
+# Increase SYN backlog queue and tune retries (helps prevent SYN flood)
 sysctl -w net.ipv4.tcp_max_syn_backlog=20000 >/dev/null 2>&1
-sysctl -w net.ipv4.tcp_synack_retries=1 >/dev/null 2>&1
-sysctl -w net.ipv4.tcp_syn_retries=5 >/dev/null 2>&1
-# Disable IPv4 ICMP Redirect Acceptance
+sysctl -w net.ipv4.tcp_syn_retries=2 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_synack_retries=2 >/dev/null 2>&1
+# Enable RFC1337 fix (protects against TCP TIME-WAIT assassination)
+sysctl -w net.ipv4.tcp_rfc1337=1 >/dev/null 2>&1
+# Expand available local port range (default: 32768–60999)
+sysctl -w net.ipv4.ip_local_port_range="10000 65535" >/dev/null 2>&1
+# Reduce TCP FIN timeout (faster cleanup for orphaned sockets)
+sysctl -w net.ipv4.tcp_fin_timeout=30 >/dev/null 2>&1
+# TCP keepalive settings (balance connection stability and resource usage)
+sysctl -w net.ipv4.tcp_keepalive_time=300 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_keepalive_intvl=15 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_keepalive_probes=5 >/dev/null 2>&1
+# Enable TCP Fast Open (reduces latency for repeated connections)
+sysctl -w net.ipv4.tcp_fastopen=3 >/dev/null 2>&1
+# Enable TCP performance features
+sysctl -w net.ipv4.tcp_window_scaling=1 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_timestamps=1 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_sack=1 >/dev/null 2>&1
+# Increase socket buffers
+sysctl -w net.core.rmem_max=16777216 >/dev/null 2>&1
+sysctl -w net.core.wmem_max=16777216 >/dev/null 2>&1
+sysctl -w net.core.rmem_default=262144 >/dev/null 2>&1
+sysctl -w net.core.wmem_default=262144 >/dev/null 2>&1
+# TCP buffer auto-tuning
+sysctl -w net.ipv4.tcp_rmem="4096 87380 16777216" >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_wmem="4096 65536 16777216" >/dev/null 2>&1
+# Enable PMTU discovery (recommended: automatic MTU adjustment)
+sysctl -w net.ipv4.ip_no_pmtu_disc=0 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_mtu_probing=1 >/dev/null 2>&1
+# Increase network queue size (handles bursts of incoming packets)
+sysctl -w net.core.netdev_max_backlog=20000 >/dev/null 2>&1
+# Increase TIME_WAIT socket capacity (important for busy NAT or proxy servers)
+sysctl -w net.ipv4.tcp_max_tw_buckets=1000000 >/dev/null 2>&1
+# Allow safe TIME_WAIT socket reuse (improves connection efficiency)
+sysctl -w net.ipv4.tcp_tw_reuse=1 >/dev/null 2>&1
+
+##### 🔁 ROUTING & FORWARDING #####
+# Enable packet forwarding (required for NAT/routing)
+sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1
+
+##### 🧩 ARP OPTIMIZATION #####
+# Enable ARP filtering (prevents incorrect replies when multiple interfaces exist)
+sysctl -w net.ipv4.conf.all.arp_filter=1 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.default.arp_filter=1 >/dev/null 2>&1
+# ARP announce mode - only reply for local addresses
+sysctl -w net.ipv4.conf.all.arp_announce=2 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.default.arp_announce=2 >/dev/null 2>&1
+# ARP ignore mode - only respond to ARPs for IPs on receiving interface
+sysctl -w net.ipv4.conf.all.arp_ignore=1 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.default.arp_ignore=1 >/dev/null 2>&1
+# ARP cache tuning: reduce broadcast frequency and improve efficiency
+sysctl -w net.ipv4.neigh.default.gc_stale_time=300 >/dev/null 2>&1
+sysctl -w net.ipv4.neigh.default.gc_thresh1=128 >/dev/null 2>&1
+sysctl -w net.ipv4.neigh.default.gc_thresh2=512 >/dev/null 2>&1
+sysctl -w net.ipv4.neigh.default.gc_thresh3=1024 >/dev/null 2>&1
+# Reduce ARP broadcast retries (limits ARP noise in large LANs)
+sysctl -w net.ipv4.neigh.default.ucast_solicit=3 >/dev/null 2>&1
+sysctl -w net.ipv4.neigh.default.mcast_solicit=2 >/dev/null 2>&1
+# Base reachable time for neighbor entries
+sysctl -w net.ipv4.neigh.default.base_reachable_time_ms=300000 >/dev/null 2>&1
+
+##### 🧱 KERNEL & FILESYSTEM HARDENING #####
+# Enable full ASLR (Address Space Layout Randomization)
+sysctl -w kernel.randomize_va_space=2 >/dev/null 2>&1
+# Protect hardlinks (prevents privilege escalation attacks)
+sysctl -w fs.protected_hardlinks=1 >/dev/null 2>&1
+# Protect symlinks (prevents unauthorized link access in shared directories)
+sysctl -w fs.protected_symlinks=1 >/dev/null 2>&1
+
+##### 📡 ICMP #####
+# Disable sending ICMP redirects (prevents MITM via route manipulation)
+sysctl -w net.ipv4.conf.all.send_redirects=0 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.default.send_redirects=0 >/dev/null 2>&1
+# Disable accepting ICMP redirects from other hosts (security hardening)
 sysctl -w net.ipv4.conf.all.accept_redirects=0 >/dev/null 2>&1
 sysctl -w net.ipv4.conf.default.accept_redirects=0 >/dev/null 2>&1
-# Ignore all incoming ICMP echo requests (=0 ACCEPT)
-sysctl -w net.ipv4.icmp_echo_ignore_all=1 >/dev/null 2>&1
-# Disables packet forwarding (NAT)
-sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1
-# length of time an orphaned (unreferenced) connection will wait before it is aborted
-sysctl -w net.ipv4.tcp_fin_timeout=30 >/dev/null 2>&1
-# frequency of TCP keepalive probes sent before deciding that a connection is broken
-sysctl -w net.ipv4.tcp_keepalive_probes=5 >/dev/null 2>&1
-# determines how often TCP keepalive packets are sent to keep a connection alive
-sysctl -w net.ipv4.tcp_keepalive_intvl=15 >/dev/null 2>&1
-# specify the maximum number of packets per processing queue
-sysctl -w net.core.netdev_max_backlog=20000 >/dev/null 2>&1
-# pmtu
-sysctl -w net.ipv4.ip_no_pmtu_disc=1 >/dev/null 2>&1
+# Allow normal ICMP echo requests (ping)
+sysctl -w net.ipv4.icmp_echo_ignore_all=0 >/dev/null 2>&1
+# Ignore ICMP echo requests sent to broadcast addresses (Smurf attack prevention)
+sysctl -w net.ipv4.icmp_echo_ignore_broadcasts=1 >/dev/null 2>&1
+# Ignore bogus or malformed ICMP error responses
+sysctl -w net.ipv4.icmp_ignore_bogus_error_responses=1 >/dev/null 2>&1
+# Rate limit ICMP message generation (100 ms minimum interval)
+sysctl -w net.ipv4.icmp_ratelimit=100 >/dev/null 2>&1
 
-# Enabled by default on Ubuntu 24.04
-# syncookies
-#sysctl -w net.ipv4.tcp_syncookies=1 >/dev/null 2>&1
-# protect hardlinks
-#fs.protected_hardlinks=1 >/dev/null 2>&1
-# enable full ASLR
-#kernel.randomize_va_space=2 >/dev/null 2>&1
-# disable IP source routing (security)
-#sysctl -w net.ipv4.conf.default.accept_source_route=1
+# IPv6
+# Disable
+sysctl -w net.ipv6.conf.all.disable_ipv6=1 >/dev/null 2>&1
+sysctl -w net.ipv6.conf.default.disable_ipv6=1 >/dev/null 2>&1
+sysctl -w net.ipv6.conf.lo.disable_ipv6=1 >/dev/null 2>&1
 
 echo OK
 
@@ -161,8 +242,8 @@ iptables -A OUTPUT -o lo -j ACCEPT
 iptables -A INPUT -s 127.0.0.0/8 ! -i lo -j DROP
 
 # WAN DROP (Optional: Uncomment the ones you need)
-#iptables -A INPUT -i $wan -s 10.0.0.0/8 -j DROP
-#iptables -A INPUT -i $wan -s 172.16.0.0/12 -j DROP
+iptables -A INPUT -i $wan -s 10.0.0.0/8 -j DROP
+iptables -A INPUT -i $wan -s 172.16.0.0/12 -j DROP
 #iptables -A INPUT -i $wan -s 192.168.0.0/16 -j DROP
 
 # MASQUERADE (share internet with LAN)
@@ -183,8 +264,10 @@ iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -d $localnet/$netmask -j
 iptables -A INPUT -i $lan -p udp --dport 123 -s $localnet/$netmask -j ACCEPT
 iptables -A FORWARD -i $lan -p udp --dport 123 -s $localnet/$netmask -j ACCEPT
 
-# Windows Update Delivery Optimization
-iptables -A FORWARD -p tcp --dport 7680 -s $localnet/$netmask -d $localnet/$netmask -j ACCEPT
+# Windows Update Delivery Optimization WUDO
+for proto in tcp udp; do
+    iptables -A FORWARD -p $proto --dport 7680 -s $localnet/$netmask -d $localnet/$netmask -j ACCEPT
+done
 
 echo OK
 
@@ -303,30 +386,25 @@ iptables -A INPUT -i $lan -d 239.255.255.250 -p udp --dport 3702 -m set --match-
 iptables -A FORWARD -i $lan -o $lan -d 239.255.255.250 -p udp --dport 3702 -m set --match-set macports src -j ACCEPT
 iptables -A INPUT -i $lan -p tcp -m multiport --dports 5357,5358 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i $lan -p tcp -m multiport --dports 5357,5358 -m set --match-set macports src -j ACCEPT
-# PRINTERS & SCANNERS UDP: SNMP (161,162) + IPP (631)
-iptables -A INPUT -i $lan -p udp -m multiport --dports 161,162,631 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i $lan -p udp -m multiport --dports 161,162,631 -m set --match-set macports src -j ACCEPT
-# PRINTERS & SCANNERS TCP: IPP (631) + JetDirect/RAW (9100)
-iptables -A INPUT -i $lan -p tcp -m multiport --dports 631,9100 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i $lan -p tcp -m multiport --dports 631,9100 -m set --match-set macports src -j ACCEPT
-# FILE SHARING SMB
+# PRINTERS & SCANNERS UDP: SNMP (161,162) + IPP (631) + prnrequest/prnstatus (3910/3911)
+iptables -A INPUT -i $lan -p udp -m multiport --dports 161,162,631,3910,3911 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i $lan -p udp -m multiport --dports 161,162,631,3910,3911 -m set --match-set macports src -j ACCEPT
+# PRINTERS & SCANNERS TCP: IPP (631) + JetDirect/RAW (9100) + prnrequest/prnstatus (3910/3911)
+iptables -A INPUT -i $lan -p tcp -m multiport --dports 631,9100,3910,3911 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i $lan -p tcp -m multiport --dports 631,9100,3910,3911 -m set --match-set macports src -j ACCEPT
+# STUN / TURN - VoIP, WebRTC, Videoconference (TCP via Squid)
+iptables -A FORWARD -i $lan -p udp -m multiport --dports 3478,19302:19309 -m set --match-set macports src -j ACCEPT
+# FILE SHARING SAMBA (SMB)
 iptables -A INPUT -i $lan -p tcp -m multiport --dports 139,445 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i $lan -p tcp -m multiport --dports 139,445 -m set --match-set macports src -j ACCEPT
-iptables -A OUTPUT -o $lan -p tcp -m multiport --sports 139,445 -j ACCEPT
 # MULTIMEDIA & STREAMING (Optional)
 iptables -A FORWARD -i $lan -o $lan -p tcp -m multiport --dports 2869,8200,10243 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i $lan -o $lan -p igmp -m set --match-set macports src -j ACCEPT
-# STUN / TURN - VoIP, WebRTC, Videoconference (Optional)
-iptables -A INPUT -i $lan -p udp --dport 3478 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i $lan -p udp --dport 3478 -m set --match-set macports src -j ACCEPT
-iptables -A INPUT -i $lan -p tcp --dport 3478 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i $lan -p tcp --dport 3478 -m set --match-set macports src -j ACCEPT
 # MESSAGING & EMAIL (Optional)
 iptables -A FORWARD -i $lan -p tcp -m multiport --dports 465,587,143,993,110,995,5222,5228 -m set --match-set macports src -j ACCEPT
-# NETBIOS (Optional)
+# NETBIOS NMBD (Optional)
 #iptables -A INPUT -i $lan -p udp -m multiport --dports 137,138 -m set --match-set macports src -j ACCEPT
 #iptables -A FORWARD -i $lan -o $lan -p udp -m multiport --dports 137,138 -m set --match-set macports src -j ACCEPT
-#iptables -A OUTPUT -o $lan -p udp -m multiport --sports 137,138 -j ACCEPT
 
 echo OK
 

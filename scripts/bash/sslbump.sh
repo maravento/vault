@@ -1,6 +1,6 @@
 #!/bin/bash
 # maravento.com
-
+#
 # Squid SSL-Bump Installer
 
 echo "Squid SSL-Bump. Wait..."

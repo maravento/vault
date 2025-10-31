@@ -1,6 +1,6 @@
 #!/bin/bash
 # maravento.com
-
+#
 # Mount | Umount google drive folder (no root)
 # https://www.maravento.com/2018/11/compartir-google-drive-con-samba.html
 
@@ -46,9 +46,21 @@ for pkg in $pkgs; do
   }
 done
 
+# LOCAL USER
+# Get real user (not root) - multiple fallback methods
+local_user=$(logname 2>/dev/null || echo "$SUDO_USER")
+# If not found or is root, try detecting active graphical user
+if [ -z "$local_user" ] || [ "$local_user" = "root" ]; then
+    local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}')
+fi
+# As a final fallback, take the first logged user
+if [ -z "$local_user" ]; then
+    local_user=$(who | head -1 | awk '{print $1}')
+fi
+# Clean possible spaces or line breaks
+local_user=$(echo "$local_user" | xargs)
+
 ### VARIABLES
-# LOCAL USER (sudo user no root)
-local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 # replace "GoogleDrive" with your (path) GoogleDrive Folder
 GD="/home/$local_user/gdrive"
 if [ ! -d $GD ]; then mkdir -p $GD && chmod 777 $GD; fi

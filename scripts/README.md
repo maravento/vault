@@ -30,53 +30,88 @@ python gitfolderdl.py https://github.com/maravento/vault/scripts
 
 ---
 
-### Bash (Linux)
+### BASH (Linux)
 
 Tested on: Ubuntu 22.04/24.04 x64
+
+#### Application and Deployment Utilities
+
+- [Crypto Notify (Top 5)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cryptonotify.sh)
+- [Joomla (Install|Remove with Apache/MySQL/PHP/mkcert)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/joomla.sh)
+- [Rustdesk Client (Install|Uninstall|Update)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rustdesk.sh)
+
+#### Cloud & Backup
+
+- [FreeFileSync Update](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ffsupdate.sh)
+- [Gdrive (Mount | Umount - to folder `/home/$USER/gdrive`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/gdrive.sh)
+- [MEGAsync Instances (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/msyncs)
+- [Rclone Cloud (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Mount|Umount (start|stop|status|restart)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rcloud.sh)
+- [Rclone Sync (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Sync to Download|Upload Folder](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rsync.sh)
+
+#### Context Menu Tools (Nautilus, Caja, Thunar, Nemo)
+
+- [copy path](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/copypath)
+- [check MD5](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/checkmd5)
+- [check sha256](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/checksha256)
+- [KDE Connect (Send files to smarthphone)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/send2phone)
+- [make MD5](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/makemd5)
+- [make sha256](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/makesha256)
+- [mount manager (smb, sftp, fuse)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/mountman)
+
+#### Networking & Security
 
 - [Android 2 PC via scrcpy (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/droid2pc.sh)
 - [ArpON table filter](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arponscan.sh)
 - [Arpwatch (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arpwatch.sh)
-- [Check Bandwidth (Set Minimum Download|Upload Value)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bandwidth.sh)
-- [Check Cron](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/checkcron.sh)
-- [Cleaner - Delete files (Thumbs.db, Zone.identifier, encryptable, etc.)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cleaner.sh)
-- [Crypto Notify (Top 5)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cryptonotify.sh)
-- [Disk Temp (HDD/SSD/NVMe)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/disktemp.sh)
-- [Docker + Portainer (Install|Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/docker.sh)
-- [Drive Crypt (Cryptomator Encrypted Disk - Mount|Umount - to folder `/home/$USER/dcrypt`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/drivecrypt.sh)
-- [FreeFileSync Update](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ffsupdate.sh)
-- [Gdrive (Mount | Umount - to folder `/home/$USER/gdrive`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/gdrive.sh)
 - [Internet Watchdog (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/watchdog.sh)
 - [IP Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ipkill.sh)
-- [Joomla (Install|Remove with Apache/MySQL/PHP/mkcert)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/joomla.sh)
-- [KDE Connect (Send files to phone for Nautilus/Caja)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/send2phone)
+- [Net Report](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/netreport.sh)
+- [ngLocalhost Tunnel (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/nglocalhost.sh)
+- [Port Kill (check port with: `sudo netstat -lnp | grep "port"`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/portkill.sh)
+- [Serveo Tunnel (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/serveo.sh)
+- [Unifi Hotspot Client Access (via Linux Server with Iptables)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/unifihotspot.sh)
+- [Wireguard VPN (Install|Uninstall Server|Client)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/wireguard.sh)
+
+#### Proxy
+
+- [Squid Analysis Tool)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/squidtool.sh)
+- [Squid-OpenSSL (ssl-bump)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/sslbump.sh)
+
+#### Storage and File Operations
+
+- [Cleaner - Delete files (Thumbs.db, Zone.identifier, encryptable, etc.)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cleaner.sh)
+- [Disk Temp (HDD/SSD/NVMe)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/disktemp.sh)
+- [Drive Crypt (Cryptomator Encrypted Disk - Mount|Umount - to folder `/home/$USER/dcrypt`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/drivecrypt.sh)
+- [Mass Unzip with Pass](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/massunzip.sh)
+- [NTFS Disk Drive (Mount|Umount with ntfs-3g)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ntfsdrive.sh)
+- [System Migration Tool](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/appbr.sh)
+- [TRIM for SSD/NVMe](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/trim.sh)
+- [Watch Directories (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/watchdir.sh)
+
+#### System and Resource Management
+
+- [Check Bandwidth (Set Minimum Download|Upload Value)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bandwidth.sh)
+- [Check Cron](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/checkcron.sh)
 - [Kill Process By Name](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/pskill.sh)
 - [Kworker Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/kworker.sh)
 - [Limit processes with CPU Limit (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cpulimit.sh)
-- [Mass Unzip with Pass](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/massunzip.sh)
-- [MEGAsync Instances (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/msyncs)
-- [Net Report](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/netreport.sh)
-- [ngLocalhost Tunnel (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/nglocalhost.sh)
-- [NTFS Disk Drive (Mount|Umount with ntfs-3g)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ntfsdrive.sh)
-- [phpVirtualBox Install](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/phpvbox.sh)
-- [Port Kill (check port with: `sudo netstat -lnp | grep "port"`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/portkill.sh)
-- [Rclone Cloud (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Mount|Umount (start|stop|status|restart)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rcloud.sh)
-- [Rclone Sync (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Sync to Download|Upload Folder](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rsync.sh)
 - [Realtek Linux drivers](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/realtekdrv.sh)
-- [Serveo Tunnel (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/serveo.sh)
-- [Squid Analysis Tool)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/squidtool.sh)
-- [Squid-OpenSSL (ssl-bump)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/sslbump.sh)
-- [System Migration Tool](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/appbr.sh)
-- [TRIM for SSD/NVMe](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/trim.sh)
-- [Unifi Hotspot Client Access (via Linux Server with Iptables)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/unifihotspot.sh)
+- [Winpower UPS (start|stop|status|restart)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/winpower.sh)
+
+#### Virtualization
+
+- [Docker + Portainer (Install|Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/docker.sh)
+- [phpVirtualBox Install](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/phpvbox.sh)
 - [Virtual Hard Disk VHD image (.img) (loop or kpartx - Create|Mount|Umount)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vdisk.sh)
 - [VirtualBox 7.1 (Install|Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vbox.sh)
 - [VMs Virtualbox (start|stop|status|shutdown|reset) (replace `my_vm` with the name of your vm)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vm.sh)
-- [Watch Directories (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/watchdir.sh)
-- [Winpower UPS (start|stop|status|restart)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/wireguard.sh)
-- [Wireguard VPN (Install|Uninstall Server|Client)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/wireguard.sh)
 
-### Batch (Windows)
+#### Webmin Module Installation Tools
+
+- [Netplan Manager - Networking Category (install/uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/netwokd.sh)
+- [Services Monitor - System Category (install/uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/servicemon.sh)
+
+### BATCH (Windows)
 
 Tested on: Windows 10/11 x64
 
@@ -92,7 +127,7 @@ Tested on: Windows 10/11 x64
 - [VTools QEMU/KVM (Spice, VirtIO, and WinFsp Setup as a Service)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/vtools.bat)
 - [WMIC (Add|Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/wmic.bat)
 
-### Python (Linux)
+### PYTHON (Linux)
 
 Tested on: Ubuntu 22.04/24.04
 

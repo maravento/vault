@@ -1,0 +1,11 @@
+﻿## CHANGELOG
+# NetScan
+# maravento.com
+
+2025.10.25
+Release day
+New: nmap-7.98
+New: npcap-1.84
+New: libxslt (xsltproc) with dependencies: libxml2, iconv, zlib
+New: Visual C++ v0.102.0
+New: scripts and programs to build

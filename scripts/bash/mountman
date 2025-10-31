@@ -1,0 +1,341 @@
+#!/usr/bin/env bash
+#
+# remote-mount.sh - Nautilus/Caja script to mount/unmount SMB (and FUSE/SFTP)
+# Improved: mount SMB with progressive SMB version, clean Unmount list, elevation support.
+# Added: Save/Load connection profiles
+#
+
+set -euo pipefail
+
+# --- Helpers ---
+err() {
+    zenity --error --title="Error" --text="$1"
+    exit 1
+}
+
+info() {
+    zenity --info --title="$2" --text="$1"
+}
+
+# --- Dependency check (minimal) ---
+for cmd in zenity mount umount; do
+    if ! command -v "$cmd" &>/dev/null; then
+        zenity --error --title="Missing dependency" --text="Command '$cmd' not found. Please install it."
+        exit 1
+    fi
+done
+
+# --- Elevation command (pkexec preferred, fallback to sudo) ---
+ELEVATE_CMD=""
+if command -v pkexec &>/dev/null; then
+    ELEVATE_CMD="pkexec"
+elif command -v sudo &>/dev/null; then
+    ELEVATE_CMD="sudo -E"
+else
+    err "Neither pkexec nor sudo found. Cannot elevate privileges."
+fi
+
+# --- Main menu ---
+ACTION=$(zenity --list --radiolist \
+    --title="Remote Mount" \
+    --text="Choose an action:" \
+    --column="Select" --column="Action" \
+    TRUE "Mount" FALSE "Unmount") || exit 0
+
+# === Unmount Section (improved & clean) ===
+if [[ "$ACTION" == "Unmount" ]]; then
+    MAP=()
+    # Read /proc/mounts: source mountpoint fstype ...
+    while read -r SRC MNT FSTYPE _; do
+        # Skip pseudo filesystems
+        case "$FSTYPE" in
+            proc|sysfs|tmpfs|devtmpfs|devpts|securityfs|cgroup|pstore|mqueue|hugetlbfs|tracefs|overlay|autofs)
+                continue
+                ;;
+        esac
+
+        # skip portal doc mounts and gvfs transient mounts
+        if [[ "$MNT" =~ ^/run/user/[0-9]+/doc ]] || [[ "$MNT" =~ ^/run/user/[0-9]+/gvfs ]]; then
+            continue
+        fi
+
+        # Accept common real FS types and network FS
+        case "$FSTYPE" in
+            cifs|smbfs|fuse*|fuseblk|ext4|xfs|btrfs|ntfs|vfat|iso9660)
+                MAP+=("$MNT" "$SRC" "$FSTYPE")
+                ;;
+            *)
+                continue
+                ;;
+        esac
+    done < /proc/mounts
+
+    if [[ ${#MAP[@]} -eq 0 ]]; then
+        info "No mountpoints found to unmount." "Unmount"
+        exit 0
+    fi
+
+    SEL=$(zenity --list \
+        --title="Unmount" \
+        --text="Select a mounted directory to unmount:" \
+        --column="Mountpoint" --column="Source" --column="Type" \
+        "${MAP[@]}") || exit 0
+
+    # Zenity returns selected row with columns separated by |
+    TARGET=$(echo "$SEL" | awk -F'|' '{print $1}' | sed 's/ *$//g')
+
+    if [[ -z "$TARGET" ]]; then
+        err "No valid mountpoint selected."
+    fi
+
+    TMPERR=$(mktemp)
+    if $ELEVATE_CMD umount -f "$TARGET" 2> "$TMPERR"; then
+        info "Unmounted successfully:\n$TARGET" "Unmount"
+        rm -f "$TMPERR"
+    else
+        ERR=$(< "$TMPERR")
+        zenity --error --title="Unmount failed" --width=600 --text="Failed to unmount:\n$TARGET\n\n$ERR"
+        rm -f "$TMPERR"
+        exit 1
+    fi
+
+    exit 0
+fi
+
+# === Mount Section ===
+
+# --- Ask if user wants to load a saved connection ---
+LOAD_CONNECTION=$(zenity --question \
+    --title="Load Connection" \
+    --text="Do you want to load a saved connection profile?" \
+    --ok-label="Yes" --cancel-label="No" 2>/dev/null && echo "yes" || echo "no")
+
+if [[ "$LOAD_CONNECTION" == "yes" ]]; then
+    # User wants to load a connection file
+    CONN_FILE=$(zenity --file-selection \
+        --title="Select connection profile" \
+        --file-filter="Connection files (*.conn)|*.conn" \
+        --file-filter="All files|*") || exit 0
+    
+    if [[ ! -f "$CONN_FILE" ]]; then
+        err "Connection file not found."
+    fi
+    
+    # Read connection file
+    source "$CONN_FILE" || err "Failed to read connection file."
+    
+    # Validate required variables based on protocol
+    if [[ -z "${PROTOCOL:-}" ]]; then
+        err "Invalid connection file: PROTOCOL not defined."
+    fi
+    
+else
+    # Normal flow: ask for protocol
+    PROTOCOL=$(zenity --list --radiolist \
+        --title="Protocol" \
+        --text="Select protocol:" \
+        --column="Select" --column="Protocol" \
+        TRUE "smb" FALSE "sftp" FALSE "fuse") || exit 0
+fi
+
+# --- SMB Mount (smart, no creds-file prompt) ---
+if [[ "$PROTOCOL" == "smb" ]]; then
+    # If not loaded from file, ask for connection details
+    if [[ "$LOAD_CONNECTION" != "yes" ]]; then
+        SMB_HOST=$(zenity --entry --title="SMB Host" --text="Enter SMB host (e.g. 192.168.0.10):") || exit 0
+        SMB_SHARE=$(zenity --entry --title="Share" --text="Enter share name:") || exit 0
+        SMB_USER=$(zenity --entry --title="Username" --text="Username (leave blank for guest):") || true
+        SMB_PASS=$(zenity --entry --hide-text --title="Password" --text="Password (leave blank for guest):") || true
+        LOCAL_DIR=$(zenity --file-selection --directory --title="Select local mount point") || exit 0
+        
+        # Ask if user wants to save this connection
+        SAVE_CONNECTION=$(zenity --question \
+            --title="Save Connection" \
+            --text="Do you want to save this connection profile?" \
+            --ok-label="Yes" --cancel-label="No" 2>/dev/null && echo "yes" || echo "no")
+        
+        if [[ "$SAVE_CONNECTION" == "yes" ]]; then
+            SAVE_FILE=$(zenity --file-selection --save \
+                --title="Save connection profile" \
+                --filename="smb-connection.conn" \
+                --file-filter="Connection files (*.conn)|*.conn") || true
+            
+            if [[ -n "$SAVE_FILE" ]]; then
+                # Ensure .conn extension
+                [[ "$SAVE_FILE" != *.conn ]] && SAVE_FILE="${SAVE_FILE}.conn"
+                
+                cat > "$SAVE_FILE" <<EOF
+# SMB Connection Profile
+PROTOCOL="smb"
+SMB_HOST="$SMB_HOST"
+SMB_SHARE="$SMB_SHARE"
+SMB_USER="$SMB_USER"
+SMB_PASS="$SMB_PASS"
+LOCAL_DIR="$LOCAL_DIR"
+EOF
+                chmod 600 "$SAVE_FILE"  # Protect password
+                info "Connection profile saved to:\n$SAVE_FILE" "Saved"
+            fi
+        fi
+    fi
+    
+    # Validate required variables
+    if [[ -z "${SMB_HOST:-}" ]] || [[ -z "${SMB_SHARE:-}" ]]; then
+        err "Invalid connection: SMB_HOST and SMB_SHARE are required."
+    fi
+    
+    mkdir -p "$LOCAL_DIR"
+    mountpoint -q "$LOCAL_DIR" && $ELEVATE_CMD umount -f "$LOCAL_DIR" || true
+
+    if [[ -z "${SMB_USER:-}" ]]; then
+        BASE_OPTS="guest,uid=$(id -u),gid=$(id -g),nounix,noserverino,_netdev,nofail"
+    else
+        BASE_OPTS="username=$SMB_USER,password=$SMB_PASS,uid=$(id -u),gid=$(id -g),file_mode=0644,dir_mode=0755,sec=ntlmssp,nounix,noserverino,_netdev,nofail"
+    fi
+
+    SMB_VERSIONS=("3.1.1" "3.0" "2.0" "1.0")
+    SUCCESS=0
+    TMPERR=$(mktemp)
+
+    for VER in "${SMB_VERSIONS[@]}"; do
+        MOUNT_OPTS="$BASE_OPTS,vers=$VER"
+        # provide minimal environment so mount.cifs behaves correctly
+        if $ELEVATE_CMD env HOME="$HOME" mount -t cifs "//$SMB_HOST/$SMB_SHARE" "$LOCAL_DIR" -o "$MOUNT_OPTS" 2> "$TMPERR"; then
+            SUCCESS=1
+            break
+        fi
+    done
+
+    if [[ $SUCCESS -eq 1 ]]; then
+        info "Mounted successfully:\n//$SMB_HOST/$SMB_SHARE → $LOCAL_DIR\n\n(Protocol version: SMB $VER)" "Mounted"
+        xdg-open "$LOCAL_DIR" >/dev/null 2>&1 &
+    else
+        ERR=$(< "$TMPERR")
+        zenity --error --title="Mount failed" --width=600 --text="Mount failed for //$SMB_HOST/$SMB_SHARE.\n\n$ERR"
+        rm -f "$TMPERR"
+        exit 1
+    fi
+    rm -f "$TMPERR"
+    exit 0
+fi
+
+# --- SFTP mount using sshfs (FUSE) ---
+if [[ "$PROTOCOL" == "sftp" ]]; then
+    # If not loaded from file, ask for connection details
+    if [[ "$LOAD_CONNECTION" != "yes" ]]; then
+        SFTP_HOST=$(zenity --entry --title="SFTP Host" --text="Enter host (e.g. 192.168.0.10):") || exit 0
+        SFTP_USER=$(zenity --entry --title="Username" --text="Enter username (optional):") || true
+        SFTP_PATH=$(zenity --entry --title="Remote Path" --text="Enter remote path (optional, e.g. /home/user):") || true
+        LOCAL_DIR=$(zenity --file-selection --directory --title="Select local mount point") || exit 0
+        
+        # Ask if user wants to save this connection
+        SAVE_CONNECTION=$(zenity --question \
+            --title="Save Connection" \
+            --text="Do you want to save this connection profile?" \
+            --ok-label="Yes" --cancel-label="No" 2>/dev/null && echo "yes" || echo "no")
+        
+        if [[ "$SAVE_CONNECTION" == "yes" ]]; then
+            SAVE_FILE=$(zenity --file-selection --save \
+                --title="Save connection profile" \
+                --filename="sftp-connection.conn" \
+                --file-filter="Connection files (*.conn)|*.conn") || true
+            
+            if [[ -n "$SAVE_FILE" ]]; then
+                # Ensure .conn extension
+                [[ "$SAVE_FILE" != *.conn ]] && SAVE_FILE="${SAVE_FILE}.conn"
+                
+                cat > "$SAVE_FILE" <<EOF
+# SFTP Connection Profile
+PROTOCOL="sftp"
+SFTP_HOST="$SFTP_HOST"
+SFTP_USER="$SFTP_USER"
+SFTP_PATH="$SFTP_PATH"
+LOCAL_DIR="$LOCAL_DIR"
+EOF
+                chmod 600 "$SAVE_FILE"
+                info "Connection profile saved to:\n$SAVE_FILE" "Saved"
+            fi
+        fi
+    fi
+    
+    # Validate required variables
+    if [[ -z "${SFTP_HOST:-}" ]]; then
+        err "Invalid connection: SFTP_HOST is required."
+    fi
+
+    mkdir -p "$LOCAL_DIR"
+    mountpoint -q "$LOCAL_DIR" && fusermount -u "$LOCAL_DIR" 2>/dev/null || true
+
+    TARGET="$SFTP_HOST"
+    [[ -n "${SFTP_USER:-}" ]] && TARGET="$SFTP_USER@$SFTP_HOST"
+    [[ -n "${SFTP_PATH:-}" ]] && TARGET="$TARGET:$SFTP_PATH"
+
+    if command -v sshfs &>/dev/null; then
+        if sshfs "$TARGET" "$LOCAL_DIR" -o reconnect,ServerAliveInterval=15,uid=$(id -u),gid=$(id -g); then
+            info "Mounted:\n$TARGET → $LOCAL_DIR" "Mounted"
+            xdg-open "$LOCAL_DIR" >/dev/null 2>&1 &
+        else
+            err "Failed to mount $TARGET via sshfs."
+        fi
+    else
+        err "sshfs not installed."
+    fi
+    exit 0
+fi
+
+# --- Generic FUSE command entry (advanced) ---
+if [[ "$PROTOCOL" == "fuse" ]]; then
+    # If not loaded from file, ask for connection details
+    if [[ "$LOAD_CONNECTION" != "yes" ]]; then
+        FUSE_CMD=$(zenity --entry --title="FUSE Command" --text="Enter full FUSE command (example: sshfs user@host:/path):") || exit 0
+        LOCAL_DIR=$(zenity --file-selection --directory --title="Select local mount point") || exit 0
+        
+        # Ask if user wants to save this connection
+        SAVE_CONNECTION=$(zenity --question \
+            --title="Save Connection" \
+            --text="Do you want to save this connection profile?" \
+            --ok-label="Yes" --cancel-label="No" 2>/dev/null && echo "yes" || echo "no")
+        
+        if [[ "$SAVE_CONNECTION" == "yes" ]]; then
+            SAVE_FILE=$(zenity --file-selection --save \
+                --title="Save connection profile" \
+                --filename="fuse-connection.conn" \
+                --file-filter="Connection files (*.conn)|*.conn") || true
+            
+            if [[ -n "$SAVE_FILE" ]]; then
+                # Ensure .conn extension
+                [[ "$SAVE_FILE" != *.conn ]] && SAVE_FILE="${SAVE_FILE}.conn"
+                
+                cat > "$SAVE_FILE" <<EOF
+# FUSE Connection Profile
+PROTOCOL="fuse"
+FUSE_CMD="$FUSE_CMD"
+LOCAL_DIR="$LOCAL_DIR"
+EOF
+                chmod 600 "$SAVE_FILE"
+                info "Connection profile saved to:\n$SAVE_FILE" "Saved"
+            fi
+        fi
+    fi
+    
+    # Validate required variables
+    if [[ -z "${FUSE_CMD:-}" ]]; then
+        err "Invalid connection: FUSE_CMD is required."
+    fi
+    
+    mkdir -p "$LOCAL_DIR"
+    TMPERR=$(mktemp)
+    if $ELEVATE_CMD bash -c "$FUSE_CMD \"$LOCAL_DIR\"" 2> "$TMPERR"; then
+        info "Mounted via FUSE command." "Mounted"
+    else
+        ERR=$(< "$TMPERR")
+        zenity --error --title="FUSE mount failed" --width=600 --text="Failed to run FUSE command.\n\n$ERR"
+        rm -f "$TMPERR"
+        exit 1
+    fi
+    rm -f "$TMPERR"
+    exit 0
+fi
+
+# If reached here, nothing matched (shouldn't happen)
+exit 0

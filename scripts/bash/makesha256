@@ -1,0 +1,227 @@
+#!/bin/bash
+# maravento.com
+#
+# makesha256 - Create SHA256 checksum files using zenity
+#
+# Nautilus Path: ~/.local/share/nautilus/scripts or ~/.config/nautilus/scripts
+# Caja Path: ~/.config/caja/scripts
+# Thunar Path: ~/.local/share/Thunar/scripts or ~/.config/Thunar/scripts
+# Nemo Path: ~/.local/share/nemo/scripts
+
+echo "Start MakeSHA256. Wait..."
+printf "\n"
+
+# check no-root
+if [ "$(id -u)" == "0" ]; then
+    echo "❌ This script should not be run as root."
+    exit 1
+fi
+
+# check script execution
+if pidof -x $(basename $0) >/dev/null; then
+  for p in $(pidof -x $(basename $0)); do
+    if [ "$p" -ne $$ ]; then
+      echo "Script $0 is already running..."
+      exit
+    fi
+  done
+fi
+
+# Function to show error and exit
+show_error() {
+    zenity --error --title="Make SHA256" --text="$1"
+    exit 1
+}
+
+# Function to show info
+show_info() {
+    zenity --info --title="Make SHA256" --text="$1"
+}
+
+# Check if zenity is available
+if ! command -v zenity &> /dev/null; then
+    echo "Error: zenity is required but not installed."
+    exit 1
+fi
+
+# Check if sha256sum is available
+if ! command -v sha256sum &> /dev/null; then
+    show_error "Error: sha256sum is required but not installed."
+fi
+
+# Get files from file manager selection or command line arguments
+files=()
+
+if [ -n "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS" ]; then
+    # Called from Nautilus or Caja - split the paths
+    IFS=$'\n' read -d '' -r -a files <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+elif [ -n "$THUNAR_SELECTION" ]; then
+    # Called from Thunar - split the paths
+    IFS=$'\n' read -d '' -r -a files <<< "$THUNAR_SELECTION"
+elif [ -n "$NEMO_SCRIPT_SELECTED_FILE_PATHS" ]; then
+    # Called from Nemo - split the paths
+    IFS=$'\n' read -d '' -r -a files <<< "$NEMO_SCRIPT_SELECTED_FILE_PATHS"
+elif [ "$#" -gt 0 ]; then
+    # Called from command line with arguments
+    files=("$@")
+else
+    # No files provided, ask user to select
+    selection=$(zenity --file-selection \
+                       --multiple \
+                       --separator='|' \
+                       --title="Select files to create SHA256 checksums for")
+    [ $? -ne 0 ] && exit 0
+    
+    IFS='|' read -r -a files <<< "$selection"
+fi
+
+# Check if we have any files
+if [ "${#files[@]}" -eq 0 ]; then
+    show_error "No files selected."
+fi
+
+# Check that none of the items is a directory and all exist
+for file in "${files[@]}"; do
+    if [ ! -e "$file" ]; then
+        show_error "'$file' does not exist."
+    fi
+    if [ -d "$file" ]; then
+        show_error "'$file' is a directory.\nThis script only works with files."
+    fi
+    if [ ! -r "$file" ]; then
+        show_error "Cannot read '$file'.\nCheck file permissions."
+    fi
+done
+
+# Determine checksum file naming strategy
+if [ "${#files[@]}" -eq 1 ]; then
+    # Single file: use filename.ext.sha256
+    single_file="${files[0]}"
+    default_name="$(basename "$single_file").sha256"
+    dialog_text="Creating checksum for: $(basename "$single_file")\n\nChecksum file name:"
+else
+    # Multiple files: suggest a generic name
+    default_name="checksums.sha256"
+    dialog_text="Creating checksums for ${#files[@]} files.\n\nChecksum file name:"
+fi
+
+# Ask user for naming preference
+choice=$(zenity --list \
+               --title="SHA256 Checksum Generation" \
+               --text="$dialog_text" \
+               --radiolist \
+               --column="Select" \
+               --column="Option" \
+               --column="Description" \
+               TRUE "auto" "Use automatic naming: $default_name" \
+               FALSE "custom" "Choose custom name" \
+               --height=350 \
+               --width=800)
+
+case $choice in
+    "auto")
+        checksum_file="$default_name"
+        # For single files, place in same directory as original
+        if [ "${#files[@]}" -eq 1 ]; then
+            checksum_file="$(dirname "${files[0]}")/$default_name"
+        fi
+        ;;
+    "custom")
+        checksum_file=$(zenity --file-selection \
+                              --save \
+                              --confirm-overwrite \
+                              --filename="$default_name" \
+                              --title="Save SHA256 checksum file as...")
+        [ $? -ne 0 ] && exit 0
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+
+# Validate checksum file name
+if [ -z "$checksum_file" ]; then
+    show_error "No checksum file name specified."
+fi
+
+# Check if checksum file already exists (for auto naming)
+if [ "$choice" = "auto" ] && [ -e "$checksum_file" ]; then
+    if ! zenity --question \
+                --title="File Exists" \
+                --text="Checksum file already exists:\n$(basename "$checksum_file")\n\nDo you want to overwrite it?"; then
+        show_info "Operation cancelled."
+        exit 0
+    fi
+fi
+
+# Prepare file list with relative paths for better readability in checksum file
+temp_dir=$(mktemp -d)
+manifest_file="$temp_dir/files.txt"
+trap "rm -rf '$temp_dir'" EXIT
+
+# Create list of files with their relative paths from checksum file directory
+checksum_dir=$(dirname "$checksum_file")
+for file in "${files[@]}"; do
+    # Use relative path if file is in same directory tree, otherwise use full path
+    if [[ "$file" == "$checksum_dir"* ]]; then
+        rel_path=$(realpath --relative-to="$checksum_dir" "$file")
+        echo "$rel_path" >> "$manifest_file"
+    else
+        echo "$file" >> "$manifest_file"
+    fi
+done
+
+# Show progress while creating checksums
+(
+    echo "# Calculating SHA256 checksums..."
+    echo "10"
+    
+    # Calculate total size for better progress estimation
+    total_files=${#files[@]}
+    current=0
+    
+    # Clear the output file
+    > "$checksum_file"
+    
+    while IFS= read -r file_path; do
+        current=$((current + 1))
+        progress=$((10 + (current * 80 / total_files)))
+        
+        echo "$progress"
+        echo "# Processing $(basename "$file_path") ($current/$total_files)..."
+        
+        # Calculate checksum
+        if [[ "$file_path" == /* ]]; then
+            # Absolute path
+            actual_file="$file_path"
+        else
+            # Relative path
+            actual_file="$checksum_dir/$file_path"
+        fi
+        
+        hash=$(sha256sum "$actual_file" 2>/dev/null)
+        if [ $? -eq 0 ]; then
+            # Replace the full path with the desired path in output
+            echo "$hash" | sed "s|$actual_file|$file_path|" >> "$checksum_file"
+        else
+            echo "Error processing $file_path" >&2
+            exit 1
+        fi
+    done < "$manifest_file"
+    
+    echo "100"
+    echo "# Complete!"
+    
+) | zenity --progress \
+           --title="Creating SHA256 Checksums" \
+           --text="Initializing..." \
+           --percentage=0 \
+           --auto-close
+
+# Check if the operation was successful
+if [ $? -eq 0 ] && [ -s "$checksum_file" ]; then
+    file_count=$(wc -l < "$checksum_file")
+    show_info "✅ SUCCESS\n\n📄 Checksum file created: $(basename "$checksum_file")\n📊 Files processed: $file_count\n📂 Location: $(dirname "$checksum_file")\n\nYou can now use this file to verify the integrity of your files."
+else
+    show_error "❌ FAILED\n\nUnable to create checksum file.\nCheck that you have write permissions in the target directory."
+fi

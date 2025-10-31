@@ -1,6 +1,6 @@
 #!/bin/bash
 # maravento.com
-
+#
 # Joomla install | remove
 # Included: Apache/MySQL/PHP/mkcert
 # Tested: Ubuntu 22.04.x / 24.04.x ​​x64

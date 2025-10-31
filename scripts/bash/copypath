@@ -1,0 +1,130 @@
+#!/bin/bash
+#
+# copy-path.sh - Universal script to copy file/folder paths to clipboard
+# Compatible with: Nautilus, Caja, Nemo, Thunar, Dolphin, PCManFM
+#
+
+# --- Dependency checker ---
+check_dependencies() {
+    local missing=()
+    local clip_tools=0
+    local notify_tools=0
+    
+    # Check clipboard tools (at least one required)
+    command -v xclip &>/dev/null && clip_tools=1
+    command -v xsel &>/dev/null && clip_tools=1
+    command -v wl-copy &>/dev/null && clip_tools=1
+    
+    if [[ $clip_tools -eq 0 ]]; then
+        missing+=("clipboard tool (xclip, xsel, or wl-clipboard)")
+    fi
+    
+    # Check notification tools (at least one required)
+    command -v zenity &>/dev/null && notify_tools=1
+    command -v notify-send &>/dev/null && notify_tools=1
+    
+    if [[ $notify_tools -eq 0 ]]; then
+        missing+=("notification tool (zenity or libnotify/notify-send)")
+    fi
+    
+    # If dependencies are missing, show error and exit
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        local msg="Missing required dependencies:\n\n"
+        for dep in "${missing[@]}"; do
+            msg+="• $dep\n"
+        done
+        msg+="\nInstall with:\n"
+        
+        if [[ $clip_tools -eq 0 ]]; then
+            msg+="sudo apt install xclip\n"
+        fi
+        if [[ $notify_tools -eq 0 ]]; then
+            msg+="sudo apt install zenity\n"
+        fi
+        
+        # Try to show error with any available method
+        if command -v zenity &>/dev/null; then
+            echo -e "$msg" | zenity --text-info --title="Copy Path - Missing Dependencies" --width=500 --height=300
+        elif command -v notify-send &>/dev/null; then
+            notify-send "Copy Path Error" "Missing dependencies. Check terminal." -u critical
+            echo -e "$msg"
+        else
+            echo -e "$msg" >&2
+        fi
+        exit 1
+    fi
+}
+
+# Run dependency check
+check_dependencies
+
+# --- Select clipboard tool ---
+if command -v xclip &>/dev/null; then
+    CLIP_CMD="xclip -selection clipboard"
+elif command -v xsel &>/dev/null; then
+    CLIP_CMD="xsel --clipboard"
+elif command -v wl-copy &>/dev/null; then
+    CLIP_CMD="wl-copy"
+fi
+
+# --- Detect file manager and get selected paths ---
+PATHS=""
+
+# Try different file manager environment variables
+if [[ -n "${CAJA_SCRIPT_SELECTED_FILE_PATHS:-}" ]]; then
+    # Caja (MATE)
+    PATHS="$CAJA_SCRIPT_SELECTED_FILE_PATHS"
+elif [[ -n "${NAUTILUS_SCRIPT_SELECTED_FILE_PATHS:-}" ]]; then
+    # Nautilus (GNOME)
+    PATHS="$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+elif [[ -n "${NEMO_SCRIPT_SELECTED_FILE_PATHS:-}" ]]; then
+    # Nemo (Cinnamon)
+    PATHS="$NEMO_SCRIPT_SELECTED_FILE_PATHS"
+elif [[ -n "${THUNAR_SCRIPT_SELECTED_FILE_PATHS:-}" ]]; then
+    # Thunar (XFCE) - not standard, but some configs use it
+    PATHS="$THUNAR_SCRIPT_SELECTED_FILE_PATHS"
+elif [[ $# -gt 0 ]]; then
+    # Fallback: paths passed as arguments (Dolphin, PCManFM, others)
+    PATHS="$*"
+else
+    # No files selected
+    if command -v zenity &>/dev/null; then
+        zenity --error --text="No files selected.\n\nPlease select a file or folder and try again." --width=350 --title="Copy Path"
+    elif command -v notify-send &>/dev/null; then
+        notify-send "Copy Path Error" "No files selected" -u normal
+    fi
+    exit 1
+fi
+
+# Clean up paths (remove file:// prefix and decode URIs)
+PATHS=$(echo "$PATHS" | sed 's|file://||g' | sed 's/%20/ /g')
+
+# Remove any trailing newlines or whitespace
+PATHS=$(echo "$PATHS" | sed 's/[[:space:]]*$//')
+
+# Validate that we have actual paths
+if [[ -z "$PATHS" ]]; then
+    if command -v zenity &>/dev/null; then
+        zenity --error --text="Could not retrieve file path.\n\nFile manager may not be supported." --width=350 --title="Copy Path"
+    elif command -v notify-send &>/dev/null; then
+        notify-send "Copy Path Error" "Could not retrieve file path" -u normal
+    fi
+    exit 1
+fi
+
+# Copy to clipboard
+echo -n "$PATHS" | $CLIP_CMD
+
+# Show success notification
+if command -v zenity &>/dev/null; then
+    # Truncate long paths for display
+    DISPLAY_PATHS="$PATHS"
+    if [[ ${#DISPLAY_PATHS} -gt 200 ]]; then
+        DISPLAY_PATHS="${DISPLAY_PATHS:0:200}..."
+    fi
+    zenity --info --text="Path(s) copied to clipboard:\n\n$DISPLAY_PATHS" --timeout=2 --width=400 --title="Copy Path" 2>/dev/null || true
+elif command -v notify-send &>/dev/null; then
+    notify-send "Copy Path" "Path(s) copied to clipboard" -t 2000
+fi
+
+exit 0

@@ -1,6 +1,6 @@
 #!/bin/bash
 # maravento.com
-
+#
 # Start | Stop VMs Virtualbox
 
 # how to use:           /path_to/vm.sh {start|stop|shutdown|reset|status}
@@ -36,9 +36,21 @@ if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VER
     # exit 1
 fi
 
+# LOCAL USER
+# Get real user (not root) - multiple fallback methods
+local_user=$(logname 2>/dev/null || echo "$SUDO_USER")
+# If not found or is root, try detecting active graphical user
+if [ -z "$local_user" ] || [ "$local_user" = "root" ]; then
+    local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}')
+fi
+# As a final fallback, take the first logged user
+if [ -z "$local_user" ]; then
+    local_user=$(who | head -1 | awk '{print $1}')
+fi
+# Clean possible spaces or line breaks
+local_user=$(echo "$local_user" | xargs)
+
 ### VARIABLES
-# LOCAL USER (sudo user no root)
-local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
 # replace "my_vm_name" with your vm name
 # Set name of VM (e.j: VMNAME="win10") or UUID (e.j.: VMNAME="4ec6acc1-a232-566d-a040-6bc4aadc19a6")
 VMNAME="my_vm"
