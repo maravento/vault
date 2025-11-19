@@ -2,6 +2,10 @@
 # ITSM - IT Service Management & CMDB Portable
 # maravento.com
 
+2025.11.05
+Update: glpi-11.0.2
+Update: Visual C++ v0.102.0
+
 2025.10.09
 Update: windows_10_cmake_Release_graphviz-install-14.0.1-win64
 Update: glpi-11.0.1

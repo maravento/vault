@@ -37,15 +37,15 @@ Tested on: Ubuntu 22.04/24.04 x64
 #### Application and Deployment Utilities
 
 - [Crypto Notify (Top 5)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cryptonotify.sh)
-- [Joomla (Install|Remove with Apache/MySQL/PHP/mkcert)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/joomla.sh)
-- [Rustdesk Client (Install|Uninstall|Update)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rustdesk.sh)
+- [Joomla (install|remove with Apache/MySQL/PHP/mkcert)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/joomla.sh)
+- [Rustdesk Client (install|uninstall|update)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rustdesk.sh)
 
 #### Cloud & Backup
 
 - [FreeFileSync Update](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ffsupdate.sh)
 - [Gdrive (Mount | Umount - to folder `/home/$USER/gdrive`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/gdrive.sh)
 - [MEGAsync Instances (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/msyncs)
-- [Rclone Cloud (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Mount|Umount (start|stop|status|restart)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rcloud.sh)
+- [Rclone Cloud (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - mount|umount (start|stop|status|restart)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rcloud.sh)
 - [Rclone Sync (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - Sync to Download|Upload Folder](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rsync.sh)
 
 #### Context Menu Tools (Nautilus, Caja, Thunar, Nemo)
@@ -65,12 +65,12 @@ Tested on: Ubuntu 22.04/24.04 x64
 - [Arpwatch (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arpwatch.sh)
 - [Internet Watchdog (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/watchdog.sh)
 - [IP Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ipkill.sh)
-- [Net Report](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/netreport.sh)
+- [Netplan Switch (install|uninstall|status|help)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/npswitch.sh)
 - [ngLocalhost Tunnel (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/nglocalhost.sh)
 - [Port Kill (check port with: `sudo netstat -lnp | grep "port"`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/portkill.sh)
 - [Serveo Tunnel (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/serveo.sh)
 - [Unifi Hotspot Client Access (via Linux Server with Iptables)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/unifihotspot.sh)
-- [Wireguard VPN (Install|Uninstall Server|Client)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/wireguard.sh)
+- [Wireguard VPN (install|uninstall - server|client)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/wireguard.sh)
 
 #### Proxy
 
@@ -81,16 +81,16 @@ Tested on: Ubuntu 22.04/24.04 x64
 
 - [Cleaner - Delete files (Thumbs.db, Zone.identifier, encryptable, etc.)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cleaner.sh)
 - [Disk Temp (HDD/SSD/NVMe)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/disktemp.sh)
-- [Drive Crypt (Cryptomator Encrypted Disk - Mount|Umount - to folder `/home/$USER/dcrypt`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/drivecrypt.sh)
+- [Drive Crypt (Cryptomator Encrypted Disk - mount|umount - to folder `/home/$USER/dcrypt`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/drivecrypt.sh)
 - [Mass Unzip with Pass](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/massunzip.sh)
-- [NTFS Disk Drive (Mount|Umount with ntfs-3g)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ntfsdrive.sh)
+- [NTFS Disk Drive (mount|umount with ntfs-3g)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ntfsdrive.sh)
 - [System Migration Tool](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/appbr.sh)
 - [TRIM for SSD/NVMe](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/trim.sh)
 - [Watch Directories (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/watchdir.sh)
 
 #### System and Resource Management
 
-- [Check Bandwidth (Set Minimum Download|Upload Value)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bandwidth.sh)
+- [Check Bandwidth (Set Minimum download|upload Value)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bandwidth.sh)
 - [Check Cron](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/checkcron.sh)
 - [Kill Process By Name](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/pskill.sh)
 - [Kworker Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/kworker.sh)
@@ -100,16 +100,18 @@ Tested on: Ubuntu 22.04/24.04 x64
 
 #### Virtualization
 
-- [Docker + Portainer (Install|Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/docker.sh)
+- [Bridge Management for Virtualization (on|off|status|clean)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bridge.sh)
+- [Docker + Portainer (install|remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/docker.sh)
 - [phpVirtualBox Install](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/phpvbox.sh)
-- [Virtual Hard Disk VHD image (.img) (loop or kpartx - Create|Mount|Umount)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vdisk.sh)
-- [VirtualBox 7.1 (Install|Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vbox.sh)
+- [Virtual Hard Disk VHD image (.img) (loop or kpartx - create|mount|umount)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vdisk.sh)
+- [VirtualBox 7.1 (install|remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vbox.sh)
 - [VMs Virtualbox (start|stop|status|shutdown|reset) (replace `my_vm` with the name of your vm)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vm.sh)
 
 #### Webmin Module Installation Tools
 
-- [Netplan Manager - Networking Category (install/uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/netwokd.sh)
-- [Services Monitor - System Category (install/uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/servicemon.sh)
+- [Netplan Manager - Networking Category (install|uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/netplanmgr.sh)
+- [Services Monitor - System Category (install|uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/servicemon.sh)
+- [Squid Monitor - Server Category (install|uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/squidmon.sh)
 
 ### BATCH (Windows)
 
@@ -118,12 +120,12 @@ Tested on: Windows 10/11 x64
 - [FixPrint (Print Queue Cleaning)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/fixprint.bat)
 - [Mozilla Thunderbird (Backup Profiles to USB)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/mtpbackup.bat)
 - [Net Reset (Proxy and NIC)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/netreset.bat)
-- [Non-Essential Services (Disable|Auto)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/nonservices.bat)
+- [Non-Essential Services (disable|auto)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/nonservices.bat)
 - [Regedit Backup (to `%HOMEDRIVE%\RegBackup`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/regbackup.bat)
-- [Safe Boot (Modes: Safe with Network|Safe Minimal|Normal)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/safeboot.bat)
-- [SMB Config (Modify SMB1, SMB Signing and Insecure Guest Access)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/smbconf.bat)
+- [Safe Boot (Modes: safe boot minimal|safe boot with network|normal)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/safeboot.bat)
+- [SMB Config (Modify smb1|smb signing|insecure guest access)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/smbconf.bat)
 - [Unifi Network Server Setup](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/unifisetup.bat)
-- [Uniform Server (Change MySQL/Apache Ports - Set Portable|Permanent - Run With System)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/uzeroconf.bat)
+- [Uniform Server (Change MySQL/Apache Ports - Set portable|permanent - Run With System)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/uzeroconf.bat)
 - [VTools QEMU/KVM (Spice, VirtIO, and WinFsp Setup as a Service)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/vtools.bat)
 - [WMIC (Add|Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/wmic.bat)
 

@@ -51,7 +51,6 @@ git clone --depth=1 https://github.com/maravento/vault.git
 
 ---
 
-- [bandwidthd](https://github.com/maravento/vault/tree/master/bandwidthd)
 - [blackshield](https://github.com/maravento/vault/tree/master/blackshield)
 - [blackusb](https://github.com/maravento/vault/tree/master/blackusb)
 - [ddos](https://github.com/maravento/vault/tree/master/ddos)
@@ -59,12 +58,9 @@ git clone --depth=1 https://github.com/maravento/vault.git
 - [dofi](https://github.com/maravento/vault/tree/master/dofi)
 - [gateproxy](https://github.com/maravento/vault/tree/master/gateproxy)
 - [itsm](https://github.com/maravento/vault/tree/master/itsm)
-- [lightsquid](https://github.com/maravento/vault/tree/master/lightsquid)
 - [netscan](https://github.com/maravento/vault/tree/master/netscan)
+- [proxymon](https://github.com/maravento/vault/tree/master/proxymon)
 - [scripts](https://github.com/maravento/vault/tree/master/scripts)
-- [sqstat](https://github.com/maravento/vault/tree/master/sqstat)
-- [stack](https://github.com/maravento/vault/tree/master/stack)
-- [telemetry](https://github.com/maravento/vault/tree/master/telemetry)
 - [trek](https://github.com/maravento/vault/tree/master/trek)
 - [uniopos](https://github.com/maravento/vault/tree/master/uniopos)
 - [winzenity](https://github.com/maravento/vault/tree/master/winzenity)

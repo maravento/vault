@@ -545,18 +545,19 @@ sleep 1
 cleanupgrade
 fixbroken
 
-### SETUP
+### SETUP ###
 echo -e "\n"
 echo "Gateproxy Packages..."
 sed -i "/^127\.0\.1\.1/ r $gp/conf/server/hosts.txt" /etc/hosts
 sed -i '/^\s*\(fe00::\|ff00::\|ff02::\)/ s/^/#/' /etc/hosts
 grep -q "ipv6.msftncsi.com" /etc/hosts || echo "$serverip ipv6.msftncsi.com ipv6.msftconnecttest.com" | tee -a /etc/hosts
 
-# ACLs
+# ACLs SECTION
 cp -rf $gp/acl/* "$aclroute"
 chmod -x "$aclroute"/*
 
-# DHCP: isc-dhcp-server
+# DHCP SECTION
+# isc-dhcp-server
 nala install -y isc-dhcp-server
 systemctl disable isc-dhcp-server6
 sed -i "s/^INTERFACESv4=.*/INTERFACESv4=\"$LAN_INTERFACE\"/" /etc/default/isc-dhcp-server
@@ -564,7 +565,8 @@ sed -i "s/^INTERFACESv4=.*/INTERFACESv4=\"$LAN_INTERFACE\"/" /etc/default/isc-dh
 # PHP
 nala install -y php
 
-# http server: apache2
+# HTTP SERVER SECTION
+# apache2
 nala install -y apache2 apache2-doc apache2-utils apache2-dev \
                 apache2-suexec-pristine libaprutil1t64 libaprutil1-dev \
                 libtest-fatal-perl
@@ -577,7 +579,8 @@ fixbroken
 cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
 sed -i -E 's/^([[:space:]]*)Listen[[:space:]]+([0-9]+)/\1Listen 0.0.0.0:\2/' /etc/apache2/ports.conf
 
-# Proxy: squid-cache
+# PROXY SECTION
+# squid-cache
 while pgrep squid > /dev/null; do
     killall -s SIGTERM squid &>/dev/null
     sleep 5
@@ -595,14 +598,17 @@ chmod 640 /var/log/squid/*.log
 mkdir -p /var/spool/squid/rock >/dev/null 2>&1
 chown -R proxy:proxy /var/spool/squid/rock
 chmod -R 700 /var/spool/squid/rock
+usermod -aG proxy www-data
 systemctl enable squid.service
 squid -z
 cp -f /etc/logrotate.d/squid{,.bak} &>/dev/null
 sed -i '/sharedscripts/a \    create 0644 proxy proxy' /etc/logrotate.d/squid
+sed -i 's/rotate 2/rotate 7/' /etc/logrotate.d/squid
 # Let’s Encrypt certificate for client to Squid proxy encryption (Optional)
 #nala install -y certbot python3-certbot-apache
     
-# Web Admin: webmin
+# ADMIN SECTION
+# webmin
 # https://www.maravento.com/2019/06/instalar-modulo-webmin-por-linea-de.html
 curl -o setup-repos.sh https://raw.githubusercontent.com/webmin/webmin/master/setup-repos.sh
 chmod +x setup-repos.sh
@@ -610,12 +616,16 @@ echo "y" | ./setup-repos.sh
 cleanupgrade
 nala install -y webmin
 fixbroken
-# text editor module
+systemctl enable --now webmin.service 2>/dev/null || true
+echo "Webmin Access: https://localhost:10000"
+
+# webmin modules
+# Text Editor | Service Monitor | Netplan Manager
 systemctl stop webmin.service 2>/dev/null || true
 /usr/share/webmin/install-module.pl $gp/conf/webmin/text-editor.wbm
 find $aclroute -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/dev/null
 # List of modules to install
-for module in servicemon networkd; do
+for module in servicemon netplanmgr; do
     echo "Installing $module module..."
     if wget -q -O ${module}.sh "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/${module}.sh"; then
         chmod +x ${module}.sh
@@ -625,77 +635,19 @@ for module in servicemon networkd; do
         echo "Error: Failed to download ${module}.sh"
     fi
 done
-systemctl enable --now webmin.service 2>/dev/null || true
-echo "Webmin Access: https://localhost:10000"
-    
-# Traffic Reports: Sarg
-# https://www.maravento.com/2014/03/network-monitor.html
-nala install -y sarg
-fixbroken
-mkdir -p /var/www/squid-reports
-cp -f /etc/sarg/sarg.conf{,.bak} &>/dev/null
-cp -f $gp/conf/monitor/sarg.conf /etc/sarg/sarg.conf
-chmod -x /etc/sarg/sarg.conf
-cp -f /etc/sarg/usertab{,.bak} &>/dev/null
-cp -f $gp/conf/monitor/usertab /etc/sarg/usertab
-chmod -x /etc/sarg/usertab
-cp -f $gp/conf/monitor/sargaudit.conf /etc/apache2/sites-available/sargaudit.conf
-chmod 644 /etc/apache2/sites-available/sargaudit.conf
-a2ensite -q sargaudit.conf
-sarg -f /etc/sarg/sarg.conf -l /var/log/squid/access.log &>/dev/null
-crontab -l | {
-    cat
-    echo "@daily sarg -l /var/log/squid/access.log -o /var/www/squid-reports &> /dev/null"
-} | crontab -
-crontab -l | {
-    cat
-    echo '@weekly find /var/www/squid-reports -name "2*" -mtime +30 -type d -exec rm -rf "{}" \; &> /dev/null'
-} | crontab -
-grep -qxF 'Listen 0.0.0.0:18801' /etc/apache2/ports.conf || grep -qxF 'Listen 18801' /etc/apache2/ports.conf || echo 'Listen 0.0.0.0:18801' >> /etc/apache2/ports.conf
-echo "Sarg Access: http://localhost:18801 or http://$serverip:18801/"
-echo "Sarg Usernames: /etc/sarg/usertab (${lang_25[$lang]} 192.168.0.10 GATEPROXY)"
 
-# Monitor: lightsquid
-# https://github.com/maravento/vault/tree/master/lightsquid
-nala install -y libcgi-session-perl libgd-perl
-tar -xf $gp/conf/monitor/lightsquid-1.8.1.tar.gz
-mkdir -p /var/www/lightsquid
-cp -f -R lightsquid-1.8.1/* /var/www/lightsquid/
-rm -rf lightsquid-1.8.1
-chmod +x /var/www/lightsquid/*.{cgi,pl}
-cp -f $gp/conf/monitor/lightsquid.conf /etc/apache2/conf-available/lightsquid.conf
-a2enmod cgid
-a2enconf lightsquid
-crontab -l | {
-    cat
-    echo "*/10 * * * * /var/www/lightsquid/lightparser.pl today"
-} | crontab -
-crontab -l | {
-    cat
-    echo "#*/12 * * * * /etc/scr/bandata.sh"
-} | crontab -
-echo "Lightsquid Access: http://localhost/lightsquid/"
-echo "Lightsquid Usernames: /var/www/lightsquid/realname.cfg"
-echo "Lightsquid (first time run): /var/www/lightsquid/lightparser.pl"
-echo "Lightsquid (check bandata IP): cat /etc/acl/{banmonth,bandaily}.txt | uniq"
-    
-# Warning for lightsquid-bandata
-mkdir -p /var/www/html/warning
-chown -R www-data:www-data /var/www/html/warning
-#escaped_serverip=$(echo "$serverip" | sed 's/\./\\\\./g')
-#sed -i "s/192\\\\.168\\\\.0\\\\.10/$escaped_serverip/g" $gp/conf/monitor/warning.html
-cp -f $gp/conf/monitor/warning.html /var/www/html/warning/warning.html
-# http
-cp -f $gp/conf/monitor/warning.conf /etc/apache2/sites-available/warning.conf
-chmod 644 /etc/apache2/sites-available/warning.conf
-touch /var/log/apache2/{warning_access,warning_error}.log
-grep -qxF 'Listen 0.0.0.0:18880' /etc/apache2/ports.conf || grep -qxF 'Listen 18880' /etc/apache2/ports.conf || echo 'Listen 0.0.0.0:18880' >> /etc/apache2/ports.conf
+# Proxy Monitor
+wget -O install.sh https://raw.githubusercontent.com/maravento/vault/refs/heads/master/proxymon/proxymon.sh
+chmod +x proxymon.sh
+{
+    echo "$serverip"      # Enter your Server IP
+    echo "$LAN_INTERFACE" # Enter LAN Net Interface  
+} | ./proxymon.sh install
 
-a2enmod rewrite
-a2ensite -q warning.conf
-echo "Warning: http://$serverip:18880"
+# btop | htop
+nala install -y btop htop
 
-# Net Pack
+# NET SECTION
 # Net Tools (Replace NIC and IP/CIDR)
 nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
 nala install -y fping              # Net diagnostics: fping -a -g 192.168.1.0/24
@@ -715,7 +667,7 @@ nala install -y nmap python3-nmap ndiff
 nala install -y traceroute         # traceroute google.com
 nala install -y mtr-tiny           # mtr google.com
 
-# Security:
+# SECURITY SECTION
 # fail2ban
 nala install -y fail2ban
 cp $gp/conf/server/jail.local /etc/fail2ban/jail.local
@@ -730,7 +682,7 @@ echo "Lynis Run: lynis -c -Q and log: /var/log/lynis.log"
 # ipset
 nala install -y ipset
     
-# Logs: 
+# LOGS SECTION 
 # ulog2
 # https://www.maravento.com/2014/07/registros-iptables.html
 chown root:root /var/log
@@ -748,7 +700,7 @@ echo "Ulog Access: /var/log/ulog/syslogemu.log"
 nala install -y rsyslog
 systemctl enable rsyslog.service
     
-# Backup: 
+# BACKUP SECTION 
 # Timeshift
 nala install -y timeshift
 # FreeFileSync
@@ -766,7 +718,8 @@ sleep 1
 cleanupgrade
 fixbroken
 
-### SAMBA (with SHARE folder, Recycle Bin and Audit)
+### SHARED ###
+# Samba with Shared folder, Recycle Bin and Audit
 # https://www.maravento.com/2021/12/samba-full-audit.html
 clear
 echo -e "\n"
@@ -855,13 +808,13 @@ sleep 1
 cleanupgrade
 fixbroken
 
-### ACLs
+### ACLs ###
 echo -e "\n"
 echo "Downloading ACLs..."
 # Allow IP
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O $aclroute/allowip.txt
 # Block words
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/squid/blockwords.txt -O $aclroute/blockwords.txt
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/squid/blockpatterns.txt -O $aclroute/blockpatterns.txt
 # Veto Files
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/smb/vetofiles.txt -O $aclroute/vetofiles.txt
 # Block TLDs
@@ -873,7 +826,7 @@ cp blackweb.txt $aclroute/blackweb.txt
 echo OK
 sleep 1
 
-### ADD CONFIG
+### ADD CONFIG ###
 echo -e "\n"
 echo "Applying Config..."
 # squid
@@ -917,10 +870,9 @@ cp -fr $gp/conf/wpad/* /var/www/wpad/
 cp -f $gp/conf/server/proxy.conf /etc/apache2/sites-available/proxy.conf
 chmod 644 /etc/apache2/sites-available/proxy.conf
 a2ensite -q proxy.conf
-chmod -R 755 /var/www/
-grep -qxF 'Listen 0.0.0.0:18800' /etc/apache2/ports.conf || grep -qxF 'Listen 18800' /etc/apache2/ports.conf || echo 'Listen 0.0.0.0:18800' >> /etc/apache2/ports.conf
+grep -qxF 'Listen 0.0.0.0:18100' /etc/apache2/ports.conf || grep -qxF 'Listen 18100' /etc/apache2/ports.conf || echo 'Listen 0.0.0.0:18100' >> /etc/apache2/ports.conf
 apachectl -t -D DUMP_INCLUDES -S
-echo "WPAD-PAC Proxy Auto Access: http://SERVER_IP:18800/proxy.pac"
+echo "WPAD-PAC Proxy Auto Access: http://SERVER_IP:18100/proxy.pac"
 echo OK
 sleep 1
 
@@ -963,8 +915,6 @@ cp -f /etc/apache2/apache2.conf{,.bak} &>/dev/null
 #echo 'RequestReadTimeout header=10-20,MinRate=500 body=20,MinRate=500' | tee -a /etc/apache2/apache2.conf # optional
 cp -f $gp/conf/server/servername.conf /etc/apache2/conf-available/servername.conf
 a2enconf servername
-chmod -R 775 /var/www
-chown -R www-data:www-data /var/www
 
 # Hardening
 cp -f /etc/apache2/conf-available/security.conf{,.bak} &>/dev/null
@@ -978,24 +928,26 @@ echo 'Options all -Indexes' | tee -a /etc/apache2/conf-available/security.conf
 # Headers (opcional)
 #ln -sf /etc/apache2/mods-available/headers.load /etc/apache2/mods-available/headers.load
 a2enmod headers &>/dev/null
-# apache reload
-systemctl reload apache2.service
 echo OK
 sleep 1
 
-### APACHE PASSWORD
+# APACHE PASSWORD AND RELOAD
 echo -e "\n"
 echo "Create Apache Password: /var/www/..."
 echo -e "\n"
 htpasswd -c /etc/apache2/.htpasswd "$local_user"
 apache2ctl configtest
+# apache reload
+chmod -R 755 /var/www
+chown -R www-data:www-data /var/www
+systemctl reload apache2.service
 echo OK
 sleep 1
 
 cleanupgrade
 fixbroken
 
-### CRONTAB
+# CRONTAB
 echo -e "\n"
 echo "Add Crontab Tasks..."
 crontab -l | {
@@ -1018,7 +970,7 @@ sleep 1
 cleanupgrade
 fixbroken
 
-### ENDING
+### ENDING ###
 # Restart Daemon
 systemctl daemon-reexec &>/dev/null
 # Update initramfs (optional)

@@ -78,11 +78,11 @@ def process_tlds_file(input_file: str = "sourcetld.txt", output_file: str = "tld
             f.write(line + '\n')
 
 def generate_tlds():
-    # Verificar si tlds.txt ya existe
+    # Check if tlds.txt already exists
     if os.path.exists("tlds.txt") and os.path.getsize("tlds.txt") > 0:
-        return  # Si existe y no está vacío, no hacer nada
+        return  # If it exists and is not empty, do nothing.
 
-    # Si no existe, proceder con la descarga
+    # If it does not exist, proceed with the download
     Path("sourcetld.txt").write_text("")
     urls = [
         'https://data.iana.org/TLD/tlds-alpha-by-domain.txt',

@@ -15,9 +15,11 @@
   </tr>
 </table>
 
-## DATA SHEET
+## NETSCAN ON WINDOWS
 
 ---
+
+### Data Sheet
 
 | File |  OS  | Size |
 | :--: | :--: | :--: |
@@ -30,9 +32,7 @@
 - [libxslt (xsltproc)](https://www.zlatkovic.com/pub/libxml/)
 - [Microsoft Visual C++ Runtimes](https://github.com/abbodi1406/vcredist)
 
-## HOW TO USE
-
----
+### How to Use
 
 <table width="100%">
   <tr>
@@ -58,7 +58,7 @@
   </tr>
 </table>
 
-### START
+### Start
 
 <table width="100%">
   <tr>
@@ -73,7 +73,7 @@
 
 [![Image](https://raw.githubusercontent.com/maravento/vault/master/netscan/img/netscan-welcome.png)](https://www.maravento.com)
 
-### SCAN SELECTOR
+### Scan Selector
 
 <table width="100%">
   <tr>
@@ -88,7 +88,7 @@
 
 [![Image](https://raw.githubusercontent.com/maravento/vault/master/netscan/img/netscan-selector.png)](https://www.maravento.com)
 
-#### Scanning Modes
+### Scanning Modes
 
 | Scan Mode | Nmap Options | Description | Descripción |
 | --------- | ------------ | ----------- | ----------- |
@@ -96,14 +96,14 @@
 | 2. Advanced LAN Scan | `-sS -T4 -F -sV -sC --max-retries 3 --host-timeout 5m` | Deep scanning with scripts | Escaneo profundo con scripts |
 | 3. IP Scan | `-sS -T4 -F -sV --version-intensity 8 -sC -O --script vuln --traceroute -oA scan_ip --max-retries 3 --host-timeout 10m` | Comprehensive single-host audit with OS detection, vulnerability scanning, and detailed service enumeration | Auditoría completa de un host con detección de OS, escaneo de vulnerabilidades y enumeración detallada de servicios |
 
-#### Installation Messages
+### Installation Messages
 
 | Message | Description | Descripción |
 | ------- | ----------- | ----------- |
 | ![Image](https://raw.githubusercontent.com/maravento/vault/master/netscan/img/netscan-extract.png) | Extracting NetScan content during execution. | Extrayendo contenido de NetScan durante la ejecución. |
 | ![Image](https://raw.githubusercontent.com/maravento/vault/master/netscan/img/netscan-visual.png) | Installing MS Visual C++ Runtimes. | Instalando MS Visual C++ Runtimes |
 
-#### Scan Messages
+### Scan Messages
 
 | Message | Description | Descripción |
 | ------- | ----------- | ----------- |
@@ -113,7 +113,8 @@
 | ![Image](https://raw.githubusercontent.com/maravento/vault/master/netscan/img/netscan-advanced.png) | Intense scanning. | Escaneo intenso. |
 | ![Image](https://raw.githubusercontent.com/maravento/vault/master/netscan/img/netscan-end.png) | Scan completed successfully. | El escaneo finalizó exitosamente. |
 
-#### Error Messages
+### Error Messages
+
 | Message | Description | Descripción |
 |-------- | ----------- | ----------- |
 | ![Image](https://raw.githubusercontent.com/maravento/vault/master/netscan/img/netscan-cancel.png) | You pressed the "Cancel" button or an error occurred during installation. | Presionó el botón "Cancelar" u ocurrió un error durante la instalación. |
@@ -121,7 +122,7 @@
 | ![Image](https://raw.githubusercontent.com/maravento/vault/master/netscan/img/netscan-nointernet.png) | No internet connectivity detected. | No se detectó conectividad a internet. |
 | ![Image](https://raw.githubusercontent.com/maravento/vault/master/netscan/img/netscan-osincompatible.png) | You are using the installer on an incompatible operating system. | Está usando el instalador en un sistema operativo incompatible. |
 
-### NPCAP
+### Npcap
 
 ![Image](https://raw.githubusercontent.com/maravento/vault/master/netscan/img/netscan-npcap.png)
 
@@ -136,7 +137,7 @@
   </tr>
 </table>
 
-### REPORT
+### Report
 
 ![Image](https://raw.githubusercontent.com/maravento/vault/master/netscan/img/netscan-report.png)
 
@@ -151,7 +152,7 @@
   </tr>
 </table>
 
-### TELEMETRY
+### Telemetry
 
 <table width="100%">
   <tr>
@@ -173,9 +174,7 @@ Status=Installed
 Package: NetScan
 ```
 
-## PACKAGES AND TOOLS
-
----
+### Packages and Tools
 
 - [7zSFX Builder](https://sourceforge.net/projects/s-zipsfxbuilder/)
 - [curl for Windows](https://curl.se/windows/)
@@ -186,6 +185,47 @@ Package: NetScan
 - [RapidCRC Unicode](https://www.ov2.eu/programs/rapidcrc-unicode)
 - [vcredist](https://github.com/abbodi1406/vcredist)
 - [WinZenity](https://github.com/maravento/vault/tree/master/winzenity)
+
+## NETSCAN ON LINUX
+
+---
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap; vertical-align: top; padding-right: 10px;">
+      <p><strong>NetScan can run on Linux with the same scan modes:</strong></p>
+      <p>
+        1. <code>LAN Scan</code><br>
+        2. <code>Advanced LAN Scan</code><br>
+        3. <code>IP Scan</code>
+      </p>
+      <p>
+        NetScan will save scan reports in the <code>/home/$USER/Report</code> folder,
+        according to the scan type.<br> Each file will include a timestamp
+        (date and time when the scan was executed).
+      </p>
+    </td>
+    <td style="width: 50%; white-space: nowrap; vertical-align: top; padding-left: 10px;">
+      <p><strong>NetScan puede ejecutarse en Linux con los mismos modos de escaneo:</strong></p>
+      <p>
+        1. <code>LAN Scan</code><br>
+        2. <code>Advanced LAN Scan</code><br>
+        3. <code>IP Scan</code>
+      </p>
+      <p>
+        NetScan guardará los reportes de escaneo en la carpeta <code>/home/$USER/Report</code>,
+        según el tipo de escaneo.<br> Cada archivo incluirá un timestamp
+        (fecha y hora en que se ejecutó el escaneo).
+      </p>
+    </td>
+  </tr>
+</table>
+
+```bash
+wget -q https://raw.githubusercontent.com/maravento/vault/master/netscan/linux/netreport.sh -O netreport.sh
+chmod +x netreport.sh
+sudo ./netreport.sh
+```
 
 ## PROJECT LICENSES
 

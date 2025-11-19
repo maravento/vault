@@ -367,9 +367,9 @@ for dnsip in $dns; do
     iptables -A FORWARD -i $lan -o $wan -m set --match-set macports src -d $dnsip -p udp --dport 53 -j ACCEPT
     iptables -A FORWARD -i $lan -o $wan -m set --match-set macports src -d $dnsip -p tcp --dport 53 -j ACCEPT
 done
-# WARNING PAGE HTTP (TCP 18880)
-iptables -A INPUT -i $lan -p tcp --dport 18880 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i $lan -p tcp --dport 18880 -m set --match-set macports src -j ACCEPT
+# WARNING PAGE HTTP (TCP 18081)
+iptables -A INPUT -i $lan -p tcp --dport 18081 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i $lan -p tcp --dport 18081 -m set --match-set macports src -j ACCEPT
 # mDNS / Bonjour / AirPrint
 iptables -A INPUT -i $lan -d 224.0.0.251 -p udp --dport 5353 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i $lan -o $lan -d 224.0.0.251 -p udp --dport 5353 -m set --match-set macports src -j ACCEPT
@@ -495,7 +495,7 @@ echo "MAC Rules"
 #    iptables -A $chain -i $lan -p tcp -m multiport --dports 80,443,853 -m set --match-set mactransparent src -j ACCEPT
 #done
 
-# MACPROXY (PAC 18800 - Opcion 252 DHCP, HTTP 80 to 3128)
+# MACPROXY (PAC 18100 - Opcion 252 DHCP, HTTP 80 to 3128)
 ipset -L macproxy >/dev/null 2>&1
 if [ $? -ne 0 ]; then
     ipset create macproxy hash:mac -exist
@@ -507,7 +507,7 @@ for mac in $(awk -F";" '$2 != "" {print $2}' $aclroute/mac-proxy.txt); do
 done
 iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m set --match-set macproxy src -j REDIRECT --to-port 3128
 for chain in INPUT FORWARD; do
-    iptables -A $chain -i $lan -p tcp -m multiport --dports 18800,3128 -m set --match-set macproxy src -j ACCEPT
+    iptables -A $chain -i $lan -p tcp -m multiport --dports 18100,3128 -m set --match-set macproxy src -j ACCEPT
 done
 
 echo OK

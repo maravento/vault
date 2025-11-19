@@ -53,10 +53,10 @@ wget -q -N https://raw.githubusercontent.com/maravento/vault/master/gateproxy/ga
 <table width="100%">
   <tr>
     <td style="width: 50%; white-space: nowrap;">
-     Gateproxy is an experimental script and may contain bugs, which will be documented or fixed where possible and contain some programs for testing purposes. Therefore, it is not recommended for use in networks or high productivity environments.
+     Gateproxy is a script under development and may contain bugs, which will be fixed as soon as possible. It may also contain some programs for testing purposes. Therefore, its use in high-volume networks or environments is not recommended.
     </td>
     <td style="width: 50%; white-space: nowrap;">
-     Gateproxy es un script experimental y puede contener fallos, los cuales serán documentados o corregidos en lo posible y contener algunos programas para propósitos de pruebas. Por tanto, no se recomienda su uso en redes o entornos de alta productividad.
+     Gateproxy es un script en desarrollo y puede contener fallos, los cuales serán corregidos a la brevedad posible y contener algunos programas para propósitos de pruebas. Por tanto, no se recomienda su uso en redes o entornos de alta productividad.
     </td>
   </tr>
 </table>

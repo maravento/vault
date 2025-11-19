@@ -58,7 +58,7 @@
     <td style="width: 50%; white-space: nowrap;">
      La opción <b>RAW</b> exporta/importa bases de datos MySQL en crudo (carpeta <code>\mysql(%version%)\data</code>).
     </td>
-  </tr>  
+  </tr>
 </table>
 
 ### MySQL DUMP
