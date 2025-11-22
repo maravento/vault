@@ -33,7 +33,7 @@ mkdir -p "$bkconfig" >/dev/null 2>&1
 
 ### BACKUP
 zipbk="backup_$(date +%Y%m%d_%H%M).zip"
-pathbk="/etc/squid/* /etc/acl/* /etc/apache2/* /var/www/wpad/* /etc/hosts /etc/sarg/* /etc/scr/* /etc/fstab /etc/samba/* /etc/network/interfaces /etc/netplan/config.yaml /etc/apt/sources.list /var/spool/cron/crontabs/*"
+pathbk="/etc/squid /etc/acl /etc/apache2 /var/www /etc/hosts /etc/scr /etc/fstab /etc/samba /etc/network/interfaces /etc/netplan /etc/apt/sources.list /var/spool/cron/crontabs /etc/logrotate.d/rsyslog /etc/sarg"
 
 case "$1" in
 'start')

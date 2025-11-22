@@ -61,8 +61,10 @@ echo "Ransomware ACL for Squid: rwext.txt"
 
 # For Samba Veto Files
 echo "veto files = $(cat acl/squid/{output_lst,debug_lst}.txt | sed 's/^/*./' | paste -sd '' - | sed 's/*/\/&/g; s/$/\//' | sort -u)" > acl/smb/ransom_veto.txt
-echo "RansomwareACL for Samba: ransom_veto.txt"
+chmod +x acl/smb/merge_veto.sh
+acl/smb/merge_veto.sh
+echo "Ransomware ACL for Samba: ransom_veto.txt"
 
-rm -f acl/squid/{output_lst,debug_lst}.txt
+rm -f acl/squid/output_lst.txt
 
 echo "Done"

@@ -2,12 +2,14 @@
 
 # Merge and Clean Veto File Lists
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # Ransomware extensions list
-dynamic=ransom_veto.txt
+dynamic="$SCRIPT_DIR/ransom_veto.txt"
 # Common extensions list
-static=common_veto.txt
+static="$SCRIPT_DIR/common_veto.txt"
 # Final List
-output=vetofiles.txt
+output="$SCRIPT_DIR/vetofiles.txt"
 
 # Remove "veto files = " from both files
 static_clean=$(sed 's/^veto files = //' "$static")

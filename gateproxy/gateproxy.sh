@@ -563,7 +563,11 @@ systemctl disable isc-dhcp-server6
 sed -i "s/^INTERFACESv4=.*/INTERFACESv4=\"$LAN_INTERFACE\"/" /etc/default/isc-dhcp-server
 
 # PHP
-nala install -y php
+nala install -y php8.3 libapache2-mod-php8.3 php8.3-cli
+a2enmod php8.3 &>/dev/null
+if [ ! -f /etc/php/8.3/apache2/php.ini ]; then
+    cp /etc/php/8.3/cli/php.ini /etc/php/8.3/apache2/php.ini
+fi
 
 # HTTP SERVER SECTION
 # apache2
@@ -604,6 +608,7 @@ squid -z
 cp -f /etc/logrotate.d/squid{,.bak} &>/dev/null
 sed -i '/sharedscripts/a \    create 0644 proxy proxy' /etc/logrotate.d/squid
 sed -i 's/rotate 2/rotate 7/' /etc/logrotate.d/squid
+sed -i 's/^	daily$/	weekly/' /etc/logrotate.d/squid
 # Let’s Encrypt certificate for client to Squid proxy encryption (Optional)
 #nala install -y certbot python3-certbot-apache
     
@@ -859,12 +864,35 @@ sleep 1
 
 echo -e "\n"
 echo "Proxy Apache Config..."
+
 cp -f /etc/apache2/sites-available/000-default.conf{,.bak} &>/dev/null
 sed -i "s_\(#LogLevel info ssl:warn\)_\1\n\tLogLevel warn_" /etc/apache2/sites-available/000-default.conf
 sed -i '/DocumentRoot/{
     s/\(DocumentRoot.*\)/\1/g
     r $gp/conf/server/000-add.txt
 }' /etc/apache2/sites-available/000-default.conf
+
+cp -f /etc/apache2/mods-available/mpm_prefork.conf{,.bak} &>/dev/null
+sed -i \
+  -e 's/^\(StartServers[[:space:]]*\)5/\110/' \
+  -e 's/^\(MinSpareServers[[:space:]]*\)5/\110/' \
+  -e 's/^\(MaxSpareServers[[:space:]]*\)10/\115/' \
+  -e 's/^\(MaxRequestWorkers[[:space:]]*\)150/\1200/' \
+  -e 's/^\(MaxConnectionsPerChild[[:space:]]*\)0/\11000/' \
+  /etc/apache2/mods-available/mpm_prefork.conf
+
+cp -f /etc/php/8.3/apache2/php.ini{,.bak} &>/dev/null
+sed -i \
+  -e 's/^\s*;*\s*max_execution_time\s*=.*/max_execution_time = 120/' \
+  -e 's/^\s*max_input_time\s*=.*/max_input_time = 120/' \
+  -e 's/^;\s*max_input_time\s*=.*/max_input_time = 120/' \
+  -e 's/^\s*memory_limit\s*=.*/memory_limit = 1024M/' \
+  -e 's/^\s*post_max_size\s*=.*/post_max_size = 64M/' \
+  -e 's/^\s*upload_max_filesize\s*=.*/upload_max_filesize = 64M/' \
+  -e 's/^\s*;*\s*opcache.memory_consumption\s*=.*/opcache.memory_consumption = 256/' \
+  -e 's/^\s*;*\s*realpath_cache_size\s*=.*/realpath_cache_size = 16M/' \
+  /etc/php/8.3/apache2/php.ini
+
 mkdir -p /var/www/wpad
 cp -fr $gp/conf/wpad/* /var/www/wpad/
 cp -f $gp/conf/server/proxy.conf /etc/apache2/sites-available/proxy.conf
@@ -925,19 +953,19 @@ sed 's/^[#]*\(Header set X-Frame-Options: "sameorigin"\)$/\1/' -i /etc/apache2/c
 echo 'FileETag None' | tee -a /etc/apache2/conf-available/security.conf
 echo 'Header unset ETag' | tee -a /etc/apache2/conf-available/security.conf
 echo 'Options all -Indexes' | tee -a /etc/apache2/conf-available/security.conf
-# Headers (opcional)
-#ln -sf /etc/apache2/mods-available/headers.load /etc/apache2/mods-available/headers.load
 a2enmod headers &>/dev/null
 echo OK
 sleep 1
 
-# APACHE PASSWORD AND RELOAD
+# APACHE PASSWORD
 echo -e "\n"
 echo "Create Apache Password: /var/www/..."
 echo -e "\n"
 htpasswd -c /etc/apache2/.htpasswd "$local_user"
+
+# APACHE CONFIG
+a2enmod mpm_prefork &>/dev/null
 apache2ctl configtest
-# apache reload
 chmod -R 755 /var/www
 chown -R www-data:www-data /var/www
 systemctl reload apache2.service
