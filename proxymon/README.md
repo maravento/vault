@@ -26,6 +26,12 @@ chmod +x gitfolderdl.py
 python gitfolderdl.py https://github.com/maravento/vault/proxymon
 ```
 
+### Minimum Requirements
+
+|   OS   |   CPU   |   RAM   |   Storage   |   Dependencies   |
+| :----: | :-----: | :-----: | :---------: | :--------------: |
+| Ubuntu 24.04.x | Intel Core i5/Xeon/AMD Ryzen 5 (≥ 3.0 GHz) | 16 GB | 2 GB SSD | Squid Cache v6.13, Apache v2.4.58, PHP 8.3.6 |
+
 ### Important Before Using
 
 <table width="100%">
@@ -35,14 +41,6 @@ python gitfolderdl.py https://github.com/maravento/vault/proxymon
     </td>
     <td style="width: 50%; white-space: nowrap;">
      - Si alguna dirección IP de su red local no pasan por el proxy Squid, entonces no aparecerá en los reportes.
-    </td>
-  </tr>
-  <tr>
-    <td style="width: 50%; white-space: nowrap;">
-     - Tested on Ubuntu 24.04, Squid Cache v6.13, Apache v2.4.58
-    </td>
-    <td style="width: 50%; white-space: nowrap;">
-     - Probado en Ubuntu 24.04, Squid Cache v6.13, Apache v2.4.58
     </td>
   </tr>
   <tr>
@@ -158,6 +156,35 @@ regex:^(http|https)://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+=Block IPv4
 sudo nano /var/www/proxymon/tools/bandata.sh
 # path to ACLs folder
 aclroute=/etc/acl
+```
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+      <b>⚠️ Important:</b> Any ACL you want to declare in Squidmon configuration must also be declared in your <code>squid.conf</code> for blocking to take effect. Example for declaring default ACLs:
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+      <b>⚠️ Importante:</b> Cualquier ACL que quiera declarar en la configuración de Squidmon, también deberá declararlas en su <code>squid.conf</code> para que surta efecto el bloqueo. Ejemplo para declarar las ACLs por defecto:
+    </td>
+  </tr>
+</table>
+
+```bash
+sudo nano /etc/squid/squid.conf
+#
+# INSERT YOUR OWN RULE(S) HERE TO ALLOW ACCESS FROM YOUR CLIENTS
+#
+include /etc/squid/conf.d/*.conf
+# Block: TLDs
+# For more information visit: https://github.com/maravento/blackweb
+acl blocktlds dstdomain "/etc/acl/blocktlds.txt"
+http_access deny workdays blocktlds
+# Block: sites
+acl blocksites dstdomain "/etc/acl/blocksites.txt"
+http_access deny workdays blocksites
+# Block: IPv4
+acl no_ip url_regex -i ^(http|https)://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+
+http_access deny no_ip
 ```
 
 <table width="100%">
@@ -300,18 +327,25 @@ regex:^(http|https)://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+=Blocked IPv4
 <table width="100%">
   <tr>
     <td style="width: 50%; white-space: nowrap;">
-     Squidmon reads only the current <code>access.log</code> file, not rotated files (<code>access.log.0</code>, <code>access.log.1</code>, <code>access.log.gz</code>, etc.). Configure log rotation in Squid with <code>logfile_rotate 7</code> in <code>squid.conf</code> to maintain at least 7 days of historical data for searches. If you use the <code>logrotate</code> package, define the same thing as in <code>squid.conf</code>.
+     Squidmon reads only the current <code>access.log</code> file, not rotated files (<code>access.log.0</code>, <code>access.log.1</code>, <code>access.log.gz</code>, etc.). It's recommended to disable Squid's internal rotation with <code>logfile_rotate 0</code> in <code>squid.conf</code> and let <code>logrotate</code> handle it exclusively. Configure <code>/etc/logrotate.d/squid</code> to use minimum <code>weekly</code> (7 days) or maximum <code>monthly</code> (1 month) rotation and keep <code>rotate 7</code> for history. This prevents conflicts between both rotation systems.
     </td>
     <td style="width: 50%; white-space: nowrap;">
-     Squidmon solo lee el archivo <code>access.log</code> actual, no archivos rotados (<code>access.log.0</code>, <code>access.log.1</code>, <code>access.log.gz</code>, etc.). Configura la rotación de logs en Squid con <code>logfile_rotate 7</code> en <code>squid.conf</code> para mantener al menos 7 días de datos históricos para las búsquedas. Si usa el paquete <code>logrotate</code>, defina lo mismo que en <code>squid.conf</code>.
+     Squidmon solo lee el archivo <code>access.log</code> actual, no archivos rotados (<code>access.log.0</code>, <code>access.log.1</code>, <code>access.log.gz</code>, etc.). Se recomienda desactivar la rotación interna de Squid con <code>logfile_rotate 0</code> en <code>squid.conf</code> y dejar que <code>logrotate</code> la maneje exclusivamente. Configure <code>/etc/logrotate.d/squid</code> para usar como mínimo rotación <code>weekly</code> (7 días) o como máximo <code>monthly</code> (1 mes) y mantener <code>rotate 7</code> para el historial. Esto evita conflictos entre ambos sistemas de rotación.
     </td>
   </tr>
 </table>
 
 ```bash
+# Disable Squid internal rotation
 sudo nano /etc/squid/squid.conf
 #  TAG: logfile_rotate
-logfile_rotate 7
+logfile_rotate 0
+
+# Logrotate
+sudo sed -i 's/^	daily$/	weekly/' /etc/logrotate.d/squid
+# or
+sudo sed -i 's/^	daily$/	monthly/' /etc/logrotate.d/squid
+# Optional:
 sudo sed -i 's/rotate 2/rotate 7/' /etc/logrotate.d/squid
 ```
 

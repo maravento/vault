@@ -563,8 +563,41 @@ systemctl disable isc-dhcp-server6
 sed -i "s/^INTERFACESv4=.*/INTERFACESv4=\"$LAN_INTERFACE\"/" /etc/default/isc-dhcp-server
 
 # PHP
-nala install -y php
+nala install -y php libapache2-mod-php php-cli
 
+# Detect PHP version
+if command -v php >/dev/null 2>&1; then
+    PHP_VERSION=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>/dev/null)
+    echo "PHP version detected: $PHP_VERSION"
+else
+    echo "Error: PHP not installed"
+    exit 1
+fi
+
+# Ensure php.ini exists for Apache
+if [ ! -f /etc/php/$PHP_VERSION/apache2/php.ini ]; then
+    if [ -f /etc/php/$PHP_VERSION/cli/php.ini ]; then
+        mkdir -p /etc/php/$PHP_VERSION/apache2
+        cp /etc/php/$PHP_VERSION/cli/php.ini /etc/php/$PHP_VERSION/apache2/php.ini
+        echo "php.ini copied to /etc/php/$PHP_VERSION/apache2/"
+    else
+        echo "Error: php.ini not found"
+        exit 1
+    fi
+fi
+
+cp -f /etc/php/$PHP_VERSION/apache2/php.ini{,.bak} &>/dev/null
+sed -i \
+  -e 's/^\s*;*\s*max_execution_time\s*=.*/max_execution_time = 120/' \
+  -e 's/^\s*max_input_time\s*=.*/max_input_time = 120/' \
+  -e 's/^;\s*max_input_time\s*=.*/max_input_time = 120/' \
+  -e 's/^\s*memory_limit\s*=.*/memory_limit = 1024M/' \
+  -e 's/^\s*post_max_size\s*=.*/post_max_size = 64M/' \
+  -e 's/^\s*upload_max_filesize\s*=.*/upload_max_filesize = 64M/' \
+  -e 's/^\s*;*\s*opcache.memory_consumption\s*=.*/opcache.memory_consumption = 256/' \
+  -e 's/^\s*;*\s*realpath_cache_size\s*=.*/realpath_cache_size = 16M/' \
+  /etc/php/$PHP_VERSION/apache2/php.ini
+  
 # HTTP SERVER SECTION
 # apache2
 nala install -y apache2 apache2-doc apache2-utils apache2-dev \
@@ -578,6 +611,20 @@ apt -qq install -y --reinstall apache2-doc
 fixbroken
 cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
 sed -i -E 's/^([[:space:]]*)Listen[[:space:]]+([0-9]+)/\1Listen 0.0.0.0:\2/' /etc/apache2/ports.conf
+
+cp -f /etc/apache2/mods-available/mpm_prefork.conf{,.bak} &>/dev/null
+sed -i \
+  -e 's/^\(StartServers[[:space:]]*\)5/\110/' \
+  -e 's/^\(MinSpareServers[[:space:]]*\)5/\110/' \
+  -e 's/^\(MaxSpareServers[[:space:]]*\)10/\115/' \
+  -e 's/^\(MaxRequestWorkers[[:space:]]*\)150/\1200/' \
+  -e 's/^\(MaxConnectionsPerChild[[:space:]]*\)0/\11000/' \
+  /etc/apache2/mods-available/mpm_prefork.conf
+
+# Enable modules  
+a2dismod mpm_event 2>/dev/null || true
+a2enmod mpm_prefork 2>/dev/null || true
+a2enmod php 2>/dev/null || true
 
 # PROXY SECTION
 # squid-cache
@@ -604,6 +651,7 @@ squid -z
 cp -f /etc/logrotate.d/squid{,.bak} &>/dev/null
 sed -i '/sharedscripts/a \    create 0644 proxy proxy' /etc/logrotate.d/squid
 sed -i 's/rotate 2/rotate 7/' /etc/logrotate.d/squid
+sed -i 's/^	daily$/	monthly/' /etc/logrotate.d/squid
 # Let’s Encrypt certificate for client to Squid proxy encryption (Optional)
 #nala install -y certbot python3-certbot-apache
     
@@ -859,12 +907,14 @@ sleep 1
 
 echo -e "\n"
 echo "Proxy Apache Config..."
+
 cp -f /etc/apache2/sites-available/000-default.conf{,.bak} &>/dev/null
 sed -i "s_\(#LogLevel info ssl:warn\)_\1\n\tLogLevel warn_" /etc/apache2/sites-available/000-default.conf
 sed -i '/DocumentRoot/{
     s/\(DocumentRoot.*\)/\1/g
     r $gp/conf/server/000-add.txt
 }' /etc/apache2/sites-available/000-default.conf
+
 mkdir -p /var/www/wpad
 cp -fr $gp/conf/wpad/* /var/www/wpad/
 cp -f $gp/conf/server/proxy.conf /etc/apache2/sites-available/proxy.conf
@@ -925,22 +975,20 @@ sed 's/^[#]*\(Header set X-Frame-Options: "sameorigin"\)$/\1/' -i /etc/apache2/c
 echo 'FileETag None' | tee -a /etc/apache2/conf-available/security.conf
 echo 'Header unset ETag' | tee -a /etc/apache2/conf-available/security.conf
 echo 'Options all -Indexes' | tee -a /etc/apache2/conf-available/security.conf
-# Headers (opcional)
-#ln -sf /etc/apache2/mods-available/headers.load /etc/apache2/mods-available/headers.load
 a2enmod headers &>/dev/null
 echo OK
 sleep 1
 
-# APACHE PASSWORD AND RELOAD
+# APACHE PASSWORD
 echo -e "\n"
 echo "Create Apache Password: /var/www/..."
 echo -e "\n"
 htpasswd -c /etc/apache2/.htpasswd "$local_user"
+
+# APACHE CONFIG
 apache2ctl configtest
-# apache reload
 chmod -R 755 /var/www
 chown -R www-data:www-data /var/www
-systemctl reload apache2.service
 echo OK
 sleep 1
 
@@ -959,10 +1007,7 @@ crontab -l | {
 @reboot /etc/scr/serverload.sh
 @hourly /etc/scr/servicesload.sh
 #*/30 * * * * /etc/scr/serverload.sh
-@weekly /etc/scr/cleaner.sh
-@weekly /etc/scr/logrotate.sh
-@monthly find /usr/local/ddos/* /var/log/* -type f -exec truncate -s 0 {} \;
-@monthly journalctl --vacuum-size=500M && systemctl restart systemd-journald.service"
+@weekly /etc/scr/cleaner.sh"
 } | crontab -
 echo OK
 sleep 1
@@ -1005,9 +1050,9 @@ systemctl daemon-reload
 update-ca-certificates -f
 systemctl reload apache2
 systemctl restart systemd-resolved
-journalctl --rotate
-journalctl --vacuum-time=1s
+sed -i '/^#\?SystemMaxUse=$/s/.*/SystemMaxUse=50M/' /etc/systemd/journald.conf
 systemctl restart systemd-journald
+journalctl --vacuum-size=50M
 a2query -s
 netplan generate
 netplan apply

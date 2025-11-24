@@ -76,7 +76,8 @@ chown root:root /usr/local/ddos
 cp -f -R ddos/* /usr/local/ddos
 rm -r ddos
 chmod 0755 /usr/local/ddos/ddos.sh
-(crontab -l 2>/dev/null | grep -v '/usr/local/ddos'; echo "*/1 * * * * /usr/local/ddos/ddos.sh &> /dev/null") | crontab -
+(crontab -l 2>/dev/null | grep -v '/usr/local/ddos/ddos.sh'; echo "*/1 * * * * /usr/local/ddos/ddos.sh &> /dev/null") | crontab -
+(crontab -l 2>/dev/null | grep -v '@monthly.*find /usr/local/ddos'; echo "@monthly find /usr/local/ddos/* -type f -exec truncate -s 0 {} \;") | crontab -
 systemctl restart cron
 
 # Add server IP address to "ignore"

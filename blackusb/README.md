@@ -185,6 +185,10 @@ Cruzer Blade
   </tr>
 </table>
 
+<div align="center">
+  <img src="https://raw.githubusercontent.com/maravento/vault/master/blackusb/img/restrictions.jpg">
+</div>
+
 ## PACKAGES AND TOOLS
 
 ---

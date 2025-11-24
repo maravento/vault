@@ -52,7 +52,31 @@ read RES
 clear
 echo -e "\n"
 
+### CLEAN | UPDATE ###
+
+function cleanupgrade() {
+    nala upgrade --purge -y
+    aptitude safe-upgrade -y
+    fc-cache
+    sync
+    updatedb
+}
+cleanupgrade
+
+function fixbroken() {
+    dpkg --configure -a
+    nala install --fix-broken -y
+}
+fixbroken
+
+## CHECK DEPENDENCIES ###
+echo -e "\n"
+echo "Dependencies & Tools Setup. Wait..."
+nala install -y curl software-properties-common aptitude mlocate net-tools wget libnotify-bin debconf-utils libaio1 libaio-dev libncurses5 megatools libc6-i386
+echo "OK"
+
 ### BASIC ###
+
 killall -s SIGTERM apt apt-get &>/dev/null
 fuser -vki /var/lib/dpkg/lock &>/dev/null
 rm /var/lib/apt/lists/lock &>/dev/null
@@ -64,30 +88,6 @@ pro config set apt_news=false
 apt -qq install -y --reinstall systemd-timesyncd
 apt -qq install -y nala
 timedatectl set-ntp true
-
-## CHECK DEPENDENCIES
-echo -e "\n"
-echo "Dependencies & Tools Setup. Wait..."
-nala install -y curl software-properties-common aptitude mlocate net-tools wget libnotify-bin debconf-utils libaio1 libaio-dev libncurses5 megatools libc6-i386
-echo "OK"
-
-# UPDATE
-echo -e "\n"
-echo "Update. Wait..."
-function cleanupgrade() {
-    nala upgrade --purge -y
-    aptitude safe-upgrade -y
-    fc-cache
-    sync
-    updatedb
-}
-cleanupgrade
-function fixbroken() {
-    dpkg --configure -a
-    nala install --fix-broken -y
-}
-fixbroken
-echo "OK"
 
 # KILL SERVICES
 echo -e "\n"
@@ -116,14 +116,7 @@ while [ -z "$(java -version 2>&1 | grep 'java version \"1.8')" ]; do
 done
 echo "OK"
 
-function lamp_download() {
-    wget --no-check-certificate --timeout=10 --tries=1 --method=HEAD "$1"
-    if [ $? -eq 0 ]; then
-        $wgetd "$1"
-    else
-
-    fi
-}
+### STACK ###
 
 function lamp_stack() {
     # LAMP SETUP
@@ -131,20 +124,23 @@ function lamp_stack() {
     # Start/Stop/Status/Restart: /opt/bitnami/ctlscript.sh start/stop/status/restart
     # To access phpmyadmin on a VPS, edit: # /opt/bitnami/apps/phpmyadmin/conf/httpd-app.conf
     # change: "Allow from 127.0.0.1" for "Allow from all" and "Require local" for "Require all granted"
-    echo "LAMP v7.1.33-0 Setup. Wait..."
-    echo "Open TCP 80,443,3306 ports in your Firewall"
-    kill $(ps aux | grep '[h]ttpd' | awk '{print $2}') &>/dev/null
-    lamp_download 'https://downloads.bitnami.com/files/stacks/lampstack/7.1.33-0/bitnami-lampstack-7.1.33-0-linux-x64-installer.run'
+    # Open TCP 80,443,3306 ports in your Firewall
+    echo "Download LAMP v7.1.33-0 from Mega. Wait..."
+    megadl 'https://mega.nz/#!SF0QAbiL!wlXDlAiPXw3Y3ZA9-hCF5yiBV9-VUM9SE7vdT_8fMlo'
     chmod +x bitnami-lampstack-7.1.33-0-linux-x64-installer.run
+    echo "OK"
+    echo "Installing LAMP. Wait..."
     # run help for more options: ./bitnami-lampstack-7.1.33-0-linux-x64-installer.run --help
-    ./bitnami-lampstack-7.1.33-0-linux-x64-installer.run --mode unattended --prefix /opt/bitnami --enable-components phpmyadmin --disable-components varnish,zendframework,symfony,codeigniter,cakephp,smarty,laravel --base_password uniopos --mysql_password uniopos --phpmyadmin_password uniopos --launch_cloud 0
+    ./bitnami-lampstack-7.1.33-0-linux-x64-installer.run --mode unattended --prefix /opt/bitnami --enable-components phpmyadmin --disable-components varnish,zendframework,symfony,codeigniter,cakephp,smarty,laravel --base_password lampstack --mysql_password lampstack --phpmyadmin_password lampstack --launch_cloud 0
+    echo "OK"
+    echo "Configuring LAMP. Wait..."
     fixbroken
     chmod +x /opt/bitnami/manager-linux-x64.run
     chmod +x /opt/bitnami/ctlscript.sh
     /opt/bitnami/ctlscript.sh stop &>/dev/null
-    wget -q -N https://raw.githubusercontent.com/maravento/vault/master/uniopos/resources/img/lamp.ico -O /opt/bitnami/img/lamp.ico
+    wget -q -N https://raw.githubusercontent.com/maravento/vault/master/uniopos/img/lamp.ico -O /opt/bitnami/img/lamp.ico
     # LAMP LAUNCHER
-    cat <<EOF | tee /opt/bitnami/run.sh
+    cat <<'EOF' | tee /opt/bitnami/run.sh
 #!/usr/bin/env bash
 pkexec env DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY /opt/bitnami/manager-linux-x64.run
 EOF
@@ -166,34 +162,28 @@ EOF
     echo "OK"
 }
 
-function ampps_download() {
-    wget --no-check-certificate --timeout=10 --tries=1 --method=HEAD "$1"
-    if [ $? -eq 0 ]; then
-        $wgetd "$1"
-    else
-        megadl 'https://mega.nz/#!CIkW2JAK!dbo-Cs5LONeczEZcW0vwY8SXY7q2EekzgZIpCPLpSLQ'
-    fi
-}
-
 function ampps_stack() {
     # AMPPS SETUP
     # Ampps: http://localhost/ampps
     # phpmyadmin: http://localhost/phpmyadmin
     # Wiki: http://www.ampps.com/wiki/Installing_AMPPS_on_Linux
     # Download: http://www.ampps.com/downloads
-    echo "AMPPS v3.8 Setup. Wait..."
-    echo "Open TCP 80,443,3306 ports in your Firewall"
-    kill $(ps aux | grep '[h]ttpd' | awk '{print $2}') &>/dev/null
-    ampps_download 'http://s4.softaculous.com/a/ampps/files/Ampps-3.8-x86_64.run'
+    # Open TCP 80,443,3306 ports in your Firewall
+    echo "Downloading AMPPS v3.8 from Mega. Wait..."
+    megadl 'https://mega.nz/#!CIkW2JAK!dbo-Cs5LONeczEZcW0vwY8SXY7q2EekzgZIpCPLpSLQ'
     chmod +x Ampps-3.8-x86_64.run
+    echo "OK"
+    echo "Installing AMPPS v3.8. Wait..."
     ./Ampps-3.8-x86_64.run &>/dev/null
+    echo "OK"
+    echo "Configuring AMPPS v3.8. Wait..."
     killall /usr/local/ampps/Ampps httpd mysqld &>/dev/null
     mkdir -p /usr/local/ampps/apache/lib/backup
     mv -fv /usr/local/ampps/apache/lib/libapr* $_ &>/dev/null
     nala install -y libaprutil1 libaprutil1-dev libapr1 libapr1-dev
     fixbroken
     # AMPPS LAUNCHER
-    cat <<EOF | tee /usr/local/ampps/run.sh
+    cat <<'EOF' | tee /usr/local/ampps/run.sh
 #!/usr/bin/env bash
 pkexec env DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY QT_X11_NO_MITSHM=1 /usr/local/ampps/Ampps
 EOF

@@ -606,7 +606,7 @@ sudo ./uniopos.sh
 
 |Tested On|Default User AMPPS|Default Pass AMPPS|Default User LAMP|Default Pass LAMP|Default phpMyAdmin|
 | :---: | :---: | :---: |:---: |:---: |:---: |
-|Ubuntu 20.04/22.04 x64|root|mysql|root|uniopos|[phpMyAdmin](http://localhost/phpmyadmin)|
+|Ubuntu 20.04/22.04 x64|root|mysql|root|lampstack|[phpMyAdmin](http://localhost/phpmyadmin)|
 
 <table width="100%">
   <tr>
