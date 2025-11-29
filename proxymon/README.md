@@ -297,7 +297,7 @@ http_access deny no_ip
 </table>
 
 ```bash
-regex:(announce|announce_peer|announce.php?passkey=|Azureus|BitComet|BitLord|bittorrent|BitTorrent|BitTorrent protocol|bittorrent-announce|blockports|d1:ad2:id20:|find_node|get_peers|info_hash|iptv|IPTV|jndi|Jndi|JNDI|magnet:|MIICdzCCAV|netcut|nopor|onion|owari|peer_id|peer_id=|porn|psiphon|Shareaza|torrent|Torrent|tracker|Transmission|ultrasurf|utorrent|web3|XBT|xxx)=Blocked Patterns
+regex:(announce\.php\?passkey=|Azureus|BitComet|BitLord|bittorrent|BitTorrent protocol|d1:ad2:id20:|find_node|get_peers|info_hash|iptv|jndi:|magnet:|nopor|\.onion|peer_id=|porn|psiphon|Shareaza|torrent|tracker|Transmission|ultrasurf|\.utorrent|XBT)=Blocked Patterns
 regex:^(http|https)://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+=Blocked IPv4
 ```
 
@@ -500,7 +500,7 @@ sudo nast -m
 sudo netdiscover
 ```
 
-#### Theme
+#### Lightsquid Theme
 
 <table width="100%">
   <tr>
@@ -797,7 +797,29 @@ sudo systemctl restart cron
   </tr>
 </table>
 
-#### Auto refresh
+#### Sqstat Themes
+
+[![sqstat theme](https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/sqstat-dark.png)](https://www.maravento.com/)
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     You can switch between light and dark themes by running the following command:
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     Puede intercambiar entre tema claro u oscuro, ejecutando el siguiente comando:
+    </td>
+  </tr>
+</table>
+
+```bash
+# Dark Theme (Default)
+sudo sed -i "s/sqstat\.css/sqstat-dark.css/" /var/www/proxymon/sqstat/sqstat.class.php
+# Light Theme (Original)
+sudo sed -i "s/sqstat-dark\.css/sqstat.css/" /var/www/proxymon/sqstat/sqstat.class.php
+```
+
+#### Auto Refresh
 
 [![sqstat auto](https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/sqstat-auto.png)](https://www.maravento.com/)
 

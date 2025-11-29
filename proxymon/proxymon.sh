@@ -200,9 +200,6 @@ install_proxymon() {
         echo -e "${GREEN}✅ Warning virtualhost configured${NC}"
     fi
     
-    touch /var/log/apache2/{warning_access,warning_error}.log
-    chown www-data:adm /var/log/apache2/{warning_access,warning_error}.log
-    
     if ! grep -qxF 'Listen 0.0.0.0:18080' /etc/apache2/ports.conf && ! grep -qxF 'Listen 18080' /etc/apache2/ports.conf; then
         echo 'Listen 0.0.0.0:18080' >> /etc/apache2/ports.conf
         echo -e "${GREEN}✅ Port 18080 added to Apache${NC}"
@@ -223,7 +220,7 @@ install_proxymon() {
     } | sudo -u www-data crontab -
     
     echo -e "${YELLOW}🔧 Configuring Squid Monitor...${NC}"
-    read -p "Enter your Server IP for LAN (default: 192.168.0.10): " serverip
+    read -p "Enter Your Server IP For LAN (default: 192.168.0.10): " serverip
     serverip=${serverip:-192.168.0.10}
     sed -i "s/192.168.0.10/$serverip/g" /var/www/proxymon/tools/bandata.sh
 
@@ -231,15 +228,14 @@ install_proxymon() {
     LANPREFIX="${LANPREFIX}*"
     sed -i "s/192.168.0\*/$(echo $LANPREFIX | sed 's/\*/\\*/g')/g" /var/www/proxymon/tools/bandata.sh
 
-    echo -e "${YELLOW}Your net interfaces are:${NC}"
+    echo -e "${YELLOW}Your Net Interfaces Are:${NC}"
     ip -o link | awk '$2 != "lo:" {print $2, $(NF-2)}' | sed 's_: _ _'
     read -p "Enter LAN Net Interface (e.g: enpXsX, default: eth1): " LAN
     LAN=${LAN:-eth1}
     sed -i "s/eth1/$LAN/g" /var/www/proxymon/tools/bandata.sh
-
     chmod +x /var/www/proxymon/tools/bandata.sh
 
-    echo -e "${YELLOW}📥 Downloading example ACL files...${NC}"
+    echo -e "${YELLOW}📥 Downloading Example ACL files...${NC}"
     mkdir -p /etc/acl
 
     wget -q --show-progress -N https://raw.githubusercontent.com/maravento/blackweb/refs/heads/master/bwupdate/lst/blocktlds.txt -O /etc/acl/blocktlds.txt
@@ -274,7 +270,7 @@ install_proxymon() {
         echo -e "${GREEN}✅ Added $serverip $HOSTNAME to usertab${NC}"
     fi
     
-    echo -e "${YELLOW}🔧 Generating initial SARG report...${NC}"
+    echo -e "${YELLOW}🔧 Generating Initial SARG Report...${NC}"
     timeout 30 /usr/bin/sarg -f /etc/sarg/sarg.conf -l /var/log/squid/access.log > /dev/null 2>&1 || true
     echo -e "${GREEN}✅ Initial SARG report generated${NC}"
     
@@ -305,7 +301,7 @@ install_proxymon() {
     } | sudo -u www-data crontab -
     echo -e "${GREEN}✅ SquidAnalyzer crontab added${NC}"
     
-    echo -e "${YELLOW}⚙️  Updating prefork MPM...${NC}"
+    echo -e "${YELLOW}⚙️  Updating Prefork MPM...${NC}"
     cp -f /etc/apache2/mods-available/mpm_prefork.conf{,.bak} &>/dev/null
     sed -i \
       -e 's/^\(StartServers[[:space:]]*\)5/\110/' \
@@ -327,17 +323,22 @@ install_proxymon() {
       -e 's/^\s*;*\s*opcache.memory_consumption\s*=.*/opcache.memory_consumption = 256/' \
       -e 's/^\s*;*\s*realpath_cache_size\s*=.*/realpath_cache_size = 16M/' \
      /etc/php/$PHP_VERSION/apache2/php.ini
-    
-    echo -e "${YELLOW}🔐 Setting permissions...${NC}"
+     
+    echo -e "${YELLOW}🔐 Setting Permissions...${NC}"
     chmod -R 755 /var/www/proxymon/
     chown -R www-data:www-data /var/www/proxymon
     usermod -aG proxy www-data
     chown root:root /etc/squid/squid.conf
     chmod 644 /etc/squid/squid.conf
+    
+    echo -e "${YELLOW}🔐 Setting Logs...${NC}"
+    touch /var/log/apache2/{warning_access,warning_error,proxymon_access,proxymon_error}.log
+    chown root:adm /var/log/apache2/{warning_access,warning_error,proxymon_access,proxymon_error}.log
+    chmod 640 /var/log/apache2/{warning_access,warning_error,proxymon_access,proxymon_error}.log
     chown proxy:proxy /var/log/squid/*.log
     chmod 640 /var/log/squid/*.log
     
-    echo -e "${YELLOW}⚙️  Enabling Apache modules...${NC}"
+    echo -e "${YELLOW}⚙️  Enabling Apache Modules...${NC}"
     a2dismod mpm_event 2>/dev/null || true
     a2enmod mpm_prefork 2>/dev/null || true
     a2enmod php 2>/dev/null || true
@@ -345,18 +346,19 @@ install_proxymon() {
     a2enmod cgi 2>/dev/null || true
     a2enmod rewrite 2>/dev/null || true
     
-    echo -e "${YELLOW}⚙️  Enabling Apache sites...${NC}"
+    echo -e "${YELLOW}⚙️  Enabling Apache Sites...${NC}"
     a2ensite proxymon.conf || { echo -e "${RED}❌ Failed to enable proxymon.conf${NC}"; exit 1; }
     a2ensite warning.conf || { echo -e "${RED}❌ Failed to enable warning.conf${NC}"; exit 1; }
     
+    echo -e "${GREEN}✅ Restarting Cron...${NC}"
     systemctl restart cron
-    echo -e "${GREEN}✅ Cron service restarted${NC}"
-    
+        
+    echo -e "${YELLOW}🔐 Restarting Apache2...${NC}"
     systemctl daemon-reload
     apachectl -t -D DUMP_INCLUDES -S &>/dev/null && echo "✅ Apache configuration OK" || echo "❌ Apache configuration error"
     systemctl restart apache2
 
-    echo -e "${GREEN}🌐 Active Apache sites:${NC}"
+    echo -e "${GREEN}🌐 Check Active Apache sites:${NC}"
     a2query -s
     
     echo -e "${GREEN}✅ Proxy Monitor installed successfully${NC}"
@@ -383,7 +385,7 @@ uninstall_proxymon() {
     sudo -u www-data crontab -l 2>/dev/null | grep -v "lightparser.pl" | sudo -u www-data crontab - 2>/dev/null || true
     echo -e "${GREEN}✅ LightSquid crontab removed${NC}"
 
-    sudo crontab -l 2>/dev/null | grep -v "bandata.sh" | sudo crontab - 2>/dev/null || true
+    crontab -l 2>/dev/null | grep -v "bandata.sh" | crontab - 2>/dev/null || true
     echo -e "${GREEN}✅ Squid Monitor crontab removed${NC}"
 
     sudo -u www-data crontab -l 2>/dev/null | grep -vi "sarg" | sudo -u www-data crontab - 2>/dev/null || true
@@ -428,7 +430,7 @@ uninstall_proxymon() {
     echo -e "${GREEN}✅ Port 18081 removed from Apache${NC}"
     
     rm -f /var/log/apache2/{warning_access,warning_error,proxymon_access,proxymon_error}.log*
-    echo -e "${GREEN}✅ Apache log files removed${NC}"
+    echo -e "${GREEN}✅ Proxymon log files removed${NC}"
     
     systemctl restart cron
     systemctl daemon-reload

@@ -778,39 +778,47 @@ ${lang_21[$lang]} (y/n)" answer
     [Yy]*)
         # execute command yes
         nala install -y samba samba-common samba-common-bin smbclient winbind cifs-utils
-        # in case it fails
-        #apt -qq install -y --reinstall samba-common samba-common-bin
+        # in case it fails, run: sudo apt -qq install -y --reinstall samba-common samba-common-bin
         systemctl enable smbd.service
         systemctl enable nmbd.service
         systemctl enable winbind.service
-        fixbroken
         groupadd -f sambashare
         mkdir -p $(pwd)/"${lang_22[$lang]}"
-        chown -R root:sambashare $(pwd)/"${lang_22[$lang]}"
-        #chmod 1777 $(pwd)/"${lang_22[$lang]}"
+        chown -R $local_user:sambashare $(pwd)/"${lang_22[$lang]}"
         chmod 755 $(pwd)/"${lang_22[$lang]}"
         usermod -aG sambashare "$local_user"
         mkdir -p $(pwd)/"${lang_22[$lang]}"/DEMO
         echo "this is a demo file" | tee $(pwd)/"${lang_22[$lang]}"/DEMO/demo.txt
         # Protect the DEMO folder inside the shared folder
         for dir in $(find $(pwd)/"${lang_22[$lang]}" -mindepth 1 -maxdepth 1 -type d); do
-          chown root:sambashare "$dir"
-          chmod 777 "$dir"
+          chown $local_user:sambashare "$dir"
+          chmod 2775 "$dir"
         done
         find $gp/conf/samba -type f -print0 | xargs -0 -I "{}" sed -i "s:compartida:${lang_22[$lang]}:g" "{}"
+        find $(pwd)/"${lang_22[$lang]}" -type f -exec chmod 666 {} \;
         mkdir -p /var/lib/samba/usershares >/dev/null 2>&1
         chmod 1775 /var/lib/samba/usershares/
         mkdir -p /var/log/samba >/dev/null 2>&1
         sed -i 's/ \$SMBDOPTIONS//' /lib/systemd/system/smbd.service
         sed -i 's/ \$NMBDOPTIONS//' /lib/systemd/system/nmbd.service
-        touch /var/log/samba/log.{samba,audit}
-        chown syslog:adm /var/log/samba/log.{samba,audit}
-        chmod 640 /var/log/samba/log.{samba,audit}
-        usermod -aG adm syslog
+        # samba audit
+        mkdir -p /var/www/smbaudit
+        touch /var/log/samba/log.samba /var/log/samba/log.audit
+        chown root:adm /var/log/samba/log.samba /var/log/samba/log.audit
+        chmod 640 /var/log/samba/log.samba /var/log/samba/log.audit
+        echo "Listen 0.0.0.0:18082" | tee -a /etc/apache2/ports.conf
+        cp -f $gp/conf/samba/smbaudit.conf /etc/apache2/sites-available/smbaudit.conf
+        cp -f $gp/conf/samba/smbaudit.html /var/www/smbaudit/smbaudit.html
+        cp -f $gp/conf/samba/smbapi.php /var/www/smbaudit/smbapi.php
+        chmod -R 755 /var/www/smbaudit/
+        chown -R www-data:www-data /var/www/smbaudit
+        a2ensite -q smbaudit.conf
+        # samba log rotate
         cp -f /etc/logrotate.d/samba{,.bak} &>/dev/null
         cp -f $gp/conf/samba/samba /etc/logrotate.d/samba
         cp -f /etc/samba/smb.conf{,.bak} &>/dev/null
         cp -f $gp/conf/samba/smb.conf /etc/samba/smb.conf
+        # samba cron
         chmod +x $gp/conf/samba/sambacron.sh
         $gp/conf/samba/sambacron.sh
         chmod +x $gp/conf/samba/sambaload.sh
@@ -822,11 +830,14 @@ ${lang_21[$lang]} (y/n)" answer
         fi
         # samba-rsyslog
         cp -f /etc/rsyslog.conf{,.bak} &>/dev/null
-        sed 's/^[^#]*\($FileOwner syslog\|$FileGroup adm\|$FileCreateMode 0640\|$FileCreateMode 0640\|$DirCreateMode 0755\|$Umask 0022\|$PrivDropToUser syslog\|$PrivDropToGroup syslog\)$/#\1/' -i /etc/rsyslog.conf
-        cp -f /etc/rsyslog.d/50-default.conf{,.bak} &>/dev/null
-        sed -i "/# First some standard log files.  Log by facility./i # fullaudit\nif \$programname == 'smbd_audit' and not (\$msg contains 'pam_unix') then {\n    action(type=\"omfile\" file=\"/var/log/samba/log.audit\")\n    stop\n}" /etc/rsyslog.d/50-default.conf
+        sed -i -E 's/^(\s*(\$FileOwner|\$FileGroup|\$FileCreateMode|\$DirCreateMode|\$Umask|\$PrivDropToUser|\$PrivDropToGroup)\b.*)/#\1/' /etc/rsyslog.conf
+        cp -f $gp/conf/samba/fullaudit.conf /etc/rsyslog.d/fullaudit.conf
+        chmod 644 /etc/rsyslog.d/fullaudit.conf
+        chown root:root /etc/rsyslog.d/fullaudit.conf
+        usermod -a -G adm www-data
         cp -f /etc/logrotate.d/rsyslog{,.bak} &>/dev/null
         sed -i '/sharedscripts/a \    create 0644 syslog adm' /etc/logrotate.d/rsyslog
+        sed -i '/^{$/a \	su syslog adm' /etc/logrotate.d/rsyslog
         logrotate -s /var/lib/logrotate/status -f /etc/logrotate.conf > /dev/null 2>&1 || echo "⚠️ Error: logrotate status fail"
         rm -f /var/lib/logrotate/status.lock &>/dev/null
         if [ -f /var/lib/logrotate/status ]; then
@@ -861,7 +872,7 @@ echo -e "\n"
 echo "Downloading ACLs..."
 # Allow IP
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O $aclroute/allowip.txt
-# Block words
+# Block Patterns
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/squid/blockpatterns.txt -O $aclroute/blockpatterns.txt
 # Veto Files
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/smb/vetofiles.txt -O $aclroute/vetofiles.txt
@@ -892,7 +903,7 @@ mv -f /etc/netplan/01-network-manager-all.yaml{,.bak} &>/dev/null
 mv -f /etc/netplan/90-NM-*.yaml{,.bak} &>/dev/null
 cp -f $gp/conf/server/00-networkd.yaml /etc/netplan/00-networkd.yaml
 chown root:root /etc/netplan/00-networkd.yaml
-chmod 600 /etc/netplan/00-networkd.yaml
+chmod 644 /etc/netplan/00-networkd.yaml
 # scripts
 cp -fr $gp/conf/scr/* $scr
 chown -R root:root $scr/*
@@ -916,13 +927,13 @@ sed -i '/DocumentRoot/{
 }' /etc/apache2/sites-available/000-default.conf
 
 mkdir -p /var/www/wpad
-cp -fr $gp/conf/wpad/* /var/www/wpad/
-cp -f $gp/conf/server/proxy.conf /etc/apache2/sites-available/proxy.conf
-chmod 644 /etc/apache2/sites-available/proxy.conf
-a2ensite -q proxy.conf
+cp -f $gp/conf/server/wpad.pac /var/www/wpad/wpad.pac
+cp -f $gp/conf/server/wpad.conf /etc/apache2/sites-available/wpad.conf
+chmod 644 /etc/apache2/sites-available/wpad.conf
+a2ensite -q wpad.conf
 grep -qxF 'Listen 0.0.0.0:18100' /etc/apache2/ports.conf || grep -qxF 'Listen 18100' /etc/apache2/ports.conf || echo 'Listen 0.0.0.0:18100' >> /etc/apache2/ports.conf
 apachectl -t -D DUMP_INCLUDES -S
-echo "WPAD-PAC Proxy Auto Access: http://SERVER_IP:18100/proxy.pac"
+echo "WPAD-PAC Proxy Auto Access: http://SERVER_IP:18100/wpad.pac"
 echo OK
 sleep 1
 
@@ -1034,7 +1045,7 @@ systemctl restart snapd
 snap refresh
 # logs
 chmod 755 /var/log
-chown root:root /var/log
+chown root:syslog /var/log
 
 cleanupgrade
 fixbroken

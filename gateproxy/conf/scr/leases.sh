@@ -174,7 +174,7 @@ class "blockdhcp" {
 
         # Subnet configuration / Configuracion subred
         echo "subnet $serv_subnet netmask $serv_mask {
-    option wpad \"http://$serv_dhcp:18100/proxy.pac\";
+    option wpad \"http://$serv_dhcp:18100/wpad.pac\";
     option routers $serv_dhcp;
     option subnet-mask $serv_mask;
     option broadcast-address $serv_broadcast;

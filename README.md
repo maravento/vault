@@ -34,18 +34,14 @@ git clone --depth=1 https://github.com/maravento/vault.git
 
 ### To download a specific project / Para descargar un proyecto específico
 
-- Ubuntu/Debian:
+```bash
+sudo apt install -y python-is-python3
+wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
+chmod +x gitfolderdl.py
 
-  ```bash
-  sudo apt install -y python-is-python3
-  wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
-  chmod +x gitfolderdl.py
-  
-  # Now Replace "project_name" with the name of project
-  python gitfolderdl.py https://github.com/maravento/vault/project_name
-  ```
-
-- Or download project (subfolder) via [Download-directory](https://download-directory.github.io/)
+# Now Replace "project_name" with the name of project
+python gitfolderdl.py https://github.com/maravento/vault/project_name
+```
 
 ## DATA SHEET
 

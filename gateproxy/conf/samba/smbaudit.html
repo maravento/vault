@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Samba Audit Viewer</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>" type="image/svg+xml">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: #2c3e50;
+            padding: 0.75rem 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: block;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            justify-self: start;
+            margin-bottom: 0.5rem;
+        }
+
+        .header h1 {
+            color: white;
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .header-center {
+            text-align: center;
+            color: #e2e8f0;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-transform: none;
+            margin-bottom: 0.5rem;
+        }
+
+        .header-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-self: end;
+        }
+
+        .header-date {
+            color: white;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .header-records {
+            color: #a0aec0;
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+        }
+
+        .records-counter {
+            background: white;
+            padding: 0.5rem 1rem;
+            margin: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            text-align: center;
+            font-weight: 600;
+            color: #475569;
+            font-size: 0.95rem;
+        }
+
+        .filters {
+            background: white;
+            padding: 1rem;
+            margin: 1rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .filters-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .filters-row .form-input {
+            flex: 1 1 100%;
+            min-width: 200px;
+            padding: 0.65rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+
+        .filters-row .btn,
+        .filters-row .form-select {
+            flex: 1 1 auto;
+            min-width: 120px;
+        }
+
+        .filters-row > span {
+            margin-left: 0;
+        }
+
+        .filters-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-label {
+            font-weight: 500;
+            color: #475569;
+            font-size: 0.9rem;
+        }
+
+        .form-input, .form-select {
+            padding: 0.5rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow-x: auto;
+            margin: 1rem;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 800px;
+        }
+
+        th, td {
+            padding: 0.75rem 0.5rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        th {
+            background: #f8fafc;
+            text-align: left;
+            font-weight: 600;
+            color: #475569;
+            font-size: 0.85rem;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        td {
+            font-size: 0.85rem;
+        }
+
+        th:nth-child(1), td:nth-child(1) { width: 180px; }
+        th:nth-child(2), td:nth-child(2) { width: 120px; }
+        th:nth-child(3), td:nth-child(3) { width: 100px; }
+        th:nth-child(4), td:nth-child(4) { width: 90px; }
+        th:nth-child(5), td:nth-child(5) { 
+            min-width: 300px;
+            max-width: none;
+        }
+
+        tr:hover {
+            background: #f8fafc;
+        }
+
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .badge-blue { background: #dbeafe; color: #1e40af; }
+        .badge-green { background: #dcfce7; color: #166534; }
+        .badge-yellow { background: #fef3c7; color: #92400e; }
+        .badge-red { background: #fee2e2; color: #991b1b; }
+        .badge-gray { background: #f1f5f9; color: #475569; }
+
+        .no-data {
+            text-align: center;
+            padding: 3rem;
+            color: #64748b;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #64748b;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-success {
+            background: #16a34a;
+        }
+
+        .btn-success:hover {
+            background: #15803d;
+        }
+
+        .btn-warning {
+            background: #d97706;
+        }
+
+        .btn-warning:hover {
+            background: #b45309;
+        }
+
+        .btn-secondary {
+            background: #64748b;
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+        }
+
+        .pagination {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin: 1rem;
+        }
+
+        .pagination-info {
+            color: #64748b;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+
+        .page-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #cbd5e1;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .page-btn:hover:not(:disabled) {
+            background: #f1f5f9;
+        }
+
+        .page-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .page-btn.active {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+        }
+
+        .page-numbers {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .page-size-selector {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .page-size-selector select {
+            padding: 0.25rem 0.5rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+        }
+
+        /* MEDIA QUERIES FOR TABLET AND DESKTOP */
+        @media (min-width: 768px) {
+            .header {
+                padding: 0.75rem 2rem;
+                display: grid;
+                grid-template-columns: 1fr auto 1fr;
+                align-items: center;
+                gap: 2rem;
+            }
+
+            .header-left {
+                margin-bottom: 0;
+            }
+
+            .header h1 {
+                font-size: 1.25rem;
+            }
+
+            .header-center {
+                font-size: 1rem;
+                margin-bottom: 0;
+            }
+
+            .header-right {
+                align-items: flex-end;
+            }
+
+            .header-date {
+                font-size: 0.9rem;
+            }
+
+            .records-counter {
+                margin: 1rem 1.5rem 0 1.5rem;
+            }
+
+            .filters {
+                padding: 1.5rem 2rem;
+                margin: 1rem 1.5rem 1.5rem 1.5rem;
+            }
+
+            .filters-row .form-input {
+                flex: 1 1 300px;
+            }
+
+            .filters-row .btn,
+            .filters-row .form-select {
+                flex: 0 1 auto;
+            }
+
+            .filters-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .table-container {
+                margin: 0 1.5rem 1.5rem 1.5rem;
+            }
+
+            .pagination {
+                flex-direction: row;
+                justify-content: space-between;
+                margin: 1.5rem;
+            }
+
+            .pagination-info {
+                text-align: left;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .filters-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+
+            th:nth-child(5), td:nth-child(5) { 
+                min-width: 500px;
+            }
+        }
+
+        /* MEDIA QUERY FOR 14" SCREENS (1024px - 1400px) */
+        @media (min-width: 1024px) and (max-width: 1400px) {
+            .filters-row .form-input {
+                flex: 1 1 250px; /* Reduce search width */
+                min-width: 200px;
+            }
+            
+            .filters-row .btn {
+                flex: 0 1 auto;
+                min-width: 110px; /* Slightly more compact buttons */
+            }
+            
+            .refresh-controls {
+                flex: 0 1 auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <h1>📊 Samba Audit Viewer</h1>
+            </div>
+            <div class="header-center">
+                Real-time Audit Log Monitoring
+            </div>
+            <div class="header-right">
+                <span class="header-date" id="headerDate"></span>
+            </div>
+        </div>
+
+        <div class="records-counter hidden" id="recordsCounter">
+            📊 Total Records: <span id="recordsCount">0</span>
+        </div>
+
+        <div class="filters hidden" id="filtersSection">
+        <div class="filters-row">
+            <input type="text" class="form-input" id="searchText" placeholder="🔍 Search..." oninput="applyFilters()" style="min-width: 200px;">
+            <button class="btn btn-secondary" onclick="toggleAdvancedFilters()" id="advancedFilterBtn">⚙️ Hide Advanced Filters</button>
+            <button class="btn" onclick="clearFilters()">Clear All Filters</button>
+            <button class="btn btn-success" onclick="loadLogs()">🔄 Reload</button>
+            <button class="btn btn-warning" onclick="exportPDF()">📊 Export PDF</button>
+            <button class="btn btn-success" onclick="toggleAutoRefresh()" id="autoRefreshBtn">🔄 Auto Refresh</button>
+            <select class="form-select" id="refreshInterval" onchange="updateRefreshInterval()" style="width: auto;">
+                <option value="60000">1</option>
+                <option value="300000" selected>5</option>
+                <option value="600000">10</option>
+                <option value="900000">15</option>
+                <option value="1800000">30</option>
+                <option value="0">Off</option>
+            </select>
+            <span style="margin-left: 0.25rem; color: #475569; font-size: 0.9rem;">min</span>
+        </div>
+            
+            <div id="advancedFilters" style="margin-top: 1rem;">
+                <div class="filters-grid">
+                    <div class="form-group">
+                        <label class="form-label">📅 Date From</label>
+                        <input type="date" class="form-input" id="dateFrom" onchange="applyFilters()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">📅 Date To</label>
+                        <input type="date" class="form-input" id="dateTo" onchange="applyFilters()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">🌐 IP Address</label>
+                        <input type="text" class="form-input" id="ipFilter" placeholder="Filter by IP" oninput="applyFilters()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">⚡ Action</label>
+                        <select class="form-select" id="actionFilter" onchange="applyFilters()">
+                            <option value="">All actions</option>
+                            <option value="mkdirat">Mkdirat</option>
+                            <option value="renameat">Renameat</option>
+                            <option value="unlinkat">Unlinkat</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>IP</th>
+                        <th>Share</th>
+                        <th>Action</th>
+                        <th>File</th>
+                    </tr>
+                </thead>
+                <tbody id="logsTable">
+                    <tr>
+                        <td colspan="5" class="loading">Loading records...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination hidden" id="paginationSection">
+            <div class="pagination-info" id="paginationInfo">
+                Showing 0-0 of 0 records
+            </div>
+            
+            <div class="page-numbers">
+                <button class="page-btn" id="firstPage" onclick="goToPage(1)" disabled>«</button>
+                <button class="page-btn" id="prevPage" onclick="previousPage()" disabled>‹</button>
+                
+                <div id="pageNumbers"></div>
+                
+                <button class="page-btn" id="nextPage" onclick="nextPage()" disabled>›</button>
+                <button class="page-btn" id="lastPage" onclick="goToPage(totalPages)" disabled>»</button>
+            </div>
+            
+            <div class="page-size-selector">
+                <label>Show:</label>
+                <select id="pageSize" onchange="changePageSize()">
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                    <option value="200">200</option>
+                    <option value="500">500</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allLogs = [];
+        let filteredLogs = [];
+        let currentPage = 1;
+        let pageSize = 50;
+        let totalPages = 1;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('headerDate').textContent = new Date().toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric', 
+                year: 'numeric' 
+            });
+            
+            loadLogs();
+            updateRefreshButton(false);
+        });
+
+        let refreshInterval;
+        let refreshTime = 300000;
+        let autoRefreshActive = false;
+
+        function startAutoRefresh() {
+            stopAutoRefresh();
+            if (refreshTime > 0) {
+                refreshInterval = setInterval(loadLogs, refreshTime);
+                autoRefreshActive = true;
+                updateRefreshButton(true);
+            }
+        }
+
+        function stopAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
+            }
+            autoRefreshActive = false;
+            updateRefreshButton(false);
+        }
+
+        function toggleAutoRefresh() {
+            if (refreshInterval) {
+                stopAutoRefresh();
+            } else {
+                startAutoRefresh();
+            }
+        }
+
+        function updateRefreshInterval() {
+            const select = document.getElementById('refreshInterval');
+            refreshTime = parseInt(select.value);
+            
+            if (autoRefreshActive && refreshTime > 0) {
+                startAutoRefresh();
+            } else if (refreshTime === 0) {
+                stopAutoRefresh();
+            }
+        }
+
+        function updateRefreshButton(isActive) {
+            const btn = document.getElementById('autoRefreshBtn');
+            if (!btn) return;
+            
+            if (isActive && refreshTime > 0) {
+                btn.textContent = '🔄 Auto Refresh ON';
+                btn.classList.remove('btn-secondary');
+                btn.classList.add('btn-success');
+            } else {
+                btn.textContent = '🔄 Auto Refresh OFF';
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-secondary');
+            }
+        }      
+
+        async function loadLogs() {
+            const tbody = document.getElementById('logsTable');
+            
+            try {
+                tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading records...</td></tr>';
+
+                const response = await fetch('/smbapi.php?action=getLogs&limit=50000');
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load logs');
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    allLogs = result.data;
+                    filteredLogs = result.data;
+                    
+                    document.getElementById('recordsCount').textContent = allLogs.length;
+                    document.getElementById('recordsCounter').classList.remove('hidden');
+                    document.getElementById('filtersSection').classList.remove('hidden');
+                    
+                    goToPage(1);
+                } else {
+                    throw new Error(result.error);
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                tbody.innerHTML = '<tr><td colspan="5" class="no-data">Failed to load logs: ' + error.message + '</td></tr>';
+            }
+        }
+
+        function toggleAdvancedFilters() {
+            const advFilters = document.getElementById('advancedFilters');
+            const btn = document.getElementById('advancedFilterBtn');
+            
+            if (advFilters.classList.contains('hidden')) {
+                advFilters.classList.remove('hidden');
+                btn.textContent = '⚙️ Hide Advanced Filters';
+            } else {
+                advFilters.classList.add('hidden');
+                btn.textContent = '⚙️ Advanced Filters';
+            }
+        }
+
+        function applyFilters() {
+            const searchText = document.getElementById('searchText').value.toLowerCase();
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            const ipFilter = document.getElementById('ipFilter').value.toLowerCase();
+            const actionFilter = document.getElementById('actionFilter').value;
+
+            filteredLogs = allLogs.filter(log => {
+                if (searchText) {
+                    const searchIn = `${log.timestamp} ${log.ip} ${log.share} ${log.action} ${log.file}`.toLowerCase();
+                    if (!searchIn.includes(searchText)) return false;
+                }
+
+                if (dateFrom) {
+                    const logDate = log.timestamp.split('T')[0];
+                    if (logDate < dateFrom) return false;
+                }
+
+                if (dateTo) {
+                    const logDate = log.timestamp.split('T')[0];
+                    if (logDate > dateTo) return false;
+                }
+
+                if (ipFilter && !log.ip.toLowerCase().includes(ipFilter)) return false;
+                if (actionFilter && log.action !== actionFilter) return false;
+
+                return true;
+            });
+
+            document.getElementById('recordsCount').textContent = filteredLogs.length;
+            
+            goToPage(1);
+        }
+        
+        function clearFilters() {
+            document.getElementById('searchText').value = '';
+            document.getElementById('dateFrom').value = '';
+            document.getElementById('dateTo').value = '';
+            document.getElementById('ipFilter').value = '';
+            document.getElementById('actionFilter').value = '';
+            applyFilters();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('logsTable');
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = Math.min(startIndex + pageSize, filteredLogs.length);
+            const pageLogs = filteredLogs.slice(startIndex, endIndex);
+
+            if (pageLogs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="no-data">No records found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = pageLogs.map(log => `
+                <tr>
+                    <td>${formatTimestamp(log.timestamp) || 'N/A'}</td>
+                    <td>${log.ip || 'N/A'}</td>
+                    <td>${log.share || 'N/A'}</td>
+                    <td><span class="badge ${getActionClass(log.action)}">${log.action || 'N/A'}</span></td>
+                    <td title="${log.file || ''}">${log.file ? (log.file.length > 200 ? log.file.substring(0, 200) + '...' : log.file) : 'N/A'}</td>
+                </tr>
+            `).join('');
+        }
+
+        function formatTimestamp(ts) {
+            if (!ts) return 'N/A';
+            const normalized = ts.replace(/\.(\d{3})\d+/, '.$1');
+            const d = new Date(normalized);
+            if (isNaN(d)) {
+                const parts = ts.split('T');
+                if (parts.length >= 2) {
+                    const time = parts[1].split(/[-+Z]/)[0];
+                    return parts[0] + ' ' + time;
+                }
+                return ts;
+            }
+            const z = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`;
+        }
+
+        function getActionClass(action) {
+            const classes = {
+                'mkdirat': 'badge-blue',
+                'renameat': 'badge-yellow', 
+                'unlinkat': 'badge-red'
+            };
+            return classes[action] || 'badge-gray';
+        }
+
+        function goToPage(page) {
+            currentPage = Math.max(1, Math.min(page, totalPages));
+            totalPages = Math.ceil(filteredLogs.length / pageSize);
+            
+            renderTable();
+            updatePagination();
+        }
+
+        function previousPage() {
+            if (currentPage > 1) {
+                goToPage(currentPage - 1);
+            }
+        }
+
+        function nextPage() {
+            if (currentPage < totalPages) {
+                goToPage(currentPage + 1);
+            }
+        }
+
+        function changePageSize() {
+            pageSize = parseInt(document.getElementById('pageSize').value);
+            goToPage(1);
+        }
+
+        function updatePagination() {
+            const startIndex = (currentPage - 1) * pageSize + 1;
+            const endIndex = Math.min(currentPage * pageSize, filteredLogs.length);
+            
+            document.getElementById('paginationInfo').textContent = 
+                `Showing ${startIndex}-${endIndex} of ${filteredLogs.length} records`;
+            
+            document.getElementById('firstPage').disabled = currentPage === 1;
+            document.getElementById('prevPage').disabled = currentPage === 1;
+            document.getElementById('nextPage').disabled = currentPage === totalPages;
+            document.getElementById('lastPage').disabled = currentPage === totalPages;
+            
+            if (totalPages > 1) {
+                document.getElementById('paginationSection').classList.remove('hidden');
+            } else {
+                document.getElementById('paginationSection').classList.add('hidden');
+            }
+            
+            const pageNumbersContainer = document.getElementById('pageNumbers');
+            let pageNumbersHTML = '';
+            
+            const startPage = Math.max(1, currentPage - 2);
+            const endPage = Math.min(totalPages, currentPage + 2);
+            
+            for (let i = startPage; i <= endPage; i++) {
+                pageNumbersHTML += `
+                    <button class="page-btn ${i === currentPage ? 'active' : ''}" 
+                            onclick="goToPage(${i})">
+                        ${i}
+                    </button>
+                `;
+            }
+            
+            pageNumbersContainer.innerHTML = pageNumbersHTML;
+        }
+
+        function exportPDF() {
+
+            // helper: escape HTML in file paths
+            function esc(s) {
+                return (s || 'N/A').toString()
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+            }
+
+            if (filteredLogs.length === 0) {
+                alert('No records to export');
+                return;
+            }
+
+            const hasFilters = document.getElementById('searchText').value ||
+                               document.getElementById('dateFrom').value ||
+                               document.getElementById('dateTo').value ||
+                               document.getElementById('ipFilter').value ||
+                               document.getElementById('actionFilter').value;
+
+            let logsToExport = [];
+
+            if (hasFilters) {
+                logsToExport = filteredLogs;
+            } else {
+                // use local date (not UTC)
+                const now = new Date();
+                const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+                logsToExport = filteredLogs.filter(log => {
+                    if (!log.timestamp) return false;
+                    const logDate = log.timestamp.split('T')[0];
+                    return logDate === today;
+                });
+
+                if (logsToExport.length === 0) {
+                    alert('No records found for today');
+                    return;
+                }
+            }
+
+            // Safety cap to avoid browser freeze (adjust if you must)
+            const MAX_EXPORT = 2000;
+            let truncated = false;
+            if (logsToExport.length > MAX_EXPORT) {
+                logsToExport = logsToExport.slice(0, MAX_EXPORT);
+                truncated = true;
+            }
+
+            const reportTitle = hasFilters ? 'Samba Audit Report - Filtered Results' : `Samba Audit Report - Today (${new Date().toLocaleDateString()})`;
+            const reportNote = truncated
+                ? `⚠️ Export limited to first ${MAX_EXPORT} records to prevent browser crash.`
+                : (hasFilters ? 'Filtered results based on your search criteria.' : 'Records from today only.');
+
+            // build PDF/print HTML with only Timestamp, IP, File columns
+            let pdfContent = `<!DOCTYPE html>
+        <html>
+        <head>
+        <meta charset="utf-8">
+        <title>${reportTitle}</title>
+        <style>
+        @media print { @page { size: landscape; } body { transform: scale(0.9); transform-origin: top left; } }
+        body{font-family:Arial,Helvetica,sans-serif;margin:20px}
+        h1{color:#333;border-bottom:2px solid #333;padding-bottom:10px}
+        table{width:100%;border-collapse:collapse;margin-top:12px}
+        th{background:#2563eb;color:#fff;padding:8px;text-align:left}
+        td{padding:6px;border-bottom:1px solid #ddd;vertical-align:top;word-break:break-word}
+        .info{background:#dbeafe;padding:8px;border-left:4px solid #2563eb;margin-bottom:8px}
+        .timestamp{width:200px}
+        .ip{width:140px}
+        .file{width:auto}
+        </style>
+        </head>
+        <body>
+        <h1>${reportTitle}</h1>
+        <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+        <p><strong>Total Records:</strong> ${logsToExport.length}</p>
+        <div class="info">${reportNote}</div>
+        <table>
+        <thead><tr><th class="timestamp">Timestamp</th><th class="ip">IP</th><th class="file">File</th></tr></thead>
+        <tbody>`;
+
+            for (const log of logsToExport) {
+                pdfContent += `<tr>
+        <td class="timestamp">${formatTimestamp(log.timestamp)}</td>
+        <td class="ip">${esc(log.ip)}</td>
+        <td class="file">${esc(log.file)}</td>
+        </tr>`;
+            }
+
+            pdfContent += `</tbody></table></body></html>`;
+
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                alert('Unable to open print window. Check your browser settings.');
+                return;
+            }
+            printWindow.document.write(pdfContent);
+            printWindow.document.close();
+            printWindow.onload = () => printWindow.print();
+        }
+
+
+    </script>
+</body>
+</html>

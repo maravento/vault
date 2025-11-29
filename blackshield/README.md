@@ -109,13 +109,17 @@ http_access deny block_punycode
 acl invalid_ext urlpath_regex -i \.[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*$
 http_access deny invalid_ext
 
-# Block: Blockwords
-acl block_words url_regex -i "/etc/acl/blockwords.txt"
-http_access deny block_words
+# Block: patterns
+acl blockpatterns url_regex -i "/etc/acl/blockpatterns.txt"
+http_access deny workdays blockpatterns
 
 # Block: User-Agents
 acl bad_useragents browser -i "/etc/acl/blockua.txt"
 http_access deny bad_useragents
+
+# Block: web3
+acl web3 dstdomain "/etc/acl/web3domains.txt"
+http_access deny web3
 
 # Block: IP
 acl no_ip url_regex -i ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$
