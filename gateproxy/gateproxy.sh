@@ -101,7 +101,7 @@ mkdir -p "$aclroute" >/dev/null 2>&1
 scr=/etc/scr
 mkdir -p "$scr" >/dev/null 2>&1
 
-# ppa
+# PPA
 file="/etc/apt/sources.list.d/ubuntu.sources"
 required_components=("main" "restricted" "universe" "multiverse")
 changed=0
@@ -132,7 +132,7 @@ else
     echo "No changes made. No update needed."
 fi
 
-# check dependencies
+# DEPENDENCIES
 pkgs='nala curl software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 p7zip-full p7zip-rar rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar python-is-python3 coreutils dconf-editor'
 missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
 unavailable=""
@@ -194,7 +194,6 @@ if systemctl list-unit-files | grep -q '^rpcbind'; then
 fi
 
 ### CLEAN | UPDATE
-clear
 echo -e "\n"
 function cleanupgrade() {
     echo "${lang_04[$lang]}. ${lang_06[$lang]}"
@@ -202,6 +201,7 @@ function cleanupgrade() {
     aptitude safe-upgrade -y
     sync
     updatedb
+    update-desktop-database
 }
 
 function fixbroken() {
@@ -226,7 +226,6 @@ chmod +x gitfolderdl.py
 python gitfolderdl.py https://github.com/maravento/vault/gateproxy
 
 ### CONFIG
-clear
 echo -e "\n"
 hostnamectl set-hostname "$HOSTNAME"
 find $gp/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:gateproxy:$HOSTNAME:g" "{}"
@@ -482,63 +481,89 @@ done
 clear
 echo -e "\n"
 echo "Essential Packages..."
-# Disk & Partition Tools
-nala install -y gparted nfs-common ntfs-3g gsmartcontrol qdirstat gnome-disk-utility
-nala install -y --no-install-recommends smartmontools
+# DISK & STORAGE MANAGEMENT
+nala install -y gparted gnome-disk-utility qdirstat
+nala install -y --no-install-recommends smartmontools gsmartcontrol
+
+# FILE SYSTEMS SUPPORT
+nala install -y nfs-common ntfs-3g reiserfsprogs reiser4progs xfsprogs \
+                jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus \
+                mtools nilfs-tools f2fs-tools exfat-fuse
+
+# FUSE & VIRTUAL FILE SYSTEMS
+nala install -y libfuse2t64 gvfs-fuse bindfs sshfs jmtpfs
+
+# VOLUME & QUOTA MANAGEMENT
+nala install -y lvm2 quota attr
+nala install -y udisks2 udisks2-btrfs udisks2-lvm2
+
+# SYSTEM UTILITIES & MONITORING
+nala install -y trash-cli pm-utils neofetch cpu-x btop htop lsof \
+                inotify-tools dmidecode idle3 wmctrl pv tree moreutils \
+                preload deborphan debconf-utils mokutil util-linux \
+                linux-tools-common apparmor-utils
+
+# PACKAGE MANAGEMENT TOOLS
+nala install -y dpkg ppa-purge apt-utils gdebi synaptic
+
+# TEXT & FILE UTILITIES
+nala install -y gawk rename renameutils sharutils dos2unix colordiff \
+                ripgrep yamllint
+
+# LOGGING & SYSTEM SERVICES
+nala install -y finger logrotate
+
+# DRIVERS & KERNEL MODULES
+nala install -y linux-firmware linux-headers-$(uname -r) module-assistant
+
+# DEVELOPMENT: COMPILERS & BUILD TOOLS
+nala install -y build-essential clang autoconf autoconf-archive autogen \
+                automake dh-autoreconf pkg-config
+
+# DEVELOPMENT: LIBRARIES & HEADERS
+nala install -y uuid-dev libmnl-dev libssl-dev libffi-dev libpam0g-dev \
+                libpcap-dev libasound2-dev libglib2.0-dev libudisks2-dev \
+                liblvm2-dev python3-dev gtkhash
+
+# PROGRAMMING: PYTHON
+nala install -y python3-pip python3-venv python3-psutil
+
+# PROGRAMMING: RUBY
+nala install -y rubygems-integration rake ruby ruby-did-you-mean ruby-json \
+                ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit
+
+# PROGRAMMING: JAVASCRIPT & WEB
+nala install -y javascript-common libjs-jquery xsltproc
+
+# NETWORK & CONNECTIVITY
+nala install -y wget bind9-dnsutils conntrack i2c-tools wsdd ipset
+
+# GEOLOCATION DATABASES
+nala install -y geoip-database
+
+# GRAPHICS & DISPLAY
+# if there any problems, install the package: libegl-mesa0
+nala install -y mesa-utils libfontconfig1
+
+# RUNTIME LIBRARIES
+nala install -y libuser gir1.2-gtop-2.0
     
-# System Utilities
-nala install -y trash-cli pm-utils neofetch cpu-x lsof inotify-tools dmidecode idle3 \
-                wmctrl pv dpkg ppa-purge deborphan apt-utils gawk gir1.2-gtop-2.0 \
-                finger logrotate tree moreutils rename renameutils sharutils dos2unix \
-                gdebi synaptic preload debconf-utils mokutil util-linux linux-tools-common \
-                colordiff apparmor-utils
-    
-# Development Libraries & Build Tools
-nala install -y uuid-dev libmnl-dev gtkhash libssl-dev libffi-dev python3-dev python3-venv \
-                libpam0g-dev autoconf autoconf-archive autogen automake dh-autoreconf \
-                pkg-config libpcap-dev libasound2-dev libfontconfig1 clang libuser \
-                build-essential module-assistant linux-headers-$(uname -r)
-    
-# Programming Languages & Environments
-nala install -y javascript-common libjs-jquery rubygems-integration rake \
-                ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet \
-                ruby-power-assert ruby-test-unit python3-pip python3-psutil xsltproc
-    
-# UDisks Tools (runtime + development)
-nala install -y udisks2 udisks2-btrfs udisks2-lvm2 libglib2.0-dev \
-                libudisks2-dev liblvm2-dev
-    
-# File System Utilities
-nala install -y reiserfsprogs reiser4progs xfsprogs jfsutils dosfstools e2fsprogs \
-                hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools quota lvm2 attr jmtpfs
-    
-# FUSE Tools
-nala install -y libfuse2t64 exfat-fuse gvfs-fuse bindfs sshfs
-    
-# Network / Geo / Web Tools
-nala install -y conntrack i2c-tools wget bind9-dnsutils geoip-database wsdd
-    
-# Mesa (if there any problems, install the package: libegl-mesa0)
-nala install -y mesa-utils
-    
-# Mail
+# MAIL
 service sendmail stop >/dev/null 2>&1
 update-rc.d -f sendmail remove >/dev/null 2>&1
 DEBIAN_FRONTEND=noninteractive nala install -y postfix
 nala install -y mailutils
 
-# Search tool
+# SEARCH (Optional)
 add-apt-repository -y ppa:christian-boxdoerfer/fsearch-stable
 nala install -y fsearch
     
-# Fonts
+# FONTS
 nala install -y fonts-lato fonts-liberation fonts-dejavu
 echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
 nala install -y ttf-mscorefonts-installer fontconfig
 fc-cache -f
     
-# ubuntu database
-update-desktop-database
 echo OK
 sleep 1
 
@@ -692,44 +717,6 @@ chmod +x proxymon.sh
     echo "$LAN_INTERFACE" # Enter LAN Net Interface  
 } | ./proxymon.sh install
 
-# btop | htop
-nala install -y btop htop
-
-# NET SECTION
-# Net Tools (Replace NIC and IP/CIDR)
-nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
-nala install -y fping              # Net diagnostics: fping -a -g 192.168.1.0/24
-nala install -y ethtool            # Net config: ethtool eth0
-# Net test: On server: iperf3 -s | On client: iperf3 -c serverip
-DEBIAN_FRONTEND=noninteractive nala install -y iperf3  2>/dev/null
-# Net Scanning (Replace NIC and IP/CIDR)
-nala install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
-nala install -y nbtscan            # nbtscan 192.168.1.0/24
-nala install -y nast               # nast -m
-nala install -y arp-scan           # arp-scan --localnet
-nala install -y arping             # arping -I eth0 192.168.1.1
-nala install -y netdiscover        # netdiscover
-# Nmap
-nala install -y nmap python3-nmap ndiff
-# Domain/IP Scanning
-nala install -y traceroute         # traceroute google.com
-nala install -y mtr-tiny           # mtr google.com
-
-# SECURITY SECTION
-# fail2ban
-nala install -y fail2ban
-cp $gp/conf/server/jail.local /etc/fail2ban/jail.local
-sed -i 's/^#\?allowipv6 *= *.*/allowipv6 = 0/' /etc/fail2ban/fail2ban.conf
-systemctl enable fail2ban.service
-echo "Check: sudo fail2ban-client status <jail_name>"
-echo "Unban all: sudo fail2ban-client unban --all"
-echo "Unban Jail: sudo fail2ban-client set <jail_name> unban --all"
-# lynis
-nala install -y lynis
-echo "Lynis Run: lynis -c -Q and log: /var/log/lynis.log"
-# ipset
-nala install -y ipset
-    
 # LOGS SECTION 
 # ulog2
 # https://www.maravento.com/2014/07/registros-iptables.html
@@ -763,13 +750,167 @@ crontab -l | {
 echo OK
 sleep 1
 
+echo -e "\n"
+while true; do
+read -p "${lang_20[$lang]} Optional Pack?
+Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
+    case $answer in
+    [Yy]*)
+        # execute command yes
+        # Net Tools (Replace NIC and IP/CIDR)
+        nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
+        nala install -y fping              # Net diagnostics: fping -a -g 192.168.1.0/24
+        nala install -y ethtool            # Net config: ethtool eth0
+        # Net test: On server: iperf3 -s | On client: iperf3 -c serverip
+        DEBIAN_FRONTEND=noninteractive nala install -y iperf3  2>/dev/null
+        # Net Scanning (Replace NIC and IP/CIDR)
+        nala install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
+        nala install -y nbtscan            # nbtscan 192.168.1.0/24
+        nala install -y nast               # nast -m
+        nala install -y arp-scan           # arp-scan --localnet
+        nala install -y arping             # arping -I eth0 192.168.1.1
+        nala install -y netdiscover        # netdiscover
+        # Nmap
+        nala install -y nmap python3-nmap ndiff
+        # Domain/IP Scanning
+        nala install -y traceroute         # traceroute google.com
+        nala install -y mtr-tiny           # mtr google.com
+        # fail2ban
+        nala install -y fail2ban
+        cp $gp/conf/server/jail.local /etc/fail2ban/jail.local
+        sed -i 's/^#\?allowipv6 *= *.*/allowipv6 = 0/' /etc/fail2ban/fail2ban.conf
+        systemctl enable fail2ban.service
+        echo "Check: sudo fail2ban-client status <jail_name>"
+        echo "Unban all: sudo fail2ban-client unban --all"
+        echo "Unban Jail: sudo fail2ban-client set <jail_name> unban --all"
+        # lynis
+        nala install -y lynis
+        echo "Lynis Run: lynis -c -Q and log: /var/log/lynis.log"
+        # suricata install
+        nala install -y suricata suricata-update jq
+        sed -i "s/interface: eth[0-9]/interface: $LAN_INTERFACE/g" /etc/suricata/suricata.yaml
+        if grep -q "community-id: false" /etc/suricata/suricata.yaml; then
+            sed -i 's/community-id: false/community-id: true/' /etc/suricata/suricata.yaml
+            echo "✓ Community-ID enabled"
+        fi
+        # suricata update
+        cp -f $gp/conf/server/disable.conf /etc/suricata/disable.conf
+        tee /etc/suricata/suricata-update.sh > /dev/null <<EOF
+#!/bin/bash
+LOG="/var/log/suricata/suricata-update.log"
+NOW="$(date '+%Y-%m-%d %H:%M:%S')"
+echo "$NOW - Suricata Update..." | tee -a "$LOG"
+
+suricata-update --disable-conf=/etc/suricata/disable.conf --quiet >> "$LOG" 2>&1
+
+if [ $? -eq 0 ]; then
+    RULES_FILE="/var/lib/suricata/rules/suricata.rules"
+    
+    # Eliminar reglas not-suspicious
+    sed -i '/classtype:not-suspicious;/d' "$RULES_FILE"
+    
+    if systemctl reload suricata; then
+        sleep 2 
+        ACTIVE_RULES=$(grep -c '^alert' "$RULES_FILE" 2>/dev/null || echo "N/A")
+        echo "$NOW - ✓ Suricata reloaded - Active rules: $ACTIVE_RULES" | tee -a "$LOG"
+        
+        if systemctl restart evebox; then
+            echo "$NOW - ✓ EveBox restarted" | tee -a "$LOG"
+        else
+            echo "$NOW - ⚠ Warning: Failed to restart EveBox" | tee -a "$LOG"
+        fi
+    else
+        echo "$NOW - ✗ Failed to reload Suricata" | tee -a "$LOG"
+        exit 1
+    fi
+else
+    echo "$NOW - ✗ Error suricata-update" | tee -a "$LOG"
+    exit 1
+fi
+EOF
+        chmod +x /etc/suricata/suricata-update.sh
+        timeout 300 /etc/suricata/suricata-update.sh || echo "⚠ Warning: suricata-update timed out"
+        # suricata ratio
+        if ! grep -q "detect-thread-ratio: 0.5" /etc/suricata/suricata.yaml; then
+            sed -i 's/detect-thread-ratio: 1.0/detect-thread-ratio: 0.5/' /etc/suricata/suricata.yaml
+        fi
+        # suricata cron
+        (crontab -l 2>/dev/null; echo "0 2 * * * /etc/suricata/suricata-update.sh") | crontab -
+        # suricata check IDS
+        SURICATA_SERVICE="/usr/lib/systemd/system/suricata.service"
+        CORRECT_EXECSTART="ExecStart=/usr/bin/suricata -D --af-packet -c /etc/suricata/suricata.yaml --pidfile /run/suricata.pid"
+        if grep -q "^ExecStart=.*--af-packet" "$SURICATA_SERVICE" && ! grep -q "^ExecStart=.*-q" "$SURICATA_SERVICE"; then
+            echo "✓ Suricata Mode: IDS"
+        else
+            echo "⚠ Fixing Suricata IDS..."
+            sed -i "s|^ExecStart=.*|$CORRECT_EXECSTART|" "$SURICATA_SERVICE"
+            echo "✓ Suricata Mode: IDS"
+        fi
+        # evebox
+        curl -fsSL https://evebox.org/files/GPG-KEY-evebox -o /etc/apt/keyrings/evebox.asc
+        echo "deb [signed-by=/etc/apt/keyrings/evebox.asc] https://evebox.org/files/debian stable main" | tee /etc/apt/sources.list.d/evebox.list
+        apt update
+        apt install -y evebox
+        # Configure
+        tee /etc/evebox/evebox.yaml > /dev/null <<EOF
+http:
+  host: "0.0.0.0"
+  port: 5636
+  tls:
+    enabled: false
+
+authentication: false
+
+database:
+  type: sqlite
+
+input:
+  enabled: true
+  paths:
+    - "/var/log/suricata/eve.json"
+    - "/var/log/suricata/eve.*.json"
+EOF
+
+        tee /etc/systemd/system/evebox.service > /dev/null <<EOF
+[Unit]
+Description=EveBox Server
+After=network.target suricata.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/evebox server --config /etc/evebox/evebox.yaml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        systemctl daemon-reload
+        systemctl enable suricata evebox
+        systemctl restart suricata
+        systemctl start evebox
+        echo "EVEBox: http://localhost:5636"
+        break
+        ;;
+    [Nn]*)
+        # execute command no
+        echo NO
+        break
+        ;;
+    *)
+        echo
+        echo "${lang_07[$lang]}: YES (y) or NO (n)"
+        ;;
+    esac
+done
+
 cleanupgrade
 fixbroken
 
 ### SHARED ###
 # Samba with Shared folder, Recycle Bin and Audit
 # https://www.maravento.com/2021/12/samba-full-audit.html
-clear
 echo -e "\n"
 while true; do
 read -p "${lang_20[$lang]} Samba?
@@ -862,7 +1003,6 @@ ${lang_21[$lang]} (y/n)" answer
     esac
 done
 echo OK
-sleep 1
 
 cleanupgrade
 fixbroken
@@ -941,7 +1081,6 @@ echo -e "\n"
 echo "Adding Parameters..."
 tee -a /etc/rsyslog.conf >/dev/null <<EOT
 *.none    /var/log/ulog/syslogemu.log
-*.none    /usr/local/ddos/ddos.log
 EOT
 
 # backup conf files
@@ -978,15 +1117,38 @@ cp -f $gp/conf/server/servername.conf /etc/apache2/conf-available/servername.con
 a2enconf servername
 
 # Hardening
-cp -f /etc/apache2/conf-available/security.conf{,.bak} &>/dev/null
-sed -i "s:ServerSignature On:ServerSignature Off:g" /etc/apache2/conf-available/security.conf
-sed -i "s:ServerTokens OS:ServerTokens Prod:g" /etc/apache2/conf-available/security.conf
-sed 's/^[#]*\(Header set X-Content-Type-Options: "nosniff"\)$/\1/' -i /etc/apache2/conf-available/security.conf
-sed 's/^[#]*\(Header set X-Frame-Options: "sameorigin"\)$/\1/' -i /etc/apache2/conf-available/security.conf
-echo 'FileETag None' | tee -a /etc/apache2/conf-available/security.conf
-echo 'Header unset ETag' | tee -a /etc/apache2/conf-available/security.conf
-echo 'Options all -Indexes' | tee -a /etc/apache2/conf-available/security.conf
+if [ -f /etc/apache2/conf-available/security.conf ]; then
+    cp -f /etc/apache2/conf-available/security.conf{,.bak} &>/dev/null
+else
+    touch /etc/apache2/conf-available/security.conf
+fi
+sed -i "s/^#*\s*ServerSignature.*/ServerSignature Off/" /etc/apache2/conf-available/security.conf
+sed -i "s/^#*\s*ServerTokens.*/ServerTokens Prod/" /etc/apache2/conf-available/security.conf
+declare -A headers=(
+    ["X-Content-Type-Options"]="nosniff"
+    ["X-Frame-Options"]="sameorigin"
+    ["X-XSS-Protection"]="1; mode=block"
+    ["Referrer-Policy"]="strict-origin-when-cross-origin"
+)
+for name in "${!headers[@]}"; do
+    value="${headers[$name]}"
+    if grep -q "Header set $name" /etc/apache2/conf-available/security.conf; then
+        sed -i "s|^#*\s*Header set $name.*|Header set $name \"$value\"|" /etc/apache2/conf-available/security.conf
+    else
+        echo "Header set $name \"$value\"" >> /etc/apache2/conf-available/security.conf
+    fi
+done
+grep -q "^FileETag None" /etc/apache2/conf-available/security.conf || \
+    echo 'FileETag None' >> /etc/apache2/conf-available/security.conf
+
+grep -q "^Header unset ETag" /etc/apache2/conf-available/security.conf || \
+    echo 'Header unset ETag' >> /etc/apache2/conf-available/security.conf
+
+grep -q "^Timeout" /etc/apache2/conf-available/security.conf || \
+    echo 'Timeout 60' >> /etc/apache2/conf-available/security.conf
+sed -i 's/Options -Indexes FollowSymLinks/Options -Indexes +FollowSymLinks/g' /etc/apache2/apache2.conf
 a2enmod headers &>/dev/null
+a2enconf security &>/dev/null
 echo OK
 sleep 1
 
@@ -1032,7 +1194,7 @@ systemctl daemon-reexec &>/dev/null
 # Update initramfs (optional)
 #update-initramfs -u -k all
 # create alias "upgrade"
-sudo -u "$local_user" bash -c "echo alias upgrade=\"'sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo updatedb && sudo snap refresh'\"" >>/home/"$local_user"/.bashrc
+sudo -u "$local_user" bash -c "echo alias upgrade=\"'sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo updatedb && sudo update-desktop-database && sudo snap refresh'\"" >>/home/"$local_user"/.bashrc
 sudo -u "$local_user" bash -c "echo alias server=\"'sudo /etc/scr/serverload.sh'\"" >>/home/"$local_user"/.bashrc
 sudo -u "$local_user" bash -c "echo alias cleaner=\"'sudo /etc/scr/cleaner.sh'\"" >>/home/"$local_user"/.bashrc
 # IPv4 priority

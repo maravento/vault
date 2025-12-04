@@ -865,7 +865,7 @@ sudo ./uniopos_nojava.sh
 - [Resource Turner](http://www.restuner.com/)
 - [uniCenta oPOS](https://unicenta.com/download-files/installers/)
 - [Uniform Zero (UZero)](https://sourceforge.net/projects/miniserver/files/)
-- [vcredist](https://github.com/abbodi1406/vcredist/releases)
+- [vcredist](https://gitlab.com/stdout12/vcredist/-/releases)
 - [WampServer](https://wampserver.aviatechno.net/?lang=en)
 - [Webmin (Optional)](https://www.webmin.com/)
 - [WinZenity](https://github.com/maravento/vault/tree/master/winzenity)

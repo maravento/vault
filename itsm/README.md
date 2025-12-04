@@ -49,7 +49,7 @@
 
 | File | OS | Size |
 | :---: | :---: | :---: |
-| [itsm.exe (.zip)](https://mega.nz/file/zF1nBKrS#xacnHarz1F6Qd0gq-mNObd_LE7rpfC-QANrbh1KRPzw) | Windows 10/11 x64 | 157 MB |
+| [itsm.exe (.zip)](https://mega.nz/file/uJV0AbqD#ULKCBA6O_68ztUetTNVhfI24qomKZFVyOpSdElOhNm4) | Windows 10/11 x64 | 157,4 MB |
 
 ## Supported Versions
 
@@ -328,7 +328,7 @@ Package: ITSM
 - [stahlworks unzip and gzip](http://stahlworks.com/dev/index.php?tool=zipunzip)
 - [tartool](https://github.com/senthilrajasek/tartool)
 - [Uniform Server](https://sourceforge.net/projects/miniserver/files/)
-- [vcredist](https://github.com/abbodi1406/vcredist)
+- [vcredist](https://gitlab.com/stdout12/vcredist/-/releases)
 - [WampServer](https://wampserver.aviatechno.net/)
 - [WinZenity](https://github.com/maravento/vault/tree/master/winzenity)
 - [XAMPP](https://sourceforge.net/projects/xampp/files/)

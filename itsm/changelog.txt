@@ -2,6 +2,10 @@
 # ITSM - IT Service Management & CMDB Portable
 # maravento.com
 
+2025.12.03
+Update: glpi-11.0.3
+Update: Visual C++ v0.103.0
+
 2025.11.05
 Update: glpi-11.0.2
 Update: Visual C++ v0.102.0

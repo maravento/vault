@@ -324,6 +324,41 @@ install_proxymon() {
       -e 's/^\s*;*\s*realpath_cache_size\s*=.*/realpath_cache_size = 16M/' \
      /etc/php/$PHP_VERSION/apache2/php.ini
      
+    # Hardening
+    echo -e "${YELLOW}⚙️  Updating Apache2 Security...${NC}"
+    if [ -f /etc/apache2/conf-available/security.conf ]; then
+        cp -f /etc/apache2/conf-available/security.conf{,.bak} &>/dev/null
+    else
+        touch /etc/apache2/conf-available/security.conf
+    fi
+    sed -i "s/^#*\s*ServerSignature.*/ServerSignature Off/" /etc/apache2/conf-available/security.conf
+    sed -i "s/^#*\s*ServerTokens.*/ServerTokens Prod/" /etc/apache2/conf-available/security.conf
+    declare -A headers=(
+        ["X-Content-Type-Options"]="nosniff"
+        ["X-Frame-Options"]="sameorigin"
+        ["X-XSS-Protection"]="1; mode=block"
+        ["Referrer-Policy"]="strict-origin-when-cross-origin"
+    )
+    for name in "${!headers[@]}"; do
+        value="${headers[$name]}"
+        if grep -q "Header set $name" /etc/apache2/conf-available/security.conf; then
+            sed -i "s|^#*\s*Header set $name.*|Header set $name \"$value\"|" /etc/apache2/conf-available/security.conf
+        else
+            echo "Header set $name \"$value\"" >> /etc/apache2/conf-available/security.conf
+        fi
+    done
+    grep -q "^FileETag None" /etc/apache2/conf-available/security.conf || \
+        echo 'FileETag None' >> /etc/apache2/conf-available/security.conf
+
+    grep -q "^Header unset ETag" /etc/apache2/conf-available/security.conf || \
+        echo 'Header unset ETag' >> /etc/apache2/conf-available/security.conf
+
+    grep -q "^Timeout" /etc/apache2/conf-available/security.conf || \
+        echo 'Timeout 60' >> /etc/apache2/conf-available/security.conf
+    sed -i 's/Options -Indexes FollowSymLinks/Options -Indexes +FollowSymLinks/g' /etc/apache2/apache2.conf
+    a2enmod headers &>/dev/null
+    a2enconf security &>/dev/null
+     
     echo -e "${YELLOW}🔐 Setting Permissions...${NC}"
     chmod -R 755 /var/www/proxymon/
     chown -R www-data:www-data /var/www/proxymon

@@ -30,7 +30,7 @@
 - [nmap-7.98](https://nmap.org/download#windows)
 - [npcap-1.84](https://nmap.org/download#windows)
 - [libxslt (xsltproc)](https://www.zlatkovic.com/pub/libxml/)
-- [Microsoft Visual C++ Runtimes](https://github.com/abbodi1406/vcredist)
+- [Microsoft Visual C++ Runtimes](https://gitlab.com/stdout12/vcredist/-/releases)
 
 ### How to Use
 
@@ -183,7 +183,7 @@ Package: NetScan
 - [npcap](https://nmap.org/download#windows)
 - [Quick Batch File Compiler](https://www.abyssmedia.com/quickbfc/)
 - [RapidCRC Unicode](https://www.ov2.eu/programs/rapidcrc-unicode)
-- [vcredist](https://github.com/abbodi1406/vcredist)
+- [vcredist](https://gitlab.com/stdout12/vcredist/-/releases)
 - [WinZenity](https://github.com/maravento/vault/tree/master/winzenity)
 
 ## NETSCAN ON LINUX

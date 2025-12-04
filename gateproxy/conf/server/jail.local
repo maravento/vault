@@ -113,10 +113,3 @@ logpath  = /var/log/auth.log
 backend  = auto
 filter   = webmin-auth
 
-# cockpit
-[cockpit]
-enabled  = true
-port     = 9090
-logpath = /var/log/fail2ban.log
-backend  = systemd
-filter   = cockpit

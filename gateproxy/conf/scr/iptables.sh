@@ -249,8 +249,8 @@ iptables -A INPUT -i $wan -s 10.0.0.0/8 -j DROP
 iptables -A INPUT -i $wan -s 172.16.0.0/12 -j DROP
 #iptables -A INPUT -i $wan -s 192.168.0.0/16 -j DROP
 # WAN DROP: Local Ports
-iptables -A INPUT -i $wan -p tcp -m multiport --dports 80,3128,10000,18100,18080,18081,18082 -j NFLOG --nflog-prefix "WAN-DROP Local Ports: "
-iptables -A INPUT -i $wan -p tcp -m multiport --dports 80,3128,10000,18100,18080,18081,18082 -j DROP
+iptables -A INPUT -i $wan -p tcp -m multiport --dports 80,3128,5636,10000,18100,18080,18081,18082 -j NFLOG --nflog-prefix "WAN-DROP Local Ports: "
+iptables -A INPUT -i $wan -p tcp -m multiport --dports 80,3128,5636,10000,18100,18080,18081,18082 -j DROP
 
 # MASQUERADE: NAT for LAN to share dynamic WAN IP
 iptables -t nat -A POSTROUTING -s $localnet/$netmask -o $wan -j MASQUERADE
@@ -285,14 +285,13 @@ echo OK
 echo "MAC2IP Rules..."
 
 # MACUNLIMITED (Access Points, Switch, etc.)
-ipset -L macunlimited >/dev/null 2>&1
-if [ $? -ne 0 ]; then
+if ! ipset list macunlimited &>/dev/null; then
     ipset create macunlimited hash:mac -exist
 else
     ipset flush macunlimited
 fi
 for mac in $(awk -F";" '$2 != "" {print $2}' $aclroute/mac-unlimited.txt); do
-    ipset -exist add macunlimited $mac
+    ipset add macunlimited $mac -exist
 done
 iptables -t mangle -A PREROUTING -i $lan -m set --match-set macunlimited src -j ACCEPT
 for chain in INPUT FORWARD; do
@@ -307,8 +306,7 @@ path_macs=$aclroute/dhcp_mac.txt
 # mac2ip
 mac2ip=$(sed -n '/^\s\+hardware\|^\s\+fixed/ s:hardware ethernet \|fixed-address ::p' $dhcp_conf | sed 's/;//')
 # rule mac2ip
-ipset -L macip >/dev/null 2>&1
-if [ $? -ne 0 ]; then
+if ! ipset list macip &>/dev/null; then
     ipset create macip hash:ip,mac -exist
 else
     ipset flush macip
@@ -322,7 +320,7 @@ create_acl() {
         ip="$1"
         shift
         # Add MAC+IP to set
-        ipset -exist add macip $ip,$mac
+        ipset add macip $ip,$mac -exist
         ips="$ips\n$ip"
         macs="$macs\n$mac"
     done
@@ -341,18 +339,17 @@ echo "Port Rules..."
 # BLOCKPORTS
 # path: /etc/acl/blockports.txt
 # Block Direct Connections:
-# HTTPs (443), HTTPs Fallback (4444,8443,9443), DoT (853), DNS over QUIC DoQ (784), DoQ Fallback (8853), OpenVPN (1194), L2TP/IPsec (1701), IPsec IKE (500), IPsec NAT-T (4500), WireGuard (51820), SOCKS5 proxies (1080), Shadowsocks (7300), HTTP-Proxy Alternative (8080,8000,3129,3130).
+# HTTPs (443), HTTPs Fallback (4444,8443,9443), DoT (853,8053), DNS over QUIC DoQ (784), DoQ Fallback (8853), OpenVPN (1194), L2TP/IPsec (1701), IPsec IKE (500), IPsec NAT-T (4500), WireGuard (51820), SOCKS5 proxies (1080), Shadowsocks (7300), HTTP-Proxy Alternative (8080,8000,3129,3130).
 # Block legacy, risky or potentially abusive services:
 # Echo (7), CHARGEN (19), FTP (20,21), SSH (22), 6to4 (41,43,44,58,59,60,3544), FINGER (79), TOR Ports (9001,9050,9150), Brave Tor (9001:9004,9090,9101:9103,9030,9031,9050), IRC (6660-6669), Trojans/Metasploit (4444), SQL inyection/XSS (8088,8888), bittorrent (6881-6889,58251,58252,58687,6969), others P2P (1000,1007,1337,2760,4662,4672), Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560), WINS (42), BTC/ETH (8332,8333,8545,30303).
 # Verificar si el set blockports existe
-ipset list blockports >/dev/null 2>&1
-if [ $? -ne 0 ]; then
+if ! ipset list blockports &>/dev/null; then
     ipset create blockports bitmap:port range 0-65535 -exist
 else
     ipset flush blockports
 fi
 for blports in $(cat $aclroute/blockports.txt | sort -V -u); do
-    ipset -exist add blockports $blports
+    ipset add blockports $blports -exist
 done
 for proto in tcp udp; do
     for chain in INPUT FORWARD; do
@@ -362,14 +359,13 @@ for proto in tcp udp; do
 done
 
 # MAC Ports
-ipset -L macports >/dev/null 2>&1
-if [ $? -ne 0 ]; then
+if ! ipset list macports &>/dev/null; then
     ipset create macports hash:mac -exist
 else
     ipset flush macports
 fi
 for mac in $(awk -F";" '$2 != "" {print $2}' $aclroute/mac-*); do
-    ipset -exist add macports $mac
+    ipset add macports $mac -exist
 done
 # DNS
 dns="8.8.8.8 8.8.4.4 1.1.1.1 1.0.0.1"
@@ -497,28 +493,26 @@ echo OK
 echo "MAC Rules"
 
 # MACTRANSPARENT (WARNING: Not recommended) (check blockports.txt)
-#ipset -L mactransparent >/dev/null 2>&1
-#if [ $? -ne 0 ]; then
-#   ipset create mactransparent hash:mac -exist
+#if ! ipset list mactransparent &>/dev/null; then
+#    ipset create mactransparent hash:mac -exist
 #else
-#   ipset flush mactransparent
+#    ipset flush mactransparent
 #fi
 #for mac in $(awk -F";" '$2 != "" {print $2}' $aclroute/mac-transparent.txt); do
-#   ipset -exist add mactransparent $mac
+#   ipset add mactransparent $mac -exist
 #done
 #for chain in INPUT FORWARD; do
 #    iptables -A $chain -i $lan -p tcp -m multiport --dports 80,443,853 -m set --match-set mactransparent src -j ACCEPT
 #done
 
 # MACPROXY (PAC 18100 - Opcion 252 DHCP, HTTP 80 to 3128)
-ipset -L macproxy >/dev/null 2>&1
-if [ $? -ne 0 ]; then
+if ! ipset list macproxy &>/dev/null; then
     ipset create macproxy hash:mac -exist
 else
     ipset flush macproxy
 fi
 for mac in $(awk -F";" '$2 != "" {print $2}' $aclroute/mac-proxy.txt); do
-    ipset -exist add macproxy $mac
+    ipset add macproxy $mac -exist
 done
 iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m set --match-set macproxy src -j REDIRECT --to-port 3128
 for chain in INPUT FORWARD; do
