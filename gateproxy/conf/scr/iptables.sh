@@ -341,7 +341,7 @@ echo "Port Rules..."
 # Block Direct Connections:
 # HTTPs (443), HTTPs Fallback (4444,8443,9443), DoT (853,8053), DNS over QUIC DoQ (784), DoQ Fallback (8853), OpenVPN (1194), L2TP/IPsec (1701), IPsec IKE (500), IPsec NAT-T (4500), WireGuard (51820), SOCKS5 proxies (1080), Shadowsocks (7300), HTTP-Proxy Alternative (8080,8000,3129,3130).
 # Block legacy, risky or potentially abusive services:
-# Echo (7), CHARGEN (19), FTP (20,21), SSH (22), 6to4 (41,43,44,58,59,60,3544), FINGER (79), TOR Ports (9001,9050,9150), Brave Tor (9001:9004,9090,9101:9103,9030,9031,9050), IRC (6660-6669), Trojans/Metasploit (4444), SQL inyection/XSS (8088,8888), bittorrent (6881-6889,58251,58252,58687,6969), others P2P (1000,1007,1337,2760,4662,4672), Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560), WINS (42), BTC/ETH (8332,8333,8545,30303).
+# Echo (7), CHARGEN (19), FTP (20,21), SSH (22), 6to4 (41,43,44,58,59,60,3544), FINGER (79), TOR Ports (9001,9050,9150), Brave Tor (9001:9004,9090,9101:9103,9030,9031,9050), IRC (6660-6669), Trojans/Metasploit (4444), SQL inyection/XSS (8088,8888), bittorrent (6881-6889,58251,58252,58687,6969), others P2P (1000,1007,1337,2760,4662,4672), Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560), WINS (42), BTC/ETH (8332,8333,8545,30303), IPP (631).
 # Verificar si el set blockports existe
 if ! ipset list blockports &>/dev/null; then
     ipset create blockports bitmap:port range 0-65535 -exist
@@ -377,10 +377,10 @@ done
 for chain in INPUT FORWARD; do
     # WARNING PAGE HTTP (TCP 18081)
     iptables -A $chain -i $lan -p tcp --dport 18081 -m set --match-set macports src -j ACCEPT
-    # PRINTERS & SCANNERS UDP: SNMP (161,162) + IPP (631) + prnrequest/prnstatus (3910/3911)
-    iptables -A $chain -i $lan -p udp -m multiport --dports 161,162,631,3910,3911 -m set --match-set macports src -j ACCEPT
-    # PRINTERS & SCANNERS TCP: IPP (631) + JetDirect/RAW (9100) + prnrequest/prnstatus (3910/3911)
-    iptables -A $chain -i $lan -p tcp -m multiport --dports 631,9100,3910,3911 -m set --match-set macports src -j ACCEPT
+    # PRINTERS & SCANNERS UDP: SNMP (161,162) + prnrequest/prnstatus (3910/3911)
+    iptables -A $chain -i $lan -p udp -m multiport --dports 161,162,3910,3911 -m set --match-set macports src -j ACCEPT
+    # PRINTERS & SCANNERS TCP: JetDirect/RAW (9100) + prnrequest/prnstatus (3910/3911)
+    iptables -A $chain -i $lan -p tcp -m multiport --dports 9100,3910,3911 -m set --match-set macports src -j ACCEPT
     # STUN / TURN - VoIP, WebRTC, Videoconference
     iptables -A $chain -i $lan -p udp -m multiport --dports 3478,19302:19309 -m set --match-set macports src -j ACCEPT
     # FILE SHARING SAMBA (SMB)

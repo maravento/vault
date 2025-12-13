@@ -35,6 +35,22 @@ else
     err "Neither pkexec nor sudo found. Cannot elevate privileges."
 fi
 
+# --- Function to check if resource is already mounted ---
+check_resource_mounted() {
+    local resource="$1"
+    local protocol="$2"
+    
+    case "$protocol" in
+        "smb")
+            mount | grep -q "//$resource" && return 0
+            ;;
+        "sftp")
+            mount | grep -q "@$resource" && return 0
+            ;;
+    esac
+    return 1
+}
+
 # --- Main menu ---
 ACTION=$(zenity --list --radiolist \
     --title="Remote Mount" \
@@ -184,8 +200,33 @@ EOF
         err "Invalid connection: SMB_HOST and SMB_SHARE are required."
     fi
     
+    # Check if SMB share is already mounted
+    if check_resource_mounted "$SMB_HOST/$SMB_SHARE" "smb"; then
+        MOUNT_INFO=$(mount | grep "//$SMB_HOST/$SMB_SHARE")
+        zenity --question \
+            --title="Share Already Mounted" \
+            --text="This SMB share is already mounted:\n\n$MOUNT_INFO\n\nDo you want to continue?" \
+            --ok-label="Continue" --cancel-label="Cancel"
+        [[ $? -eq 1 ]] && exit 0
+    fi
+    
     mkdir -p "$LOCAL_DIR"
-    mountpoint -q "$LOCAL_DIR" && $ELEVATE_CMD umount -f "$LOCAL_DIR" || true
+    
+    # Check if mount point is already in use
+    if mountpoint -q "$LOCAL_DIR"; then
+        CURRENT_SRC=$(mount | grep "$LOCAL_DIR" | awk '{print $1}')
+        zenity --question \
+            --title="Mount Point In Use" \
+            --text="$LOCAL_DIR is already mounted with:\n$CURRENT_SRC\n\nUnmount it first?" \
+            --ok-label="Unmount" --cancel-label="Cancel"
+        
+        if [[ $? -eq 0 ]]; then
+            $ELEVATE_CMD umount -f "$LOCAL_DIR" 2>/dev/null || true
+            sleep 1
+        else
+            exit 0
+        fi
+    fi
 
     if [[ -z "${SMB_USER:-}" ]]; then
         BASE_OPTS="guest,uid=$(id -u),gid=$(id -g),nounix,noserverino,_netdev,nofail"
@@ -263,8 +304,33 @@ EOF
         err "Invalid connection: SFTP_HOST is required."
     fi
 
+    # Check if SFTP host is already mounted
+    if check_resource_mounted "$SFTP_HOST" "sftp"; then
+        MOUNT_INFO=$(mount | grep "@$SFTP_HOST")
+        zenity --question \
+            --title="SFTP Already Mounted" \
+            --text="This SFTP host is already mounted:\n\n$MOUNT_INFO\n\nDo you want to continue?" \
+            --ok-label="Continue" --cancel-label="Cancel"
+        [[ $? -eq 1 ]] && exit 0
+    fi
+
     mkdir -p "$LOCAL_DIR"
-    mountpoint -q "$LOCAL_DIR" && fusermount -u "$LOCAL_DIR" 2>/dev/null || true
+    
+    # Check if mount point is already in use
+    if mountpoint -q "$LOCAL_DIR"; then
+        CURRENT_SRC=$(mount | grep "$LOCAL_DIR" | awk '{print $1}')
+        zenity --question \
+            --title="Mount Point In Use" \
+            --text="$LOCAL_DIR is already mounted with:\n$CURRENT_SRC\n\nUnmount it first?" \
+            --ok-label="Unmount" --cancel-label="Cancel"
+        
+        if [[ $? -eq 0 ]]; then
+            fusermount -u "$LOCAL_DIR" 2>/dev/null || true
+            sleep 1
+        else
+            exit 0
+        fi
+    fi
 
     TARGET="$SFTP_HOST"
     [[ -n "${SFTP_USER:-}" ]] && TARGET="$SFTP_USER@$SFTP_HOST"
@@ -324,6 +390,23 @@ EOF
     fi
     
     mkdir -p "$LOCAL_DIR"
+    
+    # Check if mount point is already in use
+    if mountpoint -q "$LOCAL_DIR"; then
+        CURRENT_SRC=$(mount | grep "$LOCAL_DIR" | awk '{print $1}')
+        zenity --question \
+            --title="Mount Point In Use" \
+            --text="$LOCAL_DIR is already mounted with:\n$CURRENT_SRC\n\nUnmount it first?" \
+            --ok-label="Unmount" --cancel-label="Cancel"
+        
+        if [[ $? -eq 0 ]]; then
+            $ELEVATE_CMD umount -f "$LOCAL_DIR" 2>/dev/null || true
+            sleep 1
+        else
+            exit 0
+        fi
+    fi
+    
     TMPERR=$(mktemp)
     if $ELEVATE_CMD bash -c "$FUSE_CMD \"$LOCAL_DIR\"" 2> "$TMPERR"; then
         info "Mounted via FUSE command." "Mounted"
