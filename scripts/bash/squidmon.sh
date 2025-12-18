@@ -41,11 +41,12 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
-# check OS
-UBUNTU_VERSION=$(lsb_release -rs 2>/dev/null)
-UBUNTU_ID=$(lsb_release -is 2>/dev/null | tr '[:upper:]' '[:lower:]')
-if [[ "$UBUNTU_ID" != "ubuntu" && "$UBUNTU_ID" != "debian" ]]; then
-    echo "Warning: This script is designed for Ubuntu/Debian. Use at your own risk."
+# check SO
+UBUNTU_VERSION=$(lsb_release -rs)
+UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+if [[ "$UBUNTU_ID" != "ubuntu" || "$UBUNTU_VERSION" != "24.04" ]]; then
+    echo "This script requires Ubuntu 24.04. Use at your own risk"
+    # exit 1
 fi
 
 set -e

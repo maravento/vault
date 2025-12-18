@@ -2,6 +2,7 @@
 \.000G([a-zA-Z][0-9]*)?(\?.*)?$
 \.007([a-zA-Z][0-9]*)?(\?.*)?$
 \.010001([a-zA-Z][0-9]*)?(\?.*)?$
+\.01flip([a-zA-Z][0-9]*)?(\?.*)?$
 \.027cc450ef5f8c5f653329641ec1fed9([a-zA-Z][0-9]*)?(\?.*)?$
 \.02([a-zA-Z][0-9]*)?(\?.*)?$
 \.03rK([a-zA-Z][0-9]*)?(\?.*)?$
@@ -508,6 +509,7 @@
 \.bado([a-zA-Z][0-9]*)?(\?.*)?$
 \.BadRabbit([a-zA-Z][0-9]*)?(\?.*)?$
 \.badutclowns([a-zA-Z][0-9]*)?(\?.*)?$
+\.BAFAIAI([a-zA-Z][0-9]*)?(\?.*)?$
 \.BAGAJAI([a-zA-Z][0-9]*)?(\?.*)?$
 \.bagi([a-zA-Z][0-9]*)?(\?.*)?$
 \.bagli([a-zA-Z][0-9]*)?(\?.*)?$
@@ -584,6 +586,7 @@
 \.beijing([a-zA-Z][0-9]*)?(\?.*)?$
 \.BELGIAN_COCOA([a-zA-Z][0-9]*)?(\?.*)?$
 \.BENTLEY([a-zA-Z][0-9]*)?(\?.*)?$
+\.benzona([a-zA-Z][0-9]*)?(\?.*)?$
 \.berost([a-zA-Z][0-9]*)?(\?.*)?$
 \.berosuce([a-zA-Z][0-9]*)?(\?.*)?$
 \.best([a-zA-Z][0-9]*)?(\?.*)?$
@@ -871,6 +874,7 @@
 \.cccusawasted([a-zA-Z][0-9]*)?(\?.*)?$
 \.ccd([a-zA-Z][0-9]*)?(\?.*)?$
 \.cceo([a-zA-Z][0-9]*)?(\?.*)?$
+\.ccl([a-zA-Z][0-9]*)?(\?.*)?$
 \.ccps([a-zA-Z][0-9]*)?(\?.*)?$
 \.ccryptor([a-zA-Z][0-9]*)?(\?.*)?$
 \.ccyu([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1033,6 +1037,7 @@
 \.cool([a-zA-Z][0-9]*)?(\?.*)?$
 \.coom([a-zA-Z][0-9]*)?(\?.*)?$
 \.coos([a-zA-Z][0-9]*)?(\?.*)?$
+\.Cooseagroup([a-zA-Z][0-9]*)?(\?.*)?$
 \.coot([a-zA-Z][0-9]*)?(\?.*)?$
 \.copa([a-zA-Z][0-9]*)?(\?.*)?$
 \.copan([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1079,6 +1084,7 @@
 \.crabslkt([a-zA-Z][0-9]*)?(\?.*)?$
 \.CRABSLKT([a-zA-Z][0-9]*)?(\?.*)?$
 \.crack([a-zA-Z][0-9]*)?(\?.*)?$
+\.cracker([a-zA-Z][0-9]*)?(\?.*)?$
 \.cradle([a-zA-Z][0-9]*)?(\?.*)?$
 \.CRADLE([a-zA-Z][0-9]*)?(\?.*)?$
 \.CradleCore([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1490,6 +1496,7 @@
 \.dever([a-zA-Z][0-9]*)?(\?.*)?$
 \.devil([a-zA-Z][0-9]*)?(\?.*)?$
 \.devinn([a-zA-Z][0-9]*)?(\?.*)?$
+\.devman21([a-zA-Z][0-9]*)?(\?.*)?$
 \.devon([a-zA-Z][0-9]*)?(\?.*)?$
 \.devos([a-zA-Z][0-9]*)?(\?.*)?$
 \.Devos([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1719,6 +1726,7 @@
 \.emilisub([a-zA-Z][0-9]*)?(\?.*)?$
 \.emilysupp([a-zA-Z][0-9]*)?(\?.*)?$
 \.emp([a-zA-Z][0-9]*)?(\?.*)?$
+\.EMPEROR([a-zA-Z][0-9]*)?(\?.*)?$
 \.EMPg296LCK([a-zA-Z][0-9]*)?(\?.*)?$
 \.empty([a-zA-Z][0-9]*)?(\?.*)?$
 \.EMPTY([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2010,6 +2018,7 @@
 \.frend([a-zA-Z][0-9]*)?(\?.*)?$
 \.frendi([a-zA-Z][0-9]*)?(\?.*)?$
 \.Frendi([a-zA-Z][0-9]*)?(\?.*)?$
+\.frenesis([a-zA-Z][0-9]*)?(\?.*)?$
 \.fresh([a-zA-Z][0-9]*)?(\?.*)?$
 \.Frivinho([a-zA-Z][0-9]*)?(\?.*)?$
 \.Frivolity([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2032,6 +2041,7 @@
 \.fuck([a-zA-Z][0-9]*)?(\?.*)?$
 \.fucked([a-zA-Z][0-9]*)?(\?.*)?$
 \.FuckedByGhost([a-zA-Z][0-9]*)?(\?.*)?$
+\.fuckfbi([a-zA-Z][0-9]*)?(\?.*)?$
 \.fucking([a-zA-Z][0-9]*)?(\?.*)?$
 \.FuckSociety([a-zA-Z][0-9]*)?(\?.*)?$
 \.fucku([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2528,6 +2538,7 @@
 \.hyena111([a-zA-Z][0-9]*)?(\?.*)?$
 \.hyena([a-zA-Z][0-9]*)?(\?.*)?$
 \.HYENA([a-zA-Z][0-9]*)?(\?.*)?$
+\.hyfencb([a-zA-Z][0-9]*)?(\?.*)?$
 \.hyj([a-zA-Z][0-9]*)?(\?.*)?$
 \.hype([a-zA-Z][0-9]*)?(\?.*)?$
 \.IAMREADYTOPAY.TXT([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2929,6 +2940,7 @@
 \.Krider([a-zA-Z][0-9]*)?(\?.*)?$
 \.Kriptor([a-zA-Z][0-9]*)?(\?.*)?$
 \.Kriptovor([a-zA-Z][0-9]*)?(\?.*)?$
+\.Kron([a-zA-Z][0-9]*)?(\?.*)?$
 \.kronos([a-zA-Z][0-9]*)?(\?.*)?$
 \.KRONOS([a-zA-Z][0-9]*)?(\?.*)?$
 \.kropun([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3223,6 +3235,7 @@
 \.M0rphine([a-zA-Z][0-9]*)?(\?.*)?$
 \.m0sC0v1um([a-zA-Z][0-9]*)?(\?.*)?$
 \.M142HIMARS([a-zA-Z][0-9]*)?(\?.*)?$
+\.m1nus([a-zA-Z][0-9]*)?(\?.*)?$
 \.m3g4c0rtx([a-zA-Z][0-9]*)?(\?.*)?$
 \.m3ga([a-zA-Z][0-9]*)?(\?.*)?$
 \.m3gac0rtx([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3662,6 +3675,7 @@
 \.nobu([a-zA-Z][0-9]*)?(\?.*)?$
 \.nochance([a-zA-Z][0-9]*)?(\?.*)?$
 \.nochi([a-zA-Z][0-9]*)?(\?.*)?$
+\.NOCT([a-zA-Z][0-9]*)?(\?.*)?$
 \.Node0([a-zA-Z][0-9]*)?(\?.*)?$
 \.nodeep([a-zA-Z][0-9]*)?(\?.*)?$
 \.nohope([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3687,8 +3701,10 @@
 \.NotAHero([a-zA-Z][0-9]*)?(\?.*)?$
 \.not_a_joke([a-zA-Z][0-9]*)?(\?.*)?$
 \.NOT([a-zA-Z][0-9]*)?(\?.*)?$
+\.NOTE_273.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.notfound([a-zA-Z][0-9]*)?(\?.*)?$
 \.notfoundrans([a-zA-Z][0-9]*)?(\?.*)?$
+\.NotHr([a-zA-Z][0-9]*)?(\?.*)?$
 \.NOT_OPEN([a-zA-Z][0-9]*)?(\?.*)?$
 \.NotStonks([a-zA-Z][0-9]*)?(\?.*)?$
 \.novalock([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4161,6 +4177,7 @@
 \.prplcscd_cvxcv([a-zA-Z][0-9]*)?(\?.*)?$
 \.Prt6aV9([a-zA-Z][0-9]*)?(\?.*)?$
 \.prus([a-zA-Z][0-9]*)?(\?.*)?$
+\.pryct([a-zA-Z][0-9]*)?(\?.*)?$
 \.psafe([a-zA-Z][0-9]*)?(\?.*)?$
 \.psaux([a-zA-Z][0-9]*)?(\?.*)?$
 \.pscrypt([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4385,6 +4402,7 @@
 \.readlockfiles([a-zA-Z][0-9]*)?(\?.*)?$
 \.ReadManual([a-zA-Z][0-9]*)?(\?.*)?$
 \.readme([a-zA-Z][0-9]*)?(\?.*)?$
+\.READ_ME_FBI.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.readmefordecrypt.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.read_me_fucking_bitch([a-zA-Z][0-9]*)?(\?.*)?$
 \.README-GENTLEMEN.txt([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4396,6 +4414,7 @@
 \.readme_txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.READ-ME!.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.READ_ME_!!!.txt([a-zA-Z][0-9]*)?(\?.*)?$
+\.README_!!!.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.README-WARNING+.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.README_XENTARI.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.README.yAGRTb.txt([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4408,6 +4427,8 @@
 \.read_thi$_file([a-zA-Z][0-9]*)?(\?.*)?$
 \.READ_THIS_FILE([a-zA-Z][0-9]*)?(\?.*)?$
 \.READTHISNOW!!!.TXT([a-zA-Z][0-9]*)?(\?.*)?$
+\.read_this_to_decrypt_files.html([a-zA-Z][0-9]*)?(\?.*)?$
+\.READ_THIS_!!!.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.read_to_decrypt_files.html([a-zA-Z][0-9]*)?(\?.*)?$
 \.Read.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.reaGAN([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4426,17 +4447,21 @@
 \.RECOVER-FILES.html([a-zA-Z][0-9]*)?(\?.*)?$
 \.recoverfile*.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.RECOVER_INSTRUCTIONS.html([a-zA-Z][0-9]*)?(\?.*)?$
+\.RECOVER_README.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.recover.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.recovery_file.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.recoveryfile*.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.RECOVERY_FILE*.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.RECOVERY_FILE.TXT([a-zA-Z][0-9]*)?(\?.*)?$
+\.RECOVERY_INFO.txt([a-zA-Z][0-9]*)?(\?.*)?$
+\.RECOVERY_INSTRUCTIONS.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.recovery_key.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.RECOVERY_KEY.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.RECOVERY_KEY.TXT([a-zA-Z][0-9]*)?(\?.*)?$
 \.recoveryourfiles([a-zA-Z][0-9]*)?(\?.*)?$
 \.RECOVERYOURFILES([a-zA-Z][0-9]*)?(\?.*)?$
 \.RecoverYourFiles.txt([a-zA-Z][0-9]*)?(\?.*)?$
+\.RECOVER-YOUR-FILE.TXT([a-zA-Z][0-9]*)?(\?.*)?$
 \.rec_rans([a-zA-Z][0-9]*)?(\?.*)?$
 \.recry1([a-zA-Z][0-9]*)?(\?.*)?$
 \.rectot([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4792,6 +4817,8 @@
 \.ShkolotaCrypt([a-zA-Z][0-9]*)?(\?.*)?$
 \.shkskayd([a-zA-Z][0-9]*)?(\?.*)?$
 \.shootlock([a-zA-Z][0-9]*)?(\?.*)?$
+\.shrt([a-zA-Z][0-9]*)?(\?.*)?$
+\.shrt.readme.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.SHRUG2([a-zA-Z][0-9]*)?(\?.*)?$
 \.shrug([a-zA-Z][0-9]*)?(\?.*)?$
 \.SHRUG([a-zA-Z][0-9]*)?(\?.*)?$
@@ -5016,6 +5043,7 @@
 \.syrk([a-zA-Z][0-9]*)?(\?.*)?$
 \.SYSDF([a-zA-Z][0-9]*)?(\?.*)?$
 \.sysdown([a-zA-Z][0-9]*)?(\?.*)?$
+\.sysdoz([a-zA-Z][0-9]*)?(\?.*)?$
 \.sysfrog([a-zA-Z][0-9]*)?(\?.*)?$
 \.syss([a-zA-Z][0-9]*)?(\?.*)?$
 \.SySS([a-zA-Z][0-9]*)?(\?.*)?$
@@ -5452,6 +5480,7 @@
 \.waqq([a-zA-Z][0-9]*)?(\?.*)?$
 \.warlocks([a-zA-Z][0-9]*)?(\?.*)?$
 \.warning([a-zA-Z][0-9]*)?(\?.*)?$
+\.WARNING.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.warn_wallet([a-zA-Z][0-9]*)?(\?.*)?$
 \.wasted([a-zA-Z][0-9]*)?(\?.*)?$
 \.wasted_info([a-zA-Z][0-9]*)?(\?.*)?$
@@ -5487,6 +5516,7 @@
 \.WFA_RANSOM([a-zA-Z][0-9]*)?(\?.*)?$
 \.wflx([a-zA-Z][0-9]*)?(\?.*)?$
 \.WhatAFuck([a-zA-Z][0-9]*)?(\?.*)?$
+\.WHAT_HAPPEN_OF_MYFILE.html([a-zA-Z][0-9]*)?(\?.*)?$
 \.whatthefuck([a-zA-Z][0-9]*)?(\?.*)?$
 \.Whereisyourfiles([a-zA-Z][0-9]*)?(\?.*)?$
 \.Where_my_files.txt([a-zA-Z][0-9]*)?(\?.*)?$
@@ -5614,6 +5644,7 @@
 \.xentari([a-zA-Z][0-9]*)?(\?.*)?$
 \.xero([a-zA-Z][0-9]*)?(\?.*)?$
 \.XERO([a-zA-Z][0-9]*)?(\?.*)?$
+\.XEX_README.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.xfile([a-zA-Z][0-9]*)?(\?.*)?$
 \.XFUN([a-zA-Z][0-9]*)?(\?.*)?$
 \.xgpr([a-zA-Z][0-9]*)?(\?.*)?$
@@ -5747,6 +5778,7 @@
 \.youhau([a-zA-Z][0-9]*)?(\?.*)?$
 \.young([a-zA-Z][0-9]*)?(\?.*)?$
 \.youransom([a-zA-Z][0-9]*)?(\?.*)?$
+\.YOUR_FILES_ARE_ENCRYPTED.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.YOUR_FILES.HTML([a-zA-Z][0-9]*)?(\?.*)?$
 \.YOUR_FILES.url([a-zA-Z][0-9]*)?(\?.*)?$
 \.yourhope([a-zA-Z][0-9]*)?(\?.*)?$

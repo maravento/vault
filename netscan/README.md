@@ -23,12 +23,12 @@
 
 | File |  OS  | Size |
 | :--: | :--: | :--: |
-| [netscan.exe (.zip)](https://mega.nz/file/CccQCQTT#bcnjhEDuBIN4dDpI7MozrnAVU9EQJfBKDetkQNX6JWY) | Windows 10/11 x64 | 78,1 MB |
+| [netscan.exe (.zip)](https://mega.nz/file/mF10wBZS#1jZ-jAKNVNQv_hIwtnAMeKXcwq2_Z_rGjgyNLvjNMAA) | Windows 10/11 x64 | 78,2 MB |
 
 ### Package Contents
 
 - [nmap-7.98](https://nmap.org/download#windows)
-- [npcap-1.84](https://nmap.org/download#windows)
+- [npcap-1.85](https://nmap.org/download#windows)
 - [libxslt (xsltproc)](https://www.zlatkovic.com/pub/libxml/)
 - [Microsoft Visual C++ Runtimes](https://gitlab.com/stdout12/vcredist/-/releases)
 

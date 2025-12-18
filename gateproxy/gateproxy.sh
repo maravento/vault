@@ -27,6 +27,14 @@ if pidof -x $(basename $0) >/dev/null; then
     done
 fi
 
+# check SO
+UBUNTU_VERSION=$(lsb_release -rs)
+UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+if [[ "$UBUNTU_ID" != "ubuntu" || "$UBUNTU_VERSION" != "24.04" ]]; then
+    echo "This script requires Ubuntu 24.04. Use at your own risk"
+    # exit 1
+fi
+
 # LOCAL USER
 # Get real user (not root) - multiple fallback methods
 local_user=$(logname 2>/dev/null || echo "$SUDO_USER")
@@ -78,18 +86,6 @@ DESKTOP_ENV=$(echo "$XDG_CURRENT_DESKTOP" | tr '[:upper:]' '[:lower:]')
 UBUNTU_VERSION=$(lsb_release -rs)
 # Get the distribution ID (e.g., Ubuntu)
 UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
-
-# Check if the system is Ubuntu and the version is either 22.04 or 24.04
-if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VERSION" != "24.04" ) ]]; then
-    echo "Unsupported system. Use at your own risk"
-    # Uncomment the next line if you want to abort execution on unsupported systems
-    # exit 1
-else
-    # Warn the user if the desktop environment is not MATE or Cinnamon
-    if [[ "$DESKTOP_ENV" != "mate" && "$DESKTOP_ENV" != "cinnamon" ]]; then
-        echo "MATE or Cinnamon desktop recommended"
-    fi
-fi
 
 ### VARIABLES
 SCRIPT_PATH="$(realpath "$0")"
@@ -482,7 +478,7 @@ clear
 echo -e "\n"
 echo "Essential Packages..."
 # DISK & STORAGE MANAGEMENT
-nala install -y gparted gnome-disk-utility qdirstat
+nala install -y gparted gnome-disk-utility qdirstat baobab
 nala install -y --no-install-recommends smartmontools gsmartcontrol
 
 # FILE SYSTEMS SUPPORT
@@ -799,29 +795,35 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
 #!/bin/bash
 LOG="/var/log/suricata/suricata-update.log"
 NOW="$(date '+%Y-%m-%d %H:%M:%S')"
-echo "$NOW - Suricata Update..." | tee -a "$LOG"
 
+echo "$NOW - Suricata Update..." | tee -a "$LOG"
 suricata-update --disable-conf=/etc/suricata/disable.conf --quiet >> "$LOG" 2>&1
 
 if [ $? -eq 0 ]; then
     RULES_FILE="/var/lib/suricata/rules/suricata.rules"
     
-    # Eliminar reglas not-suspicious
-    sed -i '/classtype:not-suspicious;/d' "$RULES_FILE"
-    
+    # Reload Suricata with new rules
     if systemctl reload suricata; then
         sleep 2 
         ACTIVE_RULES=$(grep -c '^alert' "$RULES_FILE" 2>/dev/null || echo "N/A")
         echo "$NOW - ✓ Suricata reloaded - Active rules: $ACTIVE_RULES" | tee -a "$LOG"
-        
-        if systemctl restart evebox; then
-            echo "$NOW - ✓ EveBox restarted" | tee -a "$LOG"
-        else
-            echo "$NOW - ⚠ Warning: Failed to restart EveBox" | tee -a "$LOG"
-        fi
     else
         echo "$NOW - ✗ Failed to reload Suricata" | tee -a "$LOG"
         exit 1
+    fi
+    
+    # Delete evebox database (optional) - AFTER Suricata reload
+    #systemctl stop evebox
+    #rm -f /var/lib/evebox/events.sqlite /var/lib/evebox/events.sqlite-wal /var/lib/evebox/events.sqlite-shm
+    #systemctl start evebox
+    # Check with
+    #lsof -c evebox | grep -E '\.(db|sqlite)'
+    
+    # Restart EveBox
+    if systemctl restart evebox; then
+        echo "$NOW - ✓ EveBox restarted" | tee -a "$LOG"
+    else
+        echo "$NOW - ⚠ Warning: Failed to restart EveBox" | tee -a "$LOG"
     fi
 else
     echo "$NOW - ✗ Error suricata-update" | tee -a "$LOG"
@@ -853,6 +855,7 @@ EOF
         apt install -y evebox
         # Configure
         tee /etc/evebox/evebox.yaml > /dev/null <<EOF
+---
 http:
   host: "0.0.0.0"
   port: 5636
@@ -863,6 +866,9 @@ authentication: false
 
 database:
   type: sqlite
+
+  retention:
+    days: 7
 
 input:
   enabled: true

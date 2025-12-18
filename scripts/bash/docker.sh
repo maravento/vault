@@ -25,8 +25,8 @@ fi
 # check SO
 UBUNTU_VERSION=$(lsb_release -rs)
 UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
-if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VERSION" != "24.04" ) ]]; then
-    echo "Unsupported system. Use at your own risk"
+if [[ "$UBUNTU_ID" != "ubuntu" || "$UBUNTU_VERSION" != "24.04" ]]; then
+    echo "This script requires Ubuntu 24.04. Use at your own risk"
     # exit 1
 fi
 
@@ -164,21 +164,58 @@ uninstall_docker() {
   fi
 }
 
-# Options
-echo "What action do you want to perform?"
-echo "1) Install Docker + Portainer"
-echo "2) Uninstall Docker"
-read -p "Select an option (1 or 2): " option
+# Show help
+show_help() {
+    echo "Usage: $0 [COMMAND]"
+    echo "Commands:"
+    echo "  install    Install Docker + Portainer"
+    echo "  remove     Uninstall Docker"
+    echo ""
+    echo "If no command is provided, interactive mode will start."
+    exit 0
+}
 
-case $option in
-  1)
-    install_docker
-    ;;
-  2)
-    uninstall_docker
-    ;;
-  *)
-    echo "Invalid option"
-    ;;
-esac
+# Main execution logic
+if [ $# -eq 0 ]; then
+    # Interactive mode
+    echo "What action do you want to perform?"
+    echo "1) Install Docker + Portainer"
+    echo "2) Uninstall Docker"
+    echo "3) Exit"
+    read -p "Select an option (1, 2 or 3): " option
 
+    case $option in
+      1)
+        install_docker
+        ;;
+      2)
+        uninstall_docker
+        ;;
+      3)
+        echo "Exiting..."
+        exit 0
+        ;;
+      *)
+        echo "Invalid option"
+        exit 1
+        ;;
+    esac
+else
+    # Command line mode
+    case $1 in
+        install)
+            install_docker
+            ;;
+        remove)
+            uninstall_docker
+            ;;
+        --help|-h)
+            show_help
+            ;;
+        *)
+            echo "Unknown command: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+fi
