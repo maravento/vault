@@ -1,0 +1,13 @@
+[Unit]
+Description=EveBox Server
+After=network.target suricata.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/evebox server --config /etc/evebox/evebox.yaml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

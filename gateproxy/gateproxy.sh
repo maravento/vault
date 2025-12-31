@@ -54,7 +54,6 @@ lang_01=("Check System..." "Verificando Sistema...")
 lang_02=("Aborted installation. Check the Minimum Requirements" "Instalacion Abortada. Verifique los Requisitos Mínimos")
 lang_03=("Checking Bandwidth..." "Verificando Ancho de Banda...")
 lang_04=("Update and Clean" "Actualización y Limpieza")
-lang_05=("Fix Broken Packages" "Arreglando Paquetes Rotos")
 lang_06=("Wait..." "Espere...")
 lang_07=("Answer" "Responda")
 lang_08=("Check Dependencies..." "Verificando Dependencias...")
@@ -189,25 +188,20 @@ if systemctl list-unit-files | grep -q '^rpcbind'; then
     systemctl mask rpcbind.service rpcbind.socket &>/dev/null || true
 fi
 
-### CLEAN | UPDATE
+### CLEAN | UPDATE | FIX
 echo -e "\n"
-function cleanupgrade() {
+function upgrade() {
     echo "${lang_04[$lang]}. ${lang_06[$lang]}"
     nala upgrade --purge -y
     aptitude safe-upgrade -y
+    dpkg --configure -a
+    nala install --fix-broken -y
     sync
     updatedb
     update-desktop-database
 }
 
-function fixbroken() {
-    echo "${lang_05[$lang]}. ${lang_06[$lang]}"
-    dpkg --configure -a
-    nala install --fix-broken -y
-}
-
-cleanupgrade
-fixbroken
+upgrade
 
 ### PACKAGES
 clear
@@ -550,10 +544,6 @@ update-rc.d -f sendmail remove >/dev/null 2>&1
 DEBIAN_FRONTEND=noninteractive nala install -y postfix
 nala install -y mailutils
 
-# SEARCH (Optional)
-add-apt-repository -y ppa:christian-boxdoerfer/fsearch-stable
-nala install -y fsearch
-    
 # FONTS
 nala install -y fonts-lato fonts-liberation fonts-dejavu
 echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
@@ -563,8 +553,7 @@ fc-cache -f
 echo OK
 sleep 1
 
-cleanupgrade
-fixbroken
+upgrade
 
 ### SETUP ###
 echo -e "\n"
@@ -629,7 +618,7 @@ systemctl enable apache2.service
 #nala install -y libapache2-mod-dnssd
 # To fix apache2-doc error:
 apt -qq install -y --reinstall apache2-doc
-fixbroken
+upgrade
 cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
 sed -i -E 's/^([[:space:]]*)Listen[[:space:]]+([0-9]+)/\1Listen 0.0.0.0:\2/' /etc/apache2/ports.conf
 
@@ -658,7 +647,7 @@ rm -rf /var/spool/squid* /var/log/squid* /etc/squid* /dev/shm/* &>/dev/null
 rm -f /run/squid.pid &>/dev/null
 #DEBIAN_FRONTEND=noninteractive nala install -y --no-install-recommends squid-openssl
 nala install -y squid-openssl squid-langpack squid-common squidclient squid-purge
-fixbroken
+upgrade
 mkdir -p /var/log/squid >/dev/null 2>&1
 touch /var/log/squid/{access,cache,store,deny}.log >/dev/null 2>&1
 chown proxy:proxy /var/log/squid/*.log
@@ -682,9 +671,9 @@ sed -i 's/^	daily$/	monthly/' /etc/logrotate.d/squid
 curl -o setup-repos.sh https://raw.githubusercontent.com/webmin/webmin/master/setup-repos.sh
 chmod +x setup-repos.sh
 echo "y" | ./setup-repos.sh
-cleanupgrade
+upgrade
 nala install -y webmin
-fixbroken
+upgrade
 systemctl enable --now webmin.service 2>/dev/null || true
 echo "Webmin Access: https://localhost:10000"
 
@@ -773,7 +762,7 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         nala install -y mtr-tiny           # mtr google.com
         # fail2ban
         nala install -y fail2ban
-        cp $gp/conf/server/jail.local /etc/fail2ban/jail.local
+        cp $gp/conf/pack/jail.local /etc/fail2ban/jail.local
         sed -i 's/^#\?allowipv6 *= *.*/allowipv6 = 0/' /etc/fail2ban/fail2ban.conf
         systemctl enable fail2ban.service
         echo "Check: sudo fail2ban-client status <jail_name>"
@@ -782,6 +771,10 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         # lynis
         nala install -y lynis
         echo "Lynis Run: lynis -c -Q and log: /var/log/lynis.log"
+        # fsearch
+        add-apt-repository -y ppa:christian-boxdoerfer/fsearch-stable
+        upgrade
+        nala install -y fsearch
         # suricata install
         nala install -y suricata suricata-update jq
         sed -i "s/interface: eth[0-9]/interface: $LAN_INTERFACE/g" /etc/suricata/suricata.yaml
@@ -790,46 +783,8 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
             echo "✓ Community-ID enabled"
         fi
         # suricata update
-        cp -f $gp/conf/server/disable.conf /etc/suricata/disable.conf
-        tee /etc/suricata/suricata-update.sh > /dev/null <<EOF
-#!/bin/bash
-LOG="/var/log/suricata/suricata-update.log"
-NOW="$(date '+%Y-%m-%d %H:%M:%S')"
-
-echo "$NOW - Suricata Update..." | tee -a "$LOG"
-suricata-update --disable-conf=/etc/suricata/disable.conf --quiet >> "$LOG" 2>&1
-
-if [ $? -eq 0 ]; then
-    RULES_FILE="/var/lib/suricata/rules/suricata.rules"
-    
-    # Reload Suricata with new rules
-    if systemctl reload suricata; then
-        sleep 2 
-        ACTIVE_RULES=$(grep -c '^alert' "$RULES_FILE" 2>/dev/null || echo "N/A")
-        echo "$NOW - ✓ Suricata reloaded - Active rules: $ACTIVE_RULES" | tee -a "$LOG"
-    else
-        echo "$NOW - ✗ Failed to reload Suricata" | tee -a "$LOG"
-        exit 1
-    fi
-    
-    # Delete evebox database (optional) - AFTER Suricata reload
-    #systemctl stop evebox
-    #rm -f /var/lib/evebox/events.sqlite /var/lib/evebox/events.sqlite-wal /var/lib/evebox/events.sqlite-shm
-    #systemctl start evebox
-    # Check with
-    #lsof -c evebox | grep -E '\.(db|sqlite)'
-    
-    # Restart EveBox
-    if systemctl restart evebox; then
-        echo "$NOW - ✓ EveBox restarted" | tee -a "$LOG"
-    else
-        echo "$NOW - ⚠ Warning: Failed to restart EveBox" | tee -a "$LOG"
-    fi
-else
-    echo "$NOW - ✗ Error suricata-update" | tee -a "$LOG"
-    exit 1
-fi
-EOF
+        cp -f $gp/conf/pack/disable.conf /etc/suricata/disable.conf
+        cp -f $gp/conf/pack/suricata-update.sh /etc/suricata/suricata-update.sh
         chmod +x /etc/suricata/suricata-update.sh
         timeout 300 /etc/suricata/suricata-update.sh || echo "⚠ Warning: suricata-update timed out"
         # suricata ratio
@@ -851,47 +806,11 @@ EOF
         # evebox
         curl -fsSL https://evebox.org/files/GPG-KEY-evebox -o /etc/apt/keyrings/evebox.asc
         echo "deb [signed-by=/etc/apt/keyrings/evebox.asc] https://evebox.org/files/debian stable main" | tee /etc/apt/sources.list.d/evebox.list
-        apt update
-        apt install -y evebox
+        upgrade
+        nala install -y evebox
         # Configure
-        tee /etc/evebox/evebox.yaml > /dev/null <<EOF
----
-http:
-  host: "0.0.0.0"
-  port: 5636
-  tls:
-    enabled: false
-
-authentication: false
-
-database:
-  type: sqlite
-
-  retention:
-    days: 7
-
-input:
-  enabled: true
-  paths:
-    - "/var/log/suricata/eve.json"
-    - "/var/log/suricata/eve.*.json"
-EOF
-
-        tee /etc/systemd/system/evebox.service > /dev/null <<EOF
-[Unit]
-Description=EveBox Server
-After=network.target suricata.service
-
-[Service]
-Type=simple
-User=root
-ExecStart=/usr/bin/evebox server --config /etc/evebox/evebox.yaml
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
+        cp -f $gp/conf/pack/evebox.yaml /etc/evebox/evebox.yaml
+        cp -f $gp/conf/pack/evebox.service /etc/systemd/system/evebox.service
         systemctl daemon-reload
         systemctl enable suricata evebox
         systemctl restart suricata
@@ -911,8 +830,7 @@ EOF
     esac
 done
 
-cleanupgrade
-fixbroken
+upgrade
 
 ### SHARED ###
 # Samba with Shared folder, Recycle Bin and Audit
@@ -1010,8 +928,7 @@ ${lang_21[$lang]} (y/n)" answer
 done
 echo OK
 
-cleanupgrade
-fixbroken
+upgrade
 
 ### ACLs ###
 echo -e "\n"
@@ -1171,8 +1088,7 @@ chown -R www-data:www-data /var/www
 echo OK
 sleep 1
 
-cleanupgrade
-fixbroken
+upgrade
 
 # CRONTAB
 echo -e "\n"
@@ -1191,8 +1107,7 @@ crontab -l | {
 echo OK
 sleep 1
 
-cleanupgrade
-fixbroken
+upgrade
 
 ### ENDING ###
 # Restart Daemon
@@ -1215,8 +1130,7 @@ snap refresh
 chmod 755 /var/log
 chown root:syslog /var/log
 
-cleanupgrade
-fixbroken
+upgrade
 
 clear
 echo -e "\n"

@@ -124,6 +124,7 @@ Tested on: Windows 10/11 x64
 - [Mozilla Thunderbird (Backup Profiles to USB)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/mtpbackup.bat)
 - [Net Reset (Proxy and NIC)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/netreset.bat)
 - [Non-Essential Services (disable|auto)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/nonservices.bat)
+- [NVMeOptimizer (Add|Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/nvmeoptimizer.bat)
 - [Regedit Backup (to `%HOMEDRIVE%\RegBackup`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/regbackup.bat)
 - [Safe Boot (Modes: safe boot minimal|safe boot with network|normal)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/safeboot.bat)
 - [SMB Config (Modify smb1|smb signing|insecure guest access)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/smbconf.bat)
