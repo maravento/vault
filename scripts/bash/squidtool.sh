@@ -1,6 +1,6 @@
 #!/bin/bash
 # maravento.com
-#
+
 #========================================
 # SQUID ANALYSIS TOOL
 # squidtools.sh
@@ -80,16 +80,19 @@ for pkg in $DEPENDENCIES; do
 done
 
 # LOG FILE CHECK
-ACCESS_LOG="/var/log/squid/access.log"
-CACHE_LOG="/var/log/squid/cache.log"
+# Modified to include all log files (current and rotated)
+ACCESS_LOG="/var/log/squid/access.log*"
+CACHE_LOG="/var/log/squid/cache.log*"
 
-if [[ ! -f "$ACCESS_LOG" ]]; then
-    echo "❌ Access log not found: $ACCESS_LOG"
+# Verify at least one access log file exists
+if ! ls /var/log/squid/access.log* 1> /dev/null 2>&1; then
+    echo "❌ Access log not found: /var/log/squid/access.log*"
     exit 1
 fi
 
-if [[ ! -f "$CACHE_LOG" ]]; then
-    echo "❌ Cache log not found: $CACHE_LOG"
+# Verify at least one cache log file exists
+if ! ls /var/log/squid/cache.log* 1> /dev/null 2>&1; then
+    echo "❌ Cache log not found: /var/log/squid/cache.log*"
     exit 1
 fi
 
@@ -107,11 +110,11 @@ squid_filter() {
     IPNEW=$(echo "$IP" | grep -E '^(([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])$')
 
     if [[ "$IPNEW" ]]; then
-        perl -pe 's/[\d\.]+/localtime($&)/e' "$ACCESS_LOG" \
+        cat $ACCESS_LOG 2>/dev/null | perl -pe 's/[\d\.]+/localtime($&)/e' \
         | grep "$IPNEW" \
         | grep -i -E "$WORD" >> "$LOG_FILE"
     else
-        perl -pe 's/[\d\.]+/localtime($&)/e' "$ACCESS_LOG" \
+        cat $ACCESS_LOG 2>/dev/null | perl -pe 's/[\d\.]+/localtime($&)/e' \
         | grep -i -E "$WORD" >> "$LOG_FILE"
     fi
 
@@ -141,7 +144,7 @@ squid_audit() {
 
     read -p "Enter the word to search (e.g.: video): " WORD
 
-    perl -pe 's/[\d\.]+/localtime($&)/e' "$CACHE_LOG" \
+    cat $CACHE_LOG 2>/dev/null | perl -pe 's/[\d\.]+/localtime($&)/e' \
     | grep -i "clientAccessCheckDone" \
     | grep -i -E "$WORD" >> "$LOG_FILE"
 
@@ -174,14 +177,14 @@ squid_traffic() {
     echo "  • Minimum hits   : $MIN_HITS" >> "$LOG_FILE"
     echo "  • Alert threshold: $ALERT_THRESHOLD" >> "$LOG_FILE"
     echo "  • Analysis period: ${PERIOD_HOURS}H" >> "$LOG_FILE"
-    echo "  • Access log     : $ACCESS_LOG" >> "$LOG_FILE"
+    echo "  • Access log     : /var/log/squid/access.log* (all files)" >> "$LOG_FILE"
     echo "------------------------------------------------------------" >> "$LOG_FILE"
     printf "%-8s %-15s %-60s\n" "Hits" "IP" "URL" >> "$LOG_FILE"
     echo "------------------------------------------------------------" >> "$LOG_FILE"
 
     # Verify access log exists
-    if [[ ! -f "$ACCESS_LOG" ]]; then
-        echo "❌ ERROR: Access log file not found: $ACCESS_LOG" | tee -a "$LOG_FILE"
+    if ! ls /var/log/squid/access.log* 1> /dev/null 2>&1; then
+        echo "❌ ERROR: Access log file not found: /var/log/squid/access.log*" | tee -a "$LOG_FILE"
         echo "Results saved to $LOG_FILE"
         return
     fi
@@ -192,10 +195,10 @@ squid_traffic() {
     CUTOFF=$((NOW - PERIOD))
 
     # Generate traffic report
-    awk -v cutoff="$CUTOFF" '$1 > cutoff {
+    cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {
         match($7, /https?:\/\/([^\/]+)/, arr)
         if (arr[1] != "") print $3, arr[1]
-    }' "$ACCESS_LOG" \
+    }' \
     | sort \
     | uniq -c \
     | sort -nr \
@@ -224,8 +227,8 @@ squid_global() {
     read -p "Enter the number of hours to analyze (default 72): " PERIOD_HOURS
     PERIOD_HOURS=${PERIOD_HOURS:-72}
 
-    if [[ ! -f "$ACCESS_LOG" ]]; then
-        echo "❌ ERROR: Access log not found: $ACCESS_LOG"
+    if ! ls /var/log/squid/access.log* 1> /dev/null 2>&1; then
+        echo "❌ ERROR: Access log not found: /var/log/squid/access.log*"
         return
     fi
 
@@ -237,7 +240,7 @@ squid_global() {
     echo "⏳ Starting CSV export..."
     echo "date,time,ip,method,http_code,size,cache_status,url,domain,status,error_type" > "$CSV_FILE"
 
-    gawk -v cutoff="$CUTOFF" '
+    cat $ACCESS_LOG 2>/dev/null | gawk -v cutoff="$CUTOFF" '
     function extract_domain(u,    d, h) {
         if (u == "" || u == "-")
             return "-"
@@ -283,7 +286,7 @@ squid_global() {
 
         domain = extract_domain(url)
         print dt","ip","method","status_code","size","cache","url","domain","status","error_type
-    }' "$ACCESS_LOG" >> "$CSV_FILE"
+    }' >> "$CSV_FILE"
 
     echo "✅ CSV export completed: $CSV_FILE"
 }
@@ -297,8 +300,8 @@ squid_stats() {
     read -p "Enter the number of hours to analyze (default 72): " PERIOD_HOURS
     PERIOD_HOURS=${PERIOD_HOURS:-72}
 
-    if [[ ! -f "$ACCESS_LOG" ]]; then
-        echo "❌ ERROR: Access log not found: $ACCESS_LOG"
+    if ! ls /var/log/squid/access.log* 1> /dev/null 2>&1; then
+        echo "❌ ERROR: Access log not found: /var/log/squid/access.log*"
         return
     fi
 
@@ -311,19 +314,19 @@ squid_stats() {
     echo "Metric,Value" > "$CSV_FILE"
 
     # === BASIC METRICS ===
-    TOTAL_REQUESTS=$(awk -v cutoff="$CUTOFF" '$1 > cutoff' "$ACCESS_LOG" | wc -l)
-    UNIQUE_IPS=$(awk -v cutoff="$CUTOFF" '$1 > cutoff {print $3}' "$ACCESS_LOG" | sort -u | wc -l)
-    UNIQUE_DOMAINS=$(awk -v cutoff="$CUTOFF" '$1 > cutoff {print $7}' "$ACCESS_LOG" | sed -E 's#^https?://([^/:]+).*#\1#' | sort -u | wc -l)
-    DATA_MB=$(awk -v cutoff="$CUTOFF" '$1 > cutoff {sum+=$5} END {printf "%.2f", sum/1048576}' "$ACCESS_LOG")
-    DATA_GB=$(awk -v cutoff="$CUTOFF" '$1 > cutoff {sum+=$5} END {printf "%.2f", sum/1073741824}' "$ACCESS_LOG")
+    TOTAL_REQUESTS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff' | wc -l)
+    UNIQUE_IPS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {print $3}' | sort -u | wc -l)
+    UNIQUE_DOMAINS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {print $7}' | sed -E 's#^https?://([^/:]+).*#\1#' | sort -u | wc -l)
+    DATA_MB=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {sum+=$5} END {printf "%.2f", sum/1048576}')
+    DATA_GB=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {sum+=$5} END {printf "%.2f", sum/1073741824}')
 
     # === STATUS CODE ANALYSIS ===
-    SUCCESS=$(awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /\/200/' "$ACCESS_LOG" | wc -l)
-    REDIRECTS=$(awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /\/30[0-9]/' "$ACCESS_LOG" | wc -l)
-    CLIENT_ERRORS=$(awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /\/40[0-9]/' "$ACCESS_LOG" | wc -l)
-    SERVER_ERRORS=$(awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /\/50[0-9]/' "$ACCESS_LOG" | wc -l)
-    CACHE_HITS=$(awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /HIT/' "$ACCESS_LOG" | wc -l)
-    CACHE_MISS=$(awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /MISS/' "$ACCESS_LOG" | wc -l)
+    SUCCESS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /\/200/' | wc -l)
+    REDIRECTS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /\/30[0-9]/' | wc -l)
+    CLIENT_ERRORS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /\/40[0-9]/' | wc -l)
+    SERVER_ERRORS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /\/50[0-9]/' | wc -l)
+    CACHE_HITS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /HIT/' | wc -l)
+    CACHE_MISS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /MISS/' | wc -l)
 
     # === PERCENTAGES ===
     SUCCESS_PCT=$(awk -v s="$SUCCESS" -v t="$TOTAL_REQUESTS" 'BEGIN {if (t>0) printf "%.2f", (s/t)*100; else print 0}')
@@ -331,7 +334,7 @@ squid_stats() {
     ERROR_PCT=$(awk -v e="$((CLIENT_ERRORS + SERVER_ERRORS))" -v t="$TOTAL_REQUESTS" 'BEGIN {if (t>0) printf "%.2f", (e/t)*100; else print 0}')
 
     # === PERFORMANCE METRICS ===
-    AVG_RESPONSE_SIZE=$(awk -v cutoff="$CUTOFF" '$1 > cutoff {sum+=$5; count++} END {if (count>0) printf "%.2f", sum/count/1024; else print 0}' "$ACCESS_LOG")
+    AVG_RESPONSE_SIZE=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {sum+=$5; count++} END {if (count>0) printf "%.2f", sum/count/1024; else print 0}')
     REQ_PER_HOUR=$(awk -v t="$TOTAL_REQUESTS" -v h="$PERIOD_HOURS" 'BEGIN {printf "%.0f", t/h}')
     BANDWIDTH_MBPS=$(awk -v mb="$DATA_MB" -v h="$PERIOD_HOURS" 'BEGIN {printf "%.2f", (mb*8)/(h*3600)}')
 
@@ -353,25 +356,25 @@ squid_stats() {
     echo "Cache misses,${CACHE_MISS}" >> "$CSV_FILE"
 
     # === TOP LISTS ===
-    TOP_IPS=$(awk -v cutoff="$CUTOFF" '$1 > cutoff {count[$3]++; bytes[$3]+=$5} END {
+    TOP_IPS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {count[$3]++; bytes[$3]+=$5} END {
         for (ip in count) printf "%s (%d req/%.1fMB) ", ip, count[ip], bytes[ip]/1048576
-    }' "$ACCESS_LOG" | tr ' ' '\n' | sort -t'(' -k2 -nr | head -5 | tr '\n' ' ')
+    }' | tr ' ' '\n' | sort -t'(' -k2 -nr | head -5 | tr '\n' ' ')
     echo "Top 5 client IPs,$TOP_IPS" >> "$CSV_FILE"
 
-    TOP_DOMAINS=$(awk -v cutoff="$CUTOFF" '$1 > cutoff {
+    TOP_DOMAINS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {
         gsub(/^https?:\/\//, "", $7); gsub(/\/.*/, "", $7)
         count[$7]++; bytes[$7]+=$5
     } END {
         for (domain in count) printf "%s (%d req/%.1fMB) ", domain, count[domain], bytes[domain]/1048576
-    }' "$ACCESS_LOG" | tr ' ' '\n' | sort -t'(' -k2 -nr | head -5 | tr '\n' ' ')
+    }' | tr ' ' '\n' | sort -t'(' -k2 -nr | head -5 | tr '\n' ' ')
     echo "Top 5 domains by requests,$TOP_DOMAINS" >> "$CSV_FILE"
 
-    TOP_ERROR_DOMAINS=$(awk -v cutoff="$CUTOFF" '$1 > cutoff && ($4 ~ /\/40[0-9]/ || $4 ~ /\/50[0-9]/) {
+    TOP_ERROR_DOMAINS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && ($4 ~ /\/40[0-9]/ || $4 ~ /\/50[0-9]/) {
         gsub(/^https?:\/\//, "", $7); gsub(/\/.*/, "", $7)
         errors[$7]++
     } END {
         for (domain in errors) printf "%s (%d errors) ", domain, errors[domain]
-    }' "$ACCESS_LOG" | tr ' ' '\n' | sort -t'(' -k2 -nr | head -5 | tr '\n' ' ')
+    }' | tr ' ' '\n' | sort -t'(' -k2 -nr | head -5 | tr '\n' ' ')
     echo "Top 5 error domains,$TOP_ERROR_DOMAINS" >> "$CSV_FILE"
 
     # === GENERATE HTML REPORT ===
