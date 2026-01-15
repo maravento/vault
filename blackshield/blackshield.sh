@@ -48,8 +48,10 @@ function rw() {
 rw 'https://raw.githubusercontent.com/dannyroemhild/ransomware-fileext-list/refs/heads/master/fileextlist.txt' && sleep 1
 rw 'https://raw.githubusercontent.com/eshlomo1/Ransomware-NOTE/refs/heads/main/ransomware-extension-list.txt' && sleep 1
 rw 'https://raw.githubusercontent.com/giacomoarru/ransomware-extensions-2024/refs/heads/main/ransomware-extensions.txt' && sleep 1
-rw 'https://raw.githubusercontent.com/kinomakino/ransomware_file_extensions/master/extensions.csv' && sleep 1
+#rw 'https://raw.githubusercontent.com/kinomakino/ransomware_file_extensions/master/extensions.csv' && sleep 1
 rw 'https://raw.githubusercontent.com/nspoab/malicious_extensions/refs/heads/main/list1' && sleep 1
+
+cat acl/rw/rw.txt >> source_lst.txt
 
 # Debugging
 grep -P '^[\x00-\x7F]*$' source_lst.txt | sed 's/^[^a-zA-Z0-9]*//; s/^[[:space:]]*//; s/[[:space:]]*$//; s/[^a-zA-Z0-9]*$//' | sed '/ /d' | sed '/^$/d' | sort -u > acl/squid/output_lst.txt

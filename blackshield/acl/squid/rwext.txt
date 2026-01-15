@@ -445,6 +445,7 @@
 \.AutoWannaCryV2([a-zA-Z][0-9]*)?(\?.*)?$
 \.auw2w2g0([a-zA-Z][0-9]*)?(\?.*)?$
 \.Avaad([a-zA-Z][0-9]*)?(\?.*)?$
+\.avaddon([a-zA-Z][0-9]*)?(\?.*)?$
 \.avan([a-zA-Z][0-9]*)?(\?.*)?$
 \.AVco3([a-zA-Z][0-9]*)?(\?.*)?$
 \.AVCrypt([a-zA-Z][0-9]*)?(\?.*)?$
@@ -963,6 +964,8 @@
 \.Cl0p([a-zA-Z][0-9]*)?(\?.*)?$
 \.clay([a-zA-Z][0-9]*)?(\?.*)?$
 \.clean([a-zA-Z][0-9]*)?(\?.*)?$
+\.clear([a-zA-Z][0-9]*)?(\?.*)?$
+\.CLEARWATER_README.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.clf([a-zA-Z][0-9]*)?(\?.*)?$
 \.ClicoCrypter([a-zA-Z][0-9]*)?(\?.*)?$
 \.clinton([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1033,6 +1036,7 @@
 \.Contacto([a-zA-Z][0-9]*)?(\?.*)?$
 \.contactus([a-zA-Z][0-9]*)?(\?.*)?$
 \.CONTACTUS([a-zA-Z][0-9]*)?(\?.*)?$
+\.cont([a-zA-Z][0-9]*)?(\?.*)?$
 \.conti([a-zA-Z][0-9]*)?(\?.*)?$
 \.CONTI([a-zA-Z][0-9]*)?(\?.*)?$
 \.cookieshelper([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1692,6 +1696,7 @@
 \.Egh9E([a-zA-Z][0-9]*)?(\?.*)?$
 \.egmwv([a-zA-Z][0-9]*)?(\?.*)?$
 \.egmwvm([a-zA-Z][0-9]*)?(\?.*)?$
+\.egregor([a-zA-Z][0-9]*)?(\?.*)?$
 \.Ehehehx12([a-zA-Z][0-9]*)?(\?.*)?$
 \.ehiz([a-zA-Z][0-9]*)?(\?.*)?$
 \.ehre([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2351,6 +2356,7 @@
 \.held([a-zA-Z][0-9]*)?(\?.*)?$
 \.hello([a-zA-Z][0-9]*)?(\?.*)?$
 \.HELLO([a-zA-Z][0-9]*)?(\?.*)?$
+\.hellokitty([a-zA-Z][0-9]*)?(\?.*)?$
 \.hellomynameisransom([a-zA-Z][0-9]*)?(\?.*)?$
 \.HELLOTHERE.TXT([a-zA-Z][0-9]*)?(\?.*)?$
 \.Hells([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3697,6 +3703,7 @@
 \.noos([a-zA-Z][0-9]*)?(\?.*)?$
 \.NOOSE([a-zA-Z][0-9]*)?(\?.*)?$
 \.nopasaran([a-zA-Z][0-9]*)?(\?.*)?$
+\.nopetya([a-zA-Z][0-9]*)?(\?.*)?$
 \.noproblemwedecfiles([a-zA-Z][0-9]*)?(\?.*)?$
 \.norvas([a-zA-Z][0-9]*)?(\?.*)?$
 \.nosafe([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3710,6 +3717,7 @@
 \.notfoundrans([a-zA-Z][0-9]*)?(\?.*)?$
 \.NotHr([a-zA-Z][0-9]*)?(\?.*)?$
 \.NOT_OPEN([a-zA-Z][0-9]*)?(\?.*)?$
+\.notpetya([a-zA-Z][0-9]*)?(\?.*)?$
 \.NotStonks([a-zA-Z][0-9]*)?(\?.*)?$
 \.novalock([a-zA-Z][0-9]*)?(\?.*)?$
 \.novasof([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4039,6 +4047,7 @@
 \.pigzqbqnvbu([a-zA-Z][0-9]*)?(\?.*)?$
 \.piiq([a-zA-Z][0-9]*)?(\?.*)?$
 \.PIIQ([a-zA-Z][0-9]*)?(\?.*)?$
+\.ping([a-zA-Z][0-9]*)?(\?.*)?$
 \.pings([a-zA-Z][0-9]*)?(\?.*)?$
 \.piny([a-zA-Z][0-9]*)?(\?.*)?$
 \.PIPIKAKI([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4362,6 +4371,7 @@
 \.ransomware([a-zA-Z][0-9]*)?(\?.*)?$
 \.ransomwared([a-zA-Z][0-9]*)?(\?.*)?$
 \.RansomWarrior([a-zA-Z][0-9]*)?(\?.*)?$
+\.ransomxx([a-zA-Z][0-9]*)?(\?.*)?$
 \.rans_recovery([a-zA-Z][0-9]*)?(\?.*)?$
 \.RANZYLOCKED([a-zA-Z][0-9]*)?(\?.*)?$
 \.rapax([a-zA-Z][0-9]*)?(\?.*)?$
