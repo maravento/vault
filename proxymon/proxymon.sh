@@ -17,34 +17,19 @@ NC='\033[0m'
 # INITIAL CHECKS
 # ════════════════════════════════════════════════════════════════
 
-check_root() {
-    if [ "$(id -u)" != "0" ]; then
-        echo -e "${RED}This script must be run as root${NC}" 1>&2
-        exit 1
-    fi
-}
+# checking root
+if [ "$(id -u)" != "0" ]; then
+    echo "ERROR: This script must be run as root"
+    exit 1
+fi
 
-check_running() {
-    if pidof -x "$(basename "$0")" >/dev/null; then
-        for p in $(pidof -x "$(basename "$0")"); do
-            if [ "$p" -ne $$ ]; then
-                echo -e "${RED}Script $0 is already running...${NC}"
-                exit 1
-            fi
-        done
-    fi
-}
-
-check_os() {
-    UBUNTU_VERSION=$(lsb_release -rs 2>/dev/null || echo "")
-    UBUNTU_ID=$(lsb_release -is 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo "")
-    
-    if [[ "$UBUNTU_ID" != "ubuntu" || ( "$UBUNTU_VERSION" != "22.04" && "$UBUNTU_VERSION" != "24.04" ) ]]; then
-        echo -e "${YELLOW}⚠️  Unsupported system (Ubuntu 22.04/24.04 recommended). Use at your own risk${NC}"
-    else
-        echo -e "${GREEN}✅ OS: Ubuntu $UBUNTU_VERSION${NC}"
-    fi
-}
+# checking script execution
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    echo "Script $(basename "$0") is already running"
+    exit 1
+fi
 
 check_dependencies() {
     declare -A pkgs_alts
@@ -151,7 +136,6 @@ check_squid_traffic() {
 
 run_initial_checks() {
     echo -e "${BLUE}Running initial checks...${NC}\n"
-    check_os
     check_dependencies
     check_apache_config
     check_squid_traffic
@@ -482,8 +466,6 @@ uninstall_proxymon() {
 # MAIN
 # ════════════════════════════════════════════════════════════════
 
-check_root
-check_running
 run_initial_checks
 
 case "${1:-}" in

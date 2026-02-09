@@ -2,8 +2,11 @@
 # NetScan
 # maravento.com
 
+2026.01.28
+Update: npcap-1.86
+
 2025.12.09
-Uodate: npcap-1.85
+Update: npcap-1.85
 Update: Visual C++ v0.103.0
 
 2025.10.25

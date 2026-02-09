@@ -44,16 +44,17 @@
 # For more information:
 # https://developers.cloudflare.com/cloudflare-one/connections/connect-apps
 
+# check no-root
+if [ "$(id -u)" == "0" ]; then
+    echo "❌ This script should not be run as root."
+    exit 1
+fi
+
 ### --- CONFIGURATION --- ###
 USER_HOME="$(getent passwd "$USER" | cut -d: -f6)"
 CONFIG_DIR="$USER_HOME/.cloudflared"
 CLOUDFLARED_BIN="$(command -v cloudflared)"
 
-### --- SAFETY CHECKS --- ###
-if [[ $EUID -eq 0 ]]; then
-    echo "❌ This script must NOT be run as root."
-    exit 1
-fi
 if [[ ! -x "$CLOUDFLARED_BIN" ]]; then
     echo "❌ cloudflared is not installed or not in PATH."
     exit 1

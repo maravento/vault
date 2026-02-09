@@ -27,43 +27,34 @@
 echo "Winboat Install | Remove Starting. Wait..."
 printf "\n"
 
-# check root
+# PATH for cron
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# checking root
 if [ "$(id -u)" != "0" ]; then
-    echo "This script must be run as root" 1>&2
+    echo "ERROR: This script must be run as root"
     exit 1
 fi
 
-# check script execution
-if pidof -x $(basename $0) >/dev/null; then
-    for p in $(pidof -x $(basename $0)); do
-        if [ "$p" -ne $$ ]; then
-            echo "Script $0 is already running..."
-            exit
-        fi
-    done
-fi
-
-# check SO
-UBUNTU_VERSION=$(lsb_release -rs)
-UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
-if [[ "$UBUNTU_ID" != "ubuntu" || "$UBUNTU_VERSION" != "24.04" ]]; then
-    echo "Unsupported system. This script requires Ubuntu 24.04"
+# checking script execution
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    echo "Script $(basename "$0") is already running"
     exit 1
 fi
 
 # LOCAL USER
-# Get real user (not root) - multiple fallback methods
-local_user=$(logname 2>/dev/null || echo "$SUDO_USER")
-# If not found or is root, try detecting active graphical user
-if [ -z "$local_user" ] || [ "$local_user" = "root" ]; then
-    local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}')
-fi
-# As a final fallback, take the first logged user
+local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
+# Fallback
 if [ -z "$local_user" ]; then
-    local_user=$(who | head -1 | awk '{print $1}')
+    local_user=$(ls -l /home | grep '^d' | head -1 | awk '{print $3}')
+    if [ -z "$local_user" ]; then
+        echo "ERROR: Cannot determine local user"
+        exit 1
+    fi
+    echo "Using fallback user: $local_user"
 fi
-# Clean possible spaces or line breaks
-local_user=$(echo "$local_user" | xargs)
 
 # Function to install Winboat
 install_winboat() {

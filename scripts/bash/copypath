@@ -4,6 +4,15 @@
 # Compatible with: Nautilus, Caja, Nemo, Thunar, Dolphin, PCManFM
 #
 
+echo "Copy Path Starting. Wait..."
+printf "\n"
+
+# check no-root
+if [ "$(id -u)" == "0" ]; then
+    echo "❌ This script should not be run as root."
+    exit 1
+fi
+
 # --- Dependency checker ---
 check_dependencies() {
     local missing=()

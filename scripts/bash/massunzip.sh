@@ -13,24 +13,6 @@ if [ "$(id -u)" == "0" ]; then
     exit 1
 fi
 
-# check script execution
-if pidof -x $(basename $0) >/dev/null; then
-  for p in $(pidof -x $(basename $0)); do
-    if [ "$p" -ne $$ ]; then
-      echo "Script $0 is already running..."
-      exit
-    fi
-  done
-fi
-
-# check SO
-UBUNTU_VERSION=$(lsb_release -rs)
-UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
-if [[ "$UBUNTU_ID" != "ubuntu" || "$UBUNTU_VERSION" != "24.04" ]]; then
-    echo "This script requires Ubuntu 24.04. Use at your own risk"
-    # exit 1
-fi
-
 # Check if 'multiverse' repository is available in APT
 if ! apt-cache policy | grep -qE '/multiverse'; then
     echo "⚠️ The 'multiverse' repository is not enabled. Run:"

@@ -108,12 +108,12 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
-# check SO
-UBUNTU_VERSION=$(lsb_release -rs)
-UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
-if [[ "$UBUNTU_ID" != "ubuntu" || "$UBUNTU_VERSION" != "24.04" ]]; then
-    echo "This script requires Ubuntu 24.04. Use at your own risk"
-    # exit 1
+# checking script execution
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    echo "Script $(basename "$0") is already running"
+    exit 1
 fi
 
 set -e

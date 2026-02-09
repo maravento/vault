@@ -11,20 +11,33 @@ echo -e "\n"
 echo "Gateproxy Start. Wait..."
 printf "\n"
 
-# check root
+# PATH for cron
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# checking root
 if [ "$(id -u)" != "0" ]; then
-    echo "This script must be run as root" 1>&2
+    echo "ERROR: This script must be run as root"
     exit 1
 fi
 
-# check script execution
-if pidof -x $(basename $0) >/dev/null; then
-    for p in $(pidof -x $(basename $0)); do
-        if [ "$p" -ne $$ ]; then
-            echo "Script $0 is already running..."
-            exit
-        fi
-    done
+# checking script execution
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    echo "Script $(basename "$0") is already running"
+    exit 1
+fi
+
+# LOCAL USER
+local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
+# Fallback
+if [ -z "$local_user" ]; then
+    local_user=$(ls -l /home | grep '^d' | head -1 | awk '{print $3}')
+    if [ -z "$local_user" ]; then
+        echo "ERROR: Cannot determine local user"
+        exit 1
+    fi
+    echo "Using fallback user: $local_user"
 fi
 
 # check SO
@@ -34,20 +47,6 @@ if [[ "$UBUNTU_ID" != "ubuntu" || "$UBUNTU_VERSION" != "24.04" ]]; then
     echo "This script requires Ubuntu 24.04. Use at your own risk"
     # exit 1
 fi
-
-# LOCAL USER
-# Get real user (not root) - multiple fallback methods
-local_user=$(logname 2>/dev/null || echo "$SUDO_USER")
-# If not found or is root, try detecting active graphical user
-if [ -z "$local_user" ] || [ "$local_user" = "root" ]; then
-    local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}')
-fi
-# As a final fallback, take the first logged user
-if [ -z "$local_user" ]; then
-    local_user=$(who | head -1 | awk '{print $1}')
-fi
-# Clean possible spaces or line breaks
-local_user=$(echo "$local_user" | xargs)
 
 ### LANGUAGE EN-ES
 lang_01=("Check System..." "Verificando Sistema...")
@@ -652,9 +651,11 @@ mkdir -p /var/log/squid >/dev/null 2>&1
 touch /var/log/squid/{access,cache,store,deny}.log >/dev/null 2>&1
 chown proxy:proxy /var/log/squid/*.log
 chmod 640 /var/log/squid/*.log
-mkdir -p /var/spool/squid/rock >/dev/null 2>&1
-chown -R proxy:proxy /var/spool/squid/rock
-chmod -R 700 /var/spool/squid/rock
+for cache_type in rock ufs; do
+    mkdir -p /var/spool/squid/${cache_type} 2>/dev/null
+done
+chown -R proxy:proxy /var/spool/squid
+chmod -R 700 /var/spool/squid
 usermod -aG proxy www-data
 systemctl enable squid.service
 squid -z

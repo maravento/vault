@@ -12,9 +12,20 @@
 echo "BlackUSB Start. Wait..."
 printf "\n"
 
-# check root
+# PATH for cron
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# checking root
 if [ "$(id -u)" != "0" ]; then
-    echo "This script must be run as root" 1>&2
+    echo "ERROR: This script must be run as root"
+    exit 1
+fi
+
+# checking script execution
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    echo "Script $(basename "$0") is already running"
     exit 1
 fi
 

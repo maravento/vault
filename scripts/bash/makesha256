@@ -17,16 +17,6 @@ if [ "$(id -u)" == "0" ]; then
     exit 1
 fi
 
-# check script execution
-if pidof -x $(basename $0) >/dev/null; then
-  for p in $(pidof -x $(basename $0)); do
-    if [ "$p" -ne $$ ]; then
-      echo "Script $0 is already running..."
-      exit
-    fi
-  done
-fi
-
 # Function to show error and exit
 show_error() {
     zenity --error --title="Make SHA256" --text="$1"

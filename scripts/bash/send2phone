@@ -20,16 +20,6 @@ if [ "$(id -u)" == "0" ]; then
     exit 1
 fi
 
-# check script execution
-if pidof -x $(basename $0) >/dev/null; then
-  for p in $(pidof -x $(basename $0)); do
-    if [ "$p" -ne $$ ]; then
-      echo "Script $0 is already running..."
-      exit
-    fi
-  done
-fi
-
 # check dependencies
 for pkg in kdeconnect-cli; do
   dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {

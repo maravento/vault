@@ -29,14 +29,26 @@
 # Usage: sudo ./bridge.sh [on|off|status|clean]
 # =============================================================================
 
+# PATH for cron
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# checking root
+if [ "$(id -u)" != "0" ]; then
+    echo "ERROR: This script must be run as root"
+    exit 1
+fi
+
+# checking script execution
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    echo "Script $(basename "$0") is already running"
+    exit 1
+fi
+
+# VARIABLES
 BRIDGE_NAME="br0"
 BRIDGE_SLAVE="${BRIDGE_NAME}-slave"
-
-# Check root privileges
-if [[ $EUID -ne 0 ]]; then
-   echo "✗ This script must be run with sudo" >&2
-   exit 1
-fi
 
 # Function definitions
 check_dependencies() {

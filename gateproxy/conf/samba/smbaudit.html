@@ -323,6 +323,19 @@
             border-radius: 4px;
         }
 
+        /* Countdown timer styles */
+        .countdown-timer {
+            display: inline-block;
+            margin-left: 0.5rem;
+            padding: 0.25rem 0.5rem;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            min-width: 35px;
+            text-align: center;
+        }
+
         /* MEDIA QUERIES FOR TABLET AND DESKTOP */
         @media (min-width: 768px) {
             .header {
@@ -445,6 +458,7 @@
             <button class="btn btn-success" onclick="loadLogs()">🔄 Reload</button>
             <button class="btn btn-warning" onclick="exportPDF()">📊 Export PDF</button>
             <button class="btn btn-success" onclick="toggleAutoRefresh()" id="autoRefreshBtn">🔄 Auto Refresh</button>
+            <span class="countdown-timer" id="countdownTimer" style="display: none;">--</span>
             <select class="form-select" id="refreshInterval" onchange="updateRefreshInterval()" style="width: auto;">
                 <option value="60000">1</option>
                 <option value="300000" selected>5</option>
@@ -550,13 +564,29 @@
         let refreshInterval;
         let refreshTime = 300000;
         let autoRefreshActive = false;
+        let countdownInterval;
+        let countdownSeconds = 0;
 
         function startAutoRefresh() {
             stopAutoRefresh();
             if (refreshTime > 0) {
+                // Iniciar el auto-refresh
                 refreshInterval = setInterval(loadLogs, refreshTime);
                 autoRefreshActive = true;
                 updateRefreshButton(true);
+                
+                // Iniciar el contador regresivo
+                countdownSeconds = Math.floor(refreshTime / 1000);
+                updateCountdownDisplay();
+                document.getElementById('countdownTimer').style.display = 'inline-block';
+                
+                countdownInterval = setInterval(() => {
+                    countdownSeconds--;
+                    if (countdownSeconds < 0) {
+                        countdownSeconds = Math.floor(refreshTime / 1000);
+                    }
+                    updateCountdownDisplay();
+                }, 1000);
             }
         }
 
@@ -565,8 +595,13 @@
                 clearInterval(refreshInterval);
                 refreshInterval = null;
             }
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
             autoRefreshActive = false;
             updateRefreshButton(false);
+            document.getElementById('countdownTimer').style.display = 'none';
         }
 
         function toggleAutoRefresh() {
@@ -585,6 +620,10 @@
                 startAutoRefresh();
             } else if (refreshTime === 0) {
                 stopAutoRefresh();
+            } else if (refreshTime > 0) {
+                // Si el auto-refresh no está activo pero se selecciona un tiempo válido
+                // actualizar el contador para cuando se active
+                countdownSeconds = Math.floor(refreshTime / 1000);
             }
         }
 
@@ -600,6 +639,20 @@
                 btn.textContent = '🔄 Auto Refresh OFF';
                 btn.classList.remove('btn-success');
                 btn.classList.add('btn-secondary');
+            }
+        }
+        
+        function updateCountdownDisplay() {
+            const timerEl = document.getElementById('countdownTimer');
+            if (!timerEl) return;
+            
+            const minutes = Math.floor(countdownSeconds / 60);
+            const seconds = countdownSeconds % 60;
+            
+            if (minutes > 0) {
+                timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            } else {
+                timerEl.textContent = `${seconds}s`;
             }
         }      
 
