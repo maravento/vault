@@ -2,6 +2,9 @@
 # NetScan
 # maravento.com
 
+2026.02.12
+Update: npcap-1.87
+
 2026.01.28
 Update: npcap-1.86
 
