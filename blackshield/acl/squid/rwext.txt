@@ -8,6 +8,7 @@
 \.03rK([a-zA-Z][0-9]*)?(\?.*)?$
 \.0402([a-zA-Z][0-9]*)?(\?.*)?$
 \.08kJA([a-zA-Z][0-9]*)?(\?.*)?$
+\.0apt([a-zA-Z][0-9]*)?(\?.*)?$
 \.0.cs([a-zA-Z][0-9]*)?(\?.*)?$
 \.0D34E0([a-zA-Z][0-9]*)?(\?.*)?$
 \.0day0([a-zA-Z][0-9]*)?(\?.*)?$
@@ -818,6 +819,8 @@
 \.bulock([a-zA-Z][0-9]*)?(\?.*)?$
 \.bumcoder([a-zA-Z][0-9]*)?(\?.*)?$
 \.bunny([a-zA-Z][0-9]*)?(\?.*)?$
+\.BuP1wDecryptor@.txt([a-zA-Z][0-9]*)?(\?.*)?$
+\.BuP!w3([a-zA-Z][0-9]*)?(\?.*)?$
 \.burn([a-zA-Z][0-9]*)?(\?.*)?$
 \.busavelock53([a-zA-Z][0-9]*)?(\?.*)?$
 \.BUSH([a-zA-Z][0-9]*)?(\?.*)?$
@@ -939,6 +942,7 @@
 \.ChinaYunLong([a-zA-Z][0-9]*)?(\?.*)?$
 \.ChineseRarypt([a-zA-Z][0-9]*)?(\?.*)?$
 \.chinz([a-zA-Z][0-9]*)?(\?.*)?$
+\.chip1([a-zA-Z][0-9]*)?(\?.*)?$
 \.CHIP([a-zA-Z][0-9]*)?(\?.*)?$
 \.chld([a-zA-Z][0-9]*)?(\?.*)?$
 \.chocolate([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1799,6 +1803,7 @@
 \.encryptor_raas_readme_liesmich.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.encS([a-zA-Z][0-9]*)?(\?.*)?$
 \.ENCx45cR([a-zA-Z][0-9]*)?(\?.*)?$
+\.end11([a-zA-Z][0-9]*)?(\?.*)?$
 \.endpoint([a-zA-Z][0-9]*)?(\?.*)?$
 \.enfp([a-zA-Z][0-9]*)?(\?.*)?$
 \.Enfp([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2503,6 +2508,7 @@
 \.HOW_TO_DECRYPT_FILES.TXT([a-zA-Z][0-9]*)?(\?.*)?$
 \.HOW_TO_DECRYPT!!!.mht([a-zA-Z][0-9]*)?(\?.*)?$
 \.howtoDecrypt.txt([a-zA-Z][0-9]*)?(\?.*)?$
+\.HOW-TO-DECRYPT.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.HOW_TO_GET_DATA_BACK.html([a-zA-Z][0-9]*)?(\?.*)?$
 \.how_to_recover([a-zA-Z][0-9]*)?(\?.*)?$
 \.HOW_TO_RECOVER_DATA.html([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4430,6 +4436,7 @@
 \.read_it.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.readlockfiles([a-zA-Z][0-9]*)?(\?.*)?$
 \.ReadManual([a-zA-Z][0-9]*)?(\?.*)?$
+\.README0apt.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.readme([a-zA-Z][0-9]*)?(\?.*)?$
 \.READ_ME_FBI.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.readmefordecrypt.txt([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4494,6 +4501,7 @@
 \.RECOVERYOURFILES([a-zA-Z][0-9]*)?(\?.*)?$
 \.RecoverYourFiles.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.RECOVER-YOUR-FILE.TXT([a-zA-Z][0-9]*)?(\?.*)?$
+\.Recovery_README.html([a-zA-Z][0-9]*)?(\?.*)?$
 \.rec_rans([a-zA-Z][0-9]*)?(\?.*)?$
 \.recry1([a-zA-Z][0-9]*)?(\?.*)?$
 \.rectot([a-zA-Z][0-9]*)?(\?.*)?$
@@ -5895,6 +5903,7 @@
 \.ZeroRansom([a-zA-Z][0-9]*)?(\?.*)?$
 \.ZeRy([a-zA-Z][0-9]*)?(\?.*)?$
 \.zes([a-zA-Z][0-9]*)?(\?.*)?$
+\.ZETARINK([a-zA-Z][0-9]*)?(\?.*)?$
 \.ZEUS([a-zA-Z][0-9]*)?(\?.*)?$
 \.zfdv([a-zA-Z][0-9]*)?(\?.*)?$
 \.ZFX([a-zA-Z][0-9]*)?(\?.*)?$
