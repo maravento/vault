@@ -1,5 +1,6 @@
 # [Vault](https://www.maravento.com)
 
+[![status-maintained](https://img.shields.io/badge/status-maintained-purple.svg)](https://github.com/maravento/vault)
 [![last commit](https://img.shields.io/github/last-commit/maravento/vault)](https://github.com/maravento/vault/)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/maravento/vault)
 [![Twitter Follow](https://img.shields.io/twitter/follow/maraventostudio.svg?style=social)](https://twitter.com/maraventostudio)
@@ -8,19 +9,50 @@
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
-      <b>Vault</b> is a collection of cross-platform projects in the following cycles:
-    </td>
-    <td style="width: 50%; white-space: nowrap;">
-      <b>Vault</b> es una colección de proyectos multiplataforma en los siguientes ciclos:
-    </td>
+    <td width="50%"><b>Vault</b> is a collection of cross-platform projects in the following cycles:</td>
+    <td width="50%"><b>Vault</b> es una colección de proyectos multiplataforma en los siguientes ciclos:</td>
   </tr>
 </table>
 
-[![status-beta](https://img.shields.io/badge/status-beta-magenta.svg)](https://github.com/maravento/vault)
-[![status-deprecated](https://img.shields.io/badge/status-deprecated-red.svg)](https://github.com/maravento/vault)
-[![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento/vault)
-[![status-frozen](https://img.shields.io/badge/status-frozen-blue.svg)](https://github.com/maravento/vault)
+<br>
+
+<table width="100%">
+  <tr>
+    <td colspan="2"><a href="https://github.com/maravento/vault"><img src="https://img.shields.io/badge/status-experimental-orange.svg"></a></td>
+  </tr>
+  <tr>
+    <td width="50%">May change without notice.</td>
+    <td width="50%">Cambios sin previo aviso.</td>
+  </tr>
+  <tr>
+    <td colspan="2"><a href="https://github.com/maravento/vault"><img src="https://img.shields.io/badge/status-beta-magenta.svg"></a></td>
+  </tr>
+  <tr>
+    <td width="50%">Testing and minor adjustments ongoing.</td>
+    <td width="50%">En pruebas y con ajustes menores en curso.</td>
+  </tr>
+  <tr>
+    <td colspan="2"><a href="https://github.com/maravento/vault"><img src="https://img.shields.io/badge/status-release_candidate-skyblue.svg"></a></td>
+  </tr>
+  <tr>
+    <td width="50%">Only critical fixes expected.</td>
+    <td width="50%">Solo se esperan correcciones críticas.</td>
+  </tr>
+  <tr>
+    <td colspan="2"><a href="https://github.com/maravento/vault"><img src="https://img.shields.io/badge/status-frozen-blue.svg"></a></td>
+  </tr>
+  <tr>
+    <td width="50%">Development halted. No planned changes.</td>
+    <td width="50%">Desarrollo detenido. No se planean cambios.</td>
+  </tr>
+  <tr>
+    <td colspan="2"><a href="https://github.com/maravento/vault"><img src="https://img.shields.io/badge/status-deprecated-red.svg"></a></td>
+  </tr>
+  <tr>
+    <td width="50%">Obsolete project. No further updates.</td>
+    <td width="50%">Proyecto obsoleto. No recibirá más actualizaciones.</td>
+  </tr>
+</table>
 
 ## GIT CLONE
 

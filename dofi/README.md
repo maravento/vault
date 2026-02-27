@@ -1,6 +1,6 @@
 # [DoFi](https://www.maravento.com)
 
-[![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento/vault)
+[![status-release-candidate](https://img.shields.io/badge/status-release_candidate-skyblue.svg)](https://github.com/maravento/vault)
 
 <!-- markdownlint-disable MD033 -->
 

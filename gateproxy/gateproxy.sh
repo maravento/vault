@@ -783,10 +783,16 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
             sed -i 's/community-id: false/community-id: true/' /etc/suricata/suricata.yaml
             echo "✓ Community-ID enabled"
         fi
-        # suricata update
+        # suricata disable
         cp -f $gp/conf/pack/disable.conf /etc/suricata/disable.conf
-        cp -f $gp/conf/pack/suricata-update.sh /etc/suricata/suricata-update.sh
-        chmod +x /etc/suricata/suricata-update.sh
+        # suricata update & clean
+        if [ ! -f /var/log/suricata/suricata-cron.log ]; then
+            touch /var/log/suricata/suricata-cron.log
+            chown root:root /var/log/suricata/suricata-cron.log
+            chmod 640 /var/log/suricata/suricata-cron.log
+        fi        
+        cp -f $gp/conf/pack/{suricata-update,suricata-clean}.sh /etc/suricata/{suricata-update,suricata-clean}.sh
+        chmod +x /etc/suricata/{suricata-update,suricata-clean}.sh
         timeout 300 /etc/suricata/suricata-update.sh || echo "⚠ Warning: suricata-update timed out"
         # suricata ratio
         if ! grep -q "detect-thread-ratio: 0.5" /etc/suricata/suricata.yaml; then
@@ -794,6 +800,7 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         fi
         # suricata cron
         (crontab -l 2>/dev/null; echo "0 2 * * * /etc/suricata/suricata-update.sh") | crontab -
+        (crontab -l 2>/dev/null; echo "@monthly /etc/suricata/suricata-clean.sh") | crontab -
         # suricata check IDS
         SURICATA_SERVICE="/usr/lib/systemd/system/suricata.service"
         CORRECT_EXECSTART="ExecStart=/usr/bin/suricata -D --af-packet -c /etc/suricata/suricata.yaml --pidfile /run/suricata.pid"
