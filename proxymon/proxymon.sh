@@ -148,9 +148,9 @@ run_initial_checks() {
 
 install_proxymon() {
     echo -e "${YELLOW}📥 Downloading Proxy Monitor...${NC}"
-    wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
-    chmod +x gitfolderdl.py
-    python3 gitfolderdl.py https://github.com/maravento/vault/proxymon 2>/dev/null || {
+    wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
+    chmod +x gitfolder.py
+    python3 gitfolder.py https://github.com/maravento/vault/proxymon 2>/dev/null || {
         echo -e "${RED}❌ Failed to download Proxy Monitor${NC}"
         exit 1
     }
@@ -170,7 +170,7 @@ install_proxymon() {
         exit 1
     fi
     
-    rm -rf proxymon gitfolderdl.py modules
+    rm -rf proxymon gitfolder.py modules
     
     echo -e "${YELLOW}⚙️  Configuring Apache...${NC}"
     

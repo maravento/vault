@@ -21,9 +21,9 @@
 
 ```bash
 sudo apt install -y python-is-python3
-wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
-chmod +x gitfolderdl.py
-python gitfolderdl.py https://github.com/maravento/vault/gateproxy
+wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
+chmod +x gitfolder.py
+python gitfolder.py https://github.com/maravento/vault/gateproxy
 ```
 
 ## DATA SHEET

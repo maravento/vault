@@ -2,7 +2,6 @@
 
 [![status-maintained](https://img.shields.io/badge/status-maintained-purple.svg)](https://github.com/maravento/vault)
 [![last commit](https://img.shields.io/github/last-commit/maravento/vault)](https://github.com/maravento/vault/)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/maravento/vault)
 [![Twitter Follow](https://img.shields.io/twitter/follow/maraventostudio.svg?style=social)](https://twitter.com/maraventostudio)
 
 <!-- markdownlint-disable MD033 -->
@@ -68,11 +67,11 @@ git clone --depth=1 https://github.com/maravento/vault.git
 
 ```bash
 sudo apt install -y python-is-python3
-wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
-chmod +x gitfolderdl.py
+wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
+chmod +x gitfolder.py
 
 # Now Replace "project_name" with the name of project
-python gitfolderdl.py https://github.com/maravento/vault/project_name
+python gitfolder.py https://github.com/maravento/vault/project_name
 ```
 
 ## DATA SHEET

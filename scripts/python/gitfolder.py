@@ -1,5 +1,15 @@
 #!/usr/bin/env python
 # maravento.com
+"""
+gitfolder.py
+------------
+Downloads a specific folder or file from a public GitHub repository
+using the GitHub API. Supports recursive download of subfolders and
+preserves the original directory structure locally.
+
+Usage: python gitfolder.py <github_url>
+Example: python gitfolder.py https://github.com/maravento/vault/project_name
+"""
 
 import requests
 import os

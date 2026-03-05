@@ -210,9 +210,9 @@ echo "${lang_08[$lang]}"
 ### GATEPROXY GIT
 echo -e "\n"
 if [ -d $gp ]; then rm -rf $gp; fi &>/dev/null
-wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
-chmod +x gitfolderdl.py
-python gitfolderdl.py https://github.com/maravento/vault/gateproxy
+wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
+chmod +x gitfolder.py
+python gitfolder.py https://github.com/maravento/vault/gateproxy
 
 ### CONFIG
 echo -e "\n"

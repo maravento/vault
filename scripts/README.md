@@ -21,9 +21,9 @@
 
 ```bash
 sudo apt install -y python-is-python3
-wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
-chmod +x gitfolderdl.py
-python gitfolderdl.py https://github.com/maravento/vault/scripts
+wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
+chmod +x gitfolder.py
+python gitfolder.py https://github.com/maravento/vault/scripts
 ```
 
 ## HOW TO USE
@@ -137,7 +137,9 @@ Tested on: Windows 10/11 x64
 
 Tested on: Ubuntu 22.04/24.04
 
-- [Git Folder Download (Replaces Subversion SVN EOS/EOL on GitHub/GitLab)](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py)
+- [Email Scan (Replaces: BASE_URL and TARGET_EMAIL)](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/emailscan.py)
+- [Git Folder Download](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py)
+- [Link Check - Broken Link Scanner (Replaces: BASE_URL)](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/linkcheck.py)
 
 ### VBScript (Windows)
 

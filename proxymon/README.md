@@ -21,9 +21,9 @@
 
 ```bash
 sudo apt install -y python-is-python3
-wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
-chmod +x gitfolderdl.py
-python gitfolderdl.py https://github.com/maravento/vault/proxymon
+wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
+chmod +x gitfolder.py
+python gitfolder.py https://github.com/maravento/vault/proxymon
 ```
 
 ### Minimum Requirements
@@ -104,6 +104,10 @@ wget -O proxymon.sh https://raw.githubusercontent.com/maravento/vault/refs/heads
 ## HOW TO USE
 
 ---
+
+### MAIN MENU
+
+[![proxymon_main](https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/proxymon_tabs.png)](https://www.maravento.com/)
 
 ### MONITOR (Squidmon)
 
@@ -911,6 +915,59 @@ sudo sed -i "s/sqstat-dark\.css/sqstat.css/" /var/www/proxymon/sqstat/sqstat.cla
 sudo -u www-data crontab -e
 0 2 * * * cd /var/www/proxymon/squidanalyzer && perl -I. ./squid-analyzer -d > /dev/null 2>&1
 ```
+
+### LOGVIEW
+
+[![logview](https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/logview.png)](https://www.maravento.com/)
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+     <b>LogView</b> is a real-time Squid proxy log viewer integrated into the Proxy Monitor dashboard. It reads directly from <code>/var/log/squid/access.log</code>, parses each entry into structured fields, and displays them in an interactive table with instant full-text search, combined filters by cache code and HTTP status, column sorting, and automatic polling for new entries without reloading the page. Includes light and dark themes and a configurable refresh interval.
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+     <b>LogView</b> es un visor en tiempo real del log del proxy Squid integrado en el panel de Proxy Monitor. Lee directamente desde <code>/var/log/squid/access.log</code>, parsea cada entrada en campos estructurados y los muestra en una tabla interactiva con búsqueda de texto completo instantánea, filtros combinados por cache code y código HTTP, ordenamiento por columnas y polling automático de nuevas entradas sin recargar la página. Incluye temas claro y oscuro e intervalo de refresco configurable.
+    </td>
+  </tr>
+</table>
+
+#### Controls
+
+[![logview_controls](https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/logview_controls.png)](https://www.maravento.com/)
+
+| Message | Description | Descripción |
+| ------- | ----------- | ----------- |
+| <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/logview_codes.png" width="150"> | Filters by Squid cache code: TCP_HIT (cached), TCP_MISS (origin), TCP_MISS_ABORTED (aborted), TCP_DENIED (blocked), TCP_TUNNEL (HTTPS), TCP_MEM_HIT (memory cache), TCP_REFRESH_HIT/MISS (revalidated), TCP_REFRESH_UNMODIFIED/MODIFIED (revalidation result), NONE_NONE (invalid/error request). | Filtra por código de caché de Squid: TCP_HIT (caché), TCP_MISS (origen), TCP_MISS_ABORTED (abortado), TCP_DENIED (bloqueado), TCP_TUNNEL (HTTPS), TCP_MEM_HIT (memoria), TCP_REFRESH_HIT/MISS (revalidado), TCP_REFRESH_UNMODIFIED/MODIFIED (resultado de revalidación), NONE_NONE (solicitud inválida/error). |
+| <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/logview_http.png" width="150"> | Filters by HTTP response code: 200, 206, 301, 302, 400, 403, 404, 500. Color-coded: green (2xx), yellow (3xx), red (4xx/5xx). | Filtra por código de respuesta HTTP: 200, 206, 301, 302, 400, 403, 404, 500. Codificado por color: verde (2xx), amarillo (3xx), rojo (4xx/5xx). |
+| <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/logview_lines.png" width="150"> | Number of lines loaded from access.log on startup: 500, 1,000, 2,000, or 5,000. | Número de líneas cargadas desde access.log al inicio: 500, 1.000, 2.000 o 5.000. |
+| <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/logview_refresh.png" width="150"> | Polling interval for new entries: 1s, 3s (default), 5s, 10s, or 30s. | Intervalo de sondeo para nuevas entradas: 1s, 3s (por defecto), 5s, 10s o 30s. |
+| <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/logview_live.png" width="150"> | Live mode active. LogView polls access.log automatically and prepends new rows with a green animation. | Modo en vivo activo. LogView sondea el access.log automáticamente y agrega nuevas filas con animación verde. |
+| <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/logview_pause.png" width="150"> | Polling suspended. Indicator turns red and shows PAUSED. Click again to resume. | Sondeo suspendido. El indicador cambia a rojo y muestra PAUSED. Haga clic nuevamente para reanudar. |
+| <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/logview_darkmodebutton.png" width="150"> | Dark Mode button. | Boton para Modo Oscuro. |
+
+#### Dark Mode
+
+[![logview_darkmode](https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/logview_darkmode.png)](https://www.maravento.com/)
+
+#### Search Bar
+
+[![logview_search](https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/logview_search.png)](https://www.maravento.com/)
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; white-space: nowrap;">
+      Search bar. Filters loaded entries in real time by IP, URL, user, HTTP method, cache or response code.
+    </td>
+    <td style="width: 50%; white-space: nowrap;">
+      Barra de búsqueda. Filtra las entradas cargadas en tiempo real por IP, URL, usuario, método HTTP, caché o código de respuesta.
+    </td>
+  </tr>
+</table>
+
+| Message | Description | Descripción |
+| ------- | ----------- | ----------- |
+| <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/logview_fulllog.png" width="150"> | Click to activate full log search mode. | Púlselo para activar el modo de búsqueda completa del log. |
+| <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/logview_livelog.png" width="150"> | Click to return to live view. | Púlselo para regresar a la vista en tiempo real. |
 
 ### PROXYMON LOGS
 

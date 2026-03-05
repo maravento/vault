@@ -69,9 +69,9 @@ ips=$(ip -4 -o addr show scope global | awk '{print $4}' | cut -d/ -f1)
 # Ignore Path
 ignore_file="/usr/local/ddos/ignore"
 
-wget -qO gitfolderdl.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolderdl.py
-chmod +x gitfolderdl.py
-python gitfolderdl.py https://github.com/maravento/vault/ddos
+wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
+chmod +x gitfolder.py
+python gitfolder.py https://github.com/maravento/vault/ddos
 mkdir -p /usr/local/ddos
 chown root:root /usr/local/ddos
 cp -f -R ddos/* /usr/local/ddos
