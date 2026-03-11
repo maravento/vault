@@ -8,7 +8,7 @@
 :: Dependencies: Find and Replace (FNR) http://findandreplace.io/downloads/fnr.zip
 :: Download fnr.exe to %WINDIR%\System32\fnr.exe
 
-REM Checking privileges
+:check_admin
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     powershell -ExecutionPolicy Bypass -Command "Start-Process '%~f0' -Verb RunAs"

@@ -120,6 +120,7 @@ Tested on: Ubuntu 22.04/24.04 x64
 
 Tested on: Windows 10/11 x64
 
+- [Drivers (Backup and Restore)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/driversbk.bat)
 - [FixPrint (Print Queue Cleaning)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/fixprint.bat)
 - [Mozilla Thunderbird (Backup Profiles to USB)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/mtpbackup.bat)
 - [Net Reset (Proxy and NIC)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/netreset.bat)

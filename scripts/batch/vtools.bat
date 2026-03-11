@@ -11,7 +11,7 @@
 
 setlocal enabledelayedexpansion
 
-:check_admin
+:: Checking privileges
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     powershell -ExecutionPolicy Bypass -Command "Start-Process '%~f0' -Verb RunAs"
