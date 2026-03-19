@@ -121,9 +121,12 @@ http_access deny bad_useragents
 acl web3 dstdomain "/etc/acl/web3domains.txt"
 http_access deny web3
 
-# Block: IP
-acl no_ip url_regex -i ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$
-http_access deny no_ip
+# Block: IPv4
+acl no_ipv4 dstdom_regex -i ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$
+http_access deny no_ipv4
+# Block: IPv6
+acl no_ipv6 dstdom_regex -i ^\[?[0-9a-f:]+\]?$
+http_access deny no_ipv6
 
 # And finally deny all other access to this proxy
 http_access deny all

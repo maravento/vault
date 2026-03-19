@@ -2,7 +2,9 @@
 LOG="/var/log/suricata/suricata-cron.log"
 NOW="$(date '+%Y-%m-%d %H:%M:%S')"
 echo "$NOW - Suricata Update..." | tee -a "$LOG"
-suricata-update --disable-conf=/etc/suricata/disable.conf --quiet >> "$LOG" 2>&1
+suricata-update --disable-conf=/etc/suricata/disable.conf \
+                --drop-conf=/etc/suricata/drop.conf \
+                --quiet >> "$LOG" 2>&1
 if [ $? -eq 0 ]; then
     RULES_FILE="/var/lib/suricata/rules/suricata.rules"
     

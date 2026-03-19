@@ -783,15 +783,17 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
             sed -i 's/community-id: false/community-id: true/' /etc/suricata/suricata.yaml
             echo "✓ Community-ID enabled"
         fi
-        # suricata disable
-        cp -f $gp/conf/pack/disable.conf /etc/suricata/disable.conf
+        # suricata disable and drop
+        cp -f $gp/conf/pack/{disable,drop}.conf /etc/suricata/
+        chown root:root /etc/suricata/{disable,drop}.conf
+        chmod 644 /etc/suricata/{disable,drop}.conf
         # suricata update & clean
         if [ ! -f /var/log/suricata/suricata-cron.log ]; then
             touch /var/log/suricata/suricata-cron.log
             chown root:root /var/log/suricata/suricata-cron.log
             chmod 640 /var/log/suricata/suricata-cron.log
         fi        
-        cp -f $gp/conf/pack/{suricata-update,suricata-clean}.sh /etc/suricata/{suricata-update,suricata-clean}.sh
+        cp -f $gp/conf/pack/{suricata-update,suricata-clean}.sh /etc/suricata/
         chmod +x /etc/suricata/{suricata-update,suricata-clean}.sh
         timeout 300 /etc/suricata/suricata-update.sh || echo "⚠ Warning: suricata-update timed out"
         # suricata ratio
