@@ -6,7 +6,7 @@
 # squidtools.sh
 #========================================
 # This script provides a unified interface for analyzing Squid proxy logs.
-# It contains five main functions:
+# It contains six main functions:
 #
 # 1) squid_filter
 #    - Allows the user to search the Squid access log for a specific IP
@@ -41,6 +41,16 @@
 #    - Produces detailed metrics including performance data, cache hit rates, status
 #      code analysis, bandwidth usage, top clients/domains, and error analysis.
 #    - Generates both CSV (squid_stats.csv) and HTML (squid_stats.html) reports.
+#
+# 6) squid_ip_timeframe
+#    - Analyzes traffic for a specific IP address within a user-defined time range
+#      (hour range) on the current day.
+#    - Converts UTC timestamps from the log to local Colombia time (UTC-5).
+#    - Displays detailed information including timestamp, cache code, HTTP status,
+#      transferred bytes, method, and URL for each matching request.
+#    - Useful for identifying activity gaps or concentrated traffic during specific
+#      hours of the day.
+#    - Results are saved to squid_ip_timeframe.log in the current directory.
 #
 # All logs are written to the current working directory, and the script
 # informs the user where to find the output files after execution.
@@ -111,12 +121,12 @@ squid_filter() {
     IPNEW=$(echo "$IP" | grep -E '^(([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])$')
 
     if [[ "$IPNEW" ]]; then
-        cat $ACCESS_LOG 2>/dev/null | perl -pe 's/[\d\.]+/localtime($&)/e' \
+        zcat -f $ACCESS_LOG 2>/dev/null | perl -pe 's/[\d\.]+/localtime($&)/e' \
         | grep "$IPNEW" \
-        | grep -i -E "$WORD" >> "$LOG_FILE"
+        | grep -a -i -E "$WORD" >> "$LOG_FILE"
     else
-        cat $ACCESS_LOG 2>/dev/null | perl -pe 's/[\d\.]+/localtime($&)/e' \
-        | grep -i -E "$WORD" >> "$LOG_FILE"
+        zcat -f $ACCESS_LOG 2>/dev/null | perl -pe 's/[\d\.]+/localtime($&)/e' \
+        | grep -a -i -E "$WORD" >> "$LOG_FILE"
     fi
 
     if [ $? -gt 0 ]; then
@@ -147,7 +157,7 @@ squid_audit() {
 
     cat $CACHE_LOG 2>/dev/null | perl -pe 's/[\d\.]+/localtime($&)/e' \
     | grep -i "clientAccessCheckDone" \
-    | grep -i -E "$WORD" >> "$LOG_FILE"
+    | grep -a -i -E "$WORD" >> "$LOG_FILE"
 
     if [ $? -gt 0 ]; then
         echo "No records found for: $WORD" >> "$LOG_FILE"
@@ -196,7 +206,7 @@ squid_traffic() {
     CUTOFF=$((NOW - PERIOD))
 
     # Generate traffic report
-    cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {
+    zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {
         match($7, /https?:\/\/([^\/]+)/, arr)
         if (arr[1] != "") print $3, arr[1]
     }' \
@@ -241,7 +251,7 @@ squid_global() {
     echo "⏳ Starting CSV export..."
     echo "date,time,ip,method,http_code,size,cache_status,url,domain,status,error_type" > "$CSV_FILE"
 
-    cat $ACCESS_LOG 2>/dev/null | gawk -v cutoff="$CUTOFF" '
+    zcat -f $ACCESS_LOG 2>/dev/null | gawk -v cutoff="$CUTOFF" '
     function extract_domain(u,    d, h) {
         if (u == "" || u == "-")
             return "-"
@@ -315,19 +325,19 @@ squid_stats() {
     echo "Metric,Value" > "$CSV_FILE"
 
     # === BASIC METRICS ===
-    TOTAL_REQUESTS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff' | wc -l)
-    UNIQUE_IPS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {print $3}' | sort -u | wc -l)
-    UNIQUE_DOMAINS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {print $7}' | sed -E 's#^https?://([^/:]+).*#\1#' | sort -u | wc -l)
-    DATA_MB=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {sum+=$5} END {printf "%.2f", sum/1048576}')
-    DATA_GB=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {sum+=$5} END {printf "%.2f", sum/1073741824}')
+    TOTAL_REQUESTS=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff' | wc -l)
+    UNIQUE_IPS=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {print $3}' | sort -u | wc -l)
+    UNIQUE_DOMAINS=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {print $7}' | sed -E 's#^https?://([^/:]+).*#\1#' | sort -u | wc -l)
+    DATA_MB=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {sum+=$5} END {printf "%.2f", sum/1048576}')
+    DATA_GB=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {sum+=$5} END {printf "%.2f", sum/1073741824}')
 
     # === STATUS CODE ANALYSIS ===
-    SUCCESS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /\/200/' | wc -l)
-    REDIRECTS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /\/30[0-9]/' | wc -l)
-    CLIENT_ERRORS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /\/40[0-9]/' | wc -l)
-    SERVER_ERRORS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /\/50[0-9]/' | wc -l)
-    CACHE_HITS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /HIT/' | wc -l)
-    CACHE_MISS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /MISS/' | wc -l)
+    SUCCESS=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /\/200/' | wc -l)
+    REDIRECTS=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /\/30[0-9]/' | wc -l)
+    CLIENT_ERRORS=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /\/40[0-9]/' | wc -l)
+    SERVER_ERRORS=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /\/50[0-9]/' | wc -l)
+    CACHE_HITS=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /HIT/' | wc -l)
+    CACHE_MISS=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && $4 ~ /MISS/' | wc -l)
 
     # === PERCENTAGES ===
     SUCCESS_PCT=$(awk -v s="$SUCCESS" -v t="$TOTAL_REQUESTS" 'BEGIN {if (t>0) printf "%.2f", (s/t)*100; else print 0}')
@@ -335,7 +345,7 @@ squid_stats() {
     ERROR_PCT=$(awk -v e="$((CLIENT_ERRORS + SERVER_ERRORS))" -v t="$TOTAL_REQUESTS" 'BEGIN {if (t>0) printf "%.2f", (e/t)*100; else print 0}')
 
     # === PERFORMANCE METRICS ===
-    AVG_RESPONSE_SIZE=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {sum+=$5; count++} END {if (count>0) printf "%.2f", sum/count/1024; else print 0}')
+    AVG_RESPONSE_SIZE=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {sum+=$5; count++} END {if (count>0) printf "%.2f", sum/count/1024; else print 0}')
     REQ_PER_HOUR=$(awk -v t="$TOTAL_REQUESTS" -v h="$PERIOD_HOURS" 'BEGIN {printf "%.0f", t/h}')
     BANDWIDTH_MBPS=$(awk -v mb="$DATA_MB" -v h="$PERIOD_HOURS" 'BEGIN {printf "%.2f", (mb*8)/(h*3600)}')
 
@@ -357,12 +367,12 @@ squid_stats() {
     echo "Cache misses,${CACHE_MISS}" >> "$CSV_FILE"
 
     # === TOP LISTS ===
-    TOP_IPS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {count[$3]++; bytes[$3]+=$5} END {
+    TOP_IPS=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {count[$3]++; bytes[$3]+=$5} END {
         for (ip in count) printf "%s (%d req/%.1fMB) ", ip, count[ip], bytes[ip]/1048576
     }' | tr ' ' '\n' | sort -t'(' -k2 -nr | head -5 | tr '\n' ' ')
     echo "Top 5 client IPs,$TOP_IPS" >> "$CSV_FILE"
 
-    TOP_DOMAINS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {
+    TOP_DOMAINS=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {
         gsub(/^https?:\/\//, "", $7); gsub(/\/.*/, "", $7)
         count[$7]++; bytes[$7]+=$5
     } END {
@@ -370,7 +380,7 @@ squid_stats() {
     }' | tr ' ' '\n' | sort -t'(' -k2 -nr | head -5 | tr '\n' ' ')
     echo "Top 5 domains by requests,$TOP_DOMAINS" >> "$CSV_FILE"
 
-    TOP_ERROR_DOMAINS=$(cat $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && ($4 ~ /\/40[0-9]/ || $4 ~ /\/50[0-9]/) {
+    TOP_ERROR_DOMAINS=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && ($4 ~ /\/40[0-9]/ || $4 ~ /\/50[0-9]/) {
         gsub(/^https?:\/\//, "", $7); gsub(/\/.*/, "", $7)
         errors[$7]++
     } END {
@@ -466,6 +476,107 @@ squid_stats() {
     echo "📊 Summary: $TOTAL_REQUESTS requests, ${SUCCESS_PCT}% success rate, ${CACHE_HIT_PCT}% cache hit rate"
 }
 
+squid_ip_timeframe() {
+    # 1. Environment Setup
+    # Define script directory and log output path
+    local SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local LOG_FILE="$SCRIPT_DIR/squid_ip_timeframe.log"
+    # Target all access logs (current, rotated, and compressed)
+    local ACCESS_LOGS="/var/log/squid/access.log*"
+
+    # Initialize log file
+    echo "=== Squid IP Traffic by Time Range ===" > "$LOG_FILE"
+
+    # 2. User Input & Validation
+    # Prompt for IP and validate format
+    read -p "Enter IP address (e.g. 192.168.10.42): " IP
+    [[ ! "$IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] && { echo "❌ Invalid IP format"; return; }
+
+    # Prompt for date, default to current system date if empty
+    read -p "Date (YYYY-MM-DD, enter for today): " USER_DATE
+    [[ -z "$USER_DATE" ]] && USER_DATE=$(date +%Y-%m-%d)
+
+    # Prompt for start and end times
+    read -p "Start time (HH:MM): " START_TIME
+    read -p "End time (HH:MM): " END_TIME
+
+    # 3. Time Synchronization
+    # Convert local user input (Date + Time) to Unix Epoch (Seconds since 1970)
+    # This aligns with Squid's native timestamp format ($1)
+    local START_EPOCH=$(date -d "$USER_DATE $START_TIME" +%s 2>/dev/null)
+    local END_EPOCH=$(date -d "$USER_DATE $END_TIME" +%s 2>/dev/null)
+
+    # Validate that the date/time conversion was successful
+    if [[ -z "$START_EPOCH" || -z "$END_EPOCH" ]]; then
+        echo "❌ Error: Invalid date or time format provided."
+        return
+    fi
+
+    # 4. Report Header Generation
+    local TZ_LABEL=$(date +%Z) # Fetch system timezone (e.g., UTC, EST, COT)
+    {
+        echo "============================================================"
+        echo "            SQUID IP TIMEFRAME ANALYSIS"
+        echo "============================================================"
+        echo "Analysis started: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "Configuration:"
+        echo "  • IP Address     : $IP"
+        echo "  • Time range     : $START_TIME to $END_TIME ($TZ_LABEL)"
+        echo "  • Date Target    : $USER_DATE"
+        echo "  • Access log     : $ACCESS_LOGS"
+        echo "------------------------------------------------------------"
+        printf "%-12s %-15s %-8s %-12s %-8s %-60s\n" "Time(Local)" "Status/Result" "HTTP" "Bytes" "Method" "URL"
+        echo "------------------------------------------------------------"
+    } >> "$LOG_FILE"
+
+    # 5. Optimized Log Processing
+    local FOUND=0
+    
+    # zcat -f handles both compressed (.gz) and plain text logs seamlessly
+    # awk filters by IP and Epoch range before the data reaches the Bash loop
+    while read -r ts status_code bytes method url; do
+        
+        # Convert Epoch timestamp back to human-readable local time
+        # ${ts%.*} removes any millisecond decimals to prevent date command errors
+        local L_TIME=$(date -d "@${ts%.*}" "+%H:%M:%S" 2>/dev/null)
+        
+        # Convert Bytes to human-readable units (MB/KB/B) using Bash arithmetic
+        local BYTES_FMT
+        if [ "$bytes" -ge 1048576 ]; then
+            BYTES_FMT="$((bytes / 1048576)) MB"
+        elif [ "$bytes" -ge 1024 ]; then
+            BYTES_FMT="$((bytes / 1024)) KB"
+        else
+            BYTES_FMT="${bytes} B"
+        fi
+
+        # Extract Squid Cache status and HTTP result code from field 4 (e.g., TCP_MISS/200)
+        local CACHE_S=$(echo "$status_code" | cut -d'/' -f1)
+        local HTTP_S=$(echo "$status_code" | cut -d'/' -f2)
+
+        # Append formatted entry to the result file
+        printf "%-12s %-15s %-8s %-12s %-8s %-60s\n" \
+            "$L_TIME" "$CACHE_S" "$HTTP_S" "$BYTES_FMT" "$method" "$url" >> "$LOG_FILE"
+        
+        ((FOUND++))
+
+    done < <(zcat -f $ACCESS_LOGS 2>/dev/null | awk -v ip="$IP" -v s="$START_EPOCH" -v e="$END_EPOCH" \
+        '$1 >= s && $1 <= e && $3 == ip {print $1, $4, $5, $6, $7}')
+
+    # 6. Report Footer
+    {
+        echo "------------------------------------------------------------"
+        if [ $FOUND -gt 0 ]; then
+            echo "✅ Total entries found: $FOUND"
+        else
+            echo "❌ No entries found for $IP in that timeframe."
+        fi
+        echo "============================================================"
+    } >> "$LOG_FILE"
+
+    echo "Done! Results saved in: $LOG_FILE"
+}
+
 # MAIN MENU
 echo "================ SQUID ANALYSIS TOOL ================"
 echo "Select an option:"
@@ -474,7 +585,8 @@ echo "2) Squid Audit"
 echo "3) Squid Traffic (Report with alerts)"
 echo "4) Squid Global CSV export"
 echo "5) Squid Stats CSV export"
-read -p "Enter choice [1-5]: " CHOICE
+echo "6) IP Timeframe Analysis (traffic by hour range today)"
+read -p "Enter choice [1-6]: " CHOICE
 
 case "$CHOICE" in
     1) squid_filter ;;
@@ -482,6 +594,7 @@ case "$CHOICE" in
     3) squid_traffic ;;
     4) squid_global ;;
     5) squid_stats ;;
+    6) squid_ip_timeframe ;;
     *) echo "Invalid option" ;;
 esac
 

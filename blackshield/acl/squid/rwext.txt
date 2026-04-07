@@ -539,6 +539,7 @@
 \.barrel([a-zA-Z][0-9]*)?(\?.*)?$
 \.bart([a-zA-Z][0-9]*)?(\?.*)?$
 \.bart.zip([a-zA-Z][0-9]*)?(\?.*)?$
+\.BASANAI([a-zA-Z][0-9]*)?(\?.*)?$
 \.base([a-zA-Z][0-9]*)?(\?.*)?$
 \.bashrc([a-zA-Z][0-9]*)?(\?.*)?$
 \.bashred-reAdmE.txt([a-zA-Z][0-9]*)?(\?.*)?$
@@ -577,6 +578,7 @@
 \.BD.Recovery([a-zA-Z][0-9]*)?(\?.*)?$
 \.beaf([a-zA-Z][0-9]*)?(\?.*)?$
 \.beamed([a-zA-Z][0-9]*)?(\?.*)?$
+\.bear26([a-zA-Z][0-9]*)?(\?.*)?$
 \.Bear([a-zA-Z][0-9]*)?(\?.*)?$
 \.BEAST([a-zA-Z][0-9]*)?(\?.*)?$
 \.beef([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1870,6 +1872,7 @@
 \.ExecutionerPlus([a-zA-Z][0-9]*)?(\?.*)?$
 \.exilenceTG([a-zA-Z][0-9]*)?(\?.*)?$
 \.EXISC([a-zA-Z][0-9]*)?(\?.*)?$
+\.exitium([a-zA-Z][0-9]*)?(\?.*)?$
 \.exo([a-zA-Z][0-9]*)?(\?.*)?$
 \.Exocrypt([a-zA-Z][0-9]*)?(\?.*)?$
 \.exolocked([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4002,6 +4005,7 @@
 \.payransom([a-zA-Z][0-9]*)?(\?.*)?$
 \.payrms([a-zA-Z][0-9]*)?(\?.*)?$
 \.payrmts([a-zA-Z][0-9]*)?(\?.*)?$
+\.payrtms([a-zA-Z][0-9]*)?(\?.*)?$
 \.PaySafeGen([a-zA-Z][0-9]*)?(\?.*)?$
 \.pays([a-zA-Z][0-9]*)?(\?.*)?$
 \.Payt([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4011,6 +4015,7 @@
 \.PB([a-zA-Z][0-9]*)?(\?.*)?$
 \.PC-FunHACKED([a-zA-Z][0-9]*)?(\?.*)?$
 \.PClock([a-zA-Z][0-9]*)?(\?.*)?$
+\.pclocked([a-zA-Z][0-9]*)?(\?.*)?$
 \.pcqq([a-zA-Z][0-9]*)?(\?.*)?$
 \.PCRISKyCOMBOCLEANER([a-zA-Z][0-9]*)?(\?.*)?$
 \.PcS([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4503,6 +4508,7 @@
 \.recoveryfile*.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.RECOVERY_FILE*.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.RECOVERY_FILE.TXT([a-zA-Z][0-9]*)?(\?.*)?$
+\.RECOVERY_ID.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.RECOVERY_INFO.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.RECOVERY_INSTRUCTIONS.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.recovery_key.txt([a-zA-Z][0-9]*)?(\?.*)?$
@@ -5414,6 +5420,7 @@
 \.vCrypt1([a-zA-Z][0-9]*)?(\?.*)?$
 \.vcrypt([a-zA-Z][0-9]*)?(\?.*)?$
 \.vdul([a-zA-Z][0-9]*)?(\?.*)?$
+\.vect([a-zA-Z][0-9]*)?(\?.*)?$
 \.vector([a-zA-Z][0-9]*)?(\?.*)?$
 \.Vega([a-zA-Z][0-9]*)?(\?.*)?$
 \.vehu([a-zA-Z][0-9]*)?(\?.*)?$
