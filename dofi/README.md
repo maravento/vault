@@ -6,10 +6,10 @@
 
 <table>
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
         Domain Filtering
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
         Filtrado de Dominios
     </td>
   </tr>
@@ -39,10 +39,10 @@ Ubuntu 22.04/24.04 x64
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
         Ensure the input list has no <code>http://</code>, <code>https://</code>, or <code>www.</code> prefixes.
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
         Asegúrese de que la lista de entrada no tenga prefijos <code>http://</code>, <code>https://</code> o <code>www.</code>.
     </td>
   </tr>
@@ -60,7 +60,7 @@ Ubuntu 22.04/24.04 x64
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
         - Downloads public suffix TLDs from multiple sources.<br>
         - Removes invalid or duplicate TLDs.<br>
         - Filters domains to ensure they end with a valid TLD.<br>
@@ -68,7 +68,7 @@ Ubuntu 22.04/24.04 x64
         - Excludes duplicates from previously validated domains.<br>
         - Outputs results to a file.
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
         - Descarga TLD de sufijo público de varias fuentes.<br>
         - Elimina TLD no válidos o duplicados.<br>
         - Filtra dominios para garantizar que terminen con un TLD válido.<br>
@@ -83,10 +83,10 @@ Ubuntu 22.04/24.04 x64
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
         Replace <code>mylst.txt</code> with the name of your domain list:
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
         Reemplace <code>mylst.txt</code> con el nombre de su lista de dominios:
     </td>
   </tr>
@@ -101,11 +101,11 @@ python domfilter.py --input mylst.txt
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;"> 
+    <td style="width: 50%; vertical-align: top;"> 
         By default, output goes to <code>output.txt</code> and removed lines to <code>removed.txt</code>. <br> 
         You can customize your output with: <br>
     </td>
-    <td style="width: 50%; white-space: nowrap;"> 
+    <td style="width: 50%; vertical-align: top;"> 
         De forma predeterminada, la salida va a <code>output.txt</code> y las líneas eliminadas a <code>removed.txt</code>. <br>
         Puede personalizar su salida con: <br>
     </td>
@@ -128,13 +128,13 @@ ccTLDs, gTLDs, sTLDs, eTLDs, and 4LDs (file: `tlds.txt`)
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
       This script checks if each domain exists, using the host command, and cleans the input list, separating the output as follows:<br>
       - <code>hit.txt</code>: existing domains from your list.<br>
       - <code>fault.txt</code>: non-existent domains removed.<br>
       - <code>outdiff.txt</code>: Difference between input and output.<br>
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
       Este script verifica si cada dominio existe, con el comando host y limpia la lista de entrada, separando la salida de la siguiente manera:<br>
       - <code>hit.txt</code>: dominios existentes de su lista.<br>
       - <code>fault.txt</code>: dominios inexistentes eliminados.<br>
@@ -153,10 +153,10 @@ chmod +x domcheck.sh
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
         Replace <code>my_domain_list.txt</code> with your input list
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
         Reemplace <code>my_domain_list.txt</code> con su lista de entrada
     </td>
   </tr>
@@ -170,11 +170,11 @@ chmod +x domcheck.sh
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;"> 
+    <td style="width: 50%; vertical-align: top;"> 
         Replace <code>50</code> with the number of parallel processes. <br>
         If you provide no argument, by default, it will process 100 in parallel. <br>
     </td>
-    <td style="width: 50%; white-space: nowrap;"> 
+    <td style="width: 50%; vertical-align: top;"> 
         Reemplace <code>50</code> con el número de procesos paralelos. <br> 
         Si no proporciona argumento, por defecto, procesará 100 en paralelo. <br>
     </td>

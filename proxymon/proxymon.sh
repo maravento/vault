@@ -38,7 +38,7 @@ check_dependencies() {
         [apache2]="apache2 apache2-bin apache2-data apache2-doc apache2-utils"
     )
 
-    pkgs='wget git tar ipset libnotify-bin nbtscan libcgi-session-perl libgd-perl python-is-python3 coreutils sarg php libapache2-mod-php php-cli fonts-lato fonts-liberation fonts-dejavu'
+    pkgs='wget git tar ipset libnotify-bin nbtscan libcgi-session-perl libgd-perl python-is-python3 coreutils sarg php libapache2-mod-php php-cli php-curl fonts-lato fonts-liberation fonts-dejavu'
     for p in "${!pkgs_alts[@]}"; do
         pkgs+=" $p"
     done
@@ -227,10 +227,10 @@ install_proxymon() {
     chown root:root /etc/acl/blocktlds.txt
     echo -e "${GREEN}✅ blocktlds.txt downloaded${NC}"
 
-    wget -q --show-progress -N https://raw.githubusercontent.com/maravento/blackweb/refs/heads/master/bwupdate/lst/debugbl.txt -O /etc/acl/blocksites.txt
-    chmod 644 /etc/acl/blocksites.txt
-    chown root:root /etc/acl/blocksites.txt
-    echo -e "${GREEN}✅ blocksites.txt downloaded${NC}"
+    wget -q --show-progress -N https://raw.githubusercontent.com/maravento/blackweb/refs/heads/master/bwupdate/lst/debugbl.txt -O /etc/acl/blockdomains.txt
+    chmod 644 /etc/acl/blockdomains.txt
+    chown root:root /etc/acl/blockdomains.txt
+    echo -e "${GREEN}✅ blockdomains.txt downloaded${NC}"
 
     crontab -l 2>/dev/null | {
         cat
@@ -306,6 +306,7 @@ install_proxymon() {
       -e 's/^\s*upload_max_filesize\s*=.*/upload_max_filesize = 64M/' \
       -e 's/^\s*;*\s*opcache.memory_consumption\s*=.*/opcache.memory_consumption = 256/' \
       -e 's/^\s*;*\s*realpath_cache_size\s*=.*/realpath_cache_size = 16M/' \
+      -e 's/^\s*;*\s*allow_url_fopen\s*=.*/allow_url_fopen = On/' \
      /etc/php/$PHP_VERSION/apache2/php.ini
      
     # Hardening

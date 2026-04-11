@@ -6,10 +6,10 @@
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Script Repository.
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Repositorio de Scripts.
     </td>
   </tr>

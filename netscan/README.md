@@ -6,10 +6,10 @@
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
     NetScan is a portable tool for network scanning using Nmap on Windows, with an alternative GUI frontend based on Zenity. It deploys Nmap with all its dependencies silently and unattended, and allows executing different scanning levels while generating HTML reports.
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
     NetScan es una herramienta portable para realizar escaneos de red usando Nmap en Windows, con un frontend GUI alternativo basado en Zenity. Despliega Nmap con todas sus dependencias de forma silenciosa y desatendida, y permite ejecutar diferentes niveles de escaneo generando reportes en HTML.
     </td>
   </tr>
@@ -36,10 +36,10 @@
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Disable your Antivirus, Antimalware, SmartScreen or any other security solution in your Operating System, close all windows and check the date and time of your PC is correct. Unzip <code>netscan.exe (.zip)</code> to your desktop, execute it with double click (accept privileged execution) and follow the instructions on the screen.
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Desactive su Antivirus, Antimalware, SmartScreen o cualquier otra solución de seguridad en su Sistema Operativo, cierre todas las ventanas y verifique la fecha y hora de su PC sea la correcta. Descomprima <code>netscan.exe (.zip)</code> en el escritorio, ejecutarlo con doble clic (acepte la ejecución con privilegios) y siga las instrucciones en pantalla.
     </td>
   </tr>
@@ -49,10 +49,10 @@
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      <strong>Before continuing:</strong> If you have Nmap or Npcap already installed on your PC, it is recommended to uninstall them before using this tool to avoid version conflicts.
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      <strong>Antes de continuar:</strong> Si tiene Nmap o Npcap instalado en su PC, se recomienda desinstalarlo antes de usar esta herramienta para evitar conflictos de versiones.
     </td>
   </tr>
@@ -62,10 +62,10 @@
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Upon startup, it will prompt you to connect to your data network before continuing. Press OK to continue or Cancel to abort.
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Al iniciar, le pedirá que se conecte a su red de datos antes de continuar. Presione OK para continuar o Cancel para abortar.
     </td>
   </tr>
@@ -77,10 +77,10 @@
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Select the scan mode. Press OK to continue or Cancel to abort.
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Seleccione el modo de escaneo. Presione OK para continuar o Cancel para abortar.
     </td>
   </tr>
@@ -128,10 +128,10 @@
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      NetScan requires Npcap, included in its free version. This dependency is not installed automatically, as it is not an OEM version and does not support silent installation (<code>/S</code> option). You will need to manually complete the Npcap installation when prompted by the installer. Npcap's free version allows use on up to 5 machines. For more information, see <a href="https://npcap.com/oem/">Npcap OEM</a>.
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      NetScan requiere Npcap, incluido en su versión gratuita. La instalación de esta dependencia no es desatendida, ya que al no ser una versión OEM, no acepta instalación silenciosa (opción <code>/S</code>). Deberá completar manualmente la instalación de Npcap cuando el instalador la solicite. La versión gratuita de Npcap permite su uso en hasta 5 equipos. Para más información, consulte <a href="https://npcap.com/oem/">Npcap OEM</a>.
     </td>
   </tr>
@@ -143,10 +143,10 @@
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      NetScan will save the scan reports to the <code>Desktop\Report</code> folder, depending on the scan type, and each file will include a timestamp (date and time the scan was executed).
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      NetScan guardará los reportes de escaneo en la carpeta <code>Desktop\Report</code>, según el tipo de escaneo, y cada archivo incluirá un timestamp (fecha y hora en que se ejecutó el escaneo).
     </td>
   </tr>
@@ -156,10 +156,10 @@
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      NetScan sends information to the developer, only for the purpose of verifying that the installation has been completed successfully. This information is used exclusively for statistical purposes and to improve the installer, without collecting personal data or compromising user privacy. Example:
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      NetScan envía información al desarrollador, únicamente con el propósito de verificar que la instalación se haya completado de manera exitosa. Esta información se utiliza exclusivamente para fines estadísticos y de mejora del instalador, sin recopilar datos personales ni comprometer la privacidad del usuario. Ejemplo:
     </td>
   </tr>

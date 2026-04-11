@@ -6,10 +6,10 @@
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      <b>BlackShield</b> is an experimental project designed to block malicious patterns, including archival extensions associated with ransomware, malware, scraping, crawlers, bots, <a href="https://en.wikipedia.org/wiki/Internet_censorship_circumvention" target="_blank">circumvention</a>, Proxy, BitTorrent, Tor and other cybernetics. Its purpose is to prevent the spread of these items using access control lists and personalized rules.
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      <b>BlackShield</b> es un proyecto experimental diseñado para bloquear patrones maliciosos, incluyendo extensiones de archivo asociadas a ransomware, malware, scraping, crawlers, bots, <a href="https://en.wikipedia.org/wiki/Internet_censorship_circumvention" target="_blank">circumvention</a>, Proxy, BitTorrent, Tor y otras amenazas cibernéticas. Su objetivo es prevenir la propagación de estas amenazas usando listas de control de acceso y reglas personalizadas.
     </td>
   </tr>
@@ -42,10 +42,10 @@ python gitfolder.py https://github.com/maravento/vault/blackshield
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      This project contains files that may generate false positives.
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Este proyecto contiene archivos que pueden generar falsos positivos.
     </td>
   </tr>
@@ -57,10 +57,10 @@ python gitfolder.py https://github.com/maravento/vault/blackshield
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Open the terminal and run:
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Abra el terminal y ejecute:
     </td>
   </tr>
@@ -79,10 +79,10 @@ sudo find /etc/acl/ -type f -exec chmod 644 {} \;
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Modify your file <code>/etc/squid/squid.conf</code> and add the following rules:
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Modifique su archivo <code>/etc/squid/squid.conf</code> y agregue las siguientes reglas:
     </td>
   </tr>
@@ -136,10 +136,10 @@ http_access deny all
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Modify your <code>/etc/samba/smb.conf</code> file and add the list to the </code>veto files</code> directive to block the patterns and extensions. e.g:
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Modifique su archivo <code>/etc/samba/smb.conf</code> y agregue la lista a la directiva </code>veto files</code> para bloquear los patrones y extensiones. ej:
     </td>
   </tr>
@@ -154,14 +154,14 @@ http_access deny all
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
       Important:
       <ul>
         <li>You cannot include more than one list in <code>smb.conf</code> for the <code>veto files</code> directive.</li>
         <li>Use the <code>acl/smb/merge_veto.sh</code> script to merge the <code>ransom_veto.txt</code> (updated with <code>blackshield.sh</code>) and <code>common_veto.txt</code> (static. You can add or remove extensions manually) lists.</li>
       </ul>
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
       Importante:
       <ul>
         <li>No puede incluir más de una lista en <code>smb.conf</code> para la directiva <code>veto files</code>.</li>
@@ -175,10 +175,10 @@ http_access deny all
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      This project contains ACLs with non-exclusive strings, which can generate false positives, and Iptables firewall rules that slow down traffic and may not get the desired results. Note that string matching is intensive, unreliable, so you should consider it as a last resort.
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Este proyecto contiene ACLs con cadenas no exclusivas, que pueden generar falsos positivos y reglas de firewall Iptables que ralentizan el tráfico y puede no obtener los resultados deseados. Tenga en cuenta que la coincidencia de cadenas es intensiva, poco confiable, por tanto debe considerarla como último recurso.
     </td>
   </tr>

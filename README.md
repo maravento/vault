@@ -129,10 +129,10 @@ python gitfolder.py https://github.com/maravento/vault/project_name
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
       We thank all those who contributed to this project.
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
       Agradecemos a todos los que han contribuido con este proyecto.
     </td>
   </tr>

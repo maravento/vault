@@ -572,7 +572,7 @@ systemctl disable isc-dhcp-server6
 sed -i "s/^INTERFACESv4=.*/INTERFACESv4=\"$LAN_INTERFACE\"/" /etc/default/isc-dhcp-server
 
 # PHP
-nala install -y php libapache2-mod-php php-cli
+nala install -y php libapache2-mod-php php-cli php-curl
 
 # Detect PHP version
 if command -v php >/dev/null 2>&1; then

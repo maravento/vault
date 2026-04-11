@@ -6,10 +6,10 @@
 
 <table>
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
         DDoS Deflate is a lightweight script designed to mitigate distributed denial of service (DDoS) attacks on Linux servers by monitoring the number of active connections per IP address. IP addresses that exceed a predefined threshold will be blocked, reducing the load caused by malicious traffic.
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
         DDoS Deflate es un script liviano, diseñado para mitigar ataques de denegación de servicio distribuido (DDoS) en servidores Linux al monitorear la cantidad de conexiones activas por dirección IP. Las IP que excedan un umbral predefinido serán bloqueadas, reduciendo la carga causada por el tráfico malicioso.
     </td>
   </tr>
@@ -61,10 +61,10 @@ sudo rm -rf /usr/local/ddos && sudo crontab -l | grep -v '/usr/local/ddos/ddos.s
 
 <table>
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
         The script runs every minute. If an IP reaches 150 simultaneous active connections, it will be banned for 600 seconds (10 minutes). You can modify this behavior by editing the <code>/usr/local/ddos/ddos.conf</code> file and changing the values of <code>BAN_LIMIT=150</code> and <code>BAN_PERIOD=600</code>. By default, the IPs of the system running DDoS-Deflate are excluded from banning.
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
         El script se ejecuta cada minuto. Si una IP alcanza 150 conexiones activas simultáneamente, será baneada durante 600 segundos (10 minutos). Puede modificar este comportamiento, editando el archivo <code>/usr/local/ddos/ddos.conf</code> y cambiando los valores de <code>BAN_LIMIT=150</code> y <code>BAN_PERIOD=600</code>. Por defecto, las IPs del sistema que ejecuta DDoS-Deflate están excluidas del baneo. 
     </td>
   </tr>
@@ -101,10 +101,10 @@ BANNED: 104.91.161.199 with 166 connections (a104-91-161-199.deploy.static.akama
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      This project has reached EOL - EOS. No longer supported or updated.
     </td>
-    <td style="width: 50%; white-space: nowrap;">
+    <td style="width: 50%; vertical-align: top;">
      Este proyecto a alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.
     </td>
   </tr>
