@@ -885,13 +885,6 @@ sudo ./uniopos_nojava.sh
   </tr>
 </table>
 
-## PROJECT LICENSES
-
----
-
-[![GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl.txt)
-[![License: CC BY-SA 4.0](https://img.shields.io/badge/License-CC_BY--SA_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-sa/4.0/)
-
 ## DISCLAIMER
 
 ---
@@ -905,10 +898,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     Maravento Studio has no relationship with the developers of uniCenta OPOS. We also don't use it, we don't promote it, and we don't provide support. Maravento Studio only supports the uniOPOS installer, which is an open source project, sponsored by <a href="https://co.linkedin.com/in/lancord" target="_blank">UuniOPOS SAS</a>. Only the sponsor of this installer may use it for commercial purposes.
+     Maravento Studio has no relationship with the developers of uniCenta OPOS. We also don't use it, we don't promote it, and we don't provide support. Maravento Studio only supports the uniOPOS installer, which is an open source project.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Maravento Studio no tiene ninguna relación con los desarrolladores de uniCenta OPOS. Tampoco lo usamos, no lo promocionamos y no brindamos soporte. Maravento Studio solo brinda soporte al instalador uniOPOS, que es un proyecto de código abierto, patrocinado por <a href="https://co.linkedin.com/in/lancord" target="_blank">uniOPOS SAS</a>. Solo el patrocinador de este instalador, podrá usarlo con fines comerciales.
+     Maravento Studio no tiene ninguna relación con los desarrolladores de uniCenta OPOS. Tampoco lo usamos, no lo promocionamos y no brindamos soporte. Maravento Studio solo brinda soporte al instalador uniOPOS, que es un proyecto de código abierto.
     </td>
   </tr>
 </table>

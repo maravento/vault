@@ -148,8 +148,21 @@ python gitfolder.py https://github.com/maravento/vault/project_name
 
 ---
 
-[![GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl.txt)
-[![CC BY-NC-ND 4.0](https://img.shields.io/badge/License-CC_BY--NC--ND_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-nd/4.0/deed.en)
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      This project uses a dual-licensing model to balance software freedom with content protection:
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Este proyecto utiliza un modelo de licencia dual para equilibrar la libertad del software con la protección del contenido:
+    </td>
+  </tr>
+</table>
+
+| Content | Licensed Under |
+|---|---|
+|Scripts, Binaries, Infrastructure|[![GPL-3.0](https://img.shields.io/badge/Open_Core-GPLv3-blue.svg?style=for-the-badge&labelWidth=120&logoWidth=20)](https://www.gnu.org/licenses/gpl.txt)|
+|RAG, Workers, Specialized Modules, Docs|[![CC](https://img.shields.io/badge/Core_Engine-CC_BY--NC--ND_4.0-lightgrey.svg?style=for-the-badge&labelWidth=120&logoWidth=20)](https://creativecommons.org/licenses/by-nc-nd/4.0/)|
 
 ## DISCLAIMER
 

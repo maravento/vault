@@ -110,13 +110,6 @@ BANNED: 104.91.161.199 with 166 connections (a104-91-161-199.deploy.static.akama
   </tr>
 </table>
 
-## PROJECT LICENSES
-
----
-
-[![License: Artistic-1.0](https://img.shields.io/badge/License-Artistic%201.0-0298c3.svg)](https://github.com/maravento/vault/blob/master/ddos/LICENSE)
-[![License: CC BY-SA 4.0](https://img.shields.io/badge/License-CC_BY--SA_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-sa/4.0/)
-
 ## DISCLAIMER
 
 ---
