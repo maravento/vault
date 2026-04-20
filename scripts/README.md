@@ -34,6 +34,10 @@ python gitfolder.py https://github.com/maravento/vault/scripts
 
 Tested on: Ubuntu 22.04/24.04 x64
 
+#### AI
+
+- [AI Stack Manager - Local LLM installer (Docker + Ollama + Open WebUI, with optional OpenCode support)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/aistack.sh)
+
 #### Application and Deployment Utilities
 
 - [Crypto Notify (Top 5)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cryptonotify.sh)
