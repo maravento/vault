@@ -1104,7 +1104,9 @@ LLM_URL=https://your-llm-provider.com/endpoint?key={key}</code></pre>
       <br><br>
       <b>🔒 Security:</b> The <code>.env</code> file is protected by the virtualhost configuration and is not publicly accessible. Access attempts return <code>403 Forbidden</code>.
       <br><br>
-      <b>🔄 Rate Limits & Retries:</b> LLM APIs may experience congestion depending on demand. SquidAI implements an automatic retry mechanism: up to <b>4 attempts</b> with progressive delays (4s, 8s, 15s) before giving up. If the API is temporarily unavailable, the assistant will display retry messages. After all attempts fail, it will show a message similar to the following:
+      <b>🔄 Rate Limits & Retries:</b> LLM APIs may experience congestion depending on demand. SquidAI implements an automatic retry mechanism: up to <b>4 attempts</b> with progressive delays (4s, 8s, 15s) before giving up. If the API is temporarily unavailable, the assistant will display retry messages. After all attempts fail, it will show a message (check table).
+      <br><br>
+      <b>🔌 LLM Status:</b> The connection indicator shows three states: <b>Checking</b> (yellow), <b>Connected</b> (green), and <b>Offline</b> (red) (check table).
     </td>
     <td style="width: 50%; vertical-align: top;">
       <b>🔧 Configuración de API:</b> SquidAI requiere una API key de LLM válida para funcionar. Edite el archivo de configuración:
@@ -1116,8 +1118,10 @@ LLM_URL=https://url-de-tu-proveedor-llm.com/endpoint?key={key}</code></pre>
       <br><br>
       <b>🔒 Seguridad:</b> El archivo <code>.env</code> está protegido por la configuración del virtualhost y no es accesible públicamente. Los intentos de acceso devuelven <code>403 Forbidden</code>.
       <br><br>
-      <b>🔄 Límites de tasa y reintentos:</b> Las APIs LLM pueden experimentar congestión según la demanda. SquidAI implementa un mecanismo de reintento automático: hasta <b>4 intentos</b> con retardos progresivos (4s, 8s, 15s) antes de desistir. Si la API no está disponible temporalmente, el asistente mostrará un mensaje de reintento y al finalizar, mostrará un mensaje similar al siguiente:
-    </table>
+      <b>🔄 Límites de tasa y reintentos:</b> Las APIs LLM pueden experimentar congestión según la demanda. SquidAI implementa un mecanismo de reintento automático: hasta <b>4 intentos</b> con retardos progresivos (4s, 8s, 15s) antes de desistir. Si la API no está disponible temporalmente, el asistente mostrará un mensaje de reintento y al finalizar, mostrará un mensaje (ver tabla).
+      <br><br>
+      <b>🔌 Estado LLM:</b> El indicador de conexión muestra tres estados: <b>Checking</b> (amarillo), <b>Connected</b> (verde) y <b>Offline</b> (rojo) (ver tabla).
+    </td>
   </tr>
 </table>
 
@@ -1125,6 +1129,25 @@ LLM_URL=https://url-de-tu-proveedor-llm.com/endpoint?key={key}</code></pre>
 | ------- | ----------- | ----------- |
 | <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/squidai-retry.png" width="400" height="80"> | Example of the automatic retry message. | Ejemplo del mensaje de reintento automático. |
 | <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/squidai-api.png" width="400" height="80"> | API Down Example | Ejemplo de API caída |
+
+#### LLM status
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+    <b>🔌 LLM Status:</b> The connection indicator shows three states: <b>Checking</b> (yellow), <b>Connected</b> (green), and <b>Offline</b> (red) (check table).
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+    <b>🔌 Estado LLM:</b> El indicador de conexión muestra tres estados: <b>Checking</b> (amarillo), <b>Connected</b> (verde) y <b>Offline</b> (rojo) (ver tabla).
+    </td>
+  </tr>
+</table>
+
+| Message | Description | Descripción |
+| ------- | ----------- | ----------- |
+| <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/LLM-checking.png" width="150"> | Checking LLM connection | Verificando conexión con el LLM |
+| <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/LLM-connected.png" width="150"> | LLM connected and ready | LLM conectado y listo |
+| <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/LLM-offline.png" width="150"> | LLM unreachable or offline | LLM inaccesible o fuera de línea |
 
 ### PROXYMON LOGS
 

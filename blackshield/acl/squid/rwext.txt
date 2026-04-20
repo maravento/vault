@@ -1588,6 +1588,7 @@
 \.DoggeWiper([a-zA-Z][0-9]*)?(\?.*)?$
 \.dohfzdod([a-zA-Z][0-9]*)?(\?.*)?$
 \.dolphin([a-zA-Z][0-9]*)?(\?.*)?$
+\.domination([a-zA-Z][0-9]*)?(\?.*)?$
 \.domino([a-zA-Z][0-9]*)?(\?.*)?$
 \.domn([a-zA-Z][0-9]*)?(\?.*)?$
 \.Done([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1727,6 +1728,7 @@
 \.Elder([a-zA-Z][0-9]*)?(\?.*)?$
 \.eldritch([a-zA-Z][0-9]*)?(\?.*)?$
 \.elibe([a-zA-Z][0-9]*)?(\?.*)?$
+\.elite_ransom.html([a-zA-Z][0-9]*)?(\?.*)?$
 \.ELITTE87([a-zA-Z][0-9]*)?(\?.*)?$
 \.ELONMUSKISGREEDY([a-zA-Z][0-9]*)?(\?.*)?$
 \.Elons([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3603,6 +3605,7 @@
 \.NBA([a-zA-Z][0-9]*)?(\?.*)?$
 \.nbes([a-zA-Z][0-9]*)?(\?.*)?$
 \.nbl([a-zA-Z][0-9]*)?(\?.*)?$
+\.NBLock([a-zA-Z][0-9]*)?(\?.*)?$
 \.NBR([a-zA-Z][0-9]*)?(\?.*)?$
 \.nbwr([a-zA-Z][0-9]*)?(\?.*)?$
 \.nbzi([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4456,6 +4459,7 @@
 \.readmefordecrypt.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.read_me_fucking_bitch([a-zA-Z][0-9]*)?(\?.*)?$
 \.README-GENTLEMEN.txt([a-zA-Z][0-9]*)?(\?.*)?$
+\.README_NBLOCK.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.README-NOBODY.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.READ_ME_NOW.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.README_NOW_ZAROK.txt([a-zA-Z][0-9]*)?(\?.*)?$
@@ -5237,6 +5241,7 @@
 \.topi([a-zA-Z][0-9]*)?(\?.*)?$
 \.tor13([a-zA-Z][0-9]*)?(\?.*)?$
 \.Tor([a-zA-Z][0-9]*)?(\?.*)?$
+\.torbrowsertor([a-zA-Z][0-9]*)?(\?.*)?$
 \.Torchwood([a-zA-Z][0-9]*)?(\?.*)?$
 \.tornado([a-zA-Z][0-9]*)?(\?.*)?$
 \.Tornado([a-zA-Z][0-9]*)?(\?.*)?$
