@@ -74,7 +74,7 @@ Tested on: Ubuntu 22.04/24.04 x64
 - [ngLocalhost Tunnel (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/nglocalhost.sh)
 - [Port Kill (check port with: `sudo netstat -lnp | grep "port"`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/portkill.sh)
 - [Serveo Tunnel (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/serveo.sh)
-- [Unifi Hotspot Client Access (via Linux Server with Iptables)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/unifihotspot.sh)
+- [Unifi Hotspot Client Access](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/unhotspot.sh)
 - [Wireguard VPN (install|uninstall - server|client)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/wireguard.sh)
 
 #### Proxy

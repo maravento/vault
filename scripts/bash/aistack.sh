@@ -1,4 +1,6 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# maravento.com
+#
 # =======================================================================================
 #  AI STACK MANAGER - Dockerized Version
 #  Complete containerized stack: Ollama + LLM + Open WebUI + Docker + Portainer
@@ -76,6 +78,83 @@ detect_gpu() {
         fi
     else
         echo "ℹ️  No NVIDIA GPU detected (will use CPU for Ollama)"
+    fi
+}
+
+# ── Detect native (non-Docker) installations ──────────────────────────────────
+detect_native_components() {
+    NATIVE_OLLAMA=false
+    NATIVE_OPENWEBUI=false
+    NATIVE_PORTAINER=false
+
+    # Ollama native: binary or install directory
+    if command -v ollama &>/dev/null || \
+       [ -f "/usr/local/bin/ollama" ] || \
+       [ -f "/usr/bin/ollama" ] || \
+       [ -d "/usr/share/ollama" ]; then
+        NATIVE_OLLAMA=true
+    fi
+
+    # Open WebUI native: pip package or process on port 8080 (outside Docker)
+    if pip show open-webui &>/dev/null 2>&1 || \
+       (ss -tlnp 2>/dev/null | grep -q ":${OPEN_WEBUI_PORT}" && \
+        ! docker ps --format '{{.Ports}}' 2>/dev/null | grep -q "${OPEN_WEBUI_PORT}"); then
+        NATIVE_OPENWEBUI=true
+    fi
+
+    # Portainer native: process on port 9000 outside Docker
+    if ss -tlnp 2>/dev/null | grep -q ":${PORTAINER_PORT}" && \
+       ! docker ps --format '{{.Ports}}' 2>/dev/null | grep -q "${PORTAINER_PORT}"; then
+        NATIVE_PORTAINER=true
+    fi
+}
+
+# ── Remove detected native components (interactive) ───────────────────────────
+remove_native_components() {
+    local found=false
+
+    if [ "$NATIVE_OLLAMA" = true ]; then
+        found=true
+        echo ""
+        warn "Native Ollama installation detected outside Docker"
+        echo -e "  ${DIM}Paths: /usr/local/bin/ollama  /usr/share/ollama  ~/.ollama${RESET}"
+        read -rp "  Remove native Ollama? [y/N]: " confirm
+        if [[ "$confirm" =~ ^[yY]$ ]]; then
+            systemctl stop ollama 2>/dev/null || true
+            systemctl disable ollama 2>/dev/null || true
+            rm -f /etc/systemd/system/ollama.service
+            systemctl daemon-reload 2>/dev/null || true
+            rm -f /usr/local/bin/ollama /usr/bin/ollama
+            rm -rf /usr/share/ollama
+            rm -rf "/home/$local_user/.ollama"
+            id ollama &>/dev/null && userdel ollama 2>/dev/null || true
+            ok "Native Ollama removed"
+        fi
+    fi
+
+    if [ "$NATIVE_OPENWEBUI" = true ]; then
+        found=true
+        echo ""
+        warn "Native Open WebUI installation detected outside Docker"
+        read -rp "  Remove native Open WebUI (pip uninstall)? [y/N]: " confirm
+        if [[ "$confirm" =~ ^[yY]$ ]]; then
+            pip uninstall -y open-webui 2>/dev/null || true
+            ok "Native Open WebUI removed"
+        fi
+    fi
+
+    if [ "$NATIVE_PORTAINER" = true ]; then
+        found=true
+        echo ""
+        warn "A process was detected on port ${PORTAINER_PORT} outside Docker (possible native Portainer)"
+        read -rp "  Do you want to review and stop it manually? [y/N]: " confirm
+        if [[ "$confirm" =~ ^[yY]$ ]]; then
+            ss -tlnp | grep ":${PORTAINER_PORT}"
+        fi
+    fi
+
+    if [ "$found" = false ]; then
+        ok "No native installations detected outside Docker"
     fi
 }
 
@@ -558,36 +637,55 @@ install_opencode() {
 # ── Uninstall opencode only ───────────────────────────────────────────────────
 uninstall_opencode() {
     step "Uninstalling opencode"
-    
+
+    # Check if opencode is actually installed anywhere
+    local found=false
+    command -v opencode &>/dev/null                          && found=true
+    [ -f "/usr/local/bin/opencode" ]                        && found=true
+    [ -d "/home/$local_user/.opencode" ]                    && found=true
+    command -v npm &>/dev/null && npm list -g opencode-ai &>/dev/null 2>&1 && found=true
+
+    if [ "$found" = false ]; then
+        info "OpenCode is not installed — nothing to do"
+        return 0
+    fi
+
     # Remove system symlink
     if [ -f "/usr/local/bin/opencode" ]; then
         rm -f "/usr/local/bin/opencode"
         ok "Removed /usr/local/bin/opencode"
     fi
-    
+
     # Remove user installation (as the real user)
     if [ -d "/home/$local_user/.opencode" ]; then
         sudo -u "$local_user" rm -rf "/home/$local_user/.opencode"
         ok "Removed /home/$local_user/.opencode"
     fi
-    
+
     # Uninstall via npm if installed that way
     if command -v npm &>/dev/null && npm list -g opencode-ai &>/dev/null 2>&1; then
         npm uninstall -g opencode-ai
         ok "OpenCode uninstalled via npm"
     fi
-    
-    # Remove shell config lines (optional, ask first)
-    echo ""
-    read -rp "  Remove OpenCode entries from shell config files (.bashrc, .zshrc)? [y/N]: " confirm
-    if [[ "$confirm" =~ ^[yY]$ ]]; then
-        for config in "/home/$local_user/.bashrc" "/home/$local_user/.zshrc" "/home/$local_user/.profile" "/home/$local_user/.bash_profile"; do
-            if [ -f "$config" ]; then
-                sed -i '/opencode/d' "$config" 2>/dev/null && ok "Cleaned $config"
-            fi
-        done
+
+    # Remove shell config lines only if any config file actually contains 'opencode'
+    local has_entries=false
+    for config in "/home/$local_user/.bashrc" "/home/$local_user/.zshrc" "/home/$local_user/.profile" "/home/$local_user/.bash_profile"; do
+        [ -f "$config" ] && grep -q "opencode" "$config" 2>/dev/null && has_entries=true && break
+    done
+
+    if [ "$has_entries" = true ]; then
+        echo ""
+        read -rp "  Remove OpenCode entries from shell config files (.bashrc, .zshrc)? [y/N]: " confirm
+        if [[ "$confirm" =~ ^[yY]$ ]]; then
+            for config in "/home/$local_user/.bashrc" "/home/$local_user/.zshrc" "/home/$local_user/.profile" "/home/$local_user/.bash_profile"; do
+                if [ -f "$config" ] && grep -q "opencode" "$config" 2>/dev/null; then
+                    sed -i '/opencode/d' "$config" && ok "Cleaned $config"
+                fi
+            done
+        fi
     fi
-    
+
     ok "opencode completely uninstalled"
 }
 
@@ -650,30 +748,52 @@ uninstall_open_webui() {
     else
         warn "Open Web UI container not found"
     fi
+
+    # ── Offer to remove native Open WebUI if found ─────────────────────────
+    echo ""
+    step "Checking for native Open WebUI outside Docker..."
+    detect_native_components
+    if [ "$NATIVE_OPENWEBUI" = true ]; then
+        remove_native_components
+    else
+        ok "No native Open WebUI installation detected"
+    fi
 }
 
 # Uninstall Ollama container only
 uninstall_ollama_container() {
     step "Uninstalling Ollama container"
-    
-    if docker ps -a --format '{{.Names}}' | grep -q "^ollama$"; then
+
+    if ! command -v docker &>/dev/null; then
+        info "Docker is not installed — skipping container removal"
+    elif docker ps -a --format '{{.Names}}' | grep -q "^ollama$"; then
         docker stop ollama 2>/dev/null
         docker rm ollama 2>/dev/null
         ok "Ollama container removed"
-        
+
         read -rp "  Remove Ollama image? [y/N]: " confirm
         if [[ "$confirm" =~ ^[yY]$ ]]; then
             docker rmi ollama/ollama:latest 2>/dev/null
             ok "Ollama image removed"
         fi
-        
+
         read -rp "  Remove downloaded models? [y/N]: " confirm
         if [[ "$confirm" =~ ^[yY]$ ]]; then
             rm -rf "${AI_BASE_DIR}/ollama/models"
             ok "Models removed"
         fi
     else
-        warn "Ollama container not found"
+        info "Ollama container not found — skipping"
+    fi
+
+    # ── Offer to remove native Ollama if found ─────────────────────────────
+    echo ""
+    step "Checking for native Ollama outside Docker..."
+    detect_native_components
+    if [ "$NATIVE_OLLAMA" = true ]; then
+        remove_native_components
+    else
+        ok "No native Ollama installation detected"
     fi
 }
 
@@ -737,41 +857,77 @@ uninstall_all() {
         info "Operation cancelled"
         return 0
     fi
-    
-    step "Stopping and removing AI Stack containers..."
-    cd "${AI_BASE_DIR}" 2>/dev/null && docker compose down -v 2>/dev/null || true
-    
-    step "Removing Portainer..."
-    docker stop portainer 2>/dev/null && docker rm portainer 2>/dev/null || true
-    docker volume rm portainer_data 2>/dev/null || true
-    
     echo ""
-    read -rp "  Remove Docker completely? [y/N]: " remove_docker
-    if [[ "$remove_docker" =~ ^[yY]$ ]]; then
-        step "Uninstalling Docker..."
-        for pkg in docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker.io docker-doc docker-compose docker-compose-v2; do
-            dpkg -s "$pkg" &>/dev/null && apt-get purge -y "$pkg"
-        done
-        rm -rf /var/lib/docker
-        rm -f /etc/apt/sources.list.d/docker.list
-        apt autoremove -y
-        apt-get clean
-        ok "Docker removed"
+
+    # ── AI Stack containers (Ollama + Open WebUI) ──────────────────────────
+    step "AI Stack containers (Ollama + Open WebUI)..."
+    if command -v docker &>/dev/null && [ -f "${AI_BASE_DIR}/docker-compose.yml" ]; then
+        cd "${AI_BASE_DIR}" && docker compose down -v 2>/dev/null || true
+        ok "Containers stopped and removed"
+    else
+        info "Not found — skipping"
     fi
-    
+
+    # ── Portainer ──────────────────────────────────────────────────────────
+    step "Portainer..."
+    if command -v docker &>/dev/null && docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^portainer$"; then
+        docker stop portainer 2>/dev/null || true
+        docker rm portainer 2>/dev/null || true
+        docker volume rm portainer_data 2>/dev/null || true
+        ok "Portainer removed"
+    else
+        info "Not found — skipping"
+    fi
+
+    # ── Docker ─────────────────────────────────────────────────────────────
+    step "Docker..."
+    if command -v docker &>/dev/null; then
+        read -rp "  Remove Docker completely? [y/N]: " remove_docker
+        if [[ "$remove_docker" =~ ^[yY]$ ]]; then
+            for pkg in docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker.io docker-doc docker-compose docker-compose-v2; do
+                dpkg -s "$pkg" &>/dev/null && apt-get purge -y "$pkg"
+            done
+            rm -rf /var/lib/docker
+            rm -rf /var/lib/containerd
+            rm -f /etc/apt/sources.list.d/docker.list
+            apt autoremove -y
+            apt-get clean
+            ok "Docker removed"
+        else
+            info "Docker kept"
+        fi
+    else
+        info "Not installed — skipping"
+    fi
+
+    # ── AI data directory ──────────────────────────────────────────────────
+    step "AI data directory (${AI_BASE_DIR})..."
+    if [ -d "${AI_BASE_DIR}" ]; then
+        read -rp "  Remove all AI data? [y/N]: " remove_data
+        if [[ "$remove_data" =~ ^[yY]$ ]]; then
+            rm -rf "${AI_BASE_DIR}"
+            ok "Data removed"
+        else
+            info "Data kept"
+        fi
+    else
+        info "Not found — skipping"
+    fi
+
+    # ── OpenCode ───────────────────────────────────────────────────────────
+    step "OpenCode..."
+    if command -v opencode &>/dev/null || [ -f "/usr/local/bin/opencode" ] || [ -d "/home/$local_user/.opencode" ]; then
+        uninstall_opencode
+    else
+        info "Not installed — skipping"
+    fi
+
+    # ── Native installations outside Docker ────────────────────────────────
+    step "Checking for native installations outside Docker..."
+    detect_native_components
+    remove_native_components
+
     echo ""
-    read -rp "  Remove all AI data? [y/N]: " remove_data
-    if [[ "$remove_data" =~ ^[yY]$ ]]; then
-        rm -rf "${AI_BASE_DIR}"
-        ok "Data removed"
-    fi
-    
-    # Remove opencode if installed
-    if command -v opencode &>/dev/null; then
-        rm -f "$(which opencode)"
-        ok "opencode removed"
-    fi
-    
     ok "AI Stack completely uninstalled"
 }
 
@@ -840,14 +996,136 @@ status_all() {
     info "Base directory: ${AI_BASE_DIR}"
 }
 
+# ── Update components ──────────────────────────────────────────────────────────
+update_components() {
+    step "Updating AI Stack Components"
+    
+    if [ ! -f "${AI_BASE_DIR}/docker-compose.yml" ]; then
+        err "Stack not deployed. Run './aistack.sh install' first"
+        return 1
+    fi
+    
+    cd "${AI_BASE_DIR}"
+    
+    echo ""
+    echo -e "  ${BOLD}Components to update:${RESET}"
+    echo -e "  ${WHITE}1)${RESET} Update All (Docker + Portainer + Ollama + LLM + Open WebUI)"
+    echo -e "  ${WHITE}2)${RESET} Update Ollama + LLM + Open WebUI"
+    echo -e "  ${WHITE}3)${RESET} Update Docker + Portainer"
+    echo -e "  ${WHITE}4)${RESET} Update OpenCode (if installed)"
+    echo -e "  ${WHITE}0)${RESET} Back"
+    echo ""
+    read -rp "  → Select option: " update_opt
+    
+    case "$update_opt" in
+        1)
+            step "Updating EVERYTHING..."
+            # Update AI Stack
+            docker pull ollama/ollama:latest
+            docker pull ghcr.io/open-webui/open-webui:main
+            docker compose up -d --pull always --force-recreate
+            
+            # Update Portainer (Silencioso)
+            info "Updating Portainer..."
+            docker stop portainer >/dev/null 2>&1 || true
+            docker rm portainer >/dev/null 2>&1 || true
+            docker pull portainer/portainer-ce:latest
+            docker run -d -p ${PORTAINER_PORT}:9000 --name portainer --restart=always \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                -v portainer_data:/data portainer/portainer-ce:latest >/dev/null
+            
+            docker image prune -f >/dev/null
+            ok "Full stack updated"
+            ;;
+        2)
+            step "Updating Ollama, LLM and Web UI..."
+            docker pull ollama/ollama:latest
+            docker pull ghcr.io/open-webui/open-webui:main
+            docker compose up -d --pull always --force-recreate
+            docker image prune -f >/dev/null
+            ok "AI components updated"
+            ;;
+        3)
+            step "Updating Docker Engine & Portainer..."
+            # Actualización de binarios del sistema
+            apt-get update -qq
+            apt-get install --only-upgrade -y docker-ce docker-ce-cli containerd.io >/dev/null 2>&1
+            
+            # Update Portainer (Silencioso)
+            docker stop portainer >/dev/null 2>&1 || true
+            docker rm portainer >/dev/null 2>&1 || true
+            docker pull portainer/portainer-ce:latest
+            docker run -d -p ${PORTAINER_PORT}:9000 --name portainer --restart=always \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                -v portainer_data:/data portainer/portainer-ce:latest >/dev/null
+            
+            docker image prune -f >/dev/null
+            ok "Docker and Portainer updated"
+            ;;
+        4)
+            if command -v opencode &>/dev/null; then
+                step "Updating opencode..."
+                if command -v npm &>/dev/null && npm list -g opencode-ai &>/dev/null 2>&1; then
+                    npm update -g opencode-ai >/dev/null 2>&1
+                    ok "OpenCode updated via npm"
+                else
+                    info "Reinstalling via official script..."
+                    sudo -u "$local_user" curl -fsSL https://opencode.ai/install | sudo -u "$local_user" bash >/dev/null 2>&1
+                    ok "OpenCode reinstalled"
+                fi
+            else
+                warn "OpenCode not installed"
+            fi
+            ;;
+        0)
+            return
+            ;;
+        *)
+            warn "Invalid option"
+            ;;
+    esac
+    
+    echo ""
+    ok "Update completed"
+    info "Note: For Open WebUI changes, remember to refresh (Ctrl+F5)."
+}
+
 # ── Full installation (without OpenCode) ──────────────────────────────────────
 install_all() {
     step "Full AI Stack Installation (Dockerized)"
     echo ""
-    
+
+    # ── Check for native installations before proceeding ──────────────────
+    detect_native_components
+    local native_warn=false
+    [ "$NATIVE_OLLAMA" = true ]     && native_warn=true
+    [ "$NATIVE_OPENWEBUI" = true ]  && native_warn=true
+    [ "$NATIVE_PORTAINER" = true ]  && native_warn=true
+
+    if [ "$native_warn" = true ]; then
+        echo ""
+        echo -e "  ${YELLOW}┌─────────────────────────────────────────────────────┐${RESET}"
+        echo -e "  ${YELLOW}│  ⚠  NATIVE COMPONENTS DETECTED OUTSIDE DOCKER       │${RESET}"
+        echo -e "  ${YELLOW}└─────────────────────────────────────────────────────┘${RESET}"
+        echo ""
+        [ "$NATIVE_OLLAMA" = true ]     && warn "Ollama is installed natively on this system"
+        [ "$NATIVE_OPENWEBUI" = true ]  && warn "Open WebUI is installed natively on this system"
+        [ "$NATIVE_PORTAINER" = true ]  && warn "A service is using port ${PORTAINER_PORT} outside Docker"
+        echo ""
+        echo -e "  ${DIM}These may conflict with the Docker-based installation${RESET}"
+        echo -e "  ${DIM}(port conflicts, shared resources, etc.)${RESET}"
+        echo ""
+        read -rp "  Continue with Docker installation anyway? [y/N]: " proceed
+        if [[ ! "$proceed" =~ ^[yY]$ ]]; then
+            info "Installation cancelled"
+            return 0
+        fi
+        echo ""
+    fi
+
     detect_gpu
     echo ""
-    
+
     select_model
     echo ""
     
@@ -932,10 +1210,10 @@ menu_uninstall() {
 
         case "$opt" in
             1)  uninstall_all; return ;;
-            2)  uninstall_open_webui; pause; return ;;
-            3)  uninstall_ollama_container; pause; return ;;
-            4)  uninstall_portainer; pause; return ;;
-            5)  uninstall_models_only; pause; return ;;
+            2)  uninstall_open_webui; return ;;
+            3)  uninstall_ollama_container; return ;;
+            4)  uninstall_portainer; return ;;
+            5)  uninstall_models_only; return ;;
             0)  return ;;
             *)  warn "Invalid option" ;;
         esac
@@ -951,9 +1229,10 @@ menu_main() {
         echo -e "  ${WHITE}1)${RESET}  Install Stack (Docker/Portainer + Ollama/LLM + Open WebUI)"
         echo -e "  ${WHITE}2)${RESET}  Install/Uninstall OpenCode (optional CLI tool)"
         echo -e "  ${WHITE}3)${RESET}  Manage LLM Models (install/remove/change)"
-        echo -e "  ${WHITE}4)${RESET}  Uninstall Stack Components"
-        echo -e "  ${WHITE}5)${RESET}  Status"
-        echo -e "  ${WHITE}6)${RESET}  View logs"
+        echo -e "  ${WHITE}4)${RESET}  Update Components"
+        echo -e "  ${WHITE}5)${RESET}  Uninstall Stack Components"
+        echo -e "  ${WHITE}6)${RESET}  Status"
+        echo -e "  ${WHITE}7)${RESET}  View logs"
         echo -e "  ${WHITE}0)${RESET}  Exit"
         echo ""
         line
@@ -964,15 +1243,14 @@ menu_main() {
             1)  install_all; pause ;;
             2)  menu_opencode; pause ;;
             3)  menu_models; pause ;;
-            4)  menu_uninstall; pause ;;
-            5)  detect_gpu; status_all; pause ;;
-            6)  if [ -f "${AI_BASE_DIR}/docker-compose.yml" ]; then
+            4)  update_components; pause ;;      # ← NUEVO: llama a la función
+            5)  menu_uninstall; pause ;;         # ← antes era 4
+            6)  detect_gpu; status_all; pause ;; # ← antes era 5
+            7)  if [ -f "${AI_BASE_DIR}/docker-compose.yml" ]; then
                     cd "${AI_BASE_DIR}" && docker compose logs | less -R
-                else
-                    echo "Stack not deployed"
                 fi
                 pause ;;
-            0)  echo -e "\n  ${DIM}Goodbye 👋${RESET}\n"; exit 0 ;;
+            0)  exit ;;
             *)  warn "Invalid option" ;;
         esac
     done
