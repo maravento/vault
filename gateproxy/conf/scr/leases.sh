@@ -37,7 +37,8 @@ fi
 
 ### VARIABLES
 # path to acl
-aclroute="/etc/acl"
+acl_path="/etc/acl"
+dhcp_path="/etc/dhcp"
 # date
 date=$(date)
 
@@ -82,13 +83,13 @@ function is_iscdhcp() {
             if $(echo "$line" | grep -E -q 'client-hostname "[^"]+";'); then
                 host=$(echo "$line" | cut -d"\"" -f2 | tr " " "_")
                 # If the client did not have an associated name, its entry is updated / Si el cliente no tenía un nombre asociado, se actualiza su entrada
-                if [[ $mac_address != "" && $(grep -E "$mac_address;[^;]+;no_name_[^;]+;" "$aclroute"/mac-* "$aclroute"/blockdhcp.txt) != "" ]]; then
-                    line_aux=$(grep -E "$mac_address;[^;]+;no_name_[^;]+;" "$aclroute"/mac-* "$aclroute"/blockdhcp.txt | cut -d":" -f2-)
+                if [[ $mac_address != "" && $(grep -E "$mac_address;[^;]+;no_name_[^;]+;" "$acl_path"/mac-* "$dhcp_path"/blockdhcp.txt) != "" ]]; then
+                    line_aux=$(grep -E "$mac_address;[^;]+;no_name_[^;]+;" "$acl_path"/mac-* "$dhcp_path"/blockdhcp.txt | cut -d":" -f2-)
                     wcstatus_aux=$(echo "$line_aux" | cut -d ';' -f 1)
                     macsource_aux=$(echo "$line_aux" | cut -d ';' -f 2)
                     ipsource_aux=$(echo "$line_aux" | cut -d ';' -f 3)
                     date_aux=$(echo "$line_aux" | cut -d ';' -f 5)
-                    sed -i "s/$line_aux/$wcstatus_aux;$macsource_aux;$ipsource_aux;$host;$date_aux/g" "$aclroute"/blockdhcp.txt "$aclroute"/mac-*
+                    sed -i "s/$line_aux/$wcstatus_aux;$macsource_aux;$ipsource_aux;$host;$date_aux/g" "$dhcp_path"/blockdhcp.txt "$acl_path"/mac-*
                 fi
                 continue
             fi
@@ -103,10 +104,10 @@ function is_iscdhcp() {
                 num_line_end_lease=$num_line_actual
                 if [[ $host != "" && $mac_address != "" && $ip_address != "" ]]; then
                     line_lease="a;$mac_address;$ip_address;$host;$date_actual;"
-                    if [[ $(grep -o "$mac_address" "$aclroute"/mac-*) == "" ]]; then
-                        if [[ $(grep -o "$mac_address" "$aclroute"/blockdhcp.txt) == "" ]]; then
+                    if [[ $(grep -o "$mac_address" "$acl_path"/mac-*) == "" ]]; then
+                        if [[ $(grep -o "$mac_address" "$dhcp_path"/blockdhcp.txt) == "" ]]; then
                             # If the mac address is not in the authorized acl or in blockdhcp, it is added to blockdhcp, but it is kept in the lease, and the next time the script is run, if the mac address is still in the blockdhcp, it is removed from the lease file / Si la dirección mac no está en las acl autorizadas ni en blockdhcp, se añade a blockdhcp, pero se mantiene en el lease y la proxima vez que se ejecute el script, si la direccion mac sigue en el blockdhcp, se elimina del archivo lease
-                            echo "$line_lease" >>"$aclroute"/blockdhcp.txt
+                            echo "$line_lease" >>"$dhcp_path"/blockdhcp.txt
                             sed "$num_line_ini_lease,$num_line_end_lease!d" "$dhcpd" >>"$dhcpd_temp"
                         fi
                     else
@@ -144,7 +145,7 @@ ddns-update-style none;
         " >"$dhcp_conf_temp"
 
         # Allowed Clients / Clientes permitidos
-        for line in $(cat "$aclroute"/mac-*); do
+        for line in $(cat "$acl_path"/mac-*); do
             wcstatus=$(echo "$line" | cut -d ';' -f 1)
             macsource=$(echo "$line" | cut -d ';' -f 2)
             ipsource=$(echo "$line" | cut -d ';' -f 3)
@@ -164,7 +165,7 @@ class "blockdhcp" {
      match pick-first-value (option dhcp-client-identifier, hardware);
         }' >>"$dhcp_conf_temp"
 
-        for line in $(cat "$aclroute"/blockdhcp.txt); do
+        for line in $(cat "$dhcp_path"/blockdhcp.txt); do
             macs=$(echo "$line" | cut -d ';' -f 2)
             echo '    subclass "blockdhcp" 1:'$macs';' >>"$dhcp_conf_temp"
         done
@@ -198,10 +199,10 @@ class "blockdhcp" {
     function clean_block_list {
         # Remove from blockdhcp blacklist entries added to acl / Elimina de la lista negra blockdhcp las entradas añadidas a las acl
         file_temp=$(mktemp)
-        grep -E ';[0-9,a-f,:]+;' "$aclroute"/mac-* | cut -d ";" -f2 >"$file_temp"
+        grep -E ';[0-9,a-f,:]+;' "$acl_path"/mac-* | cut -d ";" -f2 >"$file_temp"
         while read line; do
             mac_actual=$(echo "$line" | cut -d ';' -f 2)
-            sed -i "/$mac_actual/d" "$aclroute"/blockdhcp.txt
+            sed -i "/$mac_actual/d" "$dhcp_path"/blockdhcp.txt
         done <"$file_temp"
         rm -f "$file_temp"
     }
@@ -210,24 +211,24 @@ class "blockdhcp" {
         # Removes entries added to the mac-unlimited acl from mac-unlimited / Elimina de mac-unlimited las entradas añadidas a la acl mac-unlimited
         while read line; do
             mac_actual=$(echo "$line" | cut -d ';' -f 2)
-            sed -i "/$mac_actual/d" "$aclroute"/mac-proxy.txt
-        done <"$aclroute"/mac-unlimited.txt
+            sed -i "/$mac_actual/d" "$acl_path"/mac-proxy.txt
+        done <"$acl_path"/mac-unlimited.txt
     }
 
     function clean_transparent_list {
         # Remove the entries added to the mac-unlimited acl from mac-transparent / Elimina de mac-transparent las entradas añadidas a la acl mac-unlimited
         while read line; do
             mac_actual=$(echo "$line" | cut -d ';' -f 2)
-            sed -i "/$mac_actual/d" "$aclroute"/mac-transparent.txt
-        done <"$aclroute"/mac-unlimited.txt
+            sed -i "/$mac_actual/d" "$acl_path"/mac-transparent.txt
+        done <"$acl_path"/mac-unlimited.txt
     }
 
     function clean_acl {
         # Remove blank lines from acl / Elimina lineas en blanco de las acl
-        sed '/^$/d' -i "$aclroute"/blockdhcp.txt
-        sed '/^$/d' -i "$aclroute"/mac-proxy.txt
-        sed '/^$/d' -i "$aclroute"/mac-transparent.txt
-        sed '/^$/d' -i "$aclroute"/mac-unlimited.txt
+        sed '/^$/d' -i "$dhcp_path"/blockdhcp.txt
+        sed '/^$/d' -i "$acl_path"/mac-proxy.txt
+        sed '/^$/d' -i "$acl_path"/mac-transparent.txt
+        sed '/^$/d' -i "$acl_path"/mac-unlimited.txt
     }
 
     function get_cadena_random {
@@ -235,10 +236,10 @@ class "blockdhcp" {
     }
 
     function order_files_acl {
-        sort -n -t . -k 3,3 -k 4,4 "$aclroute"/blockdhcp.txt -o "$aclroute"/blockdhcp.txt
-        sort -n -t . -k 3,3 -k 4,4 "$aclroute"/mac-proxy.txt -u -o "$aclroute"/mac-proxy.txt
-        sort -n -t . -k 3,3 -k 4,4 "$aclroute"/mac-transparent.txt -u -o "$aclroute"/mac-transparent.txt
-        sort -n -t . -k 3,3 -k 4,4 "$aclroute"/mac-unlimited.txt -u -o "$aclroute"/mac-unlimited.txt
+        sort -n -t . -k 3,3 -k 4,4 "$dhcp_path"/blockdhcp.txt -o "$dhcp_path"/blockdhcp.txt
+        sort -n -t . -k 3,3 -k 4,4 "$acl_path"/mac-proxy.txt -u -o "$acl_path"/mac-proxy.txt
+        sort -n -t . -k 3,3 -k 4,4 "$acl_path"/mac-transparent.txt -u -o "$acl_path"/mac-transparent.txt
+        sort -n -t . -k 3,3 -k 4,4 "$acl_path"/mac-unlimited.txt -u -o "$acl_path"/mac-unlimited.txt
     }
 
     clean_acl
@@ -255,14 +256,14 @@ class "blockdhcp" {
 
 # Stops the service if there are duplicates / Detiene el servicio si hay duplicados
 function duplicate() {
-    #aclall=`for field in 2 3 4; do cut -d\; -f${field} "$aclroute"/mac-* | sort | uniq -d; done`
-    aclall=$(for field in 2 3 4; do cut -d\; -f${field} "$aclroute"/mac-* | sort | uniq -d; done)
+    #aclall=`for field in 2 3 4; do cut -d\; -f${field} "$acl_path"/mac-* | sort | uniq -d; done`
+    aclall=$(for field in 2 3 4; do cut -d\; -f${field} "$acl_path"/mac-* | sort | uniq -d; done)
     if [ "${aclall}" == "" ]; then
         is_iscdhcp
         echo OK
     else
         echo "Duplicate Data: $(date) "$aclall"" | tee -a /var/log/syslog
-        sudo -u $local_user DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u $local_user)/bus notify-send "Warning: Abort" "Duplicate: "$aclroute". $date" -i error
+        sudo -u $local_user DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u $local_user)/bus notify-send "Warning: Abort" "Duplicate: "$acl_path". $date" -i error
         exit
     fi
 }

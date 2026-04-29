@@ -46,7 +46,7 @@ echo "Iptables Start. Wait..."
 
 ## VARIABLES ##
 # paths
-aclroute=/etc/acl
+acl_path=/etc/acl
 # interfaces
 wan=eth0
 lan=eth1
@@ -291,7 +291,7 @@ if ! ipset list macunlimited &>/dev/null; then
 else
     ipset flush macunlimited
 fi
-for mac in $(awk -F";" '$2 != "" {print $2}' $aclroute/mac-unlimited.txt); do
+for mac in $(awk -F";" '$2 != "" {print $2}' $acl_path/mac-unlimited.txt); do
     ipset add macunlimited $mac -exist
 done
 iptables -t mangle -A PREROUTING -i $lan -m set --match-set macunlimited src -j ACCEPT
@@ -302,8 +302,8 @@ done
 # MAC2IP
 dhcp_conf=/etc/dhcp/dhcpd.conf
 # path ips-mac dhcp
-path_ips=$aclroute/dhcp_ip.txt
-path_macs=$aclroute/dhcp_mac.txt
+path_ips=$acl_path/dhcp_ip.txt
+path_macs=$acl_path/dhcp_mac.txt
 # mac2ip
 mac2ip=$(sed -n '/^\s\+hardware\|^\s\+fixed/ s:hardware ethernet \|fixed-address ::p' $dhcp_conf | sed 's/;//')
 # rule mac2ip
@@ -349,7 +349,7 @@ if ! ipset list blockports &>/dev/null; then
 else
     ipset flush blockports
 fi
-for blports in $(cat $aclroute/blockports.txt | sort -V -u); do
+for blports in $(cat $acl_path/blockports.txt | sort -V -u); do
     ipset add blockports $blports -exist
 done
 for proto in tcp udp; do
@@ -365,7 +365,7 @@ if ! ipset list macports &>/dev/null; then
 else
     ipset flush macports
 fi
-for mac in $(awk -F";" '$2 != "" {print $2}' $aclroute/mac-*); do
+for mac in $(awk -F";" '$2 != "" {print $2}' $acl_path/mac-*); do
     ipset add macports $mac -exist
 done
 # DNS
@@ -463,7 +463,7 @@ iptables -A syn_flood -j DROP
 #done
 
 # Block Spoofed Packets (Optional)
-#for ip in $(sed '/^\s*#/d;/^\s*$/d' "$aclroute/bogons.txt"); do
+#for ip in $(sed '/^\s*#/d;/^\s*$/d' "$acl_path/bogons.txt"); do
 #   iptables -A INPUT -i $lan -s $ip -j NFLOG --nflog-prefix "SPOOF: "
 #   iptables -A INPUT -i $lan -s $ip -j DROP
 #done
@@ -499,7 +499,7 @@ echo "MAC Rules"
 #else
 #    ipset flush mactransparent
 #fi
-#for mac in $(awk -F";" '$2 != "" {print $2}' $aclroute/mac-transparent.txt); do
+#for mac in $(awk -F";" '$2 != "" {print $2}' $acl_path/mac-transparent.txt); do
 #   ipset add mactransparent $mac -exist
 #done
 #for chain in INPUT FORWARD; do
@@ -512,7 +512,7 @@ if ! ipset list macproxy &>/dev/null; then
 else
     ipset flush macproxy
 fi
-for mac in $(awk -F";" '$2 != "" {print $2}' $aclroute/mac-proxy.txt); do
+for mac in $(awk -F";" '$2 != "" {print $2}' $acl_path/mac-proxy.txt); do
     ipset add macproxy $mac -exist
 done
 iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m set --match-set macproxy src -j REDIRECT --to-port 3128
