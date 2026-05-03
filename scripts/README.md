@@ -74,7 +74,6 @@ Tested on: Ubuntu 22.04/24.04 x64
 - [ngLocalhost Tunnel (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/nglocalhost.sh)
 - [Port Kill (check port with: `sudo netstat -lnp | grep "port"`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/portkill.sh)
 - [Serveo Tunnel (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/serveo.sh)
-- [Unifi Hotspot Client Access](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/unhotspot.sh)
 - [Wireguard VPN (install|uninstall - server|client)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/wireguard.sh)
 
 #### Proxy
@@ -133,7 +132,6 @@ Tested on: Windows 10/11 x64
 - [Regedit Backup (to `%HOMEDRIVE%\RegBackup`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/regbackup.bat)
 - [Safe Boot (Modes: safe boot minimal|safe boot with network|normal)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/safeboot.bat)
 - [SMB Config (Modify smb1|smb signing|insecure guest access)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/smbconf.bat)
-- [Unifi Network Server Setup](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/unifisetup.bat)
 - [Uniform Server (Change MySQL/Apache Ports - Set portable|permanent - Run With System)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/uzeroconf.bat)
 - [VTools QEMU/KVM (Spice, VirtIO, and WinFsp Setup as a Service)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/vtools.bat)
 - [WMIC (Add|Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/wmic.bat)
@@ -151,6 +149,17 @@ Tested on: Ubuntu 22.04/24.04
 Tested on: Windows 7/10/11 x64
 
 - [Autorun Disable](https://raw.githubusercontent.com/maravento/vault/master/scripts/vbs/autorun.vbs)
+
+### Unifi
+
+#### Windows
+
+- [Unifi Network Server Setup](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/unifisetup.bat)
+
+#### Linux
+
+- [Unifi Hotspot Client Access](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/unhotspot.sh)
+- [Unifi Hotspot Client Audit](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/unaudit.sh)
 
 ## DISCLAIMER
 

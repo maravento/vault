@@ -102,13 +102,16 @@
 #
 ################################################################################
 
-# check root
+# PATH for cron
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "This script must be run as root" 1>&2
+    echo "ERROR: This script must be run as root"
     exit 1
 fi
 
-# checking script execution
+# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then

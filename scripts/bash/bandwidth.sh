@@ -10,13 +10,13 @@ printf "\n"
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# checking root
+## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
 
-# checking script execution
+# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
@@ -38,13 +38,11 @@ if [ -n "$unavailable" ]; then
     exit 1
 fi
 if [ -n "$missing" ]; then
-    echo "🔧 Releasing APT/DKPG locks..."
-    killall -q apt apt-get dpkg 2>/dev/null
+    echo "🔧 Releasing APT/DPKG locks..."
     rm -f /var/lib/apt/lists/lock
     rm -f /var/cache/apt/archives/lock
     rm -f /var/lib/dpkg/lock
     rm -f /var/lib/dpkg/lock-frontend
-    rm -rf /var/lib/apt/lists/*
     dpkg --configure -a
     echo "📦 Installing: $missing"
     apt-get -qq update
@@ -57,48 +55,68 @@ else
 fi
 
 ### VARIABLES
-# Set Minimum Download Value
+# Set Minimum Download Value (Mbit/s)
 dlmin="1.00"
-# Set Minimum Upload Value
+# Set Minimum Upload Value (Mbit/s)
 ulmin="1.00"
 
 ### SPEEDTEST
-# Speedtest Python Script
-#dl=$(curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 - --simple --no-upload | grep 'Download:')
-#ul=$(curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 - --simple --no-download | grep 'Upload:')
-#resume=$(curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 - --simple)
-# Speedtest-cli
-dl=$(speedtest-cli --secure --simple --no-upload | grep 'Download:')
-ul=$(speedtest-cli --secure --simple --no-download | grep 'Upload:')
-resume=$(speedtest-cli --secure --simple)
+echo "Running speedtest (this may take ~30s)..."
+resume=$(speedtest-cli --secure --simple 2>&1)
 
-mb="Mbit/s"
+if ! echo "$resume" | grep -q "^Download:"; then
+    echo "❌ speedtest-cli failed or returned unexpected output:"
+    echo "$resume"
+    exit 1
+fi
+
+dl=$(echo "$resume" | grep "^Download:")
+ul=$(echo "$resume" | grep "^Upload:")
+
 dlvalue=$(echo "$dl" | awk '{print $2}')
 ulvalue=$(echo "$ul" | awk '{print $2}')
 dlmb=$(echo "$dl" | awk '{print $3}')
 ulmb=$(echo "$ul" | awk '{print $3}')
 
-function download() {
-    if (($(echo "$dlvalue $dlmin" | awk '{print ($1 < $2)}'))); then
-        echo "WARNING! Bandwidth Download Slow: $dlvalue $dlmb < $dlmin $mb (min value)"
+if [ -z "$dlvalue" ] || [ -z "$ulvalue" ]; then
+    echo "❌ Could not parse speedtest output:"
+    echo "$resume"
+    exit 1
+fi
+
+# speedtest-cli switches to Gbit/s above ~1000 Mbit/s which broke the unit check
+normalize_to_mbit() {
+    local value="$1"
+    local unit="$2"
+    if [[ "$unit" == "Gbit/s" ]]; then
+        echo "$value" | awk '{printf "%.2f", $1 * 1000}'
     else
-        echo "Bandwidth Download OK:" "Up to $dlmin"
+        echo "$value"
+    fi
+}
+
+dlvalue_mbit=$(normalize_to_mbit "$dlvalue" "$dlmb")
+ulvalue_mbit=$(normalize_to_mbit "$ulvalue" "$ulmb")
+
+function download() {
+    if (($(echo "$dlvalue_mbit $dlmin" | awk '{print ($1 < $2)}'))); then
+        echo "WARNING! Bandwidth Download Slow: $dlvalue $dlmb < $dlmin Mbit/s (min value)"
+    else
+        echo "Bandwidth Download OK: $dlvalue $dlmb (min: $dlmin Mbit/s)"
     fi
 }
 
 function upload() {
-    if (($(echo "$ulvalue $ulmin" | awk '{print ($1 < $2)}'))); then
-        echo "WARNING! Bandwidth Upload Slow: $ulvalue $ulmb < $ulmin $mb (min value)"
+    if (($(echo "$ulvalue_mbit $ulmin" | awk '{print ($1 < $2)}'))); then
+        echo "WARNING! Bandwidth Upload Slow: $ulvalue $ulmb < $ulmin Mbit/s (min value)"
     else
-        echo "Bandwidth Upload OK:" "Up to $ulmin"
+        echo "Bandwidth Upload OK: $ulvalue $ulmb (min: $ulmin Mbit/s)"
     fi
 }
 
-if [[ "$mb" == "$dlmb" ]] && [[ "$mb" == "$ulmb" ]]; then
-    download
-    upload
-else
-    echo "Incorrect Value. Abort: $resume"
-    exit
-fi
-echo Done
+download
+upload
+
+echo "Full result:"
+echo "$resume"
+echo "Done"

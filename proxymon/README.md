@@ -159,7 +159,7 @@ regex:^(http|https)://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+=Block IPv4
 ```bash
 sudo nano /var/www/proxymon/tools/bandata.sh
 # path to ACLs folder
-aclroute=/etc/acl
+acl_pacth=/etc/acl
 ```
 
 <table width="100%">
@@ -439,20 +439,23 @@ sudo -u www-data crontab -e
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     To add users manually:<br><br>
-     <em>Note: <a href="#bandata">Bandata</a> does this automatically.</em>
+     To add users manually to realname (audit) and skipuser (exclude) lists:<br><br>
+     <em>Note: <a href="#bandata">Bandata</a> does this automatically. To enable this feature, declare your ACLs in the <code>exclude_acls</code> variable and uncomment the <code>update_lightsquid_realname</code> line at the end of the script.</em>
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Para agregar usuarios manualmente:<br><br>
-     <em>Nota: <a href="#bandata">Bandata</a> lo hace automáticamente.</em>
-    </td>
-  </tr>
+     Para agregar usuarios manualmente a las listas realname (auditar) y skipuser (excluir):<br><br>
+     <em>Nota: <a href="#bandata">Bandata</a> lo hace automáticamente. Para activar esta función, declare sus ACLs en la variable <code>exclude_acls</code> y descomente la línea <code>update_lightsquid_realname</code> al final del script.</em>
+     </td>
+  </table>
 </table>
 
 ```bash
 sudo nano /var/www/proxymon/lightsquid/realname.cfg
 # example:
 192.168.X.2 Client1
+192.168.X.24 Client12
+sudo nano /var/www/proxymon/lightsquid/skipuser.cfg
+# example:
 192.168.X.3 CEO
 ```
 

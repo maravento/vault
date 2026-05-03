@@ -2,47 +2,6 @@
 #
 # Cloudflare Tunnel Service Manager (cftunnel)
 # Unified control script for multiple Cloudflare Tunnels
-#
-# PREREQUISITES:
-# ==============
-# 1. Install cloudflared first:
-#    https://pkg.cloudflare.com/index.html
-#
-# 2. For permanent tunnels, authenticate and create:
-#    cloudflared tunnel login
-#    cloudflared tunnel create TUNNEL_NAME
-#    cloudflared tunnel route dns TUNNEL_NAME subdomain.yourdomain.com
-#
-# 3. Create config files in ~/.cloudflared/ with .yml extension
-#
-# USEFUL COMMANDS:
-# ================
-# cloudflared tunnel login                              # First-time authentication
-# cloudflared tunnel list                               # List all tunnels
-# cloudflared tunnel create TUNNEL_NAME                 # Create new tunnel
-# cloudflared tunnel run TUNNEL_NAME                    # Start specific tunnel
-# cloudflared tunnel route dns TUNNEL_NAME SUBDOMAIN    # Route DNS to tunnel
-# cloudflared tunnel cleanup TUNNEL_NAME                # Cleanup tunnel connections
-# cloudflared tunnel delete TUNNEL_NAME                 # Delete tunnel permanently
-#
-# FILE STRUCTURE:
-# ===============
-# ~/.cloudflared/
-#   ├── cert.pem                 # Authentication certificate
-#   ├── tunnel1.yml              # Tunnel configuration file
-#   ├── tunnel2.yml              # Another tunnel configuration
-#   ├── TUNNEL-ID.json           # Tunnel credentials
-#   ├── tunnel1.pid              # PID file for tunnel1
-#   ├── tunnel2.pid              # PID file for tunnel2
-#   └── tunnel1.log              # Log file for tunnel1
-#
-# RECOMMENDATION:
-# ===============
-# Use permanent tunnels for production services and temporary tunnels
-# only for quick testing and development purposes.
-#
-# For more information:
-# https://developers.cloudflare.com/cloudflare-one/connections/connect-apps
 
 # check no-root
 if [ "$(id -u)" == "0" ]; then
@@ -51,7 +10,26 @@ if [ "$(id -u)" == "0" ]; then
 fi
 
 ### --- CONFIGURATION --- ###
-USER_HOME="$(getent passwd "$USER" | cut -d: -f6)"
+
+_resolve_user_home() {
+    local home=""
+    # 1. getent with explicit user from SUDO_USER or USER or logname
+    local try_user="${SUDO_USER:-${USER:-}}"
+    [ -z "$try_user" ] && try_user=$(logname 2>/dev/null || true)
+    [ -n "$try_user" ] && home=$(getent passwd "$try_user" | cut -d: -f6)
+    # 2. Fall back to $HOME if set and valid
+    [ -z "$home" ] && [ -n "${HOME:-}" ] && [ -d "$HOME" ] && home="$HOME"
+    # 3. getent with current UID
+    [ -z "$home" ] && home=$(getent passwd "$(id -u)" | cut -d: -f6)
+    echo "$home"
+}
+
+USER_HOME=$(_resolve_user_home)
+if [ -z "$USER_HOME" ] || [ ! -d "$USER_HOME" ]; then
+    echo "❌ Cannot determine a valid home directory (resolved: '${USER_HOME:-empty}')."
+    exit 1
+fi
+
 CONFIG_DIR="$USER_HOME/.cloudflared"
 CLOUDFLARED_BIN="$(command -v cloudflared)"
 
@@ -63,21 +41,20 @@ mkdir -p "$CONFIG_DIR"
 
 ### --- FUNCTIONS --- ###
 
-# Function to detect all YML configuration files
 detect_tunnels() {
     local tunnels=()
     if [[ -d "$CONFIG_DIR" ]]; then
+        local old_nullglob
+        old_nullglob=$(shopt -p nullglob)
+        shopt -s nullglob
         for file in "$CONFIG_DIR"/*.yml; do
-            if [[ -f "$file" ]]; then
-                local tunnel_name=$(basename "$file" .yml)
-                tunnels+=("$tunnel_name")
-            fi
+            [[ -f "$file" ]] && tunnels+=("$(basename "$file" .yml)")
         done
+        eval "$old_nullglob"
     fi
     echo "${tunnels[@]}"
 }
 
-# Function to get tunnel ID from YAML file
 get_tunnel_id() {
     local config_file="$1"
     if [[ -f "$config_file" ]]; then
@@ -85,12 +62,17 @@ get_tunnel_id() {
     fi
 }
 
+_pid_is_valid() {
+    local pid="$1"
+    [[ -n "$pid" && "$pid" =~ ^[0-9]+$ ]]
+}
+
 start_tunnel() {
     local tunnel_name="$1"
     local config_file="$CONFIG_DIR/${tunnel_name}.yml"
     local pid_file="$CONFIG_DIR/${tunnel_name}.pid"
     local log_file="$CONFIG_DIR/${tunnel_name}.log"
-    
+
     echo "🔵 Starting tunnel: $tunnel_name"
     echo "📄 Config: $config_file"
 
@@ -101,14 +83,16 @@ start_tunnel() {
 
     # Check if already running
     if [[ -f "$pid_file" ]]; then
-        OLD_PID=$(cat "$pid_file")
-        if kill -0 "$OLD_PID" 2>/dev/null; then
-            echo "⚠️ Tunnel '$tunnel_name' already running (PID $OLD_PID)"
-            read -p "Stop existing tunnel and start new one? (y/n): " RESTART
-            if [[ ! "$RESTART" =~ ^[Yy]$ ]]; then
+        local old_pid
+        old_pid=$(cat "$pid_file")
+        if _pid_is_valid "$old_pid" && kill -0 "$old_pid" 2>/dev/null; then
+            echo "⚠️ Tunnel '$tunnel_name' already running (PID $old_pid)"
+            local restart
+            read -r -p "Stop existing tunnel and start new one? (y/n): " restart
+            if [[ ! "$restart" =~ ^[Yy]$ ]]; then
                 return 0
             fi
-            kill "$OLD_PID" 2>/dev/null
+            kill "$old_pid" 2>/dev/null
             sleep 1
             rm -f "$pid_file"
         else
@@ -117,21 +101,22 @@ start_tunnel() {
     fi
 
     # Extract tunnel ID from YAML
-    TUNNEL_ID=$(get_tunnel_id "$config_file")
-    if [[ -z "$TUNNEL_ID" ]]; then
+    local tunnel_id
+    tunnel_id=$(get_tunnel_id "$config_file")
+    if [[ -z "$tunnel_id" ]]; then
         echo "❌ No 'tunnel:' entry found in config file."
         return 1
     fi
 
-    echo "🚀 Running: cloudflared tunnel run --config $config_file $TUNNEL_ID"
-    nohup "$CLOUDFLARED_BIN" --config "$config_file" tunnel run "$TUNNEL_ID" >> "$log_file" 2>&1 &
+    echo "🚀 Running: cloudflared tunnel run --config $config_file $tunnel_id"
+    nohup "$CLOUDFLARED_BIN" --config "$config_file" tunnel run "$tunnel_id" >> "$log_file" 2>&1 &
 
-    NEW_PID=$!
-    echo "$NEW_PID" > "$pid_file"
+    local new_pid=$!
+    echo "$new_pid" > "$pid_file"
 
     sleep 2
-    if kill -0 "$NEW_PID" 2>/dev/null; then
-        echo "🟢 Tunnel '$tunnel_name' started (PID $NEW_PID)"
+    if _pid_is_valid "$new_pid" && kill -0 "$new_pid" 2>/dev/null; then
+        echo "🟢 Tunnel '$tunnel_name' started (PID $new_pid)"
         echo "📋 Log file: $log_file"
         return 0
     else
@@ -145,20 +130,25 @@ start_tunnel() {
 stop_tunnel() {
     local tunnel_name="$1"
     local pid_file="$CONFIG_DIR/${tunnel_name}.pid"
-    
+
     if [[ ! -f "$pid_file" ]]; then
         echo "🔴 Tunnel '$tunnel_name' not running."
         return
     fi
 
-    PID=$(cat "$pid_file")
+    local pid
+    pid=$(cat "$pid_file")
+    if ! _pid_is_valid "$pid"; then
+        echo "⚠️ Invalid PID in $pid_file ('$pid'). Removing stale file."
+        rm -f "$pid_file"
+        return
+    fi
 
-    echo "🔴 Stopping tunnel '$tunnel_name' (PID $PID)..."
-    kill "$PID" 2>/dev/null
+    echo "🔴 Stopping tunnel '$tunnel_name' (PID $pid)..."
+    kill "$pid" 2>/dev/null
     sleep 1
-
-    if kill -0 "$PID" 2>/dev/null; then
-        kill -9 "$PID"
+    if kill -0 "$pid" 2>/dev/null; then
+        kill -9 "$pid"
     fi
 
     rm -f "$pid_file"
@@ -167,20 +157,27 @@ stop_tunnel() {
 
 stop_all_tunnels() {
     echo "🔴 Stopping all Cloudflare tunnels..."
-    
-    # Find all .pid files and stop them
+
+    local old_nullglob
+    old_nullglob=$(shopt -p nullglob)
+    shopt -s nullglob
     for pid_file in "$CONFIG_DIR"/*.pid; do
         if [[ -f "$pid_file" ]]; then
-            local tunnel_name=$(basename "$pid_file" .pid)
-            local PID=$(cat "$pid_file")
-            
-            if kill -0 "$PID" 2>/dev/null; then
-                echo "Stopping tunnel '$tunnel_name' (PID $PID)..."
-                kill "$PID" 2>/dev/null
+            local tunnel_name pid
+            tunnel_name=$(basename "$pid_file" .pid)
+            pid=$(cat "$pid_file")
+
+            if ! _pid_is_valid "$pid"; then
+                echo "⚠️ Invalid PID in $pid_file ('$pid'). Removing stale file."
+                rm -f "$pid_file"
+                continue
+            fi
+
+            if kill -0 "$pid" 2>/dev/null; then
+                echo "Stopping tunnel '$tunnel_name' (PID $pid)..."
+                kill "$pid" 2>/dev/null
                 sleep 1
-                if kill -0 "$PID" 2>/dev/null; then
-                    kill -9 "$PID"
-                fi
+                kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
                 rm -f "$pid_file"
                 echo "✔️ Tunnel '$tunnel_name' stopped."
             else
@@ -188,7 +185,8 @@ stop_all_tunnels() {
             fi
         fi
     done
-    
+    eval "$old_nullglob"
+
     echo "✅ All tunnels stopped."
 }
 
@@ -202,10 +200,16 @@ status_tunnel() {
         return
     fi
 
-    PID=$(cat "$pid_file")
+    local pid
+    pid=$(cat "$pid_file")
+    if ! _pid_is_valid "$pid"; then
+        echo "⚠️ Invalid PID in $pid_file. Removing stale file."
+        rm -f "$pid_file"
+        return
+    fi
 
-    if kill -0 "$PID" 2>/dev/null; then
-        echo "🟢 Tunnel '$tunnel_name' running (PID $PID)"
+    if kill -0 "$pid" 2>/dev/null; then
+        echo "🟢 Tunnel '$tunnel_name' running (PID $pid)"
         echo ""
         echo "Recent log:"
         tail -10 "$log_file" 2>/dev/null
@@ -219,43 +223,42 @@ start_multiple_tunnels() {
     echo "🔵 Cloudflare Tunnel - Start Multiple Tunnels"
     echo "============================================"
     echo ""
-    
-    # Detect all tunnels
-    local tunnels=($(detect_tunnels))
+
+    local tunnels=()
+    mapfile -t tunnels < <(detect_tunnels | tr ' ' '\n' | grep -v '^$')
     local tunnel_count=${#tunnels[@]}
-    
+
     if [[ $tunnel_count -eq 0 ]]; then
         echo "❌ No tunnel configuration files found in $CONFIG_DIR/"
-        echo "💡 Create configuration files with .yml extension (e.g., tunnel1.yml, tunnel2.yml)"
-        exit 1
+        echo "💡 Create configuration files with .yml extension"
+        return 1
     fi
-    
+
     echo "📊 Detected $tunnel_count tunnel(s):"
     for i in "${!tunnels[@]}"; do
         echo "  $((i+1)). ${tunnels[i]}"
     done
     echo ""
-    
-    read -p "Do you want to start the detected tunnel(s)? (y/n): " START_ALL
-    
-    if [[ ! "$START_ALL" =~ ^[Yy]$ ]]; then
+
+    local start_all
+    read -r -p "Do you want to start the detected tunnel(s)? (y/n): " start_all
+
+    if [[ ! "$start_all" =~ ^[Yy]$ ]]; then
         echo ""
         echo "❌ Operation aborted."
-        echo "💡 Cloudflare does not allow temporary tunnels when permanent ones exist."
-        exit 1
+        return 1
     fi
-    
+
     echo ""
-    
-    # If only one tunnel, start it directly
+
     if [[ $tunnel_count -eq 1 ]]; then
         echo "🚀 Starting single tunnel: ${tunnels[0]}"
         start_tunnel "${tunnels[0]}"
     else
-        # For multiple tunnels, ask confirmation for each
+        local start_one
         for tunnel in "${tunnels[@]}"; do
-            read -p "Start tunnel '$tunnel'? (y/n): " START_TUNNEL
-            if [[ "$START_TUNNEL" =~ ^[Yy]$ ]]; then
+            read -r -p "Start tunnel '$tunnel'? (y/n): " start_one
+            if [[ "$start_one" =~ ^[Yy]$ ]]; then
                 start_tunnel "$tunnel"
                 echo ""
             else
@@ -264,7 +267,7 @@ start_multiple_tunnels() {
             fi
         done
     fi
-    
+
     echo ""
     echo "✅ Tunnel startup process completed."
 }
@@ -276,19 +279,15 @@ TUNNEL_NAME="$2"
 case "$ACTION" in
     start)
         if [[ -z "$TUNNEL_NAME" ]]; then
-            # No tunnel specified - use multiple tunnel mode
             start_multiple_tunnels
         else
-            # Specific tunnel specified
             start_tunnel "$TUNNEL_NAME"
         fi
         ;;
     stop)
         if [[ -z "$TUNNEL_NAME" ]]; then
-            # No tunnel specified - stop all
             stop_all_tunnels
         else
-            # Specific tunnel specified
             stop_tunnel "$TUNNEL_NAME"
         fi
         ;;
@@ -304,16 +303,17 @@ case "$ACTION" in
         ;;
     list)
         echo "📋 Available tunnels:"
-        tunnels=($(detect_tunnels))
-        for i in "${!tunnels[@]}"; do
-            echo "  $((i+1)). ${tunnels[i]}"
+        local_tunnels=()
+        mapfile -t local_tunnels < <(detect_tunnels | tr ' ' '\n' | grep -v '^$')
+        for i in "${!local_tunnels[@]}"; do
+            echo "  $((i+1)). ${local_tunnels[i]}"
         done
         ;;
     *)
         echo "Usage: $0 {start|stop|status|list} [tunnel_name]"
         echo ""
         echo "Examples:"
-        echo "  $0 start                    # Start all detected tunnels (with confirmation)"
+        echo "  $0 start                    # Start all detected tunnels"
         echo "  $0 start tunnel1            # Start specific tunnel"
         echo "  $0 stop                     # Stop all tunnels"
         echo "  $0 stop tunnel1             # Stop specific tunnel"

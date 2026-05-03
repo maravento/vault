@@ -13,13 +13,13 @@ printf "\n"
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# checking root
+## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
 
-# checking script execution
+# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
@@ -27,17 +27,21 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# LOCAL USER
-local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
-# Fallback
-if [ -z "$local_user" ]; then
-    local_user=$(ls -l /home | grep '^d' | head -1 | awk '{print $3}')
-    if [ -z "$local_user" ]; then
-        echo "ERROR: Cannot determine local user"
-        exit 1
-    fi
-    echo "Using fallback user: $local_user"
+# LOCAL USER (multi-strategy detection with validation)
+local_user=""
+local_user=$(who | awk '/\(:0\)/{print $1; exit}')
+[ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
+[ -z "$local_user" ] && local_user="${SUDO_USER:-}"
+[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
+[ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
+if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
+    echo "ERROR: Cannot determine a valid local user"
+    exit 1
 fi
+echo "Using local user: $local_user"
+
+# Capture local user UID once — used for DBUS notification path
+local_uid=$(id -u "$local_user")
 
 # check dependencies
 pkgs='arpwatch libnotify-bin'
@@ -53,13 +57,11 @@ if [ -n "$unavailable" ]; then
     exit 1
 fi
 if [ -n "$missing" ]; then
-    echo "🔧 Releasing APT/DKPG locks..."
-    killall -q apt apt-get dpkg 2>/dev/null
+    echo "🔧 Releasing APT/DPKG locks..."
     rm -f /var/lib/apt/lists/lock
     rm -f /var/cache/apt/archives/lock
     rm -f /var/lib/dpkg/lock
     rm -f /var/lib/dpkg/lock-frontend
-    rm -rf /var/lib/apt/lists/*
     dpkg --configure -a
     echo "📦 Installing: $missing"
     apt-get -qq update
@@ -84,92 +86,114 @@ ARPWATCH_PIDS="/run/arpwatch-instances.pid"
 UNIFIED_LOG="$LOGDIR/arpwatch.log"
 touch "$UNIFIED_LOG"
 
-# Define the whitelist file (exclude.txt) with MAC addresses that should be ignored by notifications
-# Each line in the exclude.txt must contain a MAC address (format: xx:xx:xx:xx:xx:xx)
-# When a new ARP event is detected, if the MAC is in the exclude.txt, no notification will be sent
 WHITELIST="/etc/arpwatch/exclude.txt"
 mkdir -p /etc/arpwatch
 [[ -f "$WHITELIST" ]] || touch "$WHITELIST"
 
 start() {
     echo "Starting arpwatch on active interfaces..."
-    
+
     if [[ -f "$PIDFILE" ]]; then
         echo "arpwatch is already running."
         return
     fi
-    
+
     > "$ARPWATCH_PIDS"
     interfaces=$(ip -o link show | grep 'state UP' | cut -d: -f2 | tr -d ' ' | grep -v '^lo$')
-    
-    # Inicia arpwatch para cada interfaz
+
+    # Start arpwatch for each interface
     for iface in $interfaces; do
         LOGFILE="$LOGDIR/arpwatch_$iface.log"
-        > "$LOGFILE"
-        
+        touch "$LOGFILE"
+
         if ! pgrep -f "arpwatch -i $iface" > /dev/null; then
             echo "Running: /usr/sbin/arpwatch -i $iface -f /var/lib/arpwatch/arp_$iface.dat -d"
             /usr/sbin/arpwatch -i "$iface" -f "/var/lib/arpwatch/arp_$iface.dat" -d >> "$LOGFILE" 2>&1 &
             arp_pid=$!
-            
-            if [ $? -ne 0 ]; then
-                echo "Failed to start arpwatch on interface $iface. Check log for details."
-            else
+
+            # Use kill -0 to verify the process actually started
+            sleep 0.3
+            if kill -0 "$arp_pid" 2>/dev/null; then
                 echo "arpwatch started on interface: $iface with PID: $arp_pid"
                 echo "$arp_pid" >> "$ARPWATCH_PIDS"
+            else
+                echo "Failed to start arpwatch on interface $iface. Check $LOGFILE for details."
             fi
         else
             echo "arpwatch is already running for interface $iface"
         fi
     done
-    
-    # Monitor logs y enviar notificaciones
+
+    # Monitor logs and send notifications
     tail_pids=()
     for iface in $interfaces; do
         LOGFILE="$LOGDIR/arpwatch_$iface.log"
-        
         tail -n0 -F "$LOGFILE" | while read -r line; do
             if [[ "$line" =~ new\ station|changed\ ethernet|flip-flop|duplicate ]]; then
                 mac=$(echo "$line" | grep -o -i -E '([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}')
                 if ! grep -iq "$mac" "$WHITELIST"; then
                     msg="[$iface] $line"
-                    sudo -u "$local_user" DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u "$local_user")/bus notify-send -i checkbox "ARPWatch" "$msg"
+                    sudo -u "$local_user" \
+                        DISPLAY=:0 \
+                        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${local_uid}/bus" \
+                        notify-send -i checkbox "ARPWatch" "$msg"
                     echo "$(date +'%F %T') $msg" >> "$UNIFIED_LOG"
                 fi
             fi
-        done > "$LOGFILE" 2>&1 &
+        done &
 
         tail_pid=$!
         tail_pids+=("$tail_pid")
         echo "Background monitoring started for interface $iface with PID: $tail_pid"
     done
 
-    # Guardar todos los PIDs de los tails en un archivo
-    for pid in "${tail_pids[@]}"; do
-        echo "$pid" >> "$TAIL_PID"
-    done
+    printf '%s\n' "${tail_pids[@]}" >> "$TAIL_PID"
 
-    # Almacenar el PID de la función principal
-    echo "$tail_pids" >> "$PIDFILE"
-    echo "arpwatch service successfully started in background."
+    if [[ -s "$ARPWATCH_PIDS" ]]; then
+        printf '%s\n' "${tail_pids[@]}" > "$PIDFILE"
+        echo "arpwatch service successfully started in background."
+    else
+        echo "❌ No arpwatch instances started successfully."
+        rm -f "$ARPWATCH_PIDS" "$TAIL_PID"
+        exit 1
+    fi
 }
 
 stop() {
     if [[ -f "$PIDFILE" ]]; then
         echo "Stopping arpwatch..."
 
-        # Detener el proceso de tail si existe
-        [[ -f "$TAIL_PID" ]] && kill $(cat "$TAIL_PID") 2>/dev/null && rm -f "$TAIL_PID" && echo "Stopped monitoring process"
+        # Stop tail monitoring processes
+        if [[ -f "$TAIL_PID" ]]; then
+            while read -r pid; do
+                if kill -0 "$pid" 2>/dev/null; then
+                    kill "$pid" 2>/dev/null
+                    sleep 0.5
+                    kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
+                    echo "Stopped monitoring process: $pid"
+                fi
+            done < "$TAIL_PID"
+            rm -f "$TAIL_PID"
+        fi
 
-        # Matar procesos arpwatch
-        [[ -f "$ARPWATCH_PIDS" ]] && while read -r pid; do kill -9 "$pid" 2>/dev/null && echo "Stopped arpwatch process: $pid"; done < "$ARPWATCH_PIDS" && rm -f "$ARPWATCH_PIDS"
+        # Stop arpwatch instances
+        if [[ -f "$ARPWATCH_PIDS" ]]; then
+            while read -r pid; do
+                if kill -0 "$pid" 2>/dev/null; then
+                    kill "$pid" 2>/dev/null
+                    sleep 0.5
+                    kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
+                    echo "Stopped arpwatch process: $pid"
+                fi
+            done < "$ARPWATCH_PIDS"
+            rm -f "$ARPWATCH_PIDS"
+        fi
 
-        # Matar el script específico
-        for pid in $(ps -ef | grep "[b]ash ./arpwatch.sh start" | awk '{print $2}'); do
-            kill -9 "$pid" 2>/dev/null && echo "Stopped arpwatch.sh process: $pid"
-        done
+        script_real=$(realpath "$0")
+        while read -r pid; do
+            kill "$pid" 2>/dev/null && echo "Stopped arpwatch.sh process: $pid"
+        done < <(pgrep -f "bash.*${script_real}.*start" 2>/dev/null)
 
-        # Eliminar archivo PID principal
         rm -f "$PIDFILE"
         echo "All arpwatch processes have been stopped."
     else
@@ -179,14 +203,14 @@ stop() {
 
 status() {
     if [[ -f "$PIDFILE" ]]; then
-        echo "arpwatch script is running with PID: $(cat "$PIDFILE")"
-        
+        echo "arpwatch script is running with PID(s): $(cat "$PIDFILE")"
+
         if [[ -f "$TAIL_PID" ]]; then
-            echo "Monitoring process running with PID: $(cat "$TAIL_PID")"
+            echo "Monitoring process(es) running with PID(s): $(cat "$TAIL_PID")"
         else
             echo "Monitoring process is not running."
         fi
-        
+
         if [[ -f "$ARPWATCH_PIDS" ]]; then
             echo "arpwatch instances running:"
             cat "$ARPWATCH_PIDS"
@@ -199,9 +223,8 @@ status() {
 }
 
 case "$1" in
-    start) start ;;
-    stop) stop ;;
+    start)  start  ;;
+    stop)   stop   ;;
     status) status ;;
-    *) echo "Usage: $0 {start|stop|status}" ;;
+    *)      echo "Usage: $0 {start|stop|status}" ;;
 esac
-

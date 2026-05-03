@@ -9,24 +9,27 @@
 #  Usage: ./aistack.sh [COMMAND]
 #  Commands: install | status | model | install-opencode | uninstall-opencode | uninstall
 #  Without arguments, runs interactive menu
+#
+#  Security fixes applied (v1.1):
+#   - [F1] GPG fingerprint verification for Docker key (lines ~262)
+#   - [F2] Migrated NVIDIA repo from apt-key to /etc/apt/keyrings (line ~313)
+#   - [F3] opencode install script: separated download from execution (line ~614)
+#   - [F4] Improved local user detection: logname + SUDO_USER + id validation (line ~38)
+#   - [F5] dpkg purge loop now tracks and reports per-package failures (line ~888)
+#   - [F6] Removed --force-recreate from docker compose update calls (lines ~1026,1044)
+#   - [F7] Added require_ollama_running() guard used in download_model/change_default_model
 # =======================================================================================
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# Check root privileges
+## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
 
-# Check OS (Debian/Ubuntu only)
-if ! command -v apt-get &>/dev/null; then
-    echo "ERROR: This script requires Debian/Ubuntu with apt-get"
-    exit 1
-fi
-
-# Script lock to prevent concurrent execution
+# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
@@ -34,16 +37,24 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# Detect local user
-local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
-if [ -z "$local_user" ]; then
-    local_user=$(ls -l /home | grep '^d' | head -1 | awk '{print $3}')
-    if [ -z "$local_user" ]; then
-        echo "ERROR: Cannot determine local user"
-        exit 1
-    fi
-    echo "Using fallback user: $local_user"
+# LOCAL USER (multi-strategy detection with validation)
+local_user=""
+# 1. Local graphical session (:0)
+local_user=$(who | awk '/\(:0\)/{print $1; exit}')
+# 2. Parent process logname (works well with sudo)
+[ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
+# 3. SUDO_USER variable (when run via sudo from terminal)
+[ -z "$local_user" ] && local_user="${SUDO_USER:-}"
+# 4. First active session user (SSH or other)
+[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
+# 5. First valid home directory
+[ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
+# Validate the user actually exists on the system
+if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
+    echo "ERROR: Cannot determine a valid local user"
+    exit 1
 fi
+echo "Using local user: $local_user"
 
 set -euo pipefail
 
@@ -160,11 +171,18 @@ remove_native_components() {
 
 # Available models for selection
 AVAILABLE_MODELS=(
-    "gemma4:31b-dense"       # Maximum quality, needs 20-24GB RAM, high-end GPU
-    "gemma4:26b-moe"         # MoE architecture, needs 8-10GB RAM
+    "llama3.3:70b"           # State-of-the-art 2025, ~43GB RAM, matches Llama 3.1 405B quality
+    "gemma4:31b"             # Maximum quality, needs 20GB RAM, high-end GPU
+    "gemma4:26b"             # MoE architecture, needs 18GB RAM
+    "qwen2.5-coder:14b"      # Top-rated coding model 2026, ~9GB RAM, 16GB recommended
+    "mistral-small3.2"       # Latest Mistral Small, improved function calling, ~14GB RAM
+    "phi4:14b"               # Microsoft Phi-4, punches above its weight, ~9GB RAM, MIT license
+    "qwen2.5:14b"            # General purpose, strong multilingual, ~9GB RAM
+    "gemma3:12b"             # Google Gemma 3, vision + creative writing, ~8GB RAM
     "qwen2.5-coder:7b"       # Powerful for coding, 6-8GB RAM
     "gemma4:e4b"             # Balanced multimodal, 5-6GB RAM
     "codellama:7b"           # Code-specialized, 6-8GB RAM
+    "deepseek-coder-v2:16b"  # DeepSeek Coder V2, MoE, ~8.9GB RAM, MIT license
     "deepseek-coder:6.7b"    # MIT license, good for coding
     "mistral:7b"             # General purpose, Apache 2.0
     "phi3:3.8b"              # Small but capable, MIT license
@@ -214,7 +232,7 @@ pause() { echo ""; read -rp "  Press Enter to continue..." _; }
 # ── Model selection menu ──────────────────────────────────────────────────────
 select_model() {
     echo ""
-    echo -e "  ${BOLD}Available models:${RESET}"
+    echo -e "  ${BOLD}Available Local Models:${RESET}"
     echo ""
     
     local i=1
@@ -257,10 +275,27 @@ install_docker() {
         apt-get install -y ca-certificates curl gnupg lsb-release
 
         # GPG key
-        rm -f /etc/apt/keyrings/docker.gpg > /dev/null
+        rm -f /etc/apt/keyrings/docker.gpg /tmp/docker_$$.gpg
         mkdir -p /etc/apt/keyrings
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-            gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        if ! curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /tmp/docker_$$.gpg; then
+            err "Failed to download Docker GPG key"
+            rm -f /tmp/docker_$$.gpg
+            exit 1
+        fi
+        DOCKER_GPG_FINGERPRINT=$(gpg --with-fingerprint --with-colons /tmp/docker_$$.gpg 2>/dev/null \
+            | awk -F: '/^fpr/{print $10; exit}')
+        DOCKER_GPG_EXPECTED="9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
+        if [ "$DOCKER_GPG_FINGERPRINT" != "$DOCKER_GPG_EXPECTED" ]; then
+            err "Docker GPG key fingerprint mismatch!"
+            err "  Expected: $DOCKER_GPG_EXPECTED"
+            err "  Got:      ${DOCKER_GPG_FINGERPRINT:-<empty>}"
+            rm -f /tmp/docker_$$.gpg
+            exit 1
+        fi
+        gpg --dearmor < /tmp/docker_$$.gpg > /etc/apt/keyrings/docker.gpg
+        chmod 644 /etc/apt/keyrings/docker.gpg
+        rm -f /tmp/docker_$$.gpg
+        ok "Docker GPG key verified (fingerprint OK)"
 
         # Add repository
         echo \
@@ -308,11 +343,23 @@ install_nvidia_docker() {
     if [ "$HAS_GPU" = true ] && [ "$HAS_NVIDIA_DOCKER" = false ]; then
         step "Installing NVIDIA Container Toolkit"
         
-        # Add NVIDIA repository
-        distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
-        curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | apt-key add -
-        curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | \
-            tee /etc/apt/sources.list.d/nvidia-docker.list
+        # Add NVIDIA repository - using keyrings (apt-key is deprecated)
+        distribution=$(. /etc/os-release; echo "$ID$VERSION_ID")
+        rm -f /etc/apt/keyrings/nvidia-docker.gpg /tmp/nvidia_docker_$$.gpg
+        mkdir -p /etc/apt/keyrings
+        if ! curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey -o /tmp/nvidia_docker_$$.gpg; then
+            err "Failed to download NVIDIA Docker GPG key"
+            rm -f /tmp/nvidia_docker_$$.gpg
+            exit 1
+        fi
+        gpg --dearmor < /tmp/nvidia_docker_$$.gpg > /etc/apt/keyrings/nvidia-docker.gpg
+        chmod 644 /etc/apt/keyrings/nvidia-docker.gpg
+        rm -f /tmp/nvidia_docker_$$.gpg
+        # Add repo with signed-by pointing to its own keyring (not the global one)
+        curl -fsSL "https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list" \
+            | sed 's|deb https://|deb [signed-by=/etc/apt/keyrings/nvidia-docker.gpg] https://|g' \
+            | tee /etc/apt/sources.list.d/nvidia-docker.list > /dev/null
+        ok "NVIDIA Docker GPG key imported to keyrings"
         
         apt-get update
         apt-get install -y nvidia-container-toolkit
@@ -410,9 +457,27 @@ deploy_stack() {
     ok "AI Stack deployed successfully"
 }
 
+# ── Guard: verify Docker is active and ollama container is running ────────────
+require_ollama_running() {
+    if ! command -v docker &>/dev/null; then
+        err "Docker is not installed"
+        return 1
+    fi
+    if ! systemctl is-active --quiet docker 2>/dev/null; then
+        err "Docker daemon is not running. Start it with: systemctl start docker"
+        return 1
+    fi
+    if ! docker ps --format '{{.Names}}' | grep -q "^ollama$"; then
+        err "Ollama container is not running. Start the stack first:"
+        info "  cd ${AI_BASE_DIR} && docker compose up -d"
+        return 1
+    fi
+}
+
 # ── Download Model ────────────────────────────────────────────────────────────
 download_model() {
     step "Downloading model: ${SELECTED_MODEL}"
+    require_ollama_running || return 1
     
     # Wait for Ollama to be ready
     info "Waiting for Ollama service to be ready..."
@@ -511,6 +576,7 @@ remove_model() {
 
 # ── Change default model (remove current, install new) ────────────────────────
 change_default_model() {
+    require_ollama_running || return 1
     # Get current selected model
     local current_model="$SELECTED_MODEL"
     
@@ -610,8 +676,24 @@ install_opencode() {
     fi
     
     # Fallback: Official install script as the real user (not root)
+    # Separate download from execution to allow inspection and avoid pipe-to-bash
     info "Installing via official install script as user: $local_user..."
-    if sudo -u "$local_user" curl -fsSL https://opencode.ai/install | sudo -u "$local_user" bash; then
+    local install_tmp
+    install_tmp=$(mktemp /tmp/opencode_install_XXXXXX.sh)
+    if ! curl -fsSL https://opencode.ai/install -o "$install_tmp"; then
+        err "Failed to download opencode install script"
+        rm -f "$install_tmp"
+        return 1
+    fi
+    # Verify the downloaded file is a valid shell script (sanity check)
+    if ! head -1 "$install_tmp" | grep -qE '^#!(\/usr)?\/bin\/(ba)?sh'; then
+        err "Downloaded opencode install script does not look like a shell script — aborting"
+        rm -f "$install_tmp"
+        return 1
+    fi
+    chmod +x "$install_tmp"
+    if sudo -u "$local_user" bash "$install_tmp"; then
+        rm -f "$install_tmp"
         # The install script puts it in /home/$local_user/.opencode/bin
         if [ -f "/home/$local_user/.opencode/bin/opencode" ]; then
             # Create symlink in system PATH for root access
@@ -884,9 +966,19 @@ uninstall_all() {
     if command -v docker &>/dev/null; then
         read -rp "  Remove Docker completely? [y/N]: " remove_docker
         if [[ "$remove_docker" =~ ^[yY]$ ]]; then
+            local purge_failed=()
             for pkg in docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker.io docker-doc docker-compose docker-compose-v2; do
-                dpkg -s "$pkg" &>/dev/null && apt-get purge -y "$pkg"
+                if dpkg -s "$pkg" &>/dev/null; then
+                    if ! apt-get purge -y "$pkg"; then
+                        warn "Failed to purge package: $pkg"
+                        purge_failed+=("$pkg")
+                    fi
+                fi
             done
+            if [ ${#purge_failed[@]} -gt 0 ]; then
+                err "Some packages could not be removed: ${purge_failed[*]}"
+                info "Try manually: apt-get purge -y ${purge_failed[*]}"
+            fi
             rm -rf /var/lib/docker
             rm -rf /var/lib/containerd
             rm -f /etc/apt/sources.list.d/docker.list
@@ -1023,9 +1115,7 @@ update_components() {
             # Update AI Stack
             docker pull ollama/ollama:latest
             docker pull ghcr.io/open-webui/open-webui:main
-            docker compose up -d --pull always --force-recreate
-            
-            # Update Portainer (Silencioso)
+            docker compose up -d --pull always
             info "Updating Portainer..."
             docker stop portainer >/dev/null 2>&1 || true
             docker rm portainer >/dev/null 2>&1 || true
@@ -1041,17 +1131,17 @@ update_components() {
             step "Updating Ollama, LLM and Web UI..."
             docker pull ollama/ollama:latest
             docker pull ghcr.io/open-webui/open-webui:main
-            docker compose up -d --pull always --force-recreate
+            docker compose up -d --pull always
             docker image prune -f >/dev/null
             ok "AI components updated"
             ;;
         3)
             step "Updating Docker Engine & Portainer..."
-            # Actualización de binarios del sistema
+            # Upgrade system binaries
             apt-get update -qq
             apt-get install --only-upgrade -y docker-ce docker-ce-cli containerd.io >/dev/null 2>&1
             
-            # Update Portainer (Silencioso)
+            # Update Portainer (silent)
             docker stop portainer >/dev/null 2>&1 || true
             docker rm portainer >/dev/null 2>&1 || true
             docker pull portainer/portainer-ce:latest
@@ -1070,8 +1160,20 @@ update_components() {
                     ok "OpenCode updated via npm"
                 else
                     info "Reinstalling via official script..."
-                    sudo -u "$local_user" curl -fsSL https://opencode.ai/install | sudo -u "$local_user" bash >/dev/null 2>&1
-                    ok "OpenCode reinstalled"
+                    local update_tmp
+                    update_tmp=$(mktemp /tmp/opencode_update_XXXXXX.sh)
+                    if ! curl -fsSL https://opencode.ai/install -o "$update_tmp"; then
+                        err "Failed to download opencode install script"
+                        rm -f "$update_tmp"
+                    elif ! head -1 "$update_tmp" | grep -qE '^#!(\/usr)?\/bin\/(ba)?sh'; then
+                        err "Downloaded opencode script does not look like a shell script — aborting"
+                        rm -f "$update_tmp"
+                    else
+                        chmod +x "$update_tmp"
+                        sudo -u "$local_user" bash "$update_tmp" >/dev/null 2>&1
+                        rm -f "$update_tmp"
+                        ok "OpenCode reinstalled"
+                    fi
                 fi
             else
                 warn "OpenCode not installed"
@@ -1243,9 +1345,9 @@ menu_main() {
             1)  install_all; pause ;;
             2)  menu_opencode; pause ;;
             3)  menu_models; pause ;;
-            4)  update_components; pause ;;      # ← NUEVO: llama a la función
-            5)  menu_uninstall; pause ;;         # ← antes era 4
-            6)  detect_gpu; status_all; pause ;; # ← antes era 5
+            4)  update_components; pause ;;
+            5)  menu_uninstall; pause ;;
+            6)  detect_gpu; status_all; pause ;;
             7)  if [ -f "${AI_BASE_DIR}/docker-compose.yml" ]; then
                     cd "${AI_BASE_DIR}" && docker compose logs | less -R
                 fi
@@ -1292,7 +1394,7 @@ cli_mode() {
             echo "Usage: $0 [COMMAND]"
             echo ""
             echo "Commands:"
-            echo "  install             - Install AI Stack (Docker/Portained + Ollama/LLM + Open WebUI)"
+            echo "  install             - Install AI Stack (Docker/Portainer + Ollama/LLM + Open WebUI)"
             echo "  install-opencode    - Install OpenCode (optional CLI tool)"
             echo "  uninstall-opencode  - Uninstall OpenCode"
             echo "  uninstall           - Remove everything"
