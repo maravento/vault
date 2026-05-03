@@ -11,66 +11,53 @@
 echo "Start MakeMD5. Wait..."
 printf "\n"
 
-# check no-root
 if [ "$(id -u)" == "0" ]; then
     echo "❌ This script should not be run as root."
     exit 1
 fi
 
-# Function to show error and exit
 show_error() {
     zenity --error --title="Make MD5" --text="$1"
     exit 1
 }
 
-# Function to show info
 show_info() {
     zenity --info --title="Make MD5" --text="$1"
 }
 
-# Check if zenity is available
 if ! command -v zenity &> /dev/null; then
     echo "Error: zenity is required but not installed."
     exit 1
 fi
 
-# Check if md5sum is available
 if ! command -v md5sum &> /dev/null; then
     show_error "Error: md5sum is required but not installed."
 fi
 
-# Get files from file manager selection (universal detection)
 files=()
 
 if [ -n "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS" ]; then
-    # Nautilus or Caja - split the paths by newlines
     IFS=$'\n' read -d '' -r -a files <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
 elif [ -n "$THUNAR_SELECTION" ]; then
-    # Thunar - split the paths by newlines
     IFS=$'\n' read -d '' -r -a files <<< "$THUNAR_SELECTION"
 elif [ -n "$NEMO_SCRIPT_SELECTED_FILE_PATHS" ]; then
-    # Nemo (Linux Mint) - split the paths by newlines
     IFS=$'\n' read -d '' -r -a files <<< "$NEMO_SCRIPT_SELECTED_FILE_PATHS"
 elif [ "$#" -gt 0 ]; then
-    # Called from command line with arguments
     files=("$@")
 else
-    # No files provided, ask user to select
     selection=$(zenity --file-selection \
                        --multiple \
                        --separator='|' \
                        --title="Select files to create checksums for")
-    [ $? -ne 0 ] && exit 0
-    
+    zenity_exit=$?
+    [ "$zenity_exit" -ne 0 ] && exit 0
     IFS='|' read -r -a files <<< "$selection"
 fi
 
-# Check if we have any files
 if [ "${#files[@]}" -eq 0 ]; then
     show_error "No files selected."
 fi
 
-# Check that none of the items is a directory and all exist
 for file in "${files[@]}"; do
     if [ ! -e "$file" ]; then
         show_error "'$file' does not exist."
@@ -83,19 +70,15 @@ for file in "${files[@]}"; do
     fi
 done
 
-# Determine checksum file naming strategy
 if [ "${#files[@]}" -eq 1 ]; then
-    # Single file: use filename.ext.md5
     single_file="${files[0]}"
     default_name="$(basename "$single_file").md5"
     dialog_text="Creating checksum for: $(basename "$single_file")\n\nChecksum file name:"
 else
-    # Multiple files: suggest a generic name
     default_name="checksums.md5"
     dialog_text="Creating checksums for ${#files[@]} files.\n\nChecksum file name:"
 fi
 
-# Ask user for naming preference
 choice=$(zenity --list \
                --title="MD5 Checksum Generation" \
                --text="$dialog_text" \
@@ -108,11 +91,11 @@ choice=$(zenity --list \
                --height=350 \
                --width=800)
 
-case $choice in
+case "$choice" in
     "auto")
-        checksum_file="$default_name"
-        # For single files, place in same directory as original
         if [ "${#files[@]}" -eq 1 ]; then
+            checksum_file="$(dirname "${files[0]}")/$default_name"
+        else
             checksum_file="$(dirname "${files[0]}")/$default_name"
         fi
         ;;
@@ -122,19 +105,18 @@ case $choice in
                               --confirm-overwrite \
                               --filename="$default_name" \
                               --title="Save MD5 checksum file as...")
-        [ $? -ne 0 ] && exit 0
+        zenity_exit=$?
+        [ "$zenity_exit" -ne 0 ] && exit 0
         ;;
     *)
         exit 0
         ;;
 esac
 
-# Validate checksum file name
 if [ -z "$checksum_file" ]; then
     show_error "No checksum file name specified."
 fi
 
-# Check if checksum file already exists (for auto naming)
 if [ "$choice" = "auto" ] && [ -e "$checksum_file" ]; then
     if ! zenity --question \
                 --title="File Exists" \
@@ -144,15 +126,12 @@ if [ "$choice" = "auto" ] && [ -e "$checksum_file" ]; then
     fi
 fi
 
-# Prepare file list with relative paths for better readability in checksum file
 temp_dir=$(mktemp -d)
 manifest_file="$temp_dir/files.txt"
-trap "rm -rf '$temp_dir'" EXIT
+trap 'rm -rf "$temp_dir"' EXIT
 
-# Create list of files with their relative paths from checksum file directory
 checksum_dir=$(dirname "$checksum_file")
 for file in "${files[@]}"; do
-    # Use relative path if file is in same directory tree, otherwise use full path
     if [[ "$file" == "$checksum_dir"* ]]; then
         rel_path=$(realpath --relative-to="$checksum_dir" "$file")
         echo "$rel_path" >> "$manifest_file"
@@ -161,55 +140,49 @@ for file in "${files[@]}"; do
     fi
 done
 
-# Show progress while creating checksums
 (
     echo "# Calculating MD5 checksums..."
     echo "10"
-    
-    # Calculate total size for better progress estimation
+
     total_files=${#files[@]}
     current=0
-    
-    # Clear the output file
+
     > "$checksum_file"
-    
+
     while IFS= read -r file_path; do
         current=$((current + 1))
         progress=$((10 + (current * 80 / total_files)))
-        
+
         echo "$progress"
         echo "# Processing $(basename "$file_path") ($current/$total_files)..."
-        
-        # Calculate checksum
+
         if [[ "$file_path" == /* ]]; then
-            # Absolute path
             actual_file="$file_path"
         else
-            # Relative path
             actual_file="$checksum_dir/$file_path"
         fi
-        
-        hash=$(md5sum "$actual_file" 2>/dev/null)
-        if [ $? -eq 0 ]; then
-            # Replace the full path with the desired path in output
-            echo "$hash" | sed "s|$actual_file|$file_path|" >> "$checksum_file"
+
+        if hash=$(md5sum "$actual_file" 2>/dev/null); then
+            checksum_only=$(echo "$hash" | awk '{print $1}')
+            printf '%s  %s\n' "$checksum_only" "$file_path" >> "$checksum_file"
         else
             echo "Error processing $file_path" >&2
             exit 1
         fi
     done < "$manifest_file"
-    
+
     echo "100"
     echo "# Complete!"
-    
+
 ) | zenity --progress \
            --title="Creating MD5 Checksums" \
            --text="Initializing..." \
            --percentage=0 \
            --auto-close
 
-# Check if the operation was successful
-if [ $? -eq 0 ] && [ -s "$checksum_file" ]; then
+progress_exit=$?
+
+if [ "$progress_exit" -eq 0 ] && [ -s "$checksum_file" ]; then
     file_count=$(wc -l < "$checksum_file")
     show_info "✅ SUCCESS\n\n📄 Checksum file created: $(basename "$checksum_file")\n📊 Files processed: $file_count\n📂 Location: $(dirname "$checksum_file")\n\nYou can now use this file to verify the integrity of your files."
 else

@@ -14,6 +14,8 @@
 echo "Top 5 Crypto Price Notifier Starting. Wait..."
 printf "\n"
 
+set -uo pipefail
+
 # check no-root
 if [ "$(id -u)" -eq 0 ]; then
     echo "❌ This script should not be run as root."
@@ -30,11 +32,31 @@ for pkg in $pkgs; do
   fi
 done
 
+current_uid=$(id -u)
+
 # Crypto Top 5
-top5=$(curl -s "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=5&page=1")
+top5_response=$(curl -s --max-time 15 --connect-timeout 10 \
+    -w "\n%{http_code}" \
+    "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=5&page=1")
+top5_http_code=$(echo "$top5_response" | tail -n1)
+top5=$(echo "$top5_response" | head -n -1)
+
+if [ "$top5_http_code" != "200" ]; then
+    echo "❌ CoinGecko API error (HTTP $top5_http_code). Cannot fetch market data."
+    DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${current_uid}/bus \
+        notify-send -i dialog-error "Crypto Prices" "API error (HTTP $top5_http_code). Try again later."
+    exit 1
+fi
 
 # Extract IDs in order from an array
 mapfile -t ids < <(echo "$top5" | jq -r '.[].id')
+
+if [ ${#ids[@]} -eq 0 ]; then
+    echo "❌ No data returned from CoinGecko API."
+    DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${current_uid}/bus \
+        notify-send -i dialog-error "Crypto Prices" "No data returned from API. Try again later."
+    exit 1
+fi
 
 # Extract symbols in order, in another array, in uppercase
 mapfile -t symbols < <(echo "$top5" | jq -r '.[].symbol' | awk '{print toupper($0)}')
@@ -47,17 +69,28 @@ done
 
 # Get prices
 ids_joined=$(IFS=, ; echo "${ids[*]}")
-prices=$(curl -s "https://api.coingecko.com/api/v3/simple/price?ids=$ids_joined&vs_currencies=usd")
+prices_response=$(curl -s --max-time 15 --connect-timeout 10 \
+    -w "\n%{http_code}" \
+    "https://api.coingecko.com/api/v3/simple/price?ids=$ids_joined&vs_currencies=usd")
+prices_http_code=$(echo "$prices_response" | tail -n1)
+prices=$(echo "$prices_response" | head -n -1)
+
+if [ "$prices_http_code" != "200" ]; then
+    echo "❌ CoinGecko prices API error (HTTP $prices_http_code)."
+    DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${current_uid}/bus \
+        notify-send -i dialog-error "Crypto Prices" "Price API error (HTTP $prices_http_code). Try again later."
+    exit 1
+fi
 
 # Out
 PRICE=""
 for id in "${ids[@]}"; do
     price=$(echo "$prices" | jq -r --arg id "$id" '.[$id].usd')
-    [[ -z "$price" || "$price" == "null" ]] && price="Error"
+    [[ -z "$price" || "$price" == "null" ]] && price="N/A"
     PRICE+="${sym_map[$id]}: \$${price}\n"
 done
 
 # Notify
 echo -e "$PRICE"
-DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u "$USER")/bus \
+DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${current_uid}/bus \
 notify-send -i checkbox "Crypto Prices" "$PRICE"

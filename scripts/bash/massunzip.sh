@@ -7,20 +7,17 @@
 echo "Unzip Files With Pass Starting. Wait..."
 printf "\n"
 
-# check no-root
 if [ "$(id -u)" == "0" ]; then
     echo "❌ This script should not be run as root."
     exit 1
 fi
 
-# Check if 'multiverse' repository is available in APT
 if ! apt-cache policy | grep -qE '/multiverse'; then
     echo "⚠️ The 'multiverse' repository is not enabled. Run:"
     echo "sudo add-apt-repository multiverse && sudo apt update"
     exit 1
 fi
 
-# Dependencies
 if ! command -v 7z >/dev/null 2>&1; then
     echo "⚠️ 7z is not installed. Run:"
     echo "sudo apt install p7zip-full p7zip-rar"
@@ -28,7 +25,7 @@ if ! command -v 7z >/dev/null 2>&1; then
 fi
 
 ### PASSWORDS
-# add and replace "passfoo, passbar, www.passfoobar.com, etc" with the passwords of your files to unzip
+# add and replace "passfoo, passbar, etc" with the passwords of your files to unzip
 shopt -s extglob nullglob nocaseglob
 passw=(
   passfoo
@@ -42,16 +39,30 @@ passw=(
 )
 
 ### CHECK
+found_files=0
 for f in *.@(gz|rar|zip|zip.001|7z|7z.001); do
-  [[ ("$f" =~ \.part[[:digit:]]+\.rar$) && ! ("$f" =~ \.part0*1\.rar$) ]] && continue
-  for p in "${passw[@]}"; do
-    7z t -p"$p" "$f" &>/dev/null
-    if [ $? -eq 0 ]; then
-      echo "password match: $p"
-      7z x -y -p"$p" "$f" -aoa &>/dev/null
-      break
-    else
-      echo "test passwd: $p"
+    found_files=1
+    [[ ("$f" =~ \.part[[:digit:]]+\.rar$) && ! ("$f" =~ \.part0*1\.rar$) ]] && continue
+
+    matched=0
+    for p in "${passw[@]}"; do
+        if 7z t -p"$p" "$f" &>/dev/null; then
+            echo "password match '$f': $p"
+            if ! 7z x -y -p"$p" "$f" -aoa &>/dev/null; then
+                echo "❌ Extraction failed: $f"
+            fi
+            matched=1
+            break
+        else
+            echo "test passwd '$f': $p"
+        fi
+    done
+
+    if [ "$matched" -eq 0 ]; then
+        echo "❌ No password matched for: $f"
     fi
-  done
 done
+
+if [ "$found_files" -eq 0 ]; then
+    echo "⚠️ No compressed files found in current directory."
+fi

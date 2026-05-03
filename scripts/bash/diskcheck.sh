@@ -12,6 +12,8 @@
 echo "Check Disk Temp Starting. Wait..."
 printf "\n"
 
+set -uo pipefail
+
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -37,8 +39,13 @@ local_user=$(who | awk '/\(:0\)/{print $1; exit}')
 [ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
 # 3. SUDO_USER variable (when run via sudo from terminal)
 [ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-# 4. First active session user (SSH or other)
-[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
+# 4. First active session user (SSH or other), restricted to real users (UID >= 1000)
+[ -z "$local_user" ] && {
+    _candidate=$(who | awk 'NR==1{print $1}')
+    [ -n "$_candidate" ] && \
+        local_user=$(awk -F: -v u="$_candidate" '$1==u && $3>=1000{print $1; exit}' /etc/passwd) || true
+    unset _candidate
+}
 # 5. First valid home directory
 [ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
 # Validate the user actually exists on the system
@@ -67,12 +74,10 @@ if [ -n "$unavailable" ]; then
 fi
 if [ -n "$missing" ]; then
     echo "🔧 Releasing APT/DPKG locks..."
-    killall -q apt apt-get dpkg 2>/dev/null
     rm -f /var/lib/apt/lists/lock
     rm -f /var/cache/apt/archives/lock
     rm -f /var/lib/dpkg/lock
     rm -f /var/lib/dpkg/lock-frontend
-    rm -rf /var/lib/apt/lists/*
     dpkg --configure -a
     echo "📦 Installing: $missing"
     apt-get -qq update

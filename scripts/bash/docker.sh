@@ -1,10 +1,18 @@
 #!/bin/bash
 # maravento.com
 #
-# Docker + Portainer (Install | Remove)
+# Disk Check Monitor
+# Checks temperature, SMART status and degradation indicators on HDD, SSD and NVMe.
+# Sends desktop alert and logs to syslog if any issue is detected.
+# Requires: libnotify-bin, inxi, smartmontools
+# Usage: sudo ./diskcheck.sh
+# Cron Root: @daily /etc/scr/diskcheck.sh >> /var/log/diskcheck.log 2>&1
+# Log rotate: /etc/logrotate.d/diskcheck
 
-echo "Docker Install | Remove Starting. Wait..."
+echo "Check Disk Temp Starting. Wait..."
 printf "\n"
+
+set -uo pipefail
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -31,8 +39,13 @@ local_user=$(who | awk '/\(:0\)/{print $1; exit}')
 [ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
 # 3. SUDO_USER variable (when run via sudo from terminal)
 [ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-# 4. First active session user (SSH or other)
-[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
+# 4. First active session user (SSH or other), restricted to real users (UID >= 1000)
+[ -z "$local_user" ] && {
+    _candidate=$(who | awk 'NR==1{print $1}')
+    [ -n "$_candidate" ] && \
+        local_user=$(awk -F: -v u="$_candidate" '$1==u && $3>=1000{print $1; exit}' /etc/passwd) || true
+    unset _candidate
+}
 # 5. First valid home directory
 [ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
 # Validate the user actually exists on the system
@@ -42,178 +55,182 @@ if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
 fi
 echo "Using local user: $local_user"
 
-# Function to install Docker and docker-compose-plugin
-install_docker() {
-  if ! command -v docker &> /dev/null; then
-    echo "Docker is not installed. Proceeding with installation..."
-    apt-get install -y ca-certificates curl gnupg lsb-release
+# Desktop user UID (resolved after final local_user determination)
+local_uid=$(id -u "$local_user")
+echo "Desktop user: $local_user (uid=$local_uid)"
 
-    # GPG
-    rm -f /etc/apt/keyrings/docker.gpg > /dev/null
-    mkdir -p /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-        gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-
-    # Add Repo
-    echo \
-      "deb [arch=$(dpkg --print-architecture) \
-      signed-by=/etc/apt/keyrings/docker.gpg] \
-      https://download.docker.com/linux/ubuntu \
-      $(lsb_release -cs) stable" | \
-      tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-    # Install
-    apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    #apt install -y docker.io docker-compose-plugin
-    mkdir -p /etc/docker
-    docker compose version
-    systemctl start docker
-    systemctl enable docker
-    usermod -aG docker $local_user
-    docker volume create portainer_data
-    docker run -d -p 9000:9000 --name portainer --restart=always \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -v portainer_data:/data portainer/portainer-ce
-    #docker run hello-world
-    echo "Docker + Portainer has been installed successfully"
-    echo "Access: http://localhost:9000/"
-  else
-    echo "Docker is already installed"
-  fi
-}
-
-# Docker uninstall function
-uninstall_docker() {
-  if command -v docker &> /dev/null; then
-    echo "Docker is installed. Proceeding with uninstallation..."
-
-    # Stop and kill all running containers
-    CONTAINERS=$(docker ps -q)
-    if [ -n "$CONTAINERS" ]; then
-      docker stop $CONTAINERS
-      docker rm $CONTAINERS
-    fi
-
-    # Delete all volumes
-    VOLUMES=$(docker volume ls -q)
-    if [ -n "$VOLUMES" ]; then
-      docker volume rm $VOLUMES
-    fi
-
-    # Delete all images
-    IMAGES=$(docker images -q)
-    if [ -n "$IMAGES" ]; then
-      docker rmi $IMAGES
-    fi
-
-    # Delete custom networks (excluding predefined ones)
-    NETWORKS=$(docker network ls -q)
-    PREDEFINED_NETWORKS="bridge host none"
-    for NETWORK in $NETWORKS; do
-      NETWORK_NAME=$(docker network inspect --format '{{.Name}}' $NETWORK)
-      if ! echo "$PREDEFINED_NETWORKS" | grep -wq "$NETWORK_NAME"; then
-        docker network rm $NETWORK
-      fi
-    done
-
-    # Uninstall Docker
-    if [ "$(docker ps -q)" ]; then
-        echo "Stopping all containers..."
-        docker stop $(docker ps -q)
-    fi
-
-    if [ "$(docker ps -a -q)" ]; then
-        echo "Removing all containers..."
-        docker rm $(docker ps -a -q)
-    fi
-
-    if [ "$(docker images -q)" ]; then
-        echo "Removing all images..."
-        docker rmi $(docker images -q)
-    fi
-
-    if [ "$(docker volume ls -q)" ]; then
-        echo "Removing all volumes..."
-        docker volume prune -f
-    fi
-
-    if [ "$(docker network ls -q)" ]; then
-        echo "Removing all networks..."
-        docker network prune -f
-    fi
-
-    for pkg in docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do
-        echo "Removing Dockers Packages..."
-        dpkg -s "$pkg" &>/dev/null && apt-get purge -y "$pkg"
-    done
-
-    # Delete Docker ppa, directories and files
-    rm -rf /var/lib/docker &>/dev/null
-    rm /etc/apt/sources.list.d/docker.list &>/dev/null
-
-    # Clean up unneeded packages
-    apt autoremove -y
-    apt-get clean
-
-    echo "Docker has been successfully uninstalled"
-  else
-    echo "Docker is not installed"
-  fi
-}
-
-# Show help
-show_help() {
-    echo "Usage: $0 [COMMAND]"
-    echo "Commands:"
-    echo "  install    Install Docker + Portainer"
-    echo "  remove     Uninstall Docker"
-    echo ""
-    echo "If no command is provided, interactive mode will start."
-    exit 0
-}
-
-# Main execution logic
-if [ $# -eq 0 ]; then
-    # Interactive mode
-    echo "What action do you want to perform?"
-    echo "1) Install Docker + Portainer"
-    echo "2) Uninstall Docker"
-    echo "3) Exit"
-    read -p "Select an option (1, 2 or 3): " option
-
-    case $option in
-      1)
-        install_docker
-        ;;
-      2)
-        uninstall_docker
-        ;;
-      3)
-        echo "Exiting..."
-        exit 0
-        ;;
-      *)
-        echo "Invalid option"
-        exit 1
-        ;;
-    esac
-else
-    # Command line mode
-    case $1 in
-        install)
-            install_docker
-            ;;
-        remove)
-            uninstall_docker
-            ;;
-        --help|-h)
-            show_help
-            ;;
-        *)
-            echo "Unknown command: $1"
-            echo "Use --help for usage information"
-            exit 1
-            ;;
-    esac
+# check dependencies
+pkgs='libnotify-bin inxi smartmontools'
+missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
+unavailable=""
+for p in $missing; do
+    apt-cache show "$p" &>/dev/null || unavailable+=" $p"
+done
+if [ -n "$unavailable" ]; then
+    echo "❌ Missing dependencies not found in APT:"
+    for u in $unavailable; do echo "   - $u"; done
+    echo "💡 Please install them manually or enable the required repositories."
+    exit 1
 fi
+if [ -n "$missing" ]; then
+    echo "🔧 Releasing APT/DPKG locks..."
+    rm -f /var/lib/apt/lists/lock
+    rm -f /var/cache/apt/archives/lock
+    rm -f /var/lib/dpkg/lock
+    rm -f /var/lib/dpkg/lock-frontend
+    dpkg --configure -a
+    echo "📦 Installing: $missing"
+    apt-get -qq update
+    if ! apt-get -y install $missing; then
+        echo "❌ Error installing: $missing"
+        exit 1
+    fi
+else
+    echo "✅ Dependencies OK"
+fi
+# check ppa
+the_ppa=malcscott/ppa
+if ! grep -q "^deb .*$the_ppa" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
+    add-apt-repository -y ppa:$the_ppa >/dev/null 2>&1
+    apt-get update -qq
+    apt-get install -y hddtemp >/dev/null 2>&1
+fi
+
+# ---------------------------------------------------------------------
+# LOGROTATE
+# ---------------------------------------------------------------------
+LOGROTATE_CONF=/etc/logrotate.d/diskcheck
+if [ ! -f "$LOGROTATE_CONF" ]; then
+    cat > "$LOGROTATE_CONF" << 'EOF'
+/var/log/diskcheck.log {
+    weekly
+    rotate 4
+    compress
+    missingok
+    notifempty
+}
+EOF
+    echo "✅ Logrotate config created: $LOGROTATE_CONF"
+else
+    echo "✅ Logrotate config: OK"
+fi
+
+# ---------------------------------------------------------------------
+# HELPER: send desktop notification + syslog
+# ---------------------------------------------------------------------
+notify_alert() {
+    local msg="$1"
+    local icon="${2:-dialog-warning}"
+    logger -t disktemp "$msg"
+    echo "$msg"
+    sudo -u "$local_user" \
+        DISPLAY=:0 \
+        DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${local_uid}/bus \
+        notify-send -i "$icon" "⚠️ DISK ALERT" "$msg" 2>/dev/null \
+        || echo "   ⚠️ notify-send failed (no desktop session?)"
+}
+
+# Check desktop notification channel (terminal only)
+sudo -u "$local_user" \
+    DISPLAY=:0 \
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${local_uid}/bus \
+    notify-send --version &>/dev/null \
+    && echo "✅ Desktop notifications: OK" \
+    || echo "⚠️ Desktop notifications: not available"
+
+# ---------------------------------------------------------------------
+# TEMPERATURE CHECK
+# ---------------------------------------------------------------------
+degrees=50
+
+# option 1 (ssd sata and nvme)
+TEMP_OUTPUT=$(inxi -xD | awk "/temp/ {if (\$2>$degrees) print \"ALERT: hard drive temperature is above: \" \$2}")
+if [ -n "$TEMP_OUTPUT" ]; then
+    notify_alert "$TEMP_OUTPUT" "checkbox"
+fi
+
+# option 2 (for some ssd sata and hdd - uncomment if needed)
+#temperature=$(hddtemp /dev/sda --numeric)
+#if [ $temperature -ge $degrees ]; then
+#    notify_alert "ALERT: hard drive's temperature is above: $temperature" "checkbox"
+#fi
+
+# ---------------------------------------------------------------------
+# SMART DISK HEALTH CHECK
+# Detects HDD/SSD/NVMe degradation and alerts for timely replacement
+# ---------------------------------------------------------------------
+echo ""
+echo "Check Disk SMART Health. Wait..."
+
+# Alert thresholds
+REALLOCATED_THRESHOLD=10   # reallocated sectors (sign of bad sectors)
+PENDING_THRESHOLD=5        # sectors pending reallocation
+UNCORRECTABLE_THRESHOLD=1  # uncorrectable errors (critical from the first one)
+
+# Detect all disks in the system (HDD, SSD, NVMe)
+DISKS=$(lsblk -dno NAME,TYPE | awk '$2=="disk" {print "/dev/"$1}')
+
+if [ -z "$DISKS" ]; then
+    echo "⚠️ No disks found"
+else
+    for DISK in $DISKS; do
+        echo "→ Checking $DISK"
+        DISK_ALERTS=0
+
+        if ! smartctl -i "$DISK" &>/dev/null; then
+            echo "   ⚠️ $DISK: SMART not available or not supported"
+            continue
+        fi
+
+        SMART_STATUS=$(smartctl -H "$DISK" 2>/dev/null | grep -i "overall-health" | awk '{print $NF}')
+        if [ "$SMART_STATUS" = "FAILED!" ]; then
+            notify_alert "🔴 $DISK: SMART status FAILED. Replace immediately." "drive-harddisk"
+            DISK_ALERTS=$((DISK_ALERTS + 1))
+        fi
+
+        # NVMe: uses its own attributes
+        if echo "$DISK" | grep -q "nvme"; then
+            CRITICAL=$(smartctl -A "$DISK" 2>/dev/null | grep -i "critical_warning" | awk '{print $2}')
+            if [ -n "$CRITICAL" ] && [ "$CRITICAL" != "0x00" ] && [ "$CRITICAL" != "0" ]; then
+                notify_alert "🔴 $DISK (NVMe): Critical warning detected ($CRITICAL). Check disk immediately." "drive-harddisk"
+                DISK_ALERTS=$((DISK_ALERTS + 1))
+            fi
+            WEAR=$(smartctl -A "$DISK" 2>/dev/null | grep -i "percentage_used" | awk '{print $2}' | tr -d '%')
+            if [ -n "$WEAR" ] && [ "$WEAR" -ge 90 ] 2>/dev/null; then
+                notify_alert "🟠 $DISK (NVMe): Wear level at ${WEAR}%. Plan replacement soon." "drive-harddisk"
+                DISK_ALERTS=$((DISK_ALERTS + 1))
+            fi
+            [ "$DISK_ALERTS" -eq 0 ] && echo "   ✅ $DISK: OK"
+            continue
+        fi
+
+        # HDD / SSD SATA: classic SMART attributes
+        SMART_ATTRS=$(smartctl -A "$DISK" 2>/dev/null)
+        REALLOCATED=$(echo "$SMART_ATTRS" | awk '/Reallocated_Sector_Ct/ {print $10}')
+        PENDING=$(echo "$SMART_ATTRS" | awk '/Current_Pending_Sector/ {print $10}')
+        UNCORRECTABLE=$(echo "$SMART_ATTRS" | awk '/Offline_Uncorrectable/ {print $10}')
+        POWER_HOURS=$(echo "$SMART_ATTRS" | awk '/Power_On_Hours/ {print $10}')
+
+        if [ -n "$REALLOCATED" ] && [ "$REALLOCATED" -ge "$REALLOCATED_THRESHOLD" ] 2>/dev/null; then
+            notify_alert "🟠 $DISK: $REALLOCATED reallocated sectors detected. Disk degrading — plan replacement." "drive-harddisk"
+            DISK_ALERTS=$((DISK_ALERTS + 1))
+        fi
+        if [ -n "$PENDING" ] && [ "$PENDING" -ge "$PENDING_THRESHOLD" ] 2>/dev/null; then
+            notify_alert "🟠 $DISK: $PENDING pending sectors. Possible imminent failure." "drive-harddisk"
+            DISK_ALERTS=$((DISK_ALERTS + 1))
+        fi
+        if [ -n "$UNCORRECTABLE" ] && [ "$UNCORRECTABLE" -ge "$UNCORRECTABLE_THRESHOLD" ] 2>/dev/null; then
+            notify_alert "🔴 $DISK: $UNCORRECTABLE uncorrectable errors. Replace disk immediately." "drive-harddisk"
+            DISK_ALERTS=$((DISK_ALERTS + 1))
+        fi
+        if [ -n "$POWER_HOURS" ] && [ "$POWER_HOURS" -ge 40000 ] 2>/dev/null; then
+            notify_alert "🟡 $DISK: ${POWER_HOURS}h of use. Consider replacement as preventive measure." "drive-harddisk"
+            DISK_ALERTS=$((DISK_ALERTS + 1))
+        fi
+
+        [ "$DISK_ALERTS" -eq 0 ] && echo "   ✅ $DISK: OK"
+    done
+fi
+
+echo ""
+echo "Check Disk Health Done."

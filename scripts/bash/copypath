@@ -7,8 +7,10 @@
 echo "Copy Path Starting. Wait..."
 printf "\n"
 
+set -uo pipefail
+
 # check no-root
-if [ "$(id -u)" == "0" ]; then
+if [ "$(id -u)" -eq 0 ]; then
     echo "❌ This script should not be run as root."
     exit 1
 fi
@@ -106,7 +108,10 @@ else
 fi
 
 # Clean up paths (remove file:// prefix and decode URIs)
-PATHS=$(echo "$PATHS" | sed 's|file://||g' | sed 's/%20/ /g')
+PATHS=$(echo "$PATHS" | sed 's|file://||g' | python3 -c "
+import sys, urllib.parse
+print(urllib.parse.unquote(sys.stdin.read()), end='')
+")
 
 # Remove any trailing newlines or whitespace
 PATHS=$(echo "$PATHS" | sed 's/[[:space:]]*$//')

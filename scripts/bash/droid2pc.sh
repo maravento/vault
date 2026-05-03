@@ -3,10 +3,6 @@
 #
 # droid2pc - Control and mirror Android devices to PC via scrcpy
 #
-# This script provides start/stop/status commands for scrcpy,
-# ensuring only one instance runs at a time and verifying that
-# an Android device is properly connected via ADB.
-#
 # Compatible:
 # Android 5.0 (API 21) or higher
 #
@@ -25,29 +21,24 @@
 #
 # 🔒 Note: This script must NOT be run as root.
 
-# check no-root
 if [ "$(id -u)" -eq 0 ]; then
     echo "❌ This script should not be run as root."
     exit 1
 fi
 
-# check dependencies
 pkgs='adb scrcpy'
 for pkg in $pkgs; do
-  dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {
-    echo "❌ '$pkg' is not installed. Run:"
-    echo "sudo apt install $pkg"
-    exit 1
-  }
+    dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {
+        echo "❌ '$pkg' is not installed. Run:"
+        echo "   sudo apt install $pkg"
+        exit 1
+    }
 done
 
-PIDFILE="/tmp/scrcpy.pid"
+PIDFILE="/run/user/$(id -u)/scrcpy.pid"
 
 check_device() {
-    # Start ADB daemon explicitly (silently)
     adb start-server > /dev/null 2>&1
-
-    # Check if an ADB device is connected
     if ! adb devices | grep -w "device" > /dev/null; then
         echo "❌ No ADB device connected."
         exit 1
@@ -56,46 +47,55 @@ check_device() {
 
 start() {
     check_device
-
-    # Avoid starting multiple instances
     if pgrep -x scrcpy > /dev/null; then
         echo "⚠️ scrcpy is already running."
         exit 1
     fi
-
-    # Start scrcpy in the background and save its PID
     nohup scrcpy --max-size 1024 > /dev/null 2>&1 &
-    echo $! > "$PIDFILE"
-    echo "✅ scrcpy started."
+    local new_pid=$!
+    echo "$new_pid" > "$PIDFILE"
+    sleep 1
+    if kill -0 "$new_pid" 2>/dev/null; then
+        echo "✅ scrcpy started (PID $new_pid)."
+    else
+        echo "❌ scrcpy failed to start."
+        rm -f "$PIDFILE"
+        exit 1
+    fi
 }
 
 stop() {
-    # Stop scrcpy if PID file exists
     if [ -f "$PIDFILE" ]; then
-        kill "$(cat "$PIDFILE")" 2>/dev/null && rm -f "$PIDFILE"
+        local pid
+        pid=$(cat "$PIDFILE")
+        if [[ -n "$pid" && "$pid" =~ ^[0-9]+$ ]]; then
+            kill "$pid" 2>/dev/null
+            sleep 1
+            kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
+        fi
+        rm -f "$PIDFILE"
         echo "🛑 scrcpy stopped."
     else
-        # Fallback if PID file is missing
         pkill -x scrcpy && echo "🛑 scrcpy stopped (no PIDFILE)." || echo "ℹ️ scrcpy was not running."
     fi
 }
 
 status() {
-    # Report whether scrcpy is running
-    if pgrep -x scrcpy > /dev/null; then
-        echo "✅ scrcpy is running (PID $(pgrep -x scrcpy))."
+    local pid
+    pid=$(pgrep -x scrcpy)
+    if [ -n "$pid" ]; then
+        echo "✅ scrcpy is running (PID $pid)."
     else
         echo "ℹ️ scrcpy is not running."
     fi
 }
 
 case "$1" in
-    start) start ;;
-    stop) stop ;;
+    start)  start  ;;
+    stop)   stop   ;;
     status) status ;;
     *)
         echo "Usage: $0 {start|stop|status}"
         exit 1
         ;;
 esac
-

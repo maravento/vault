@@ -9,6 +9,8 @@
 #
 # To view change alerts, run: sudo grep "crontab-check" /var/log/syslog
 
+set -uo pipefail
+
 echo "Check Crontab. Wait..."
 printf "\n"
 
@@ -21,10 +23,10 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
-# prevent overlapping runs
+readonly LOCK_FD=200
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-exec 200>"$SCRIPT_LOCK"
-if ! flock -n 200; then
+exec {LOCK_FD}>"$SCRIPT_LOCK"
+if ! flock -n $LOCK_FD; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
@@ -37,8 +39,13 @@ local_user=$(who | awk '/\(:0\)/{print $1; exit}')
 [ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
 # 3. SUDO_USER variable (when run via sudo from terminal)
 [ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-# 4. First active session user (SSH or other)
-[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
+# 4. Filter to only real users (UID >= 1000) from /etc/passwd to avoid capturing system accounts
+[ -z "$local_user" ] && {
+    _candidate=$(who | awk 'NR==1{print $1}')
+    [ -n "$_candidate" ] && \
+        local_user=$(awk -F: -v u="$_candidate" '$1==u && $3>=1000{print $1; exit}' /etc/passwd) || true
+    unset _candidate
+}
 # 5. First valid home directory
 [ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
 # Validate the user actually exists on the system
@@ -48,24 +55,37 @@ if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
 fi
 echo "Using local user: $local_user"
 
-# Define paths to current and backup crontab files for both the user and root
-user_crontab="/var/spool/cron/crontabs/$local_user"
-user_crontab_bak="/var/spool/cron/crontabs/${local_user}.bak"
-root_crontab="/var/spool/cron/crontabs/root"
-root_crontab_bak="/var/spool/cron/crontabs/root.bak"
+readonly user_crontab="/var/spool/cron/crontabs/$local_user"
+readonly user_crontab_bak="/var/spool/cron/crontabs/${local_user}.bak"
+readonly root_crontab="/var/spool/cron/crontabs/root"
+readonly root_crontab_bak="/var/spool/cron/crontabs/root.bak"
 
-# Create a backup of a crontab file if the backup does not already exist
+readonly TMP_CURRENT="/tmp/crontab_current_$$"
+readonly TMP_BACKUP="/tmp/crontab_backup_$$"
+
+cleanup() {
+    rm -f "$TMP_CURRENT" "$TMP_BACKUP"
+}
+trap cleanup EXIT INT TERM
+
 backup_if_missing() {
     local src=$1
     local bak=$2
-    [ ! -f "$bak" ] && cp "$src" "$bak"
+    if [ ! -f "$bak" ]; then
+        if ! cp "$src" "$bak"; then
+            echo "ERROR: Failed to create backup: $bak"
+            return 1
+        fi
+    fi
 }
 
-exec > >(tee /dev/tty | logger -p user.alert -t crontab-check) 2>&1
-
-# Get the line number of the marker line "# m h  dom mon dow   command"
 get_start_line() {
-    grep -n "^# m h  dom mon dow   command" "$1" | cut -d: -f1
+    local file=$1
+    if [ ! -f "$file" ]; then
+        echo "ERROR: get_start_line: file not found: $file" >&2
+        return 1
+    fi
+    grep -n "^# m h  dom mon dow   command" "$file" | cut -d: -f1
 }
 
 # Compare current and backup crontab files for a user
@@ -87,53 +107,39 @@ compare_crontabs() {
     [ -n "$header_line" ] && start_line=$((header_line + 1))
 
     # Extract relevant part of the files starting after the marker
-    tail -n +"$start_line" "$file" > /tmp/current
-    tail -n +"$start_line" "$bak" > /tmp/backup
+    tail -n +"$start_line" "$file" > "$TMP_CURRENT"
+    tail -n +"$start_line" "$bak"  > "$TMP_BACKUP"
 
-    local total_current=$(wc -l < /tmp/current)
-    local total_backup=$(wc -l < /tmp/backup)
+    local diff_output
+    local offset=$(( start_line - 1 ))
+    diff_output=$(diff --unchanged-line-format="" \
+                       --old-line-format="OLD %dn %L" \
+                       --new-line-format="NEW %dn %L" \
+                       "$TMP_BACKUP" "$TMP_CURRENT" | \
+        awk -v off="$offset" '
+            /^OLD/{ n=$2; $1=$2=""; sub(/^ +/,""); printf "Line %d in backup:  %s\n", n+off, $0; next }
+            /^NEW/{ n=$2; $1=$2=""; sub(/^ +/,""); printf "Line %d in current: %s\n", n+off, $0 }
+        ' || true)
 
-    local max_lines=$(( total_current > total_backup ? total_current : total_backup ))
-    local changed_lines=()
-
-    # Detect different lines
-    for ((i=1; i<=max_lines; i++)); do
-        local line_cur=$(sed -n "${i}p" /tmp/current)
-        local line_bak=$(sed -n "${i}p" /tmp/backup)
-
-        # Treat empty lines as ""
-        line_cur=${line_cur:-""}
-        line_bak=${line_bak:-""}
-
-        if [ "$line_cur" != "$line_bak" ]; then
-            changed_lines+=($((i + start_line - 1)))
-        fi
-    done
-
-    if [ ${#changed_lines[@]} -eq 0 ]; then
+    if [ -z "$diff_output" ]; then
         echo "No changes detected in crontab for $user."
     else
-        echo "Alert: Modified lines in crontab for $user: ${changed_lines[*]}"
-        for line_num in "${changed_lines[@]}"; do
-            local line_in_bak=$(sed -n "${line_num}p" "$bak")
-            local line_in_cur=$(sed -n "${line_num}p" "$file")
-            echo "Line $line_num in backup: ${line_in_bak:-<empty>}"
-            echo "Line $line_num in current: ${line_in_cur:-<empty>}"
-        done
+        echo "Alert: Changes detected in crontab for $user (lines shown below):"
+        echo "$diff_output"
     fi
-
-    rm -f /tmp/current /tmp/backup
 }
 
-# Validate that both crontab files exist before proceeding
+# Validate files before enabling the tee/logger redirect
 [ ! -f "$user_crontab" ] && echo "Missing file: $user_crontab" && exit 1
 [ ! -f "$root_crontab" ] && echo "Missing file: $root_crontab" && exit 1
 
 # Create backups if missing (only once)
-backup_if_missing "$user_crontab" "$user_crontab_bak"
-backup_if_missing "$root_crontab" "$root_crontab_bak"
+backup_if_missing "$user_crontab" "$user_crontab_bak" || exit 1
+backup_if_missing "$root_crontab" "$root_crontab_bak" || exit 1
+
+# Now safe to enable tee+logger redirect (output goes to tty AND syslog)
+exec > >(tee /dev/tty | logger -p user.alert -t crontab-check) 2>&1
 
 # Perform comparison for user and root crontabs
 compare_crontabs "$user_crontab" "$user_crontab_bak" "$local_user"
 compare_crontabs "$root_crontab" "$root_crontab_bak" "root"
-

@@ -6,19 +6,13 @@
 echo "IP Kill Starting. Wait..."
 printf "\n"
 
-# PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# PATH for cron
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
 
-# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
@@ -26,23 +20,41 @@ if ! flock -n 200; then
     exit 1
 fi
 
-### VARIABLES
+if ! command -v tcpkill &>/dev/null; then
+    echo "❌ 'tcpkill' is not installed. Run: sudo apt install dsniff"
+    exit 1
+fi
+
 sleep_time="10"
 
-### IP KILL
 echo "Net Interfaces:"
 ip -o link | awk '$2 != "lo:" {print $2, $(NF-2)}' | sed 's_: _ _'
-read -p "Enter the network interface. e.g: enpXsX): " eth
-if [ "$eth" ]; then
-    read -p "Enter IP to close: " ip
-    ipnew=$(echo "$ip" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
-    if [ "$ipnew" ]; then
-        tcpkill -i "$eth" host "$ipnew" &
-        sleep "${sleep_time}"
-    fi
-    for child in $(jobs -p); do
-        echo kill "$child" && kill "$child"
-    done
-    wait $(jobs -p)
+
+read -r -p "Enter the network interface (e.g: enpXsX): " eth
+
+if [ -z "$eth" ]; then
+    echo "❌ No interface entered."
+    exit 1
 fi
+
+if ! ip link show "$eth" &>/dev/null; then
+    echo "❌ Interface '$eth' does not exist."
+    exit 1
+fi
+
+read -r -p "Enter IP to close: " target_ip
+
+target_ip_validated=$(echo "$target_ip" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
+
+if [ -z "$target_ip_validated" ]; then
+    echo "❌ Invalid IP address: '$target_ip'"
+    exit 1
+fi
+
+tcpkill -i "$eth" host "$target_ip_validated" &
+tcpkill_pid=$!
+sleep "${sleep_time}"
+kill "$tcpkill_pid" 2>/dev/null
+wait "$tcpkill_pid" 2>/dev/null
+
 echo "IP Kill Done: $(date)" | tee -a /var/log/syslog

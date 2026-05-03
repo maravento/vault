@@ -8,11 +8,13 @@
 # Thunar Path: ~/.local/share/Thunar/scripts or ~/.config/Thunar/scripts
 # Nemo Path: ~/.local/share/nemo/scripts
 
+set -uo pipefail
+
 echo "Start CheckMD5. Wait..."
 printf "\n"
 
 # check no-root
-if [ "$(id -u)" == "0" ]; then
+if [ "$(id -u)" -eq 0 ]; then
     echo "❌ This script should not be run as root."
     exit 1
 fi
@@ -149,7 +151,7 @@ kill $progress_pid 2>/dev/null
 wait $progress_pid 2>/dev/null
 
 # Compare hashes directly (case insensitive)
-if [ "${hash,,}" = "${actual_hash,,}" ]; then
+if [ "$(echo "$hash" | tr '[:upper:]' '[:lower:]')" = "$(echo "$actual_hash" | tr '[:upper:]' '[:lower:]')" ]; then
     show_info "✅ VERIFICATION SUCCESSFUL\n\n📁 File: $original_filename\n🔐 Hash: $hash\n✅ Status: INTEGRITY VERIFIED\n\nThe file has not been corrupted or modified."
 else
     show_error "❌ VERIFICATION FAILED\n\n📁 File: $original_filename\n🔐 Expected: $hash\n💥 Actual:   $actual_hash\n❌ Status: CHECKSUMS DO NOT MATCH\n\nThe file may be corrupted, incomplete, or modified."

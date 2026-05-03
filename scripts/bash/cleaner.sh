@@ -10,31 +10,41 @@
 
 echo "Start Cleaner. Wait..."
 
+set -uo pipefail
+
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 ## root check
-if [ "$(id -u)" != "0" ]; then
+if [ "$(id -u)" -ne 0 ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
 
 # prevent overlapping runs
+readonly LOCK_FD=200
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-exec 200>"$SCRIPT_LOCK"
-if ! flock -n 200; then
+exec {LOCK_FD}>"$SCRIPT_LOCK"
+if ! flock -n $LOCK_FD; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
 
 start=$(date +%s)
 
-find . -type f -regextype posix-egrep -iregex \
+search_path="${1:-/}"
+
+deleted_count=0
+while IFS= read -r -d '' f; do
+    if rm -f "$f" 2>>/var/log/cleaner.log; then
+        deleted_count=$((deleted_count + 1))
+    fi
+done < <(find "$search_path" -type f -regextype posix-egrep -iregex \
 '^.*(:encryptable|Zone\.identifier|\.fuse_hidden.*|goutputstream.*|\.spotlight-.*|\.fseventsd.*|\.ds_store.*|~lock\..*|Thumbs\.db|attributes:).*$' \
--print0 | xargs -0 -n 100 -P 8 rm -f 2>/dev/null
+-print0 2>>/var/log/cleaner.log)
 
 end=$(date +%s)
 duration=$((end - start))
 
 # Log registry
-echo "Cleaner: $(date +"%a %d %b %Y %H:%M:%S") - Time: ${duration}s" | tee -a /var/log/syslog
+echo "Cleaner: $(date +"%a %d %b %Y %H:%M:%S") - Files deleted: ${deleted_count} - Time: ${duration}s" | tee -a /var/log/syslog

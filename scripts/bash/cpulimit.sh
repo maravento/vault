@@ -6,19 +6,22 @@
 echo "CPU limit Starting. Wait..."
 printf "\n"
 
+set -uo pipefail
+
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 ## root check
-if [ "$(id -u)" != "0" ]; then
+if [ "$(id -u)" -ne 0 ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
 
 # prevent overlapping runs
+readonly LOCK_FD=200
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-exec 200>"$SCRIPT_LOCK"
-if ! flock -n 200; then
+exec {LOCK_FD}>"$SCRIPT_LOCK"
+if ! flock -n $LOCK_FD; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
@@ -37,13 +40,11 @@ if [ -n "$unavailable" ]; then
     exit 1
 fi
 if [ -n "$missing" ]; then
-    echo "🔧 Releasing APT/DKPG locks..."
-    killall -q apt apt-get dpkg 2>/dev/null
+    echo "🔧 Releasing APT/DPKG locks..."
     rm -f /var/lib/apt/lists/lock
     rm -f /var/cache/apt/archives/lock
     rm -f /var/lib/dpkg/lock
     rm -f /var/lib/dpkg/lock-frontend
-    rm -rf /var/lib/apt/lists/*
     dpkg --configure -a
     echo "📦 Installing: $missing"
     apt-get -qq update
@@ -60,10 +61,14 @@ start_limit() {
     read -p "Enter the program name: " program_name
 
     # PID capture
-    pid=$(pgrep -f "$program_name")
+    pid=$(pgrep -f "$program_name" | head -n1)
+    pid_count=$(pgrep -f "$program_name" | wc -l)
     if [ -z "$pid" ]; then
         echo "PID was not found '$program_name'."
         exit 1
+    fi
+    if [ "$pid_count" -gt 1 ]; then
+        echo "⚠️  Multiple PIDs found for '$program_name'. Using first PID: $pid"
     fi
 
     # CPU %
@@ -77,27 +82,37 @@ start_limit() {
 
     # Apply cpulimit to the program's PID
     cpulimit -l "$cpu_limit" -p "$pid" &
-    echo "$cpu_limit% has been applied to the '$program_name' (PID: $pid)."
+    cpulimit_pid=$!
+    echo "$cpulimit_pid" > /var/run/cpulimit_managed.pid
+    echo "$cpu_limit% has been applied to the '$program_name' (PID: $pid). cpulimit PID: $cpulimit_pid"
 }
 
 status_limit() {
-  # Check CPU Limit
-  if pgrep -x "cpulimit" >/dev/null; then
-    # If PID check process
-    if pgrep -ax "cpulimit" | awk '{print $1}' >/dev/null; then
-      process=$(ps ho command --pid $(pgrep -ax "cpulimit" | awk '{print $6}'))
-      echo "CPU Limit Active over $process"
-    else
-      echo "CPU Limit Active, but cannot get the associated process"
+    if ! pgrep -x "cpulimit" >/dev/null; then
+        echo "No CPU Limit is currently active"
+        return
     fi
-  else
-    echo "No CPU Limit is currently active"
-  fi
+    while IFS= read -r line; do
+        target_pid=$(echo "$line" | grep -oP '(?<=-p )\d+')
+        if [ -n "$target_pid" ]; then
+            process=$(ps -p "$target_pid" -o comm= 2>/dev/null || echo "unknown")
+            echo "CPU Limit active over PID $target_pid ($process)"
+        else
+            echo "CPU Limit active, but cannot determine the associated process"
+        fi
+    done < <(pgrep -ax "cpulimit")
 }
 
 stop_limit() {
-    # stop cpulimit
-    pkill -x "cpulimit"
+    if [ -f /var/run/cpulimit_managed.pid ]; then
+        saved_pid=$(cat /var/run/cpulimit_managed.pid)
+        if kill -0 "$saved_pid" 2>/dev/null; then
+            kill "$saved_pid"
+        fi
+        rm -f /var/run/cpulimit_managed.pid
+    else
+        pkill -x "cpulimit" 2>/dev/null || true
+    fi
     echo "All CPU Limit have been stopped"
 }
 
