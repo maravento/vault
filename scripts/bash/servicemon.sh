@@ -32,16 +32,13 @@
 #   sudo ./servicemon.sh install      # Direct installation
 #   sudo ./servicemon.sh uninstall    # Direct uninstallation
 
-# PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
 
-# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
@@ -55,9 +52,6 @@ MODNAME="servicemon"
 MODDIR="/usr/share/webmin/$MODNAME"
 ETCDIR="/etc/webmin/$MODNAME"
 
-# ============================================================
-# Function: Install Module
-# ============================================================
 install_module() {
     echo ""
     echo "=========================================="
@@ -65,7 +59,6 @@ install_module() {
     echo "=========================================="
     echo ""
     
-    # Check dependencies
     pkg="libnotify-bin"
     echo "Checking dependencies..."
     dpkg -s "$pkg" &>/dev/null || (apt-get update -qq >/dev/null && apt-get install -y -qq "$pkg" >/dev/null)
@@ -73,15 +66,11 @@ install_module() {
     
     echo "Creating Services Monitor module structure..."
     
-    # Create directories
     mkdir -p "$MODDIR/images"
     mkdir -p "$MODDIR/lang"
     mkdir -p "$MODDIR/help"
     mkdir -p "$ETCDIR"
     
-    # ============================================================
-    # 1. index.cgi (main file) - IMPROVED UI WITH FILTERING
-    # ============================================================
     cat > "$MODDIR/index.cgi" <<'INDEXCGI'
 #!/usr/bin/perl
 # Services Monitor - Main interface
@@ -93,28 +82,22 @@ do '../ui-lib.pl';
 &init_config();
 &ReadParse();
 
-# Declare module_name variable
 our $module_name;
 
-# Process actions FIRST, before any HTML output
 our %in;
 foreach my $key (keys %in) {
     if ($key =~ /^(start|stop|restart)_(.+)$/) {
         my $action = $1;
         my $service = $2;
         
-        # Log action to syslog
         system("logger -t servicemon -p daemon.info 'User action: $action on service $service'");
         
-        # Execute action
-        my $result = system("systemctl $action $service 2>&1");
+        system("systemctl $action $service 2>&1");
         
         sleep 2;
         
-        # Check if action was successful
         my $status = check_service_status($service);
         
-        # Send notifications
         if ($action eq 'stop' && $status ne 'active') {
             system("logger -t servicemon -p daemon.warning 'Service stopped: $service'");
             send_notification("Service Monitor", "Service $service has been stopped", "dialog-warning");
@@ -131,32 +114,25 @@ foreach my $key (keys %in) {
     }
 }
 
-# Load language strings
 our %text;
 &load_language($module_name);
 
-# Load configuration - CORRECTED METHOD
 our %config;
 &read_file("$ENV{'WEBMIN_CONFIG'}/$module_name/config", \%config);
 
-# Get filter preference (default: all)
 my $filter_mode = $config{'filter_mode'} || 'default';
 
-# Get auto-refresh settings
 my $auto_refresh = $config{'auto_refresh'} || '0';
 my $refresh_interval = $config{'refresh_interval'} || '30';
 
-# Validate refresh interval
 $refresh_interval = 30 if $refresh_interval !~ /^\d+$/ || $refresh_interval < 5;
 
-# Anti-cache headers
 print "Cache-Control: no-cache, no-store, must-revalidate, max-age=0\r\n";
 print "Pragma: no-cache\r\n";
 print "Expires: Thu, 01 Jan 1970 00:00:00 GMT\r\n";
 
 &ui_print_header(undef, $text{'index_title'}, "", undef, 1, 1);
 
-# Custom CSS for better UI
 print <<'EOCSS';
 <style>
 .service-table {
@@ -370,7 +346,6 @@ foreach my $service (@all_services) {
     }
 }
 
-# Summary Section
 print "<div class='summary-box'>";
 print "<h3>📊 $text{'summary_title'}</h3>";
 print "<div class='summary-stats'>";
@@ -397,7 +372,6 @@ print "</div>";
 print "</div>";
 print "</div>";
 
-# Filter info banner
 my $filter_text = $text{'filter_showing_default'};
 if ($filter_mode eq 'active') {
     $filter_text = $text{'filter_showing_active'};
@@ -409,7 +383,6 @@ print "<div class='alert-banner alert-info'>";
 print "ℹ️ <strong>$filter_text</strong>";
 print "</div>";
 
-# Alert Banner
 if ($failed_services == 0) {
     print "<div class='alert-banner alert-success'>";
     print "✅ <strong>$text{'summary_all_ok'}</strong>";
@@ -420,7 +393,6 @@ if ($failed_services == 0) {
     print "</div>";
 }
 
-# Services Table
 print "<table class='service-table'>";
 print "<thead>";
 print "<tr>";
@@ -431,10 +403,8 @@ print "</tr>";
 print "</thead>";
 print "<tbody>";
 
-# Apply filtering based on configuration
 my $services_shown = 0;
 
-# Show FAILED services first (if enabled by filter)
 if ($filter_mode eq 'default' || $filter_mode eq 'failed') {
     foreach my $service (@failed_list) {
         my $display_name = $service;
@@ -453,7 +423,6 @@ if ($filter_mode eq 'default' || $filter_mode eq 'failed') {
     }
 }
 
-# Then show ACTIVE services (if enabled by filter)
 if ($filter_mode eq 'default' || $filter_mode eq 'active') {
     foreach my $service (@active_list) {
         my $display_name = $service;
@@ -472,7 +441,6 @@ if ($filter_mode eq 'default' || $filter_mode eq 'active') {
     }
 }
 
-# Show message if no services match filter
 if ($services_shown == 0) {
     print "<tr>";
     print "<td colspan='3' style='text-align: center; padding: 30px; color: #666;'>";
@@ -490,7 +458,6 @@ print "</div>";
 
 print &ui_form_end();
 
-# Auto-refresh JavaScript
 if ($auto_refresh eq '1') {
     my $interval_ms = $refresh_interval * 1000;
     print <<AUTOREFRESH;
@@ -546,13 +513,15 @@ sub check_service_status {
 sub send_notification {
     my ($title, $message, $icon) = @_;
     
-    # Send to all logged users with graphical session
     my @users = `who | awk '{print \$1}' | sort -u`;
     
     foreach my $user (@users) {
         chomp($user);
-        
-        # Try to find DISPLAY for this user
+        next if $user eq '';
+        my $shell = `getent passwd '$user' 2>/dev/null | cut -d: -f7`;
+        chomp($shell);
+        next if $shell =~ m{/(false|nologin)$};
+
         my @displays = `ps e -u $user 2>/dev/null | grep -o 'DISPLAY=[^ ]*' | cut -d= -f2 | sort -u`;
         
         foreach my $display (@displays) {
@@ -567,9 +536,6 @@ INDEXCGI
     
     chmod +x "$MODDIR/index.cgi"
     
-    # ============================================================
-    # 2. module.info (English)
-    # ============================================================
     cat > "$MODDIR/module.info" <<'EOF'
 desc=Services Monitor
 longdesc=Monitor and manage system services
@@ -579,9 +545,6 @@ version=1.0
 depends=webmin
 EOF
     
-    # ============================================================
-    # 3. module.info.es (Spanish)
-    # ============================================================
     cat > "$MODDIR/module.info.es" <<'EOF'
 desc=Monitor de Servicios
 longdesc=Monitorea y gestiona servicios del sistema
@@ -591,9 +554,6 @@ version=1.0
 depends=webmin
 EOF
     
-    # ============================================================
-    # 4. lang/en (English strings) - UPDATED WITH FILTER STRINGS
-    # ============================================================
     cat > "$MODDIR/lang/en" <<'EOF'
 index_title=Services Monitor
 index_table=System Services Status
@@ -652,9 +612,6 @@ filter_showing_failed=Showing: Failed services only
 filter_no_services=No services match the current filter
 EOF
     
-    # ============================================================
-    # 5. lang/es (Spanish strings) - UPDATED WITH FILTER STRINGS
-    # ============================================================
     cat > "$MODDIR/lang/es" <<'EOF'
 index_title=Monitor de Servicios
 index_table=Estado de Servicios del Sistema
@@ -713,45 +670,30 @@ filter_showing_failed=Mostrando: Solo servicios fallidos
 filter_no_services=No hay servicios que coincidan con el filtro actual
 EOF
     
-    # ============================================================
-    # 6. config.info (Webmin native configuration interface)
-    # ============================================================
     cat > "$MODDIR/config.info" <<'EOF'
 filter_mode=Service Display Filter,4,default-Default (Failed + Active services),active-Active services only,failed-Failed services only
 auto_refresh=Auto-refresh,1,1-Enabled,0-Disabled
 refresh_interval=Refresh interval (seconds),3,30
 EOF
     
-    # ============================================================
-    # 7. config.info.es (Spanish version)
-    # ============================================================
     cat > "$MODDIR/config.info.es" <<'EOF'
 filter_mode=Filtro de Visualización de Servicios,4,default-Predeterminado (Servicios Fallidos + Activos),active-Solo servicios activos,failed-Solo servicios fallidos
 auto_refresh=Auto-actualización,1,1-Activado,0-Desactivado
 refresh_interval=Intervalo de actualización (segundos),3,30
 EOF
     
-    # ============================================================
-    # 8. defaultconfig (default configuration with filter)
-    # ============================================================
     cat > "$MODDIR/defaultconfig" <<'EOF'
 filter_mode=default
 auto_refresh=0
 refresh_interval=30
 EOF
     
-    # ============================================================
-    # 9. config (current configuration)
-    # ============================================================
     cat > "$ETCDIR/config" <<'EOF'
 filter_mode=default
 auto_refresh=0
 refresh_interval=30
 EOF
     
-    # ============================================================
-    # 8. servicemon-lib.pl (module library - REQUIRED)
-    # ============================================================
     cat > "$MODDIR/servicemon-lib.pl" <<'EOF'
 #!/usr/bin/perl
 # Services Monitor library functions
@@ -765,9 +707,6 @@ EOF
     
     chmod +x "$MODDIR/servicemon-lib.pl"
     
-    # ============================================================
-    # 10. install_check.pl (installation verification)
-    # ============================================================
     cat > "$MODDIR/install_check.pl" <<'EOF'
 #!/usr/bin/perl
 # Check if systemctl is available
@@ -784,9 +723,6 @@ EOF
     
     chmod +x "$MODDIR/install_check.pl"
     
-    # ============================================================
-    # 11. acl_security.pl (access control)
-    # ============================================================
     cat > "$MODDIR/help/intro.html" <<'EOF'
 <header>Services Monitor</header>
 
@@ -825,9 +761,6 @@ EOF
 <footer>
 EOF
     
-    # ============================================================
-    # 13. help/intro.es.html (help in Spanish)
-    # ============================================================
     cat > "$MODDIR/help/intro.es.html" <<'EOF'
 <header>Monitor de Servicios</header>
 
@@ -866,9 +799,6 @@ EOF
 <footer>
 EOF
     
-    # ============================================================
-    # 14. CHANGELOG
-    # ============================================================
     cat > "$MODDIR/CHANGELOG" <<'EOF'
 Version 1.1 (2024)
 - Added configurable service filtering
@@ -887,41 +817,31 @@ Version 1.0 (2024)
 - Configuration page with module information
 EOF
     
-    # ============================================================
-    # Create icon.gif (base64 encoded GIF image)
-    # ============================================================
     cat > /tmp/icon.gif.b64 << 'ICONEOF'
 R0lGODlhMAAwAPAAAAAAAAAAACH5BAEAAAAALAAAAAAwADAAAAKrhI+py+0Po5wqJEszCpyf7mkUiAGkOJJqiUKr2krvGS/zDdYGzusmj6vdLjPfynb0/XIVmnLZQTKfsOZU95I6W8NNUQj8yq5hcWRbzk62xOA5BIX/Pj0XML6rP9JuvJ3v4cTGAChncpFR+JSXtshIlgSm5mWWWPlYJdLVFqmxSdlpOQmayRU6isXnGHfnqEhVyBITazgbuxiFWXKlxFJ6uGpVGywsS3yMHFMAADs=
 ICONEOF
     
-    base64 -d /tmp/icon.gif.b64 > "$MODDIR/images/icon.gif"
+    base64 -d /tmp/icon.gif.b64 > "$MODDIR/images/icon.gif" || true
     rm -f /tmp/icon.gif.b64
     
-    # ============================================================
-    # Set correct permissions
-    # ============================================================
     chown -R root:root "$MODDIR" "$ETCDIR"
     chmod -R 755 "$MODDIR"
     chmod 644 "$MODDIR"/*.info* "$MODDIR/lang/"* "$MODDIR/help/"* "$MODDIR/CHANGELOG" 2>/dev/null || true
     chmod 755 "$MODDIR"/*.cgi "$MODDIR"/*.pl 2>/dev/null || true
     chmod 644 "$MODDIR/images/"* 2>/dev/null || true
     
-    # ============================================================
-    # Register module in Webmin ACL
-    # ============================================================
-    if ! grep -q "servicemon" /etc/webmin/webmin.acl 2>/dev/null; then
-        sed -i.bak 's/\(^root:.*\)/\1 servicemon/' /etc/webmin/webmin.acl
-        echo "✓ Module added to webmin.acl"
+    if [ -f /etc/webmin/webmin.acl ]; then
+        if ! grep -q "servicemon" /etc/webmin/webmin.acl 2>/dev/null; then
+            sed -i.bak 's/\(^root:.*\)/\1 servicemon/' /etc/webmin/webmin.acl
+            rm -f /etc/webmin/webmin.acl.bak
+            echo "✓ Module added to webmin.acl"
+        fi
+    else
+        echo "⚠ Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
     fi
     
-    # ============================================================
-    # Clear module cache
-    # ============================================================
     rm -f /var/webmin/module.infos.cache
     
-    # ============================================================
-    # Restart Webmin
-    # ============================================================
     echo "Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
     
@@ -949,9 +869,6 @@ ICONEOF
     echo ""
 }
 
-# ============================================================
-# Function: Uninstall Module
-# ============================================================
 uninstall_module() {
     echo ""
     echo "=========================================="
@@ -970,17 +887,19 @@ uninstall_module() {
     rm -rf "$ETCDIR"
     echo "✓ Module directories removed"
     
-    # Remove from Webmin ACL
-    if grep -q "servicemon" /etc/webmin/webmin.acl 2>/dev/null; then
-        sed -i.bak 's/ servicemon//g' /etc/webmin/webmin.acl
-        echo "✓ Module removed from webmin.acl"
+    if [ -f /etc/webmin/webmin.acl ]; then
+        if grep -q "servicemon" /etc/webmin/webmin.acl 2>/dev/null; then
+            sed -i.bak 's/ servicemon//g' /etc/webmin/webmin.acl
+            rm -f /etc/webmin/webmin.acl.bak
+            echo "✓ Module removed from webmin.acl"
+        fi
+    else
+        echo "⚠ Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
     fi
     
-    # Clear module cache
     rm -f /var/webmin/module.infos.cache
     echo "✓ Module cache cleared"
     
-    # Restart Webmin
     echo "Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
     
@@ -991,9 +910,6 @@ uninstall_module() {
     echo ""
 }
 
-# ============================================================
-# Main Menu
-# ============================================================
 show_menu() {
     clear
     echo "============================================================"
@@ -1008,9 +924,6 @@ show_menu() {
     echo -n "Select an option [1-3]: "
 }
 
-# ============================================================
-# Show usage information
-# ============================================================
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
@@ -1028,23 +941,12 @@ show_usage() {
     echo ""
 }
 
-# ============================================================
-# Main execution
-# ============================================================
 main() {
-    # Check if running as root
-    if [ "$EUID" -ne 0 ]; then
-        echo "Error: This script must be run as root"
-        exit 1
-    fi
-    
-    # Check if Webmin is installed
     if [ ! -d "/usr/share/webmin" ] && [ ! -d "/etc/webmin" ]; then
         echo "Error: Webmin is not installed on this system"
         exit 1
     fi
     
-    # Check for command line arguments
     if [ $# -gt 0 ]; then
         case "$1" in
             install)
@@ -1068,7 +970,6 @@ main() {
         esac
     fi
     
-    # Interactive menu mode (no arguments provided)
     while true; do
         show_menu
         read -r option
@@ -1100,5 +1001,4 @@ main() {
     done
 }
 
-# Run main function
 main "$@"

@@ -26,12 +26,26 @@ if [ "$(id -u)" -eq 0 ]; then
     exit 1
 fi
 
+if ! command -v zenity &>/dev/null; then
+    echo "Error: zenity is required but not installed."
+    exit 1
+fi
+
+show_error() {
+    echo -e "$1"
+    zenity --error --title="droid2pc Error" --text="$1" --timeout=5 2>/dev/null
+    exit 1
+}
+
+show_info() {
+    echo -e "$1"
+    zenity --info --title="droid2pc" --text="$1" --timeout=5 2>/dev/null
+}
+
 pkgs='adb scrcpy'
 for pkg in $pkgs; do
     dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {
-        echo "❌ '$pkg' is not installed. Run:"
-        echo "   sudo apt install $pkg"
-        exit 1
+        show_error "'$pkg' is not installed.\n\nRun: sudo apt install adb scrcpy"
     }
 done
 
@@ -40,27 +54,24 @@ PIDFILE="/run/user/$(id -u)/scrcpy.pid"
 check_device() {
     adb start-server > /dev/null 2>&1
     if ! adb devices | grep -w "device" > /dev/null; then
-        echo "❌ No ADB device connected."
-        exit 1
+        show_error "No ADB device connected.\n\nPlease:\n1. Enable USB debugging on your Android device\n2. Connect the phone via USB\n3. Authorize the PC on your device"
     fi
 }
 
 start() {
     check_device
     if pgrep -x scrcpy > /dev/null; then
-        echo "⚠️ scrcpy is already running."
-        exit 1
+        show_error "scrcpy is already running.\n\nClose the existing instance first."
     fi
     nohup scrcpy --max-size 1024 > /dev/null 2>&1 &
     local new_pid=$!
     echo "$new_pid" > "$PIDFILE"
     sleep 1
     if kill -0 "$new_pid" 2>/dev/null; then
-        echo "✅ scrcpy started (PID $new_pid)."
+        show_info "scrcpy started successfully (PID: $new_pid)"
     else
-        echo "❌ scrcpy failed to start."
         rm -f "$PIDFILE"
-        exit 1
+        show_error "scrcpy failed to start.\n\nCheck that your Android device is connected and USB debugging is enabled."
     fi
 }
 
@@ -74,9 +85,10 @@ stop() {
             kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
         fi
         rm -f "$PIDFILE"
-        echo "🛑 scrcpy stopped."
+        show_info "scrcpy stopped."
     else
-        pkill -x scrcpy && echo "🛑 scrcpy stopped (no PIDFILE)." || echo "ℹ️ scrcpy was not running."
+        pkill -x scrcpy 2>/dev/null
+        show_info "scrcpy stopped (or was not running)."
     fi
 }
 
@@ -84,9 +96,9 @@ status() {
     local pid
     pid=$(pgrep -x scrcpy)
     if [ -n "$pid" ]; then
-        echo "✅ scrcpy is running (PID $pid)."
+        show_info "scrcpy is running (PID: $pid)"
     else
-        echo "ℹ️ scrcpy is not running."
+        show_info "scrcpy is not running."
     fi
 }
 
@@ -95,7 +107,6 @@ case "$1" in
     stop)   stop   ;;
     status) status ;;
     *)
-        echo "Usage: $0 {start|stop|status}"
-        exit 1
+        show_error "Usage: $0 {start|stop|status}"
         ;;
 esac

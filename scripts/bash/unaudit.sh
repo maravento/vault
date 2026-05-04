@@ -45,6 +45,7 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
@@ -136,7 +137,7 @@ print_sta() {
     echo " CONNECTED CLIENTS — stat/sta"
     echo "======================================================================="
     {
-        printf "MAC|IP|HOSTNAME|ESSID|AUTHORIZED|SIGNAL\n"
+        printf "MAC|IP|HOSTNAME|ESSID|AUTHORIZED\n"
         echo "$STA" | jq -r --arg essid "$HOTSPOT_ESSID" '
             .data[]
             | select(.essid == $essid)
@@ -157,7 +158,7 @@ print_guest() {
         printf "MAC|IP|VOUCHER|EXPIRED|END\n"
         echo "$GUEST" | jq -r '
             .data[]
-            | [.mac//"N/A", .ip//"N/A", .voucher_code//"N/A", (if .expired then "YES" else "NO" end), (if .end then (.end|todate) else "N/A" end)]
+            | [.mac//"N/A", .ip//"N/A", .voucher_code//"N/A", (if .expired then "YES" else "NO" end), (if .end then (.end|strftime("%m-%d %H:%M")) else "N/A" end)]
             | join("|")
         ' 2>/dev/null
     } | column -t -s '|'
@@ -174,7 +175,7 @@ print_voucher() {
         printf "CODE|STATUS|DURATION|QUOTA|USED|EXPIRES\n"
         echo "$VOUCHER" | jq -r '
             .data[]
-            | [.code//"N/A", .status//"N/A", (((.duration//0)/60|floor|tostring) + "h"), (.quota//0|tostring), (.used//0|tostring), (if .create_time and .duration then ((.create_time + ((.duration//0)*60))|todate) else "N/A" end)]
+            | [.code//"N/A", ((.status//"N/A")[0:12]), (((.duration//0)/60|floor|tostring) + "h"), (.quota//0|tostring), (.used//0|tostring), (if .create_time and .duration then ((.create_time + ((.duration//0)*60))|strftime("%m-%d %H:%M")) else "N/A" end)]
             | join("|")
         ' 2>/dev/null
     } | column -t -s '|'
@@ -199,7 +200,7 @@ print_crossref() {
         printf "MAC|IP|VOUCHER|CONN|AUTH|END(guest)\n"
         echo "$GUEST" | jq -r '
             .data[]
-            | [(.mac//"N/A"|ascii_downcase), .ip//"N/A", .voucher_code//"N/A", (if .end then (.end|todate) else "N/A" end)]
+            | [(.mac//"N/A"|ascii_downcase), .ip//"N/A", .voucher_code//"N/A", (if .end then (.end|strftime("%m-%d %H:%M")) else "N/A" end)]
             | join("|")
         ' 2>/dev/null | while IFS='|' read -r mac ip voucher end_date; do
             connected=$(echo "$STA_AUTH" | grep -i "^${mac}" | awk '{print "YES"}' || echo "NO")
@@ -230,7 +231,7 @@ print_acl_vs_api() {
             [ -z "$mac" ] && continue
 
             end_human="N/A"
-            [ -n "$end_time" ] && end_human=$(date -d "@$end_time" '+%m-%d-%Y %H:%M' 2>/dev/null || echo "$end_time")
+            [ -n "$end_time" ] && end_human=$(date -d "@$end_time" '+%m-%d %H:%M' 2>/dev/null || echo "$end_time")
 
             in_guest=$(echo "$GUEST" | jq -r --arg m "$mac" '.data[] | select((.mac | ascii_downcase) == $m) | .mac' 2>/dev/null | head -1)
             [ -n "$in_guest" ] && in_api="YES" || in_api="NO"
@@ -298,7 +299,8 @@ interactive_forget() {
     if [ "$CHOICE" = "all" ]; then
         selected=("${EXPIRED_MACS[@]}")
     else
-        for n in $CHOICE; do
+        read -ra CHOICES <<< "$CHOICE"
+        for n in "${CHOICES[@]}"; do
             if [[ "$n" =~ ^[0-9]+$ ]] && [ -n "${MAC_INFO[$n]+_}" ]; then
                 selected+=("${MAC_INFO[$n]}")
             else
@@ -391,7 +393,8 @@ _voucher_selector() {
     if [ "$CHOICE" = "all" ]; then
         selected_ids=("${VOUCHER_IDS[@]}")
     else
-        for n in $CHOICE; do
+        read -ra CHOICES <<< "$CHOICE"
+        for n in "${CHOICES[@]}"; do
             if [[ "$n" =~ ^[0-9]+$ ]] && [ -n "${VCH_ID_MAP[$n]+_}" ]; then
                 selected_ids+=("${VCH_ID_MAP[$n]}")
             else

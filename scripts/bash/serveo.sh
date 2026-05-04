@@ -11,48 +11,41 @@
 echo "Serveo Tunnel Starting. Wait..."
 printf "\n"
 
-# PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# check no-root
 if [ "$(id -u)" == "0" ]; then
     echo "❌ This script should not be run as root."
     exit 1
 fi
 
-# LOCAL USER (multi-strategy detection with validation)
 local_user=""
-# 1. Local graphical session (:0)
 local_user=$(who | awk '/\(:0\)/{print $1; exit}')
-# 2. Parent process logname (works well with sudo)
 [ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
-# 3. SUDO_USER variable (when run via sudo from terminal)
 [ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-# 4. First active session user (SSH or other)
 [ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
-# 5. First valid home directory
 [ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
-# Validate the user actually exists on the system
 if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
     echo "ERROR: Cannot determine a valid local user"
     exit 1
 fi
 echo "Using local user: $local_user"
 
-# check dependencies
 if ! command -v ssh >/dev/null 2>&1; then
     echo "⚠️ SSH is not installed"
     echo "run: sudo apt install openssh-server"
     exit 1
 fi
 
-# check service
-if ! nc -z serveo.net 22; then
+if ! nc -z -w 5 serveo.net 22; then
     echo "Serveo Offline"
     exit 1
 fi
 
-# check fingerprint
+if [ ! -f ~/.ssh/known_hosts ]; then
+    mkdir -p ~/.ssh
+    touch ~/.ssh/known_hosts
+    chmod 600 ~/.ssh/known_hosts
+fi
 if grep -q "serveo.net" ~/.ssh/known_hosts; then
     echo "Fingerprint OK (serveo.net)"
 else
@@ -64,7 +57,6 @@ SCRIPT_NAME=$(basename "$0")
 PID_FILE="/tmp/${SCRIPT_NAME}.pid"
 ACTIVE_FLAG="/tmp/${SCRIPT_NAME}_active"
 
-# check serveo
 is_running() {
     if pgrep -f "ssh.*serveo.net" > /dev/null; then
         return 0
@@ -75,7 +67,6 @@ is_running() {
     fi
 }
 
-# Kill Tunnel
 kill_all_tunnel_processes() {
     pkill -f "ssh.*serveo.net" 2>/dev/null
     for pid in $(ps ax | grep -v grep | grep "[s]sh.*serveo.net" | awk '{print $1}'); do
@@ -97,7 +88,6 @@ kill_all_tunnel_processes() {
 }
 
 start() {
-    # Stop any existing instances
     kill_all_tunnel_processes
     echo "Ports commonly exposed for remote access:"
     echo "SSH Access:   22 (SSH), 3306/5432 (Databases)..."
@@ -109,11 +99,9 @@ start() {
         exit 1
     fi
 
-    # Create activity flag
     touch "$ACTIVE_FLAG"
-    # Create the SSH argument list and check the ports
     PORT_ARGS=''
-    local_ports+=($port)
+    local_ports=()
     for port in $ports; do
         if ss -tuln | grep -q ":$port "; then
             echo "Port $port accessible ✅"
@@ -137,6 +125,7 @@ start() {
     # -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
     ssh -q -T -o LogLevel=ERROR -o ServerAliveInterval=60 -o ServerAliveCountMax=30 ${PORT_ARGS:-} serveo.net > /tmp/serveo_output.txt 2>&1 &
     SSH_PID=$!
+    echo "$SSH_PID" > "$PID_FILE"
 
     for i in {1..10}; do
         if [ -s /tmp/serveo_output.txt ]; then
@@ -147,22 +136,16 @@ start() {
 
     output=$(cat /tmp/serveo_output.txt)
 
-    echo "Serveo Output:"
-    echo "$output"
-
-    # Check if the file has content
     if [ -z "$output" ]; then
         echo "Error: Could not get output from Serveo"
         rm -f "$ACTIVE_FLAG"
         kill $SSH_PID 2>/dev/null
         exit 1
     fi
-    
-    # Display full output for debugging
+
     echo "Serveo Output:"
     echo "$output"
-    
-    # Check if remote ports were assigned
+
     assigned_ports=$(echo "$output" | grep -oP 'serveo\.net:\K[0-9]+' | head -n ${#local_ports[@]})
     if [ -z "$assigned_ports" ]; then
         echo "The remote ports assigned by Serveo could not be obtained"
@@ -170,19 +153,16 @@ start() {
         kill $SSH_PID 2>/dev/null
         exit 1
     fi
-    
-    # Display remote ports assigned by Serveo
+
     echo "Remote ports assigned by serveo:"
     for assigned_port in ${assigned_ports[@]}; do
         echo "$assigned_port"
     done
 
-    # Display SSH command for remote client and bind ports
     i=0
     for assigned_port in $assigned_ports; do
         local_port="${local_ports[$i]}"
         
-        # Condition for common SSH ports
         if [[ "$local_port" -eq 22 ]] || [[ "$local_port" -eq 21 ]] || \
            [[ "$local_port" -eq 25 ]] || [[ "$local_port" -eq 53 ]] || \
            [[ "$local_port" -eq 110 ]] || [[ "$local_port" -eq 143 ]] || \
@@ -191,24 +171,21 @@ start() {
             echo "To connect from the remote client to the local port $local_port, run:"
             echo "  ssh -p $assigned_port $local_user@serveo.net"
         else
-            # For web ports, always display the URL with the assigned port
             echo "Open your browser and access the port $local_port:"
             echo "  https://serveo.net:$assigned_port"
         fi
-        ((i++))
+        ((i++)) || true
     done
-    
-    # Remove flag when finished
+
     rm -f "$ACTIVE_FLAG"
     echo "The tunnel is now active"
-    
-    # save ports
+
     > /tmp/serveo_ports.txt
     i=0
     for assigned_port in $assigned_ports; do
         local_port="${local_ports[$i]}"
         echo "$local_port:$assigned_port" >> /tmp/serveo_ports.txt
-        ((i++))
+        ((i++)) || true
     done
 }
 
@@ -233,7 +210,6 @@ stop() {
         rm -f /tmp/serveo_ports.txt
     fi
 }
-
 
 status() {
     if is_running; then
@@ -281,4 +257,3 @@ case "$1" in
         exit 1
         ;;
 esac
-

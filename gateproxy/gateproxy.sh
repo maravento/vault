@@ -489,7 +489,7 @@ nala install -y lvm2 quota attr
 nala install -y udisks2 udisks2-btrfs udisks2-lvm2
 
 # SYSTEM UTILITIES & MONITORING
-nala install -y trash-cli pm-utils neofetch cpu-x btop htop lsof \
+nala install -y trash-cli pm-utils cpu-x btop htop lsof \
                 inotify-tools dmidecode idle3 wmctrl pv tree moreutils \
                 preload deborphan debconf-utils mokutil util-linux \
                 linux-tools-common apparmor-utils

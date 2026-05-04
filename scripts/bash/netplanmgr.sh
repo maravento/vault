@@ -37,9 +37,6 @@
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# PATH for cron
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
 ## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
@@ -87,7 +84,7 @@ install_module() {
     mkdir -p "$ETCDIR"
     
     # ============================================================
-    # 1. index.cgi (main file) - CORREGIDO
+    # 1. index.cgi (main file)
     # ============================================================
     cat > "$MODDIR/index.cgi" <<'INDEXCGI'
 #!/usr/bin/perl
@@ -310,7 +307,6 @@ print <<'CSS';
     font-family: 'Courier New', monospace;
 }
 
-/* Custom button styles - compatible with all Webmin themes */
 .netplan-btn {
     padding: 6px 16px;
     border: 1px solid #ccc;
@@ -440,7 +436,6 @@ print <<'CSS';
     display: inline-block;
 }
 
-/* Modal styles */
 .modal-overlay {
     display: none;
     position: fixed;
@@ -559,7 +554,6 @@ print <<'CSS';
     }
 }
 
-/* Responsive Design */
 @media (max-width: 768px) {
     .netplan-container {
         padding: 10px;
@@ -646,7 +640,6 @@ print <<'CSS';
 </style>
 CSS
 
-# Display messages
 if (defined $in{'saved'}) {
     print "<div class='alert-success'>✓ $text{'save_success'}</div>";
 }
@@ -677,7 +670,6 @@ if (defined $in{'error'}) {
     print "<div class='alert-error'>✗ $text{'file_error'}</div>";
 }
 
-# Main container
 print "<div class='netplan-container'>";
 print "<h3>🌐 $text{'index_title'}</h3>";
 print "<p>$text{'index_desc'}</p>";
@@ -702,17 +694,14 @@ if (!@files) {
         print "<td data-label='$text{\"table_actions\"}'>";
         print "<div class='button-group'>";
         
-        # Edit button
         print "<button type='button' class='netplan-btn netplan-btn-edit' onclick='openEditModal(\"$escaped_file\", \"$escaped_basename\")'>$text{'action_edit'}</button>";
         
-        # Validate button with hidden form
         print "<form method='post' action='index.cgi' style='display:inline-block; margin:0;'>";
         print "<input type='hidden' name='file' value='$escaped_file'>";
         print "<input type='hidden' name='validate' value='1'>";
         print "<button type='submit' class='netplan-btn netplan-btn-validate'>$text{'action_validate'}</button>";
         print "</form>";
         
-        # Apply button with hidden form
         print "<form method='post' action='index.cgi' style='display:inline-block; margin:0;'>";
         print "<input type='hidden' name='file' value='$escaped_file'>";
         print "<input type='hidden' name='apply' value='1'>";
@@ -727,7 +716,6 @@ if (!@files) {
     print "</tbody></table>";
 }
 
-# Edit form (if edit button clicked)
 if (defined $in{'edit'}) {
     my $file = $in{'file'} || '';
     my $content = read_file_content($file) || "";
@@ -747,14 +735,11 @@ if (defined $in{'edit'}) {
     print "</div>";
 }
 
-print "</div>"; # netplan-container
+print "</div>";
 
-# Modal HTML for editing files
 print <<'MODAL';
-<!-- Modal Overlay -->
 <div id="modalOverlay" class="modal-overlay" onclick="closeEditModal()"></div>
 
-<!-- Modal Container -->
 <div id="editModal" class="modal-container">
     <div class="modal-header">
         <h4 id="modalTitle">Editing file</h4>
@@ -775,16 +760,13 @@ print <<'MODAL';
 
 <script>
 function openEditModal(filePath, fileName) {
-    // Show loading
     document.getElementById('modalContent').value = 'Loading...';
     document.getElementById('modalTitle').textContent = 'Editing: ' + fileName;
     document.getElementById('modalFile').value = filePath;
     
-    // Show modal
     document.getElementById('modalOverlay').classList.add('active');
     document.getElementById('editModal').classList.add('active');
     
-    // Fetch file content via AJAX
     fetch('index.cgi?ajax=1&file=' + encodeURIComponent(filePath))
         .then(response => response.text())
         .then(content => {
@@ -806,7 +788,6 @@ function saveFile() {
     document.getElementById('editForm').submit();
 }
 
-// Close modal with ESC key
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
         closeEditModal();
@@ -1071,9 +1052,13 @@ ICONEOF
     # ============================================================
     # Register in Webmin ACL
     # ============================================================
-    if ! grep -q "$MODNAME" /etc/webmin/webmin.acl 2>/dev/null; then
-        sed -i.bak 's/\(^root:.*\)/\1 '"$MODNAME"'/' /etc/webmin/webmin.acl
-        echo "✓ Module added to webmin.acl"
+    if [ -f /etc/webmin/webmin.acl ]; then
+        if ! grep -q "$MODNAME" /etc/webmin/webmin.acl 2>/dev/null; then
+            sed -i.bak 's/\(^root:.*\)/\1 '"$MODNAME"'/' /etc/webmin/webmin.acl
+            echo "✓ Module added to webmin.acl"
+        fi
+    else
+        echo "⚠ Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
     fi
     
     # Clear cache
@@ -1117,9 +1102,13 @@ uninstall_module() {
     rm -rf "$ETCDIR"
     
     # Remove from ACL
-    if grep -q "$MODNAME" /etc/webmin/webmin.acl 2>/dev/null; then
-        sed -i.bak 's/ '"$MODNAME"'//g' /etc/webmin/webmin.acl
-        echo "✓ Module removed from webmin.acl"
+    if [ -f /etc/webmin/webmin.acl ]; then
+        if grep -q "$MODNAME" /etc/webmin/webmin.acl 2>/dev/null; then
+            sed -i.bak 's/ '"$MODNAME"'//g' /etc/webmin/webmin.acl
+            echo "✓ Module removed from webmin.acl"
+        fi
+    else
+        echo "⚠ Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
     fi
     
     # Clear cache

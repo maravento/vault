@@ -6,16 +6,13 @@
 echo "Auto Mount/Unmount NTFS Starting. Wait..."
 printf "\n"
 
-# PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
 
-# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
@@ -23,26 +20,18 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# LOCAL USER (multi-strategy detection with validation)
 local_user=""
-# 1. Local graphical session (:0)
 local_user=$(who | awk '/\(:0\)/{print $1; exit}')
-# 2. Parent process logname (works well with sudo)
 [ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
-# 3. SUDO_USER variable (when run via sudo from terminal)
 [ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-# 4. First active session user (SSH or other)
 [ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
-# 5. First valid home directory
 [ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
-# Validate the user actually exists on the system
 if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
     echo "ERROR: Cannot determine a valid local user"
     exit 1
 fi
 echo "Using local user: $local_user"
 
-# check dependencies
 pkgs='ntfs-3g'
 missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
 unavailable=""
@@ -74,7 +63,6 @@ else
     echo "✅ Dependencies OK"
 fi
 
-# list connected USB devices (UUID/Label)
 list_drives() {
     echo "Connected Devices"
     lsblk -o NAME,LABEL,UUID,SIZE,FSTYPE | grep -E "sd[b-z][0-9]?" | column -t
@@ -94,16 +82,20 @@ mount_drive() {
         [ -z "$LABEL" ] && LABEL=$(basename "$DEVICE")
 
         MOUNT_POINT="/media/$local_user/$LABEL"
+
+        if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
+            echo "Device is already mounted at $MOUNT_POINT."
+            return
+        fi
+
         mkdir -p "$MOUNT_POINT"
-        chown "$local_user:$local_user" "$MOUNT_POINT"  # Ensures the user has access
+        chown "$local_user:$local_user" "$MOUNT_POINT"
 
-        # Mount with user permissions and visibility on the desktop
-        mount -o uid=$(id -u "$local_user"),gid=$(id -g "$local_user"),fmask=0022,dmask=0022,windows_names -t ntfs-3g "$DEVICE" "$MOUNT_POINT"
-
-        if [ $? -eq 0 ]; then
+        if mount -o uid=$(id -u "$local_user"),gid=$(id -g "$local_user"),fmask=0022,dmask=0022,windows_names -t ntfs-3g "$DEVICE" "$MOUNT_POINT"; then
             echo "Device mounted on $MOUNT_POINT."
         else
             echo "Error mounting device"
+            rmdir "$MOUNT_POINT" 2>/dev/null || true
         fi
     else
         echo "No disk found with LABEL/UUID '$DISKID'."
@@ -125,7 +117,12 @@ umount_drive() {
     read -p "Enter the name of the folder where the disk is mounted ('exit' to exit): " FOLDER
     [ "$FOLDER" == "exit" ] && echo "Exiting..." && return
 
-    MOUNT_POINT=$(echo "$MOUNT_POINTS" | grep "/$FOLDER$")
+    if ! echo "$FOLDER" | grep -qE '^[a-zA-Z0-9_:@. -]+$'; then
+        echo "Invalid folder name."
+        return
+    fi
+
+    MOUNT_POINT=$(echo "$MOUNT_POINTS" | grep -F "/$FOLDER")
 
     if [ -n "$MOUNT_POINT" ]; then
         echo "Unmounting $MOUNT_POINT..."
@@ -135,7 +132,6 @@ umount_drive() {
     fi
 }
 
-# Menú principal
 echo "Do you want to mount or unmount an NTFS disk?"
 select choice in "Mount" "Unmount" "Exit"; do
     case $choice in
@@ -145,4 +141,3 @@ select choice in "Mount" "Unmount" "Exit"; do
         *) echo "Invalid option, please try again" ;;
     esac
 done
-

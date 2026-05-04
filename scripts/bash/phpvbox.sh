@@ -8,11 +8,21 @@
 # special thanks to:
 # https://github.com/BartekSz95
 
+set -euo pipefail
+
 echo "phpVirtualBox Starting. Wait..."
 printf "\n"
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# cleanup temporary files on exit or error
+WORK_DIR="$(pwd)"
+cleanup() {
+    rm -f "$WORK_DIR/main.zip"
+    rm -rf "$WORK_DIR/phpvirtualbox-main"
+}
+trap cleanup EXIT
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -48,7 +58,7 @@ fi
 echo "Using local user: $local_user"
 
 # check dependencies
-pkgs='bsdutils unzip apache2 libapache2-mod-php php php-soap php-xml'
+pkgs='bsdutils lsof unzip apache2 libapache2-mod-php php php-soap php-xml'
 missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
 unavailable=""
 for p in $missing; do
@@ -61,14 +71,19 @@ if [ -n "$unavailable" ]; then
     exit 1
 fi
 if [ -n "$missing" ]; then
-    echo "🔧 Releasing APT/DKPG locks..."
-    killall -q apt apt-get dpkg 2>/dev/null
-    rm -f /var/lib/apt/lists/lock
-    rm -f /var/cache/apt/archives/lock
-    rm -f /var/lib/dpkg/lock
-    rm -f /var/lib/dpkg/lock-frontend
-    rm -rf /var/lib/apt/lists/*
-    dpkg --configure -a
+    echo "🔧 Waiting for APT/DPKG locks to be released..."
+    APT_LOCK_TIMEOUT=120
+    APT_LOCK_ELAPSED=0
+    APT_LOCK_FILES="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
+    while lsof $APT_LOCK_FILES >/dev/null 2>&1; do
+        if [ "$APT_LOCK_ELAPSED" -ge "$APT_LOCK_TIMEOUT" ]; then
+            echo "❌ APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
+            exit 1
+        fi
+        echo "   Locks still held, waiting... (${APT_LOCK_ELAPSED}s elapsed)"
+        sleep 5
+        APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
+    done
     echo "📦 Installing: $missing"
     apt-get -qq update
     if ! apt-get -y install $missing; then
@@ -81,21 +96,22 @@ fi
 
 # check Virtualbox 7x
 output=$(dpkg -l | grep -P 'virtualbox-\d+\.\d+' | awk '{print $2}')
-if echo "$output" | grep -q "virtualbox-7"; then
-    true
-else
+if ! echo "$output" | grep -q "virtualbox-7"; then
     echo "Aborting. Vbox 7 is not installed"
+    exit 1
 fi
 
 ### PHPVBOX
-# git clone phpvirtualbox
-wget -c https://github.com/BartekSz95/phpvirtualbox/archive/main.zip
+# download phpvirtualbox
+wget -q -c https://github.com/BartekSz95/phpvirtualbox/archive/main.zip
+DOWNLOAD_SHA256="$(sha256sum main.zip | awk '{print $1}')"
+echo "📋 main.zip SHA256: $DOWNLOAD_SHA256"
 unzip -q main.zip
 # ren config
 mv phpvirtualbox-main/config.php-example phpvirtualbox-main/config.php
 #mv phpvirtualbox-main/recovery.php-disabled phpvirtualbox-main/recovery.php
 # change user
-sed -i "s:'vbox':'$local_user':g" phpvirtualbox-main/config.php
+sed -i "0,/var \\\$username/{/var \\\$username/s:'vbox':'$local_user':}" phpvirtualbox-main/config.php
 # move folder to final path
 mv phpvirtualbox-main/ /var/www/html/phpvirtualbox
 # set chown
@@ -103,12 +119,20 @@ chown -R www-data:www-data /var/www/html/phpvirtualbox
 # create virtualbox file config
 echo "VBOXWEB_USER=$local_user" | tee /etc/default/virtualbox
 echo "VBOXWEB_HOST=localhost" | tee -a /etc/default/virtualbox
-# add user to vboxusers group
-usermod -aG vboxusers $local_user
+# add user to vboxusers group if not already a member
+if ! id -nG "$local_user" | grep -qw vboxusers; then
+    usermod -aG vboxusers "$local_user"
+fi
 # restart services
-service apache2 restart
-service vboxweb-service stop >/dev/null
-service vboxweb-service start
+if ! service apache2 restart; then
+    echo "❌ Failed to restart apache2"
+    exit 1
+fi
+service vboxweb-service stop >/dev/null 2>&1 || true
+if ! service vboxweb-service start; then
+    echo "❌ Failed to start vboxweb-service"
+    exit 1
+fi
 
 # Creating the script
 echo '#!/bin/bash
@@ -129,12 +153,15 @@ fi' >/etc/init.d/phpvbox_port.sh
 # execution permissions
 chmod +x /etc/init.d/phpvbox_port.sh
 
-# Add the task to the crontab
-(
-    crontab -l
-    echo "*/30 * * * * /etc/init.d/phpvbox_port.sh"
-) | crontab -
-service cron restart
+# Add the task to the crontab (skip if already present)
+CRON_ENTRY="*/30 * * * * /etc/init.d/phpvbox_port.sh"
+if ! crontab -l 2>/dev/null | grep -qF "$CRON_ENTRY"; then
+    (crontab -l 2>/dev/null; echo "$CRON_ENTRY") | crontab -
+fi
+if ! service cron restart; then
+    echo "❌ Failed to restart cron"
+    exit 1
+fi
 echo "Script and cron task added successfully."
 echo
 echo "Access: http://localhost/phpvirtualbox"

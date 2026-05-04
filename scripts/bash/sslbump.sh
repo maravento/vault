@@ -17,6 +17,7 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
@@ -34,8 +35,11 @@ remove_and_install_squid_openssl() {
     rm -rf /var/spool/squid* /var/log/squid* /etc/squid* /dev/shm/*
 
     echo "Installing squid-openssl..."
-    apt update
-    apt install -y squid-openssl squid-langpack squid-common squidclient squid-purge
+    apt update || { echo "ERROR: apt update failed"; exit 1; }
+    apt install -y squid-openssl squid-langpack squid-common squidclient squid-purge || {
+        echo "ERROR: Failed to install squid-openssl packages"
+        exit 1
+    }
 
     # Restore previous configuration
     if [ -f "$BACKUP_CONF" ]; then
@@ -85,12 +89,22 @@ ssl_bump_setup() {
     fi
 }
 
+for dep in openssl update-ca-certificates; do
+    if ! command -v "$dep" &>/dev/null; then
+        echo "ERROR: '$dep' is not installed. Run: sudo apt install ca-certificates openssl"
+        exit 1
+    fi
+done
+
 # Check if squid is installed
 if ! dpkg -l | grep -qw squid; then
     echo "Squid is not installed. Installing squid-openssl..."
     # Only install squid-openssl if it's not installed
-    apt update
-    apt install -y squid-openssl squid-langpack squid-common squidclient squid-purge
+    apt update || { echo "ERROR: apt update failed"; exit 1; }
+    apt install -y squid-openssl squid-langpack squid-common squidclient squid-purge || {
+        echo "ERROR: Failed to install squid-openssl packages"
+        exit 1
+    }
 elif dpkg -l | grep -qw squid-openssl; then
     echo "Squid with SSL support is already installed."
 else

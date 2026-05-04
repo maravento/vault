@@ -48,10 +48,10 @@ check_resource_mounted() {
     
     case "$protocol" in
         "smb")
-            mount | grep -q "//$resource" && return 0
+            mount | grep -qF "//$resource" && return 0
             ;;
         "sftp")
-            mount | grep -q "@$resource" && return 0
+            mount | grep -qF "@$resource" && return 0
             ;;
     esac
     return 1
@@ -104,13 +104,13 @@ if [[ "$ACTION" == "Unmount" ]]; then
         "${MAP[@]}") || exit 0
 
     # Zenity returns selected row with columns separated by |
-    TARGET=$(echo "$SEL" | awk -F'|' '{print $1}' | sed 's/ *$//g')
+    TARGET=$(printf '%s' "$SEL" | cut -d'|' -f1 | sed 's/[[:space:]]*$//')
 
     if [[ -z "$TARGET" ]]; then
         err "No valid mountpoint selected."
     fi
 
-    TMPERR=$(mktemp)
+    TMPERR=$(mktemp) || err "Failed to create temporary file."
     if $ELEVATE_CMD umount -f "$TARGET" 2> "$TMPERR"; then
         info "Unmounted successfully:\n$TARGET" "Unmount"
         rm -f "$TMPERR"
@@ -143,12 +143,41 @@ if [[ "$LOAD_CONNECTION" == "yes" ]]; then
         err "Connection file not found."
     fi
     
-    # Read connection file
-    source "$CONN_FILE" || err "Failed to read connection file."
-    
-    # Validate required variables based on protocol
+    # Read connection file using a safe key=value parser (no code execution)
+    while IFS= read -r line; do
+        [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
+        key="${line%%=*}"
+        value="${line#*=}"
+        key="${key// /}"
+        value="${value%\"}"
+        value="${value#\"}"
+        case "$key" in
+            PROTOCOL|SMB_HOST|SMB_SHARE|SMB_USER|SMB_PASS|SFTP_HOST|SFTP_USER|SFTP_PATH|LOCAL_DIR|FUSE_CMD)
+                printf -v "$key" '%s' "$value"
+                ;;
+        esac
+    done < "$CONN_FILE"
+
+    CREDS_FILE="${CONN_FILE%.conn}.creds"
+    if [[ -f "$CREDS_FILE" ]]; then
+        while IFS= read -r line; do
+            [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
+            key="${line%%=*}"
+            value="${line#*=}"
+            key="${key// /}"
+            case "$key" in
+                username) SMB_USER="$value" ;;
+                password) SMB_PASS="$value" ;;
+            esac
+        done < "$CREDS_FILE"
+    fi
+
     if [[ -z "${PROTOCOL:-}" ]]; then
         err "Invalid connection file: PROTOCOL not defined."
+    fi
+
+    if [[ -n "${LOCAL_DIR:-}" && "$LOCAL_DIR" != /* ]]; then
+        err "Invalid connection file: LOCAL_DIR must be an absolute path."
     fi
     
 else
@@ -166,8 +195,10 @@ if [[ "$PROTOCOL" == "smb" ]]; then
     if [[ "$LOAD_CONNECTION" != "yes" ]]; then
         SMB_HOST=$(zenity --entry --title="SMB Host" --text="Enter SMB host (e.g. 192.168.0.10):") || exit 0
         SMB_SHARE=$(zenity --entry --title="Share" --text="Enter share name:") || exit 0
-        SMB_USER=$(zenity --entry --title="Username" --text="Username (leave blank for guest):") || true
-        SMB_PASS=$(zenity --entry --hide-text --title="Password" --text="Password (leave blank for guest):") || true
+        SMB_USER=""
+        SMB_PASS=""
+        SMB_USER=$(zenity --entry --title="Username" --text="Username (leave blank for guest):" 2>/dev/null) || true
+        SMB_PASS=$(zenity --entry --hide-text --title="Password" --text="Password (leave blank for guest):" 2>/dev/null) || true
         LOCAL_DIR=$(zenity --file-selection --directory --title="Select local mount point") || exit 0
         
         # Ask if user wants to save this connection
@@ -183,20 +214,23 @@ if [[ "$PROTOCOL" == "smb" ]]; then
                 --file-filter="Connection files (*.conn)|*.conn") || true
             
             if [[ -n "$SAVE_FILE" ]]; then
-                # Ensure .conn extension
                 [[ "$SAVE_FILE" != *.conn ]] && SAVE_FILE="${SAVE_FILE}.conn"
-                
+                CREDS_FILE="${SAVE_FILE%.conn}.creds"
+
+                (umask 177; cat > "$CREDS_FILE" <<EOF
+username=$SMB_USER
+password=$SMB_PASS
+EOF
+)
                 cat > "$SAVE_FILE" <<EOF
-# SMB Connection Profile
 PROTOCOL="smb"
 SMB_HOST="$SMB_HOST"
 SMB_SHARE="$SMB_SHARE"
 SMB_USER="$SMB_USER"
-SMB_PASS="$SMB_PASS"
 LOCAL_DIR="$LOCAL_DIR"
 EOF
-                chmod 600 "$SAVE_FILE"  # Protect password
-                info "Connection profile saved to:\n$SAVE_FILE" "Saved"
+                chmod 600 "$SAVE_FILE"
+                info "Connection profile saved to:\n$SAVE_FILE\nCredentials stored separately in:\n$CREDS_FILE" "Saved"
             fi
         fi
     fi
@@ -208,7 +242,7 @@ EOF
     
     # Check if SMB share is already mounted
     if check_resource_mounted "$SMB_HOST/$SMB_SHARE" "smb"; then
-        MOUNT_INFO=$(mount | grep "//$SMB_HOST/$SMB_SHARE")
+        MOUNT_INFO=$(mount | grep -F "//$SMB_HOST/$SMB_SHARE")
         zenity --question \
             --title="Share Already Mounted" \
             --text="This SMB share is already mounted:\n\n$MOUNT_INFO\n\nDo you want to continue?" \
@@ -216,11 +250,11 @@ EOF
         [[ $? -eq 1 ]] && exit 0
     fi
     
-    mkdir -p "$LOCAL_DIR"
+    mkdir -p "$LOCAL_DIR" || err "Failed to create mount point: $LOCAL_DIR"
     
     # Check if mount point is already in use
     if mountpoint -q "$LOCAL_DIR"; then
-        CURRENT_SRC=$(mount | grep "$LOCAL_DIR" | awk '{print $1}')
+        CURRENT_SRC=$(mount | grep -F "$LOCAL_DIR" | awk '{print $1}')
         zenity --question \
             --title="Mount Point In Use" \
             --text="$LOCAL_DIR is already mounted with:\n$CURRENT_SRC\n\nUnmount it first?" \
@@ -242,7 +276,7 @@ EOF
 
     SMB_VERSIONS=("3.1.1" "3.0" "2.0" "1.0")
     SUCCESS=0
-    TMPERR=$(mktemp)
+    TMPERR=$(mktemp) || err "Failed to create temporary file."
 
     for VER in "${SMB_VERSIONS[@]}"; do
         MOUNT_OPTS="$BASE_OPTS,vers=$VER"
@@ -254,7 +288,7 @@ EOF
     done
 
     if [[ $SUCCESS -eq 1 ]]; then
-        info "Mounted successfully:\n//$SMB_HOST/$SMB_SHARE → $LOCAL_DIR\n\n(Protocol version: SMB $VER)" "Mounted"
+        info "Mounted successfully:\n//$SMB_HOST/$SMB_SHARE → $LOCAL_DIR\n\n(Protocol version: SMB ${VER:-unknown})" "Mounted"
         xdg-open "$LOCAL_DIR" >/dev/null 2>&1 &
     else
         ERR=$(< "$TMPERR")
@@ -271,8 +305,10 @@ if [[ "$PROTOCOL" == "sftp" ]]; then
     # If not loaded from file, ask for connection details
     if [[ "$LOAD_CONNECTION" != "yes" ]]; then
         SFTP_HOST=$(zenity --entry --title="SFTP Host" --text="Enter host (e.g. 192.168.0.10):") || exit 0
-        SFTP_USER=$(zenity --entry --title="Username" --text="Enter username (optional):") || true
-        SFTP_PATH=$(zenity --entry --title="Remote Path" --text="Enter remote path (optional, e.g. /home/user):") || true
+        SFTP_USER=""
+        SFTP_PATH=""
+        SFTP_USER=$(zenity --entry --title="Username" --text="Enter username (optional):" 2>/dev/null) || true
+        SFTP_PATH=$(zenity --entry --title="Remote Path" --text="Enter remote path (optional, e.g. /home/user):" 2>/dev/null) || true
         LOCAL_DIR=$(zenity --file-selection --directory --title="Select local mount point") || exit 0
         
         # Ask if user wants to save this connection
@@ -310,9 +346,13 @@ EOF
         err "Invalid connection: SFTP_HOST is required."
     fi
 
+    if ! command -v sshfs &>/dev/null; then
+        err "sshfs not installed. Please install sshfs to mount SFTP shares."
+    fi
+
     # Check if SFTP host is already mounted
     if check_resource_mounted "$SFTP_HOST" "sftp"; then
-        MOUNT_INFO=$(mount | grep "@$SFTP_HOST")
+        MOUNT_INFO=$(mount | grep -F "@$SFTP_HOST")
         zenity --question \
             --title="SFTP Already Mounted" \
             --text="This SFTP host is already mounted:\n\n$MOUNT_INFO\n\nDo you want to continue?" \
@@ -320,11 +360,11 @@ EOF
         [[ $? -eq 1 ]] && exit 0
     fi
 
-    mkdir -p "$LOCAL_DIR"
+    mkdir -p "$LOCAL_DIR" || err "Failed to create mount point: $LOCAL_DIR"
     
     # Check if mount point is already in use
     if mountpoint -q "$LOCAL_DIR"; then
-        CURRENT_SRC=$(mount | grep "$LOCAL_DIR" | awk '{print $1}')
+        CURRENT_SRC=$(mount | grep -F "$LOCAL_DIR" | awk '{print $1}')
         zenity --question \
             --title="Mount Point In Use" \
             --text="$LOCAL_DIR is already mounted with:\n$CURRENT_SRC\n\nUnmount it first?" \
@@ -342,15 +382,11 @@ EOF
     [[ -n "${SFTP_USER:-}" ]] && TARGET="$SFTP_USER@$SFTP_HOST"
     [[ -n "${SFTP_PATH:-}" ]] && TARGET="$TARGET:$SFTP_PATH"
 
-    if command -v sshfs &>/dev/null; then
-        if sshfs "$TARGET" "$LOCAL_DIR" -o reconnect,ServerAliveInterval=15,uid=$(id -u),gid=$(id -g); then
-            info "Mounted:\n$TARGET → $LOCAL_DIR" "Mounted"
-            xdg-open "$LOCAL_DIR" >/dev/null 2>&1 &
-        else
-            err "Failed to mount $TARGET via sshfs."
-        fi
+    if sshfs "$TARGET" "$LOCAL_DIR" -o reconnect,ServerAliveInterval=15,uid=$(id -u),gid=$(id -g); then
+        info "Mounted:\n$TARGET → $LOCAL_DIR" "Mounted"
+        xdg-open "$LOCAL_DIR" >/dev/null 2>&1 &
     else
-        err "sshfs not installed."
+        err "Failed to mount $TARGET via sshfs."
     fi
     exit 0
 fi
@@ -359,6 +395,7 @@ fi
 if [[ "$PROTOCOL" == "fuse" ]]; then
     # If not loaded from file, ask for connection details
     if [[ "$LOAD_CONNECTION" != "yes" ]]; then
+        FUSE_CMD=""
         FUSE_CMD=$(zenity --entry --title="FUSE Command" --text="Enter full FUSE command (example: sshfs user@host:/path):") || exit 0
         LOCAL_DIR=$(zenity --file-selection --directory --title="Select local mount point") || exit 0
         
@@ -395,11 +432,11 @@ EOF
         err "Invalid connection: FUSE_CMD is required."
     fi
     
-    mkdir -p "$LOCAL_DIR"
+    mkdir -p "$LOCAL_DIR" || err "Failed to create mount point: $LOCAL_DIR"
     
     # Check if mount point is already in use
     if mountpoint -q "$LOCAL_DIR"; then
-        CURRENT_SRC=$(mount | grep "$LOCAL_DIR" | awk '{print $1}')
+        CURRENT_SRC=$(mount | grep -F "$LOCAL_DIR" | awk '{print $1}')
         zenity --question \
             --title="Mount Point In Use" \
             --text="$LOCAL_DIR is already mounted with:\n$CURRENT_SRC\n\nUnmount it first?" \
@@ -413,8 +450,9 @@ EOF
         fi
     fi
     
-    TMPERR=$(mktemp)
-    if $ELEVATE_CMD bash -c "$FUSE_CMD \"$LOCAL_DIR\"" 2> "$TMPERR"; then
+    TMPERR=$(mktemp) || err "Failed to create temporary file."
+    read -ra FUSE_ARGS <<< "$FUSE_CMD"
+    if $ELEVATE_CMD "${FUSE_ARGS[@]}" "$LOCAL_DIR" 2> "$TMPERR"; then
         info "Mounted via FUSE command." "Mounted"
     else
         ERR=$(< "$TMPERR")

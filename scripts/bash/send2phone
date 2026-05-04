@@ -13,14 +13,10 @@
 
 echo "Start KDE Connect Send. Wait..."
 printf "\n"
-
-# check no-root
 if [ "$(id -u)" == "0" ]; then
     echo "❌ This script should not be run as root."
     exit 1
 fi
-
-# check dependencies
 for pkg in kdeconnect-cli; do
   dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {
     echo "❌ '$pkg' is not installed. Run:"
@@ -28,82 +24,69 @@ for pkg in kdeconnect-cli; do
     exit 1
   }
 done
-
-# Get files from file manager selection or command line arguments (universal detection)
 files=()
-
 if [ -n "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS" ]; then
-    # Called from Nautilus or Caja - split the paths
     IFS=$'\n' read -d '' -r -a files <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
 elif [ -n "$THUNAR_SELECTION" ]; then
-    # Called from Thunar - split the paths
     IFS=$'\n' read -d '' -r -a files <<< "$THUNAR_SELECTION"
 elif [ -n "$NEMO_SCRIPT_SELECTED_FILE_PATHS" ]; then
-    # Called from Nemo - split the paths
     IFS=$'\n' read -d '' -r -a files <<< "$NEMO_SCRIPT_SELECTED_FILE_PATHS"
 elif [ "$#" -gt 0 ]; then
-    # Called from command line with arguments
     files=("$@")
 else
     echo "Usage: $0 file [file...]"
     echo "Or run from your file manager's context menu"
     exit 1
 fi
-
-# Verify that at least one file was passed
 if [ "${#files[@]}" -eq 0 ]; then
     echo "❌ No files selected"
     exit 1
 fi
-
-# Get list of kdeconnect devices
 devices="$(kdeconnect-cli -a 2>/dev/null)"
-
-# Check if devices are connected and accessible
 if [[ -z "$devices" ]]; then
     echo "❌ No connected or accessible kdeconnect devices found"
+    echo "   Make sure KDE Connect is running and your device is paired and reachable"
     exit 1
 fi
-
-# Get the first available device
-phone_id="$(echo "$devices" | grep -oP '(\w+:\s[\w-]+)' | head -1 | awk '{print $2}')"
-
+phone_id="$(kdeconnect-cli -a --id-only 2>/dev/null | head -1)"
+if [[ -z "$phone_id" ]]; then
+    phone_id="$(echo "$devices" | grep -oP '(?<=: )[\w-]+(?= :)' | head -1)"
+fi
 if [[ -z "$phone_id" ]]; then
     echo "❌ Could not determine phone ID"
     exit 1
 fi
-
 echo "📱 Using device: $phone_id"
 printf "\n"
-
-# Iterate over the files and send them one by one
 total_files="${#files[@]}"
 current=0
-
+sent=0
 for file in "${files[@]}"; do
     current=$((current + 1))
     base="$(basename -- "$file")"
-    
+
     echo "[$current/$total_files] Sending: $base"
-    
-    # Check if file exists
+
+    if [ -d "$file" ]; then
+        echo "⚠️  Skipping directory: $base"
+        continue
+    fi
+
     if [ ! -f "$file" ]; then
         echo "⚠️  File not found: $file"
         continue
     fi
-    
-    # Try to send the file to the phone
+
     if kdeconnect-cli --device "$phone_id" --share "$file" 2>/dev/null; then
         echo "✅ File sent: $base"
+        sent=$((sent + 1))
     else
         echo "❌ Error sending file: $base"
     fi
-    
-    # Wait 2 seconds before continuing (except for last file)
+
     if [ $current -lt $total_files ]; then
         sleep 2
     fi
 done
-
 printf "\n"
-echo "✅ Done. Sent $current of $total_files file(s)"
+echo "✅ Done. Sent $sent of $total_files file(s)"

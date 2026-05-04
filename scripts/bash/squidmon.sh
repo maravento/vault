@@ -46,6 +46,7 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
@@ -72,7 +73,9 @@ install_module() {
     if ! command -v squid &>/dev/null; then
         echo "Warning: Squid does not appear to be installed"
         echo "The module will be installed anyway, but may not function properly"
+        set +e
         read -p "Continue? (y/n): " confirm
+        set -e
         if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
             echo "Installation cancelled."
             exit 0
@@ -95,6 +98,7 @@ install_module() {
 # Proxy Monitor - Main Dashboard
 use strict;
 use warnings;
+use CGI qw(escapeHTML);
 
 do '../web-lib.pl';
 do '../ui-lib.pl';
@@ -120,6 +124,9 @@ my $time_range = $config{'time_range'} || '24';
 
 # Validate refresh interval
 $refresh_interval = 60 if $refresh_interval !~ /^\d+$/ || $refresh_interval < 30;
+
+# Validate max_lines
+$max_lines = 50000 if $max_lines !~ /^\d+$/ || $max_lines < 1 || $max_lines > 500000;
 
 # Parse ACL list - SUPPORT BOTH \n AND \t
 my @monitored_acls = ();
@@ -288,29 +295,19 @@ my %client_logs = ();
 my %domain_to_acl = (); # domain => ACL label (instant lookup)
 my @regex_acls = ();    # Only store regex ACLs separately
 
-# DEBUG: Show monitored ACLs
-print "<!-- DEBUG: Show monitored ACLs -->\n";
-foreach my $acl (@monitored_acls) {
-    print "<!-- ACL: type=$acl->{type}, label=$acl->{label}, value=$acl->{value} -->\n";
-    if ($acl->{type} eq 'file') {
-        if (-f $acl->{value}) {
-            my $line_count = 0;
-            if (open(my $fh, '<', $acl->{value})) {
-                while (<$fh>) { $line_count++; }
-                close($fh);
-            }
-            print "<!-- FILE EXISTS: $line_count lines -->\n";
-        } else {
-            print "<!-- FILE NOT FOUND: $acl->{value} -->\n";
-        }
-    }
+# Validate that an ACL file path is absolute and confined to allowed directories
+sub is_safe_acl_path {
+    my ($path) = @_;
+    return 0 unless defined $path && $path =~ m{^/};
+    $path =~ s{/+}{/}g;
+    return 0 if $path =~ m{\.\.};
+    return $path =~ m{^/etc/squid/} ? 1 : 0;
 }
-print "<!-- END DEBUG -->\n";
 
 foreach my $acl (@monitored_acls) {
     $acl_hits{$acl->{label}} = 0;
 
-    if ($acl->{type} eq 'file' && -f $acl->{value}) {
+    if ($acl->{type} eq 'file' && is_safe_acl_path($acl->{value}) && -f $acl->{value}) {
         if (open(my $fh, '<', $acl->{value})) {
             while (my $line = <$fh>) {
                 chomp($line);
@@ -325,14 +322,6 @@ foreach my $acl (@monitored_acls) {
     } elsif ($acl->{type} eq 'regex') {
         push @regex_acls, $acl;
     }
-}
-
-# DEBUG: Show how many entries were loaded into domain_to_acl
-my $total_domains = scalar(keys %domain_to_acl);
-print "<!-- DEBUG: Total dominios cargados en domain_to_acl: $total_domains -->\n";
-if ($total_domains > 0) {
-    my @sample_domains = (keys %domain_to_acl)[0..4];
-    print "<!-- Sample domains: " . join(", ", @sample_domains) . " -->\n";
 }
 
 # Parse last N lines of log
@@ -374,7 +363,7 @@ my $time_threshold = time() - ($time_range * 3600);
 # Preload ACLs into memory for fast lookup (only for Blocked Requests by IP)
 my %acl_lookup = ();
 foreach my $acl (@monitored_acls) {
-    next unless $acl->{type} eq 'file' && -f $acl->{value};
+    next unless $acl->{type} eq 'file' && is_safe_acl_path($acl->{value}) && -f $acl->{value};
     if (open(my $fh, '<', $acl->{value})) {
         while (my $line = <$fh>) {
             chomp($line);
@@ -756,7 +745,7 @@ print "</div>";
 # Search box
 print "<div>";
 print "<label style='color: #ffffff; margin-left: 15px;'>Search: </label>";
-print "<input type='text' name='search_query' value='$search_query' placeholder='IP or domain...' style='width: 250px; padding: 5px; margin-left: 5px;'>";
+print "<input type='text' name='search_query' value='" . escapeHTML($search_query) . "' placeholder='IP or domain...' style='width: 250px; padding: 5px; margin-left: 5px;'>";
 print "<input type='submit' name='search' value='Search' style='background-color: #1f2937; color: #ffffff !important; border: 1px solid #ffffff !important; padding: 5px 10px; margin-left: 5px;'>";
 print "</div>";
 
@@ -857,28 +846,6 @@ foreach my $line (@log_lines) {
         $debug_info{acl_matches}{$matched_acl}++;
 }
 
-# DEBUG: Show diagnostic information
-print "<!-- DEBUG INFO: -->\n";
-print "<!-- Total requests: $debug_info{total_requests} -->\n";
-print "<!-- Blocked: " . ($debug_info{blocked_requests} || 0) . " -->\n";
-print "<!-- Allowed: " . ($debug_info{allowed_requests} || 0) . " -->\n";
-print "<!-- Exact matches: " . ($debug_info{exact_matches} || 0) . " -->\n";
-print "<!-- Subdomain matches: " . ($debug_info{subdomain_matches} || 0) . " -->\n";
-print "<!-- Regex matches: " . ($debug_info{regex_matches} || 0) . " -->\n";
-
-# Show blocked domains for debugging
-if ($debug_info{domains}) {
-    print "<!-- Blocked domains: " . join(', ', keys %{$debug_info{domains}}) . " -->\n";
-}
-
-# Show ACL matches for debugging
-if ($debug_info{acl_matches}) {
-    print "<!-- ACL Matches: -->\n";
-    foreach my $acl (keys %{$debug_info{acl_matches}}) {
-        print "<!--   $acl: $debug_info{acl_matches}{$acl} -->\n";
-    }
-}
-
 # ============================================================
 # SEARCH AND FILTERING
 # ============================================================
@@ -891,7 +858,7 @@ if ($search_query && $search_query ne '') {
     $search_query = lc($search_query);  # Convertir a minúsculas para comparación
     
     # Detect if it is an IP address (simple pattern: xxx.xxx.xxx.xxx)
-    if ($search_query =~ /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/) {
+    if ($search_query =~ /^(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)$/) {
         $search_is_ip = 1;
     }
     
@@ -953,7 +920,7 @@ if ($search_query && $search_query ne '') {
     my $search_type = $search_is_ip ? "IP Address" : "Domain";
     print "<div style='margin-bottom: 15px; padding: 12px; background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px;'>";
     print "<strong style='color: #1e40af;'>🔍 Search Results ($search_type):</strong> ";
-    print "Found <strong style='color: #1e40af;'>$results_count</strong> client(s) matching '<strong>$search_query</strong>'";
+    print "Found <strong style='color: #1e40af;'>$results_count</strong> client(s) matching '<strong>" . escapeHTML($search_query) . "</strong>'";
     print "</div>";
     
     if ($results_count == 0) {
@@ -1239,12 +1206,12 @@ our %in;
 my $log_file = $config{'squid_log'} || '/var/log/squid/access.log';
 my $max_lines = $in{'max_lines'} || $config{'max_lines'} || '50000';
 my $time_range = $in{'time_range'} || $config{'time_range'} || '24';
+my $specific_client = $in{'client_ip'} || '';
+
 # Adjust lines to read based on time range for better performance
 if ($time_range > 168) { # More than 7 days
     $max_lines = 100000; # Read more lines for historical data
 }
-my $time_range = $in{'time_range'} || $config{'time_range'} || '24';
-my $specific_client = $in{'client_ip'} || '';
 
 # Calculate time threshold
 my $time_threshold = time() - ($time_range * 3600);
@@ -1953,7 +1920,11 @@ EOF
 R0lGODlhMAAwAPAAAAAAAAAAACH5BAEAAAAALAAAAAAwADAAAALIhI+py+0Po5xUhouz3jzUDobbdFUQFpXm6bHrgaKA+qiiDMdyW/Or3qI5hK8FsXEsGpLIm3NEekp9LKoS17Mql1oF08KzdRPiGxkYTAWd59JujPiqYTnw1iuPY4sZylTqt/fSZ3enB1dneDY3w1bYw2WG92SEmAXYNpinN/ljyTn5hxNGytUkupbYaKq46tqY+mooFhm7GchKSNu6qxurWJar07qq4dp3GwXrtsZMHHy8C/xLIz0bpmp9l8w6/dntjUm8LDleVAAAOw==
 ICONEOF
     
-    base64 -d /tmp/squid_icon.gif.b64 > "$MODDIR/images/icon.gif"
+    if ! base64 -d /tmp/squid_icon.gif.b64 > "$MODDIR/images/icon.gif"; then
+        echo "ERROR: Failed to decode icon.gif from base64"
+        rm -f /tmp/squid_icon.gif.b64 "$MODDIR/images/icon.gif"
+        exit 1
+    fi
     rm -f /tmp/squid_icon.gif.b64
     
     # ============================================================
@@ -1968,8 +1939,9 @@ ICONEOF
     # ============================================================
     # 18. Register module in Webmin ACL
     # ============================================================
-    if ! grep -q "squidmon" /etc/webmin/webmin.acl 2>/dev/null; then
+    if [[ -f /etc/webmin/webmin.acl ]] && ! grep -q "squidmon" /etc/webmin/webmin.acl; then
         sed -i.bak 's/\(^root:.*\)/\1 squidmon/' /etc/webmin/webmin.acl
+        rm -f /etc/webmin/webmin.acl.bak
         echo "✓ Module added to webmin.acl"
     fi
     
@@ -2044,8 +2016,9 @@ uninstall_module() {
     echo "✓ Module directories removed"
     
     # Remove from Webmin ACL
-    if grep -q "squidmon" /etc/webmin/webmin.acl 2>/dev/null; then
+    if [[ -f /etc/webmin/webmin.acl ]] && grep -q "squidmon" /etc/webmin/webmin.acl; then
         sed -i.bak 's/ squidmon//g' /etc/webmin/webmin.acl
+        rm -f /etc/webmin/webmin.acl.bak
         echo "✓ Module removed from webmin.acl"
     fi
     
@@ -2105,12 +2078,6 @@ show_usage() {
 # Main execution
 # ============================================================
 main() {
-    # Check if running as root
-    if [ "$EUID" -ne 0 ]; then
-        echo "Error: This script must be run as root"
-        exit 1
-    fi
-    
     # Check if Webmin is installed
     if [ ! -d "/usr/share/webmin" ] && [ ! -d "/etc/webmin" ]; then
         echo "Error: Webmin is not installed on this system"

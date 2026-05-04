@@ -134,12 +134,6 @@ NC='\033[0m' # No Color
 NETPLAN_DIR="/etc/netplan"
 NETWORKD_FILE="$NETPLAN_DIR/00-networkd.yaml"
 
-# Check root
-if [ "$(id -u)" != "0" ]; then
-    echo -e "${RED}Error: This script must be run as root${NC}" 1>&2
-    exit 1
-fi
-
 # Check dependencies
 check_dependencies() {
     if ! command -v netplan &>/dev/null; then
@@ -621,13 +615,11 @@ switch_to_nm() {
         echo -e "${GREEN}✓ Netplan configuration applied successfully${NC}"
         echo ""
         
-        # NOW stop and mask systemd-networkd AFTER netplan apply succeeded
         echo -e "${BLUE}Stopping systemd-networkd services...${NC}"
         systemctl stop systemd-networkd.socket 2>/dev/null || true
         systemctl stop systemd-networkd-wait-online.service 2>/dev/null || true
         systemctl stop systemd-networkd.service 2>/dev/null || true
         
-        # Verify they stopped
         sleep 1
         if systemctl is-active --quiet systemd-networkd.service; then
             echo -e "${YELLOW}  Force killing systemd-networkd...${NC}"
@@ -694,7 +686,7 @@ show_status() {
     fi
     echo ""
     
-    analysis=$(detect_and_classify_interfaces | tail -1)
+    analysis=$(detect_and_classify_interfaces)
     echo ""
     
     get_renderer_recommendation "$analysis"

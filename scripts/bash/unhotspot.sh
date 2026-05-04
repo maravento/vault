@@ -20,39 +20,52 @@
 #   - Optional: disable "Client Device Isolation"
 #
 # LOGIC:
-#   The script runs every minute via cron and executes 5 steps:
+#   The script runs every minute via cron and executes 8 steps:
 #
 #   1. DEDUP: verifies that no MAC appears in more than one list.
-#      If a MAC is in guest-pending.txt or in any mac-*.txt,
-#      it is automatically removed from blockdhcp.txt and dhcpd.leases.
+#      If a MAC is in guest-pending.txt or in any mac-*.txt, it is
+#      automatically removed from blockdhcp.txt and dhcpd.leases.
+#      Entries in blockdhcp.txt with extra fields are sanitized to
+#      the canonical 4-field format (a;MAC;IP;HOSTNAME;).
 #
-#   2. EXPIRED: iterates over mac-hotspot.txt looking for expired vouchers
-#      (END_TIME < now). Moves them to guest-pending.txt preserving IP and hostname.
+#   2. SNAPSHOT: records md5sum baselines of mac-hotspot.txt and
+#      guest-pending.txt before any processing begins.
 #
-#   3. PENDING: queries stat/sta on the UniFi API. Clients connected
+#   3. EXPIRED: iterates over mac-hotspot.txt looking for expired vouchers
+#      (END_TIME < now). Moves them to guest-pending.txt preserving IP and
+#      hostname, provided the client is still connected to the guest SSID.
+#
+#   4. PENDING: queries stat/sta on the UniFi API. Clients connected
 #      to the guest SSID without authorization receive a sequential IP
 #      from the user-defined range (e.g., 192.168.10.160 to 192.168.10.180)
-#      starting from the lowest available IP. Hostname is constructed as:
-#      guest{sequential_number}-{voucher_code}
-#      Example: guest5-4652724159
+#      starting from the lowest available IP. Their initial dynamic DHCP
+#      lease is removed. Hostname is constructed as guest{sequential_number}
+#      and enriched with the voucher code in step 5. Example: guest5
 #
-#   4. SESSIONS: queries stat/guest. UniFi records completed voucher sessions
+#   5. SESSIONS: queries stat/guest. UniFi records completed voucher sessions
 #      here after the client authenticates. Clients are moved from
-#      guest-pending.txt to mac-hotspot.txt with their end_time.
-#      After a successful move, a kick-sta command is sent to the AP so the
-#      client reconnects immediately and receives the correct DHCP-assigned IP.
+#      guest-pending.txt to mac-hotspot.txt with their end_time, and the
+#      hostname is enriched with the voucher code (e.g. guest5-4652724159).
 #
-#   5. RELOAD: after all steps complete, compares md5sum snapshots of
-#      mac-hotspot.txt and guest-pending.txt taken before processing against
-#      their current state. If either file changed, SERVER_RELOAD_SCRIPT is
-#      invoked exactly once.
+#   6. REVOKE: queries stat/sta. MACs present in mac-hotspot.txt that UniFi
+#      reports as authorized=false are moved back to guest-pending.txt.
+#
+#   7. UNAUTHORIZE: sends an unauthorize-guest command to UniFi via
+#      cmd/stamgr for any MAC in guest-pending.txt that still appears as
+#      authorized=true in stat/sta.
+#
+#   8. RELOAD: compares the current state of mac-hotspot.txt and
+#      guest-pending.txt against the baselines taken in step 2. If either
+#      file changed, SERVER_RELOAD_SCRIPT is invoked exactly once to
+#      restart DHCP, iptables, and related services.
 #
 # ACL FORMAT:
 #   mac-hotspot.txt   → a;MAC;IP;HOSTNAME;END_TIME_EPOCH;
 #   guest-pending.txt → a;MAC;IP;HOSTNAME;
 #
 # HOSTNAME FORMAT:
-#   guest{sequential_number}-{voucher_code}
+#   guest{sequential_number} (assigned in PENDING step)
+#   guest{sequential_number}-{voucher_code} (enriched in SESSIONS step)
 #   Example: guest5-4652724159
 #
 # IP ASSIGNMENT:
@@ -71,13 +84,13 @@
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# root check
+# Root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
 
-# prevent overlapping runs
+# Prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
@@ -85,33 +98,27 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# LOCAL USER (multi-strategy detection with validation)
-local_user=""
-# 1. Local graphical session (:0)
-local_user=$(who | awk '/\(:0\)/{print $1; exit}')
-# 2. Parent process logname (works well with sudo)
-[ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
-# 3. SUDO_USER variable (when run via sudo from terminal)
-[ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-# 4. First active session user (SSH or other)
-[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
-# 5. First valid home directory
-[ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
-# Validate the user actually exists on the system
-if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
-    echo "ERROR: Cannot determine a valid local user"
+# Detect local user (used as owner for generated files)
+local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || true)
+if [ -z "$local_user" ]; then
+    local_user=$(who | head -1 | awk '{print $1}' || true)
+fi
+if [ -z "$local_user" ]; then
+    local_user=$(ls -l /home | grep '^d' | head -1 | awk '{print $3}' || true)
+fi
+if [ -z "$local_user" ]; then
+    echo "ERROR: Cannot determine local user"
     exit 1
 fi
-echo "Using local user: $local_user"
 
 # Hotspot path
 HOTSPOT_PATH="/etc/unhotspot"
 
 # ─── Configuration ────────────────────────────────────────────────────────────
-CONFIG_FILE="$HOTSPOT_PATH/config.conf"
 # SESSION_TOKEN: stores the raw JWT extracted from the set-cookie header.
 # curl's Netscape cookie jar silently drops cookies with the "partitioned"
 # flag (used by UniFi OS >= 3.x). The token is injected manually instead.
+CONFIG_FILE="$HOTSPOT_PATH/config.conf"
 SESSION_TOKEN=""
 MAC_LIST="$HOTSPOT_PATH/mac-hotspot.txt"
 PENDING_LIST="$HOTSPOT_PATH/guest-pending.txt"
@@ -122,7 +129,7 @@ REVOKED=0
 
 # ─── Permanent MAC block list ─────────────────────────────────────────────────
 # ACL file for MAC addresses that must be permanently denied a DHCP lease.
-# Format: a;MAC;IP;HOSTNAME;   (4 fields — no epoch, no trailing semicolons)
+# Format: a;MAC;IP;HOSTNAME;   (4 fields — no epoch; trailing semicolon required)
 BLOCK_DHCP="/etc/dhcp/blockdhcp.txt"
 
 # Defaults — overridden by config.conf
@@ -135,7 +142,7 @@ UNIFI_CONTROLLER_URL=""
 UNIFI_USERNAME=""
 UNIFI_PASSWORD=""
 UNIFI_SITE="default"
-UNIFI_TYPE=""      # "unifi-os" or "classic"
+UNIFI_TYPE=""           # "unifi-os" or "classic"
 CSRF_TOKEN=""
 VOUCHER_CACHE=""
 VOUCHER_COUNT=0
@@ -144,12 +151,10 @@ VOUCHER_COUNT=0
 SERVER_RELOAD_SCRIPT="" # overridden by config.conf
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
-# Defined early so it is available even if load_config() or setup_config() fail.
 log() {
     local msg
     msg="$(date '+%Y-%m-%d %H:%M:%S') $*"
     echo "$msg"
-    # Append to log only if LOG_FILE is writable (may not exist yet at first run)
     if [[ -n "$LOG_FILE" ]]; then
         echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
     fi
@@ -277,15 +282,15 @@ discover_unifi_controller() {
 # ─── Interactive setup (runs only when config.conf is missing) ────────────────
 setup_config() {
     echo ""
-    echo "══════════════════════════════════════════════════"
+    echo "══════════════════════════════════════════════════════"
     echo "  UniFi Network Hotspot ACL Manager — First-time setup"
-    echo "══════════════════════════════════════════════════"
+    echo "══════════════════════════════════════════════════════"
     echo "  Config file not found: $CONFIG_FILE"
     echo "  Answer the following questions to create it."
-    echo "══════════════════════════════════════════════════"
+    echo "══════════════════════════════════════════════════════"
     echo ""
 
-    echo "── Network ──────────────────────────────────────"
+    echo "── Network ───────────────────────────────────────────"
     local ifaces
     ifaces=$(ip -o link show | awk -F': ' '{print $2}' | grep -v lo | tr '\n' '  ')
     echo "  Available interfaces: $ifaces"
@@ -294,18 +299,18 @@ setup_config() {
     ask_ip        "Server IP (this machine)" CFG_SERVER_IP
 
     echo ""
-    echo "── Hotspot IP range ─────────────────────────────"
+    echo "── Hotspot IP range ──────────────────────────────────"
     CFG_IP_RANGE=$(echo "$CFG_SERVER_IP" | cut -d'.' -f1-3)
     echo "  Hotspot IP range base (auto-detected): $CFG_IP_RANGE"
     ask_octet    "Range start (last octet)" "160" CFG_RANGE_START
     ask_octet    "Range end   (last octet)" "170" CFG_RANGE_END "$CFG_RANGE_START"
 
     echo ""
-    echo "── Hotspot SSID ─────────────────────────────────"
+    echo "── Hotspot SSID ──────────────────────────────────────"
     ask "Guest SSID name (must match exactly in UniFi)" "" CFG_ESSID
 
     echo ""
-    echo "── UniFi credentials ────────────────────────────"
+    echo "── UniFi credentials ────────────────────────────────"
     ask "UniFi admin username" "admin" CFG_UNIFI_USER
     while true; do
         read -rsp "  UniFi admin password: " CFG_UNIFI_PASS; echo ""
@@ -314,7 +319,7 @@ setup_config() {
     done
 
     echo ""
-    echo "── Scanning for UniFi Controller ───────────────"
+    echo "── Scanning for UniFi Controller ─────────────────────"
     local found_url="" found_type=""
     DISCOVERED_URL=""
     DISCOVERED_TYPE=""
@@ -332,7 +337,7 @@ setup_config() {
     fi
 
     echo ""
-    echo "── Reload script ────────────────────────────────"
+    echo "── Reload script ─────────────────────────────────────"
     echo "  Script to run after ACL changes (restart DHCP, reload iptables, etc.)"
     echo "  Must exist and be executable (chmod +x)"
     while true; do
@@ -345,7 +350,7 @@ setup_config() {
     done
 
     echo ""
-    echo "── Writing $CONFIG_FILE ─────────────────────────"
+    echo "── Writing $CONFIG_FILE ──────────────────────────────"
     mkdir -p "$(dirname "$CONFIG_FILE")"
     chmod 700 "$(dirname "$CONFIG_FILE")"
 
@@ -422,10 +427,6 @@ api_path() {
     fi
 }
 
-# Extract TOKEN from set-cookie header and store in SESSION_TOKEN.
-# curl's -c (Netscape jar) silently drops cookies with the "partitioned"
-# attribute (used by UniFi OS >= 3.x). The token is injected manually
-# via -H "Cookie: TOKEN=..." on every subsequent request.
 unifi_login() {
     local login_url header_file http_code raw_cookie
 
@@ -452,11 +453,9 @@ unifi_login() {
         return 1
     fi
 
-    # Extract CSRF token (UniFi OS sends it in x-updated-csrf-token or x-csrf-token)
     CSRF_TOKEN=$(grep -i 'x-updated-csrf-token\|x-csrf-token' "$header_file" \
         | tail -1 | awk '{print $2}' | tr -d '\r\n' || true)
 
-    # Extract the TOKEN value from set-cookie (works even with partitioned flag)
     raw_cookie=$(grep -i '^set-cookie:' "$header_file" \
         | grep -i 'TOKEN=' \
         | head -1 \
@@ -474,7 +473,6 @@ unifi_login() {
     log "INFO: UniFi login OK"
 }
 
-# Authenticated GET — sends TOKEN manually; auto-reauth on 401, retries once.
 api_get() {
     local url="$1"
     local args=(-sk -w "\n__CODE__:%{http_code}"
@@ -515,7 +513,6 @@ api_get() {
     echo "$body"
 }
 
-# Authenticated POST — used by unauthorize_pending and unifi_kick_client.
 api_post() {
     local url="$1" payload="$2"
     local args=(-sk -w "\n__CODE__:%{http_code}"
@@ -545,7 +542,6 @@ load_all_vouchers() {
     VOUCHER_COUNT="$count"
 }
 
-# Returns epoch end_time for a MAC, or empty if no valid voucher found.
 get_voucher_end_for_mac() {
     local mac="$1" voucher_code="${2:-}" result=""
     [[ -z "$VOUCHER_CACHE" ]] && return 0
@@ -604,7 +600,6 @@ assign_ip_and_hostname() {
     # Assignment mode: random vs sequential
     #local idx=$(( RANDOM % ${#available[@]} ))  # random
     local idx=0                                  # sequential (lowest available IP)
-
     local guest_num
     guest_num=$(get_next_guest_number)
     echo "${available[$idx]};guest${guest_num}"
@@ -664,7 +659,6 @@ dedup_mac_lists() {
     local acl_dir
     acl_dir="$(dirname "$MAC_LIST")"
 
-    # Collect all managed MACs (guest-pending + mac-*.txt)
     local managed_macs
     managed_macs=$(
         {
@@ -677,7 +671,7 @@ dedup_mac_lists() {
 
     local removed_block=0 removed_leases=0 sanitized_block=0
 
-    # 1. Sanitize and clean blockdhcp.txt
+    # Sanitize and clean blockdhcp.txt
     if [[ -f "$BLOCK_DHCP" ]]; then
         local tmp_block
         tmp_block=$(mktemp)
@@ -696,7 +690,6 @@ dedup_mac_lists() {
             fi
 
             # Normalize to 4-field format a;MAC;IP;HOSTNAME;
-            # Count semicolons to detect over-long entries (e.g. with epoch)
             field_count=$(echo "$line" | tr -cd ';' | wc -c)
             if (( field_count > 4 )); then
                 local clean_line="a;${bmac};${bip};${bhostname};"
@@ -709,7 +702,6 @@ dedup_mac_lists() {
         mv "$tmp_block" "$BLOCK_DHCP" && chmod 600 "$BLOCK_DHCP"
     fi
 
-    # 2. Clean dhcpd.leases
     local dhcpd_leases="/var/lib/dhcp/dhcpd.leases"
     if [[ -f "$dhcpd_leases" && -n "$managed_macs" ]]; then
         local tmp_leases in_block=0 block=""
@@ -744,29 +736,6 @@ dedup_mac_lists() {
     if (( sanitized_block > 0 )); then
         log "INFO: dedup → sanitized $sanitized_block blockdhcp entries (extra fields removed)"
     fi
-    # counts available as removed_block / removed_leases for callers
-}
-
-# ─── Kick client off the AP (kick-sta) ───────────────────────────────────────
-# Forces the client to reconnect and request a new DHCP lease.
-# Called immediately after a voucher is validated and the MAC is moved
-# from guest-pending.txt to mac-hotspot.txt, so the client picks up
-# the correct IP from the hotspot range without waiting for lease expiry.
-unifi_kick_client() {
-    local mac="$1"
-    local endpoint
-    endpoint=$(api_path "cmd/stamgr")
-    local payload="{\"cmd\":\"kick-sta\",\"mac\":\"${mac}\"}"
-
-    log "INFO: Sending kick-sta for $mac..."
-    local code
-    code=$(api_post "$endpoint" "$payload")
-
-    if [[ "$code" == "200" ]]; then
-        log "INFO: kick-sta successful (MAC: $mac)"
-    else
-        log "WARNING: kick-sta failed for $mac (HTTP $code)"
-    fi
 }
 
 # ─── ACL helpers ──────────────────────────────────────────────────────────────
@@ -792,8 +761,6 @@ add_mac_to_acl() {
         local exp_human
         exp_human=$(date -d "@$end_time" 2>/dev/null || echo "$end_time")
         log "INFO: Authorized $mac ip=$ip hostname=$hostname expires=$exp_human"
-        # Kick the client so it reconnects and gets the correct DHCP IP immediately
-        unifi_kick_client "$mac"
     fi
 }
 
@@ -817,7 +784,7 @@ expire_to_pending() {
     log "INFO: Expired $mac → guest-pending.txt ip=$ip hostname=$hostname"
 }
 
-# ─── Step 1: remove expired MACs from mac-hotspot.txt ────────────────────────
+# ─── Step 3: remove expired MACs from mac-hotspot.txt ────────────────────────
 clean_expired_macs() {
     local now tmp
     now=$(date +%s)
@@ -879,7 +846,7 @@ clean_disconnected_pending() {
     mv "$tmp" "$PENDING_LIST" && chmod 600 "$PENDING_LIST"
 }
 
-# ─── Step 2: detect new portal clients (stat/sta) ────────────────────────────
+# ─── Step 4: detect new portal clients (stat/sta) ────────────────────────────
 # NOTE: Clients on the guest SSID appear in stat/sta with authorized=false
 # before and during portal authentication. Detection is by .essid == HOTSPOT_ESSID
 # regardless of the is_guest or authorized flags, both of which are unreliable
@@ -930,7 +897,7 @@ process_pending_guests() {
     PENDING_NEW=$count
 }
 
-# ─── Step 3: detect voucher-authenticated clients (stat/guest) ────────────────
+# ─── Step 5: detect voucher-authenticated clients (stat/guest) ────────────────
 # NOTE: In UniFi OS Network 10.x, stat/guest entries carry expired=true even
 # for active sessions — the flag reflects internal state, not whether end_time
 # has passed. Filtering on expired==false silently discards all valid sessions.
@@ -1158,11 +1125,6 @@ EOF
     fi
 }
 
-# ─── NOTE: set -euo pipefail is intentionally placed AFTER all functions are
-# defined and after load_config(), so that early failures (missing config,
-# login errors) are handled explicitly and logged rather than causing a silent
-# exit. Individual critical sections use explicit error checks instead.
-# ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
@@ -1191,7 +1153,6 @@ main() {
     pending_total=$(( ${pending_total:-0} + 0 ))
     authorized_total=$(grep -c "^a;" "$MAC_LIST" 2>/dev/null || true)
     authorized_total=$(( ${authorized_total:-0} + 0 ))
-    # subtract placeholder line
     (( authorized_total > 0 )) && (( authorized_total-- )) || true
     log "INFO: vouchers=$VOUCHER_COUNT | authorized=$authorized_total | pending=$pending_total | new_pending=$PENDING_NEW | new_auth=$SESSIONS_AUTHORIZED | revoked=$REVOKED"
     log "INFO: ══════ run end ══════"

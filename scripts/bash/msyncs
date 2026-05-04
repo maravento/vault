@@ -53,11 +53,15 @@ done
 
 # check lock
 LOCKFILE="/tmp/msyncs.lock"
-if [[ -f $LOCKFILE ]]; then
-    echo "Script $0 is already running"
-    exit 1
+if [[ -f "$LOCKFILE" ]]; then
+    LOCK_PID=$(cat "$LOCKFILE" 2>/dev/null)
+    if [[ -n "$LOCK_PID" ]] && kill -0 "$LOCK_PID" 2>/dev/null; then
+        echo "Script $0 is already running (PID $LOCK_PID)"
+        exit 1
+    fi
+    rm -f "$LOCKFILE"
 fi
-touch $LOCKFILE
+echo $$ > "$LOCKFILE" || { echo "Failed to create lock file: $LOCKFILE"; exit 1; }
 cleanup() {
     rm -f "$LOCKFILE"
 }
@@ -66,8 +70,8 @@ trap cleanup EXIT
 # Variables
 REALHOME="$HOME"
 MEGADIR="MEGA"
-FILEPATH=$REALHOME/.config/msyncs
-FILE=$FILEPATH/status
+FILEPATH="$REALHOME/.config/msyncs"
+FILE="$FILEPATH/status"
 ERR=0
 VERSION="1.0"
 echo "REALHOME = $REALHOME"
@@ -82,7 +86,7 @@ zenity () {
 
 # Function to check dependencies
 checkDep () {
-  if [[ `whereis $1` == "$1:" ]]; then
+  if [[ $(whereis "$1") == "$1:" ]]; then
     >&2 echo "Dependency '$1' seems to be missing"
     ERR=1
   fi
@@ -90,16 +94,16 @@ checkDep () {
 
 # Function to create a Desktop Entry and set it to start at system startup
 generateDesktopEntry () {
-  DEPATH=$REALHOME/.config/autostart/msyncs.desktop
-  mkdir -p $REALHOME/.config/autostart
-  echo "[Desktop Entry]" > $DEPATH
-  echo "Type=Application" >> $DEPATH
-  echo "Exec=/usr/bin/msyncs start" >> $DEPATH
-  echo "Name=msyncs" >> $DEPATH
-  echo "Comment=Open all your MEGAsync instances"  >> $DEPATH
-  echo "Icon=/usr/share/icons/hicolor/256x256/apps/mega.png" >> $DEPATH
-  echo "Hidden=false" >> $DEPATH
-  chmod +x $DEPATH
+  DEPATH="$REALHOME/.config/autostart/msyncs.desktop"
+  mkdir -p "$REALHOME/.config/autostart"
+  echo "[Desktop Entry]" > "$DEPATH"
+  echo "Type=Application" >> "$DEPATH"
+  echo "Exec=/usr/bin/msyncs start" >> "$DEPATH"
+  echo "Name=msyncs" >> "$DEPATH"
+  echo "Comment=Open all your MEGAsync instances"  >> "$DEPATH"
+  echo "Icon=/usr/share/icons/hicolor/256x256/apps/mega.png" >> "$DEPATH"
+  echo "Hidden=false" >> "$DEPATH"
+  chmod +x "$DEPATH"
 }
 
 # Installation function
@@ -117,16 +121,15 @@ start () {
 
 # Start MEGAsync
 frun () {
-    if [ -f $FILE ]; then
-        if [ "$(cat $FILE)" == "1" ]; then
+    if [ -f "$FILE" ]; then
+        if [ "$(cat "$FILE")" == "1" ]; then
             echo "MEGAsync Instances are already configured, launching the instances..."
             killall megasync 2> /dev/null # Close open megasync instances
             
             # Launch each instance in its corresponding folder
             for d in "$REALHOME/$MEGADIR"/*/ ; do
-                echo "Launching $d"
-                HOME="$d" # Asegúrate de usar comillas para manejar espacios
-                nohup megasync >/dev/null 2>&1 &
+                echo "Launching $(basename "$d")"
+                (export HOME="$d"; nohup megasync >/dev/null 2>&1 &)
             done
             exit 0
         fi
@@ -134,13 +137,11 @@ frun () {
 
     echo "MEGAsync Instances are not configured. Will now start the configuration."
 
-    if zenity --question --no-wrap --text="This is the first time you are running MEGAsync Instances.\nIn order to continue we must delete your existing MEGAsync instance.\nPress Yes to continue, No to abort."; then  
-        {
-          killall megasync # Close open megasync instances
-          rm -f $REALHOME/.config/autostart/msyncs.desktop
-          rm -rf $MEGADIR
-          rm -rf $FILEPATH
-        } >/dev/null 2>&1 &
+    if zenity --question --no-wrap --text="This is the first time you are running MEGAsync Instances.\nIn order to continue we must delete your existing MEGAsync instance.\nPress Yes to continue, No to abort."; then
+        killall megasync 2>/dev/null
+        rm -f "$REALHOME/.config/autostart/msyncs.desktop"
+        rm -rf "$REALHOME/$MEGADIR"
+        rm -rf "$FILEPATH"
     else
         exit
     fi
@@ -161,8 +162,14 @@ frun () {
     mkdir -p "$REALHOME/$MEGADIR"
 
     for (( i=1; i<=INSTNUM; i++ )); do
-        NAME=$(zenity --entry --text="Insert the name for instance $i/$INSTNUM")
-        ARRAY[$i]=$NAME
+        NAME=""
+        while [[ -z "$NAME" ]]; do
+            NAME=$(zenity --entry --text="Insert the name for instance $i/$INSTNUM")
+            if [[ -z "$NAME" ]]; then
+                zenity --error --text="Instance name cannot be empty."
+            fi
+        done
+        ARRAY[$i]="$NAME"
         mkdir -p "$REALHOME/$MEGADIR/$NAME"
     done
 
@@ -171,17 +178,22 @@ frun () {
     export QT_QPA_PLATFORMTHEME="gtk2"
 
     for (( i=1; i<=INSTNUM; i++ )); do
-        zenity --warning --text="Instance ${ARRAY[i]} ($i/$INSTNUM). Close it after the configuration."
-        HOME="$REALHOME/$MEGADIR/${ARRAY[$i]}"
-        nohup megasync >/dev/null 2>&1 &
+        (export HOME="$REALHOME/$MEGADIR/${ARRAY[$i]}"; nohup megasync >/dev/null 2>&1 &)
+        sleep 2
+        zenity --warning --width=400 \
+            --text="⚠️  INSTANCE ${ARRAY[$i]} ($i/$INSTNUM)  ⚠️\n\n────────────────────────────────\n⛔  DO NOT CLICK OK UNTIL YOU HAVE\n    FINISHED CONFIGURING THIS ACCOUNT\n    OR IT WILL BE CLOSED AND LOST\n────────────────────────────────\n\n➤ Log in to your MEGA account\n➤ Complete the configuration\n➤ Close MEGAsync\n➤ THEN click OK to continue"
+        killall megasync 2>/dev/null
+        sleep 1
     done
 
     generateDesktopEntry
 
-    zenity --warning --text="Will now launch all the instances. They will also start at every startup."
-    echo 1 > "$FILE" # Mark as configured
-    #bash "$0" & # Ejecutar de nuevo el script en segundo plano
-    sleep 1
+    mkdir -p "$FILEPATH"
+    echo 1 > "$FILE"
+    zenity --info --text="All instances configured. Restarting MEGAsync Instances..."
+    echo "Restarting MEGAsync Instances..."
+    rm -f "$LOCKFILE"
+    exec /usr/bin/msyncs start
 }
 
 # Stop MEGAsync
@@ -201,9 +213,9 @@ status () {
 }
 
 # Create configuration file if missing
-if [ ! -f $FILE ]; then
-  mkdir -p $FILEPATH
-  echo 0 > $FILE
+if [ ! -f "$FILE" ]; then
+  mkdir -p "$FILEPATH"
+  echo 0 > "$FILE"
 fi
 
 # Handle script arguments

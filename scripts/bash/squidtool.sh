@@ -66,6 +66,7 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
@@ -121,12 +122,12 @@ squid_filter() {
     IPNEW=$(echo "$IP" | grep -E '^(([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])$')
 
     if [[ "$IPNEW" ]]; then
-        zcat -f $ACCESS_LOG 2>/dev/null | perl -pe 's/[\d\.]+/localtime($&)/e' \
+        zcat -f $ACCESS_LOG 2>/dev/null | perl -pe 's/^(\d+\.\d+)/localtime($1)/e' \
         | grep "$IPNEW" \
-        | grep -a -i -E "$WORD" >> "$LOG_FILE"
+        | grep -a -i -F "$WORD" >> "$LOG_FILE"
     else
-        zcat -f $ACCESS_LOG 2>/dev/null | perl -pe 's/[\d\.]+/localtime($&)/e' \
-        | grep -a -i -E "$WORD" >> "$LOG_FILE"
+        zcat -f $ACCESS_LOG 2>/dev/null | perl -pe 's/^(\d+\.\d+)/localtime($1)/e' \
+        | grep -a -i -F "$WORD" >> "$LOG_FILE"
     fi
 
     if [ $? -gt 0 ]; then
@@ -146,7 +147,7 @@ squid_audit() {
     SQUID_CONF="/etc/squid/squid.conf"  # Adjust for your system
     REQUIRED_DEBUG="ALL,1 33,2 28,9"
 
-    if ! grep -q "^debug_options\s\+$REQUIRED_DEBUG" "$SQUID_CONF"; then
+    if [[ ! -f "$SQUID_CONF" ]] || ! grep -q "^debug_options\s\+$REQUIRED_DEBUG" "$SQUID_CONF"; then
         echo "❌ ERROR: debug_options $REQUIRED_DEBUG is not enabled in $SQUID_CONF" | tee -a "$LOG_FILE"
         echo "Please enable this line and restart Squid before running this script." >> "$LOG_FILE"
         echo "Results saved to $(pwd)/$LOG_FILE"
@@ -155,9 +156,9 @@ squid_audit() {
 
     read -p "Enter the word to search (e.g.: video): " WORD
 
-    cat $CACHE_LOG 2>/dev/null | perl -pe 's/[\d\.]+/localtime($&)/e' \
+    cat $CACHE_LOG 2>/dev/null | perl -pe 's/^(\d+\.\d+)/localtime($1)/e' \
     | grep -i "clientAccessCheckDone" \
-    | grep -a -i -E "$WORD" >> "$LOG_FILE"
+    | grep -a -i -F "$WORD" >> "$LOG_FILE"
 
     if [ $? -gt 0 ]; then
         echo "No records found for: $WORD" >> "$LOG_FILE"
@@ -490,7 +491,7 @@ squid_ip_timeframe() {
     # 2. User Input & Validation
     # Prompt for IP and validate format
     read -p "Enter IP address (e.g. 192.168.10.42): " IP
-    [[ ! "$IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] && { echo "❌ Invalid IP format"; return; }
+    [[ ! "$IP" =~ ^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}$ ]] && { echo "❌ Invalid IP format"; return; }
 
     # Prompt for date, default to current system date if empty
     read -p "Date (YYYY-MM-DD, enter for today): " USER_DATE

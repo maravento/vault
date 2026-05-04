@@ -13,6 +13,8 @@
 # Realtek Ethernet Family Controller Software:
 # https://www.realtek.com/Download/List?cate_id=585
 
+set -u
+
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -24,6 +26,10 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+cleanup() {
+    rm -f "$SCRIPT_LOCK"
+}
+trap cleanup EXIT
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
@@ -50,15 +56,25 @@ install_r8168() {
     fi
 
     echo "🚧 Installing and configuring 'r8168' driver..."
-    apt update
-    apt install -y r8168-dkms
-    
+    if ! apt-get -qq update; then
+        echo "❌ Failed to update package lists"
+        exit 1
+    fi
+    if ! apt-get install -y r8168-dkms; then
+        echo "❌ Failed to install r8168-dkms"
+        exit 1
+    fi
+
     update-initramfs -u
     depmod -a
 
-    echo "blacklist r8169" > /etc/modprobe.d/blacklist-r8169.conf
+    if ! grep -qF 'blacklist r8169' /etc/modprobe.d/blacklist-r8169.conf 2>/dev/null; then
+        echo "blacklist r8169" >> /etc/modprobe.d/blacklist-r8169.conf
+    fi
 
-    modprobe -r r8169 2>/dev/null
+    if lsmod | grep -q '^r8169'; then
+        modprobe -r r8169 2>/dev/null
+    fi
     modprobe r8168
 
     if lsmod | grep -q '^r8168'; then
@@ -79,10 +95,15 @@ restore_r8169() {
     echo "🚧 Restoring 'r8169' driver..."
     rm -f /etc/modprobe.d/blacklist-r8169.conf
 
-    modprobe -r r8168 2>/dev/null
+    if lsmod | grep -q '^r8168'; then
+        modprobe -r r8168 2>/dev/null
+    fi
 
     echo "🧹 Removing 'r8168-dkms' package..."
-    apt purge -y r8168-dkms
+    if ! apt-get purge -y r8168-dkms; then
+        echo "❌ Failed to remove r8168-dkms"
+        exit 1
+    fi
 
     update-initramfs -u
     depmod -a
@@ -111,12 +132,22 @@ install_r8125() {
     fi
 
     echo "🚧 Installing and configuring 'r8125' driver..."
-    apt update
-    apt install -y r8125-dkms
+    if ! apt-get -qq update; then
+        echo "❌ Failed to update package lists"
+        exit 1
+    fi
+    if ! apt-get install -y r8125-dkms; then
+        echo "❌ Failed to install r8125-dkms"
+        exit 1
+    fi
 
-    echo "blacklist r8169" > /etc/modprobe.d/blacklist-r8169.conf
+    if ! grep -qF 'blacklist r8169' /etc/modprobe.d/blacklist-r8169.conf 2>/dev/null; then
+        echo "blacklist r8169" >> /etc/modprobe.d/blacklist-r8169.conf
+    fi
 
-    modprobe -r r8169 2>/dev/null
+    if lsmod | grep -q '^r8169'; then
+        modprobe -r r8169 2>/dev/null
+    fi
     modprobe r8125
 
     if lsmod | grep -q '^r8125'; then
@@ -150,4 +181,3 @@ while true; do
         *) echo "❌ Invalid option."; continue ;;
     esac
 done
-

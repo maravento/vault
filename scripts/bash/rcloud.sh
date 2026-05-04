@@ -7,6 +7,8 @@
 # Usage:
 # sudo ./rclone.sh start | stop | restart | status
 
+set -u
+
 # LOG FILE para debugging
 SCRIPT_LOG="/var/log/rcloud-startup.log"
 exec 1> >(tee -a "$SCRIPT_LOG")
@@ -28,6 +30,10 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+cleanup() {
+    rm -f "$SCRIPT_LOCK"
+}
+trap cleanup EXIT
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
@@ -55,7 +61,7 @@ echo "Using local user: $local_user"
 
 # check internet with retry (essential for @reboot)
 echo "Checking internet connection..."
-max_attempts=24  # 2 minutos máximo
+max_attempts=24 # 2 min top
 attempt=0
 while [ $attempt -lt $max_attempts ]; do
     if timeout 3 host www.google.com &>/dev/null; then
@@ -75,7 +81,21 @@ done
 # checking dependencies
 if ! command -v rclone &>/dev/null; then
     echo "Installing Rclone..."
-    curl https://rclone.org/install.sh | bash
+    RCLONE_INSTALLER="$(mktemp /tmp/rclone-install.XXXXXX.sh)"
+    if ! curl -fsSL https://rclone.org/install.sh -o "$RCLONE_INSTALLER"; then
+        echo "ERROR: Failed to download Rclone installer"
+        rm -f "$RCLONE_INSTALLER"
+        exit 1
+    fi
+    EXPECTED_INSTALLER_SHA256="$(curl -fsSL https://rclone.org/install.sh | sha256sum | awk '{print $1}')"
+    ACTUAL_INSTALLER_SHA256="$(sha256sum "$RCLONE_INSTALLER" | awk '{print $1}')"
+    if [ "$ACTUAL_INSTALLER_SHA256" != "$EXPECTED_INSTALLER_SHA256" ]; then
+        echo "ERROR: Rclone installer integrity check failed. Aborting."
+        rm -f "$RCLONE_INSTALLER"
+        exit 1
+    fi
+    bash "$RCLONE_INSTALLER"
+    rm -f "$RCLONE_INSTALLER"
     if ! command -v rclone &>/dev/null; then
         echo "ERROR: Failed to install Rclone"
         exit 1
@@ -143,6 +163,12 @@ start_script() {
             echo "ERROR: Rclone remote '$service_name' not configured"
             continue
         fi
+
+        # skip if already mounted
+        if mount | grep -q "$service_path"; then
+            echo "WARNING: $service_name is already mounted at $service_path, skipping"
+            continue
+        fi
         
         # mount with nohup
         sudo -u "$local_user" nohup rclone mount "$service_name:" "$service_path" \
@@ -176,8 +202,13 @@ stop_script() {
         IFS=':' read -r service_name service_path <<<"$service_info"
         if mount | grep -q "$service_path"; then
             echo "Unmounting $service_name"
-            fusermount -uz "$service_path"
-            echo "$service_name unmounted"
+            if fusermount -u "$service_path" 2>/dev/null; then
+                echo "$service_name unmounted"
+            else
+                echo "WARNING: Graceful unmount failed for $service_name, forcing..."
+                fusermount -uz "$service_path"
+                echo "$service_name force-unmounted"
+            fi
         else
             echo "$service_name is not mounted"
         fi
@@ -223,7 +254,15 @@ status_script() {
 }
 
 # additional commands (start, stop, restart, status)
-case "$1" in
+ACTION="${1:-}"
+if [ -z "$ACTION" ]; then
+    echo
+    echo "Usage: $0 { start | stop | restart | status }"
+    echo
+    exit 1
+fi
+
+case "$ACTION" in
 'start')
     start_script
     ;;

@@ -18,6 +18,7 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
@@ -39,16 +40,25 @@ fi
 # Execute TRIM
 # -a: all mounted filesystems on devices that support TRIM
 # -v: verbose output
-TRIM_LOG=$(fstrim -av)
+TRIM_LOG=$(fstrim -av) || { echo "ERROR: fstrim failed"; exit 1; }
 echo "$TRIM_LOG"
 
 # Notify the user
 # Since fstrim runs as root, we bridge to the user session to show the pop-up
-REAL_USER=$(logname)
-USER_ID=$(id -u "$REAL_USER")
-
-sudo -u "$REAL_USER" DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/"$USER_ID"/bus \
-notify-send "TRIM" "$TRIM_LOG"
+REAL_USER=$(who | grep -m 1 '(:0)' | awk '{print $1}' || true)
+if [ -z "$REAL_USER" ]; then
+    REAL_USER=$(who | head -1 | awk '{print $1}' || true)
+fi
+if [ -z "$REAL_USER" ]; then
+    REAL_USER=$(ls -l /home | grep '^d' | head -1 | awk '{print $3}' || true)
+fi
+if [ -z "$REAL_USER" ]; then
+    echo "WARNING: Cannot determine local user — skipping desktop notification"
+else
+    USER_ID=$(id -u "$REAL_USER")
+    sudo -u "$REAL_USER" DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/"$USER_ID"/bus \
+    notify-send "TRIM" "$TRIM_LOG"
+fi
 
 echo ""
 echo "TRIM Finished."
