@@ -28,16 +28,17 @@
 # check no-root
 if [ "$(id -u)" == "0" ]; then
     echo "❌ This script should not be run as root"
-    #exit 1
 fi
 
 PIDFILE="/tmp/watchdog.pid"
-LOGFILE="connection.log"
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+LOGFILE="$SCRIPT_DIR/connection.log"
 TARGET="1.1.1.1"
 
 start() {
-    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-        echo "[!] Watchdog already running (PID $(cat "$PIDFILE"))"
+    _pid=$(cat "$PIDFILE" 2>/dev/null)
+    if [ -f "$PIDFILE" ] && [[ "$_pid" =~ ^[0-9]+$ ]] && kill -0 "$_pid" 2>/dev/null; then
+        echo "[!] Watchdog already running (PID $_pid)"
         exit 1
     fi
 
@@ -66,6 +67,11 @@ start() {
 stop() {
     if [ -f "$PIDFILE" ]; then
         PID=$(cat "$PIDFILE")
+        if ! [[ "$PID" =~ ^[0-9]+$ ]]; then
+            echo "[!] Invalid PID in $PIDFILE"
+            rm -f "$PIDFILE"
+            exit 1
+        fi
         if kill "$PID" 2>/dev/null; then
             echo "[✓] Watchdog stopped (PID $PID)"
             rm -f "$PIDFILE"
@@ -78,8 +84,9 @@ stop() {
 }
 
 status() {
-    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-        echo "[✓] Watchdog is running (PID $(cat "$PIDFILE"))"
+    _pid=$(cat "$PIDFILE" 2>/dev/null)
+    if [ -f "$PIDFILE" ] && [[ "$_pid" =~ ^[0-9]+$ ]] && kill -0 "$_pid" 2>/dev/null; then
+        echo "[✓] Watchdog is running (PID $_pid)"
     else
         echo "[✗] Watchdog is not running"
     fi
@@ -94,4 +101,3 @@ case "$1" in
         exit 1
         ;;
 esac
-

@@ -35,9 +35,10 @@ install_wireguard_server() {
     apt install -y qrencode
 
     # testing
-    modprobe wireguard
+    modprobe wireguard || true
 
     # create dir
+    mkdir -p /etc/wireguard
     cd /etc/wireguard || exit
 
     # umask for file permissions
@@ -50,7 +51,6 @@ install_wireguard_server() {
     SERVER_PRIVATE_KEY=$(cat /etc/wireguard/private.key)
     SERVER_PUBLIC_KEY=$(cat /etc/wireguard/public.key)
 
-    echo "Private key: $SERVER_PRIVATE_KEY"
     echo "Public key: $SERVER_PUBLIC_KEY"
 
     # Verify that the keys have been read correctly
@@ -64,13 +64,17 @@ install_wireguard_server() {
 
     # Show numbered interfaces
     echo "Available network interfaces:"
-    echo "$interfaces" | nl -s '. '
+    printf "%s\n" "$interfaces" | nl -s '. '
 
     # Prompt the user to choose an interface by number
     read -p "Enter the public network interface number: " num
+    if ! [[ "$num" =~ ^[0-9]+$ ]]; then
+        echo "Error: Please enter a valid number."
+        exit 1
+    fi
 
     # Get the name of the selected interface
-    public_eth=$(echo "$interfaces" | sed -n "${num}p" | awk '{print $1}')
+    public_eth=$(printf "%s\n" "$interfaces" | sed -n "${num}p" | awk '{print $1}')
 
     # Verify the selected public interface
     if [ -z "$public_eth" ]; then
@@ -102,6 +106,10 @@ EOL
     chmod 644 /etc/wireguard/public.key
 
     # Enable IPv4 persistent redirection
+    if [ ! -f /etc/sysctl.conf ]; then
+        echo "Error: /etc/sysctl.conf not found"
+        exit 1
+    fi
     sed -i '/^#*net.ipv4.ip_forward/c\net.ipv4.ip_forward=1' /etc/sysctl.conf
     sysctl -p
 
@@ -112,7 +120,9 @@ EOL
     systemctl enable wg-quick@wg0
     
     # port
-    ufw allow 51820/udp
+    if command -v ufw &>/dev/null; then
+        ufw allow 51820/udp
+    fi
 
     # show status
     wg show
@@ -154,7 +164,6 @@ PersistentKeepalive = 25 # Optional" > /etc/wireguard/wg0.conf
     # Show completion message
     echo "WireGuard client installation complete."
     echo
-    echo "Client's Private Key: $CLIENT_PRIVATE_KEY"
     echo "Client's Public Key: $CLIENT_PUBLIC_KEY"
     echo
     echo "Please edit the following file and replace the placeholders:"
@@ -176,7 +185,7 @@ uninstall_wireguard() {
     echo "Uninstalling WireGuard..."
 
     # Stop WireGuard interface
-    wg-quick down wg0
+    wg-quick down wg0 2>/dev/null || true
 
     # Disable the service
     systemctl disable wg-quick@wg0
@@ -217,4 +226,3 @@ case $option in
     echo "Invalid option"
     ;;
 esac
-

@@ -43,7 +43,7 @@ SERVICE_NAME="winpower.service"
 SERVICE_PATH="/etc/systemd/system/$SERVICE_NAME"
 SCRIPT_PATH=$(readlink -f "$0")
 DOWNLOAD_URL="https://d7rh5s3nxmpy4.cloudfront.net/CMP1313/files/4/Winpower_setup_LinuxAMD64.tar.gz"
-TEMP_DIR="/tmp/winpower_install"
+TEMP_DIR=$(mktemp -d /tmp/winpower_install.XXXXXX)
 
 # Check for required dependencies
 echo "→ Checking dependencies..."
@@ -51,12 +51,12 @@ if ! command -v wget &> /dev/null; then
     echo "✗ wget is required but not installed"
     echo "  Install with: apt-get install wget (Debian/Ubuntu)"
     echo "  or: yum install wget (RHEL/CentOS)"
-    return 1
+    exit 1
 fi
 
 if ! command -v tar &> /dev/null; then
     echo "✗ tar is required but not installed"
-    return 1
+    exit 1
 fi
 
 # Function to show menu
@@ -113,7 +113,7 @@ install_winpower() {
     
     # Download
     echo "→ Downloading WinPower..."
-    if ! wget -O Winpower_setup_LinuxAMD64.tar.gz "$DOWNLOAD_URL" 2>/dev/null; then
+    if ! wget --timeout=30 -O Winpower_setup_LinuxAMD64.tar.gz "$DOWNLOAD_URL" 2>/dev/null; then
         echo "✗ Download failed"
         rm -rf "$TEMP_DIR"
         return 1
@@ -167,7 +167,7 @@ install_winpower() {
         echo ""
         echo "✓ WinPower installed successfully"
         echo ""
-        read -p "Install systemd service for auto-start? (y/n): " -n 1 -r
+        read -r -n 1 -p "Install systemd service for auto-start? (y/n): "
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             install_service
@@ -221,8 +221,8 @@ remove_winpower() {
     
     if [ -f "$SERVICE_PATH" ]; then
         echo "→ Removing systemd service..."
-        systemctl stop $SERVICE_NAME 2>/dev/null
-        systemctl disable $SERVICE_NAME 2>/dev/null
+        systemctl stop "$SERVICE_NAME" 2>/dev/null
+        systemctl disable "$SERVICE_NAME" 2>/dev/null
         rm -f "$SERVICE_PATH"
         systemctl daemon-reload
         systemctl reset-failed 2>/dev/null
@@ -256,11 +256,11 @@ start_all() {
     # Start via systemd service if exists
     if [ -f "$SERVICE_PATH" ]; then
         echo "→ Starting via systemd service..."
-        systemctl start $SERVICE_NAME
+        systemctl start "$SERVICE_NAME"
         sleep 3
         
         # Check if service started successfully
-        if systemctl is-active --quiet $SERVICE_NAME; then
+        if systemctl is-active --quiet "$SERVICE_NAME"; then
             echo "✓ Service started successfully"
         else
             echo "⚠ Service may have issues. Check status with: systemctl status $SERVICE_NAME"
@@ -344,9 +344,9 @@ stop_all() {
     
     # Stop systemd service if exists and running
     if [ -f "$SERVICE_PATH" ]; then
-        if systemctl is-active --quiet $SERVICE_NAME; then
+        if systemctl is-active --quiet "$SERVICE_NAME"; then
             echo "→ Stopping systemd service..."
-            systemctl stop $SERVICE_NAME
+            systemctl stop "$SERVICE_NAME"
             sleep 2
         fi
     fi
@@ -441,12 +441,12 @@ show_status() {
     echo "Service:"
     if [ -f "$SERVICE_PATH" ]; then
         echo "  Status: Installed"
-        if systemctl is-enabled --quiet $SERVICE_NAME 2>/dev/null; then
+        if systemctl is-enabled --quiet "$SERVICE_NAME" 2>/dev/null; then
             echo "  Auto-start: Enabled"
         else
             echo "  Auto-start: Disabled"
         fi
-        if systemctl is-active --quiet $SERVICE_NAME 2>/dev/null; then
+        if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
             echo "  State: Active"
         else
             echo "  State: Inactive"
@@ -469,7 +469,7 @@ restart_all() {
     # If service exists, use systemctl restart
     if [ -f "$SERVICE_PATH" ]; then
         echo "→ Restarting via systemd service..."
-        systemctl restart $SERVICE_NAME
+        systemctl restart "$SERVICE_NAME"
         sleep 3
         echo "✓ Service restarted"
     else
@@ -506,7 +506,7 @@ EOF
 
     chmod 644 "$SERVICE_PATH"
     systemctl daemon-reload
-    systemctl enable $SERVICE_NAME
+    systemctl enable "$SERVICE_NAME"
     
     echo "✓ Service installed and enabled"
 }

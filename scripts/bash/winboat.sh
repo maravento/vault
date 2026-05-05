@@ -71,8 +71,11 @@ install_winboat() {
     # Step 1: Install Docker + Portainer
     echo "[1/4] Installing Docker + Portainer..."
     if ! command -v docker &> /dev/null; then
-        DOCKER_SCRIPT="/tmp/docker.sh"
-        wget --show-progress https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh -O "$DOCKER_SCRIPT"
+        DOCKER_SCRIPT=$(mktemp /tmp/docker.XXXXXX.sh)
+        if ! wget --timeout=30 --show-progress https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh -O "$DOCKER_SCRIPT"; then
+            echo "ERROR: Failed to download docker.sh"
+            exit 1
+        fi
         chmod +x "$DOCKER_SCRIPT"
         "$DOCKER_SCRIPT" install
         rm "$DOCKER_SCRIPT"
@@ -121,12 +124,13 @@ install_winboat() {
         fi
 
         echo "Downloading Winboat..."
-        wget -q --show-progress "$DEB_URL" -O /tmp/winboat.deb
+        WINBOAT_DEB=$(mktemp /tmp/winboat.XXXXXX.deb)
+        wget -q --timeout=30 --show-progress "$DEB_URL" -O "$WINBOAT_DEB"
         
         echo "Installing Winboat package..."
-        dpkg -i /tmp/winboat.deb
+        dpkg -i "$WINBOAT_DEB"
         apt-get install -f -y
-        rm /tmp/winboat.deb
+        rm -f "$WINBOAT_DEB"
         
         echo "Winboat installed successfully!"
     else
@@ -209,8 +213,8 @@ uninstall_winboat() {
         
         # Remove configuration files
         if [ -n "$local_user" ] && [ "$local_user" != "root" ]; then
-            rm -rf /home/$local_user/.config/winboat || true
-            rm -rf /home/$local_user/.winboat || true
+            rm -rf "/home/$local_user/.config/winboat" || true
+            rm -rf "/home/$local_user/.winboat" || true
         fi
         rm -rf /var/cache/apparmor/*/winboat || true
         echo "Winboat package removed"
@@ -222,7 +226,7 @@ uninstall_winboat() {
     # Step 4: Remove winboat work directory
     echo "[4/5] Removing winboat work directory..."
     if [ -n "$local_user" ] && [ "$local_user" != "root" ] && [ -d "/home/$local_user/winboat" ]; then
-        rm -rf /home/$local_user/winboat || true
+        rm -rf "/home/$local_user/winboat" || true
         echo "Winboat directory removed"
     else
         echo "No winboat work directory found"
@@ -250,8 +254,11 @@ uninstall_winboat() {
     case $remove_docker in
         [Yy]*)
             echo "Removing Docker..."
-            DOCKER_SCRIPT="/tmp/docker.sh"
-            wget --show-progress https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh -O "$DOCKER_SCRIPT"
+            DOCKER_SCRIPT=$(mktemp /tmp/docker.XXXXXX.sh)
+            if ! wget --timeout=30 --show-progress https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh -O "$DOCKER_SCRIPT"; then
+                echo "ERROR: Failed to download docker.sh"
+                exit 1
+            fi
             chmod +x "$DOCKER_SCRIPT"
             "$DOCKER_SCRIPT" remove
             rm "$DOCKER_SCRIPT"

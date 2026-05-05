@@ -470,16 +470,21 @@ echo ""
 echo "1) LAN Scan"
 echo "2) Advanced LAN Scan"
 echo "3) IP Scan"
-echo "4) Exit"
+echo "4) IP Scan (Fast - Top 1000)"
+echo "5) Exit"
 echo ""
-read -rp "Select [1-4]: " opt
+read -rp "Select [1-5]: " opt
 echo ""
 
 case "$opt" in
   1)
     # Option 1: LAN Scan => scan_TIMESTAMP.html
     log "=== Option 1: LAN Scan ==="
-    net=$(ip -4 addr show scope global | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+' | head -n1 || echo "192.168.0.0/24")
+    net=$(ip -4 addr show scope global | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+' | head -n1)
+    if [ -z "$net" ]; then
+      warn "Could not detect local network. Using fallback 192.168.0.0/24"
+      net="192.168.0.0/24"
+    fi
     xml_file="${report_dir}/scan_${TS}.xml"
     html_file="${report_dir}/scan_${TS}.html"
     
@@ -500,7 +505,11 @@ case "$opt" in
   2)
     # Option 2: Advanced LAN Scan => scan_deep_TIMESTAMP.html
     log "=== Option 2: Advanced LAN Scan ==="
-    net=$(ip -4 addr show scope global | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+' | head -n1 || echo "192.168.0.0/24")
+    net=$(ip -4 addr show scope global | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+' | head -n1)
+    if [ -z "$net" ]; then
+      warn "Could not detect local network. Using fallback 192.168.0.0/24"
+      net="192.168.0.0/24"
+    fi
     xml_file="${report_dir}/scan_deep_${TS}.xml"
     html_file="${report_dir}/scan_deep_${TS}.html"
     
@@ -593,7 +602,7 @@ case "$opt" in
     prune_report_dir_keep_html
     ;;
     
-  5)
+  4)
     # Option 4: IP Scan (Fast - Top 1000) => scan_ip_fast_TIMESTAMP.html
     log "=== Option 4: IP/Host Scan (Fast) ==="
     read -rp "Target IP/Host: " target
@@ -668,7 +677,7 @@ case "$opt" in
     prune_report_dir_keep_html
     ;;
     
-  4)
+  5)
     log "Exit requested"
     echo "Goodbye!"
     exit 0

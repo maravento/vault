@@ -93,11 +93,17 @@ handle_new_file() {
         case $ACTION_TYPE in
             permanent_delete)
                 if [ -f "$NEWFILE" ]; then
-                    rm -f "$NEWFILE"
-                    echo "$(date '+%F %T') Permanently deleted: $NEWFILE" >> "$LOGFILE"
+                    if rm -f "$NEWFILE"; then
+                        echo "$(date '+%F %T') Permanently deleted: $NEWFILE" >> "$LOGFILE"
+                    else
+                        echo "$(date '+%F %T') ERROR: Could not delete: $NEWFILE" >> "$LOGFILE"
+                    fi
                 elif [ -d "$NEWFILE" ] && [ -z "$(ls -A "$NEWFILE")" ]; then
-                    rmdir "$NEWFILE"
-                    echo "$(date '+%F %T') Empty directory permanently deleted: $NEWFILE" >> "$LOGFILE"
+                    if rmdir "$NEWFILE"; then
+                        echo "$(date '+%F %T') Empty directory permanently deleted: $NEWFILE" >> "$LOGFILE"
+                    else
+                        echo "$(date '+%F %T') ERROR: Could not remove directory: $NEWFILE" >> "$LOGFILE"
+                    fi
                 fi
                 ;;
             trash)
@@ -136,8 +142,9 @@ handle_new_file() {
 
 # Starting Watcher
 start() {
-    if [ -f "$PIDFILE" ] && kill -0 $(cat "$PIDFILE") 2>/dev/null; then
-        echo "Watcher is already running with PID $(cat "$PIDFILE")"
+    _pid=$(cat "$PIDFILE" 2>/dev/null)
+    if [ -f "$PIDFILE" ] && [[ "$_pid" =~ ^[0-9]+$ ]] && kill -0 "$_pid" 2>/dev/null; then
+        echo "Watcher is already running with PID $_pid"
         exit 1
     fi
     
@@ -276,7 +283,7 @@ start() {
 
     export -f handle_new_file
 
-    inotifywait -m -r -e create --format '%w%f' $WATCH_DIR 2>/dev/null | while read NEWFILE; do
+    inotifywait -m -r -e create --format '%w%f' $WATCH_DIR 2>/dev/null | while IFS= read -r NEWFILE; do
         handle_new_file "$NEWFILE"
     done &
 
@@ -291,6 +298,11 @@ stop() {
     echo
     if [ -f "$PIDFILE" ]; then
         PID=$(cat "$PIDFILE")
+        if ! [[ "$PID" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: Invalid PID in $PIDFILE"
+            rm -f "$PIDFILE"
+            exit 1
+        fi
         kill "$PID" 2>/dev/null && echo "Watcher stopped (PID $PID)" || echo "Could not stop watcher"
         rm -f "$PIDFILE"
     else
@@ -302,8 +314,9 @@ stop() {
 status() {
     echo "Watcher Status..."
     echo
-    if [ -f "$PIDFILE" ] && kill -0 $(cat "$PIDFILE") 2>/dev/null; then
-        echo "Watcher is running (PID $(cat "$PIDFILE"))"
+    _pid=$(cat "$PIDFILE" 2>/dev/null)
+    if [ -f "$PIDFILE" ] && [[ "$_pid" =~ ^[0-9]+$ ]] && kill -0 "$_pid" 2>/dev/null; then
+        echo "Watcher is running (PID $_pid)"
     else
         echo "Watcher is not running"
     fi
@@ -315,4 +328,3 @@ case "$1" in
     status) status ;;
     *) echo "Usage: $0 {start|stop|status}" ;;
 esac
-

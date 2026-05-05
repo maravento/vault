@@ -58,7 +58,7 @@ if [ -n "$unavailable" ]; then
 fi
 if [ -n "$missing" ]; then
     echo "🔧 Releasing APT/DKPG locks..."
-    killall -q apt apt-get dpkg 2>/dev/null
+    pkill -x apt 2>/dev/null; pkill -x apt-get 2>/dev/null; pkill -x dpkg 2>/dev/null; true
     rm -f /var/lib/apt/lists/lock
     rm -f /var/cache/apt/archives/lock
     rm -f /var/lib/dpkg/lock
@@ -96,14 +96,16 @@ ptype="primary"
 
 ### mount
 # if no mount point exists, create it
-if [ ! -d $mountpoint ]; then
-    mkdir -p $mountpoint
-    chmod a+rwx -R $mountpoint
+if [ ! -d "$mountpoint" ]; then
+    mkdir -p "$mountpoint"
+    chown "$local_user": "$mountpoint"
+    chmod 750 "$mountpoint"
 fi
 # if no img folder exists, create it
-if [ ! -d $myvhd ]; then
-    mkdir -p $myvhd
-    chmod a+rwx -R $myvhd
+if [ ! -d "$myvhd" ]; then
+    mkdir -p "$myvhd"
+    chown "$local_user": "$myvhd"
+    chmod 750 "$myvhd"
 fi
 
 # format ntfs
@@ -150,6 +152,10 @@ function create_img() {
     dd if=/dev/zero | pv | dd of=$myimg iflag=fullblock bs=$vbs count=$vsize && sync
     printf "\n"
     read -p "Enter File System (e.g. ntfs, fat32, ext4): " pset
+    if [ -z "$pset" ]; then
+        echo "No file system selected. Exiting."
+        exit 1
+    fi
     case $pset in
     "ntfs")
         pntfs
@@ -161,13 +167,14 @@ function create_img() {
         pext4
         ;;
     *)
-        echo "unknown option"
+        echo "Unknown file system: $pset. Exiting."
+        exit 1
         ;;
     esac
 }
 
 # if no .img exists, create it
-if [ ! -f $myimg ]; then create_img; fi
+if [ ! -f "$myimg" ]; then create_img; fi
 
 function mount_img() {
     if [ $# -eq 0 ]; then
@@ -180,7 +187,7 @@ function mount_img() {
         1)
             # mount .img
             echo "Mount VHD-IMG..."
-            mount -o loop,rw,sync $myimg $mountpoint
+            mount -o loop,rw,sync "$myimg" "$mountpoint"
             chmod a+rwx -R $mountpoint
             echo "VHD-IMG Mount: $(date)" | tee -a /var/log/syslog
             ;;
@@ -210,16 +217,19 @@ function mount_img_kpartx() {
         1)
             # mount .img
             echo "Mount VHD-IMG..."
-            kpartx -a -v $myimg
-            for f in $(losetup --list | grep $myvhd | awk '{print $1}'); do mount $f $mountpoint; done
+            if ! kpartx -a -v "$myimg"; then
+                echo "❌ kpartx failed to map partitions for $myimg. Exiting."
+                exit 1
+            fi
+            for f in $(losetup --list | grep "$myvhd" | awk '{print $1}'); do mount $f $mountpoint; done
             chmod a+rwx -R $mountpoint
             echo "VHD-IMG Mount: $(date)" | tee -a /var/log/syslog
             ;;
         2)
             # umount .img
             echo "Umount VHD-IMG..."
-            umount $mountpoint
-            if [ -n "$(kpartx -d -v $myimg)" ]; then
+            umount "$mountpoint"
+            if [ -n "$(kpartx -d -v "$myimg")" ]; then
                 echo "VHD-IMG Umount: $(date)" | tee -a /var/log/syslog
             else
                 echo "No Mounted Image"

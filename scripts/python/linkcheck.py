@@ -13,6 +13,7 @@ Usage: python linkcheck.py
 Replace: BASE_URL
 """
 
+import sys
 import requests
 from requests.exceptions import (
     Timeout, ConnectionError, SSLError, TooManyRedirects
@@ -25,9 +26,10 @@ from datetime import datetime
 # ============================================================
 #  CONFIGURATION — edit these values before running
 # ============================================================
-BASE_URL  = "https://www.anysite.com"         # Target website URL
-MAX_PAGES = 500                               # Maximum pages to crawl (set to None for unlimited)
-TIMEOUT   = 10                                # Seconds to wait for a response
+BASE_URL     = "https://www.anysite.com"      # Target website URL
+MAX_PAGES    = 500                            # Maximum pages to crawl (set to None for unlimited)
+TIMEOUT      = 10                             # Seconds to wait for a response
+REQUEST_DELAY = 0                             # Seconds between requests (0 = no delay)
 # ============================================================
 
 HEADERS = {
@@ -38,12 +40,15 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
-# All recognized error categories
+SKIP_EXTENSIONS = (
+    ".jpg", ".jpeg", ".png", ".gif", ".svg", ".ico",
+    ".pdf", ".docx", ".xlsx", ".zip", ".mp4", ".css", ".js",
+    ".woff", ".woff2", ".ttf", ".eot", ".otf",
+)
+
 ERROR_LABELS = {
-    # 3xx
     "redirect_broken":    "Broken Redirect (3xx — no valid destination)",
     "too_many_redirects": "Too Many Redirects",
-    # 4xx
     "400": "400 Bad Request",
     "401": "401 Unauthorized (login required)",
     "403": "403 Forbidden (access denied)",
@@ -53,13 +58,11 @@ ERROR_LABELS = {
     "410": "410 Gone (permanently removed)",
     "429": "429 Too Many Requests (rate limited)",
     "4xx": "4xx Client Error (other)",
-    # 5xx
     "500": "500 Internal Server Error",
     "502": "502 Bad Gateway",
     "503": "503 Service Unavailable",
     "504": "504 Gateway Timeout",
     "5xx": "5xx Server Error (other)",
-    # Connection
     "ssl":     "SSL/TLS Error (invalid or expired certificate)",
     "dns":     "DNS Error (domain not resolved)",
     "refused": "Connection Refused",
@@ -70,14 +73,12 @@ ERROR_LABELS = {
 
 def normalize_url(url):
     p = urlparse(url)
-    # Keep query string because SharePoint uses it to identify pages
     return p.scheme + "://" + p.netloc + p.path + (("?" + p.query) if p.query else "")
 
 def same_domain(url, base_domain):
     return urlparse(url).netloc == base_domain
 
 def classify_http(status):
-    """Return an error key for a given HTTP status code, or None if healthy."""
     if status < 300:
         return None
     mapping = {
@@ -94,15 +95,9 @@ def classify_http(status):
     return None
 
 def check_link(url, session):
-    """
-    Check a single URL.
-    Returns (status_code_or_None, error_key_or_None).
-    error_key is a key from ERROR_LABELS; None means the link is healthy.
-    """
     try:
         resp = session.get(url, timeout=TIMEOUT, allow_redirects=False)
 
-        # Handle redirects manually
         if 300 <= resp.status_code < 400:
             location = resp.headers.get("Location", "").strip()
             if not location:
@@ -140,22 +135,21 @@ def check_link(url, session):
 
 
 def collect_links(url, session):
-    """Download a page and extract all internal links."""
     try:
         resp = session.get(url, timeout=TIMEOUT, allow_redirects=True)
         resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
+        resp.encoding = resp.apparent_encoding or resp.encoding
+        content_type = resp.headers.get("Content-Type", "")
+        parser = "xml" if any(x in content_type for x in ("xml", "rss", "atom")) else "html.parser"
+        soup = BeautifulSoup(resp.text, parser)
         domain = urlparse(url).netloc
         links = set()
         for tag in soup.find_all("a", href=True):
             href = urljoin(url, tag["href"])
             norm = normalize_url(href)
             if norm.startswith("http") and same_domain(norm, domain):
-                ext = norm.split("?")[0].lower()
-                if not any(ext.endswith(e) for e in [
-                    ".jpg", ".jpeg", ".png", ".gif", ".svg", ".ico",
-                    ".pdf", ".docx", ".xlsx", ".zip", ".mp4", ".css", ".js"
-                ]):
+                path = norm.split("?")[0].lower()
+                if not any(path.endswith(e) for e in SKIP_EXTENSIONS):
                     links.add(norm)
         return links
     except Exception:
@@ -163,18 +157,27 @@ def collect_links(url, session):
 
 
 def scan():
-    domain = urlparse(BASE_URL).netloc
+    import time
+
+    url = sys.argv[1] if len(sys.argv) > 1 else BASE_URL
+
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        print(f"Error: '{url}' is not a valid URL.")
+        sys.exit(1)
+
+    domain = parsed.netloc
     visited = set()
-    pending = deque([normalize_url(BASE_URL)])
-    broken  = []                        # List of (url, status, error_key)
-    by_type = defaultdict(list)         # error_key → [(url, status)]
+    pending = deque([normalize_url(url)])
+    broken  = []
+    by_type = defaultdict(list)
 
     session = requests.Session()
     session.headers.update(HEADERS)
 
     limit_label = str(MAX_PAGES) if MAX_PAGES is not None else "unlimited"
     print(f"\n🔍 Scanning for broken links")
-    print(f"   Site     : {BASE_URL}")
+    print(f"   Site     : {url}")
     print(f"   Max pages: {limit_label}\n")
 
     count = 0
@@ -195,13 +198,14 @@ def scan():
             by_type[error_key].append((current_url, status))
             print(f"        ❌ {label}")
         else:
-            # Only follow links on healthy pages
             new_links = collect_links(current_url, session)
             for link in new_links:
                 if link not in visited:
                     pending.append(link)
 
-    # ── Final report ─────────────────────────────────────────
+        if REQUEST_DELAY > 0:
+            time.sleep(REQUEST_DELAY)
+
     print("\n" + "="*65)
     print(f"📊 SUMMARY")
     print(f"   Pages scanned      : {count}")
@@ -224,12 +228,11 @@ def scan():
                 print(f"     [{code}] {url}")
             print()
 
-        # Save to TXT
         filename = f"broken_links_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         with open(filename, "w", encoding="utf-8") as f:
             f.write("Broken Link Report\n")
             f.write("==================\n")
-            f.write(f"Site scanned : {BASE_URL}\n")
+            f.write(f"Site scanned : {url}\n")
             f.write(f"Date         : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"Pages scanned: {count}\n")
             f.write(f"Broken links : {len(broken)}\n\n")

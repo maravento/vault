@@ -8,6 +8,7 @@ Else
 	'Change the working directory from the system32 folder back to the script's folder.
 	Set oShell = CreateObject("WScript.Shell")
 	oShell.CurrentDirectory = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName)
+	Set oShell = Nothing
 
 
    Function RestartWithCScript32(extraargs)
@@ -229,11 +230,11 @@ End If
 If bAutorunDisabled and bCERTAutorunDisabled Then 
     sMsg = "  " 
     sVS = "Vulnerability Status"
-    sMsg =  sMsg & " "  & vbcrlff & vbcrlf
-    sMsg =  sMsg & "PC Protected"  & vbcrlff & vbcrlf
-    sMsg =  sMsg & " "  & vbcrlff & vbcrlf
-    sMsg =  sMsg & "Autorun Disabled"  & vbcrlff & vbcrlf
-    sMsg =  sMsg & " "  & vbcrlff & vbcrlf 
+    sMsg =  sMsg & " "  & vbCrLf & vbcrlf
+    sMsg =  sMsg & "PC Protected"  & vbCrLf & vbcrlf
+    sMsg =  sMsg & " "  & vbCrLf & vbcrlf
+    sMsg =  sMsg & "Autorun Disabled"  & vbCrLf & vbcrlf
+    sMsg =  sMsg & " "  & vbCrLf & vbcrlf 
     sMsg =  sMSG & "No necesita ninguna accion"  + vbCrLf + "No need to take any action"  & vbcrlf 
     ibtn = wshShell.Popup(sMsg,,sVS,BTNOK+ICONINFO)
     Wscript.Quit(0)
@@ -244,7 +245,7 @@ sMsg = " " & vbcrlf
 sVS = "Vulnerability Status"
 
 If bAutorunDisabled Then
-    sMsg = sMsg &  "Autorun Active" & vbcrlf & vbcrlf
+    sMsg = sMsg &  "Autorun Disabled" & vbcrlf & vbcrlf
 Else
     sMsg = sMsg &  "Autorun Active" & vbcrlf & vbcrlf
 End If
@@ -260,7 +261,7 @@ If bAutorunDisabled and not bCERTAutorunDisabled Then
 
     ibtn = wshShell.Popup(sMsg,,sVS,BTNOKCANCEL+ICONBANG)
     If ibtn <> IBTNOK Then
-        ibtn = wshShell.PopUp("Operación Cancelada - Operation Cancelled",,sVS,BTNOK+ICONSTOP)
+        ibtn = wshShell.PopUp("Operaci" & Chr(243) & "n Cancelada - Operation Cancelled",,sVS,BTNOK+ICONSTOP)
 
         Wscript.Quit(0)
     End If
@@ -270,7 +271,7 @@ If not bAutorunDisabled and bCERTAutorunDisabled Then
     sMsg = sMSG & "Desea desactivar autorun? (recomendado)"  + vbCrLf + "Do you want to disable autorun? (recommended)"
     ibtn = wshShell.Popup(sMsg,,sVS,BTNOKCANCEL+ICONBANG)
     If ibtn <> IBTNOK Then
-        ibtn = wshShell.PopUp("Operación cancelada - Operation Cancelled",,sVS,BTNOK+ICONSTOP)
+        ibtn = wshShell.PopUp("Operaci" & Chr(243) & "n cancelada - Operation Cancelled",,sVS,BTNOK+ICONSTOP)
         Wscript.Quit(0)
     End If
 End If
@@ -280,7 +281,7 @@ If not bAutorunDisabled and not bCERTAutorunDisabled Then
 
     ibtn = wshShell.Popup(sMsg,,sVS,BTNOKCANCEL+ICONBANG)
     If ibtn <> IBTNOK Then
-        ibtn = wshShell.PopUp("Operación cancelada - Operation Cancelled",,sVS,BTNOK+ICONSTOP)
+        ibtn = wshShell.PopUp("Operaci" & Chr(243) & "n cancelada - Operation Cancelled",,sVS,BTNOK+ICONSTOP)
         Wscript.Quit(0)
     End If
 End If
@@ -290,9 +291,9 @@ If not bAutoRunDisabled Then
     strValueName = "NoDriveTypeAutoRun"
 
     dwValue = &H000000FF
-    rc = WshShell.RegWrite("HKLM\" & strKeyPath & "\" & strValueName, dwValue, "REG_DWORD")
+    rc = oReg.SetDWORDValue(HKEY, strKeyPath, strValueName, dwValue)
     If rc <> 0 Then
-        ibtn = wshShell.Popup("Unrecoverable error " & Cstr(rc) & " from RegWrite(REG_DWORD) function" & sUnc,,sUnr,BTNOK+ICONBANG)
+        ibtn = wshShell.Popup("Unrecoverable error " & Cstr(rc) & " from SetDWORDValue function" & sUnc,,sUnr,BTNOK+ICONBANG)
         Wscript.Quit(8)
     End If
 End If
@@ -302,9 +303,9 @@ If not bCERTAutorunDisabled Then
     strValueName = ""
 
     strValue = "@SYS:DoesNotExist"
-    rc = WshShell.RegWrite("HKLM\" & strKeyPath & "\" & strValueName, strValue, "REG_SZ")
+    rc = oReg.SetStringValue(HKEY, strKeyPath, strValueName, strValue)
     If rc <> 0 Then
-        ibtn = wshShell.Popup("Unrecoverable error " & Cstr(rc) & " from RegWrite (REG_SZ) function",,sUnr,BTNOK+ICONBANG)
+        ibtn = wshShell.Popup("Unrecoverable error " & Cstr(rc) & " from SetStringValue function",,sUnr,BTNOK+ICONBANG)
         Wscript.Quit(8)
     End If
 End If

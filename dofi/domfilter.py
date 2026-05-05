@@ -44,15 +44,17 @@ import sys
 import os
 from concurrent.futures import ThreadPoolExecutor
 
-# Suppress InsecureRequestWarning warnings
-warnings.simplefilter('ignore', InsecureRequestWarning)
+VERIFY_SSL = True
+
+if not VERIFY_SSL:
+    warnings.simplefilter('ignore', InsecureRequestWarning)
 
 # TLD
 def download_public_suffix(url: str, output_file: str = "sourcetld.txt") -> None:
     try:
-        head_response = requests.head(url, timeout=10, verify=False)
+        head_response = requests.head(url, timeout=10, verify=VERIFY_SSL)
         head_response.raise_for_status()
-        response = requests.get(url, timeout=10, verify=False)
+        response = requests.get(url, timeout=10, verify=VERIFY_SSL)
         response.raise_for_status()
         with open(output_file, 'a', encoding='utf-8') as f:
             f.write(response.text)
@@ -90,9 +92,13 @@ def generate_tlds():
         'https://raw.githubusercontent.com/publicsuffix/list/master/public_suffix_list.dat',
         'https://www.whoisxmlapi.com/support/supported_gtlds.php'
     ]
-    for url in urls:
-        download_public_suffix(url)
-    process_tlds_file()
+    try:
+        for url in urls:
+            download_public_suffix(url)
+        process_tlds_file()
+    finally:
+        if os.path.exists("sourcetld.txt"):
+            os.remove("sourcetld.txt")
 
 # DOMAINS FILTER
 def should_keep_domain(domain: str, valid_domains: set, tlds: set) -> bool:
@@ -132,12 +138,16 @@ def add_dot_if_missing(filename: str):
     with open(filename, 'r', encoding='utf-8') as file:
         lines = file.readlines()
 
-    with open(filename, 'w', encoding='utf-8') as file:
+    tmp = filename + ".tmp"
+    with open(tmp, 'w', encoding='utf-8') as file:
         for line in lines:
             line = line.strip()
+            if not line:
+                continue
             if not line.startswith('.'):
-                line = '.' + line  # add .dot
+                line = '.' + line
             file.write(line + '\n')
+    os.replace(tmp, filename)
 
 
 def process_domains(input_file: str, tlds: set, output_file: str = None, removed_file: str = None):
@@ -180,4 +190,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -47,9 +47,10 @@ echo "Using local user: $local_user"
 function vboxinstall() {
     echo "Installing Virtualbox..."
     # Download and install .asc
-    wget -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | gpg --dearmor | tee /usr/share/keyrings/virtualbox.gpg &>/dev/null
+    wget --timeout=30 -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | gpg --dearmor | tee /usr/share/keyrings/virtualbox.gpg &>/dev/null
     # add repo
-    echo deb [arch=amd64 signed-by=/usr/share/keyrings/virtualbox.gpg] http://download.virtualbox.org/virtualbox/debian $(lsb_release -sc) contrib | tee /etc/apt/sources.list.d/virtualbox.list
+    distro=$(lsb_release -sc 2>/dev/null || grep -oP '(?<=UBUNTU_CODENAME=)\S+' /etc/os-release 2>/dev/null || grep -oP '(?<=VERSION_CODENAME=)\S+' /etc/os-release)
+    echo deb [arch=amd64 signed-by=/usr/share/keyrings/virtualbox.gpg] https://download.virtualbox.org/virtualbox/debian "$distro" contrib | tee /etc/apt/sources.list.d/virtualbox.list
     apt-get update
     # install vbox
     apt-get -y install linux-headers-$(uname -r) build-essential gcc make perl dkms bridge-utils
@@ -67,14 +68,14 @@ function vboxinstall() {
     systemctl restart vboxdrv
     # install Extension Pack
     export VBOX_VER=$(VBoxManage --version | awk 'END {print $1}' | cut -d 'r' -f 1)
-    wget -c https://download.virtualbox.org/virtualbox/$VBOX_VER/Oracle_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack
+    wget --timeout=30 -c https://download.virtualbox.org/virtualbox/$VBOX_VER/Oracle_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack
     VBoxManage extpack install Oracle_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack
     echo "Done. Reboot"
 }
 
 function vboxpurge() {
     echo "Removing Virtualbox..."
-    sudo -u $local_user bash -c "vboxmanage list runningvms | sed -r 's/.*\{(.*)\}/\1/' | xargs -I {} VBoxManage controlvm {} poweroff"
+    sudo -u $local_user bash -c "vboxmanage list runningvms | grep -oP '(?<=\{)[0-9a-f-]+(?=\})' | xargs -r -I {} VBoxManage controlvm {} poweroff"
     ps ax | grep -P 'vboxwebsrv|VirtualBox|Vbox' | awk '{print $1}' | xargs kill -9 &>/dev/null
     systemctl stop vboxweb-service.service &>/dev/null
     service vboxdrv stop &>/dev/null
@@ -95,7 +96,7 @@ vboxversion=$(dpkg -l | grep -P 'virtualbox-\d+\.\d+' | awk '{print $2}')
 if [ "$vboxversion" ]; then
     echo "Virtualbox is installed. Do you want to delete it? (y/n)"
     read answer
-    if [ "$answer" == "y" ]; then
+    if [ "$answer" = "y" ]; then
         vboxpurge
     else
         echo "Virtualbox will not be removed."
@@ -103,7 +104,7 @@ if [ "$vboxversion" ]; then
 else
     echo "Virtualbox is not installed. Do you want to install it? (y/n)"
     read answer
-    if [ "$answer" == "y" ]; then
+    if [ "$answer" = "y" ]; then
         vboxinstall
     else
         echo "Virtualbox will not be installed."
