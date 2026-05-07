@@ -94,8 +94,6 @@ acl_path=/etc/acl
 mkdir -p "$acl_path" >/dev/null 2>&1
 scr_path=/etc/scr
 mkdir -p "$scr_path" >/dev/null 2>&1
-dhcp_path=/etc/dhcp
-mkdir -p "$dhcp_path" >/dev/null 2>&1
 
 # PPA
 file="/etc/apt/sources.list.d/ubuntu.sources"
@@ -564,15 +562,25 @@ sed -i '/^\s*\(fe00::\|ff00::\|ff02::\)/ s/^/#/' /etc/hosts
 grep -q "ipv6.msftncsi.com" /etc/hosts || echo "$serverip ipv6.msftncsi.com ipv6.msftconnecttest.com" | tee -a /etc/hosts
 
 # ACLs SECTION
+acl_mac_path="$acl_path/acl_mac"
+acl_dhcp_path="$acl_path/acl_dhcp"
 cp -rf $gp_path/acl/* "$acl_path"
-cp -rf $gp_path/dhcp/* "$dhcp_path"
-find "$acl_path" "$dhcp_path" -type f -exec chmod -x {} \;
+# Set correct permissions only for DHCP ACL files
+chmod 600 "$acl_mac_path"/mac-*.txt "$acl_dhcp_path/blockdhcp.txt"
+chown root:root "$acl_mac_path"/mac-*.txt "$acl_dhcp_path/blockdhcp.txt"
+
 
 # DHCP SECTION
 # isc-dhcp-server
 nala install -y isc-dhcp-server
 systemctl disable isc-dhcp-server6
 sed -i "s/^INTERFACESv4=.*/INTERFACESv4=\"$LAN_INTERFACE\"/" /etc/default/isc-dhcp-server
+mkdir -p /var/lib/dhcp
+chown root:dhcpd /var/lib/dhcp
+chmod 775 /var/lib/dhcp
+[ -f /var/lib/dhcp/dhcpd.leases ] || touch /var/lib/dhcp/dhcpd.leases
+chown dhcpd:dhcpd /var/lib/dhcp/dhcpd.leases
+chmod 644 /var/lib/dhcp/dhcpd.leases
 
 # PHP
 nala install -y php libapache2-mod-php php-cli php-curl
@@ -685,7 +693,7 @@ echo "Webmin Access: https://localhost:10000"
 # Text Editor | Service Monitor | Netplan Manager
 systemctl stop webmin.service 2>/dev/null || true
 /usr/share/webmin/install-module.pl $gp_path/conf/webmin/text-editor.wbm
-find $acl_path -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/dev/null
+find $acl_mac_path -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/dev/null
 # List of modules to install
 for module in servicemon netplanmgr; do
     echo "Installing $module module..."
@@ -947,17 +955,17 @@ upgrade
 echo -e "\n"
 echo "Downloading ACLs..."
 # Allow IP
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O $acl_path/allowip.txt
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O $acl_path/acl_squid/allowip.txt
 # Block Patterns
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/squid/blockpatterns.txt -O $acl_path/blockpatterns.txt
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/squid/blockpatterns.txt -O $acl_path/acl_squid/blockpatterns.txt
 # Veto Files
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/smb/vetofiles.txt -O $acl_path/vetofiles.txt
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/smb/vetofiles.txt -O $acl_path/acl_squid/vetofiles.txt
 # Block TLDs
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O $acl_path/blocktlds.txt
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O $acl_path/acl_squid/blocktlds.txt
 # Blackweb
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/blackweb.tar.gz
 cat blackweb.tar.gz* | tar xzf -
-cp blackweb.txt $acl_path/blackweb.txt
+cp blackweb.txt $acl_path/acl_squid/blackweb.txt
 echo OK
 sleep 1
 

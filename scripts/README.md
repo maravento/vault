@@ -70,6 +70,7 @@ Tested on: Ubuntu 22.04/24.04 x64
 - [Cloudflare Tunnel (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cftunnel.sh)
 - [Internet Watchdog (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/watchdog.sh)
 - [IP Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ipkill.sh)
+- [Iperf3 Client](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/iperf3.sh)
 - [Netplan Switch (install|uninstall|status|help)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/npswitch.sh)
 - [ngLocalhost Tunnel (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/nglocalhost.sh)
 - [Port Kill (check port with: `sudo netstat -lnp | grep "port"`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/portkill.sh)

@@ -646,6 +646,7 @@ remove_from_leases() {
         echo "$line" >> "$tmp"
     done < "$dhcpd_leases"
     mv "$tmp" "$dhcpd_leases"
+    chown dhcpd:dhcpd "$dhcpd_leases"
 
     if [[ $removed -gt 0 ]]; then
         log "INFO: Removed $removed lease(s) for $mac from dhcpd.leases"
@@ -731,6 +732,7 @@ dedup_mac_lists() {
             echo "$line" >> "$tmp_leases"
         done < "$dhcpd_leases"
         mv "$tmp_leases" "$dhcpd_leases"
+        chown dhcpd:dhcpd "$dhcpd_leases"
     fi
 
     if (( sanitized_block > 0 )); then

@@ -140,9 +140,9 @@ wget -O proxymon.sh https://raw.githubusercontent.com/maravento/vault/refs/heads
 </table>
 
 ```bash
-/etc/acl/blocktlds.txt=Blocked TLD
-/etc/acl/blockdomains.txt=Blocked Domains
-regex:^(http|https)://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+=Block IPv4
+/etc/acl/acl_squid/blocktlds.txt=Blocked TLD
+/etc/acl/acl_squid/blockdomains.txt=Blocked Domains
+regex:^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}(:\d+)?=Block IPv4
 ```
 
 <table width="100%">
@@ -181,14 +181,11 @@ sudo nano /etc/squid/squid.conf
 include /etc/squid/conf.d/*.conf
 # Block: TLDs
 # For more information visit: https://github.com/maravento/blackweb
-acl blocktlds dstdomain "/etc/acl/blocktlds.txt"
+acl blocktlds dstdomain "/etc/acl/acl_squid/blocktlds.txt"
 http_access deny workdays blocktlds
 # Block: domains
-acl blocksites dstdomain "/etc/acl/blockdomains.txt"
+acl blocksites dstdomain "/etc/acl/acl_squid/blockdomains.txt"
 http_access deny workdays blockdomains
-# Block: IPv4
-acl no_ip url_regex -i ^(http|https)://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+
-http_access deny no_ip
 ```
 
 <table width="100%">
@@ -302,7 +299,7 @@ http_access deny no_ip
 
 ```bash
 regex:(announce\.php\?passkey=|Azureus|BitComet|BitLord|bittorrent|BitTorrent protocol|d1:ad2:id20:|find_node|get_peers|info_hash|iptv|jndi:|magnet:|nopor|\.onion|peer_id=|porn|psiphon|Shareaza|torrent|tracker|Transmission|ultrasurf|\.utorrent|XBT)=Blocked Patterns
-regex:^(http|https)://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+=Blocked IPv4
+regex:^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}(:\d+)?=Block IPv4
 ```
 
 <h4 id="squidmon_search">Squidmon Search</h4>
@@ -651,7 +648,7 @@ http://localhost:18081 or http://192.168.X.X:18081
 </table>
 
 ```bash
-cat /etc/acl/{banmonth,banweek,banday}.txt | uniq
+cat /etc/acl/acl_squid/{banmonth,banweek,banday}.txt | uniq
 ```
 
 ##### Data Limit
@@ -1085,10 +1082,10 @@ sudo -u www-data crontab -e
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <b>⚠️ Important:</b> For security incident detection, SquidAI uses <code>/etc/acl/blockpatterns.txt</code> and direct IPv4 detection. The severity classification (CRITICAL, HIGH, MEDIUM) is calculated based on hit frequency.
+      <b>⚠️ Important:</b> For security incident detection, SquidAI uses <code>/etc/acl/acl_squid/blockpatterns.txt</code> and direct IPv4 detection. The severity classification (CRITICAL, HIGH, MEDIUM) is calculated based on hit frequency.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <b>⚠️ Importante:</b> Para la detección de incidentes de seguridad, SquidAI utiliza <code>/etc/acl/blockpatterns.txt</code> y detección de IPv4 directa. La clasificación de severidad (CRITICAL, HIGH, MEDIUM) se calcula en base a la frecuencia de hits.
+      <b>⚠️ Importante:</b> Para la detección de incidentes de seguridad, SquidAI utiliza <code>/etc/acl/acl_squid/blockpatterns.txt</code> y detección de IPv4 directa. La clasificación de severidad (CRITICAL, HIGH, MEDIUM) se calcula en base a la frecuencia de hits.
     </td>
   </tr>
 </table>

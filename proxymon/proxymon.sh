@@ -220,16 +220,32 @@ install_proxymon() {
     chmod +x /var/www/proxymon/tools/bandata.sh
 
     echo -e "${YELLOW}📥 Downloading Example ACL files...${NC}"
-    mkdir -p /etc/acl
+    acl_path=/etc/acl
 
-    wget -q --show-progress -N https://raw.githubusercontent.com/maravento/blackweb/refs/heads/master/bwupdate/lst/blocktlds.txt -O /etc/acl/blocktlds.txt
-    chmod 644 /etc/acl/blocktlds.txt
-    chown root:root /etc/acl/blocktlds.txt
+    if [ ! -d "$acl_path" ]; then 
+        mkdir -p "$acl_path"
+    fi
+    acl_mac_path="$acl_path/acl_mac"
+    acl_squid_path="$acl_path/acl_squid"
+    acl_bandata_path="$acl_path/acl_bandata"
+    # Create subdirectories if they don't exist
+    [ -d "$acl_mac_path" ] || mkdir -p "$acl_mac_path"
+    [ -d "$acl_squid_path" ] || mkdir -p "$acl_squid_path"
+    [ -d "$acl_bandata_path" ] || mkdir -p "$acl_bandata_path"
+    # path to ACLs files
+    allow_list=$acl_bandata_path/allowdata.txt
+    block_list_day=$acl_bandata_path/banday.txt
+    block_list_week=$acl_bandata_path/banweek.txt
+    block_list_month=$acl_bandata_path/banmonth.txt
+
+    wget -q --show-progress -N https://raw.githubusercontent.com/maravento/blackweb/refs/heads/master/bwupdate/lst/blocktlds.txt -O $acl_mac_path/blocktlds.txt
+    chmod 644 $acl_squid_path/blocktlds.txt
+    chown root:root $acl_squid_path/blocktlds.txt
     echo -e "${GREEN}✅ blocktlds.txt downloaded${NC}"
 
-    wget -q --show-progress -N https://raw.githubusercontent.com/maravento/blackweb/refs/heads/master/bwupdate/lst/debugbl.txt -O /etc/acl/blockdomains.txt
-    chmod 644 /etc/acl/blockdomains.txt
-    chown root:root /etc/acl/blockdomains.txt
+    wget -q --show-progress -N https://raw.githubusercontent.com/maravento/blackweb/refs/heads/master/bwupdate/lst/debugbl.txt -O $acl_squid_path/blockdomains.txt
+    chmod 644 $acl_squid_path/blockdomains.txt
+    chown root:root $acl_squid_path/blockdomains.txt
     echo -e "${GREEN}✅ blockdomains.txt downloaded${NC}"
 
     crontab -l 2>/dev/null | {
