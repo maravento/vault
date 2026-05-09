@@ -20,7 +20,7 @@
 #   - Optional: disable "Client Device Isolation"
 #
 # LOGIC:
-#   The script runs every minute via cron and executes 8 steps:
+#   The script runs every minute via cron and executes 9 steps:
 #
 #   1. DEDUP: verifies that no MAC appears in more than one list.
 #      If a MAC is in guest-pending.txt or in any mac-*.txt, it is
@@ -54,7 +54,13 @@
 #      cmd/stamgr for any MAC in guest-pending.txt that still appears as
 #      authorized=true in stat/sta.
 #
-#   8. RELOAD: compares the current state of mac-hotspot.txt and
+#   8. BACKUP: extracts all MAC addresses from mac-hotspot.txt, deduplicates
+#      them with sort -u, and writes the result to guest-wellknow.txt in the
+#      same directory. This runs on every execution regardless of whether new
+#      MACs were authorized, ensuring guest-wellknow.txt always reflects the
+#      current state of mac-hotspot.txt before the reload is triggered.
+#
+#   9. RELOAD: compares the current state of mac-hotspot.txt and
 #      guest-pending.txt against the baselines taken in step 2. If either
 #      file changed, SERVER_RELOAD_SCRIPT is invoked exactly once to
 #      restart DHCP, iptables, and related services.
@@ -62,6 +68,7 @@
 # ACL FORMAT:
 #   mac-hotspot.txt   → a;MAC;IP;HOSTNAME;END_TIME_EPOCH;
 #   guest-pending.txt → a;MAC;IP;HOSTNAME;
+#   guest-wellknow.txt → MAC
 #
 # HOSTNAME FORMAT:
 #   guest{sequential_number} (assigned in PENDING step)
@@ -70,6 +77,11 @@
 #
 # IP ASSIGNMENT:
 #   Sequential within user-defined range, lowest available first
+#
+# UNIFI SITE:
+#   UniFi always creates a site named "default" and this script uses it.
+#   If the administrator renamed the site in the UniFi controller, edit
+#   UNIFI_SITE in config.conf to match the exact name shown there.
 #
 # COOKIE NOTE:
 #   UniFi OS uses a JWT cookie with the "partitioned" flag, which curl's
@@ -132,23 +144,10 @@ REVOKED=0
 # Format: a;MAC;IP;HOSTNAME;   (4 fields — no epoch; trailing semicolon required)
 BLOCK_DHCP="/etc/dhcp/blockdhcp.txt"
 
-# Defaults — overridden by config.conf
-HOTSPOT_ESSID=""
-HOTSPOT_IP_RANGE="192.168.10"
-HOTSPOT_RANGE_START=160
-HOTSPOT_RANGE_END=170
 
-UNIFI_CONTROLLER_URL=""
-UNIFI_USERNAME=""
-UNIFI_PASSWORD=""
-UNIFI_SITE="default"
-UNIFI_TYPE=""           # "unifi-os" or "classic"
 CSRF_TOKEN=""
 VOUCHER_CACHE=""
 VOUCHER_COUNT=0
-
-# ─── Reload script ────────────────────────────────────────────────────────────
-SERVER_RELOAD_SCRIPT="" # overridden by config.conf
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 log() {
@@ -318,6 +317,7 @@ setup_config() {
         echo "  ✗ Password cannot be empty."
     done
 
+
     echo ""
     echo "── Scanning for UniFi Controller ─────────────────────"
     local found_url="" found_type=""
@@ -377,6 +377,8 @@ HOTSPOT_ESSID="${CFG_ESSID}"
 UNIFI_CONTROLLER_URL="${found_url}"
 UNIFI_USERNAME="${CFG_UNIFI_USER}"
 UNIFI_PASSWORD="${CFG_UNIFI_PASS}"
+# UniFi always creates a site named "default". If the administrator renamed it,
+# edit this value to match the exact site name shown in the UniFi controller.
 UNIFI_SITE="default"
 UNIFI_TYPE="${found_type}"
 
@@ -401,9 +403,22 @@ load_config() {
     # shellcheck source=/dev/null
     source "$CONFIG_FILE"
 
-    if [[ -z "${UNIFI_CONTROLLER_URL:-}" || -z "${UNIFI_USERNAME:-}" || -z "${UNIFI_PASSWORD:-}" ]]; then
-        log "ERROR: UNIFI_CONTROLLER_URL, UNIFI_USERNAME and UNIFI_PASSWORD must be set in $CONFIG_FILE"
-        exit 1
+    local missing=()
+    [[ -z "${UNIFI_CONTROLLER_URL:-}" ]] && missing+=("UNIFI_CONTROLLER_URL")
+    [[ -z "${UNIFI_USERNAME:-}"       ]] && missing+=("UNIFI_USERNAME")
+    [[ -z "${UNIFI_PASSWORD:-}"       ]] && missing+=("UNIFI_PASSWORD")
+    [[ -z "${HOTSPOT_ESSID:-}"        ]] && missing+=("HOTSPOT_ESSID")
+    [[ -z "${HOTSPOT_IP_RANGE:-}"     ]] && missing+=("HOTSPOT_IP_RANGE")
+    [[ -z "${HOTSPOT_RANGE_START:-}"  ]] && missing+=("HOTSPOT_RANGE_START")
+    [[ -z "${HOTSPOT_RANGE_END:-}"    ]] && missing+=("HOTSPOT_RANGE_END")
+    [[ -z "${SERVER_RELOAD_SCRIPT:-}" ]] && missing+=("SERVER_RELOAD_SCRIPT")
+
+    if (( ${#missing[@]} > 0 )); then
+        log "ERROR: Missing required variables in $CONFIG_FILE: ${missing[*]}"
+        log "INFO: Re-running setup to fix configuration"
+        rm -f "$CONFIG_FILE"
+        setup_config
+        source "$CONFIG_FILE"
     fi
 }
 
@@ -412,10 +427,6 @@ init_acl_files() {
     mkdir -p "$(dirname "$MAC_LIST")" "$(dirname "$LOG_FILE")" "$(dirname "$BLOCK_DHCP")"
     touch "$MAC_LIST" "$PENDING_LIST" "$BLOCK_DHCP"
     chmod 600 "$MAC_LIST" "$PENDING_LIST" "$BLOCK_DHCP"
-
-    if [[ ! -s "$MAC_LIST" ]]; then
-        echo "a;02:00:00:00:00:00;0.0.0.0;guest-placeholder;" >> "$MAC_LIST"
-    fi
 }
 
 # ─── UniFi API ────────────────────────────────────────────────────────────────
@@ -741,6 +752,15 @@ dedup_mac_lists() {
 }
 
 # ─── ACL helpers ──────────────────────────────────────────────────────────────
+mac_hotspot_backup() {
+    local wellknow_file
+    wellknow_file="$(dirname "$MAC_LIST")/guest-wellknow.txt"
+    awk -F';' '/^a;/{print $2}' "$MAC_LIST" \
+        | sort -u > "${wellknow_file}.tmp" \
+        && mv "${wellknow_file}.tmp" "$wellknow_file" \
+        && chmod 600 "$wellknow_file"
+}
+
 add_mac_to_acl() {
     local mac="$1" ip="$2" hostname="$3" end_time="$4"
     local new_line="a;${mac};${ip};${hostname};${end_time};"
@@ -794,9 +814,6 @@ clean_expired_macs() {
 
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
-        if echo "$line" | grep -q "guest-placeholder"; then
-            echo "$line" >> "$tmp"; continue
-        fi
         local end_time mac
         end_time=$(echo "$line" | awk -F';' '{print $5}')
         mac=$(echo "$line"      | awk -F';' '{print $2}')
@@ -809,10 +826,6 @@ clean_expired_macs() {
     done < "$MAC_LIST"
 
     mv "$tmp" "$MAC_LIST" && chmod 600 "$MAC_LIST"
-
-    if [[ ! -s "$MAC_LIST" ]]; then
-        echo "a;02:00:00:00:00:00;0.0.0.0;guest-placeholder;" >> "$MAC_LIST"
-    fi
 }
 
 # ─── Clean guest-pending entries no longer seen in stat/sta ──────────────────
@@ -993,7 +1006,6 @@ revoke_unauthorized() {
 
     while IFS=';' read -r status mac ip hostname end_time _; do
         [[ "$status" != "a" ]] && continue
-        [[ "$mac" == "02:00:00:00:00:00" ]] && continue
         [[ -z "$mac" ]] && continue
 
         local authorized
@@ -1043,7 +1055,6 @@ unauthorize_pending() {
 
     while IFS=';' read -r status mac ip hostname _; do
         [[ "$status" != "a" ]] && continue
-        [[ "$mac" == "02:00:00:00:00:00" ]] && continue
         [[ -z "$mac" ]] && continue
 
         local authorized
@@ -1147,6 +1158,9 @@ main() {
     process_sessions
     revoke_unauthorized
     unauthorize_pending
+
+    mac_hotspot_backup
+
     check_and_reload_if_changed
 
     # ── Run summary ──────────────────────────────────────────────────────────
@@ -1155,7 +1169,6 @@ main() {
     pending_total=$(( ${pending_total:-0} + 0 ))
     authorized_total=$(grep -c "^a;" "$MAC_LIST" 2>/dev/null || true)
     authorized_total=$(( ${authorized_total:-0} + 0 ))
-    (( authorized_total > 0 )) && (( authorized_total-- )) || true
     log "INFO: vouchers=$VOUCHER_COUNT | authorized=$authorized_total | pending=$pending_total | new_pending=$PENDING_NEW | new_auth=$SESSIONS_AUTHORIZED | revoked=$REVOKED"
     log "INFO: ══════ run end ══════"
 }

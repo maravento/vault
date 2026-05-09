@@ -531,6 +531,7 @@
 \.BANKS([a-zA-Z][0-9]*)?(\?.*)?$
 \.banta([a-zA-Z][0-9]*)?(\?.*)?$
 \.bantana([a-zA-Z][0-9]*)?(\?.*)?$
+\.BARADAI([a-zA-Z][0-9]*)?(\?.*)?$
 \.barak([a-zA-Z][0-9]*)?(\?.*)?$
 \.Barak([a-zA-Z][0-9]*)?(\?.*)?$
 \.barracuda([a-zA-Z][0-9]*)?(\?.*)?$
@@ -547,6 +548,7 @@
 \.basn([a-zA-Z][0-9]*)?(\?.*)?$
 \.basslock([a-zA-Z][0-9]*)?(\?.*)?$
 \.basta([a-zA-Z][0-9]*)?(\?.*)?$
+\.BAVACAI([a-zA-Z][0-9]*)?(\?.*)?$
 \.BAWSUOOXE([a-zA-Z][0-9]*)?(\?.*)?$
 \.bazek([a-zA-Z][0-9]*)?(\?.*)?$
 \.bb4-230([a-zA-Z][0-9]*)?(\?.*)?$
@@ -1591,6 +1593,7 @@
 \.dolphin([a-zA-Z][0-9]*)?(\?.*)?$
 \.domination([a-zA-Z][0-9]*)?(\?.*)?$
 \.domino([a-zA-Z][0-9]*)?(\?.*)?$
+\.dominus([a-zA-Z][0-9]*)?(\?.*)?$
 \.domn([a-zA-Z][0-9]*)?(\?.*)?$
 \.Done([a-zA-Z][0-9]*)?(\?.*)?$
 \.DONKEYHOT([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4413,6 +4416,7 @@
 \.RANSOMED([a-zA-Z][0-9]*)?(\?.*)?$
 \.RansomMine([a-zA-Z][0-9]*)?(\?.*)?$
 \.Ransomnix([a-zA-Z][0-9]*)?(\?.*)?$
+\.RANSOM_NOTE.html([a-zA-Z][0-9]*)?(\?.*)?$
 \.RansomPlus([a-zA-Z][0-9]*)?(\?.*)?$
 \.RansomTrojanLock([a-zA-Z][0-9]*)?(\?.*)?$
 \.ransomware([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4616,6 +4620,7 @@
 \.revolution([a-zA-Z][0-9]*)?(\?.*)?$
 \.revon([a-zA-Z][0-9]*)?(\?.*)?$
 \.REVRAC([a-zA-Z][0-9]*)?(\?.*)?$
+\.rex([a-zA-Z][0-9]*)?(\?.*)?$
 \.RexCrypt([a-zA-Z][0-9]*)?(\?.*)?$
 \.reyptson([a-zA-Z][0-9]*)?(\?.*)?$
 \.Reyptson([a-zA-Z][0-9]*)?(\?.*)?$
