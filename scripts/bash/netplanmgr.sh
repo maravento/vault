@@ -1,7 +1,7 @@
 #!/bin/bash
 # maravento.com
-# GPL-3.0 https://www.gnu.org/licenses/gpl.txt
 #
+################################################################################
 # Netplan Manager module installation/uninstallation script for Webmin
 #
 # Description:
@@ -33,6 +33,7 @@
 #   sudo ./netplanmgr.sh              # Interactive menu
 #   sudo ./netplanmgr.sh install      # Direct installation
 #   sudo ./netplanmgr.sh uninstall    # Direct uninstallation
+################################################################################
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -170,20 +171,21 @@ if (defined $in{'save'}) {
 if (defined $in{'validate'}) {
     my $file = $in{'file'} || '';
     if ($file && -f $file) {
-        my $tmp = "/tmp/netplan-validate-$$.yaml";
-        if (write_file_content($tmp, read_file_content($file))) {
-            my $cmd = "netplan generate --root-dir=/tmp/netplan-test-$$ 2>&1";
-            my $out = `$cmd`;
+        my $tmpdir  = "/tmp/netplan-test-$$";
+        my $tmpyaml = "$tmpdir/etc/netplan/validate-$$.yaml";
+        system("mkdir -p \"$tmpdir/etc/netplan\"");
+        my $content = read_file_content($file);
+        if ($content && write_file_content($tmpyaml, $content)) {
+            my $out  = `netplan generate --root-dir=$tmpdir 2>&1`;
             my $exit = $? >> 8;
-            unlink($tmp);
-            system("rm -rf /tmp/netplan-test-$$ 2>/dev/null");
-            
-            if ($exit == 0 || $out !~ /error/i) {
+            system("rm -rf \"$tmpdir\" 2>/dev/null");
+            if ($exit == 0) {
                 &redirect("index.cgi?validated=1&file=" . &urlize($file));
             } else {
                 &redirect("index.cgi?validated=0&file=" . &urlize($file) . "&msg=" . &urlize($out));
             }
         } else {
+            system("rm -rf \"$tmpdir\" 2>/dev/null");
             &redirect("index.cgi?error=validate");
         }
     } else {
@@ -203,8 +205,24 @@ if (defined $in{'apply'}) {
                 exit;
             }
         }
+        # Backup if enabled in config
+        if (($config{'netplan_backup'} // '1') eq '1') {
+            my $backup_dir  = $config{'backup_path'} || '/var/backups/netplan';
+            my $backup_keep = int($config{'backup_keep'} || 5);
+            system("mkdir -p \"$backup_dir\"");
+            (my $basename = $file) =~ s{.*/}{};
+            my @t = localtime(time());
+            my $stamp = sprintf('%04d%02d%02d-%02d%02d%02d',
+                $t[5]+1900, $t[4]+1, $t[3], $t[2], $t[1], $t[0]);
+            system("cp \"$file\" \"$backup_dir/${basename}.${stamp}.bak\" 2>/dev/null");
+            # Rotate: keep only the N most recent backups for this file
+            my @old = sort glob("\"$backup_dir/${basename}.*.bak\"");
+            while (@old > $backup_keep) {
+                unlink(shift @old);
+            }
+        }
         # Apply
-        my $out = `netplan apply 2>&1`;
+        my $out  = `netplan apply 2>&1`;
         my $exit = $? >> 8;
         if ($exit == 0) {
             &redirect("index.cgi?applied=1&file=" . &urlize($file));
@@ -742,7 +760,7 @@ print <<'MODAL';
 
 <div id="editModal" class="modal-container">
     <div class="modal-header">
-        <h4 id="modalTitle">Editing file</h4>
+        <h4 id="modalTitle">$text{'editing'}</h4>
         <button class="modal-close" onclick="closeEditModal()">&times;</button>
     </div>
     <div class="modal-body">
@@ -753,8 +771,8 @@ print <<'MODAL';
         </form>
     </div>
     <div class="modal-footer">
-        <button type="button" class="netplan-btn netplan-btn-cancel" onclick="closeEditModal()">Cancel</button>
-        <button type="button" class="netplan-btn netplan-btn-save" onclick="saveFile()">Save</button>
+        <button type="button" class="netplan-btn netplan-btn-cancel" onclick="closeEditModal()">$text{'action_cancel'}</button>
+        <button type="button" class="netplan-btn netplan-btn-save" onclick="saveFile()">$text{'action_save'}</button>
     </div>
 </div>
 
@@ -918,23 +936,7 @@ backup_keep=5
 EOF
     
     # ============================================================
-    # 9. netplanmgr-lib.pl
-    # ============================================================
-    cat > "$MODDIR/netplanmgr-lib.pl" <<'EOF'
-#!/usr/bin/perl
-# Netplan Manager library functions
-
-do '../web-lib.pl';
-do '../ui-lib.pl';
-&init_config();
-
-1;
-EOF
-    
-    chmod 755 "$MODDIR/netplanmgr-lib.pl"
-    
-    # ============================================================
-    # 10. install_check.pl
+    # 9. install_check.pl
     # ============================================================
     cat > "$MODDIR/install_check.pl" <<'EOF'
 #!/usr/bin/perl
@@ -953,7 +955,7 @@ EOF
     chmod 755 "$MODDIR/install_check.pl"
     
     # ============================================================
-    # 11. help/intro.html
+    # 10. help/intro.html
     # ============================================================
     cat > "$MODDIR/help/intro.html" <<'EOF'
 <header>Netplan Manager</header>
@@ -980,7 +982,7 @@ EOF
 EOF
     
     # ============================================================
-    # 12. help/intro.es.html
+    # 11. help/intro.es.html
     # ============================================================
     cat > "$MODDIR/help/intro.es.html" <<'EOF'
 <header>Administrador de Netplan</header>
@@ -1007,7 +1009,7 @@ EOF
 EOF
     
     # ============================================================
-    # 13. CHANGELOG
+    # 12. CHANGELOG
     # ============================================================
     cat > "$MODDIR/CHANGELOG" <<'EOF'
 Version 1.2 (2025)
@@ -1031,13 +1033,13 @@ Version 1.0 (2025)
 EOF
     
     # ============================================================
-    # 14. Create icon.gif
+    # 13. Create icon.gif
     # ============================================================
     cat > /tmp/icon.gif.b64 << 'ICONEOF'
 R0lGODlhMAAwAPAAAAAAAAAAACH5BAEAAAAALAAAAAAwADAAAAKrhI+py+0Po5wqJEszCpyf7mkUiAGkOJJqiUKr2krvGS/zDdYGzusmj6vdLjPfynb0/XIVmnLZQTKfsOZU95I6W8NNUQj8yq5hcWRbzk62xOA5BIX/Pj0XML6rP9JuvJ3v4cTGAChncpFR+JSXtshIlgSm5mWWWPlYJdLVFqmxSdlpOQmayRU6isXnGHfnqEhVyBITazgbuxiFWXKlxFJ6uGpVGywsS3yMHFMAADs=
 ICONEOF
     
-    base64 -d /tmp/icon.gif.b64 > "$MODDIR/images/icon.gif"
+    base64 -d /tmp/icon.gif.b64 > "$MODDIR/images/icon.gif" || true
     rm -f /tmp/icon.gif.b64
     
     # ============================================================
@@ -1055,6 +1057,7 @@ ICONEOF
     if [ -f /etc/webmin/webmin.acl ]; then
         if ! grep -q "$MODNAME" /etc/webmin/webmin.acl 2>/dev/null; then
             sed -i.bak 's/\(^root:.*\)/\1 '"$MODNAME"'/' /etc/webmin/webmin.acl
+            rm -f /etc/webmin/webmin.acl.bak
             echo "✓ Module added to webmin.acl"
         fi
     else
@@ -1105,6 +1108,7 @@ uninstall_module() {
     if [ -f /etc/webmin/webmin.acl ]; then
         if grep -q "$MODNAME" /etc/webmin/webmin.acl 2>/dev/null; then
             sed -i.bak 's/ '"$MODNAME"'//g' /etc/webmin/webmin.acl
+            rm -f /etc/webmin/webmin.acl.bak
             echo "✓ Module removed from webmin.acl"
         fi
     else

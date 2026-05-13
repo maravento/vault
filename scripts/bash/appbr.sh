@@ -1,9 +1,13 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # System Migration Tool
 # Backup and Restore of programs and settings for re-installing OS
 # The migration must be done on the same distro and version
+#
+################################################################################
 
 echo "System Migration Tool Starting. Wait..."
 printf "\n"

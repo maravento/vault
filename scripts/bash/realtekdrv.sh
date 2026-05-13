@@ -1,6 +1,8 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # This script allows installing or restoring realtek drivers.
 # - r8169: Default in-kernel driver included with Linux kernel.
 # - r8168: Realtek's proprietary, out-of-tree driver installed via DKMS (for RTL8111/8168 series).
@@ -12,6 +14,8 @@
 #
 # Realtek Ethernet Family Controller Software:
 # https://www.realtek.com/Download/List?cate_id=585
+#
+################################################################################
 
 set -u
 

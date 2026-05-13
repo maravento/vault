@@ -1,6 +1,7 @@
 #!/bin/bash
 # maravento.com
-# GPL-3.0 https://www.gnu.org/licenses/gpl.txt
+#
+################################################################################
 #
 # Services Monitor module installation/uninstallation script for Webmin
 #
@@ -31,6 +32,8 @@
 #   sudo ./servicemon.sh              # Interactive menu
 #   sudo ./servicemon.sh install      # Direct installation
 #   sudo ./servicemon.sh uninstall    # Direct uninstallation
+#
+################################################################################
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 

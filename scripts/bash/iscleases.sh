@@ -1,6 +1,8 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # DHCP Leases & ACL Manager (ISC DHCP Server)
 #
 # DESCRIPTION:
@@ -33,7 +35,6 @@
 #   - Designed for environments enforcing DHCP-based access control
 #   - Incorrect ACL data may disrupt IP assignments
 #
-# -----------------------------------------------------------------------------
 # OPTIONAL ENTERPRISE MODULE: UniFi Hotspot Integration (independent block)
 #
 # DESCRIPTION:
@@ -45,7 +46,8 @@
 # USAGE:
 #   - Controlled via UNIFI_HOTSPOT_ENABLED=true/false
 #   - Can be safely disabled without affecting core DHCP logic
-# -----------------------------------------------------------------------------
+#
+################################################################################
 
 echo "Leases Start. Wait..."
 printf "\n"
@@ -123,7 +125,7 @@ verify_dhcp_files() {
         touch /var/lib/dhcp/dhcpd.leases
     fi
     chown dhcpd:dhcpd /var/lib/dhcp/dhcpd.leases
-    chmod 644 /var/lib/dhcp/dhcpd.leases
+    chmod 640 /var/lib/dhcp/dhcpd.leases
 }
 
 verify_dhcp_config() {
@@ -207,7 +209,7 @@ function guest_pending_fixed() {
 function clean_hotspot_list() {
     while read line; do
         mac_actual=$(echo "$line" | cut -d ';' -f 2)
-        sed -i "/$mac_actual/d" "$hotspot_path"/mac-hotspot.txt
+        grep -vF "$mac_actual" "$hotspot_path"/mac-hotspot.txt > "$hotspot_path"/mac-hotspot.txt.tmp && mv "$hotspot_path"/mac-hotspot.txt.tmp "$hotspot_path"/mac-hotspot.txt
     done <"$acl_mac_path"/mac-unlimited.txt
 }
 # -----------------------------------------------------------------------------
@@ -234,7 +236,7 @@ function is_iscdhcp() {
             if $(echo "$line" | grep -E -q 'lease [0-9,.]+ {'); then
                 host="no_name_$(get_cadena_random 10)"
                 mac_address=""
-                ip_address=$(echo "$line" | grep -E -o '[0-9,.]+')
+                ip_address=$(echo "$line" | grep -E -o '([0-9]{1,3}\.){3}[0-9]{1,3}')
                 num_line_ini_lease=$num_line_actual
                 num_line_end_lease=0
                 continue
@@ -242,19 +244,21 @@ function is_iscdhcp() {
 
             if $(echo "$line" | grep -E -q 'client-hostname "[^"]+";'); then
                 host=$(echo "$line" | cut -d"\"" -f2 | tr " " "_")
-                if [[ $mac_address != "" && $(grep -E "$mac_address;[^;]+;no_name_[^;]+;" "$acl_mac_path"/mac-* "$acl_dhcp_path"/blockdhcp.txt) != "" ]]; then
-                    line_aux=$(grep -E "$mac_address;[^;]+;no_name_[^;]+;" "$acl_mac_path"/mac-* "$acl_dhcp_path"/blockdhcp.txt | cut -d":" -f2-)
+                if [[ $mac_address != "" && $(grep -F "$mac_address;" "$acl_mac_path"/mac-* "$acl_dhcp_path"/blockdhcp.txt 2>/dev/null | grep -E ";no_name_[^;]+;") != "" ]]; then
+                    line_aux=$(grep -F "$mac_address;" "$acl_mac_path"/mac-* "$acl_dhcp_path"/blockdhcp.txt 2>/dev/null | grep -E ";no_name_[^;]+;" | cut -d":" -f2- | head -1)
                     wcstatus_aux=$(echo "$line_aux" | cut -d ';' -f 1)
-                    macsource_aux=$(echo "$line_aux" | cut -d ';' -f 2)
                     ipsource_aux=$(echo "$line_aux" | cut -d ';' -f 3)
                     date_aux=$(echo "$line_aux" | cut -d ';' -f 5)
-                    sed -i "s/$line_aux/$wcstatus_aux;$macsource_aux;$ipsource_aux;$host;$date_aux/g" "$acl_dhcp_path"/blockdhcp.txt "$acl_mac_path"/mac-*
+                    for _f in "$acl_dhcp_path"/blockdhcp.txt "$acl_mac_path"/mac-*; do
+                        [ -f "$_f" ] || continue
+                        awk -F';' -v mac="$mac_address" -v w="$wcstatus_aux" -v ip="$ipsource_aux"                             -v h="$host" -v d="$date_aux"                             '$2==mac && $4~/^no_name_/ { $0=w";"mac";"ip";"h";"d } { print }'                             "$_f" > "$_f.tmp" && mv "$_f.tmp" "$_f"
+                    done
                 fi
                 continue
             fi
 
             if $(echo "$line" | grep -E -q 'hardware ethernet [0-9,a-f,:]+;'); then
-                mac_address=$(echo "$line" | grep -E -o '[0-9,a-f,:]+;' | cut -d";" -f1)
+                mac_address=$(echo "$line" | grep -E -o '([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}')
                 continue
             fi
 
@@ -302,7 +306,7 @@ ddns-update-style none;
         acl_sources=$(cat "$acl_mac_path"/mac-* 2>/dev/null)
 
         if [[ "${UNIFI_HOTSPOT_ENABLED:-false}" == "true" ]]; then
-            hotspot_normalized=$(awk -F';' 'NF>=5{print $1";"$2";"$3";"$4";"}' \
+            hotspot_normalized=$(awk -F';' 'NF>=5 && $2!="" && $3!=""{print $1";"$2";"$3";"$4";"}' \
                 "$hotspot_path/mac-hotspot.txt" 2>/dev/null || true)
             all_sources=$(printf '%s\n' "$acl_sources" "$hotspot_normalized" | sort -u)
         else
@@ -315,11 +319,11 @@ ddns-update-style none;
             ipsource=$(echo "$line" | cut -d ';' -f 3)
             usersource=$(echo "$line" | cut -d ';' -f 4)
             if [[ $wcstatus == "a" ]]; then
-                echo '
-    host '$usersource '{
-    hardware ethernet '$macsource';
-    fixed-address '$ipsource';
-                }' >>"$dhcp_conf_temp"
+                echo "
+    host $usersource {
+    hardware ethernet $macsource;
+    fixed-address $ipsource;
+                }" >>"$dhcp_conf_temp"
             fi
         done
 
@@ -332,10 +336,12 @@ class "blockdhcp" {
      match pick-first-value (option dhcp-client-identifier, hardware);
         }' >>"$dhcp_conf_temp"
 
-        for line in $(cat "$acl_dhcp_path"/blockdhcp.txt); do
+        while IFS= read -r line; do
             macs=$(echo "$line" | cut -d ';' -f 2)
-            echo '    subclass "blockdhcp" 1:'$macs';' >>"$dhcp_conf_temp"
-        done
+            if echo "$macs" | grep -qE '^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$'; then
+                echo '    subclass "blockdhcp" 1:'$macs';' >>"$dhcp_conf_temp"
+            fi
+        done < "$acl_dhcp_path/blockdhcp.txt"
 
         echo "" >>"$dhcp_conf_temp"
 
@@ -367,7 +373,7 @@ class "blockdhcp" {
         grep -E ';[0-9,a-f,:]+;' "$acl_mac_path"/mac-* | cut -d ";" -f2 >"$file_temp"
         while read line; do
             mac_actual=$(echo "$line" | cut -d ';' -f 2)
-            sed -i "/$mac_actual/d" "$acl_dhcp_path"/blockdhcp.txt
+            grep -vF "$mac_actual" "$acl_dhcp_path"/blockdhcp.txt > "$acl_dhcp_path"/blockdhcp.txt.tmp && mv "$acl_dhcp_path"/blockdhcp.txt.tmp "$acl_dhcp_path"/blockdhcp.txt
         done <"$file_temp"
         rm -f "$file_temp"
     }
@@ -375,14 +381,14 @@ class "blockdhcp" {
     function clean_proxy_list {
         while read line; do
             mac_actual=$(echo "$line" | cut -d ';' -f 2)
-            sed -i "/$mac_actual/d" "$acl_mac_path"/mac-proxy.txt
+            grep -vF "$mac_actual" "$acl_mac_path"/mac-proxy.txt > "$acl_mac_path"/mac-proxy.txt.tmp && mv "$acl_mac_path"/mac-proxy.txt.tmp "$acl_mac_path"/mac-proxy.txt
         done <"$acl_mac_path"/mac-unlimited.txt
     }
 
     function clean_transparent_list {
         while read line; do
             mac_actual=$(echo "$line" | cut -d ';' -f 2)
-            sed -i "/$mac_actual/d" "$acl_mac_path"/mac-transparent.txt
+            grep -vF "$mac_actual" "$acl_mac_path"/mac-transparent.txt > "$acl_mac_path"/mac-transparent.txt.tmp && mv "$acl_mac_path"/mac-transparent.txt.tmp "$acl_mac_path"/mac-transparent.txt
         done <"$acl_mac_path"/mac-unlimited.txt
     }
 
@@ -401,12 +407,12 @@ class "blockdhcp" {
     }
 
     function order_files_acl {
-        sort -n -t . -k 3,3 -k 4,4 "$acl_dhcp_path"/blockdhcp.txt -o "$acl_dhcp_path"/blockdhcp.txt
-        sort -n -t . -k 3,3 -k 4,4 "$acl_mac_path"/mac-proxy.txt -u -o "$acl_mac_path"/mac-proxy.txt
-        sort -n -t . -k 3,3 -k 4,4 "$acl_mac_path"/mac-transparent.txt -u -o "$acl_mac_path"/mac-transparent.txt
-        sort -n -t . -k 3,3 -k 4,4 "$acl_mac_path"/mac-unlimited.txt -u -o "$acl_mac_path"/mac-unlimited.txt
+        sort -V "$acl_dhcp_path"/blockdhcp.txt -o "$acl_dhcp_path"/blockdhcp.txt
+        sort -V -u "$acl_mac_path"/mac-proxy.txt -o "$acl_mac_path"/mac-proxy.txt
+        sort -V -u "$acl_mac_path"/mac-transparent.txt -o "$acl_mac_path"/mac-transparent.txt
+        sort -V -u "$acl_mac_path"/mac-unlimited.txt -o "$acl_mac_path"/mac-unlimited.txt
         if [[ "${UNIFI_HOTSPOT_ENABLED:-false}" == "true" ]]; then
-            sort -n -t . -k 3,3 -k 4,4 "$hotspot_path"/mac-hotspot.txt -u -o "$hotspot_path"/mac-hotspot.txt
+            sort -V -u "$hotspot_path"/mac-hotspot.txt -o "$hotspot_path"/mac-hotspot.txt
         fi
     }
 
@@ -444,7 +450,7 @@ function duplicate() {
     else
         echo "Duplicate Data: $(date) "$aclall"" | tee -a /var/log/syslog
         sudo -u $local_user DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u $local_user)/bus \
-            notify-send "Warning: Abort" "Duplicate: "$aclall". $script_date" -i error
+            notify-send "Warning: Abort" "Duplicate: "$aclall". $(date)" -i error
         exit
     fi
 }

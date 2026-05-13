@@ -1,6 +1,8 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # UniFi Network Hotspot - ACL Manager v4
 #
 # USAGE:
@@ -8,7 +10,8 @@
 #   Cron   : * * * * * /etc/scr/unhotspot.sh
 #
 # DEPENDENCIES:
-#   isc-dhcp-server, iptables, ipset, jq, curl, bash, UniFi Controller
+#   isc-dhcp-server (default), iptables, ipset, jq, curl, bash, UniFi Controller
+#   Optional (experimental): pydhcp (drop-in replacement for isc-dhcp-server)
 #
 # TESTED ON:
 #   Ubuntu 24.04.x — UniFi OS Network 10.3.55
@@ -18,6 +21,33 @@
 #   - On Landing Page: disable "HTTPS Redirection Support" and "Encrypted URL"
 #   - On Pre-Authorization Allowances: add LAN range (e.g.: 192.168.10.0/24)
 #   - Optional: disable "Client Device Isolation"
+#
+# MOBILE DEVICE LIMITATIONS (Android / iOS):
+#   When UNIFI_HOTSPOT_ENABLED=true and DHCP option 252 (WPAD) is active,
+#   Android and iOS clients on the guest SSID have the following constraints:
+#
+#   - WPAD (option 252): Neither Android nor iOS supports DHCP option 252.
+#     Proxy must be configured manually on each device (host and port).
+#
+#   - Captive portal detection: Android sends probes to
+#     connectivitycheck.gstatic.com; iOS sends probes to captive.apple.com.
+#     If these probes are intercepted, blocked, or return an unexpected
+#     response, the device reports "connected without internet" even when
+#     actual connectivity works. To avoid this, add these domains to the
+#     Squid whitelist without authentication requirements.
+#
+#   - App proxy bypass: On Android and iOS, most apps (YouTube, WhatsApp,
+#     etc.) ignore the system proxy and open direct connections. Without
+#     SSL bump or a VPN, direct HTTPS traffic cannot be intercepted.
+#     Only browsers reliably honor the manually configured proxy.
+#
+#   - MAC randomization: Android 10+ and iOS 14+ randomize the MAC address
+#     per network by default. A randomized MAC will never match an ACL entry,
+#     so the device will be treated as an unauthorized client on every
+#     connection. Users must disable MAC randomization for the guest SSID
+#     before connecting, so the real hardware MAC is used and registered.
+#
+#   None of the above are defects in unhotspot.sh or dhcp.
 #
 # LOGIC:
 #   The script runs every minute via cron and executes 9 steps:
@@ -41,6 +71,8 @@
 #      starting from the lowest available IP. Their initial dynamic DHCP
 #      lease is removed. Hostname is constructed as guest{sequential_number}
 #      and enriched with the voucher code in step 5. Example: guest5
+#      If the IP range is exhausted, the oldest entry in guest-pending.txt
+#      is evicted (its lease removed) to free one slot before assigning.
 #
 #   5. SESSIONS: queries stat/guest. UniFi records completed voucher sessions
 #      here after the client authenticates. Clients are moved from
@@ -54,11 +86,12 @@
 #      cmd/stamgr for any MAC in guest-pending.txt that still appears as
 #      authorized=true in stat/sta.
 #
-#   8. BACKUP: extracts all MAC addresses from mac-hotspot.txt, deduplicates
-#      them with sort -u, and writes the result to guest-wellknow.txt in the
-#      same directory. This runs on every execution regardless of whether new
-#      MACs were authorized, ensuring guest-wellknow.txt always reflects the
-#      current state of mac-hotspot.txt before the reload is triggered.
+#   8. BACKUP: merges all MAC addresses from mac-hotspot.txt into
+#      guest-wellknow.txt using a cumulative sort -u (MACs are only added,
+#      never removed). On first run the file is seeded from mac-hotspot.txt.
+#      After each merge, any MAC present in guest-wellknow.txt that also
+#      appears in blockdhcp.txt is removed from blockdhcp.txt, since a
+#      known trusted client must not be permanently blocked.
 #
 #   9. RELOAD: compares the current state of mac-hotspot.txt and
 #      guest-pending.txt against the baselines taken in step 2. If either
@@ -91,8 +124,9 @@
 # DISCLAIMER:
 #   Distributed without warranty. Use at your own risk.
 #   Always test in a controlled environment before production.
+#
+################################################################################
 
-# ─── Bootstrap ────────────────────────────────────────────────────────────────
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -114,6 +148,9 @@ fi
 local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || true)
 if [ -z "$local_user" ]; then
     local_user=$(who | head -1 | awk '{print $1}' || true)
+fi
+if [ -z "$local_user" ]; then
+    local_user=$(logname 2>/dev/null || true)
 fi
 if [ -z "$local_user" ]; then
     local_user=$(ls -l /home | grep '^d' | head -1 | awk '{print $3}' || true)
@@ -142,7 +179,15 @@ REVOKED=0
 # ─── Permanent MAC block list ─────────────────────────────────────────────────
 # ACL file for MAC addresses that must be permanently denied a DHCP lease.
 # Format: a;MAC;IP;HOSTNAME;   (4 fields — no epoch; trailing semicolon required)
-BLOCK_DHCP="/etc/dhcp/blockdhcp.txt"
+BLOCK_DHCP="/etc/acl/acl_dhcp/blockdhcp.txt"
+
+# ─── DHCP leases file ─────────────────────────────────────────────────────────
+# Set the path and owner matching the DHCP server in use.
+# To switch servers: uncomment the active line and comment the other.
+DHCP_LEASES="/var/lib/dhcp/dhcpd.leases"                                    # isc-dhcp-server (default)
+DHCP_LEASES_OWNER="dhcpd:dhcpd"                                             # isc-dhcp-server (default)
+#DHCP_LEASES="/etc/pydhcp/pydhcpd.leases"                                   # pydhcp (experimental)
+#DHCP_LEASES_OWNER="pydhcpd:pydhcpd"                                        # pydhcp (experimental)
 
 
 CSRF_TOKEN=""
@@ -243,9 +288,10 @@ ask_octet() {
 discover_unifi_controller() {
     local user="$1" pass="$2" server_ip="$3"
     local ports=(8443 11443)
-    local test_url http_code
+    local test_url http_code payload
 
     echo "  Checking ${server_ip} on ports 8443, 11443 ..."
+    payload=$(jq -n --arg u "$user" --arg p "$pass" '{username: $u, password: $p}')
 
     for port in "${ports[@]}"; do
         test_url="https://${server_ip}:${port}"
@@ -253,7 +299,7 @@ discover_unifi_controller() {
         http_code=$(curl -sk -o /dev/null -w "%{http_code}" \
             -X POST "${test_url}/api/auth/login" \
             -H "Content-Type: application/json" \
-            -d "{\"username\":\"${user}\",\"password\":\"${pass}\"}" \
+            -d "$payload" \
             --connect-timeout 3 || echo "000")
         if [[ "$http_code" == "200" ]]; then
             echo "  ✔ Found UniFi OS controller at ${test_url}"
@@ -265,7 +311,7 @@ discover_unifi_controller() {
         http_code=$(curl -sk -o /dev/null -w "%{http_code}" \
             -X POST "${test_url}/api/login" \
             -H "Content-Type: application/json" \
-            -d "{\"username\":\"${user}\",\"password\":\"${pass}\"}" \
+            -d "$payload" \
             --connect-timeout 3 || echo "000")
         if [[ "$http_code" == "200" ]]; then
             echo "  ✔ Found classic UniFi controller at ${test_url}"
@@ -415,10 +461,8 @@ load_config() {
 
     if (( ${#missing[@]} > 0 )); then
         log "ERROR: Missing required variables in $CONFIG_FILE: ${missing[*]}"
-        log "INFO: Re-running setup to fix configuration"
-        rm -f "$CONFIG_FILE"
-        setup_config
-        source "$CONFIG_FILE"
+        log "ERROR: Edit $CONFIG_FILE and set the missing values, then re-run the script"
+        exit 1
     fi
 }
 
@@ -439,7 +483,7 @@ api_path() {
 }
 
 unifi_login() {
-    local login_url header_file http_code raw_cookie
+    local login_url header_file http_code raw_cookie payload
 
     if [[ "$UNIFI_TYPE" == "unifi-os" ]]; then
         login_url="${UNIFI_CONTROLLER_URL}/api/auth/login"
@@ -448,6 +492,8 @@ unifi_login() {
     fi
 
     header_file=$(mktemp /tmp/unifi-hdr-XXXXXX)
+    payload=$(jq -n --arg u "$UNIFI_USERNAME" --arg p "$UNIFI_PASSWORD" \
+        '{username: $u, password: $p}')
 
     http_code=$(curl -sk \
         -D "$header_file" \
@@ -455,7 +501,7 @@ unifi_login() {
         -w "%{http_code}" \
         -X POST "$login_url" \
         -H "Content-Type: application/json" \
-        -d "{\"username\":\"$UNIFI_USERNAME\",\"password\":\"$UNIFI_PASSWORD\"}" \
+        -d "$payload" \
         --connect-timeout 10 --max-time 40 || echo "000")
 
     if [[ "$http_code" != "200" ]]; then
@@ -592,6 +638,9 @@ get_next_guest_number() {
     echo "$n"
 }
 
+# IMPORTANT: this function is called inside $() subshells.
+# Never add log(), echo(), or side effects here — output goes to the caller.
+# Results must be returned ONLY as: "IP;hostname" via the final echo.
 assign_ip_and_hostname() {
     local available=()
     local i
@@ -603,17 +652,12 @@ assign_ip_and_hostname() {
     done
 
     if [[ ${#available[@]} -eq 0 ]]; then
-        log "ERROR: Hotspot IP range exhausted (${HOTSPOT_IP_RANGE}.${HOTSPOT_RANGE_START}-${HOTSPOT_RANGE_END})"
-        echo ";"
         return 1
     fi
 
-    # Assignment mode: random vs sequential
-    #local idx=$(( RANDOM % ${#available[@]} ))  # random
-    local idx=0                                  # sequential (lowest available IP)
     local guest_num
     guest_num=$(get_next_guest_number)
-    echo "${available[$idx]};guest${guest_num}"
+    echo "${available[0]};guest${guest_num}"
 }
 
 # Returns the voucher code matching a given end_time, or empty if not found.
@@ -632,7 +676,7 @@ get_voucher_code_by_end_time() {
 # ─── dhcpd.leases cleanup ─────────────────────────────────────────────────────
 remove_from_leases() {
     local mac="$1"
-    local dhcpd_leases="/var/lib/dhcp/dhcpd.leases"
+    local dhcpd_leases="$DHCP_LEASES"
     [[ ! -f "$dhcpd_leases" ]] && return 0
 
     local tmp in_block=0 block="" removed=0
@@ -657,7 +701,7 @@ remove_from_leases() {
         echo "$line" >> "$tmp"
     done < "$dhcpd_leases"
     mv "$tmp" "$dhcpd_leases"
-    chown dhcpd:dhcpd "$dhcpd_leases"
+    chown "$DHCP_LEASES_OWNER" "$dhcpd_leases"
 
     if [[ $removed -gt 0 ]]; then
         log "INFO: Removed $removed lease(s) for $mac from dhcpd.leases"
@@ -714,7 +758,7 @@ dedup_mac_lists() {
         mv "$tmp_block" "$BLOCK_DHCP" && chmod 600 "$BLOCK_DHCP"
     fi
 
-    local dhcpd_leases="/var/lib/dhcp/dhcpd.leases"
+    local dhcpd_leases="$DHCP_LEASES"
     if [[ -f "$dhcpd_leases" && -n "$managed_macs" ]]; then
         local tmp_leases in_block=0 block=""
         tmp_leases=$(mktemp)
@@ -743,7 +787,7 @@ dedup_mac_lists() {
             echo "$line" >> "$tmp_leases"
         done < "$dhcpd_leases"
         mv "$tmp_leases" "$dhcpd_leases"
-        chown dhcpd:dhcpd "$dhcpd_leases"
+        chown "$DHCP_LEASES_OWNER" "$dhcpd_leases"
     fi
 
     if (( sanitized_block > 0 )); then
@@ -752,13 +796,62 @@ dedup_mac_lists() {
 }
 
 # ─── ACL helpers ──────────────────────────────────────────────────────────────
+# ─── Backup authorized MACs to guest-wellknow.txt ────────────────────────────
+# Behavior:
+#   - First run (file empty or missing): seeds the file with all MACs from mac-hotspot.txt
+#   - Subsequent runs: only ADDS new MACs (sort -u merge). Never removes existing ones.
+#   - Always: if a MAC in guest-wellknow.txt appears in blockdhcp.txt, removes
+#             it from blockdhcp.txt (a known trusted client must not be blocked)
 mac_hotspot_backup() {
-    local wellknow_file
+    local wellknow_file current_macs new_macs merged_macs
+
     wellknow_file="$(dirname "$MAC_LIST")/guest-wellknow.txt"
-    awk -F';' '/^a;/{print $2}' "$MAC_LIST" \
-        | sort -u > "${wellknow_file}.tmp" \
+
+    # Extract current MACs from mac-hotspot.txt (field 2 of lines starting with 'a;')
+    new_macs=$(awk -F';' '/^a;/{print $2}' "$MAC_LIST" | sort -u)
+
+    if [[ ! -s "$wellknow_file" ]]; then
+        # ── First run: seed with everything in mac-hotspot.txt ──────────────
+        merged_macs="$new_macs"
+        log "INFO: mac_hotspot_backup: guest-wellknow.txt is new/empty — seeding with $(echo "$merged_macs" | grep -c .) MACs"
+    else
+        # ── Subsequent runs: merge (add only, never remove) ──────────────────
+        current_macs=$(sort -u "$wellknow_file")
+        merged_macs=$(printf '%s\n%s\n' "$current_macs" "$new_macs" | sort -u)
+    fi
+
+    # ── Atomic write ─────────────────────────────────────────────────────────
+    echo "$merged_macs" | grep -v '^$' > "${wellknow_file}.tmp" \
         && mv "${wellknow_file}.tmp" "$wellknow_file" \
         && chmod 600 "$wellknow_file"
+
+    # ── Always: remove from blockdhcp.txt any MAC present in guest-wellknow.txt
+    if [[ -s "$BLOCK_DHCP" && -s "$wellknow_file" ]]; then
+        local removed
+        removed=$(grep -cFf "$wellknow_file" "$BLOCK_DHCP" || true)
+        if [[ $removed -gt 0 ]]; then
+            grep -vFf "$wellknow_file" "$BLOCK_DHCP" > "${BLOCK_DHCP}.tmp" \
+                && mv "${BLOCK_DHCP}.tmp" "$BLOCK_DHCP"
+            log "WARNING: mac_hotspot_backup: removed $removed entry/entries from blockdhcp.txt — MAC(s) found in guest-wellknow.txt"
+        fi
+    fi
+}
+
+# ─── Sort ACL files by IP ─────────────────────────────────────────────────────
+sort_acl_files() {
+    local tmp
+
+    if [[ -s "$MAC_LIST" ]]; then
+        tmp=$(mktemp)
+        sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n "$MAC_LIST" | uniq > "$tmp"
+        mv "$tmp" "$MAC_LIST" && chmod 600 "$MAC_LIST"
+    fi
+
+    if [[ -s "$PENDING_LIST" ]]; then
+        tmp=$(mktemp)
+        sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n "$PENDING_LIST" | uniq > "$tmp"
+        mv "$tmp" "$PENDING_LIST" && chmod 600 "$PENDING_LIST"
+    fi
 }
 
 add_mac_to_acl() {
@@ -848,11 +941,11 @@ clean_disconnected_pending() {
 
     local tmp removed=0
     tmp=$(mktemp)
-    while IFS=';' read -r status mac rest; do
+    while IFS=';' read -r status mac ip hostname _; do
         [[ "$status" != "a" ]] && continue
         [[ -z "$mac" ]] && continue
         if echo "$active_macs" | grep -qi "^${mac}$"; then
-            echo "${status};${mac};${rest}" >> "$tmp"
+            echo "${status};${mac};${ip};${hostname};" >> "$tmp"
         else
             log "INFO: Removed disconnected pending $mac — not seen on $HOTSPOT_ESSID"
             (( removed++ )) || true
@@ -876,6 +969,30 @@ process_pending_guests() {
     if [[ "$rc" != "ok" ]]; then
         log "INFO: stat/sta unavailable (rc=${rc:-empty}) — skipping pending"
         return
+    fi
+
+    # ── Evict oldest pending if range is exhausted ────────────────────────────
+    local available_count=0 i
+    for (( i=HOTSPOT_RANGE_START; i<=HOTSPOT_RANGE_END; i++ )); do
+        local candidate="${HOTSPOT_IP_RANGE}.${i}"
+        grep -q ";${candidate};" "$MAC_LIST"     2>/dev/null && continue
+        grep -q ";${candidate};" "$PENDING_LIST" 2>/dev/null && continue
+        (( available_count++ )) || true
+    done
+
+    if [[ $available_count -eq 0 ]]; then
+        local oldest_line oldest_mac oldest_ip
+        oldest_line=$(grep '^a;' "$PENDING_LIST" 2>/dev/null | head -1 || true)
+        oldest_mac=$(echo "$oldest_line" | awk -F';' '{print $2}')
+        oldest_ip=$(echo "$oldest_line"  | awk -F';' '{print $3}')
+        if [[ -n "$oldest_mac" && -n "$oldest_ip" ]]; then
+            log "INFO: Range exhausted — evicting oldest pending $oldest_mac (ip=$oldest_ip)"
+            sed -i "/^a;${oldest_mac};/Id" "$PENDING_LIST"
+            remove_from_leases "$oldest_mac"
+        else
+            log "WARNING: Range exhausted and no pending guest to evict — skipping pending"
+            return
+        fi
     fi
 
     clean_disconnected_pending "$guests_data"
@@ -1152,15 +1269,14 @@ main() {
     fi
     load_all_vouchers
     dedup_mac_lists
+    sort_acl_files
     snapshot_acls
     clean_expired_macs
     process_pending_guests
     process_sessions
     revoke_unauthorized
     unauthorize_pending
-
     mac_hotspot_backup
-
     check_and_reload_if_changed
 
     # ── Run summary ──────────────────────────────────────────────────────────

@@ -1,13 +1,14 @@
 #!/bin/bash
 # maravento.com
-
+#
+################################################################################
+#
 # Iptables NetCut
-
+#
 # Warning
 # Use it only in case of attack or illegal access to your network
-
-# PATH for cron
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+#
+################################################################################
 
 # checking root
 if [ "$(id -u)" != "0" ]; then

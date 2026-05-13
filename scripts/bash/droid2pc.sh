@@ -1,6 +1,8 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # droid2pc - Control and mirror Android devices to PC via scrcpy
 #
 # Compatible:
@@ -19,8 +21,10 @@
 #    ./droid2pc stop    # Stop any running scrcpy instance
 #    ./droid2pc status  # Check if scrcpy is running
 #
-# 🔒 Note: This script must NOT be run as root.
+#
+################################################################################
 
+# no-root
 if [ "$(id -u)" -eq 0 ]; then
     echo "❌ This script should not be run as root."
     exit 1

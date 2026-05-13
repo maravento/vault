@@ -1,8 +1,12 @@
 #!/bin/bash
+# maravento.com
+#
+################################################################################
 #
 # copy-path.sh - Universal script to copy file/folder paths to clipboard
 # Compatible with: Nautilus, Caja, Nemo, Thunar, Dolphin, PCManFM
 #
+################################################################################
 
 echo "Copy Path Starting. Wait..."
 printf "\n"

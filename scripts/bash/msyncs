@@ -1,6 +1,8 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # Launch MEGAsync Instances
 # Tested: Ubuntu 24.04 LTS
 # Fork: https://github.com/NicoVarg99/MEGA-Instances
@@ -14,6 +16,8 @@
 # msyncs start|stop|status
 # Remove:
 # sudo rm -rf /home/$USER/.config/msyncs /usr/bin/msyncs
+#
+################################################################################
 
 echo "MEGAsync Instances Starting. Wait..."
 printf "\n"

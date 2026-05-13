@@ -1,6 +1,8 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # Internet Watchdog Script
 #
 # This script monitors Internet connectivity by pinging a public IP (default: 1.1.1.1)
@@ -24,6 +26,8 @@
 #
 # Command to check real-time logs:
 #   tail -f connection.log
+#
+################################################################################
 
 # check no-root
 if [ "$(id -u)" == "0" ]; then

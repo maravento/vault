@@ -1,9 +1,13 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# maravento.com
+#
+################################################################################
 #
 # remote-mount.sh - Nautilus/Caja script to mount/unmount SMB (and FUSE/SFTP)
 # Improved: mount SMB with progressive SMB version, clean Unmount list, elevation support.
 # Added: Save/Load connection profiles
 #
+################################################################################
 
 # check no-root
 if [ "$(id -u)" == "0" ]; then

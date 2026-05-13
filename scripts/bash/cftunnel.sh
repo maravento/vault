@@ -1,7 +1,12 @@
 #!/bin/bash
+# maravento.com
+#
+################################################################################
 #
 # Cloudflare Tunnel Service Manager (cftunnel)
 # Unified control script for multiple Cloudflare Tunnels
+#
+################################################################################
 
 # check no-root
 if [ "$(id -u)" == "0" ]; then

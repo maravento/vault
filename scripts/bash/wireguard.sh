@@ -1,7 +1,11 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # WireGuard Install Server or Client | Uninstall
+#
+################################################################################
 
 echo "WireGuard Install | Remove Starting. Wait..."
 printf "\n"

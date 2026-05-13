@@ -1,9 +1,13 @@
 #!/bin/bash
 # maravento.com
-
-## Iptables/Ipset Firewall O(1)
-## Verify: iptables -L -n / iptables -nvL / iptables -Ln -t mangle / iptables -Ln -t nat
-## Sockets: ss -ltuna
+#
+################################################################################
+#
+# Iptables/Ipset Firewall O(1)
+# Verify: 
+# iptables -L -n / iptables -nvL / iptables -Ln -t mangle / iptables -Ln -t nat
+# Sockets: ss -ltuna
+#
 # Ports: /etc/services
 # ============================
 # Ports 0-1023:     "Well-known ports" (System/Privileged)
@@ -23,6 +27,8 @@
 # - https://en.wikipedia.org/wiki/List_of_TCP_and_UDP_port_numbers
 # - RFC 6335 - Internet Assigned Numbers Authority (IANA) Procedures
 # - https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt
+#
+################################################################################
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

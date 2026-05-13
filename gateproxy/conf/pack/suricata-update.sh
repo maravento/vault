@@ -1,4 +1,12 @@
 #!/bin/bash
+# maravento.com
+#
+################################################################################
+#
+# Suricata Update
+#
+################################################################################
+
 LOG="/var/log/suricata/suricata-cron.log"
 NOW="$(date '+%Y-%m-%d %H:%M:%S')"
 echo "$NOW - Suricata Update..." | tee -a "$LOG"

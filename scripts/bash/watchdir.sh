@@ -1,6 +1,8 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # Watch Directories Script
 # https://www.maravento.com/2025/05/control-de-carpetas-compartidas.html
 #
@@ -11,6 +13,8 @@
 #
 # Usage:
 #  ./watchdir.sh {start|stop|status}
+#
+################################################################################
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

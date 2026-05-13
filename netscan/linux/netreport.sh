@@ -1,6 +1,8 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # Net Report
 # ------------
 # Brief: Simple menu-driven nmap wrapper that produces timestamped HTML reports
@@ -28,6 +30,8 @@
 #
 # Usage:
 #   sudo /path/to/netreport.sh
+#
+################################################################################
 
 set -euo pipefail
 IFS=$'\n\t'

@@ -1,9 +1,10 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # Winboat (Install | Remove)
 #
-# -----------------------------------------------------------------------------
 # RDP connection recovery
 #
 # If the RDP window closes unexpectedly and reconnection fails, run:
@@ -11,7 +12,6 @@
 # or:
 #   flatpak kill com.freerdp.FreeRDP
 #
-# -----------------------------------------------------------------------------
 # RDP limitations
 #
 # Winboat does NOT bypass Windows RDP session limits.
@@ -22,7 +22,8 @@
 #   Windows Server              : 2 admin sessions
 #
 # More sessions require RDS and valid CALs.
-# -----------------------------------------------------------------------------
+#
+################################################################################
 
 echo "Winboat Install | Remove Starting. Wait..."
 printf "\n"

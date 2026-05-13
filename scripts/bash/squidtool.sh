@@ -1,10 +1,11 @@
 #!/bin/bash
 # maravento.com
-
-#========================================
+#
+################################################################################
+#
 # SQUID ANALYSIS TOOL
 # squidtools.sh
-#========================================
+#
 # This script provides a unified interface for analyzing Squid proxy logs.
 # It contains six main functions:
 #
@@ -54,6 +55,8 @@
 #
 # All logs are written to the current working directory, and the script
 # informs the user where to find the output files after execution.
+#
+################################################################################
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

@@ -1,8 +1,11 @@
 #!/bin/bash
 # maravento.com
-# GPL-3.0 https://www.gnu.org/licenses/gpl.txt
+#
+################################################################################
 #
 # Proxy Monitor module installation/uninstallation script
+#
+################################################################################
 
 set -e
 trap 'echo "❌ Error on line $LINENO"; exit 1' ERR

@@ -1,0 +1,23 @@
+[Unit]
+Description=pydhcpd - Python DHCP Daemon
+Documentation=https://github.com/maravento/pydhcp
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/usr/bin/python3 /etc/pydhcp/pydhcpd.py
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/etc/pydhcp/pydhcpd.pid
+Restart=on-failure
+RestartSec=5
+# After 3 failures within 60s the service enters 'failed' state.
+# To reset manually: systemctl reset-failed pydhcpd && systemctl start pydhcpd
+StartLimitInterval=60
+StartLimitBurst=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

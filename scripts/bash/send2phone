@@ -1,6 +1,8 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # Send files to phone with KDE Connect (Universal file manager support)
 #
 # Nautilus Path: ~/.local/share/nautilus/scripts or ~/.config/nautilus/scripts
@@ -10,6 +12,8 @@
 #
 # Check kdeconnect-cli options
 # https://linuxcommandlibrary.com/man/kdeconnect-cli
+#
+################################################################################
 
 echo "Start KDE Connect Send. Wait..."
 printf "\n"

@@ -1,12 +1,16 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # Serveo tunnel start | stop | status
 # https://serveo.net/
 
 # ⚠ Before using this script:
 # - Register on the tunnel service website with your email address.
 # - The server fingerprint will be automatically managed by this script.
+#
+################################################################################
 
 echo "Serveo Tunnel Starting. Wait..."
 printf "\n"

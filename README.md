@@ -87,6 +87,7 @@ python gitfolder.py https://github.com/maravento/vault/project_name
 - [itsm](https://github.com/maravento/vault/tree/master/itsm)
 - [netscan](https://github.com/maravento/vault/tree/master/netscan)
 - [proxymon](https://github.com/maravento/vault/tree/master/proxymon)
+- [pydhcp](https://github.com/maravento/vault/tree/master/pydhcp)
 - [scripts](https://github.com/maravento/vault/tree/master/scripts)
 - [trek](https://github.com/maravento/vault/tree/master/trek)
 - [uniopos](https://github.com/maravento/vault/tree/master/uniopos)

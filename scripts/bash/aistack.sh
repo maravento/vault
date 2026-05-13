@@ -1,24 +1,18 @@
 #!/bin/bash
 # maravento.com
 #
-# =======================================================================================
+################################################################################
+#
 #  AI STACK MANAGER - Dockerized Version
 #  Complete containerized stack: Ollama + LLM + Open WebUI + Docker + Portainer
 #  opencode is optional (CLI tool, runs natively, not in Docker)
 #
 #  Usage: ./aistack.sh [COMMAND]
-#  Commands: install | status | model | install-opencode | uninstall-opencode | uninstall
+#  Commands:
+#  install | status | model | install-opencode | uninstall-opencode | uninstall
 #  Without arguments, runs interactive menu
 #
-#  Security fixes applied (v1.1):
-#   - [F1] GPG fingerprint verification for Docker key (lines ~262)
-#   - [F2] Migrated NVIDIA repo from apt-key to /etc/apt/keyrings (line ~313)
-#   - [F3] opencode install script: separated download from execution (line ~614)
-#   - [F4] Improved local user detection: logname + SUDO_USER + id validation (line ~38)
-#   - [F5] dpkg purge loop now tracks and reports per-package failures (line ~888)
-#   - [F6] Removed --force-recreate from docker compose update calls (lines ~1026,1044)
-#   - [F7] Added require_ollama_running() guard used in download_model/change_default_model
-# =======================================================================================
+################################################################################
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -63,6 +57,9 @@ AI_BASE_DIR="/home/$local_user/aiworker"
 OPEN_WEBUI_PORT=3000
 OLLAMA_PORT=11434
 PORTAINER_PORT=9000
+
+HAS_GPU=false
+HAS_NVIDIA_DOCKER=false
 
 # GPU Detection
 detect_gpu() {
@@ -212,7 +209,7 @@ header() {
   clear
   echo -e "${CYAN}"
   echo "  +------------------------------------------------------+"
-  echo "  |        AI STACK MANAGER - Dockerized v1.0            |"
+  echo "  |        AI STACK MANAGER - Dockerized v1.2            |"
   echo "  |        Ollama · Open Web UI · Portainer              |"
   echo "  +------------------------------------------------------+"
   echo -e "${RESET}"
@@ -234,6 +231,8 @@ select_model() {
     echo ""
     echo -e "  ${BOLD}Available Local Models:${RESET}"
     echo ""
+    echo -e "  ${WHITE}0)${RESET} ${DIM}Skip — do not download a model now${RESET}"
+    echo ""
     
     local i=1
     for model in "${AVAILABLE_MODELS[@]}"; do
@@ -242,16 +241,21 @@ select_model() {
         else
             echo -e "  ${WHITE}$i)${RESET} $model"
         fi
-        ((i++))
+        i=$((i+1))
     done
     
     echo ""
     echo -e "  ${DIM}Press Enter to use default: ${DEFAULT_MODEL}${RESET}"
     echo ""
-    read -rp "  → Select model [1-${#AVAILABLE_MODELS[@]}]: " choice
+    read -rp "  → Select model [0-${#AVAILABLE_MODELS[@]}]: " choice
     
     if [[ -z "$choice" ]]; then
         SELECTED_MODEL="$DEFAULT_MODEL"
+    elif [[ "$choice" == "0" ]]; then
+        SELECTED_MODEL=""
+        echo ""
+        info "No model selected — you can download one later with: ./aistack.sh model"
+        return 0
     elif [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#AVAILABLE_MODELS[@]}" ]; then
         SELECTED_MODEL="${AVAILABLE_MODELS[$((choice-1))]}"
     else
@@ -364,9 +368,15 @@ install_nvidia_docker() {
         apt-get update
         apt-get install -y nvidia-container-toolkit
         
-        # Configure Docker daemon
+        # Configure Docker daemon — merge nvidia runtime into existing config if present
         mkdir -p /etc/docker
-        cat > /etc/docker/daemon.json << EOF
+        local daemon_json="/etc/docker/daemon.json"
+        if command -v jq &>/dev/null && [ -s "$daemon_json" ]; then
+            local tmp_daemon
+            tmp_daemon=$(mktemp)
+            jq 'if (.runtimes.nvidia | type) == "object" then . else .runtimes = (.runtimes // {} | .nvidia = {"path": "nvidia-container-runtime", "runtimeArgs": []}) end'                 "$daemon_json" > "$tmp_daemon" && mv "$tmp_daemon" "$daemon_json"
+        else
+            cat > "$daemon_json" << EOF
 {
     "runtimes": {
         "nvidia": {
@@ -376,6 +386,7 @@ install_nvidia_docker() {
     }
 }
 EOF
+        fi
         
         systemctl restart docker
         HAS_NVIDIA_DOCKER=true
@@ -446,9 +457,19 @@ deploy_stack() {
     
     cd "${AI_BASE_DIR}"
     
-    # Pull images
-    info "Pulling Docker images (may take a few minutes)..."
-    docker compose pull
+    # Pull images with retry logic (large images can fail on unstable connections)
+    info "Pulling Docker images (may take several minutes)..."
+    local max_attempts=5
+    local attempt=1
+    until docker compose pull; do
+        if [ $attempt -ge $max_attempts ]; then
+            err "Failed to pull Docker images after $max_attempts attempts"
+            return 1
+        fi
+        warn "Pull failed (attempt $attempt/$max_attempts) — retrying in 10 seconds..."
+        attempt=$((attempt + 1))
+        sleep 10
+    done
     
     # Start services
     info "Starting services..."
@@ -476,6 +497,10 @@ require_ollama_running() {
 
 # ── Download Model ────────────────────────────────────────────────────────────
 download_model() {
+    if [[ -z "${SELECTED_MODEL:-}" ]]; then
+        info "No model selected — skipping download"
+        return 0
+    fi
     step "Downloading model: ${SELECTED_MODEL}"
     require_ollama_running || return 1
     
@@ -513,7 +538,8 @@ list_installed_models() {
     local models
     models=$(docker exec ollama ollama list 2>/dev/null | tail -n +2)
     if [[ -z "$models" ]]; then
-        echo -e "  ${DIM}No models installed${RESET}"
+        warn "No models installed yet"
+        info "Select an option below to download one"
         return 0
     fi
     
@@ -552,7 +578,7 @@ remove_model() {
     local i=1
     for model in "${models_list[@]}"; do
         echo -e "  ${WHITE}$i)${RESET} $model"
-        ((i++))
+        i=$((i+1))
     done
     echo ""
     echo -e "  ${WHITE}0)${RESET} Cancel"
@@ -665,14 +691,126 @@ install_opencode() {
         return 0
     fi
     
-    # Try via npm (official package manager method)
-    if command -v npm &>/dev/null; then
-        info "Installing via npm (official package)..."
-        npm install -g opencode-ai@latest
-        if command -v opencode &>/dev/null; then
-            ok "opencode installed via npm"
-            return 0
+    # Detect Node.js installed via apt — conflicts with nvm-managed Node.js
+    if command -v node &>/dev/null; then
+        local node_path
+        node_path=$(command -v node)
+        if [[ "$node_path" == /usr/bin/node || "$node_path" == /usr/local/bin/node ]]; then
+            err "Node.js is installed system-wide via apt ($node_path)"
+            err "This conflicts with nvm and must be removed before continuing"
+            info "Run: sudo apt remove --purge nodejs npm -y && sudo apt autoremove -y"
+            return 1
         fi
+    fi
+
+    # Ensure nvm is installed (needed to manage Node.js without apt)
+    local nvm_dir="/home/$local_user/.nvm"
+    if [ ! -f "$nvm_dir/nvm.sh" ]; then
+        info "Installing nvm (Node Version Manager) for user: $local_user..."
+        local nvm_tmp
+        nvm_tmp=$(mktemp /tmp/nvm_install_XXXXXX.sh)
+        if ! curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh -o "$nvm_tmp"; then
+            err "Failed to download nvm install script"
+            rm -f "$nvm_tmp"
+            return 1
+        fi
+        if ! head -1 "$nvm_tmp" | grep -qE '^#!((/usr)?/bin/(ba)?sh|/usr/bin/env (ba)?sh)'; then
+            err "Downloaded nvm install script does not look like a shell script — aborting"
+            rm -f "$nvm_tmp"
+            return 1
+        fi
+        chown "$local_user" "$nvm_tmp"
+        chmod +x "$nvm_tmp"
+        if ! sudo -u "$local_user" bash "$nvm_tmp"; then
+            err "nvm installation failed"
+            rm -f "$nvm_tmp"
+            return 1
+        fi
+        rm -f "$nvm_tmp"
+        ok "nvm installed"
+    else
+        ok "nvm already installed"
+    fi
+
+    # Ensure Node.js LTS is installed via nvm
+    local nvm_sh="$nvm_dir/nvm.sh"
+    if ! sudo -u "$local_user" bash -c "source '$nvm_sh' && command -v node" &>/dev/null; then
+        info "Installing Node.js LTS via nvm..."
+        if ! sudo -u "$local_user" bash -c "source '$nvm_sh' && nvm install --lts"; then
+            err "Node.js installation via nvm failed"
+            return 1
+        fi
+        ok "Node.js LTS installed"
+    else
+        local node_ver
+        node_ver=$(sudo -u "$local_user" bash -c "source '$nvm_sh' && node --version" 2>/dev/null)
+        ok "Node.js already installed ($node_ver)"
+    fi
+
+    # pnpm is required (preferred over npm for security: avoids supply-chain attacks via hoisting)
+    # Minimum version: 11
+    local pnpm_home="/home/$local_user/.local/share/pnpm"
+    local pnpm_env="source '$nvm_sh'; export PNPM_HOME='$pnpm_home'; export PATH=\"\$PNPM_HOME/bin:\$PATH\""
+    if [ ! -f "$pnpm_home/bin/pnpm" ]; then
+        info "Installing pnpm..."
+        local pnpm_tmp
+        pnpm_tmp=$(mktemp /tmp/pnpm_install_XXXXXX.sh)
+        if ! curl -fsSL https://get.pnpm.io/install.sh -o "$pnpm_tmp"; then
+            err "Failed to download pnpm install script"
+            rm -f "$pnpm_tmp"
+            return 1
+        fi
+        if ! head -1 "$pnpm_tmp" | grep -qE '^#!((/usr)?/bin/(ba)?sh|/usr/bin/env (ba)?sh)'; then
+            err "Downloaded pnpm install script does not look like a shell script — aborting"
+            rm -f "$pnpm_tmp"
+            return 1
+        fi
+        chown "$local_user" "$pnpm_tmp"
+        chmod +x "$pnpm_tmp"
+        if ! sudo -u "$local_user" bash "$pnpm_tmp"; then
+            err "pnpm installation failed"
+            rm -f "$pnpm_tmp"
+            return 1
+        fi
+        rm -f "$pnpm_tmp"
+        ok "pnpm installed"
+    else
+        ok "pnpm already installed"
+    fi
+
+    # Verify pnpm version >= 11
+    local pnpm_version pnpm_ver_full
+    pnpm_ver_full=$(sudo -u "$local_user" bash -c "$pnpm_env; pnpm --version 2>/dev/null" || echo 'unknown')
+    pnpm_version=$(echo "$pnpm_ver_full" | grep -oE '^[0-9]+')
+    if [ -z "$pnpm_version" ] || [ "$pnpm_version" -lt 11 ]; then
+        err "pnpm version 11 or higher is required (found: $pnpm_ver_full)"
+        info "Upgrade with: pnpm self-update"
+        return 1
+    fi
+    ok "pnpm $pnpm_ver_full detected"
+
+    info "Installing via pnpm (official package)..."
+    local pnpm_bin="/home/$local_user/.local/share/pnpm/bin/pnpm"
+    if ! printf 'a\n' | sudo -u "$local_user" bash -c "$pnpm_env; '$pnpm_bin' add -g opencode-ai@latest"; then
+        err "pnpm failed to install opencode-ai"
+        return 1
+    fi
+    local opencode_bin="/home/$local_user/.local/share/pnpm/bin/opencode"
+    if [ -f "$opencode_bin" ]; then
+        # Rename the real binary and replace it with a wrapper that loads nvm before executing
+        # This ensures node is in PATH regardless of how the user invokes opencode
+        mv "$opencode_bin" "${opencode_bin}.real"
+        cat > "$opencode_bin" << WRAPPER
+#!/bin/bash
+export NVM_DIR="/home/$local_user/.nvm"
+[ -s "\$NVM_DIR/nvm.sh" ] && source "\$NVM_DIR/nvm.sh"
+exec "${opencode_bin}.real" "\$@"
+WRAPPER
+        chmod +x "$opencode_bin"
+        # Symlink into system PATH so root and other users can also invoke it
+        ln -sf "$opencode_bin" /usr/local/bin/opencode
+        ok "opencode installed via pnpm"
+        return 0
     fi
     
     # Fallback: Official install script as the real user (not root)
@@ -686,11 +824,12 @@ install_opencode() {
         return 1
     fi
     # Verify the downloaded file is a valid shell script (sanity check)
-    if ! head -1 "$install_tmp" | grep -qE '^#!(\/usr)?\/bin\/(ba)?sh'; then
+    if ! head -1 "$install_tmp" | grep -qE '^#!((/usr)?/bin/(ba)?sh|/usr/bin/env (ba)?sh)'; then
         err "Downloaded opencode install script does not look like a shell script — aborting"
         rm -f "$install_tmp"
         return 1
     fi
+    chown "$local_user" "$install_tmp"
     chmod +x "$install_tmp"
     if sudo -u "$local_user" bash "$install_tmp"; then
         rm -f "$install_tmp"
@@ -720,34 +859,36 @@ install_opencode() {
 uninstall_opencode() {
     step "Uninstalling opencode"
 
+    local pnpm_home="/home/$local_user/.local/share/pnpm"
+    local pnpm_bin="$pnpm_home/bin/pnpm"
+    local nvm_sh="/home/$local_user/.nvm/nvm.sh"
+    local pnpm_env="source '$nvm_sh' 2>/dev/null; export PNPM_HOME='$pnpm_home'; export PATH="$pnpm_home/bin:$PATH""
+
     # Check if opencode is actually installed anywhere
     local found=false
-    command -v opencode &>/dev/null                          && found=true
-    [ -f "/usr/local/bin/opencode" ]                        && found=true
-    [ -d "/home/$local_user/.opencode" ]                    && found=true
-    command -v npm &>/dev/null && npm list -g opencode-ai &>/dev/null 2>&1 && found=true
+    [ -f "/usr/local/bin/opencode" ]                                                                                        && found=true
+    [ -d "/home/$local_user/.opencode" ]                                                                                    && found=true
+    [ -f "$pnpm_bin" ] && sudo -u "$local_user" bash -c "$pnpm_env; pnpm list -g opencode-ai" &>/dev/null 2>&1             && found=true
 
     if [ "$found" = false ]; then
         info "OpenCode is not installed — nothing to do"
         return 0
     fi
 
-    # Remove system symlink
-    if [ -f "/usr/local/bin/opencode" ]; then
-        rm -f "/usr/local/bin/opencode"
-        ok "Removed /usr/local/bin/opencode"
+    # Uninstall via pnpm (handles removal of the binary and package metadata)
+    if [ -f "$pnpm_bin" ] && sudo -u "$local_user" bash -c "$pnpm_env; pnpm list -g opencode-ai" &>/dev/null 2>&1; then
+        sudo -u "$local_user" bash -c "$pnpm_env; pnpm remove -g opencode-ai" &>/dev/null
+        ok "OpenCode uninstalled via pnpm"
     fi
+    # Remove the real binary left behind after pnpm remove (wrapper replaced it)
+    rm -f "$pnpm_home/bin/opencode.real"
+    # Remove system symlink
+    rm -f /usr/local/bin/opencode
 
     # Remove user installation (as the real user)
     if [ -d "/home/$local_user/.opencode" ]; then
         sudo -u "$local_user" rm -rf "/home/$local_user/.opencode"
         ok "Removed /home/$local_user/.opencode"
-    fi
-
-    # Uninstall via npm if installed that way
-    if command -v npm &>/dev/null && npm list -g opencode-ai &>/dev/null 2>&1; then
-        npm uninstall -g opencode-ai
-        ok "OpenCode uninstalled via npm"
     fi
 
     # Remove shell config lines only if any config file actually contains 'opencode'
@@ -769,6 +910,51 @@ uninstall_opencode() {
     fi
 
     ok "opencode completely uninstalled"
+
+    # Offer to also remove nvm and pnpm installed by this script
+    echo ""
+    warn "nvm, Node.js and pnpm were installed as dependencies for OpenCode"
+    echo ""
+    read -rp "  Also remove nvm, Node.js and pnpm? [y/N]: " remove_deps
+    if [[ "$remove_deps" =~ ^[yY]$ ]]; then
+        # Remove pnpm
+        if [ -d "$pnpm_home" ]; then
+            sudo -u "$local_user" rm -rf "$pnpm_home"
+            ok "Removed $pnpm_home"
+        fi
+
+        # Remove nvm and Node.js
+        local nvm_dir="/home/$local_user/.nvm"
+        if [ -d "$nvm_dir" ]; then
+            sudo -u "$local_user" rm -rf "$nvm_dir"
+            ok "Removed $nvm_dir"
+        fi
+
+        # Clean nvm and pnpm entries from shell config files
+        local shell_configs=()
+        for config in "/home/$local_user/.bashrc" "/home/$local_user/.zshrc" "/home/$local_user/.profile" "/home/$local_user/.bash_profile"; do
+            [ -f "$config" ] && shell_configs+=("$config")
+        done
+
+        for config in "${shell_configs[@]}"; do
+            if grep -qE 'NVM_DIR|nvm\.sh|nvm_bash_completion|PNPM_HOME' "$config" 2>/dev/null; then
+                # Remove nvm block (export NVM_DIR + the two source lines)
+                sed -i '/export NVM_DIR/d' "$config"
+                sed -i '/NVM_DIR\/nvm\.sh/d' "$config"
+                sed -i '/NVM_DIR\/bash_completion/d' "$config"
+                # Remove pnpm block including the case/:$PATH:/esac wrapper
+                # Strategy: delete from the export PNPM_HOME line through the closing esac
+                sed -i '/export PNPM_HOME/,/^esac/d' "$config"
+                # Remove any leftover standalone pnpm references
+                sed -i '/pnpm/d' "$config"
+                # Remove blank lines left at the end of the file
+                sed -i -e '/^[[:space:]]*$/{ /./!d }' "$config"
+                ok "Cleaned nvm/pnpm entries from $config"
+            fi
+        done
+
+        ok "nvm, Node.js and pnpm removed"
+    fi
 }
 
 # ── OpenCode Submenu ──────────────────────────────────────────────────────────
@@ -908,7 +1094,7 @@ uninstall_portainer() {
 uninstall_models_only() {
     step "Removing AI models"
     
-    if docker ps --format '{{.Names}}' | grep -q "^ollama$"; then
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^ollama$"; then
         local models
         models=$(docker exec ollama ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' | tr '\n' ', ')
         if [[ -n "$models" ]]; then
@@ -916,7 +1102,7 @@ uninstall_models_only() {
             echo ""
             read -rp "  Remove ALL models? [y/N]: " confirm
             if [[ "$confirm" =~ ^[yY]$ ]]; then
-                docker exec ollama ollama list | tail -n +2 | awk '{print $1}' | while read -r model; do
+                docker exec ollama ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' | while read -r model; do
                     docker exec ollama ollama rm "$model"
                     ok "Removed: $model"
                 done
@@ -1006,14 +1192,6 @@ uninstall_all() {
         info "Not found — skipping"
     fi
 
-    # ── OpenCode ───────────────────────────────────────────────────────────
-    step "OpenCode..."
-    if command -v opencode &>/dev/null || [ -f "/usr/local/bin/opencode" ] || [ -d "/home/$local_user/.opencode" ]; then
-        uninstall_opencode
-    else
-        info "Not installed — skipping"
-    fi
-
     # ── Native installations outside Docker ────────────────────────────────
     step "Checking for native installations outside Docker..."
     detect_native_components
@@ -1040,6 +1218,8 @@ status_all() {
     echo -e "\n  ${BOLD}--- Portainer ------------------------------------${RESET}"
     if docker ps --format '{{.Names}}' | grep -q "^portainer$"; then
         ok "Portainer running: http://localhost:${PORTAINER_PORT}"
+    elif docker ps -a --format '{{.Names}}' | grep -q "^portainer$"; then
+        warn "Portainer stopped (container exists but is not running)"
     else
         warn "Portainer not running"
     fi
@@ -1053,6 +1233,8 @@ status_all() {
             models=$(docker exec ollama ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' | tr '\n' '  ' || echo "none")
             info "Models: ${models:-none}"
         fi
+    elif docker ps -a --format '{{.Names}}' | grep -q "^ollama$"; then
+        warn "Ollama container stopped (exists but is not running)"
     else
         err "Ollama container NOT running"
     fi
@@ -1060,6 +1242,8 @@ status_all() {
     echo -e "\n  ${BOLD}--- Open WebUI -----------------------------------${RESET}"
     if docker ps --format '{{.Names}}' | grep -q "^open-webui$"; then
         ok "Open WebUI running: http://localhost:${OPEN_WEBUI_PORT}"
+    elif docker ps -a --format '{{.Names}}' | grep -q "^open-webui$"; then
+        warn "Open WebUI stopped (container exists but is not running)"
     else
         err "Open WebUI NOT running"
     fi
@@ -1155,17 +1339,24 @@ update_components() {
         4)
             if command -v opencode &>/dev/null; then
                 step "Updating opencode..."
-                if command -v npm &>/dev/null && npm list -g opencode-ai &>/dev/null 2>&1; then
-                    npm update -g opencode-ai >/dev/null 2>&1
-                    ok "OpenCode updated via npm"
+                local _pnpm_home="/home/$local_user/.local/share/pnpm"
+                local _nvm_sh="/home/$local_user/.nvm/nvm.sh"
+                local _pnpm_env="source '$_nvm_sh' 2>/dev/null; export PNPM_HOME='$_pnpm_home'; export PATH=\"$_pnpm_home/bin:\$PATH\""
+                local _pnpm_bin="$_pnpm_home/bin/pnpm"
+                if [ -f "$_pnpm_bin" ] && sudo -u "$local_user" bash -c "$_pnpm_env; pnpm list -g opencode-ai" &>/dev/null 2>&1; then
+                    sudo -u "$local_user" bash -c "$_pnpm_env; pnpm update -g opencode-ai" >/dev/null 2>&1
+                    ok "OpenCode updated via pnpm"
                 else
                     info "Reinstalling via official script..."
                     local update_tmp
-                    update_tmp=$(mktemp /tmp/opencode_update_XXXXXX.sh)
+                    update_tmp=$(sudo -u "$local_user" mktemp /tmp/opencode_update_XXXXXX.sh)
                     if ! curl -fsSL https://opencode.ai/install -o "$update_tmp"; then
                         err "Failed to download opencode install script"
                         rm -f "$update_tmp"
-                    elif ! head -1 "$update_tmp" | grep -qE '^#!(\/usr)?\/bin\/(ba)?sh'; then
+                    else
+                        chown "$local_user" "$update_tmp"
+                    fi
+                    if [ -f "$update_tmp" ] && ! head -1 "$update_tmp" | grep -qE '^#!((/usr)?/bin/(ba)?sh|/usr/bin/env (ba)?sh)'; then
                         err "Downloaded opencode script does not look like a shell script — aborting"
                         rm -f "$update_tmp"
                     else
@@ -1228,9 +1419,6 @@ install_all() {
     detect_gpu
     echo ""
 
-    select_model
-    echo ""
-    
     install_docker
     echo ""
     
@@ -1242,9 +1430,8 @@ install_all() {
     
     deploy_stack
     echo ""
-    
-    download_model
-    echo ""
+
+    docker restart portainer > /dev/null 2>&1
     
     line
     ok "${BOLD}AI Stack fully installed and running!${RESET}"
@@ -1328,11 +1515,11 @@ menu_main() {
         header
         echo -e "  ${BOLD}Select an option:${RESET}"
         echo ""
-        echo -e "  ${WHITE}1)${RESET}  Install Stack (Docker/Portainer + Ollama/LLM + Open WebUI)"
-        echo -e "  ${WHITE}2)${RESET}  Install/Uninstall OpenCode (optional CLI tool)"
-        echo -e "  ${WHITE}3)${RESET}  Manage LLM Models (install/remove/change)"
-        echo -e "  ${WHITE}4)${RESET}  Update Components"
-        echo -e "  ${WHITE}5)${RESET}  Uninstall Stack Components"
+        echo -e "  ${WHITE}1)${RESET}  Install Stack (Docker/Portainer + Ollama + Open WebUI)"
+        echo -e "  ${WHITE}2)${RESET}  Manage LLM Models (download/remove/change)"
+        echo -e "  ${WHITE}3)${RESET}  Update Components"
+        echo -e "  ${WHITE}4)${RESET}  Uninstall Stack Components"
+        echo -e "  ${WHITE}5)${RESET}  Install/Uninstall OpenCode (optional CLI tool)"
         echo -e "  ${WHITE}6)${RESET}  Status"
         echo -e "  ${WHITE}7)${RESET}  View logs"
         echo -e "  ${WHITE}0)${RESET}  Exit"
@@ -1343,10 +1530,10 @@ menu_main() {
 
         case "$opt" in
             1)  install_all; pause ;;
-            2)  menu_opencode; pause ;;
-            3)  menu_models; pause ;;
-            4)  update_components; pause ;;
-            5)  menu_uninstall; pause ;;
+            2)  menu_models; pause ;;
+            3)  update_components; pause ;;
+            4)  menu_uninstall; pause ;;
+            5)  menu_opencode; pause ;;
             6)  detect_gpu; status_all; pause ;;
             7)  if [ -f "${AI_BASE_DIR}/docker-compose.yml" ]; then
                     cd "${AI_BASE_DIR}" && docker compose logs | less -R
@@ -1367,8 +1554,6 @@ cli_mode() {
             install_nvidia_docker
             create_docker_compose
             deploy_stack
-            select_model
-            download_model
             ;;
         install-opencode)
             install_opencode

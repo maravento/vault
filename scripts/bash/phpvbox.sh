@@ -1,12 +1,16 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # phpvirtualbox install
 # https://www.maravento.com/2015/02/administrando-vms.html
 # Requires Virtualbox 7x
-
+#
 # special thanks to:
 # https://github.com/BartekSz95
+#
+################################################################################
 
 set -euo pipefail
 

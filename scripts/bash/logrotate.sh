@@ -1,7 +1,12 @@
 #!/bin/bash
 # maravento.com
+#
+################################################################################
+#
 # Force Log Rotate
 # You should only use it if logrotate fails.
+#
+################################################################################
 
 echo "Force Log Rotate Start. Wait..."
 printf "\n"

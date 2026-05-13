@@ -1,12 +1,16 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # checksha256 - Verify SHA256 checksum of selected file
 #
 # Nautilus Path: ~/.local/share/nautilus/scripts or ~/.config/nautilus/scripts
 # Caja Path: ~/.config/caja/scripts
 # Thunar Path: ~/.local/share/Thunar/scripts or ~/.config/Thunar/scripts
 # Nemo Path: ~/.local/share/nemo/scripts
+#
+################################################################################
 
 set -uo pipefail
 

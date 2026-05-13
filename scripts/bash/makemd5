@@ -1,12 +1,16 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # makemd5 - Create MD5 checksum files using zenity
 #
 # Nautilus Path: ~/.local/share/nautilus/scripts or ~/.config/nautilus/scripts
 # Caja Path: ~/.config/caja/scripts
 # Thunar Path: ~/.local/share/Thunar/scripts or ~/.config/Thunar/scripts
 # Nemo Path: ~/.local/share/nemo/scripts
+#
+################################################################################
 
 echo "Start MakeMD5. Wait..."
 printf "\n"

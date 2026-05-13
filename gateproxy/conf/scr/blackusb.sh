@@ -1,13 +1,17 @@
 #!/bin/bash
 # maravento.com
-
+#
+################################################################################
+#
 # BlackUSB
-
+#
 # Fork:
 # [usbkill](https://github.com/hephaest0s/usbkill)
 # [usbdeath](https://github.com/trpt/usbdeath)
 # Modified by:
 # maravento.com and novatoz.com
+#
+################################################################################
 
 echo "BlackUSB Start. Wait..."
 printf "\n"

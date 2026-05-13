@@ -1,10 +1,12 @@
 #!/bin/bash
 # maravento.com
-
+#
+################################################################################
+#
 # Gateproxy
 # A simple proxy/firewall server
-
-# Note: &>/dev/null is an abbreviation for >/dev/null 2>&1
+#
+################################################################################
 
 clear
 echo -e "\n"
@@ -28,17 +30,24 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# LOCAL USER
-local_user=$(who | grep -m 1 '(:0)' | awk '{print $1}' || who | head -1 | awk '{print $1}')
-# Fallback
-if [ -z "$local_user" ]; then
-    local_user=$(ls -l /home | grep '^d' | head -1 | awk '{print $3}')
-    if [ -z "$local_user" ]; then
-        echo "ERROR: Cannot determine local user"
-        exit 1
-    fi
-    echo "Using fallback user: $local_user"
+# LOCAL USER (multi-strategy detection with validation)
+local_user=""
+# 1. Local graphical session (:0)
+local_user=$(who | awk '/\(:0\)/{print $1; exit}')
+# 2. Parent process logname (works well with sudo)
+[ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
+# 3. SUDO_USER variable (when run via sudo from terminal)
+[ -z "$local_user" ] && local_user="${SUDO_USER:-}"
+# 4. First active session user (SSH or other)
+[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
+# 5. First valid home directory
+[ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
+# Validate the user actually exists on the system
+if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
+    echo "ERROR: Cannot determine a valid local user"
+    exit 1
 fi
+echo "Using local user: $local_user"
 
 # check SO
 UBUNTU_VERSION=$(lsb_release -rs)
@@ -89,11 +98,11 @@ UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
 SCRIPT_PATH="$(realpath "$0")"
 gp_path=$(pwd)/gateproxy
 zone_path=/etc/zones
-mkdir -p "$zone_path" >/dev/null 2>&1
+mkdir -p "$zone_path" &>/dev/null
 acl_path=/etc/acl
-mkdir -p "$acl_path" >/dev/null 2>&1
+mkdir -p "$acl_path" &>/dev/null
 scr_path=/etc/scr
-mkdir -p "$scr_path" >/dev/null 2>&1
+mkdir -p "$scr_path" &>/dev/null
 
 # PPA
 file="/etc/apt/sources.list.d/ubuntu.sources"
@@ -538,8 +547,8 @@ nala install -y mesa-utils libfontconfig1
 nala install -y libuser gir1.2-gtop-2.0
     
 # MAIL
-service sendmail stop >/dev/null 2>&1
-update-rc.d -f sendmail remove >/dev/null 2>&1
+service sendmail stop &>/dev/null
+update-rc.d -f sendmail remove &>/dev/null
 DEBIAN_FRONTEND=noninteractive nala install -y postfix
 nala install -y mailutils
 
@@ -586,7 +595,7 @@ chmod 644 /var/lib/dhcp/dhcpd.leases
 nala install -y php libapache2-mod-php php-cli php-curl
 
 # Detect PHP version
-if command -v php >/dev/null 2>&1; then
+if command -v php &>/dev/null; then
     PHP_VERSION=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>/dev/null)
     echo "PHP version detected: $PHP_VERSION"
 else
@@ -642,9 +651,9 @@ sed -i \
   /etc/apache2/mods-available/mpm_prefork.conf
 
 # Enable modules  
-a2dismod mpm_event 2>/dev/null || true
-a2enmod mpm_prefork 2>/dev/null || true
-a2enmod php 2>/dev/null || true
+a2dismod -q mpm_event || true
+a2enmod -q mpm_prefork || true
+a2enmod -q php || true
 
 # PROXY SECTION
 # squid-cache
@@ -658,8 +667,8 @@ rm -f /run/squid.pid &>/dev/null
 #DEBIAN_FRONTEND=noninteractive nala install -y --no-install-recommends squid-openssl
 nala install -y squid-openssl squid-langpack squid-common squidclient squid-purge
 upgrade
-mkdir -p /var/log/squid >/dev/null 2>&1
-touch /var/log/squid/{access,cache,store,deny}.log >/dev/null 2>&1
+mkdir -p /var/log/squid &>/dev/null
+touch /var/log/squid/{access,cache,store,deny}.log &>/dev/null
 chown proxy:proxy /var/log/squid/*.log
 chmod 640 /var/log/squid/*.log
 for cache_type in rock ufs; do
@@ -719,8 +728,8 @@ chmod +x proxymon.sh
 # https://www.maravento.com/2014/07/registros-iptables.html
 chown root:root /var/log
 nala install -y ulogd2
-mkdir -p /var/log/ulog >/dev/null 2>&1
-touch /var/log/ulog/syslogemu.log >/dev/null 2>&1
+mkdir -p /var/log/ulog &>/dev/null
+touch /var/log/ulog/syslogemu.log &>/dev/null
 usermod -a -G ulog "$USER"
 crontab -l | {
     cat
@@ -866,7 +875,7 @@ ${lang_21[$lang]} (y/n)" answer
         nala install -y samba samba-common samba-common-bin smbclient winbind cifs-utils
         # in case it fails, run: sudo apt -qq install -y --reinstall samba-common samba-common-bin
         systemctl enable smbd.service
-        systemctl enable nmbd.service
+        #systemctl enable nmbd.service
         systemctl enable winbind.service
         groupadd -f sambashare
         mkdir -p $(pwd)/"${lang_22[$lang]}"
@@ -882,11 +891,11 @@ ${lang_21[$lang]} (y/n)" answer
         done
         find $gp_path/conf/samba -type f -print0 | xargs -0 -I "{}" sed -i "s:compartida:${lang_22[$lang]}:g" "{}"
         find $(pwd)/"${lang_22[$lang]}" -type f -exec chmod 666 {} \;
-        mkdir -p /var/lib/samba/usershares >/dev/null 2>&1
+        mkdir -p /var/lib/samba/usershares &>/dev/null
         chmod 1775 /var/lib/samba/usershares/
-        mkdir -p /var/log/samba >/dev/null 2>&1
+        mkdir -p /var/log/samba &>/dev/null
         sed -i 's/ \$SMBDOPTIONS//' /lib/systemd/system/smbd.service
-        sed -i 's/ \$NMBDOPTIONS//' /lib/systemd/system/nmbd.service
+        #sed -i 's/ \$NMBDOPTIONS//' /lib/systemd/system/nmbd.service
         # samba audit
         mkdir -p /var/www/smbaudit
         touch /var/log/samba/log.samba /var/log/samba/log.audit
@@ -899,6 +908,11 @@ ${lang_21[$lang]} (y/n)" answer
         chmod -R 755 /var/www/smbaudit/
         chown -R www-data:www-data /var/www/smbaudit
         a2ensite -q smbaudit.conf
+        # samba web
+        echo "Listen 0.0.0.0:18083" | tee -a /etc/apache2/ports.conf
+        cp -f $gp_path/conf/samba/smbweb.conf /etc/apache2/sites-available/smbweb.conf
+        usermod -a -G sambashare www-data
+        a2ensite -q smbweb.conf
         # samba log rotate
         cp -f /etc/logrotate.d/samba{,.bak} &>/dev/null
         cp -f $gp_path/conf/samba/samba /etc/logrotate.d/samba
@@ -1091,8 +1105,8 @@ grep -q "^Header unset ETag" /etc/apache2/conf-available/security.conf || \
 grep -q "^Timeout" /etc/apache2/conf-available/security.conf || \
     echo 'Timeout 60' >> /etc/apache2/conf-available/security.conf
 sed -i 's/Options -Indexes FollowSymLinks/Options -Indexes +FollowSymLinks/g' /etc/apache2/apache2.conf
-a2enmod headers &>/dev/null
-a2enconf security &>/dev/null
+a2enmod -q headers mime rewrite || true
+a2enconf -q security || true
 echo OK
 sleep 1
 

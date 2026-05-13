@@ -1,6 +1,8 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # Start | Stop VMs Virtualbox
 
 # how to use:           /path_to/vm.sh {start|stop|shutdown|reset|status}
@@ -8,6 +10,8 @@
 # remove:               update-rc.d -f vm.sh remove
 # confirm update-rc.d:  ls -al /etc/rc?.d/ | grep vm.sh
 # add user vboxusers:   usermod -a -G vboxusers $USER # where $USER is your user
+#
+################################################################################
 
 echo "Virtualbox Starting. Wait..."
 printf "\n"

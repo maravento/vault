@@ -1,11 +1,16 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # ngLocalhost tunnel start | stop | status
 # https://www.nglocalhost.com/
 # ⚠ Before using this script:
 # - Register on the tunnel service website with your email address.
 # - The server fingerprint will be automatically managed by this script.
+#
+################################################################################
+
 echo "ngLocalhost Tunnel Starting. Wait..."
 printf "\n"
 if [ "$(id -u)" == "0" ]; then

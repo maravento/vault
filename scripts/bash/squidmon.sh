@@ -1,6 +1,7 @@
 #!/bin/bash
 # maravento.com
-# GPL-3.0 https://www.gnu.org/licenses/gpl.txt
+#
+################################################################################
 #
 # Squid Monitor module installation/uninstallation script for Webmin
 #
@@ -34,6 +35,8 @@
 #   sudo ./squidmon.sh              # Interactive menu
 #   sudo ./squidmon.sh install      # Direct installation
 #   sudo ./squidmon.sh uninstall    # Direct uninstallation
+#
+################################################################################
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

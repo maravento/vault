@@ -1,7 +1,11 @@
 #!/bin/bash
 # maravento.com
-
+#
+################################################################################
+#
 # Server Start
+#
+################################################################################
 
 echo "Server Start. Wait..."
 printf "\n"
@@ -39,7 +43,7 @@ sleep_time="5"
 
 ### SERVERS
 echo "DHCP & Iptables..."
-eval "sudo "/etc/scr/{leases,iptables}.sh";"
+eval "sudo "/etc/scr/{iscleases,iptables}.sh";"
 echo "Squid Reload..."
 systemctl reload squid.service
 echo "Apache2 Restart..."

@@ -1,8 +1,12 @@
 #!/bin/bash
 # maravento.com
-
+#
+################################################################################
+#
 # Minor update to DDoS-Deflate, version 0.6
 # Author: Zaf <zaf@vsnl.com>
+#
+################################################################################
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

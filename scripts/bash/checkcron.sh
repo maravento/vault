@@ -1,6 +1,8 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # Check for Changes in Crontab Files
 #
 # This script checks for changes in crontab files after the marker line "# m h  dom mon dow   command".
@@ -8,6 +10,8 @@
 # The original backup files are preserved to maintain auditability.
 #
 # To view change alerts, run: sudo grep "crontab-check" /var/log/syslog
+#
+################################################################################
 
 set -uo pipefail
 

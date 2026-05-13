@@ -1,6 +1,8 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # Top 5 Crypto Price Notifier
 # ---------------------------
 # This script fetches the current USD prices of the top 5 cryptocurrencies by market capitalization
@@ -10,6 +12,8 @@
 # Usage:
 # Add this script to your crontab to get periodic price updates, for example every 30 minutes:
 # */30 * * * * /path_to/cryptonotify.sh
+#
+################################################################################
 
 echo "Top 5 Crypto Price Notifier Starting. Wait..."
 printf "\n"

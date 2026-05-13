@@ -3019,6 +3019,7 @@
 \.labour([a-zA-Z][0-9]*)?(\?.*)?$
 \.Ladon([a-zA-Z][0-9]*)?(\?.*)?$
 \.lalabitch([a-zA-Z][0-9]*)?(\?.*)?$
+\.lalia([a-zA-Z][0-9]*)?(\?.*)?$
 \.lalo([a-zA-Z][0-9]*)?(\?.*)?$
 \.lama([a-zA-Z][0-9]*)?(\?.*)?$
 \.Lambda([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4471,6 +4472,7 @@
 \.ReadManual([a-zA-Z][0-9]*)?(\?.*)?$
 \.README0apt.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.readme([a-zA-Z][0-9]*)?(\?.*)?$
+\.README!!!DO_NOT_DELETE.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.READ_ME_FBI.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.readmefordecrypt.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.read_me_fucking_bitch([a-zA-Z][0-9]*)?(\?.*)?$
@@ -5490,6 +5492,8 @@
 \.video([a-zA-Z][0-9]*)?(\?.*)?$
 \.viiper([a-zA-Z][0-9]*)?(\?.*)?$
 \.viki([a-zA-Z][0-9]*)?(\?.*)?$
+\.vile([a-zA-Z][0-9]*)?(\?.*)?$
+\.VILE_README.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.VinDizelPux([a-zA-Z][0-9]*)?(\?.*)?$
 \.vindows([a-zA-Z][0-9]*)?(\?.*)?$
 \.VindowsLocker([a-zA-Z][0-9]*)?(\?.*)?$

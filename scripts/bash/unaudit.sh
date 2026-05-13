@@ -1,35 +1,35 @@
 #!/bin/bash
-# =============================================================================
+# maravento.com
+#
+################################################################################
+#
 # Script      : unaudit.sh
 # Description : UniFi Network Hotspot - Full Client Audit & Management Tool
 #
 # REPORT SECTIONS
-#   1. Connected clients  - live snapshot from stat/sta filtered by guest SSID
-#   2. Guest sessions     - voucher sessions from stat/guest (active + expired)
-#   3. Vouchers           - full voucher list from stat/voucher with usage stats
-#   4. Cross-reference    - guest sessions enriched with stat/sta + voucher data
-#   5. ACL vs API         - mac-hotspot.txt entries vs UniFi guest API
+#   1. Authorized  - mac-hotspot.txt enriched with voucher (stat/guest) and
+#                    live connection status (stat/sta)
+#   2. Pending     - guest-pending.txt enriched with live connection status
+#                    and authorization flag (stat/sta)
+#   3. Vouchers    - full voucher list from stat/voucher with usage stats
 #
 # INTERACTIVE ACTIONS (after report)
-#   [1] Revoke used vouchers    - delete vouchers with used > 0, unauthorize
-#                                 active sessions, optionally forget client history
-#   [2] Delete unused vouchers  - delete vouchers with used = 0 (never activated)
-#   [3] Forget inactive clients - remove expired guest session history via
-#                                 forget-sta (cleans UniFi client list)
+#   [1] Revoke used vouchers    - delete (used>0), unauthorize sessions,
+#                                 optionally forget client history
+#   [2] Delete unused vouchers  - delete vouchers never used (used=0)
+#   [3] Forget inactive clients - remove expired guest session history
 #   [4] All of the above
 #
 # AUTH
-#   Authenticates against UniFi OS (/api/auth/login).
-#   Extracts TOKEN from set-cookie header manually - curl's Netscape cookie jar
-#   silently drops cookies with the "partitioned" flag used by UniFi OS >= 3.x.
-#   CSRF token is extracted from x-csrf-token response header and sent on every
-#   subsequent request to satisfy UniFi OS CSRF protection.
+#   Authenticates against UniFi OS (/api/auth/login). Requires HOTSPOT_ESSID,
+#   UNIFI_CONTROLLER_URL, UNIFI_USERNAME, UNIFI_PASSWORD in config.conf
 #
 # DEPENDENCIES : curl, jq
 # CONFIG       : /etc/unhotspot/config.conf
 # LOG          : /etc/unhotspot/unaudit.log
 # TESTED ON    : Ubuntu 24.04 - UniFi OS Network 10.x
-# =============================================================================
+#
+################################################################################
 
 printf "\n"
 echo "UniFi Clients Audit - starting, please wait..."
@@ -67,8 +67,8 @@ fi
 
 source "$CONFIG"
 
-if [ -z "$UNIFI_CONTROLLER_URL" ] || [ -z "$UNIFI_USERNAME" ] || [ -z "$UNIFI_PASSWORD" ]; then
-    echo "ERROR: Missing required variables (UNIFI_CONTROLLER_URL, UNIFI_USERNAME, UNIFI_PASSWORD) in $CONFIG"
+if [ -z "$UNIFI_CONTROLLER_URL" ] || [ -z "$UNIFI_USERNAME" ] || [ -z "$UNIFI_PASSWORD" ] || [ -z "$HOTSPOT_ESSID" ]; then
+    echo "ERROR: Missing required variables (UNIFI_CONTROLLER_URL, UNIFI_USERNAME, UNIFI_PASSWORD, HOTSPOT_ESSID) in $CONFIG"
     exit 1
 fi
 
@@ -130,37 +130,84 @@ echo "  stat/sta     -> $STA_RC    ($(echo "$STA"     | jq '.data|length' 2>/dev
 echo "  stat/guest   -> $GUEST_RC  ($(echo "$GUEST"   | jq '.data|length' 2>/dev/null) entries)"
 echo "  stat/voucher -> $VCH_RC    ($(echo "$VOUCHER" | jq '.data|length' 2>/dev/null) entries)"
 
-# ── Section 1: Connected clients (stat/sta) ───────────────────────────────────
-print_sta() {
+# ── Section 1: Authorized clients (mac-hotspot.txt + stat/guest + stat/sta) ───
+print_authorized() {
+    local ACL_HOTSPOT="/etc/unhotspot/mac-hotspot.txt"
+    [ ! -f "$ACL_HOTSPOT" ] && return
+
     echo ""
     echo "======================================================================="
-    echo " CONNECTED CLIENTS — stat/sta"
+    echo " AUTHORIZED — mac-hotspot.txt"
     echo "======================================================================="
+
+    local sta_map
+    sta_map=$(echo "$STA" | jq -r --arg essid "$HOTSPOT_ESSID" '
+        .data[]
+        | select(.essid == $essid)
+        | [(.mac | ascii_downcase), (if .authorized == true then "YES" else "NO" end)]
+        | @tsv
+    ' 2>/dev/null)
+
     {
-        printf "MAC|IP|HOSTNAME|ESSID|AUTHORIZED\n"
-        echo "$STA" | jq -r --arg essid "$HOTSPOT_ESSID" '
-            .data[]
-            | select(.essid == $essid)
-            | [.mac//"N/A", .ip//"N/A", (.hostname//.name//"N/A"), .essid//"N/A", (if .authorized then "YES" else "NO" end), (.rssi//0|tostring)]
-            | join("|")
-        ' 2>/dev/null
+        printf "MAC|IP|VOUCHER|EXPIRES|CONNECTED\n"
+        while IFS=';' read -r status mac ip hostname end_time _; do
+            [ "$status" != "a" ] && continue
+            [ -z "$mac" ] && continue
+
+            expires="N/A"
+            [ -n "$end_time" ] && expires=$(date -d "@$end_time" '+%m-%d %H:%M' 2>/dev/null || echo "$end_time")
+
+            voucher=$(echo "$GUEST" | jq -r --arg m "$mac" '
+                .data[]
+                | select((.mac | ascii_downcase) == $m)
+                | .voucher_code // "N/A"
+            ' 2>/dev/null | head -1)
+            [ -z "$voucher" ] && voucher="N/A"
+
+            connected=$(echo "$sta_map" | grep -i "^${mac}" | awk -F'\t' '{print "YES"}')
+            [ -z "$connected" ] && connected="NO"
+
+            echo "$mac|$ip|$voucher|$expires|$connected"
+        done < "$ACL_HOTSPOT"
     } | column -t -s '|'
     echo ""
 }
 
-# ── Section 2: Guest sessions (stat/guest) ────────────────────────────────────
-print_guest() {
+# ── Section 2: Pending clients (guest-pending.txt + stat/sta) ────────────────
+print_pending() {
+    local ACL_PENDING="/etc/unhotspot/guest-pending.txt"
+    [ ! -f "$ACL_PENDING" ] && return
+
     echo ""
     echo "======================================================================="
-    echo " GUEST SESSIONS — stat/guest"
+    echo " PENDING — guest-pending.txt"
     echo "======================================================================="
+
+    local sta_map
+    sta_map=$(echo "$STA" | jq -r --arg essid "$HOTSPOT_ESSID" '
+        .data[]
+        | select(.essid == $essid)
+        | [(.mac | ascii_downcase), (if .authorized == true then "YES" else "NO" end)]
+        | @tsv
+    ' 2>/dev/null)
+
     {
-        printf "MAC|IP|VOUCHER|EXPIRED|END\n"
-        echo "$GUEST" | jq -r '
-            .data[]
-            | [.mac//"N/A", .ip//"N/A", .voucher_code//"N/A", (if .expired then "YES" else "NO" end), (if .end then (.end|strftime("%m-%d %H:%M")) else "N/A" end)]
-            | join("|")
-        ' 2>/dev/null
+        printf "MAC|IP|HOSTNAME|CONNECTED|AUTH\n"
+        while IFS=';' read -r status mac ip hostname _; do
+            [ "$status" != "a" ] && continue
+            [ -z "$mac" ] && continue
+
+            sta_row=$(echo "$sta_map" | grep -i "^${mac}" | head -1)
+            if [ -n "$sta_row" ]; then
+                connected="YES"
+                auth=$(echo "$sta_row" | awk -F'\t' '{print $2}')
+            else
+                connected="NO"
+                auth="NO"
+            fi
+
+            echo "$mac|$ip|$hostname|$connected|$auth"
+        done < "$ACL_PENDING"
     } | column -t -s '|'
     echo ""
 }
@@ -182,67 +229,6 @@ print_voucher() {
     echo ""
 }
 
-# ── Section 4: Cross-reference (guest + sta + voucher) ───────────────────────
-print_crossref() {
-    echo ""
-    echo "======================================================================="
-    echo " CROSS-REFERENCE — guest + sta + voucher"
-    echo "======================================================================="
-    
-    STA_AUTH=$(echo "$STA" | jq -r --arg essid "$HOTSPOT_ESSID" '
-        .data[]
-        | select(.essid == $essid)
-        | [(.mac | ascii_downcase), (if .authorized == true then "YES" elif .authorized == false then "NO" else "N/A" end)]
-        | @tsv
-    ' 2>/dev/null)
-    
-    {
-        printf "MAC|IP|VOUCHER|CONN|AUTH|END(guest)\n"
-        echo "$GUEST" | jq -r '
-            .data[]
-            | [(.mac//"N/A"|ascii_downcase), .ip//"N/A", .voucher_code//"N/A", (if .end then (.end|strftime("%m-%d %H:%M")) else "N/A" end)]
-            | join("|")
-        ' 2>/dev/null | while IFS='|' read -r mac ip voucher end_date; do
-            connected=$(echo "$STA_AUTH" | grep -i "^${mac}" | awk '{print "YES"}' || echo "NO")
-            [ -z "$connected" ] && connected="NO"
-            auth=$(echo "$STA_AUTH" | grep -i "^${mac}" | cut -f2)
-            [ -z "$auth" ] && auth="N/A"
-            echo "$mac|$ip|$voucher|$connected|$auth|$end_date"
-        done
-    } | column -t -s '|'
-    echo ""
-}
-
-# ── Section 5: ACL vs API (mac-hotspot.txt vs stat/guest) ────────────────────
-print_acl_vs_api() {
-    local MAC_LIST="/etc/unhotspot/mac-hotspot.txt"
-    [ ! -f "$MAC_LIST" ] && return
-
-    echo ""
-    echo "======================================================================="
-    echo " ACL vs API — mac-hotspot.txt cross-check"
-    echo "======================================================================="
-    
-    {
-        printf "MAC|IP(ACL)|HOSTNAME(ACL)|END(ACL)|API\n"
-        while IFS=';' read -r status mac ip hostname end_time _; do
-            [ "$status" != "a" ] && continue
-            [ "$mac" = "02:00:00:00:00:00" ] && continue
-            [ -z "$mac" ] && continue
-
-            end_human="N/A"
-            [ -n "$end_time" ] && end_human=$(date -d "@$end_time" '+%m-%d %H:%M' 2>/dev/null || echo "$end_time")
-
-            in_guest=$(echo "$GUEST" | jq -r --arg m "$mac" '.data[] | select((.mac | ascii_downcase) == $m) | .mac' 2>/dev/null | head -1)
-            [ -n "$in_guest" ] && in_api="YES" || in_api="NO"
-
-            hostname_short="${hostname:0:30}"
-            echo "$mac|$ip|$hostname_short|$end_human|$in_api"
-        done < "$MAC_LIST"
-    } | column -t -s '|'
-    echo ""
-}
-
 # ── Interactive: forget expired/inactive clients ──────────────────────────────
 # Lists all clients with expired guest sessions and lets the user choose which
 # ones to remove from UniFi's client history via forget-sta.
@@ -257,7 +243,7 @@ interactive_forget() {
         .data[]
         | select(.expired == true or .end == null or .end < now)
         | (.mac | ascii_downcase)
-    ' 2>/dev/null | sort -u)
+    ' 2>/dev/null | grep -v '^$' | sort -u)
 
     if [ ${#EXPIRED_MACS[@]} -eq 0 ]; then
         echo "  No expired or inactive clients found."
@@ -319,7 +305,7 @@ interactive_forget() {
     for mac in "${selected[@]}"; do echo "    - $mac"; done
     echo ""
     read -rp "  Are you sure? [y/N]: " CONFIRM
-    [[ ! "$CONFIRM" =~ ^[yY]$ ]] && echo "  Cancelled." && return
+    [[ ! "$CONFIRM" =~ ^[yY](es)?$ ]] && echo "  Cancelled." && return
 
     echo "  Forgetting ${#selected[@]} client(s)..."
     for mac in "${selected[@]}"; do
@@ -414,7 +400,7 @@ _voucher_selector() {
     done
     echo ""
     read -rp "  Are you sure? [y/N]: " CONFIRM
-    [[ ! "$CONFIRM" =~ ^[yY]$ ]] && echo "  Cancelled." && return
+    [[ ! "$CONFIRM" =~ ^[yY](es)?$ ]] && echo "  Cancelled." && return
 
     echo ""
     echo "  Processing ${#selected_ids[@]} voucher(s)..."
@@ -507,11 +493,9 @@ interactive_delete_unused() {
 
 # ── Run report ────────────────────────────────────────────────────────────────
 OUTPUT=""
-OUTPUT+=$(print_sta)
-OUTPUT+=$(print_guest)
+OUTPUT+=$(print_authorized)
+OUTPUT+=$(print_pending)
 OUTPUT+=$(print_voucher)
-OUTPUT+=$(print_crossref)
-OUTPUT+=$(print_acl_vs_api)
 
 echo "$OUTPUT"
 

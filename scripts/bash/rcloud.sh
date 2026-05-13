@@ -1,11 +1,15 @@
 #!/bin/bash
-# by maravento.com
-
+# maravento.com
+#
+################################################################################
+#
 # Rclone Cloud (Gdrive, PCloud, Dropbox, OneDrive, Mega...)
 # https://www.maravento.com/2023/09/2-way-sync-con-rclone.html
-
+#
 # Usage:
 # sudo ./rclone.sh start | stop | restart | status
+#
+################################################################################
 
 set -u
 

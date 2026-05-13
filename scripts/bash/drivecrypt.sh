@@ -1,8 +1,12 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # Cryptomator Encrypted Disk - Mount | Umount
 # https://www.maravento.com/2020/12/montando-boveda-cryptomator-como-unidad_2.html
+#
+################################################################################
 
 echo "DriveCrypt Starting. Wait..."
 printf "\n"

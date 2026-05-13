@@ -1,6 +1,8 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # WinPower Monitor Script for Linux
 # Controls WinPower UPS software components installed in /opt/MonitorSoftware:
 # - Agent: UPS monitoring core
@@ -20,6 +22,8 @@
 # Usage:
 # sudo ./winpower.sh                                      - Interactive menu
 # sudo ./winpower.sh {install|remove|start|stop|status|restart}
+#
+################################################################################
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

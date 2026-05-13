@@ -1,5 +1,8 @@
 #!/bin/bash
 # maravento.com
+#
+################################################################################
+#
 # Domains Check with Host
 # Requirements:
 # - Bash 5.2.21
@@ -8,6 +11,9 @@
 # ./domcheck.sh my_domain_list.txt
 # Optional (with parallel processes. By default 100)
 # ./domcheck.sh my_domain_list.txt 50
+#
+################################################################################
+
 if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
     echo "Use: $0 <file_name> [parallel_processes]"
     exit 1

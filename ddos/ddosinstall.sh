@@ -1,8 +1,12 @@
 #!/bin/bash
 # maravento.com
-
+#
+################################################################################
+#
 # DDoS-Deflate
 # Minor update to DDoS-Deflate, version 0.6
+#
+################################################################################
 
 echo "DDoS-Deflate Starting. Wait..."
 printf "\n"

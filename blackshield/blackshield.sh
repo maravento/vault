@@ -1,8 +1,12 @@
 #!/bin/bash
 # maravento.com
-
+#
+################################################################################
+#
 # BlackShield
 # File Extensions/Patterns/User-Agents/Hex-String to Block
+#
+################################################################################
 
 echo "Blackshield Start. Wait..."
 printf "\n"

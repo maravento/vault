@@ -1,7 +1,11 @@
 #!/bin/bash
 # maravento.com
-
+#
+################################################################################
+#
 # Check Services
+#
+################################################################################
 
 echo "Check Services Start. Wait..."
 printf "\n"
@@ -46,7 +50,7 @@ if pgrep -f "dhcpd" > /dev/null; then
     echo -e "\nONLINE"
 else
     echo -e "\n"
-    /etc/scr/leases.sh
+    /etc/scr/iscleases.sh
     echo "DHCP start: $(date)" | tee -a /var/log/syslog
 fi
 

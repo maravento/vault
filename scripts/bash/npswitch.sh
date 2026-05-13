@@ -1,16 +1,11 @@
 #!/bin/bash
 # maravento.com
+#
 ################################################################################
 # npswitch.sh
 # 
 # Intelligent Network Renderer Switcher for Ubuntu/Debian Netplan
 # Safely switches between NetworkManager and systemd-networkd
-#
-# Author: Your Name
-# License: GPL-3.0 https://www.gnu.org/licenses/gpl.txt
-# Version: 1.0
-#
-################################################################################
 #
 # DESCRIPTION:
 #   This script provides an intelligent way to switch network management 
@@ -353,7 +348,7 @@ deactivate_all_yaml_files() {
     if [ "$count" -eq 0 ]; then
         echo -e "${YELLOW}  No active YAML files found${NC}"
     else
-        find "$NETPLAN_DIR" -maxdepth 1 -type f -name '*.yaml' -not -name '*.yaml.bak' -exec mv -- {} {}.bak \; > /dev/null 2>&1
+        find "$NETPLAN_DIR" -maxdepth 1 -type f -name '*.yaml' -not -name '*.yaml.bak' -exec mv -- {} {}.bak \; 2>/dev/null
         echo -e "${GREEN}✓ Deactivated $count YAML file(s)${NC}"
     fi
     echo ""
@@ -367,7 +362,7 @@ restore_all_yaml_files() {
     if [ "$count" -eq 0 ]; then
         echo -e "${YELLOW}  No backup YAML files found to restore${NC}"
     else
-        find "$NETPLAN_DIR" -maxdepth 1 -type f -name '*.yaml.bak' -exec sh -c 'mv "$1" "${1%.bak}"' sh {} \; > /dev/null 2>&1
+        find "$NETPLAN_DIR" -maxdepth 1 -type f -name '*.yaml.bak' -exec sh -c 'mv "$1" "${1%.bak}"' sh {} \; 2>/dev/null
         echo -e "${GREEN}✓ Restored $count YAML file(s)${NC}"
     fi
     echo ""

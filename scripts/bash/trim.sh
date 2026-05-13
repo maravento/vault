@@ -1,8 +1,12 @@
 #!/bin/bash
-# by maravento.com
-
+# maravento.com
+#
+################################################################################
+#
 # Run TRIM for SSD
 # WARNING: TRIM is a highly destructive command. Use it at your own risk.
+#
+################################################################################
 
 echo "TRIM Start. Wait..."
 printf "\n"

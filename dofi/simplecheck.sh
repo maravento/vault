@@ -1,5 +1,8 @@
 #!/bin/bash
 # maravento.com
+#
+################################################################################
+#
 # Simple DNS Domain Checker
 # -------------------------
 # This lightweight script checks whether domains listed in a local file
@@ -18,6 +21,9 @@
 # - Unlike more advanced scripts, this version does not retry failed domains
 #   or perform input sanitization. It assumes the input list is already clean.
 # - Ideal for quick checks or small domain validation tasks.
+#
+################################################################################
+
 trap "echo -e '\nProcess interrupted by user'; exit 1" INT
 
 list="mylist.txt"

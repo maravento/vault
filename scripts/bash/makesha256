@@ -1,12 +1,16 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # makesha256 - Create SHA256 checksum files using zenity
 #
 # Nautilus Path: ~/.local/share/nautilus/scripts or ~/.config/nautilus/scripts
 # Caja Path: ~/.config/caja/scripts
 # Thunar Path: ~/.local/share/Thunar/scripts or ~/.config/Thunar/scripts
 # Nemo Path: ~/.local/share/nemo/scripts
+#
+################################################################################
 
 echo "Start MakeSHA256. Wait..."
 printf "\n"

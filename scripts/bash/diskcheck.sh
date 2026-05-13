@@ -1,6 +1,8 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # Disk Check Monitor
 # Checks temperature, SMART status and degradation indicators on HDD, SSD and NVMe.
 # Sends desktop alert and logs to syslog if any issue is detected.
@@ -8,6 +10,8 @@
 # Usage: sudo ./diskcheck.sh
 # Cron Root: @daily /etc/scr/diskcheck.sh >> /var/log/diskcheck.log 2>&1
 # Log rotate: /etc/logrotate.d/diskcheck
+#
+################################################################################
 
 echo "Check Disk Temp Starting. Wait..."
 printf "\n"
