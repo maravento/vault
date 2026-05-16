@@ -4,8 +4,13 @@
 ################################################################################
 #
 #  AI STACK MANAGER - Dockerized Version
-#  Complete containerized stack: Ollama + LLM + Open WebUI + Docker + Portainer
-#  opencode is optional (CLI tool, runs natively, not in Docker)
+#
+#  Stack:      Docker + Portainer + Ollama + Open WebUI
+#  Optional:   OpenCode (AI CLI tool, runs natively)
+#              LM Studio (desktop app for local LLMs, requires GUI)
+#
+#  LLM models are managed independently from the stack installation.
+#  Online models (OpenAI, Anthropic, etc.) can be connected via Open WebUI.
 #
 #  Usage: ./aistack.sh [COMMAND]
 #  Commands:
@@ -57,6 +62,9 @@ AI_BASE_DIR="/home/$local_user/aiworker"
 OPEN_WEBUI_PORT=3000
 OLLAMA_PORT=11434
 PORTAINER_PORT=9000
+
+# Ensure the base directory exists and belongs to the local user from the start
+sudo -u "$local_user" bash -c "mkdir -p \"$AI_BASE_DIR\""
 
 HAS_GPU=false
 HAS_NVIDIA_DOCKER=false
@@ -1183,8 +1191,13 @@ uninstall_all() {
     if [ -d "${AI_BASE_DIR}" ]; then
         read -rp "  Remove all AI data? [y/N]: " remove_data
         if [[ "$remove_data" =~ ^[yY]$ ]]; then
-            rm -rf "${AI_BASE_DIR}"
-            ok "Data removed"
+            if [ -d "${AI_BASE_DIR}/lmstudio" ]; then
+                find "${AI_BASE_DIR}" -mindepth 1 -maxdepth 1 ! -name "lmstudio" -exec rm -rf {} +
+                ok "Data removed (lmstudio directory preserved)"
+            else
+                rm -rf "${AI_BASE_DIR}"
+                ok "Data removed"
+            fi
         else
             info "Data kept"
         fi
@@ -1452,8 +1465,11 @@ install_all() {
     echo ""
     echo -e "  ${BOLD}First time using Open Web UI:${RESET}"
     echo -e "  ${DIM}1. Open http://localhost:${OPEN_WEBUI_PORT} in your browser${RESET}"
+    echo -e "  ${YELLOW}   ⚠  First startup takes 1-2 minutes — Open WebUI downloads${RESET}"
+    echo -e "  ${YELLOW}      embedding models on first run. Subsequent starts are instant.${RESET}"
     echo -e "  ${DIM}2. Create an admin account${RESET}"
-    echo -e "  ${DIM}3. Select model: ${SELECTED_MODEL}${RESET}"
+    echo -e "  ${DIM}3. Go to option 2 in the main menu to download a local LLM model${RESET}"
+    echo -e "  ${DIM}   or connect an API provider (OpenAI, Anthropic, etc.) in Settings${RESET}"
     echo -e "  ${DIM}4. Start chatting!${RESET}"
     echo ""
     echo -e "  ${BOLD}Optional: OpenCode CLI tool${RESET}"
@@ -1509,6 +1525,117 @@ menu_uninstall() {
     done
 }
 
+# ── Install LM Studio ─────────────────────────────────────────────────────────
+install_lmstudio() {
+    step "Installing LM Studio (optional desktop app)"
+
+    # Require a graphical environment
+    if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+        err "No graphical environment detected (DISPLAY and WAYLAND_DISPLAY are unset)"
+        info "LM Studio requires a desktop environment to run"
+        return 1
+    fi
+
+    # Only x86_64 is supported
+    local arch
+    arch=$(uname -m)
+    if [ "$arch" != "x86_64" ]; then
+        err "LM Studio only supports x86_64 (detected: $arch)"
+        return 1
+    fi
+
+    if [ -f "${AI_BASE_DIR}/lmstudio/LMStudio.AppImage" ]; then
+        ok "LM Studio is already installed"
+        return 0
+    fi
+
+    # Install libfuse2 dependency (required by AppImage)
+    if ! dpkg -s libfuse2 &>/dev/null 2>&1; then
+        info "Installing libfuse2 (required by AppImage)..."
+        apt-get install -y libfuse2 &>/dev/null
+        ok "libfuse2 installed"
+    fi
+
+    # Download AppImage
+    info "Downloading LM Studio AppImage..."
+    sudo -u "$local_user" bash -c "mkdir -p \"${AI_BASE_DIR}/lmstudio\""
+    if ! curl -fL --progress-bar "https://lmstudio.ai/download/latest/linux/x64?format=AppImage" -o "${AI_BASE_DIR}/lmstudio/LMStudio.AppImage"; then
+        err "Failed to download LM Studio"
+        rm -f "${AI_BASE_DIR}/lmstudio/LMStudio.AppImage"
+        return 1
+    fi
+    chown "$local_user" "${AI_BASE_DIR}/lmstudio/LMStudio.AppImage"
+    chmod +x "${AI_BASE_DIR}/lmstudio/LMStudio.AppImage"
+
+    # Create desktop entry for the local user
+    local desktop_dir="/home/$local_user/.local/share/applications"
+    mkdir -p "$desktop_dir"
+    cat > "$desktop_dir/lmstudio.desktop" << EOF
+[Desktop Entry]
+Name=LM Studio
+Comment=Run large language models locally
+Exec=${AI_BASE_DIR}/lmstudio/LMStudio.AppImage --no-sandbox
+Icon=lmstudio
+Terminal=false
+Type=Application
+Categories=Development;Science;
+EOF
+    chown "$local_user" "$desktop_dir/lmstudio.desktop"
+
+    # Create launcher in system PATH
+    cat > /usr/local/bin/lmstudio << EOF
+#!/bin/bash
+exec ${AI_BASE_DIR}/lmstudio/LMStudio.AppImage --no-sandbox "\$@"
+EOF
+    chmod +x /usr/local/bin/lmstudio
+
+    ok "LM Studio installed"
+    info "Launch with: lmstudio  or from your application menu"
+}
+
+# ── Uninstall LM Studio ───────────────────────────────────────────────────────
+uninstall_lmstudio() {
+    step "Uninstalling LM Studio"
+
+    local found=false
+    [ -f "${AI_BASE_DIR}/lmstudio/LMStudio.AppImage" ]                                && found=true
+    [ -f "/usr/local/bin/lmstudio" ]                                        && found=true
+    [ -f "/home/$local_user/.local/share/applications/lmstudio.desktop" ]   && found=true
+
+    if [ "$found" = false ]; then
+        info "LM Studio is not installed — nothing to do"
+        return 0
+    fi
+
+    rm -f "${AI_BASE_DIR}/lmstudio/LMStudio.AppImage"
+    rmdir "${AI_BASE_DIR}/lmstudio" 2>/dev/null || true
+    rm -f "/usr/local/bin/lmstudio"
+    rm -f "/home/$local_user/.local/share/applications/lmstudio.desktop"
+
+    ok "LM Studio uninstalled"
+}
+
+# ── LM Studio menu ────────────────────────────────────────────────────────────
+menu_lmstudio() {
+    header
+    echo -e "  LM Studio is an optional desktop app for running LLMs locally"
+    echo -e "  It is NOT part of the Docker stack and runs natively on your system"
+    echo ""
+    echo -e "  ${WHITE}1)${RESET}  Install LM Studio"
+    echo -e "  ${WHITE}2)${RESET}  Uninstall LM Studio"
+    echo -e "  ${WHITE}0)${RESET}  Back to main menu"
+    line
+    echo -n "  → Option: "
+    read -r opt
+    case "$opt" in
+        1)  install_lmstudio ;;
+        2)  uninstall_lmstudio ;;
+        0)  return ;;
+        *)  warn "Invalid option" ;;
+    esac
+}
+
+
 # ── Main Menu ──────────────────────────────────────────────────────────────────
 menu_main() {
     while true; do
@@ -1520,8 +1647,9 @@ menu_main() {
         echo -e "  ${WHITE}3)${RESET}  Update Components"
         echo -e "  ${WHITE}4)${RESET}  Uninstall Stack Components"
         echo -e "  ${WHITE}5)${RESET}  Install/Uninstall OpenCode (optional CLI tool)"
-        echo -e "  ${WHITE}6)${RESET}  Status"
-        echo -e "  ${WHITE}7)${RESET}  View logs"
+        echo -e "  ${WHITE}6)${RESET}  Install/Uninstall LM Studio (optional desktop app)"
+        echo -e "  ${WHITE}7)${RESET}  Status"
+        echo -e "  ${WHITE}8)${RESET}  View logs"
         echo -e "  ${WHITE}0)${RESET}  Exit"
         echo ""
         line
@@ -1534,8 +1662,9 @@ menu_main() {
             3)  update_components; pause ;;
             4)  menu_uninstall; pause ;;
             5)  menu_opencode; pause ;;
-            6)  detect_gpu; status_all; pause ;;
-            7)  if [ -f "${AI_BASE_DIR}/docker-compose.yml" ]; then
+            6)  menu_lmstudio; pause ;;
+            7)  detect_gpu; status_all; pause ;;
+            8)  if [ -f "${AI_BASE_DIR}/docker-compose.yml" ]; then
                     cd "${AI_BASE_DIR}" && docker compose logs | less -R
                 fi
                 pause ;;

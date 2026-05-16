@@ -36,7 +36,7 @@ Tested on: Ubuntu 24.04.x LTS x64
 
 #### AI
 
-- [AI Stack Manager - Local LLM installer (Docker + Ollama + Open WebUI, with optional OpenCode support)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/aistack.sh)
+- [AI Stack Manager (Docker: Portainer + Ollama + Open WebUI + LLM Models | Opcional: OpenCode + LM Studio)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/aistack.sh)
 
 #### Containers & Virtualization
 

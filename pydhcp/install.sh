@@ -9,6 +9,7 @@
 #
 # Usage:
 #   sudo bash install.sh           # install
+#   sudo bash install.sh --update  # update code only (preserves user config, backs up replaced files to /etc/pydhcp.bak/)
 #   sudo bash install.sh --remove  # uninstall
 #
 ################################################################################
@@ -50,6 +51,7 @@ if [[ "${1:-}" == "--remove" ]]; then
     rm -f "$SERVICE_FILE"
     rm -f "$INIT_FILE"
     rm -f "$LOG_FILE"
+    rm -f /etc/logrotate.d/pydhcpd
 
     info "Removing $INSTALL_DIR ..."
     [[ "$INSTALL_DIR" == "/etc/pydhcp" ]] || error "Unexpected install dir: $INSTALL_DIR"
@@ -62,6 +64,67 @@ if [[ "${1:-}" == "--remove" ]]; then
     systemctl daemon-reload
 
     success "pydhcpd has been removed from the system."
+    exit 0
+fi
+
+# ─── UPDATE ──────────────────────────────────────────────────────────────────
+if [[ "${1:-}" == "--update" ]]; then
+    if [ ! -d "$INSTALL_DIR" ]; then
+        error "No existing installation found in $INSTALL_DIR. Run without --update to install first."
+    fi
+
+    BACKUP_DIR="/etc/pydhcp.bak/$(date +%Y%m%d_%H%M%S)"
+    info "Creating backup in $BACKUP_DIR ..."
+    mkdir -p "$BACKUP_DIR"
+    for f in pydhcpd.py tools/pyleases.sh tools/pywebmin.sh; do
+        [ -f "$INSTALL_DIR/$f" ] && cp "$INSTALL_DIR/$f" "$BACKUP_DIR/$(basename $f)"
+    done
+    [ -f "$SERVICE_FILE" ] && cp "$SERVICE_FILE" "$BACKUP_DIR/pydhcpd.service"
+    [ -f "$INIT_FILE"    ] && cp "$INIT_FILE"    "$BACKUP_DIR/pydhcpd.init"
+
+    info "Stopping pydhcpd service..."
+    systemctl stop pydhcpd 2>/dev/null || true
+
+    info "Updating pydhcpd.py ..."
+    cp "$SCRIPT_DIR/pydhcpd.py" "$INSTALL_DIR/pydhcpd.py"
+    chown root:root "$INSTALL_DIR/pydhcpd.py"
+    chmod 755 "$INSTALL_DIR/pydhcpd.py"
+
+    info "Updating systemd unit ..."
+    cp "$SCRIPT_DIR/pydhcpd.service" "$SERVICE_FILE"
+    chown root:root "$SERVICE_FILE"
+    chmod 644 "$SERVICE_FILE"
+
+    info "Updating init.d wrapper ..."
+    cp "$SCRIPT_DIR/pydhcpd.init" "$INIT_FILE"
+    chown root:root "$INIT_FILE"
+    chmod 755 "$INIT_FILE"
+
+    if [ -f "$SCRIPT_DIR/tools/pyleases.sh" ]; then
+        info "Updating tools/pyleases.sh ..."
+        cp "$SCRIPT_DIR/tools/pyleases.sh" "$INSTALL_DIR/tools/pyleases.sh"
+        chown root:root "$INSTALL_DIR/tools/pyleases.sh"
+        chmod 755 "$INSTALL_DIR/tools/pyleases.sh"
+    fi
+
+    if [ -f "$SCRIPT_DIR/tools/pywebmin.sh" ]; then
+        info "Updating tools/pywebmin.sh ..."
+        cp "$SCRIPT_DIR/tools/pywebmin.sh" "$INSTALL_DIR/tools/pywebmin.sh"
+        chown root:root "$INSTALL_DIR/tools/pywebmin.sh"
+        chmod 755 "$INSTALL_DIR/tools/pywebmin.sh"
+    fi
+
+    systemctl daemon-reload
+    if ! systemctl start pydhcpd; then
+        error "pydhcpd failed to start after update. Check logs with: journalctl -u pydhcpd -n 50"
+    fi
+
+    echo ""
+    success "pydhcpd updated. Backup saved in $BACKUP_DIR"
+    info "  $INSTALL_DIR/pydhcpd.conf    — unchanged"
+    info "  $INSTALL_DIR/pydhcpd.defaults — unchanged"
+    info "  $INSTALL_DIR/pydhcpd.leases  — unchanged"
+    echo ""
     exit 0
 fi
 
@@ -191,6 +254,10 @@ sed -i "s|range [0-9.]* [0-9.]*;|range ${NET_BASE}.${POOL_START} ${NET_BASE}.${P
 sed -i "s|SERVER_IP|${SERVER_IP}|g" "$INSTALL_DIR/pydhcpd.conf"
 info "Network parameters set in pydhcpd.conf"
 
+# Re-apply permissions after sed edits
+chown root:"$SYSTEM_USER" "$INSTALL_DIR/pydhcpd.conf"
+chmod 640 "$INSTALL_DIR/pydhcpd.conf"
+
 # Initialize empty leases file if not present
 if [ ! -f "$INSTALL_DIR/pydhcpd.leases" ]; then
     info "Creating empty pydhcpd.leases ..."
@@ -198,6 +265,26 @@ if [ ! -f "$INSTALL_DIR/pydhcpd.leases" ]; then
     chown "$SYSTEM_USER":"$SYSTEM_USER" "$INSTALL_DIR/pydhcpd.leases"
     chmod 640 "$INSTALL_DIR/pydhcpd.leases"
 fi
+
+# Pre-create pid file with correct permissions
+touch "$INSTALL_DIR/pydhcpd.pid"
+chown "$SYSTEM_USER":"$SYSTEM_USER" "$INSTALL_DIR/pydhcpd.pid"
+chmod 640 "$INSTALL_DIR/pydhcpd.pid"
+
+# Deploy tools
+info "Creating $INSTALL_DIR/tools ..."
+mkdir -p "$INSTALL_DIR/tools"
+chown root:root "$INSTALL_DIR/tools"
+chmod 755 "$INSTALL_DIR/tools"
+
+for tool in pyleases.sh pywebmin.sh; do
+    if [ -f "$SCRIPT_DIR/tools/$tool" ]; then
+        info "Deploying tools/$tool ..."
+        cp "$SCRIPT_DIR/tools/$tool" "$INSTALL_DIR/tools/$tool"
+        chown root:root "$INSTALL_DIR/tools/$tool"
+        chmod 755 "$INSTALL_DIR/tools/$tool"
+    fi
+done
 
 # Deploy systemd service
 info "Deploying systemd unit ..."
@@ -217,6 +304,25 @@ if [ ! -f "$LOG_FILE" ]; then
     chown "$SYSTEM_USER":"$SYSTEM_USER" "$LOG_FILE"
     chmod 640 "$LOG_FILE"
 fi
+
+# Deploy logrotate config
+info "Deploying logrotate config ..."
+cat > /etc/logrotate.d/pydhcpd << 'EOF'
+/var/log/pydhcpd.log {
+    su pydhcpd pydhcpd
+    weekly
+    rotate 4
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 pydhcpd pydhcpd
+    postrotate
+        systemctl reload pydhcpd > /dev/null 2>&1 || true
+    endscript
+}
+EOF
+chmod 644 /etc/logrotate.d/pydhcpd
 
 # Enable and start service
 info "Enabling and starting pydhcpd ..."

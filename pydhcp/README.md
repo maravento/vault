@@ -15,7 +15,7 @@
   </tr>
 </table>
 
-## PROJECT ORIGIN | ORIGEN DEL PROYECTO
+## PROJECT ORIGIN
 
 ---
 
@@ -34,7 +34,7 @@
 | :--------------: | :--------------: | :------: |
 | [ISC DHCP](https://github.com/isc-projects/dhcp) | 4.4.3-P1-4ubuntu2 | 2022 |
 
-## Scope | Alcance
+## Scope
 
 ---
 
@@ -89,7 +89,7 @@
   </tr>
 </table>
 
-## Repository Structure | Estructura del Repositorio
+## Repository Structure
 
 ---
 
@@ -122,19 +122,19 @@ pydhcp/
 /etc/pydhcp/pydhcpd.pid      # PID file
 ```
 
-## Requirements | Requisitos
+## Requirements
 
 ---
 
-- Ubuntu 20.04 / 22.04 / 24.04 x64
+- Ubuntu 24.04 x64
 - Python 3.8+
 - systemd
 
-## HOW TO USE | CÓMO USAR
+## HOW TO USE
 
 ---
 
-### Install | Instalar
+### Install
 
 <table>
   <tr>
@@ -156,13 +156,40 @@ cd pydhcp
 sudo bash install.sh
 ```
 
-### Remove | Desinstalar
+### Update & Remove
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      To update or remove pydhcp, download the updated repository, enter the repository folder and run:
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Para actualizar o eliminar pydhcp, descargar el repositorio actualizado, ingresar a la carpeta del repositorio y ejecutar:
+    </td>
+  </tr>
+</table>
 
 ```bash
+cd pydhcp
+sudo bash install.sh --update
+# or
 sudo bash install.sh --remove
 ```
 
-### Configuration | Configuración
+| File | `--update` | `--remove` |
+|------|-----------|------------|
+| `pydhcpd.py` | ✅ overwritten | ✅ removed |
+| `pydhcpd.service` | ✅ overwritten | ✅ removed |
+| `pydhcpd.init` | ✅ overwritten | ✅ removed |
+| `tools/pyleases.sh` | ✅ overwritten | ✅ removed |
+| `tools/pywebmin.sh` | ✅ overwritten | ✅ removed |
+| `pydhcpd.conf` | ⛔ preserved | ✅ removed |
+| `pydhcpd.defaults` | ⛔ preserved | ✅ removed |
+| `pydhcpd.leases` | ⛔ preserved | ✅ removed |
+| `/var/log/pydhcpd.log` | ⛔ preserved | ✅ removed |
+| `/etc/logrotate.d/pydhcpd` | ⛔ preserved | ✅ removed |
+
+### Config
 
 <table>
   <tr>
@@ -214,18 +241,9 @@ sudo journalctl -u pydhcpd -f
 grep pydhcpd /var/log/syslog
 ```
 
-### Tools | Herramientas
+### Tools
 
-<table>
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      Available tools for extended DHCP management and administration.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      Herramientas disponibles para gestión y administración extendida del DHCP.
-    </td>
-  </tr>
-</table>
+---
 
 #### pyleases
 
@@ -280,7 +298,7 @@ sudo bash tools/pywebmin.sh install
 sudo bash tools/pywebmin.sh uninstall
 ```
 
-### DHCP Iptables Rules | Reglas Iptables DHCP
+### DHCP Iptables Rules
 
 <table>
   <tr>
@@ -303,7 +321,7 @@ iptables -A INPUT  -i $lan -p udp --sport 68 --dport 67 -j ACCEPT
 iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
 ```
 
-## Replacing isc-dhcp-server | Reemplazo de isc-dhcp-server
+## Replacing isc-dhcp-server
 
 ---
 
@@ -327,7 +345,58 @@ iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
 | `/etc/systemd/system/isc-dhcp-server.service` | `/etc/systemd/system/pydhcpd.service` |
 | `/etc/init.d/isc-dhcp-server` | `/etc/init.d/pydhcpd` |
 | `systemctl restart isc-dhcp-server` | `systemctl restart pydhcpd` |
-| Log: `no free leases` | Log: `No IP available for <MAC>` |
+
+### Logs
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Log output format differs between servers but the behavior is equivalent. The following examples show the three main scenarios.<br>
+      <em>Note: isc-dhcp-server shows the hostname starting from OFFER; pydhcpd shows it from DISCOVER onward.</em>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      El formato de log difiere entre servidores pero el comportamiento es equivalente. Los siguientes ejemplos muestran los tres escenarios principales.<br>
+      <em>Nota: isc-dhcp-server muestra el hostname a partir del OFFER; pydhcpd lo muestra desde el DISCOVER.</em>
+    </td>
+  </tr>
+</table>
+
+#### Path
+
+| Resource | isc-dhcp-server | pydhcpd |
+|----------|-----------------|---------|
+| Log file | `/var/log/syslog` | `/var/log/pydhcpd.log` |
+| Log rotation | `/etc/logrotate.d/rsyslog` | `/etc/logrotate.d/pydhcpd` |
+| journald | `journalctl -u isc-dhcp-server` | `journalctl -u pydhcpd` |
+
+#### Scenario
+
+| Scenario / Escenario | isc-dhcp-server | pydhcpd |
+|----------------------|-----------------|---------|
+| Authorized client with static IP (renewal) / Cliente autorizado con IP estática (renovación) | `DHCPREQUEST for 192.168.10.50 (192.168.10.2) from aa:bb:cc:dd:ee:ff via enp2s0`<br>`DHCPACK on 192.168.10.50 to aa:bb:cc:dd:ee:ff (FOO) via enp2s0` | `REQUEST from aa:bb:cc:dd:ee:ff (FOO)`<br>`ACK aa:bb:cc:dd:ee:ff → 192.168.10.50 (lease 2592000s)` |
+| Unknown client entering the block pool / Cliente desconocido ingresando al pool de bloqueo | `DHCPDISCOVER from bb:cc:dd:ee:ff:aa via enp2s0`<br>`DHCPOFFER on 192.168.10.230 to bb:cc:dd:ee:ff:aa (BAR) via enp2s0`<br>`DHCPREQUEST for 192.168.10.230 (192.168.10.2) from bb:cc:dd:ee:ff:aa (BAR) via enp2s0`<br>`DHCPACK on 192.168.10.230 to bb:cc:dd:ee:ff:aa (BAR) via enp2s0` | `DISCOVER from bb:cc:dd:ee:ff:aa (BAR)`<br>`OFFER bb:cc:dd:ee:ff:aa → 192.168.10.230`<br>`REQUEST from bb:cc:dd:ee:ff:aa (BAR)`<br>`ACK bb:cc:dd:ee:ff:aa → 192.168.10.230 (lease 120s)` |
+| Blocked client - pool exhausted / Cliente bloqueado - pool agotado | `DHCPDISCOVER from bb:cc:dd:ee:ff:aa via enp2s0: network 192.168.10.0/24: no free leases` | `DISCOVER from bb:cc:dd:ee:ff:aa (BAR)`<br>`No IP available for bb:cc:dd:ee:ff:aa` |
+
+#### Authoritative
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      When <code>authoritative;</code> is set, the server sends NAK to clients that request an IP assigned by a rogue DHCP server on the same network. The rogue may win the OFFER race, but the authoritative server destroys the lease by sending NAK to the REQUEST — forcing the client to rediscover and obtain the correct IP. This behavior is equivalent between isc-dhcp-server and pydhcpd.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Cuando se configura <code>authoritative;</code>, el servidor envía NAK a clientes que solicitan una IP asignada por un servidor DHCP no autorizado en la misma red. El rogue puede ganar la carrera del OFFER, pero el servidor autoritativo destruye el arrendamiento enviando NAK al REQUEST — forzando al cliente a redescubrir y obtener la IP correcta. Este comportamiento es equivalente entre isc-dhcp-server y pydhcpd.
+    </td>
+  </tr>
+</table>
+
+| | isc-dhcp-server (rogue) | pydhcpd (authoritative) |
+|--|-------------------------|-------------------------|
+| Rogue offers IP to client | `DHCPOFFER on 192.168.10.222 to bb:cc:dd:ee:ff:aa (BAR) via enp2s0` | — |
+| Client requests rogue IP | `DHCPREQUEST for 192.168.10.222 (192.168.10.249) from bb:cc:dd:ee:ff:aa (BAR) via enp2s0` | `REQUEST from bb:cc:dd:ee:ff:aa (BAR)` |
+| Rogue acknowledges | `DHCPACK on 192.168.10.222 to bb:cc:dd:ee:ff:aa (BAR) via enp2s0` | — |
+| Authoritative server rejects | — | `NAK → bb:cc:dd:ee:ff:aa` |
+| Client rediscovers | `DHCPDISCOVER from bb:cc:dd:ee:ff:aa via enp2s0` | `DISCOVER from bb:cc:dd:ee:ff:aa (BAR)` |
 
 ## DISCLAIMER
 

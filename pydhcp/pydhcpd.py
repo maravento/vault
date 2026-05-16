@@ -423,12 +423,8 @@ class LeaseManager:
         if static_ip:
             return static_ip, self.config.default_lease
 
-        # Blocked MAC → assign pool IP with short lease
+        # Blocked MAC → no IP, no lease (NAK will be sent by the caller)
         if self.is_blocked(mac):
-            ip = self._get_pool_ip(mac)
-            if ip:
-                self._create_lease(ip, mac, hostname, self.config.pool_def_lease)
-                return ip, self.config.pool_def_lease
             return None, None
 
         # Unknown MAC → goes to block pool (will be registered in blockdhcp by pyleases.sh)
@@ -781,6 +777,14 @@ class DHCPServer:
 
         requested = pkt["requested_ip"]
         xid_key   = pkt["xid"].hex()
+
+        # authoritative: NAK if client requests an IP that does not match its static reservation
+        if self.config.authoritative and requested and requested != "0.0.0.0":
+            static_ip = self.leases.get_static(mac)
+            if static_ip and requested != static_ip:
+                log.info("NAK (authoritative) → %s requested %s but assigned %s", mac, requested, static_ip)
+                self._send_nak(pkt, mac)
+                return
 
         if self.config.one_per_client:
             existing = self.leases.get_by_mac(mac)
