@@ -3,23 +3,25 @@
 #
 ################################################################################
 #
-# Update Clock
+# Hardware Clock Sync
+# Syncs the hardware clock (hwclock) with the system clock.
+# Intended to run at boot via cron (@reboot).
 #
 ################################################################################
 
-echo "Update Clock. Wait..."
+echo "Update HWClock. Wait..."
 printf "\n"
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# checking root
+## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
 
-# checking script execution
+# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
@@ -28,5 +30,5 @@ if ! flock -n 200; then
 fi
 
 hwclock -w
-echo "Clock Update: $(date)" | tee -a /var/log/syslog
+echo "HWClock Update: $(date)" | tee -a /var/log/syslog
 echo "Done"

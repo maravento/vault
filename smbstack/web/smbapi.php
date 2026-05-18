@@ -5,7 +5,7 @@
  */
 
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: http://localhost:3092');
 header('Access-Control-Allow-Methods: GET, POST');
 header('Access-Control-Allow-Headers: Content-Type');
 
@@ -73,18 +73,20 @@ class SambaLogReader {
         $logs = [];
         
         if (substr($filename, -3) === '.gz') {
-            // Compressed file
-            $lines = gzfile($filename);
-            if ($lines === false) {
+            // Compressed file - read line by line to avoid memory exhaustion
+            $gz = gzopen($filename, 'r');
+            if ($gz === false) {
                 throw new Exception("Cannot read gzip file: $filename");
             }
-            
-            foreach ($lines as $line) {
+            while (!gzeof($gz)) {
+                $line = gzgets($gz, 4096);
+                if ($line === false) break;
                 $parsed = $this->parseLine(trim($line));
                 if ($parsed) {
                     $logs[] = $parsed;
                 }
             }
+            gzclose($gz);
         } else {
             // Normal file - read from end (most recent logs)
             $file = new SplFileObject($filename);
@@ -139,7 +141,7 @@ try {
     $reader = new SambaLogReader(LOG_FILES);
     
     if ($action === 'getLogs') {
-        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 50000;
+        $limit = min((int)($_GET['limit'] ?? 50000), 50000);
         $logs = $reader->getLogs($limit);
         
         echo json_encode([
@@ -155,7 +157,7 @@ try {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => $e->getMessage()
+        'error' => 'Internal server error'
     ]);
 }
 ?>

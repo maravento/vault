@@ -544,6 +544,16 @@
     </div>
 
     <script>
+        function esc(s) {
+            if (s === null || s === undefined) return 'N/A';
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#x27;');
+        }
+
         let allLogs = [];
         let filteredLogs = [];
         let currentPage = 1;
@@ -662,7 +672,7 @@
             try {
                 tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading records...</td></tr>';
 
-                const response = await fetch('/smbapi.php?action=getLogs&limit=50000');
+                const response = await fetch('/audit/smbapi.php?action=getLogs&limit=50000');
                 
                 if (!response.ok) {
                     throw new Error('Failed to load logs');
@@ -685,7 +695,7 @@
                 
             } catch (error) {
                 console.error('Error:', error);
-                tbody.innerHTML = '<tr><td colspan="5" class="no-data">Failed to load logs: ' + error.message + '</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="no-data">Failed to load logs: ' + esc(error.message) + '</td></tr>';
             }
         }
 
@@ -759,10 +769,10 @@
             tbody.innerHTML = pageLogs.map(log => `
                 <tr>
                     <td>${formatTimestamp(log.timestamp) || 'N/A'}</td>
-                    <td>${log.ip || 'N/A'}</td>
-                    <td>${log.share || 'N/A'}</td>
-                    <td><span class="badge ${getActionClass(log.action)}">${log.action || 'N/A'}</span></td>
-                    <td title="${log.file || ''}">${log.file ? (log.file.length > 200 ? log.file.substring(0, 200) + '...' : log.file) : 'N/A'}</td>
+                    <td>${esc(log.ip)}</td>
+                    <td>${esc(log.share)}</td>
+                    <td><span class="badge ${getActionClass(log.action)}">${esc(log.action)}</span></td>
+                    <td title="${esc(log.file)}">${log.file ? esc(log.file.length > 200 ? log.file.substring(0, 200) + '...' : log.file) : 'N/A'}</td>
                 </tr>
             `).join('');
         }
@@ -856,13 +866,6 @@
         function exportPDF() {
 
             // helper: escape HTML in file paths
-            function esc(s) {
-                return (s || 'N/A').toString()
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;');
-            }
-
             if (filteredLogs.length === 0) {
                 alert('No records to export');
                 return;

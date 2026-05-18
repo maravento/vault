@@ -1,0 +1,594 @@
+#!/bin/bash
+# maravento.com
+#
+################################################################################
+#
+# smbstack - Samba with Shared Folder, Recycle Bin and Audit
+# https://github.com/maravento/vault/tree/master/smbstack
+#
+################################################################################
+
+# checking root
+if [ "$(id -u)" != "0" ]; then
+    echo "ERROR: This script must be run as root"
+    exit 1
+fi
+
+# checking script execution
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    echo "Script $(basename "$0") is already running"
+    exit 1
+fi
+
+### PATHS
+SCRIPT_DIR="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
+CONF_DIR="$SCRIPT_DIR/conf"
+WEB_DIR="$SCRIPT_DIR/web"
+TOOLS_DIR="$SCRIPT_DIR/tools"
+SMBSTACK_WWW="/var/www/smbstack"
+SMBSTACK_WEB="$SMBSTACK_WWW/web"
+SMBSTACK_TOOLS="$SMBSTACK_WWW/tools"
+SMBSTACK_ENV="$SMBSTACK_WWW/smbstack.env"
+
+### LOCAL USER (multi-strategy detection with validation)
+detect_user() {
+    local_user=""
+    local_user=$(who | awk '/\(:0\)/{print $1; exit}')
+    [ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
+    [ -z "$local_user" ] && local_user="${SUDO_USER:-}"
+    [ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
+    [ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
+    if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
+        echo "ERROR: Cannot determine a valid local user"
+        exit 1
+    fi
+    echo "Using local user: $local_user"
+}
+
+### SHARED FOLDER SETUP
+select_shared_folder() {
+    echo ""
+    echo "Shared folder setup"
+    echo "-------------------"
+    while true; do
+        read -p "Enter shared folder name (eng: shared / esp: compartida): " SHARED_NAME
+        if [ -z "$SHARED_NAME" ]; then
+            echo "ERROR: Folder name cannot be empty"
+        elif [[ "$SHARED_NAME" =~ [^a-zA-Z0-9_-] ]]; then
+            echo "ERROR: Folder name can only contain letters, numbers, hyphens and underscores"
+            SHARED_NAME=""
+        else
+            break
+        fi
+    done
+    SHARED_PATH="/home/$local_user/$SHARED_NAME"
+
+    mkdir -p "$SHARED_PATH"
+    chown -R "$local_user":sambashare "$SHARED_PATH"
+    chmod 755 "$SHARED_PATH"
+    mkdir -p "$SHARED_PATH/DEMO"
+    echo "this is a demo file" > "$SHARED_PATH/DEMO/demo.txt"
+
+    for dir in $(find "$SHARED_PATH" -mindepth 1 -maxdepth 1 -type d); do
+        chown "$local_user":sambashare "$dir"
+        chmod 2775 "$dir"
+    done
+    find "$SHARED_PATH" -type f -exec chmod 666 {} \;
+
+    # allow www-data to write (needed for recycle bin via browser)
+    setfacl -m u:www-data:rwx "$SHARED_PATH"
+    setfacl -d -m u:www-data:rwx "$SHARED_PATH"
+
+    echo "Shared folder: $SHARED_PATH"
+    echo ""
+}
+
+### INSTALL
+do_install() {
+    detect_user
+
+    # dependency check
+    if systemctl is-active --quiet nginx; then
+        echo "ERROR: nginx is running. Disable it first: systemctl stop nginx"
+        exit 1
+    fi
+
+    for cmd in apache2 a2ensite a2dissite a2enmod htpasswd php; do
+        if ! command -v "$cmd" &>/dev/null; then
+            echo "ERROR: $cmd not found. Run first:"
+            echo "  apt-get install -y apache2 apache2-utils libapache2-mod-php"
+            echo "  apt-get install -y --reinstall apache2-doc"
+            exit 1
+        fi
+    done
+
+    if ! systemctl is-active --quiet apache2; then
+        echo "ERROR: apache2 is not running. Start it first: systemctl start apache2"
+        exit 1
+    fi
+
+    if ! command -v rsyslogd &>/dev/null; then
+        echo "ERROR: rsyslog not found. Install it first: apt-get install -y rsyslog"
+        exit 1
+    fi
+
+    if ! systemctl is-active --quiet rsyslog; then
+        echo "ERROR: rsyslog is not running. Start it first: systemctl start rsyslog"
+        exit 1
+    fi
+
+    if ! command -v logrotate &>/dev/null; then
+        echo "ERROR: logrotate not found. Install it first: apt-get install -y logrotate"
+        exit 1
+    fi
+
+    # enable required apache modules
+    a2enmod -q headers mime rewrite
+
+    select_shared_folder
+
+    # samba packages
+    apt-get install -y samba samba-common samba-common-bin smbclient winbind cifs-utils
+
+    systemctl enable smbd.service
+    systemctl enable winbind.service
+
+    groupadd -f sambashare
+    usermod -aG sambashare "$local_user"
+
+    mkdir -p /var/lib/samba/usershares
+    chmod 1775 /var/lib/samba/usershares/
+    mkdir -p /var/log/samba
+
+    cp -f /lib/systemd/system/smbd.service{,.bak} &>/dev/null
+    sed -i 's/ \$SMBDOPTIONS//' /lib/systemd/system/smbd.service
+
+    # samba web viewer and tools
+    touch /var/log/samba/log.samba /var/log/samba/log.audit
+    chown root:adm /var/log/samba/log.samba /var/log/samba/log.audit
+    chmod 640 /var/log/samba/log.samba /var/log/samba/log.audit
+
+    mkdir -p "$SMBSTACK_WEB"
+    cp -f "$WEB_DIR/smbaudit.html" "$SMBSTACK_WEB/"
+    cp -f "$WEB_DIR/smbapi.php" "$SMBSTACK_WEB/"
+    cp -f "$WEB_DIR/smbaudit-diagnostic.php" "$SMBSTACK_WEB/"
+    cp -f "$WEB_DIR/shared.php" "$SMBSTACK_WEB/"
+    chmod -R 755 "$SMBSTACK_WEB"
+    chown -R www-data:www-data "$SMBSTACK_WEB"
+
+    # apache vhosts (both in smbweb.conf)
+    cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
+    grep -qxF "Listen 0.0.0.0:3092" /etc/apache2/ports.conf || echo "Listen 0.0.0.0:3092" | tee -a /etc/apache2/ports.conf
+    cp -f "$WEB_DIR/smbweb.conf" /etc/apache2/sites-available/smbweb.conf
+    usermod -a -G sambashare www-data
+    a2ensite -q smbweb.conf
+
+    # replace placeholders in deployed files (not in repo)
+    for f in \
+        /etc/apache2/sites-available/smbweb.conf \
+        /etc/samba/smb.conf \
+        /etc/rsyslog.d/fullaudit.conf \
+        "$SMBSTACK_WEB/smbaudit.html" \
+        "$SMBSTACK_WEB/smbapi.php" \
+        "$SMBSTACK_WEB/smbaudit-diagnostic.php" \
+        "$SMBSTACK_WEB/shared.php"; do
+        [ -f "$f" ] || continue
+        sed -i "s|your_user|$local_user|g" "$f"
+        sed -i "s|compartida|$SHARED_NAME|g" "$f"
+    done
+
+    # logrotate
+    cp -f /etc/logrotate.d/samba{,.bak} &>/dev/null
+    cat > /etc/logrotate.d/samba <<'EOF'
+/var/log/samba/log.smbd {
+    weekly
+    missingok
+    rotate 7
+    postrotate
+        systemctl reload smbd > /dev/null
+    endscript
+    compress
+    notifempty
+}
+/var/log/samba/log.audit {
+    weekly
+    missingok
+    rotate 7
+    postrotate
+        systemctl restart rsyslog > /dev/null 2>&1 || true
+    endscript
+    compress
+    notifempty
+}
+/var/log/samba/log.samba {
+    weekly
+    missingok
+    rotate 7
+    postrotate
+        systemctl reload smbd > /dev/null || true
+    endscript
+    compress
+    notifempty
+}
+EOF
+
+    # smb.conf
+    configure_smb_conf() {
+        while true; do
+            read -p "Enter Samba server IP/network (e.g. 192.168.1.0/24): " SMB_NET
+            if [ -z "$SMB_NET" ]; then
+                echo "ERROR: Network cannot be empty"
+            elif ! [[ "$SMB_NET" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$ ]]; then
+                echo "ERROR: Invalid format. Expected x.x.x.x/xx (e.g. 192.168.1.0/24)"
+                SMB_NET=""
+            else
+                break
+            fi
+        done
+        echo "Available interfaces:"
+        ip -o link show | awk -F': ' '{print $2}' | grep -v '^lo$' | sed 's/^/  /'
+        while true; do
+            read -p "Enter network interface: " SMB_IFACE
+            if [ -z "$SMB_IFACE" ]; then
+                echo "ERROR: Interface cannot be empty"
+            elif ! ip link show "$SMB_IFACE" &>/dev/null; then
+                echo "ERROR: Interface $SMB_IFACE not found"
+                SMB_IFACE=""
+            else
+                break
+            fi
+        done
+        sed -i "s|interfaces = .*|interfaces = 127.0.0.0/8 $SMB_NET $SMB_IFACE|" /etc/samba/smb.conf
+        echo "interfaces set to: 127.0.0.0/8 $SMB_NET $SMB_IFACE"
+    }
+
+    if [ -f /etc/samba/smb.conf ]; then
+        while true; do
+            read -p "smb.conf already exists. Overwrite? (y/n): " ow
+            case "$ow" in
+                [Yy])
+                    cp -f /etc/samba/smb.conf{,.bak}
+                    echo "Backup saved: /etc/samba/smb.conf.bak"
+                    cp -f "$CONF_DIR/smb.conf" /etc/samba/smb.conf
+                    configure_smb_conf
+                    break
+                    ;;
+                [Nn])
+                    echo "Skipping smb.conf"
+                    break
+                    ;;
+                *)
+                    echo "ERROR: Answer y or n"
+                    ;;
+            esac
+        done
+    else
+        cp -f "$CONF_DIR/smb.conf" /etc/samba/smb.conf
+        configure_smb_conf
+    fi
+
+    # rsyslog
+    cp -f /etc/rsyslog.conf{,.bak} &>/dev/null
+    sed -i -E 's/^(\s*(\$FileOwner|\$FileGroup|\$FileCreateMode|\$DirCreateMode|\$Umask|\$PrivDropToUser|\$PrivDropToGroup)\b.*)/#\1/' /etc/rsyslog.conf
+    cp -f "$CONF_DIR/fullaudit.conf" /etc/rsyslog.d/fullaudit.conf
+    chmod 644 /etc/rsyslog.d/fullaudit.conf
+    chown root:root /etc/rsyslog.d/fullaudit.conf
+    usermod -a -G adm www-data
+
+    cp -f /etc/logrotate.d/rsyslog{,.bak} &>/dev/null
+    sed -i '/sharedscripts/a \    create 0644 syslog adm' /etc/logrotate.d/rsyslog
+    sed -i '/^{$/a \	su syslog adm' /etc/logrotate.d/rsyslog
+
+    logrotate_out=$(logrotate -f /etc/logrotate.d/samba 2>&1)
+    if echo "$logrotate_out" | grep -qi "error"; then
+        echo "WARNING: logrotate error"
+        echo "$logrotate_out"
+    fi
+
+    # cron: recycle bin monthly cleanup
+    (crontab -l 2>/dev/null; echo "@monthly find $SHARED_PATH/recycle/* -mtime +7 -exec rm -rf \"{}\" \; >/dev/null") | crontab -
+
+    # service watchdog
+    mkdir -p "$SMBSTACK_TOOLS"
+    cp -f "$TOOLS_DIR"/*.sh "$SMBSTACK_TOOLS/"
+    chmod +x "$SMBSTACK_TOOLS"/*.sh
+    # cron: service watchdog at reboot
+    (crontab -l 2>/dev/null; echo "@reboot $SMBSTACK_TOOLS/smbload.sh") | sort -u | crontab -
+
+    # netbios support (disabled by default)
+    while true; do
+        read -p "Enable NetBIOS support? (not recommended) (y/n): " netbios_ans
+        case "$netbios_ans" in
+            [Yy]|[Nn]) break ;;
+            *) echo "ERROR: Answer y or n" ;;
+        esac
+    done
+    case "$netbios_ans" in
+        [Yy]*)
+            cp -f /etc/samba/smb.conf{,.bak} &>/dev/null
+            sed -i 's/^\s*disable netbios\s*=.*/   disable netbios = no/' /etc/samba/smb.conf
+            sed -i "s/^;\s*netbios name\s*=.*/   netbios name = $local_user/" /etc/samba/smb.conf
+            cat >> /etc/logrotate.d/samba <<'NMBD'
+/var/log/samba/log.nmbd {
+    weekly
+    missingok
+    rotate 7
+    postrotate
+        systemctl reload nmbd 2>/dev/null || true
+    endscript
+    compress
+    notifempty
+}
+NMBD
+            cat >> "$SMBSTACK_TOOLS/smbload.sh" <<'NMBD'
+
+# Samba Service (nmbd)
+if [[ $(ps -A | grep nmbd) != "" ]]; then
+    echo "nmbd: ONLINE"
+else
+    for pid in $(ps -ef | grep "nmbd" | awk '{print $2}'); do kill -9 $pid &>/dev/null; done
+    sleep $SLEEP_TIME
+    systemctl start nmbd.service
+    echo "nmbd start: $(date)" | tee -a /var/log/syslog
+fi
+NMBD
+            systemctl enable --now nmbd.service
+            echo "NetBIOS enabled"
+            ;;
+        *)
+            echo "NetBIOS disabled"
+            ;;
+    esac
+
+    systemctl daemon-reload
+    systemctl restart smbd winbind rsyslog apache2
+
+    # samba user
+    if pdbedit -L -u "$local_user" 2>/dev/null | grep -q ":"; then
+        SMBNAME="$local_user"
+        echo "Samba user already exists: $SMBNAME"
+    else
+        while true; do
+            read -p "Enter Samba username [$local_user]: " SMBNAME
+            SMBNAME="${SMBNAME:-$local_user}"
+            if [ -z "$SMBNAME" ]; then
+                echo "ERROR: Samba username cannot be empty"
+            elif ! id "$SMBNAME" &>/dev/null; then
+                echo "ERROR: User $SMBNAME does not exist on the system"
+            else
+                smbpasswd -a "$SMBNAME"
+                break
+            fi
+        done
+    fi
+
+    # save install config
+    cat > "$SMBSTACK_ENV" <<ENV
+LOCAL_USER="$local_user"
+SHARED_NAME="$SHARED_NAME"
+SHARED_PATH="$SHARED_PATH"
+SMB_NET="$SMB_NET"
+SMB_IFACE="$SMB_IFACE"
+SMBNAME="$SMBNAME"
+NETBIOS="${netbios_ans:-N}"
+ENV
+    chown root:www-data "$SMBSTACK_ENV"
+    chmod 640 "$SMBSTACK_ENV"
+
+    echo ""
+    echo "Audit log  : /var/log/samba/log.audit"
+    echo "Audit web  : http://localhost:3092/audit"
+    echo "Shared web : http://localhost:3092/shared"
+    echo "Shared dir : $SHARED_PATH"
+    echo "Tools dir  : $SMBSTACK_TOOLS"
+    echo "Env file   : $SMBSTACK_ENV"
+    echo "Check conf : testparm"
+    echo ""
+    echo "NOTE: The shared folder is independent of the Samba installer."
+    echo "      To remove it, you must do so manually: rm -rf $SHARED_PATH"
+    echo "      To use a custom path, edit smb.conf and smbweb.conf manually after install."
+    echo ""
+    echo "DONE"
+}
+
+### UPDATE
+do_update() {
+    if [ ! -f "$SMBSTACK_ENV" ]; then
+        echo "ERROR: smbstack is not installed."
+        exit 1
+    fi
+
+    # load saved config
+    while IFS= read -r line; do
+        [[ "$line" =~ ^[A-Z_]+=.* ]] && {
+            key="${line%%=*}"
+            val="${line#*=}"
+            val=$(echo "$val" | tr -d '"')
+            export "$key=$val"
+        }
+    done < "$SMBSTACK_ENV"
+    echo "Updating with config: user=$LOCAL_USER shared=$SHARED_PATH net=$SMB_NET iface=$SMB_IFACE"
+    echo ""
+
+    # conf files
+    for src in "$CONF_DIR"/*; do
+        [ -f "$src" ] || continue
+        fname="$(basename "$src")"
+        case "$fname" in
+            fullaudit.conf)
+                dst="/etc/rsyslog.d/$fname"
+                ;;
+            smb.conf)
+                dst="/etc/samba/smb.conf"
+                ;;
+            *)
+                continue
+                ;;
+        esac
+        [ -f "$dst" ] || continue
+        cp -f "$dst" "${dst}.bak" &>/dev/null
+        cp -f "$src" "$dst"
+        sed -i "s|your_user|$LOCAL_USER|g" "$dst"
+        sed -i "s|compartida|$SHARED_NAME|g" "$dst"
+        [ "$fname" = "smb.conf" ] && [ -n "$SMB_NET" ] && [ -n "$SMB_IFACE" ] && \
+            sed -i "s|interfaces = .*|interfaces = 127.0.0.0/8 $SMB_NET $SMB_IFACE|" "$dst"
+        echo "  Updated: $fname"
+    done
+
+    # web files
+    for src in "$WEB_DIR"/*; do
+        [ -f "$src" ] || continue
+        fname="$(basename "$src")"
+        case "$fname" in
+            smbweb.conf)
+                dst="/etc/apache2/sites-available/$fname"
+                ;;
+            smbaudit.html|smbapi.php|smbaudit-diagnostic.php|shared.php)
+                dst="$SMBSTACK_WEB/$fname"
+                ;;
+            *)
+                continue
+                ;;
+        esac
+        [ -f "$dst" ] || continue
+        cp -f "$dst" "${dst}.bak" &>/dev/null
+        cp -f "$src" "$dst"
+        sed -i "s|your_user|$LOCAL_USER|g" "$dst"
+        sed -i "s|compartida|$SHARED_NAME|g" "$dst"
+        echo "  Updated: $fname"
+    done
+
+    # tools
+    for f in "$TOOLS_DIR"/*.sh; do
+        [ -f "$f" ] || continue
+        fname="$(basename "$f")"
+        cp -f "$SMBSTACK_TOOLS/$fname" "$SMBSTACK_TOOLS/$fname.bak" &>/dev/null
+        cp -f "$f" "$SMBSTACK_TOOLS/$fname"
+        chmod +x "$SMBSTACK_TOOLS/$fname"
+        echo "  Updated: $fname"
+    done
+
+    systemctl daemon-reload
+    systemctl restart smbd winbind rsyslog apache2
+
+    echo ""
+    echo "DONE"
+}
+
+### UNINSTALL
+do_uninstall() {
+    # load samba username from env
+    if [ -f "$SMBSTACK_ENV" ]; then
+        SMBNAME=$(grep "^SMBNAME=" "$SMBSTACK_ENV" | cut -d= -f2 | tr -d '"')
+        if [ -n "$SMBNAME" ]; then
+            pdbedit -x "$SMBNAME" 2>/dev/null || true
+            echo "Samba user removed: $SMBNAME"
+        fi
+    fi
+
+    # apache sites
+    a2dissite -q smbweb.conf &>/dev/null
+    sed -i '/Listen 0.0.0.0:3092/d' /etc/apache2/ports.conf
+    rm -f /etc/apache2/sites-available/smbweb.conf
+
+    # project web directory
+    rm -rf "$SMBSTACK_WWW"
+
+    # rsyslog
+    rm -f /etc/rsyslog.d/fullaudit.conf
+    [ -f /etc/rsyslog.conf.bak ] && cp -f /etc/rsyslog.conf.bak /etc/rsyslog.conf
+
+    # logrotate
+    [ -f /etc/logrotate.d/samba.bak ] && cp -f /etc/logrotate.d/samba.bak /etc/logrotate.d/samba
+    [ -f /etc/logrotate.d/rsyslog.bak ] && cp -f /etc/logrotate.d/rsyslog.bak /etc/logrotate.d/rsyslog
+
+    # smb.conf
+    [ -f /etc/samba/smb.conf.bak ] && cp -f /etc/samba/smb.conf.bak /etc/samba/smb.conf
+
+    # smbd.service
+    [ -f /lib/systemd/system/smbd.service.bak ] && cp -f /lib/systemd/system/smbd.service.bak /lib/systemd/system/smbd.service
+
+    # cron entries
+    crontab -l 2>/dev/null | grep -v "recycle" | grep -v "smbload.sh" | crontab -
+
+    # samba packages
+    apt-get remove -y samba samba-common samba-common-bin smbclient winbind cifs-utils
+    apt-get autoremove -y
+
+    systemctl daemon-reload
+    systemctl restart apache2 rsyslog
+
+    echo "DONE"
+}
+
+### STATUS
+do_status() {
+    echo "=== Samba Services ==="
+    for svc in smbd winbind; do
+        if systemctl is-active --quiet "$svc"; then
+            echo "  $svc: RUNNING"
+        else
+            echo "  $svc: STOPPED"
+        fi
+    done
+
+    echo ""
+    echo "=== Apache Ports ==="
+    for port in 3092; do
+        if ss -tlnp | grep -q ":$port"; then
+            echo "  :$port OPEN"
+        else
+            echo "  :$port CLOSED"
+        fi
+    done
+
+    echo ""
+    echo "=== Audit Log ==="
+    if [ -f /var/log/samba/log.audit ]; then
+        echo "  Last 5 entries:"
+        tail -5 /var/log/samba/log.audit | sed 's/^/    /'
+    else
+        echo "  /var/log/samba/log.audit not found"
+    fi
+
+    echo ""
+    echo "=== smb.conf ==="
+    testparm -s 2>/dev/null | head -20 | sed 's/^/  /' || echo "  testparm not available"
+}
+
+### MENU
+show_menu() {
+    echo ""
+    echo "smbstack installer"
+    echo "------------------"
+    echo "  1) Install"
+    echo "  2) Update"
+    echo "  3) Uninstall"
+    echo "  4) Status"
+    echo "  5) Exit"
+    echo ""
+    read -p "Select option: " opt
+    case "$opt" in
+        1) do_install ;;
+        2) do_update ;;
+        3) do_uninstall ;;
+        4) do_status ;;
+        5) exit 0 ;;
+        *) echo "Invalid option"; show_menu ;;
+    esac
+}
+
+### ARGUMENT HANDLING
+case "${1:-}" in
+    --install)   do_install ;;
+    --update)    do_update ;;
+    --uninstall) do_uninstall ;;
+    --status)    do_status ;;
+    "")          show_menu ;;
+    *)
+        echo "Usage: $(basename "$0") [--install|--update|--uninstall|--status]"
+        exit 1
+        ;;
+esac

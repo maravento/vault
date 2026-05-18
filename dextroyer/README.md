@@ -1,6 +1,6 @@
 # [Dextroyer](https://www.maravento.com/p/dxt.html)
 
-[![status-deprecated](https://img.shields.io/badge/status-deprecated-red.svg)](https://www.maravento.com)
+[![status-deprecated](https://img.shields.io/badge/status-deprecated-red.svg)](https://github.com/maravento)
 
 <!-- markdownlint-disable MD033 -->
 

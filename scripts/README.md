@@ -1,6 +1,6 @@
 # [Scripts](https://www.maravento.com)
 
-[![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento/vault)
+[![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento)
 
 <!-- markdownlint-disable MD033 -->
 
@@ -64,15 +64,14 @@ Tested on: Ubuntu 24.04.x LTS x64
 - [Arpwatch (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arpwatch.sh)
 - [Check Bandwidth (Set Minimum download|upload Value)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bandwidth.sh)
 - [Internet Watchdog (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/watchdog.sh)
-- [IP Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ipkill.sh)
 - [Iperf3 Client](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/iperf3.sh)
-- [ISC DHCP Leases](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/iscleases.sh)
 - [Netplan Switch (install|uninstall|status|help)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/npswitch.sh)
 - [Port Kill (check port with: `sudo netstat -lnp | grep "port"`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/portkill.sh)
 - [Rustdesk Client (install|uninstall|update)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rustdesk.sh)
 
-#### Proxy
-
+#### Proxy & Firewall
+- [Ban IP (Block IPs via ipset/iptables from ulogd2 NFLOG log)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/banip.sh)
+- [IP Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ipkill.sh)
 - [Squid Analysis Tool](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/squidtool.sh)
 - [Squid-OpenSSL (ssl-bump)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/sslbump.sh)
 
@@ -90,6 +89,7 @@ Tested on: Ubuntu 24.04.x LTS x64
 - [Cleaner - Delete files (Thumbs.db, Zone.identifier, encryptable, etc.)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cleaner.sh)
 - [Disk Check (HDD/SSD/NVMe)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/diskcheck.sh)
 - [Drive Crypt (Cryptomator Encrypted Disk - mount|umount - to folder `/home/$USER/dcrypt`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/drivecrypt.sh)
+- [File Extensions Report (find files by extension in target folder)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/filereport.sh)
 - [FreeFileSync Update](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ffsupdate.sh)
 - [Gdrive (Mount | Umount - to folder `/home/$USER/gdrive`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/gdrive.sh)
 - [Mass Unzip with Pass](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/massunzip.sh)
@@ -106,9 +106,11 @@ Tested on: Ubuntu 24.04.x LTS x64
 - [Check Cron](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/checkcron.sh)
 - [Crypto Notify (Top 5)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cryptonotify.sh)
 - [Force Logrotate](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/logrotate.sh)
+- [Hardware Clock Sync](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/hwclock.sh)
 - [Kill Process By Name](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/pskill.sh)
 - [Kworker Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/kworker.sh)
 - [Limit processes with CPU Limit (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cpulimit.sh)
+- [Lock Scripts (Randomized delayed self-rescheduling via at)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/lock.sh)
 - [Realtek Linux drivers](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/realtekdrv.sh)
 - [Winpower UPS (install|remove|start|stop|status|restart)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/winpower.sh)
 
