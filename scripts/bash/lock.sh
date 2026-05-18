@@ -3,7 +3,9 @@
 #
 ################################################################################
 #
-# Lock Scripts
+# Lock
+# Schedules a randomized delayed re-execution of itself (1-3 min)
+# to prevent predictable script timing. Intended to run at boot via cron (@reboot).
 #
 ################################################################################
 

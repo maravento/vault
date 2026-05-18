@@ -1,6 +1,6 @@
 # [PyDHCP](https://github.com/maravento/vault/tree/master/pydhcp)
 
-[![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento/vault/tree/master/pydhcp)
+[![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento)
 
 <!-- markdownlint-disable MD033 -->
 
@@ -100,7 +100,7 @@ pydhcp/
 ├── pydhcpd.defaults    # Interface settings (replaces /etc/default/isc-dhcp-server)
 ├── pydhcpd.service     # systemd unit
 ├── pydhcpd.init        # init.d wrapper
-├── install.sh          # Installer / uninstaller
+├── pyinstall.sh        # Installer / uninstaller
 └── tools/
     ├── pyleases.sh     # Optional ACL and lease manager (see Tools section)
     └── pywebmin.sh     # Optional Webmin module installer (see Tools section)
@@ -148,12 +148,15 @@ pydhcp/
 </table>
 
 ```bash
+# Download
 sudo apt install -y python-is-python3
 wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
 chmod +x gitfolder.py
 python gitfolder.py https://github.com/maravento/vault/pydhcp
+
+# Install
 cd pydhcp
-sudo bash install.sh
+sudo bash pyinstall.sh
 ```
 
 ### Update & Remove
@@ -171,9 +174,9 @@ sudo bash install.sh
 
 ```bash
 cd pydhcp
-sudo bash install.sh --update
+sudo bash pyinstall.sh --update
 # or
-sudo bash install.sh --remove
+sudo bash pyinstall.sh --remove
 ```
 
 | File | `--update` | `--remove` |

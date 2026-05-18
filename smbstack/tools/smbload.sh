@@ -1,0 +1,35 @@
+#!/bin/bash
+# maravento.com
+#
+################################################################################
+#
+# smbstack - Service Watchdog
+# https://github.com/maravento/vault/smbstack
+#
+################################################################################
+
+SLEEP_TIME=5
+
+# Samba Service (smbd)
+if pgrep -x smbd > /dev/null; then
+    echo "smbd: ONLINE"
+else
+    pkill -x smbd &>/dev/null; sleep $SLEEP_TIME
+    if systemctl start smbd.service; then
+        echo "smbd start: $(date)" | tee -a /var/log/syslog
+    else
+        echo "smbd start FAILED: $(date)" | tee -a /var/log/syslog
+    fi
+fi
+
+# Samba Service (winbind)
+if pgrep -x winbindd > /dev/null; then
+    echo "winbind: ONLINE"
+else
+    pkill -x winbindd &>/dev/null; sleep $SLEEP_TIME
+    if systemctl start winbind.service; then
+        echo "winbind start: $(date)" | tee -a /var/log/syslog
+    else
+        echo "winbind start FAILED: $(date)" | tee -a /var/log/syslog
+    fi
+fi

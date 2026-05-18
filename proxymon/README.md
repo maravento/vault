@@ -1,6 +1,6 @@
 # [Proxy Monitor](https://www.maravento.com)
 
-[![status-release-candidate](https://img.shields.io/badge/status-release_candidate-skyblue.svg)](https://github.com/maravento/vault)
+[![status-release-candidate](https://img.shields.io/badge/status-release_candidate-skyblue.svg)](https://github.com/maravento)
 
 <!-- markdownlint-disable MD033 -->
 

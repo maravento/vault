@@ -1,6 +1,6 @@
 # [BlackUSB](https://www.maravento.com)
 
-[![status-frozen](https://img.shields.io/badge/status-frozen-blue.svg)](https://github.com/maravento/vault)
+[![status-frozen](https://img.shields.io/badge/status-frozen-blue.svg)](https://github.com/maravento)
 
 <!-- markdownlint-disable MD033 -->
 

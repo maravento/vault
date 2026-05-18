@@ -3,7 +3,7 @@
  * Samba Audit Log Diagnostic Tool
  * This script helps diagnose issues with log parsing
  * How to use
- * php /var/www/smbaudit/smbaudit-diagnostic.php
+ * php /var/www/smbstack/web/smbaudit-diagnostic.php
  */
 
 // Configuration

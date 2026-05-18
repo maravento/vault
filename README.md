@@ -1,7 +1,7 @@
 # [Vault](https://www.maravento.com)
 
-[![status-maintained](https://img.shields.io/badge/status-maintained-purple.svg)](https://github.com/maravento/vault)
-[![last commit](https://img.shields.io/github/last-commit/maravento/vault)](https://github.com/maravento/vault/)
+[![status-maintained](https://img.shields.io/badge/status-maintained-purple.svg)](https://github.com/maravento)
+[![last commit](https://img.shields.io/github/last-commit/maravento/vault)](https://github.com/maravento)
 [![Twitter Follow](https://img.shields.io/twitter/follow/maraventostudio.svg?style=social)](https://twitter.com/maraventostudio)
 
 <!-- markdownlint-disable MD033 -->
@@ -89,6 +89,7 @@ python gitfolder.py https://github.com/maravento/vault/project_name
 - [proxymon](https://github.com/maravento/vault/tree/master/proxymon)
 - [pydhcp](https://github.com/maravento/vault/tree/master/pydhcp)
 - [scripts](https://github.com/maravento/vault/tree/master/scripts)
+- [smbstack](https://github.com/maravento/vault/tree/master/smbstack)
 - [trek](https://github.com/maravento/vault/tree/master/trek)
 - [uniopos](https://github.com/maravento/vault/tree/master/uniopos)
 - [winzenity](https://github.com/maravento/vault/tree/master/winzenity)

@@ -43,15 +43,17 @@ sleep_time="5"
 
 ### SERVERS
 echo "DHCP & Iptables..."
-eval "sudo "/etc/scr/{iscleases,iptables}.sh";"
+/etc/pydhcp/tools/pyleases.sh
+/etc/scr/iptables.sh
 echo "Squid Reload..."
 systemctl reload squid.service
 echo "Apache2 Restart..."
 systemctl restart apache2.service
 echo "Samba Restart..."
 systemctl restart smbd.service
-echo "Netbios Restart..."
-systemctl restart nmbd.service
+# Optional: Netbios
+#echo "Netbios Restart..."
+#systemctl restart nmbd.service
 echo "Winbind Reload..."
 systemctl restart winbind.service
 echo "Rsyslog Reload..."

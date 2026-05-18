@@ -45,13 +45,13 @@ else
     echo "Webmin start: $(date)" | tee -a /var/log/syslog
 fi
 
-# DHCP service
-if pgrep -f "dhcpd" > /dev/null; then
+# PyDHCP service
+if pgrep -f "pydhcpd" > /dev/null; then
     echo -e "\nONLINE"
 else
     echo -e "\n"
-    /etc/scr/iscleases.sh
-    echo "DHCP start: $(date)" | tee -a /var/log/syslog
+    systemctl start pydhcp
+    echo "DHCP start: $(date)" | tee -a /var/log/pydhcpd.log
 fi
 
 # Apache2 service

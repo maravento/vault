@@ -14,7 +14,7 @@
 #
 #  Usage: ./aistack.sh [COMMAND]
 #  Commands:
-#  install | status | model | install-opencode | uninstall-opencode | uninstall
+#  install | status | model | install-opencode | update-opencode | uninstall-opencode | uninstall
 #  Without arguments, runs interactive menu
 #
 ################################################################################
@@ -817,6 +817,20 @@ WRAPPER
         chmod +x "$opencode_bin"
         # Symlink into system PATH so root and other users can also invoke it
         ln -sf "$opencode_bin" /usr/local/bin/opencode
+
+        # Run postinstall explicitly — pnpm skips it by default for global packages.
+        # pnpm root -g does not expose node_modules; locate the script directly
+        # in the content-addressable store and cd into it before running node.
+        local pnpm_store="/home/$local_user/.local/share/pnpm/store"
+        local postinstall_path
+        postinstall_path=$(find "$pnpm_store" -name "postinstall.mjs" -path "*/opencode-ai/*" 2>/dev/null | sort -V | tail -1)
+        if [ -n "$postinstall_path" ]; then
+            local postinstall_dir
+            postinstall_dir=$(dirname "$postinstall_path")
+            info "Running postinstall script..."
+            sudo -u "$local_user" bash -c "$pnpm_env; cd '$postinstall_dir' && node postinstall.mjs"
+        fi
+
         ok "opencode installed via pnpm"
         return 0
     fi
@@ -965,6 +979,91 @@ uninstall_opencode() {
     fi
 }
 
+# ── Update opencode to latest version ────────────────────────────────────────
+update_opencode() {
+    step "Updating opencode to latest version"
+
+    if ! command -v opencode &>/dev/null; then
+        warn "OpenCode is not installed — use Install instead"
+        return 1
+    fi
+
+    local pnpm_home="/home/$local_user/.local/share/pnpm"
+    local nvm_sh="/home/$local_user/.nvm/nvm.sh"
+    local pnpm_env="source '$nvm_sh' 2>/dev/null; export PNPM_HOME='$pnpm_home'; export PATH=\"$pnpm_home/bin:\$PATH\""
+    local pnpm_bin="$pnpm_home/bin/pnpm"
+
+    if [ -f "$pnpm_bin" ] && sudo -u "$local_user" bash -c "$pnpm_env; pnpm list -g opencode-ai" &>/dev/null 2>&1; then
+        info "Updating opencode-ai via pnpm..."
+        if ! printf 'a\n' | sudo -u "$local_user" bash -c "$pnpm_env; '$pnpm_bin' update -g opencode-ai"; then
+            err "pnpm update failed"
+            return 1
+        fi
+
+        # Rebuild the nvm wrapper around the updated real binary if needed
+        local opencode_bin="$pnpm_home/bin/opencode"
+        if [ -f "${opencode_bin}.real" ]; then
+            # Wrapper already exists — nothing extra to do
+            :
+        elif [ -f "$opencode_bin" ]; then
+            mv "$opencode_bin" "${opencode_bin}.real"
+            cat > "$opencode_bin" << WRAPPER
+#!/bin/bash
+export NVM_DIR="/home/$local_user/.nvm"
+[ -s "\$NVM_DIR/nvm.sh" ] && source "\$NVM_DIR/nvm.sh"
+exec "${opencode_bin}.real" "\$@"
+WRAPPER
+            chmod +x "$opencode_bin"
+            ln -sf "$opencode_bin" /usr/local/bin/opencode
+        fi
+
+        # Run postinstall explicitly — pnpm skips it by default for global packages.
+        # pnpm root -g does not expose node_modules; locate the script directly
+        # in the content-addressable store and cd into it before running node.
+        local pnpm_store="/home/$local_user/.local/share/pnpm/store"
+        local postinstall_path
+        postinstall_path=$(find "$pnpm_store" -name "postinstall.mjs" -path "*/opencode-ai/*" 2>/dev/null | sort -V | tail -1)
+        if [ -n "$postinstall_path" ]; then
+            local postinstall_dir
+            postinstall_dir=$(dirname "$postinstall_path")
+            info "Running postinstall script..."
+            sudo -u "$local_user" bash -c "$pnpm_env; cd '$postinstall_dir' && node postinstall.mjs"
+        fi
+
+        ok "OpenCode updated via pnpm"
+    else
+        info "pnpm package not found — reinstalling via official script..."
+        local update_tmp
+        update_tmp=$(mktemp /tmp/opencode_update_XXXXXX.sh)
+        if ! curl -fsSL https://opencode.ai/install -o "$update_tmp"; then
+            err "Failed to download opencode install script"
+            rm -f "$update_tmp"
+            return 1
+        fi
+        if ! head -1 "$update_tmp" | grep -qE '^#!((/usr)?/bin/(ba)?sh|/usr/bin/env (ba)?sh)'; then
+            err "Downloaded opencode script does not look like a shell script — aborting"
+            rm -f "$update_tmp"
+            return 1
+        fi
+        chown "$local_user" "$update_tmp"
+        chmod +x "$update_tmp"
+        if sudo -u "$local_user" bash "$update_tmp"; then
+            rm -f "$update_tmp"
+            ok "OpenCode updated via official script"
+        else
+            rm -f "$update_tmp"
+            err "Update via official script failed"
+            return 1
+        fi
+    fi
+
+    if command -v opencode &>/dev/null; then
+        local ver
+        ver=$(sudo -u "$local_user" bash -c "source '$nvm_sh' 2>/dev/null; opencode --version 2>/dev/null" || echo "unknown")
+        ok "OpenCode is now at version: $ver"
+    fi
+}
+
 # ── OpenCode Submenu ──────────────────────────────────────────────────────────
 menu_opencode() {
     while true; do
@@ -981,7 +1080,8 @@ menu_opencode() {
         echo -e "  ${BOLD}Select an option:${RESET}"
         echo ""
         echo -e "  ${WHITE}1)${RESET}  Install OpenCode"
-        echo -e "  ${WHITE}2)${RESET}  Uninstall OpenCode"
+        echo -e "  ${WHITE}2)${RESET}  Update OpenCode"
+        echo -e "  ${WHITE}3)${RESET}  Uninstall OpenCode"
         echo -e "  ${WHITE}0)${RESET}  Back to main menu"
         echo ""
         line
@@ -990,7 +1090,8 @@ menu_opencode() {
 
         case "$opt" in
             1)  install_opencode; return ;;
-            2)  uninstall_opencode; return ;;
+            2)  update_opencode; return ;;
+            3)  uninstall_opencode; return ;;
             0)  return ;;
             *)  warn "Invalid option" ;;
         esac
@@ -1301,15 +1402,13 @@ update_components() {
     echo -e "  ${WHITE}1)${RESET} Update All (Docker + Portainer + Ollama + LLM + Open WebUI)"
     echo -e "  ${WHITE}2)${RESET} Update Ollama + LLM + Open WebUI"
     echo -e "  ${WHITE}3)${RESET} Update Docker + Portainer"
-    echo -e "  ${WHITE}4)${RESET} Update OpenCode (if installed)"
     echo -e "  ${WHITE}0)${RESET} Back"
     echo ""
     read -rp "  → Select option: " update_opt
-    
+
     case "$update_opt" in
         1)
             step "Updating EVERYTHING..."
-            # Update AI Stack
             docker pull ollama/ollama:latest
             docker pull ghcr.io/open-webui/open-webui:main
             docker compose up -d --pull always
@@ -1320,7 +1419,7 @@ update_components() {
             docker run -d -p ${PORTAINER_PORT}:9000 --name portainer --restart=always \
                 -v /var/run/docker.sock:/var/run/docker.sock \
                 -v portainer_data:/data portainer/portainer-ce:latest >/dev/null
-            
+
             docker image prune -f >/dev/null
             ok "Full stack updated"
             ;;
@@ -1334,54 +1433,18 @@ update_components() {
             ;;
         3)
             step "Updating Docker Engine & Portainer..."
-            # Upgrade system binaries
             apt-get update -qq
             apt-get install --only-upgrade -y docker-ce docker-ce-cli containerd.io >/dev/null 2>&1
-            
-            # Update Portainer (silent)
+
             docker stop portainer >/dev/null 2>&1 || true
             docker rm portainer >/dev/null 2>&1 || true
             docker pull portainer/portainer-ce:latest
             docker run -d -p ${PORTAINER_PORT}:9000 --name portainer --restart=always \
                 -v /var/run/docker.sock:/var/run/docker.sock \
                 -v portainer_data:/data portainer/portainer-ce:latest >/dev/null
-            
+
             docker image prune -f >/dev/null
             ok "Docker and Portainer updated"
-            ;;
-        4)
-            if command -v opencode &>/dev/null; then
-                step "Updating opencode..."
-                local _pnpm_home="/home/$local_user/.local/share/pnpm"
-                local _nvm_sh="/home/$local_user/.nvm/nvm.sh"
-                local _pnpm_env="source '$_nvm_sh' 2>/dev/null; export PNPM_HOME='$_pnpm_home'; export PATH=\"$_pnpm_home/bin:\$PATH\""
-                local _pnpm_bin="$_pnpm_home/bin/pnpm"
-                if [ -f "$_pnpm_bin" ] && sudo -u "$local_user" bash -c "$_pnpm_env; pnpm list -g opencode-ai" &>/dev/null 2>&1; then
-                    sudo -u "$local_user" bash -c "$_pnpm_env; pnpm update -g opencode-ai" >/dev/null 2>&1
-                    ok "OpenCode updated via pnpm"
-                else
-                    info "Reinstalling via official script..."
-                    local update_tmp
-                    update_tmp=$(sudo -u "$local_user" mktemp /tmp/opencode_update_XXXXXX.sh)
-                    if ! curl -fsSL https://opencode.ai/install -o "$update_tmp"; then
-                        err "Failed to download opencode install script"
-                        rm -f "$update_tmp"
-                    else
-                        chown "$local_user" "$update_tmp"
-                    fi
-                    if [ -f "$update_tmp" ] && ! head -1 "$update_tmp" | grep -qE '^#!((/usr)?/bin/(ba)?sh|/usr/bin/env (ba)?sh)'; then
-                        err "Downloaded opencode script does not look like a shell script — aborting"
-                        rm -f "$update_tmp"
-                    else
-                        chmod +x "$update_tmp"
-                        sudo -u "$local_user" bash "$update_tmp" >/dev/null 2>&1
-                        rm -f "$update_tmp"
-                        ok "OpenCode reinstalled"
-                    fi
-                fi
-            else
-                warn "OpenCode not installed"
-            fi
             ;;
         0)
             return
@@ -1687,6 +1750,9 @@ cli_mode() {
         install-opencode)
             install_opencode
             ;;
+        update-opencode)
+            update_opencode
+            ;;
         uninstall-opencode)
             uninstall_opencode
             ;;
@@ -1710,6 +1776,7 @@ cli_mode() {
             echo "Commands:"
             echo "  install             - Install AI Stack (Docker/Portainer + Ollama/LLM + Open WebUI)"
             echo "  install-opencode    - Install OpenCode (optional CLI tool)"
+            echo "  update-opencode     - Update OpenCode to latest version"
             echo "  uninstall-opencode  - Uninstall OpenCode"
             echo "  uninstall           - Remove everything"
             echo "  status              - Show current status"

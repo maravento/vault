@@ -230,7 +230,7 @@ sysctl -w net.ipv6.conf.all.disable_ipv6=0 >/dev/null 2>&1
 sysctl -w net.ipv6.conf.default.disable_ipv6=0 >/dev/null 2>&1
 sysctl -w net.ipv6.conf.lo.disable_ipv6=0 >/dev/null 2>&1
 # LAN IPv6
-sysctl -w net.ipv6.conf.eth1.disable_ipv6=1 >/dev/null 2>&1
+sysctl -w net.ipv6.conf.${lan}.disable_ipv6=1 >/dev/null 2>&1
 echo OK
 
 ## GLOBAL RULES ##
@@ -357,7 +357,7 @@ if ! ipset list blockports &>/dev/null; then
 else
     ipset flush blockports
 fi
-for blports in $(cat $acl_ipt_path/blockports.txt | sort -V -u); do
+for blports in $(sort -V -u $acl_ipt_path/blockports.txt); do
     ipset add blockports $blports -exist
 done
 for proto in tcp udp; do

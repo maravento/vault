@@ -3,11 +3,13 @@
 #
 ################################################################################
 #
-# Lock Scripts
+# Hardware Clock Sync
+# Syncs the hardware clock (hwclock) with the system clock.
+# Intended to run at boot via cron (@reboot).
 #
 ################################################################################
 
-echo "Lock Script Start. Wait..."
+echo "Update HWClock. Wait..."
 printf "\n"
 
 # PATH for cron
@@ -27,18 +29,6 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# at dependency
-if ! command -v at &>/dev/null; then
-    apt-get install -y at &>/dev/null
-    systemctl enable --now atd &>/dev/null
-fi
-
-### LOCK
-randa=$(($RANDOM % 3 + 1))
-pid_execute=$(ps -eo pid,args | grep "$0" | grep -v grep | grep -Eo '^[0-9]+')
-if [[ "${pid_execute:-NO_VALUE}" != "NO_VALUE" ]]; then
-    echo "Lock Start: $(date)" | tee -a /var/log/syslog
-    echo "$0 $@" | at now + "$randa" min
-    exit
-fi
+hwclock -w
+echo "HWClock Update: $(date)" | tee -a /var/log/syslog
 echo "Done"

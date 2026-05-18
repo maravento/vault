@@ -293,7 +293,7 @@ trigger() {
     else
         [[ $log_enabled = 'yes' ]] && (echo -e "$trigger_msg" >>"$log_file" && echo -e "$trigger_msg" | systemd-cat --priority=7)
         for i in "${commands_list[@]}"; do
-            eval "$i"
+            "$i"
         done
     fi
 }
