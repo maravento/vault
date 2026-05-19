@@ -1,4 +1,4 @@
-# [Dextroyer](https://www.maravento.com/p/dxt.html)
+# [Dextroyer](https://github.com/maravento)
 
 [![status-deprecated](https://img.shields.io/badge/status-deprecated-red.svg)](https://github.com/maravento)
 

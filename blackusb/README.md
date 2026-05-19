@@ -1,4 +1,4 @@
-# [BlackUSB](https://www.maravento.com)
+# [BlackUSB](https://github.com/maravento)
 
 [![status-frozen](https://img.shields.io/badge/status-frozen-blue.svg)](https://github.com/maravento)
 
@@ -31,7 +31,16 @@
 </table>
 
 ```bash
-sudo wget -q -N https://raw.githubusercontent.com/maravento/vault/master/blackusb/linux/blackusb.sh -O /path_to/blackusb.sh && sudo chmod +x /path_to/blackusb.sh
+# Download
+sudo apt install -y python-is-python3
+wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
+chmod +x gitfolder.py
+python gitfolder.py https://github.com/maravento/vault/blackusb
+
+# Install
+cd blackusb/linux
+sudo chmod +x blackusb.sh
+sudo bash blackusb.sh
 ```
 
 ### How To Use (For Linux)

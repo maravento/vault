@@ -1,0 +1,6 @@
+squid_log=Squid log file path,0,/var/log/squid/access.log
+max_lines=Maximum lines to parse,3,50000
+time_range=Time range in hours,0,720
+acl_list=ACL files to monitor (one per line: path=label or regex:pattern=label),9,50,8,\t
+auto_refresh=Auto-refresh,1,1-Enabled,0-Disabled
+refresh_interval=Refresh interval (seconds),0,60

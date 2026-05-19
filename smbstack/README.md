@@ -1,6 +1,6 @@
-# [SMBstack](https://github.com/maravento/vault/tree/master/smbstack)
+# [SMBstack](https://github.com/maravento)
 
-[![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento/vault/tree/master/smbstack)
+[![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento/vault)
 
 <!-- markdownlint-disable MD033 -->
 
@@ -21,7 +21,7 @@
 
 ### Main Menu
 
-[![smbmain](https://raw.githubusercontent.com/maravento/vault/master/smbstack/img/smbmain.png)](https://www.maravento.com/)
+[![smbmain](https://raw.githubusercontent.com/maravento/vault/master/smbstack/img/smbmain.png)](https://github.com/maravento/vault)
 
 ### SMBaudit
 
@@ -36,22 +36,35 @@
   </tr>
 </table>
 
-[![smbaudit](https://raw.githubusercontent.com/maravento/vault/master/smbstack/img/smbaudit.png)](https://www.maravento.com/)
+[![smbaudit](https://raw.githubusercontent.com/maravento/vault/master/smbstack/img/smbaudit.png)](https://github.com/maravento/vault)
 
 ### SMBshared
 
 <table>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      The shared folder browser (<code>http://localhost:3092/shared</code>) allows navigating the shared folder contents, uploading files, opening or downloading documents, and moving items to the recycle bin.
+      The shared folder browser (<code>http://localhost:3092/</code>) provides a unified interface with two tabs: <strong>Shared</strong> and <strong>Audit</strong>. The Shared tab allows navigating the shared folder structure, opening or downloading documents, and moving items to the recycle bin. Root-level folders are protected — items cannot be uploaded, created, or deleted from the root level.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      El explorador de carpeta compartida (<code>http://localhost:3092/shared</code>) permite navegar el contenido de la carpeta compartida, subir archivos, abrir o descargar documentos y mover elementos a la papelera de reciclaje.
+      El explorador de carpeta compartida (<code>http://localhost:3092/</code>) ofrece una interfaz unificada con dos pestañas: <strong>Shared</strong> y <strong>Audit</strong>. La pestaña Shared permite navegar la estructura de carpetas, abrir o descargar documentos y mover elementos a la papelera de reciclaje. Las carpetas de primer nivel están protegidas — no se pueden subir archivos, crear carpetas ni eliminar elementos desde la raíz.
     </td>
   </tr>
 </table>
 
-[![smbshared](https://raw.githubusercontent.com/maravento/vault/master/smbstack/img/smbshared.png)](https://www.maravento.com/)
+[![smbshared](https://raw.githubusercontent.com/maravento/vault/master/smbstack/img/smbshared.png)](https://github.com/maravento/vault)
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Inside any subfolder, the toolbar allows uploading single or multiple files simultaneously, creating new folders, and reloading the view. All operations are recorded in the audit log with the client's real IP address, including Cloudflare tunnel connections.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Dentro de cualquier subcarpeta, la barra de herramientas permite subir uno o varios archivos simultáneamente, crear nuevas carpetas y recargar la vista. Todas las operaciones quedan registradas en el log de auditoría con la IP real del cliente, incluyendo conexiones por túnel Cloudflare.
+    </td>
+  </tr>
+</table>
+
+[![smbfiles](https://raw.githubusercontent.com/maravento/vault/master/smbstack/img/smbfiles.png)](https://github.com/maravento/vault)
 
 ## Scope
 
@@ -118,23 +131,23 @@
 
 ```
 smbstack/
-├── smbinstall.sh           # Installer: install, update, uninstall, status
+├── smbinstall.sh               # Installer: install, update, uninstall, status
 ├── README.md
-├── conf/                   # Configuration files deployed to system paths
-│   ├── smb.conf            # Samba main config (placeholders: your_user, compartida)
-│   └── fullaudit.conf      # rsyslog full audit rule
+├── conf/                       # Configuration files deployed to system paths
+│   ├── smb.conf                # Samba main config (placeholders: your_user, compartida)
+│   └── fullaudit.conf          # rsyslog full audit rule
 ├── img/
 │   ├── smbshared.png
 │   └── smbaudit.png
-├── web/                    # Web files deployed to /var/www/smbstack/web/
-│   ├── smbweb.conf         # Apache vhost (:3092/audit and :3092/shared)
-│   ├── smbaudit.html       # Audit log viewer UI
-│   ├── smbapi.php          # Audit log reader API
-│   ├── smbaudit-diagnostic.php  # Audit log diagnostic tool
-│   └── shared.php          # Shared folder dynamic browser
-└── tools/                  # Scripts deployed to /var/www/smbstack/tools/
-    ├── smbload.sh          # Service watchdog (smbd + winbind)
-    └── smbwatch.sh         # Shared folder size monitor (self-managed)
+├── web/                        # Web files deployed to /var/www/smbstack/web/
+│   ├── smbweb.conf             # Apache vhost (:3092/audit and :3092/shared)
+│   ├── smbaudit.html           # Audit log viewer UI
+│   ├── smbapi.php              # Audit log reader API
+│   ├── smbaudit-diagnostic.php # Audit log diagnostic tool
+│   └── shared.php              # Shared folder dynamic browser
+└── tools/                      # Scripts deployed to /var/www/smbstack/tools/
+    ├── smbload.sh              # Service watchdog (smbd + winbind)
+    └── smbwatch.sh             # Shared folder size monitor (self-managed)
 ```
 
 <table>
@@ -154,7 +167,7 @@ smbstack/
 │       └── watchdir.log        # smbwatch.sh runtime log
 └── smbstack.env                # Saved install config (user, paths, network, watch limit)
 
-/home/$USER/shared/              # Shared folder (independent of the installer)
+/home/$USER/shared/             # Shared folder (independent of the installer)
 ├── recycle/                    # Recycle Bin
 └── DEMO/                       # Demo folder
 
@@ -179,8 +192,8 @@ apt-get install -y --reinstall apache2-doc
 ```
 
 > **Important**
-> - nginx must not be running. SMBstack uses Apache2 exclusively on port 3092.
-> - Port 3092 was selected because it is listed as **Unassigned** by IANA. For more information visit [https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt](https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt)
+> - nginx must not be running.
+> - SMBstack uses Apache2 exclusively on port 3092, because it is listed as **Unassigned** by IANA. For more information visit [https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt](https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt)
 
 ## HOW TO USE
 
@@ -204,7 +217,7 @@ apt-get install -y --reinstall apache2-doc
 sudo apt install -y python-is-python3
 wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
 chmod +x gitfolder.py
-python gitfolder.py https://github.com/maravento/vault/tree/master/smbstack
+python gitfolder.py https://github.com/maravento/vault/smbstack
 
 # Install
 cd smbstack
@@ -316,6 +329,11 @@ sudo pdbedit -L
   </tr>
 </table>
 
+```bash
+# sudo crontab -l
+@reboot /var/www/smbstack/tools/smbload.sh
+```
+
 ### smbwatch
 
 <table>
@@ -330,13 +348,13 @@ sudo pdbedit -L
 </table>
 
 ```bash
-# Start | Iniciar
+# Start
 sudo /var/www/smbstack/tools/smbwatch.sh start
 
-# Stop | Detener
+# Stop
 sudo /var/www/smbstack/tools/smbwatch.sh stop
 
-# Status | Estado
+# Status
 sudo /var/www/smbstack/tools/smbwatch.sh status
 ```
 
@@ -360,6 +378,26 @@ sudo sed -i 's/disable netbios = yes/disable netbios = no/' /etc/samba/smb.conf
 sudo systemctl enable --now nmbd.service
 sudo systemctl restart smbd
 ```
+
+## ⚠️ WARNING: Network Access
+
+---
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      This project is designed to run locally and be accessed over a LAN. It is not recommended to expose it to the internet, as it lacks the hardening required for public-facing deployments.
+      If you choose to publish it despite this warning, it is strongly recommended to do so through an on-demand tunnel rather than opening ports directly. This approach lets you start and stop public access at will, without permanently exposing your server.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Este proyecto está diseñado para ejecutarse localmente y ser accedido en red LAN. No se recomienda exponerlo a internet, ya que no cuenta con el endurecimiento necesario para despliegues públicos.
+      Si decide publicarlo a pesar de esta advertencia, se recomienda hacerlo a través de un túnel bajo demanda en lugar de abrir puertos directamente. Este enfoque le permite iniciar y detener el acceso público a voluntad, sin exponer el servidor de forma permanente.
+    </td>
+  </tr>
+</table>
+
+**Optional tunnel:**
+- [Cloudflare Tunnel (start|stop|status) - Zero Trust Activation Recommended](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cftunnel.sh)
 
 ## DISCLAIMER
 

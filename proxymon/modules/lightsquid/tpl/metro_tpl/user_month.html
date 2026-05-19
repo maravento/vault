@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+
+<!-- LightSquid TPL v1.7 -->
+<!-- user_month.html -->
+<html lang="en">
+<!-- Here begins the HEAD -->
+
+     <head>
+        <meta charset="utf-8" />
+        <title>Navigation Report</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta content="width=device-width, initial-scale=1" name="viewport" />
+<!--        <meta content="Internal network site for EAA Cienfuegos" name="description" />
+        <meta content="IT Department" name="author" /> -->
+        <!-- BEGIN GLOBAL MANDATORY STYLES -->
+        <link href="assets/global/fonts/OpenSans.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/simple-line-icons/simple-line-icons.min.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/bootstrap-switch/css/bootstrap-switch.min.css" rel="stylesheet" type="text/css" />
+        <!-- END GLOBAL MANDATORY STYLES -->
+        <!-- BEGIN PAGE LEVEL PLUGINS -->
+        <link href="assets/global/plugins/bootstrap-daterangepicker/daterangepicker.min.css" rel="stylesheet" type="text/css" />
+        <!-- <link href="assets/global/plugins/morris/morris.css" rel="stylesheet" type="text/css" /> -->
+        <!-- <link href="assets/global/plugins/fullcalendar/fullcalendar.min.css" rel="stylesheet" type="text/css" /> -->
+        <!-- <link href="assets/global/plugins/jqvmap/jqvmap/jqvmap.css" rel="stylesheet" type="text/css" /> -->
+        <link href="assets/global/plugins/bootstrap-modal/css/bootstrap-modal-bs3patch.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/bootstrap-modal/css/bootstrap-modal.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/datatables/datatables.min.css" rel="stylesheet" type="text/css" />
+        <!-- <link href="assets/global/plugins/datatables/plugins/bootstrap/datatables.bootstrap.css" rel="stylesheet" type="text/css" /> -->
+        <link href="assets/global/plugins/bootstrap-datepicker/css/bootstrap-datepicker3.min.css" rel="stylesheet" type="text/css" />
+		<link href="assets/global/css/loading_bar.css" rel="stylesheet" type="text/css" />
+        <!-- END PAGE LEVEL PLUGINS -->
+        <!-- BEGIN THEME GLOBAL STYLES -->
+        <link href="assets/global/css/components-md.min.css" rel="stylesheet" id="style_components" type="text/css" />
+        <link href="assets/global/css/plugins-md.min.css" rel="stylesheet" type="text/css" />
+        <!-- END THEME GLOBAL STYLES -->
+        <!-- BEGIN THEME LAYOUT STYLES -->
+        <link href="assets/layouts/layout3/css/layout.min.css" rel="stylesheet" type="text/css" />
+        <link href="assets/layouts/layout3/css/themes/blue-steel.css" rel="stylesheet" type="text/css" id="style_color" />
+        <!-- <link href="assets/layouts/layout3/css/custom.min.css" rel="stylesheet" type="text/css" /> -->
+        <!-- END THEME LAYOUT STYLES -->
+        <link rel="shortcut icon" href="assets/global/img/favicon.png" type="image/png" />
+        <style>
+            .dataTables_filter {
+                display: none;
+            }
+            
+            /* MOBILE FIX FOR SCREENS < 820px */
+            @media (max-width: 819px) {
+                .table-container,
+                .dataTables_wrapper,
+                .portlet-body {
+                    overflow-x: auto !important;
+                }
+                table.dataTable,
+                .table-bordered,
+                .table-striped {
+                    min-width: 800px !important;
+                }
+            }
+        </style>
+		</head>
+    <!-- END HEAD -->
+
+
+    <body class="page-container-bg-solid page-md page-header-menu-fixed">
+        <div class="page-wrapper">
+            <div class="page-wrapper-row">
+<!--                <div class="page-wrapper-top">
+                    <!-- BEGIN HEADER -->
+<!--                    <div class="page-header">
+                        <!-- BEGIN HEADER TOP -->
+<!--                        <div class="page-header-top">
+                            <div class="container">
+                                <!-- BEGIN LOGO -->
+<!--                                <div class="page-logo">
+                                    
+                                </div>
+                                <!-- END LOGO -->
+                                
+                                <!-- BEGIN RESPONSIVE MENU TOGGLER -->
+<!--                                <a href="javascript:;" class="menu-toggler"></a>
+                                <!-- END RESPONSIVE MENU TOGGLER -->
+                                <!-- BEGIN TOP NAVIGATION MENU 
+                                <div class="top-menu">
+                                    <ul class="nav navbar-nav pull-right">
+                                    
+                                    </ul>
+                                </div>
+                                <!-- END TOP NAVIGATION MENU -->
+<!--                            </div>
+                        </div>
+                        <!-- END HEADER TOP -->
+                        <!-- BEGIN HEADER MENU -->
+<!--                        <div class="page-header-menu">
+                            <div class="container">
+                               
+                                <!-- BEGIN MEGA MENU -->
+                                <!-- DOC: Apply "hor-menu-light" class after the "hor-menu" class below to have a horizontal menu with white background -->
+                                <!-- DOC: Remove data-hover="dropdown" and data-close-others="true" attributes below to disable the dropdown opening on mouse hover -->
+<!--                                <div class="hor-menu-light hor-menu">
+                                    <ul class="nav navbar-nav">
+                                    <li aria-haspopup="true" class="menu-dropdown mega-menu-dropdown mega-menu-full active">
+                                            <a href="javascript:;"> Home
+                                                <span class="arrow"></span>
+                                            </a>
+                                            </li>
+                                    </ul>
+                                </div>
+                                <!-- END MEGA MENU -->
+<!--                            </div>
+                        </div>
+                        <!-- END HEADER MENU -->
+<!--                    </div>
+                    <!-- END HEADER -->
+<!--                </div> -->
+            </div>
+            <div class="page-wrapper-row full-height">
+                <div class="page-wrapper-middle">
+                    <!-- BEGIN CONTAINER -->
+                    <div class="page-container">
+                        <!-- BEGIN CONTENT -->
+                        <div class="page-content-wrapper">
+                            <!-- BEGIN CONTENT BODY -->
+                            <!-- BEGIN PAGE HEAD-->
+                            <div class="page-head">
+                                <div class="container">
+                                    <!-- BEGIN PAGE TITLE -->
+
+                                    <div class="col-md-12 page-title text-center">
+                                        <div><h1><a href="index.cgi">##MSG_HEADER##</a></h1></div>
+                                
+	<div class="row">
+	<div class="row">
+	<!-- HIDE group start -->
+		<div><h4><B><i class="fa fa-calendar"> &nbsp ##MSG_WORK_PERIOD##:: <strong>##WORKPERIOD##</strong></i></B></h4></div>	
+	<!-- HIDE group end -->		
+	</div>
+		<div><h4><B><i class="fa fa-user"> &nbsp ##MSG_USER##: <strong>##USER##</strong></i></B></h4></div> 
+	</div>
+	<div class="row">
+		<div><h4><B><i class="fa fa-text-height"> &nbsp ##MSG_TOTAL##: <strong>##TOTALBYTES##</strong></i></B></h4></div>
+	</div>
+                                    </div>
+                                    <!-- END PAGE TITLE -->
+                                    
+                                </div>
+                            </div>
+                            <!-- END PAGE HEAD-->
+                            <!-- BEGIN PAGE CONTENT BODY 
+                            <div style="position: fixed;z-index: 10103;top: 50%;right: 15px;margin-top: -150px">
+                            <button type="button" class="btn btn-circle btn-icon-only blue tooltips" data-toggle="modal" href="#login" data-container="body" data-placement="left" data-original-title="Log in"><i class="glyphicon glyphicon-log-in "></i></button>
+                            </div>
+                            <div style="position: fixed;z-index: 10103;top: 50%;right: 15px;margin-top: -105px">
+                            <button type="button" class="btn btn-circle btn-icon-only red tooltips" data-toggle="modal" href="#login" data-container="body" data-placement="left" data-original-title="Request services"><i class="fa fa-users"></i></button>
+                            </div>
+                            <div style="position: fixed;z-index: 10103;top: 50%;right: 15px;margin-top: -60px">
+                            <button type="button" class="btn btn-circle btn-icon-only green tooltips" data-toggle="modal" href="#login" data-container="body" data-placement="left" data-original-title="Contact"><i class="fa fa-envelope"></i></button>
+                            </div> -->
+                            <!-- BEGIN PAGE CONTENT BODY -->
+                            <div class="page-content">
+                                <div class="container">
+                                    <!-- BEGIN PAGE CONTENT INNER -->
+									<div class="row">
+                                            <div class="col-md-12">
+                                              <div style="font-size: 30px">
+				  <!-- HIDE graphreport start-->
+				  <div style="font-size: 30px" class="text-center" >
+		<a href="##GRAPHURL_L##" class="tooltips" data-original-title="Graph Report"><i class="glyphicon glyphicon-stats"></i></a>
+		</div>
+<!-- HIDE graphreport end-->
+            </div>
+                                                <div class="portlet box blue">
+                                                    <div class="portlet-title">
+                                                        <div class="caption">
+                                                            <b><i class="fa fa-tasks"></i> User Details</b></div>
+                                                        <div class="actions">
+                                                            <div class="btn-group">
+                                                                <a class="btn red btn-circle" href="javascript:;" data-toggle="dropdown">
+                                                                    <i class="fa fa-share"></i>
+                                                                    <span class="hidden-xs"> Tools</span>
+                                                                    <i class="fa fa-angle-down"></i>
+                                                                </a>
+                                                                <ul class="dropdown-menu pull-right" id="metro_tpl_3_tools">
+                                                                    <li>
+                                                                        <a href="javascript:;" data-action="0" class="tool-action">
+                                                                            <i class="icon-printer"></i> Print</a>
+                                                                    </li>
+                                                                    <li>
+                                                                        <a href="javascript:;" data-action="1" class="tool-action">
+                                                                            <i class="icon-check"></i> Copy</a>
+                                                                    </li>
+                                                                    <li>
+                                                                        <a href="javascript:;" data-action="2" class="tool-action">
+                                                                            <i class="icon-doc"></i> PDF</a>
+                                                                    </li>
+                                                                    <li>
+                                                                        <a href="javascript:;" data-action="3" class="tool-action">
+                                                                            <i class="icon-paper-clip"></i> Excel</a>
+                                                                    </li>
+                                                                    <li>
+                                                                        <a href="javascript:;" data-action="4" class="tool-action">
+                                                                            <i class="icon-cloud-upload"></i> CSV</a>
+                                                                    </li>
+                                                                </li>
+                                                                </ul>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="portlet-body">
+                                                        <div class="table-container">
+                                                            <table class="table table-striped table-bordered table-hover" id="metro_tpl_3">
+                                                                <thead>
+																	<tr class="font-blue-steel text-center">
+          <td style="text-align: center;"><b>##MSG_DATE##</b></td>
+          <td style="text-align: center;"><b>##MSG_BYTES##</b></td>
+          <td style="text-align: center;"><b>##MSG_WEEKSUM##</b></td>
+          <!-- <td style="text-align: center;"><b>##MSG_CUMULATIVE##</b></td> -->
+        </TR>
+	
+	<!-- VARIABLE oddattr bgcolor="beige" -->
+        <!-- VARIABLE evenattr  bgcolor="cornsilk" -->
+        <!-- VARIABLE sundayattr bgcolor="bisque" -->
+        <!-- VARIABLE nooversizedattr color="black" -->
+        <!-- VARIABLE oversizedattr color="red" -->
+        
+		</thead>
+		</tbody>
+	<!-- [[ day start-->
+        <TR>
+          <td style="text-align: center;"><A HREF="##DAYDATE_L##">##DAYDATE_B##</A></TD>
+          <td style="text-align: right;" nowrap="true"><FONT ##OVERSIZEATTR##>##DAYBYTES##</FONT></TD>
+          <td style="text-align: right;" nowrap="true">##WEEKSUM##</td>
+          <!-- <td style="text-align: right;" nowrap="true">##DAYCUMULATIVE##</td> -->
+        </TR>
+	<!-- ]] day end-->
+	
+</tbody>
+<tfoot>
+        <tr class="font-blue-steel text-center">
+          <td style="text-align: center;"><b>##MSG_TOTAL##</b></td>
+          <td style="text-align: center;"><b>##TOTALBYTES##</b></td>
+          <td align="right" nowrap="true">&nbsp</td>
+
+        </TR>
+
+      </tfoot>
+    </table>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                            
+                                        
+                          
+                                    <!-- END PAGE CONTENT INNER -->
+                                </div>
+                            </div>
+                            <!-- END PAGE CONTENT BODY -->
+                            <!-- END CONTENT BODY -->
+                        </div>
+                        <!-- END CONTENT -->
+                    </div>
+                    <!-- END CONTAINER -->
+                </div>
+            </div>
+			<div class="page-wrapper-row">
+                <div class="page-wrapper-bottom">
+                    <!-- BEGIN FOOTER -->
+                    <!-- BEGIN PRE-FOOTER -->
+                    
+                    <!-- END PRE-FOOTER -->
+                    <!-- BEGIN INNER FOOTER -->
+                    <div class="page-footer">
+                    </div>
+                    <div class="scroll-to-top">
+                        <i class="icon-arrow-up"></i>
+                    </div>
+                    <!-- END INNER FOOTER -->
+                    <!-- END FOOTER -->
+                </div>
+            </div

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+
+<!-- LightSquid TPL v1.7 -->
+<!-- group_detail.html -->
+<html lang="en">
+<!-- Beginning of HEAD -->
+
+     <head>
+        <meta charset="utf-8" />
+        <title>Navigation Report</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta content="width=device-width, initial-scale=1" name="viewport" />
+        <!-- BEGIN GLOBAL MANDATORY STYLES -->
+        <link href="assets/global/fonts/OpenSans.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/simple-line-icons/simple-line-icons.min.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/bootstrap-switch/css/bootstrap-switch.min.css" rel="stylesheet" type="text/css" />
+        <!-- END GLOBAL MANDATORY STYLES -->
+        <!-- BEGIN PAGE LEVEL PLUGINS -->
+        <link href="assets/global/plugins/bootstrap-daterangepicker/daterangepicker.min.css" rel="stylesheet" type="text/css" />
+        <!-- <link href="assets/global/plugins/morris/morris.css" rel="stylesheet" type="text/css" /> -->
+        <!-- <link href="assets/global/plugins/fullcalendar/fullcalendar.min.css" rel="stylesheet" type="text/css" /> -->
+        <!-- <link href="assets/global/plugins/jqvmap/jqvmap/jqvmap.css" rel="stylesheet" type="text/css" /> -->
+        <link href="assets/global/plugins/bootstrap-modal/css/bootstrap-modal-bs3patch.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/bootstrap-modal/css/bootstrap-modal.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/datatables/datatables.min.css" rel="stylesheet" type="text/css" />
+        <!-- <link href="assets/global/plugins/datatables/plugins/bootstrap/datatables.bootstrap.css" rel="stylesheet" type="text/css" /> -->
+        <link href="assets/global/plugins/bootstrap-datepicker/css/bootstrap-datepicker3.min.css" rel="stylesheet" type="text/css" />
+		<link href="assets/global/css/loading_bar.css" rel="stylesheet" type="text/css" />
+        <!-- END PAGE LEVEL PLUGINS -->
+        <!-- BEGIN THEME GLOBAL STYLES -->
+        <link href="assets/global/css/components-md.min.css" rel="stylesheet" id="style_components" type="text/css" />
+        <link href="assets/global/css/plugins-md.min.css" rel="stylesheet" type="text/css" />
+        <!-- END THEME GLOBAL STYLES -->
+        <!-- BEGIN THEME LAYOUT STYLES -->
+        <link href="assets/layouts/layout3/css/layout.min.css" rel="stylesheet" type="text/css" />
+        <link href="assets/layouts/layout3/css/themes/blue-steel.css" rel="stylesheet" type="text/css" id="style_color" />
+        <!-- <link href="assets/layouts/layout3/css/custom.min.css" rel="stylesheet" type="text/css" /> -->
+        <!-- END THEME LAYOUT STYLES -->
+        <link rel="shortcut icon" href="assets/global/img/favicon.png" type="image/png" />
+        <style>
+            .dataTables_filter {
+                display: none;
+            }
+            
+            /* MOBILE FIX FOR SCREENS < 820px */
+            @media (max-width: 819px) {
+                .table-container,
+                .dataTables_wrapper,
+                .portlet-body {
+                    overflow-x: auto !important;
+                }
+                table.dataTable,
+                .table-bordered,
+                .table-striped {
+                    min-width: 800px !important;
+                }
+            }
+        </style>
+	</head>
+    <!-- END HEAD -->
+
+    <body class="page-container-bg-solid page-md page-header-menu-fixed">
+        <div class="page-wrapper">
+            <div class="page-wrapper-row">
+            </div>
+            <div class="page-wrapper-row full-height">
+                <div class="page-wrapper-middle">
+                    <!-- BEGIN CONTAINER -->
+                    <div class="page-container">
+                        <!-- BEGIN CONTENT -->
+                        <div class="page-content-wrapper">
+                            <!-- BEGIN CONTENT BODY -->
+                            <!-- BEGIN PAGE HEAD-->
+                            <div class="page-head">
+                                <div class="container">
+                                    <!-- BEGIN PAGE TITLE -->
+                                    <div class="col-md-12 page-title text-center">
+                                        <div><h1><a href="index.cgi">##MSG_HEADER##</a></h1></div>
+                                        <div><h3><B><i class="fa fa-calendar"> &nbsp ##MSG_DATE##: <strong>##DATE##</strong></i></B></h3></div>
+                                    </div>
+                                    <!-- END PAGE TITLE -->
+                                </div>
+                            </div>
+                            <!-- END PAGE HEAD-->
+                            <!-- BEGIN PAGE CONTENT BODY -->
+                            <div class="page-content">
+                                <div class="container">
+                                    <!-- BEGIN PAGE CONTENT INNER -->
+									<div style="font-size: 30px" class="text-center" >
+				  <a href="##TOPSITESURL_L##" class="tooltips" data-original-title="Report ##TOPSITESURL_B##"><i class="glyphicon glyphicon-link "></i></a> - <a href="##BIGFILESURL_L##" class="tooltips" data-original-title="Report ##BIGFILESURL_B##"><i class="glyphicon glyphicon-fire"></i></a>
+            </div>
+                                    <!-- Content starts here -->
+  
+                                    <div class="row">
+                                         
+                                                <div class="col-md-8">
+                                                <!-- BEGIN BORDERED TABLE PORTLET-->
+                                                <div class="portlet box blue">
+                                                    <div class="portlet-title">
+                                                        <div class="caption">
+                                                            <b><i class="fa fa-user"></i>  Group Users</b></div>
+                                                        <div class="tools">
+                                                            <a href="javascript:;" class="collapse"> </a>
+                                                        </div>
+                                                    </div>
+                                                    <div class="portlet-body">
+                                                            <table class="table table-bordered">
+                                                                <tbody>
+                
+                <tr class="font-blue-steel text-center">
+                  <th class="font-blue-steel text-center">##MSG_NUM##</th>
+<!-- HIDE timereport start-->
+                  <th class="font-blue-steel text-center">##MSG_TIME_REPORT##</th>
+<!-- HIDE timereport end-->
+                  <th class="font-blue-steel text-center">##MSG_USER##</th>
+<!-- HIDE realname start-->
+                  <th class="font-blue-steel text-center">##MSG_REALNAME##</th>
+<!-- HIDE realname end-->
+                  <th class="font-blue-steel text-center">##MSG_CONNECT##</th>
+                  <th class="font-blue-steel text-center">##MSG_BYTES##</th>
+                  <th class="font-blue-steel text-center">%</th>
+                </tr>
+
+<!-- [[ groupstart start-->
+                <tr class="font-blue-steel text-center">
+                  <td colspan="7" class="font-blue-steel text-center" ><A name="##GROUPSTARTURL_L##"><b>##GROUPSTARTURL_B##</b></A></td>
+                </tr>
+<!-- ]] groupstart end-->
+
+<!-- VARIABLE evenattr bgcolor="beige"    -->
+<!-- VARIABLE oddattr  bgcolor="cornsilk" -->
+	
+<!-- [[ user start-->
+                <tr >
+                  <td border="0" align="right" ><font size="-1">##USERNUM##</font></td>
+<!-- HIDE timereport start-->
+		  <td style="text-align: center;"><A HREF="##TIMEURL_L##" style="font-size: 16px" class="tooltips" data-original-title="Hourly Report"><i class="glyphicon glyphicon-time"></i></A></td>
+<!-- HIDE timereport end-->
+		  <td><A HREF="##USERURL_L##">##USERURL_B##</A></td>
+<!-- HIDE realname start-->
+                  <td align="left" nowrap="true"><font size="-1">##REALNAME##</font></td>
+<!-- HIDE realname end-->		  
+                  <td align="right"><font size="-1">##USERCONNECT##</font></td>
+                  <td align="right"><font size="-1">##USERBYTES##</font></td>
+                  <td align="right"><font size="-1">##USERPERCENT##%</font></td>
+                </tr>
+<!-- ]] user end-->
+
+<!-- [[ groupend start-->
+                <tr>
+                  <td colspan="3"></td>
+<!-- HIDE timereport start-->
+                  <td></td>
+<!-- HIDE timereport end-->
+<!-- HIDE realname start-->
+                  <td></td>
+<!-- HIDE realname end-->
+                  <td class="font-blue-steel text-right"><b>##GROUPENDBYTES##</b></td>
+                  <td class="font-blue-steel text-right"><b>##GROUPENDPERCENT##%</b></td>
+                </tr>
+<!-- ]] groupend end-->
+
+              </tbody>
+            </table>
+                                                    </div>
+                                                </div>
+                                                <!-- END BORDERED TABLE PORTLET-->
+                                            </div>
+                                           
+                                    <div class="col-md-4 pull-right">
+                                                <!-- BEGIN BORDERED TABLE PORTLET-->
+                                                <div class="portlet box blue">
+                                                    <div class="portlet-title">
+                                                        <div class="caption">
+                                                            <b><i class="fa fa-group"></i>  Groups</b></div>
+                                                        <div class="tools">
+                                                            <a href="javascript:;" class="collapse"> </a>
+                                                        </div>
+                                                    </div>
+                                                    <div class="portlet-body">
+                                                            <table class="table table-bordered">
+                                                                <tbody>
+
+	      <tr class="font-blue-steel text-center">
+                <th class="font-blue-steel text-center">##MSG_NUM##</td>
+                <th class="font-blue-steel text-center">##MSG_GROUP##</td>
+                <th class="font-blue-steel text-center">##MSG_BYTES##</td>
+                <th class="font-blue-steel text-center">%</td>
+              </tr>
+
+	      
+<!-- [[ grouplist start-->
+	      <tr>
+                <td>##GROUPLISTNUM##</font></td>
+                <td><font size="-1"><A HREF="##GROUPLISTNAMEURL_L##">##GROUPLISTNAMEURL_B##</A></font></td>
+                <td align="right"><font size="-1">##GROUPLISTBYTES##</font></td>
+                <td align="right"><font size="-1">##GROUPLISTPERCENT##</font></td>
+              </tr>
+<!-- ]] grouplist end-->
+
+	    </tbody>
+          </table>
+                                                    </div>
+                                                </div>
+                                                <!-- END BORDERED TABLE PORTLET-->
+                                            </div>        
+                                    </div>
+                            <!-- END PAGE CONTENT INNER -->
+                                </div>
+                            </div>
+                            <!-- END PAGE CONTENT BODY -->
+                            <!-- END CONTENT BODY -->
+                        </div>
+                        <!-- END CONTENT -->
+                    </div>
+                    <!-- END CONTAINER -->
+                </div>
+            </div>
+            <div class="page-wrapper-row">
+                <div class="page-wrapper-bottom">
+                    <!-- BEGIN FOOTER -->
+                    <div class="page-footer">
+                    </div>
+                    <div class="scroll-to-top">
+                        <i class="icon-arrow-up"></i>
+                    </div>
+                    <!-- END FOOTER -->
+                </div>
+            </div>
+        </div>
+        <!-- BEGIN QUICK NAV -->
+        <div id="login" class="modal fade" tabindex="-1" data-backdrop="static" data-keyboard="false">
+            <div class="modal-body">
+            <h1></h1>
+            </div>
+            <div class="modal-footer">
+                <button type="button" data-dismiss="modal" class="btn btn-outline dark">Cancel</button>
+                <button type="button" data-dismiss="modal" class="btn green">Continue</button>
+            </div>
+        </div>
+        <!-- END QUICK NAV -->
+        <!-- BEGIN CORE PLUGINS -->
+        <script src="assets/global/plugins/jquery.min.js" type="text/javascript"></script>
+        <script src="assets/global/plugins/bootstrap/js/bootstrap.min.js" type="text/javascript"></script>
+        <script src="assets/global/plugins/js.cookie.min.js" type="text/javascript"></script>
+        <script src="assets/global/plugins/jquery-slimscroll/jquery.slimscroll.min.js" type="text/javascript"></script>
+        <script src="assets/global/plugins/jquery.blockui.min.js" type="text/javascript"></script>
+        <script src="assets/global/plugins/bootstrap-switch/js/bootstrap-switch.min.js" type="text/javascript"></script>
+        <!-- END CORE PLUGINS -->
+        <!-- BEGIN PAGE LEVEL PLUGINS -->
+        <script src="assets/global/plugins/bootstrap-modal/js/bootstrap-modalmanager.js" type="text/javascript"></script>
+        <script src="assets/global/plugins/bootstrap-modal/js/bootstrap-modal.js" type="text/javascript"></script>
+        <script src="assets/global/scripts/datatable.js" type="text/javascript"></script>
+        <script src="assets/global/plugins/datatables/datatables.min.js" type="text/javascript"></script>
+        <!-- <script src="assets/global/plugins/datatables/plugins/bootstrap/datatables.bootstrap.js" type="text/javascript"></script> -->
+        <script src="assets/global/plugins/bootstrap-datepicker/js/bootstrap-datepicker.min.js" type="text/javascript"></script>
+		<script src="assets/global/scripts/pace.js" type="text/javascript"></script>
+        <!-- END PAGE LEVEL PLUGINS -->
+        <!-- BEGIN THEME GLOBAL SCRIPTS -->
+        <script src="assets/global/scripts/app.min.js" type="text/javascript"></script>
+        <!-- END THEME GLOBAL SCRIPTS -->
+        <!-- BEGIN PAGE LEVEL SCRIPTS -->
+        <script src="assets/pages/scripts/ui-extended-modals.min.js" type="text/javascript"></script>
+        <script src="assets/pages/scripts/table-datatables-buttons.js" type="text/javascript"></script>
+        <!-- END PAGE LEVEL SCRIPTS -->
+        <!-- BEGIN THEME LAYOUT SCRIPTS -->
+        <script src="assets/layouts/layout3/scripts/layout.min.js" type="text/javascript"></script>
+        <script src="assets/layouts/layout3/scripts/demo.min.js" type="text/javascript"></script>
+        <!-- <script src="assets/layouts/global/scripts/quick-sidebar.min.js" type="text/javascript"></script> -->
+        <!-- <script src="assets/layouts/global/scripts/quick-nav.min.js" type="text/javascript"></script> -->
+        <!-- END THEME LAYOUT SCRIPTS -->
+    </body>
+
+</html>

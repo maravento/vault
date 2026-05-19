@@ -4,7 +4,7 @@
 ################################################################################
 #
 # smbstack - Samba with Shared Folder, Recycle Bin and Audit
-# https://github.com/maravento/vault/tree/master/smbstack
+# https://github.com/maravento/vault/smbstack
 #
 ################################################################################
 
@@ -31,6 +31,29 @@ SMBSTACK_WWW="/var/www/smbstack"
 SMBSTACK_WEB="$SMBSTACK_WWW/web"
 SMBSTACK_TOOLS="$SMBSTACK_WWW/tools"
 SMBSTACK_ENV="$SMBSTACK_WWW/smbstack.env"
+
+### REPOSITORY STRUCTURE CHECK
+check_repo() {
+    local missing=0
+    for dir in "$CONF_DIR" "$WEB_DIR" "$TOOLS_DIR"; do
+        if [ ! -d "$dir" ] || [ -z "$(ls -A "$dir" 2>/dev/null)" ]; then
+            missing=1
+            break
+        fi
+    done
+    if [ "$missing" -eq 1 ]; then
+        echo ""
+        echo "ERROR: Repository files not found. Run:"
+        echo ""
+        echo "  sudo apt install -y python-is-python3"
+        echo "  wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py"
+        echo "  chmod +x gitfolder.py"
+        echo "  python gitfolder.py https://github.com/maravento/vault/smbstack"
+        echo ""
+        exit 1
+    fi
+}
+check_repo
 
 ### LOCAL USER (multi-strategy detection with validation)
 detect_user() {
@@ -101,12 +124,20 @@ select_shared_folder() {
             fi
         done
 
-        if ! getfacl "$SHARED_PATH" 2>/dev/null | grep -q "user:www-data:rwx"; then
+        if ! getfacl "$SHARED_PATH" 2>/dev/null | grep -q "user:www-data:r-x"; then
             echo "  Missing ACL for www-data. Fixing..."
-            setfacl -m u:www-data:rwx "$SHARED_PATH"
-            setfacl -d -m u:www-data:rwx "$SHARED_PATH"
+            setfacl -m u:www-data:r-x "$SHARED_PATH"
             perms_ok=0
         fi
+        # root ACL: mask r-x (blocks group write on root), default mask rwx (allows group write in subdirs)
+        setfacl -m mask::r-x "$SHARED_PATH"
+        setfacl -d -m u:www-data:r-x "$SHARED_PATH"
+        setfacl -d -m g:sambashare:rwx "$SHARED_PATH"
+        setfacl -d -m mask::rwx "$SHARED_PATH"
+        # recycle bin
+        mkdir -p "$SHARED_PATH/.recycle"
+        chown www-data:www-data "$SHARED_PATH/.recycle"
+        chmod 755 "$SHARED_PATH/.recycle"
 
         if [ "$perms_ok" -eq 1 ]; then
             echo "  Permissions OK"
@@ -114,18 +145,26 @@ select_shared_folder() {
             echo "  Permissions corrected"
         fi
     else
-        mkdir -p "$SHARED_PATH"
-        chown -R "$local_user":sambashare "$SHARED_PATH"
+        sudo -u "$local_user" mkdir -p "$SHARED_PATH"
         chmod 755 "$SHARED_PATH"
-        mkdir -p "$SHARED_PATH/DEMO"
-        echo "this is a demo file" > "$SHARED_PATH/DEMO/demo.txt"
+        chown "$local_user":sambashare "$SHARED_PATH"
+        sudo -u "$local_user" mkdir -p "$SHARED_PATH/DEMO"
+        sudo -u "$local_user" bash -c "echo 'this is a demo file' > '$SHARED_PATH/DEMO/demo.txt'"
         for dir in $(find "$SHARED_PATH" -mindepth 1 -maxdepth 1 -type d); do
             chown "$local_user":sambashare "$dir"
             chmod 2775 "$dir"
         done
-        find "$SHARED_PATH" -type f -exec chmod 666 {} \;
-        setfacl -m u:www-data:rwx "$SHARED_PATH"
-        setfacl -d -m u:www-data:rwx "$SHARED_PATH"
+        chown "$local_user":sambashare "$SHARED_PATH/DEMO/demo.txt"
+        chmod 664 "$SHARED_PATH/DEMO/demo.txt"
+        setfacl -m u:www-data:r-x "$SHARED_PATH"
+        setfacl -m mask::r-x "$SHARED_PATH"
+        setfacl -d -m u:www-data:r-x "$SHARED_PATH"
+        setfacl -d -m g:sambashare:rwx "$SHARED_PATH"
+        setfacl -d -m mask::rwx "$SHARED_PATH"
+        # recycle bin
+        mkdir -p "$SHARED_PATH/.recycle"
+        chown www-data:www-data "$SHARED_PATH/.recycle"
+        chmod 755 "$SHARED_PATH/.recycle"
     fi
 
     echo "Shared folder: $SHARED_PATH"
@@ -133,7 +172,40 @@ select_shared_folder() {
 }
 
 ### INSTALL
+### CHECK ALREADY INSTALLED
+check_already_installed() {
+    local installed=0
+    local reasons=""
+
+    if pdbedit -L 2>/dev/null | grep -q ":"; then
+        installed=1
+        reasons+="  - Samba users already registered (pdbedit)\n"
+    fi
+
+    if [ -f "$SMBSTACK_ENV" ]; then
+        installed=1
+        reasons+="  - smbstack.env already exists: $SMBSTACK_ENV\n"
+    fi
+
+    if [ -f "/etc/samba/smb.conf" ] && grep -q "\[compartida\]" /etc/samba/smb.conf 2>/dev/null; then
+        installed=1
+        reasons+="  - smb.conf already configured: /etc/samba/smb.conf\n"
+    fi
+
+    if [ "$installed" -eq 1 ]; then
+        echo ""
+        echo "ERROR: Samba is already installed. Aborting."
+        echo ""
+        printf "%b" "$reasons"
+        echo ""
+        echo "To update, run: sudo bash smbinstall.sh --update"
+        echo ""
+        exit 1
+    fi
+}
+
 do_install() {
+    check_already_installed
     detect_user
 
     # dependency check
@@ -183,6 +255,17 @@ do_install() {
     groupadd -f sambashare
     usermod -aG sambashare "$local_user"
 
+    # smbguest: dedicated unprivileged samba guest user
+    if ! id smbguest &>/dev/null; then
+        useradd -r -s /bin/false smbguest
+        echo "smbguest created"
+    fi
+    usermod -aG sambashare smbguest
+    # create samba password for smbguest (random, not used interactively)
+    SMB_GUEST_PASS=$(openssl rand -base64 16)
+    printf "%s\n%s\n" "$SMB_GUEST_PASS" "$SMB_GUEST_PASS" | smbpasswd -a -s smbguest
+    usermod -a -G sambashare www-data
+
     select_shared_folder
 
     mkdir -p /var/lib/samba/usershares
@@ -209,7 +292,6 @@ do_install() {
     cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
     grep -qxF "Listen 0.0.0.0:3092" /etc/apache2/ports.conf || echo "Listen 0.0.0.0:3092" | tee -a /etc/apache2/ports.conf
     cp -f "$WEB_DIR/smbweb.conf" /etc/apache2/sites-available/smbweb.conf
-    usermod -a -G sambashare www-data
     a2ensite -q smbweb.conf
 
     # replace placeholders in deployed files (not in repo)
@@ -325,10 +407,10 @@ EOF
         echo "$logrotate_out"
     fi
 
-    # cron: recycle bin monthly cleanup
+    # cron: recycle bin weekly cleanup
     crontab -l 2>/dev/null > "/var/www/smbstack/crontab-$(date +%Y%m%d%H%M%S).bak" || true
     if ! crontab -l 2>/dev/null | grep -qF ".recycle"; then
-        (crontab -l 2>/dev/null; echo "@monthly find $SHARED_PATH/.recycle/ -mindepth 1 -mtime +7 -exec rm -rf \"{}\" \; >/dev/null") | crontab -
+        (crontab -l 2>/dev/null; echo "@weekly find $SHARED_PATH/.recycle/ -depth -mindepth 1 -mtime +7 -delete >/dev/null 2>&1") | crontab -
     fi
 
     # service watchdog
@@ -388,24 +470,7 @@ NMBD
     systemctl daemon-reload
     systemctl restart smbd winbind rsyslog apache2
 
-    # samba user
-    if pdbedit -L -u "$local_user" 2>/dev/null | grep -q ":"; then
-        SMBNAME="$local_user"
-        echo "Samba user already exists: $SMBNAME"
-    else
-        while true; do
-            read -p "Enter Samba username [$local_user]: " SMBNAME
-            SMBNAME="${SMBNAME:-$local_user}"
-            if [ -z "$SMBNAME" ]; then
-                echo "ERROR: Samba username cannot be empty"
-            elif ! id "$SMBNAME" &>/dev/null; then
-                echo "ERROR: User $SMBNAME does not exist on the system"
-            else
-                smbpasswd -a "$SMBNAME"
-                break
-            fi
-        done
-    fi
+
 
     # detect server IP from SMB_IFACE
     SERVER_IP=$(ip -4 addr show "$SMB_IFACE" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)

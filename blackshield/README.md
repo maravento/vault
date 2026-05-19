@@ -1,4 +1,4 @@
-# [BlackShield](https://www.maravento.com/)
+# [BlackShield](https://github.com/maravento)
 
 [![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento)
 
@@ -28,10 +28,16 @@ bash samba squid iptables ulogd2 ipset perl
 ---
 
 ```bash
+# Download
 sudo apt install -y python-is-python3
 wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
 chmod +x gitfolder.py
 python gitfolder.py https://github.com/maravento/vault/blackshield
+
+# Install
+cd blackshield
+chmod +x blackshield.sh
+./blackshield.sh
 ```
 
 ## ⚠️ WARNING: BEFORE YOU CONTINUE
@@ -67,9 +73,6 @@ python gitfolder.py https://github.com/maravento/vault/blackshield
 </table>
 
 ```bash
-cd blackshield
-chmod +x blackshield.sh
-./blackshield.sh
 sudo mkdir -p /etc/acl
 sudo find acl/ -type f -exec cp {} /etc/acl/ \;
 sudo find /etc/acl/ -type f -exec chmod 644 {} \;

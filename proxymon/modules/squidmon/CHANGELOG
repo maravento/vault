@@ -1,0 +1,20 @@
+Version 1.1 (2024)
+- Added support for regex-based ACLs (regex:pattern=Label)
+- New "Blocked Requests by Client IP" section with expandable details
+- Shows which ACL blocked each request
+- Multiple ACLs now properly supported (tab/newline separated)
+- Improved ACL matching for both file and regex types
+- Better identification of blocking ACL per request
+- Enhanced UI with clickable IP rows
+
+Version 1.0 (2024)
+- Initial release
+- Dashboard for Squid proxy
+- Real-time log parsing (no database required)
+- TCP_DENIED request monitoring
+- Configurable ACL tracking
+- Top blocked domains and clients
+- Hourly statistics
+- Multi-language support (English and Spanish)
+- Auto-refresh capability
+- Zero external dependencies

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+
+<!-- LightSquid TPL v1.7 -->
+<!-- graph.html -->
+<html lang="en">
+<!-- Here begins the HEAD -->
+
+     <head>
+        <meta charset="utf-8" />
+        <title>Navigation Report</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta content="width=device-width, initial-scale=1" name="viewport" />
+        <!-- BEGIN GLOBAL MANDATORY STYLES -->
+        <link href="assets/global/fonts/OpenSans.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/simple-line-icons/simple-line-icons.min.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/bootstrap-switch/css/bootstrap-switch.min.css" rel="stylesheet" type="text/css" />
+        <!-- END GLOBAL MANDATORY STYLES -->
+        <!-- BEGIN PAGE LEVEL PLUGINS -->
+        <link href="assets/global/plugins/bootstrap-daterangepicker/daterangepicker.min.css" rel="stylesheet" type="text/css" />
+        <!-- <link href="assets/global/plugins/morris/morris.css" rel="stylesheet" type="text/css" /> -->
+        <!-- <link href="assets/global/plugins/fullcalendar/fullcalendar.min.css" rel="stylesheet" type="text/css" /> -->
+        <!-- <link href="assets/global/plugins/jqvmap/jqvmap/jqvmap.css" rel="stylesheet" type="text/css" /> -->
+        <link href="assets/global/plugins/bootstrap-modal/css/bootstrap-modal-bs3patch.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/bootstrap-modal/css/bootstrap-modal.css" rel="stylesheet" type="text/css" />
+        <link href="assets/global/plugins/datatables/datatables.min.css" rel="stylesheet" type="text/css" />
+        <!-- <link href="assets/global/plugins/datatables/plugins/bootstrap/datatables.bootstrap.css" rel="stylesheet" type="text/css" /> -->
+        <link href="assets/global/plugins/bootstrap-datepicker/css/bootstrap-datepicker3.min.css" rel="stylesheet" type="text/css" />
+		<link href="assets/global/css/loading_bar.css" rel="stylesheet" type="text/css" />
+        <!-- END PAGE LEVEL PLUGINS -->
+        <!-- BEGIN THEME GLOBAL STYLES -->
+        <link href="assets/global/css/components-md.min.css" rel="stylesheet" id="style_components" type="text/css" />
+        <link href="assets/global/css/plugins-md.min.css" rel="stylesheet" type="text/css" />
+        <!-- END THEME GLOBAL STYLES -->
+        <!-- BEGIN THEME LAYOUT STYLES -->
+        <link href="assets/layouts/layout3/css/layout.min.css" rel="stylesheet" type="text/css" />
+        <link href="assets/layouts/layout3/css/themes/blue-steel.css" rel="stylesheet" type="text/css" id="style_color" />
+        <!-- <link href="assets/layouts/layout3/css/custom.min.css" rel="stylesheet" type="text/css" /> -->
+        <!-- END THEME LAYOUT STYLES -->
+        <link rel="shortcut icon" href="assets/global/img/favicon.png" type="image/png" />
+        <style>
+            .dataTables_filter {
+                display: none;
+            }
+            
+            /* MOBILE FIX FOR SCREENS < 820px */
+            @media (max-width: 819px) {
+                .table-container,
+                .dataTables_wrapper,
+                .portlet-body {
+                    overflow-x: auto !important;
+                }
+                table.dataTable,
+                .table-bordered,
+                .table-striped {
+                    min-width: 800px !important;
+                }
+            }
+        </style>
+		</head>
+    <!-- END HEAD -->
+
+
+    <body class="page-container-bg-solid page-md page-header-menu-fixed">
+        <div class="page-wrapper">
+            <div class="page-wrapper-row">
+<!--                <div class="page-wrapper-top">
+                    <!-- BEGIN HEADER -->
+<!--                    <div class="page-header">
+                        <!-- BEGIN HEADER TOP -->
+<!--                        <div class="page-header-top">
+                            <div class="container">
+                                <!-- BEGIN LOGO -->
+<!--                                <div class="page-logo">
+                                   
+                                </div>
+                                <!-- END LOGO -->
+                                
+                                <!-- BEGIN RESPONSIVE MENU TOGGLER -->
+<!--                                <a href="javascript:;" class="menu-toggler"></a>
+                                <!-- END RESPONSIVE MENU TOGGLER -->
+                                <!-- BEGIN TOP NAVIGATION MENU 
+                                <div class="top-menu">
+                                    <ul class="nav navbar-nav pull-right">
+                                    
+                                    </ul>
+                                </div>
+                                <!-- END TOP NAVIGATION MENU -->
+<!--                            </div>
+                        </div>
+                        <!-- END HEADER TOP -->
+                        <!-- BEGIN HEADER MENU -->
+<!--                        <div class="page-header-menu">
+                            <div class="container">
+                               
+                                <!-- BEGIN MEGA MENU -->
+                                <!-- DOC: Apply "hor-menu-light" class after the "hor-menu" class below to have a horizontal menu with white background -->
+                                <!-- DOC: Remove data-hover="dropdown" and data-close-others="true" attributes below to disable the dropdown opening on mouse hover -->
+<!--                                <div class="hor-menu-light hor-menu">
+                                    <ul class="nav navbar-nav">
+                                    <li aria-haspopup="true" class="menu-dropdown mega-menu-dropdown mega-menu-full active">
+                                            <a href="javascript:;"> Home
+                                                <span class="arrow"></span>
+                                            </a>
+                                            </li>
+                                    </ul>
+                                </div>
+                                <!-- END MEGA MENU -->
+<!--                            </div>
+                        </div>
+                        <!-- END HEADER MENU -->
+<!--                    </div>
+                    <!-- END HEADER -->
+<!--                </div> -->
+            </div>
+            <div class="page-wrapper-row full-height">
+                <div class="page-wrapper-middle">
+                    <!-- BEGIN CONTAINER -->
+                    <div class="page-container">
+                        <!-- BEGIN CONTENT -->
+                        <div class="page-content-wrapper">
+                            <!-- BEGIN CONTENT BODY -->
+                            <!-- BEGIN PAGE HEAD-->
+                            <div class="page-head">
+                                <div class="container">
+                                    <!-- BEGIN PAGE TITLE -->
+
+                                    <div class="col-md-12 page-title text-center">
+                                        <div><h1><a href="index.cgi">##MSG_HEADER##</a></h1></div>
+                                <div class="row">
+		<div><h4><B><i class="fa fa-calendar"> &nbsp ##MSG_WORK_PERIOD##: <strong>##WORKPERIOD##</i></strong></B></h4></div>	 
+	</div>
+	<div class="row">
+		<div><h4><B><strong>##MODE##</strong></B></h4></div> 
+	</div>
+                                    </div>
+                                    <!-- END PAGE TITLE -->
+                                    
+                                </div>
+                            </div>
+                            <!-- END PAGE HEAD-->
+                            <!-- BEGIN PAGE CONTENT BODY 
+                            <div style="position: fixed;z-index: 10103;top: 50%;right: 15px;margin-top: -150px">
+                            <button type="button" class="btn btn-circle btn-icon-only blue tooltips" data-toggle="modal" href="#login" data-container="body" data-placement="left" data-original-title="Log in"><i class="glyphicon glyphicon-log-in "></i></button>
+                            </div>
+                            <div style="position: fixed;z-index: 10103;top: 50%;right: 15px;margin-top: -105px">
+                            <button type="button" class="btn btn-circle btn-icon-only red tooltips" data-toggle="modal" href="#login" data-container="body" data-placement="left" data-original-title="Request services"><i class="fa fa-users"></i></button>
+                            </div>
+                            <div style="position: fixed;z-index: 10103;top: 50%;right: 15px;margin-top: -60px">
+                            <button type="button" class="btn btn-circle btn-icon-only green tooltips" data-toggle="modal" href="#login" data-container="body" data-placement="left" data-original-title="Contact"><i class="fa fa-envelope"></i></button>
+                            </div> -->
+                            <!-- BEGIN PAGE CONTENT BODY -->
+                            <div class="page-content">
+                                <div class="container">
+                                    <!-- BEGIN PAGE CONTENT INNER -->
+										<div class="row">
+										<div class="col-md-2"></div>
+                                            <div class="col-md-8">
+                                          
+                                                <div class="portlet box blue">
+                                                    <div class="portlet-title">
+                                                        <div class="caption">
+                                                            <b><i class="fa fa-tasks"></i> Usage Graph</b></div>
+                                                       
+                                                    </div>
+                                                    <div class="portlet-body">
+                                                        <tr>
+           <td> 
+	        <img src="##GRAPHICSURL##" border="0" title="Graphics" usemap="#bars">
+		<map name="bars">
+<!-- [[ imagemap start-->		
+  		    <area href="##MAPURL##" shape="rect" coords="##MAPCOORD##">
+<!-- ]] imagemap end-->		
+		</map>
+	   </td>
+	</tr>
+	
+<!-- HIDE warning start -->
+<hr>
+  <div class="alert alert-danger">
+  <font size="+2">Warning,</font> It is recommended to change the variable: $##VARNAME##=##VARVALUE##*(1024*1024*1024);</div>
+<!-- HIDE warning end -->
+         <div class="col-md-2"></div>                                           </div>
+                                                </div>
+                                        
+                                            </div>
+                                        </div>
+
+                            
+                                        
+                          
+                                    <!-- END PAGE CONTENT INNER -->
+                                </div>
+                            </div>
+                            <!-- END PAGE CONTENT BODY -->
+                            <!-- END CONTENT BODY -->
+                        </div>
+                        <!-- END CONTENT -->
+                    </div>
+                    <!-- END CONTAINER -->
+                </div>
+            </div>
+			<div class="page-wrapper-row">
+                <div class="page-wrapper-bottom">
+                    <!-- BEGIN FOOTER -->
+                    <!-- BEGIN PRE-FOOTER -->
+                    
+                    <!-- END PRE-FOOTER -->
+                    <!-- BEGIN INNER FOOTER -->
+                    <div class="page-footer">
+                    </div>
+                    <div class="scroll-to-top">
+                        <i class="icon-arrow-up"></i>
+                    </div>
+                    <!-- END INNER FOOTER -->
+                    <!-- END FOOTER -->
+                </div>
+            </div>
+        </div>
+        <!-- BEGIN QUICK NAV -->
+        <!-- static -->
+                                                        <div id="login" class="modal fade" tabindex="-1" data-backdrop="static" data-keyboard="false">
+                                                            <div class="modal-body">
+                                                            <h1></h1>
+                                                            </div>
+                                                            <div class="modal-footer">
+                                                                <button type="button" data-dismiss="modal" class="btn btn-outline dark">Cancel</button>
+                                                                <button type="button" data-dismiss="modal" class="btn green">Continue Task</button>
+                                                            </div>
+                                                        </div>
+                                                       
+        <!-- END QUICK NAV -->
+        <!--[if lt IE 9]>
+<script src="../assets/global/plugins/respond.min.js"></script>
+<script src="../assets/global/plugins/excanvas.min.js"></script> 
+<script src="../assets/global/plugins/ie8.fix.min.js"></script> 
+<![endif]-->
+         <!-- BEGIN CORE PLUGINS -->
+        <script src="assets/global/plugins/jquery.min.js" type="text/javascript"></script>
+        <script src="assets/global/plugins/bootstrap/js/bootstrap.min.js" type="text/javascript"></script>
+        <script src="assets/global/plugins/js.cookie.min.js" type="text/javascript"></script>
+        <script src="assets/global/plugins/jquery-slimscroll/jquery.slimscroll.min.js" type="text/javascript"></script>
+        <script src="assets/global/plugins/jquery.blockui.min.js" type="text/javascript"></script>
+        <script src="assets/global/plugins/bootstrap-switch/js/bootstrap-switch.min.js" type="text/javascript"></script>
+        <!-- END CORE PLUGINS -->
+        <!-- BEGIN PAGE LEVEL PLUGINS -->
+        <script src="assets/global/plugins/bootstrap-modal/js/bootstrap-modalmanager.js" type="text/javascript"></script>
+        <script src="assets/global/plugins/bootstrap-modal/js/bootstrap-modal.js" type="text/javascript"></script>
+        <script src="assets/global/scripts/datatable.js" type="text/javascript"></script>
+        <script src="assets/global/plugins/datatables/datatables.min.js" type="text/javascript"></script>
+        <!-- <script src="assets/global/plugins/datatables/plugins/bootstrap/datatables.bootstrap.js" type="text/javascript"></script> -->
+        <script src="assets/global/plugins/bootstrap-datepicker/js/bootstrap-datepicker.min.js" type="text/javascript"></script>
+		<script src="assets/global/scripts/pace.js" type="text/javascript"></script>
+        <!-- END PAGE LEVEL PLUGINS -->
+        <!-- BEGIN THEME GLOBAL SCRIPTS -->
+        <script src="assets/global/scripts/app.min.js" type="text/javascript"></script>
+        <!-- END THEME GLOBAL SCRIPTS -->
+        <!-- BEGIN PAGE LEVEL SCRIPTS -->
+        <script src="assets/pages/scripts/ui-extended-modals.min.js" type="text/javascript"></script>
+        <script src="assets/pages/scripts/table-datatables-buttons.js" type="text/javascript"></script>
+        <!-- END PAGE LEVEL SCRIPTS -->
+        <!-- BEGIN THEME LAYOUT SCRIPTS -->
+        <script src="assets/layouts/layout3/scripts/layout.min.js" type="text/javascript"></script>
+        <script src="assets/layouts/layout3/scripts/demo.min.js" type="text/javascript"></script>
+        <!-- END THEME LAYOUT SCRIPTS -->
+        <!-- END THEME LAYOUT SCRIPTS -->
+    </body>
+</html>

@@ -75,10 +75,14 @@ handle_new_file() {
 
     if [ "$SIZE" -ge "$LIMIT" ]; then
         mkdir -p "$RECYCLE_DIR"
+        chown "${LOCAL_USER:-root}":sambashare "$RECYCLE_DIR" 2>/dev/null || true
+        chmod 775 "$RECYCLE_DIR"
         local TS
         TS=$(date +%Y%m%d)
         local DEST="$RECYCLE_DIR/$TS"
         mkdir -p "$DEST"
+        chown "${LOCAL_USER:-root}":sambashare "$DEST"
+        chmod 775 "$DEST"
 
         if [ -f "$NEWFILE" ]; then
             mv -f "$NEWFILE" "$DEST/$(basename "$NEWFILE")"

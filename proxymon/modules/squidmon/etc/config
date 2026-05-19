@@ -1,0 +1,6 @@
+squid_log=/var/log/squid/access.log
+max_lines=50000
+time_range=24
+acl_list=/etc/acl/acl_squid/blocktlds.txt=Blocked TLD\n/etc/acl/acl_squid/blockdomains.txt=Blocked Domains\nregex:^(http|https)://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$=Block IPv4
+auto_refresh=0
+refresh_interval=60

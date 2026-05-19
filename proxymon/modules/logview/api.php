@@ -1,0 +1,202 @@
+<?php
+/**
+ * Logview API — ProxyMon module
+ * Reads /var/log/squid/access.log and returns parsed JSON
+ *
+ * Params:
+ *   ?lines=N        Number of lines from end of file (default 500, max 5000)
+ *   ?since=OFFSET   Byte offset to read only new lines (for polling)
+ *   ?info=1         Returns only file size (for polling check)
+ *   ?grep=TERM      Full-file grep search (bypasses line limit)
+ */
+
+header('Content-Type: application/json');
+header('Cache-Control: no-store');
+
+$LOG_FILE = '/var/log/squid/access.log';
+define('MIN_LOG_LINES_REQUEST', 50);
+define('MAX_LOG_LINES_REQUEST', 5000);
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function err($msg) {
+    echo json_encode(['error' => $msg]);
+    exit;
+}
+
+function parse_line($line) {
+    // Squid native log format:
+    // timestamp elapsed client action/code bytes method url user hierarchy/from mime
+    $line = trim($line);
+    if ($line === '') return null;
+
+    $parts = preg_split('/\s+/', $line, 10);
+    if (count($parts) < 9) return null;
+
+    $ts        = (float)$parts[0];
+    $elapsed   = (int)$parts[1];
+    $client    = $parts[2];
+    $action    = $parts[3]; // e.g. TCP_HIT/200
+    $bytes     = (int)$parts[4];
+    $method    = $parts[5];
+    $url       = $parts[6];
+    $user      = $parts[7] === '-' ? '-' : $parts[7];
+    $hier      = $parts[8]; // e.g. DIRECT/1.2.3.4
+    $mime      = isset($parts[9]) ? $parts[9] : '-';
+
+    // Split action code
+    $cache_code = '-'; $http_code = '-';
+    if (strpos($action, '/') !== false) {
+        list($cache_code, $http_code) = explode('/', $action, 2);
+    }
+
+    // Format timestamp
+    $dt = date('Y-m-d H:i:s', (int)$ts);
+
+    return [
+        'ts'         => $dt,
+        'elapsed'    => $elapsed,
+        'client'     => $client,
+        'cache_code' => $cache_code,
+        'http_code'  => $http_code,
+        'bytes'      => $bytes,
+        'method'     => $method,
+        'url'        => $url,
+        'user'       => $user,
+        'hier'       => $hier,
+        'mime'       => $mime,
+    ];
+}
+
+function fmt_bytes($bytes) {
+    if ($bytes >= 1048576) return round($bytes / 1048576, 1) . ' MB';
+    if ($bytes >= 1024)    return round($bytes / 1024)       . ' KB';
+    return $bytes . ' B';
+}
+
+// ── Check file ───────────────────────────────────────────────────────────────
+
+if (!file_exists($LOG_FILE)) {
+    error_log('Logview: log file not found: ' . $LOG_FILE);
+    err("Log file not found.");
+}
+if (!is_readable($LOG_FILE)) {
+    error_log('Logview: log file not readable: ' . $LOG_FILE);
+    err("Log file not readable. Check server permissions.");
+}
+
+$file_size = filesize($LOG_FILE);
+
+// ── Mode: info only (polling size check) ─────────────────────────────────────
+
+if (isset($_GET['info'])) {
+    echo json_encode(['size' => $file_size]);
+    exit;
+}
+
+// ── Mode: full-file grep search ───────────────────────────────────────────────
+
+if (isset($_GET['grep']) && $_GET['grep'] !== '') {
+    $term = $_GET['grep'];
+
+    // Sanitize: only allow safe characters
+    if (!preg_match('/^[\w\.\-\:\/@\s]+$/', $term)) {
+        err('Invalid search term. Only alphanumeric characters, dots, dashes, colons, slashes and @ are allowed.');
+    }
+
+    $escaped = escapeshellarg($term);
+    $log     = escapeshellarg($LOG_FILE);
+    $output  = shell_exec("grep -Fa $escaped $log 2>/dev/null");
+
+    if ($output === null || $output === '') {
+        echo json_encode([
+            'rows'       => [],
+            'offset'     => $file_size,
+            'log_file'   => $LOG_FILE,
+            'total_rows' => 0,
+            'grep'       => true,
+        ]);
+        exit;
+    }
+
+    $rows = [];
+    foreach (explode("\n", $output) as $line) {
+        $r = parse_line($line);
+        if ($r) $rows[] = $r;
+    }
+
+    // Newest first
+    $rows = array_reverse($rows);
+
+    echo json_encode([
+        'rows'       => $rows,
+        'offset'     => $file_size,
+        'log_file'   => $LOG_FILE,
+        'total_rows' => count($rows),
+        'grep'       => true,
+    ]);
+    exit;
+}
+
+// ── Mode: poll new lines since byte offset ────────────────────────────────────
+
+if (isset($_GET['since'])) {
+    $since = (int)$_GET['since'];
+    if ($since >= $file_size) {
+        echo json_encode(['rows' => [], 'offset' => $file_size]);
+        exit;
+    }
+    $fh = fopen($LOG_FILE, 'rb');
+    fseek($fh, $since);
+    $new_data = fread($fh, $file_size - $since);
+    fclose($fh);
+
+    $rows = [];
+    foreach (explode("\n", $new_data) as $line) {
+        $r = parse_line($line);
+        if ($r) $rows[] = $r;
+    }
+    echo json_encode(['rows' => $rows, 'offset' => $file_size]);
+    exit;
+}
+
+// ── Mode: initial load (last N lines) ────────────────────────────────────────
+
+$lines_req = isset($_GET['lines']) ? (int)$_GET['lines'] : 500;
+$lines_req = max(MIN_LOG_LINES_REQUEST, min(MAX_LOG_LINES_REQUEST, $lines_req));
+
+// Read last N lines efficiently using tail-like seek
+$fh = fopen($LOG_FILE, 'rb');
+$chunk = 65536; // 64KB chunks
+$pos   = $file_size;
+$buf   = '';
+$found = 0;
+
+while ($pos > 0 && $found < $lines_req + 1) {
+    $read = min($chunk, $pos);
+    $pos -= $read;
+    fseek($fh, $pos);
+    $buf = fread($fh, $read) . $buf;
+    $found = substr_count($buf, "\n");
+}
+fclose($fh);
+
+$all_lines = explode("\n", $buf);
+// Keep last N lines
+$last = array_slice($all_lines, -($lines_req + 1));
+
+$rows = [];
+foreach ($last as $line) {
+    $r = parse_line($line);
+    if ($r) $rows[] = $r;
+}
+
+// Return newest first
+$rows = array_reverse($rows);
+
+echo json_encode([
+    'rows'      => $rows,
+    'offset'    => $file_size,
+    'log_file'  => $LOG_FILE,
+    'total_rows'=> count($rows),
+]);

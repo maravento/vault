@@ -41,7 +41,7 @@ check_dependencies() {
         [apache2]="apache2 apache2-bin apache2-data apache2-doc apache2-utils"
     )
 
-    pkgs='wget git tar ipset libnotify-bin nbtscan libcgi-session-perl libgd-perl python-is-python3 coreutils sarg php libapache2-mod-php php-cli php-curl fonts-lato fonts-liberation fonts-dejavu'
+    pkgs='wget git ipset libnotify-bin nbtscan libcgi-session-perl libgd-perl python-is-python3 coreutils sarg php libapache2-mod-php php-cli php-curl fonts-lato fonts-liberation fonts-dejavu'
     for p in "${!pkgs_alts[@]}"; do
         pkgs+=" $p"
     done
@@ -146,34 +146,35 @@ run_initial_checks() {
 }
 
 # ════════════════════════════════════════════════════════════════
+# REPOSITORY STRUCTURE CHECK
+# ════════════════════════════════════════════════════════════════
+
+check_repo() {
+    local missing=0
+    if [ ! -d "modules" ] || [ -z "$(ls -A "modules" 2>/dev/null)" ]; then
+        missing=1
+    fi
+    if [ "$missing" -eq 1 ]; then
+        echo ""
+        echo "ERROR: Repository files not found. Run:"
+        echo ""
+        echo "  sudo apt install -y python-is-python3"
+        echo "  wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py"
+        echo "  chmod +x gitfolder.py"
+        echo "  python gitfolder.py https://github.com/maravento/vault/proxymon"
+        echo ""
+        exit 1
+    fi
+}
+
+# ════════════════════════════════════════════════════════════════
 # INSTALL FUNCTION
 # ════════════════════════════════════════════════════════════════
 
 install_proxymon() {
-    echo -e "${YELLOW}📥 Downloading Proxy Monitor...${NC}"
-    wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
-    chmod +x gitfolder.py
-    python3 gitfolder.py https://github.com/maravento/vault/proxymon 2>/dev/null || {
-        echo -e "${RED}❌ Failed to download Proxy Monitor${NC}"
-        exit 1
-    }
-    
-    if [[ -f "proxymon/modules.tar.gz" ]]; then
-        tar -xf proxymon/modules.tar.gz
-    else
-        echo -e "${RED}❌ modules.tar.gz not found${NC}"
-        exit 1
-    fi
-    
+    check_repo
     mkdir -p /var/www/proxymon
-    if [[ -d "modules" && -f "modules/index.html" ]]; then
-        cp -rf modules/* /var/www/proxymon/
-    else
-        echo -e "${RED}❌ modules directory or index.html not found${NC}"
-        exit 1
-    fi
-    
-    rm -rf proxymon gitfolder.py modules
+    cp -rf modules/* /var/www/proxymon/
     
     echo -e "${YELLOW}⚙️  Configuring Apache...${NC}"
     

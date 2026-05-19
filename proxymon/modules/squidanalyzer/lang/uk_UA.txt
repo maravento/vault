@@ -1,0 +1,119 @@
+#------------------------------------------------------------------------------
+# This is the translation file of SquidAnalyzer program. The first column
+# represente the program access key to translated string and the second
+# column is the translated string itself.
+# Keys should not be modified and are case sensitive. The column separator
+# is the tabulation character.
+#
+# Specials tags %s and %d in the translated string are uses by the program to
+# replace dynamics values. Following the language their place in the string
+# may vary.
+#
+# Author: Gilles Darold
+# Ukrainian translation by Oleg A. Deordiev. Version 1.1
+#------------------------------------------------------------------------------
+CharSet				utf-8
+01				Січ
+02				Лют
+03				Бер
+04				Кві
+05				Тра
+06				Чер
+07				Лип
+08				Сер
+09				Вер
+10				Жов
+11				Лис
+12				Гру
+KB				Кілобайт
+MB				Мегабайт
+GB				Гігабайт
+Requests			Запити
+Bytes				Байти
+Megabytes			Мегабайти
+Total				Всього
+Years				Рік
+Months				Місяці
+Days				Дні
+Hit				Влучив
+Miss				Промах
+Denied				Відмовлено
+Cost				Вартість
+Users				Користувачі
+Sites				Сайти
+Domains				Домени
+Requests_graph			Запити
+Megabytes_graph			Магабайти
+Months_graph			Місяці
+Days_graph			Дні
+Hit_graph			Влучив
+Miss_graph			Промах
+Denied_graph			Відмовлено
+Total_graph			Усього
+Domains_graph			Домени
+Users_help			Статистика по користувачам за обраний період
+Sites_help			Статистика по Сайтам за обраний період
+Domains_help			Статистика по Доменам за обраний період
+Hit_help			Об'єкти, знайдені в кеші
+Miss_help			Об'єкти, не знайдені в кеші
+Denied_help			Об'єкти зі статусом в доступі відмовленно
+Cost_help			1 Мега байт =
+Generation			Дата створення звіта
+Main_cache_title		Статистика Проксі
+Cache_title			Статистика Проксі
+Stat_label			Статистика
+Mime_link			MIME-Типи
+Network_link			Підмережі
+User_link			Користувачі
+Top_url_link			Топ URL
+Top_domain_link			Топ Домени
+Back_link			Назад
+Graph_cache_hit_title		%s Статистика запитів за
+Graph_cache_byte_title		%s Статистика в Мегабайтах за
+Hourly				Погодинна
+Hours				Годин
+Daily				Подобова
+Days				Число
+Monthly				Помісячна
+Months				Місяців
+Mime_title			MIME Типи Статистика за
+Mime_number			Кількість MIME-Типів
+Network_title			Статистика по Підмережам за
+Network_number			Кількість Подмереж
+Duration			Тривалість
+Time				Час
+Largest				Найбільший
+Url				URL
+User_title			Статистика по Користувачам за
+User_number			Кількість Користувачів
+Url_title			Toп %d URL
+Url_Hits_title			Toп %d URL запитів за
+Url_Bytes_title			Toп %d URL трафік за
+Url_Duration_title		Toп %d URL тривалість за
+Url_number			Кількість URL
+Domain_Hits_title		Toп %d запитів по Доменам за
+Domain_Bytes_title		Toп %d трафік по Доменам за
+Domain_Duration_title		Toп %d тривалість по Доменам за
+Domain_number			Кількість Доменов
+Domain_graph_hits_title		Статистика запитів по Доменам за
+Domain_graph_bytes_title	Статистика трафіка по Доменам за
+Second_domain_graph_hits_title	Статистика запитів по Доменам другого рівня за
+Second_domain_graph_bytes_title	Статистика трафіка по Доменам другого рівня за
+First_visit			Перше відвідування
+Last_visit			Останне відвідування
+Globals_Statistics		Глобальна Статистика
+Legend				Підсказка
+File_Generated			Звіт був згенерований за допомогою
+Up_link				Вгору
+Click_year_stat			Натисніть на готову статистику для отримання докладної інформації
+Mime_graph_hits_title		MIME-Типи запитів за
+Mime_graph_bytes_title		MIME-Типи Мегабайти за
+User				Користувач
+Count				Кількість
+WeekDay				Нд Пн Вт Ср Чт Пт Сб
+Week				Тиждень
+Top_denied_link			Top Denied
+Blocklist_acl_title		Blocklist ACL use
+Throughput			Throughput
+Graph_throughput_title		%s throughput on
+Throughput_graph		Bytes/sec

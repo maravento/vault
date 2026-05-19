@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Samba Audit Viewer</title>
+    <title>SMBstack — Audit Viewer</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>" type="image/svg+xml">
     <style>
         * {
@@ -28,7 +28,9 @@
             background: #2c3e50;
             padding: 0.75rem 1rem;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            display: block;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
         .header-left {
@@ -46,21 +48,9 @@
             font-weight: 600;
         }
 
-        .header-center {
-            text-align: center;
-            color: #e2e8f0;
-            font-size: 0.9rem;
-            font-weight: 500;
-            text-transform: none;
-            margin-bottom: 0.5rem;
-        }
+        .header-center { display: none; }
 
-        .header-right {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            justify-self: end;
-        }
+        .header-right { display: none; }
 
         .header-date {
             color: white;
@@ -340,31 +330,13 @@
         @media (min-width: 768px) {
             .header {
                 padding: 0.75rem 2rem;
-                display: grid;
-                grid-template-columns: 1fr auto 1fr;
+                display: flex;
+                justify-content: center;
                 align-items: center;
-                gap: 2rem;
-            }
-
-            .header-left {
-                margin-bottom: 0;
             }
 
             .header h1 {
                 font-size: 1.25rem;
-            }
-
-            .header-center {
-                font-size: 1rem;
-                margin-bottom: 0;
-            }
-
-            .header-right {
-                align-items: flex-end;
-            }
-
-            .header-date {
-                font-size: 0.9rem;
             }
 
             .records-counter {
@@ -436,7 +408,7 @@
     <div class="container">
         <div class="header">
             <div class="header-left">
-                <h1>📊 Samba Audit Viewer</h1>
+                <h1>📊 SMBstack &mdash; Audit Viewer</h1>
             </div>
             <div class="header-center">
                 Real-time Audit Log Monitoring

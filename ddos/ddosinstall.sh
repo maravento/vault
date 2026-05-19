@@ -68,18 +68,37 @@ else
     echo "✅ Dependencies OK"
 fi
 
+# ─────────────────────────────────────────────
+# REPOSITORY STRUCTURE CHECK
+# ─────────────────────────────────────────────
+
+check_repo() {
+    local missing=0
+    if [ ! -f "ddos.sh" ] || [ ! -f "ddos.conf" ] || [ ! -f "ignore" ]; then
+        missing=1
+    fi
+    if [ "$missing" -eq 1 ]; then
+        echo ""
+        echo "ERROR: Repository files not found. Run:"
+        echo ""
+        echo "  sudo apt install -y python-is-python3"
+        echo "  wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py"
+        echo "  chmod +x gitfolder.py"
+        echo "  python gitfolder.py https://github.com/maravento/vault/ddos"
+        echo ""
+        exit 1
+    fi
+}
+
 # Server IP
 ips=$(ip -4 -o addr show scope global | awk '{print $4}' | cut -d/ -f1)
 # Ignore Path
 ignore_file="/usr/local/ddos/ignore"
 
-wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
-chmod +x gitfolder.py
-python gitfolder.py https://github.com/maravento/vault/ddos
+check_repo
 mkdir -p /usr/local/ddos
 chown root:root /usr/local/ddos
-cp -f -R ddos/* /usr/local/ddos
-rm -r ddos
+cp -f -R ./* /usr/local/ddos
 chmod 0755 /usr/local/ddos/ddos.sh
 (crontab -l 2>/dev/null | grep -v '/usr/local/ddos/ddos.sh'; echo "*/1 * * * * /usr/local/ddos/ddos.sh &> /dev/null") | crontab -
 (crontab -l 2>/dev/null | grep -v '@monthly.*find /usr/local/ddos'; echo "@monthly find /usr/local/ddos/* -type f -exec truncate -s 0 {} \;") | crontab -

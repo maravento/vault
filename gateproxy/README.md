@@ -1,4 +1,4 @@
-# [Gateproxy](https://www.maravento.com)
+# [Gateproxy](https://github.com/maravento)
 
 [![status-beta](https://img.shields.io/badge/status-beta-magenta.svg)](https://github.com/maravento/vault)
 
@@ -15,17 +15,6 @@
   </tr>
 </table>
 
-## DOWNLOAD PROJECT
-
----
-
-```bash
-sudo apt install -y python-is-python3
-wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
-chmod +x gitfolder.py
-python gitfolder.py https://github.com/maravento/vault/gateproxy
-```
-
 ## DATA SHEET
 
 ---
@@ -41,7 +30,7 @@ python gitfolder.py https://github.com/maravento/vault/gateproxy
 **Open the terminal and run: | Abra el terminal y ejecute:**
 
 ```bash
-wget -q -N https://raw.githubusercontent.com/maravento/vault/master/gateproxy/gateproxy.sh && sudo chmod +x gateproxy.sh && sudo ./gateproxy.sh
+wget -qO gateproxy.sh https://raw.githubusercontent.com/maravento/vault/master/gateproxy/gateproxy.sh && sudo bash gateproxy.sh
 ```
 
 ![Gateproxy](https://raw.githubusercontent.com/maravento/vault/master/gateproxy/img/gateproxy.png)

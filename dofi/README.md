@@ -1,4 +1,4 @@
-# [DoFi](https://www.maravento.com)
+# [DoFi](https://github.com/maravento)
 
 [![status-release-candidate](https://img.shields.io/badge/status-release_candidate-skyblue.svg)](https://github.com/maravento)
 
@@ -20,10 +20,15 @@
 ---
 
 ```bash
+# Download
 sudo apt install -y python-is-python3
 wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
 chmod +x gitfolder.py
 python gitfolder.py https://github.com/maravento/vault/dofi
+
+# Install
+cd dofi
+python domfilter.py
 ```
 
 ### Requirements
@@ -93,7 +98,6 @@ Ubuntu 22.04/24.04 x64
 </table>
 
 ```bash
-wget -qO domfilter.py https://raw.githubusercontent.com/maravento/vault/master/dofi/domfilter.py
 python domfilter.py --input mylst.txt
 ```
 
@@ -146,7 +150,6 @@ ccTLDs, gTLDs, sTLDs, eTLDs, and 4LDs (file: `tlds.txt`)
 #### Using Bash Script
 
 ```bash
-wget -qO domcheck.sh https://raw.githubusercontent.com/maravento/vault/master/dofi/domcheck.sh
 chmod +x domcheck.sh
 ./domcheck.sh my_domain_list.txt
 ```

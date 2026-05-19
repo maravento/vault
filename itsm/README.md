@@ -1,4 +1,4 @@
-# [ITSM](https://www.maravento.com)
+# [ITSM](https://github.com/maravento)
 
 [![status-release-candidate](https://img.shields.io/badge/status-release_candidate-skyblue.svg)](https://github.com/maravento)
 

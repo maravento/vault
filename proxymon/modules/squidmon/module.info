@@ -1,0 +1,7 @@
+desc=Proxy Monitor
+longdesc=Monitor Proxy Logs and ACL Blocks
+category=servers
+os_support=*-linux
+version=1.1
+depends=webmin
+defaultconfig=1

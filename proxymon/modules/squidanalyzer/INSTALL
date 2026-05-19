@@ -1,0 +1,167 @@
+NAME
+    SquidAnalyzer - Squid access log report generation tool
+
+REQUIREMENT
+    Nothing is required than a modern perl version 5.8 or higher. Graphics
+    are based on the Flotr2 Javascript library so they are drawn at your
+    browser side without extra installation required.
+
+INSTALLATION
+  Generic install
+    If you want the package to be intalled into the Perl distribution just
+    do the following:
+
+        perl Makefile.PL
+        make
+        make install
+
+    Follow the instruction given at the end of install. With this default
+    install everything configurable will be installed under
+    /etc/squidanalyzer. The Perl library SquidAnalyzer.pm will be installed
+    under your site_perl directory and the squid-analyzer Perl script will
+    be copied under /usr/local/bin.
+
+    The default output directory for html reports will be
+    /var/www/squidanalyzer/.
+
+    On FreeBSD, if make install is freezing and you have the following
+    messages:
+
+            FreeBSD: Registering installation in the package database
+            FreeBSD: Cannot determine short module description
+            FreeBSD: Cannot determine module description
+
+    please proceed as follow:
+
+            perl Makefile.PL INSTALLDIRS=site
+            make
+            make install
+
+    as the issue is related to an install into the default Perl vendor
+    installdirs it will then use Perl site installdirs.
+
+  Custom install
+    You can create your fully customized SquidAnalyzer installation by using
+    the Makefile.PL Perl script. Here is a sample:
+
+            perl Makefile.PL \
+                    LOGFILE=/var/log/squid3/access.log \
+                    BINDIR=/usr/bin \
+                    CONFDIR=/etc \
+                    HTMLDIR=/var/www/squidreport \
+                    BASEURL=/squidreport \
+                    MANDIR=/usr/share/man/man3 \
+                    DOCDIR=/usr/share/doc/squidanalyzer
+
+    If you want to build a distro package, there are two other options that
+    you may use. The QUIET option is to tell to Makefile.PL to not show the
+    default post install README. The DESTDIR is to create and install all
+    files in a package build base directory. For example for Fedora RPM,
+    thing may look like that:
+
+            # Make Perl and SendmailAnalyzer distrib files
+            %{__perl} Makefile.PL \
+                INSTALLDIRS=vendor \
+                QUIET=1 \
+                LOGFILE=/var/log/squid/access.log \
+                BINDIR=%{_bindir} \
+                CONFDIR=%{_sysconfdir} \
+                BASEDIR=%{_localstatedir}/lib/%{uname} \
+                HTMLDIR=%{webdir} \
+                MANDIR=%{_mandir}/man3 \
+                DOCDIR=%{_docdir}/%{uname}-%{version} \
+                DESTDIR=%{buildroot} < /dev/null
+
+    See spec file in packaging/RPM for full RPM build script.
+
+  Local install
+    You can also have a custom installation. Just copy the SquidAnalyzer.pm
+    and the squid-analyzer perl script into a directory, copy and modify the
+    configuration file and run the script from here with the -c option.
+
+    Then copy files sorttable.js, squidanalyzer.css and
+    logo-squidanalyzer.png into the output directory.
+
+  Post installation
+    1. Modify your httpd.conf to allow access to HTML output like follow:
+
+            Alias /squidreport /var/www/squidanalyzer
+            <Directory /var/www/squidanalyzer>
+                Options -Indexes FollowSymLinks MultiViews
+                AllowOverride None
+                Order deny,allow
+                Deny from all
+                Allow from 127.0.0.1
+            </Directory>
+
+    2. If necessary, give additional host access to SquidAnalyzer in
+    httpd.conf. Restart and ensure that httpd is running.
+
+    3. Browse to http://my.host.dom/squidreport/ to ensure that things are
+    working properly.
+
+    4. Setup a cronjob to run squid-analyzer daily or more often:
+
+         # SquidAnalyzer log reporting daily
+         0 2 * * * /usr/local/bin/squid-analyzer > /dev/null 2>&1
+
+    or run it manually. For more information, see README file.
+
+    You can use network name instead of network ip addresses by using the
+    network-aliases file. Also if you don't have authentication enable and
+    want to replace client ip addresses by some know user or computer you
+    can use the user-aliases file to do so.
+
+    See the file squidanalyzer.conf to customized your output statistics and
+    match your network and file system configuration.
+
+USAGE
+    SquidAnalyzer can be run manually or by cron job using the
+    squid-analyzer Perl script. Here are authorized usage:
+
+        Usage: squid-analyzer [ -c squidanalyzer.conf ] [-l logfile]
+
+            -c | --configfile filename : path to the SquidAnalyzer configuration file.
+                                         By default: /etc/squidanalyzer.conf
+            -b | --build_date date     : set the day to be rebuilt, format: yyyy-mm-dd,
+                                         yyyy-mm or yyyy. Used with -r or --rebuild.
+            -d | --debug               : show debug information.
+            -h | --help                : show this message and exit.
+            -l | --logfile filename    : path to the Squid logfile to parse.
+                                         By default: /var/log/squid/access.log
+            -p | --preserve number     : used to set the statistic obsolescence in
+                                         number of month. Older stats will be removed.
+            -r | --rebuild             : use this option to rebuild all html and graphs
+                                         output from all data files.
+            -v | version               : show version and exit.
+            --no-year-stat             : disable years statistics, reports will
+                                         start from month level only.
+
+    There is special options like --rebuild that force SquidAnalyzer to
+    rebuild all HTML reports, useful after an new feature or a bug fix. If
+    you want to limit the rebuild to a single day, a single month or year,
+    you can use the --build_date option by specifying the date part to
+    rebuild, format: yyyy-mm-dd, yyyy-mm or yyyy.
+
+    The --preserve option should be used if you want to rotate your
+    statistics and data. The value is the number of months to keep, older
+    reports and data will be removed from the filesystem. Useful to preserve
+    space, for example:
+
+            squid-analyzer -p 6 -c /etc/squidanalyzer/squidanalyzer.conf
+
+    will only preserve six month of statistics from the last run of
+    squidanalyzer.
+
+CONFIGURATION
+    See README file.
+
+AUTHOR
+    Gilles DAROLD <gilles@darold.net>
+
+COPYRIGHT
+    Copyright (c) 2001-2017 Gilles DAROLD
+
+    This package is free software and published under the GPL v3 or above
+    license.
+

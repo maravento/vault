@@ -1,4 +1,4 @@
-# [DDoS Deflate](https://www.maravento.com)
+# [DDoS Deflate](https://github.com/maravento)
 
 [![status-deprecated](https://img.shields.io/badge/status-deprecated-red.svg)](https://github.com/maravento)
 
@@ -20,6 +20,7 @@
 ---
 
 ```bash
+# Download
 sudo apt install -y python-is-python3
 wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
 chmod +x gitfolder.py
@@ -48,7 +49,13 @@ python gitfolder.py https://github.com/maravento/vault/ddos
 ### Install
 
 ```bash
-wget -qO ddosinstall.sh https://raw.githubusercontent.com/maravento/vault/master/ddos/ddosinstall.sh && chmod +x ddosinstall.sh && sudo ./ddosinstall.sh
+cd ddos
+chmod +x ddosinstall.sh
+sudo ./ddosinstall.sh
+# or
+wget -qO ddosinstall.sh https://raw.githubusercontent.com/maravento/vault/master/ddos/ddosinstall.sh
+chmod +x ddosinstall.sh
+sudo ./ddosinstall.sh
 ```
 
 ### Remove

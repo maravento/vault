@@ -1,0 +1,65 @@
+<header>Monitor de Squid</header>
+
+<h3>Introducción</h3>
+<p>El módulo Monitor de Proxy proporciona un dashboard para monitorear su servidor proxy Squid. Se enfoca en peticiones bloqueadas (TCP_DENIED) y proporciona estadísticas detalladas sobre la actividad de las ACL.</p>
+
+<h3>Características</h3>
+<ul>
+<li>Estadísticas en tiempo real desde los logs de Squid</li>
+<li>Monitoreo de peticiones TCP_DENIED (bloqueadas)</li>
+<li>Seguimiento de múltiples archivos ACL y sus conteos de bloqueos</li>
+<li>Soporte para ACLs basadas en archivos y regex</li>
+<li>Peticiones bloqueadas detalladas por IP de cliente con detalles expandibles</li>
+<li>Dominios y clientes más bloqueados</li>
+<li>Rangos de tiempo configurables y auto-actualización</li>
+<li>Cero dependencias externas (parsing puro en Perl)</li>
+</ul>
+
+<h3>Configuración</h3>
+<p>En la configuración del módulo, puede personalizar:</p>
+<ul>
+<li><b>Ruta del archivo de log:</b> Ubicación del access.log de Squid (predeterminado: /var/log/squid/access.log)</li>
+<li><b>Líneas a procesar:</b> Cuántas líneas del log leer (predeterminado: 50,000)</li>
+<li><b>Rango de tiempo:</b> Solo mostrar peticiones de las últimas X horas (predeterminado: 24)</li>
+<li><b>Archivos ACL:</b> Lista de archivos ACL a monitorear con etiquetas personalizadas</li>
+<li><b>Auto-actualización:</b> Recargar automáticamente el dashboard cada X segundos</li>
+</ul>
+
+<h3>Monitoreo de ACL</h3>
+<p>Puede monitorear dos tipos de ACLs:</p>
+
+<h4>ACLs basadas en archivos</h4>
+<p>Formato:</p>
+<pre>/ruta/a/acl.txt=Nombre Etiqueta</pre>
+<p>Ejemplo:</p>
+<pre>/etc/acl/acl_squid/redes_sociales.txt=Redes Sociales
+/etc/acl/acl_squid/streaming.txt=Sitios de Streaming
+/etc/acl/acl_squid/contenido_adulto.txt=Contenido Adulto</pre>
+
+<h4>ACLs basadas en regex</h4>
+<p>Formato:</p>
+<pre>regex:patrón=Nombre Etiqueta</pre>
+<p>Ejemplo:</p>
+<pre>regex:^(http|https)://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+=Bloquear IPv4
+regex:.*\.(exe|msi|dmg)$=Archivos Ejecutables</pre>
+
+<p>El dashboard mostrará cuántos bloqueos generó cada ACL e identificará qué ACL bloqueó cada petición.</p>
+
+<h3>Vista Detallada de Peticiones Bloqueadas</h3>
+<p>La sección "Peticiones Bloqueadas por IP de Cliente" muestra todos los clientes con peticiones bloqueadas. Haga clic en cualquier IP de cliente para expandir y ver:</p>
+<ul>
+<li>Fecha y hora de cada petición bloqueada</li>
+<li>Dominio o IP que fue bloqueado</li>
+<li>Qué ACL realizó el bloqueo</li>
+</ul>
+
+<h3>Notas de Rendimiento</h3>
+<ul>
+<li>El análisis se hace en tiempo real cuando carga la página</li>
+<li>Archivos de log grandes pueden tardar unos segundos en procesarse</li>
+<li>Ajuste "Líneas a procesar" si la página carga lentamente</li>
+<li>Squid rota los logs automáticamente, así que access.log se mantiene manejable</li>
+<li>Las ACLs regex son ligeramente más lentas que las ACLs basadas en archivos</li>
+</ul>
+
+<footer>

@@ -1,0 +1,121 @@
+#------------------------------------------------------------------------------
+# This is the translation file of SquidAnalyzer program. The first column
+# represente the program access key to translated string and the second
+# column is the translated string itself.
+# Keys should not be modified and are case sensitive. The column separator
+# is the tabulation character.
+#
+# Specials tags %s and %d in the translated string are uses by the program to
+# replace dynamics values. Following the language their place in the string
+# may vary.
+# Version 1.2.2
+# Author: Gilles Darold
+# Russian translation by oxygen121.
+# Additions and corrections by yvoinov.
+# Additions and corrections by badfiles.
+#------------------------------------------------------------------------------
+CharSet				utf-8
+01				Янв
+02				Фев
+03				Мрт
+04				Апр
+05				Май
+06				Июн
+07				Июл
+08				Авг
+09				Сен
+10				Окт
+11				Ноя
+12				Дек
+KB				Килобайт
+MB				Мегабайт
+GB				Гигабайт
+Requests			Запросы
+Bytes				Байты
+Megabytes			Мегабайты
+Total				Всего
+Years				Год
+Months				Месяца
+Days				Дни
+Hit				Получено из кэша
+Miss				Получено не из кэша
+Denied				Запрещено
+Cost				Стоимость
+Users				Пользователи
+Sites				Сайты
+Domains				Домены
+Requests_graph			Запросы
+Megabytes_graph			Трафик
+Months_graph			Месяца
+Days_graph			Дни
+Hit_graph			Из кэша
+Miss_graph			Не из кэша
+Denied_graph			Запрещено
+Total_graph			Всего
+Domains_graph			Домены
+Users_help			Статистика по пользователям за выбранный период
+Sites_help			Статистика по сайтам за выбранный период
+Domains_help			Статистика по доменам за выбранный период
+Hit_help			Объекты, найденные в кэше
+Miss_help			Объекты, не найденные в кэше
+Denied_help			Объекты, доступ к которым был запрещен
+Cost_help			1 Мегабайт =
+Generation			Дата создания отчета
+Main_cache_title		Статистика прокси
+Cache_title			Статистика прокси
+Stat_label			Статистика
+Mime_link			Типы MIME
+Network_link			Подсети
+User_link			Пользователи
+Top_url_link			Рейтинг URL
+Top_domain_link			Рейтинг доменов
+Back_link			Назад
+Graph_cache_hit_title		%s Статистика  по запросам за
+Graph_cache_byte_title		%s Статистика по трафику за
+Hourly				Почасовая
+Hours				Время
+Daily				Посуточная
+Days				Число
+Monthly				Помесячная
+Months				месяцев
+Mime_title			Статистика по типам MIME
+Mime_number			Количество типов MIME
+Network_title			Статистика по подсетям за
+Network_number			Кол-во подсетей
+Duration			Продолжительность
+Time				Время
+Largest				Наибольший
+Url				URL
+User_title			Статистика по пользователям за
+User_number			Количество пользователей
+Url_title			Рейтинг %d URL
+Url_Hits_title			%d самых посещаемых URL-запросов за
+Url_Bytes_title			%d URL с наибольшим трафиком за
+Url_Duration_title		%d URL с наибольшей продолжительностью за
+Url_number			Количество URL
+Domain_Hits_title		%d самых посещаемых доменов за
+Domain_Bytes_title		%d доменов с наибольшим трафиком за
+Domain_Duration_title		%d доменов с наибольшей продолжительностью за
+Domain_number			Кол-во доменов
+Domain_graph_hits_title		Статистика запросов по доменам за
+Domain_graph_bytes_title	Статистика трафика по доменам за
+Second_domain_graph_hits_title	Статистика запросов по доменам второго уровня за
+Second_domain_graph_bytes_title	Статистика трафика по доменам второго уровня за
+First_visit			Первое посещение
+Last_visit			Последнее посещение
+Globals_Statistics		Общая статистика
+Legend				Подсказка
+File_Generated			Отчет сгенерирован программой
+Up_link				Вверх
+Click_year_stat			Нажмите на готовую статистику для получения подробной информации
+Mime_graph_hits_title		Типы MIME (запросы) за
+Mime_graph_bytes_title		Типы MIME (трафик) за
+User				Пользователь
+Count				Счетчик
+WeekDay				Вс Пн Вт Ср Чт Пт Сб
+Week				Неделя
+Top_denied_link			Рейтинг отказов в доступе
+Blocklist_acl_title		Использованные блок-листы (ACL)
+Throughput			Пропускная способность
+Graph_throughput_title		%s пропускная способность на
+Throughput_graph		Байт/сек

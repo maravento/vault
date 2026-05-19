@@ -696,7 +696,7 @@ rm -f proxymon.sh
 # DHCP SECTION
 # pydhcp
 echo "Installing pydhcp..."
-python gitfolder.py https://github.com/maravento/vault/tree/master/pydhcp
+python gitfolder.py https://github.com/maravento/vault/pydhcp
 cd pydhcp
 expect -c "
     spawn bash pyinstall.sh
@@ -862,7 +862,7 @@ read -p "${lang_19[$lang]} Samba?
 ${lang_20[$lang]} (y/n)" answer
     case $answer in
     [Yy]*)
-        python gitfolder.py https://github.com/maravento/vault/tree/master/smbstack
+        python gitfolder.py https://github.com/maravento/vault/smbstack
         cd smbstack
         bash smbinstall.sh --install
         cd ..

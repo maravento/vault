@@ -27,7 +27,7 @@ if (!$base_path || !is_dir($base_path)) {
 function write_audit($action, $file_path) {
     $log_file  = '/var/log/samba/log.audit';
     $timestamp = date('Y-m-d\TH:i:s.000000P');
-    $ip        = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $ip        = $_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
     $user      = 'www-data';
     $share     = 'compartida';
     $env_file  = '/var/www/smbstack/smbstack.env';
@@ -60,20 +60,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['upload'])) {
         header('Location: ?path=' . urlencode($request) . '&msg=protected');
         exit;
     }
-    $orig_name  = basename($_FILES['upload']['name']);
-    $safe_name  = preg_replace('/[^a-zA-Z0-9._\- ]/', '_', $orig_name);
-    $safe_name  = preg_replace('/\.php[\d]?$/i', '.txt', $safe_name);
-    $safe_name  = trim($safe_name, '. ');
-    if ($safe_name === '') $safe_name = 'upload_' . time();
-    $target = $full_path . '/' . $safe_name;
-    if (move_uploaded_file($_FILES['upload']['tmp_name'], $target)) {
-        chmod($target, 0666);
-        write_audit('mkdirat', $target);
-        $upload_msg = 'success';
-    } else {
-        $upload_msg = 'error';
+    $files     = $_FILES['upload'];
+    $count     = is_array($files['name']) ? count($files['name']) : 1;
+    $succeeded = 0;
+    $failed    = 0;
+    for ($i = 0; $i < $count; $i++) {
+        $tmp_name  = is_array($files['tmp_name']) ? $files['tmp_name'][$i] : $files['tmp_name'];
+        $orig_name = is_array($files['name'])     ? $files['name'][$i]     : $files['name'];
+        $error     = is_array($files['error'])    ? $files['error'][$i]    : $files['error'];
+        if ($error !== UPLOAD_ERR_OK) { $failed++; continue; }
+        $orig_name = basename($orig_name);
+        $safe_name = preg_replace('/[^a-zA-Z0-9._\- ]/', '_', $orig_name);
+        $safe_name = preg_replace('/\.php[\d]?$/i', '.txt', $safe_name);
+        $safe_name = trim($safe_name, '. ');
+        if ($safe_name === '') $safe_name = 'upload_' . time() . '_' . $i;
+        $target = $full_path . '/' . $safe_name;
+        if (move_uploaded_file($tmp_name, $target)) {
+            chmod($target, 0666);
+            write_audit('mkdirat', $target);
+            $succeeded++;
+        } else {
+            $failed++;
+        }
     }
+    if ($failed === 0)          $upload_msg = 'success';
+    elseif ($succeeded === 0)   $upload_msg = 'error';
+    else                        $upload_msg = 'partial';
     header('Location: ?path=' . urlencode($request) . '&msg=' . $upload_msg);
+    exit;
+}
+
+// Mkdir handler
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mkdir'])) {
+    $mkdir_depth = $request === '' ? 0 : substr_count(trim($request, '/'), '/') + 1;
+    if ($mkdir_depth < 1) {
+        header('Location: ?path=' . urlencode($request) . '&msg=protected');
+        exit;
+    }
+    $dir_name = basename(trim($_POST['mkdir']));
+    $dir_name = preg_replace('/[^a-zA-Z0-9._\- ]/', '_', $dir_name);
+    $dir_name = trim($dir_name, '. ');
+    if ($dir_name === '') {
+        header('Location: ?path=' . urlencode($request) . '&msg=error');
+        exit;
+    }
+    $target = $full_path . '/' . $dir_name;
+    if (file_exists($target)) {
+        header('Location: ?path=' . urlencode($request) . '&msg=exists');
+        exit;
+    }
+    if (mkdir($target, 0775)) {
+        chown($target, 'www-data');
+        write_audit('mkdirat', $target);
+        $mkdir_msg = 'success';
+    } else {
+        $mkdir_msg = 'error';
+    }
+    header('Location: ?path=' . urlencode($request) . '&msg=mkdir_' . $mkdir_msg);
     exit;
 }
 
@@ -81,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['upload'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recycle'])) {
     $item_rel  = ltrim(preg_replace('/[\x00\x08\x0B\x0C\x0E-\x1F]/', '', $_POST['recycle']), '/');
     $item_full = realpath($base_path . '/' . $item_rel);
-    $recycle   = $base_path . '/.recycle';
+    $recycle   = $base_path . '/.recycle/www-data';
 
     if ($item_full && strpos($item_full, realpath($base_path)) === 0 && $item_full !== realpath($base_path)) {
         // Protect root-level items (files and directories)
@@ -175,8 +218,8 @@ foreach ($files as $f) $total_size += filesize($full_path . '/' . $f);
             gap: 0.5rem;
         }
 
-        .header h1 { color: white; font-size: 1.1rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
-        .header-meta { color: #a0aec0; font-size: 0.8rem; }
+        .header h1 { color: white; font-size: 1.1rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; margin: 0 auto; }
+        .header-meta { display: none; }
 
         .stats-bar {
             background: white;
@@ -254,6 +297,14 @@ foreach ($files as $f) $total_size += filesize($full_path . '/' . $f);
         .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
         .alert-error   { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 
+        .mkdir-area {
+            display: none;
+            padding: 0.75rem 1rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .mkdir-area.open { display: block; }
+        .mkdir-area form { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
         .upload-area {
             background: white;
             margin: 0 1rem 1rem;
@@ -295,8 +346,8 @@ foreach ($files as $f) $total_size += filesize($full_path . '/' . $f);
         .name-cell { display: flex; align-items: center; gap: 0.5rem; }
         .name-cell a { color: #1e293b; text-decoration: none; }
         .name-cell a:hover { color: #2563eb; }
-        .dir-link { color: #d97706 !important; font-weight: 500; }
-        .dir-link:hover { color: #b45309 !important; }
+        .dir-link { color: #374151 !important; font-weight: 500; }
+        .dir-link:hover { color: #111827 !important; }
 
         .muted { color: #64748b; }
 
@@ -311,17 +362,22 @@ foreach ($files as $f) $total_size += filesize($full_path . '/' . $f);
 </head>
 <body>
 
-<div class="header">
+<div class="header" style="display:flex;justify-content:center;">
     <h1>📁 SMBstack &mdash; Shared Folder</h1>
-    <div class="header-meta"><?= date('Y-m-d H:i:s') ?></div>
 </div>
 
 <?php if ($msg === 'success'): ?>
 <div class="alert alert-success">✅ File uploaded successfully.</div>
+<?php elseif (($msg ?? '') === 'partial'): ?>
+<div class="alert alert-warning">⚠️ Some files were uploaded, but others failed.</div>
 <?php elseif ($msg === 'recycled'): ?>
 <div class="alert alert-success">🗑️ Item moved to recycle bin.</div>
 <?php elseif ($msg === 'protected'): ?>
 <div class="alert alert-error">🔒 Root folders cannot be deleted.</div>
+<?php elseif ($msg === 'mkdir_success'): ?>
+<div class="alert alert-success">✅ Folder created successfully.</div>
+<?php elseif ($msg === 'exists'): ?>
+<div class="alert alert-error">⚠️ A folder with that name already exists.</div>
 <?php elseif ($msg === 'error'): ?>
 <div class="alert alert-error">❌ Operation failed. Check permissions.</div>
 <?php endif; ?>
@@ -334,7 +390,8 @@ foreach ($files as $f) $total_size += filesize($full_path . '/' . $f);
     </div>
     <div class="toolbar">
         <button class="btn btn-primary" onclick="location.reload()">🔄 Reload</button>
-        <button class="btn btn-success" onclick="document.getElementById('upload-area').classList.toggle('open')">⬆️ Upload</button>
+        <button class="btn btn-success" onclick="document.getElementById('upload-area').classList.toggle('open');document.getElementById('mkdir-area').classList.remove('open')">⬆️ Upload</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('mkdir-area').classList.toggle('open');document.getElementById('upload-area').classList.remove('open')">📁 New Folder</button>
         <a class="btn btn-secondary" href="/audit/">📊 Audit</a>
     </div>
 </div>
@@ -342,9 +399,27 @@ foreach ($files as $f) $total_size += filesize($full_path . '/' . $f);
 <div class="upload-area" id="upload-area">
     <form method="POST" enctype="multipart/form-data">
         <input type="hidden" name="path" value="<?= htmlspecialchars($request) ?>">
-        <input type="file" name="upload" required>
-        <button type="submit" class="btn btn-success">Upload</button>
-        <button type="button" class="btn btn-secondary" onclick="document.getElementById('upload-area').classList.remove('open')">Cancel</button>
+        <label class="btn btn-secondary" style="cursor:pointer;margin:0">
+            📂 Select Files
+            <input type="file" name="upload[]" required multiple style="display:none" onchange="
+                var n = this.files.length;
+                this.parentElement.nextElementSibling.textContent = n === 1
+                    ? '✔️ ' + this.files[0].name.substring(0,40)
+                    : '✔️ ' + n + ' files selected';
+            ">
+        </label>
+        <span style="color:#6c757d;font-size:0.85rem;flex:1"></span>
+        <button type="submit" class="btn btn-success" id="btn-send" onclick="this.disabled=true;this.textContent='⏳ Uploading...';this.form.submit()">⬆️ Send</button>
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('upload-area').classList.remove('open')">✖️ Cancel</button>
+    </form>
+</div>
+
+<div class="mkdir-area" id="mkdir-area">
+    <form method="POST">
+        <input type="hidden" name="path" value="<?= htmlspecialchars($request) ?>">
+        <input type="text" name="mkdir" placeholder="Folder name" required style="flex:1;padding:0.4rem 0.7rem;border-radius:6px;border:1px solid #ced4da;font-size:0.85rem">
+        <button type="submit" class="btn btn-secondary">✔️ Create</button>
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('mkdir-area').classList.remove('open')">✖️ Cancel</button>
     </form>
 </div>
 

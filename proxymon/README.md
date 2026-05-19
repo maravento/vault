@@ -1,4 +1,4 @@
-# [Proxy Monitor](https://www.maravento.com)
+# [Proxy Monitor](https://github.com/maravento)
 
 [![status-release-candidate](https://img.shields.io/badge/status-release_candidate-skyblue.svg)](https://github.com/maravento)
 
@@ -15,15 +15,20 @@
   </tr>
 </table>
 
-## DOWNLOAD PROJECT
+## HOW TO INSTALL
 
 ---
 
 ```bash
+# Download
 sudo apt install -y python-is-python3
 wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
 chmod +x gitfolder.py
 python gitfolder.py https://github.com/maravento/vault/proxymon
+
+# Install
+cd proxymon
+sudo bash proxymon.sh
 ```
 
 ### Minimum Requirements
@@ -52,14 +57,6 @@ python gitfolder.py https://github.com/maravento/vault/proxymon
     </td>
   </tr>
 </table>
-
-## HOW TO INSTALL
-
----
-
-```bash
-wget -O proxymon.sh https://raw.githubusercontent.com/maravento/vault/refs/heads/master/proxymon/proxymon.sh && sudo chmod +x proxymon.sh && sudo ./proxymon.sh
-```
 
 ### Features & Options
 
@@ -1177,6 +1174,26 @@ LLM_URL=https://url-de-tu-proveedor-llm.com/endpoint?key={key}</code></pre>
 | **SARG** | [v2.4.0 (2020-01-16)](https://sourceforge.net/projects/sarg/) | N/A | N/A |
 | [Sqstat - Alex Samorukov](https://samm.kiev.ua/sqstat/) | [v1.20 (2006)](https://sourceforge.net/projects/sqstat/files/) | N/A | N/A |
 | [SquidAnalyzer](https://squidanalyzer.darold.net/download.html) [github](https://github.com/darold/squidanalyzer) | [v6.6 (2017)](https://sourceforge.net/projects/squid-report/files/squid-report/6.6/) | N/A | N/A |
+
+## ⚠️ WARNING: Network Access
+
+---
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      This project is designed to run locally and be accessed over a LAN. It is not recommended to expose it to the internet, as it lacks the hardening required for public-facing deployments.
+      If you choose to publish it despite this warning, it is strongly recommended to do so through an on-demand tunnel rather than opening ports directly. This approach lets you start and stop public access at will, without permanently exposing your server.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Este proyecto está diseñado para ejecutarse localmente y ser accedido en red LAN. No se recomienda exponerlo a internet, ya que no cuenta con el endurecimiento necesario para despliegues públicos.
+      Si decide publicarlo a pesar de esta advertencia, se recomienda hacerlo a través de un túnel bajo demanda en lugar de abrir puertos directamente. Este enfoque le permite iniciar y detener el acceso público a voluntad, sin exponer el servidor de forma permanente.
+    </td>
+  </tr>
+</table>
+
+**Optional tunnel:**
+- [Cloudflare Tunnel (start|stop|status) - Zero Trust Activation Recommended](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cftunnel.sh)
 
 ## DISCLAIMER
 

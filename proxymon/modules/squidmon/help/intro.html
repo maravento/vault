@@ -1,0 +1,65 @@
+<header>Squid Monitor</header>
+
+<h3>Introduction</h3>
+<p>The Proxy Monitor module provides a dashboard for monitoring your Squid proxy server. It focuses on blocked requests (TCP_DENIED) and provides detailed statistics about ACL activity.</p>
+
+<h3>Features</h3>
+<ul>
+<li>Real-time statistics from Squid access logs</li>
+<li>Monitor TCP_DENIED (blocked) requests</li>
+<li>Track multiple ACL files and their block counts</li>
+<li>Support for file-based and regex-based ACLs</li>
+<li>Detailed blocked requests by client IP with expandable details</li>
+<li>Top blocked domains and clients</li>
+<li>Configurable time ranges and auto-refresh</li>
+<li>Zero external dependencies (pure Perl parsing)</li>
+</ul>
+
+<h3>Configuration</h3>
+<p>In the module configuration, you can customize:</p>
+<ul>
+<li><b>Log file path:</b> Location of Squid's access.log (default: /var/log/squid/access.log)</li>
+<li><b>Lines to parse:</b> How many log lines to read (default: 50,000)</li>
+<li><b>Time range:</b> Only show requests from last X hours (default: 24)</li>
+<li><b>ACL files:</b> List of ACL files to monitor with custom labels</li>
+<li><b>Auto-refresh:</b> Automatically reload the dashboard every X seconds</li>
+</ul>
+
+<h3>ACL Monitoring</h3>
+<p>You can monitor two types of ACLs:</p>
+
+<h4>File-based ACLs</h4>
+<p>Format:</p>
+<pre>/path/to/acl.txt=Label Name</pre>
+<p>Example:</p>
+<pre>/etc/acl/acl_squid/social_media.txt=Social Media
+/etc/acl/acl_squid/streaming.txt=Streaming Sites
+/etc/acl/acl_squid/adult_content.txt=Adult Content</pre>
+
+<h4>Regex-based ACLs</h4>
+<p>Format:</p>
+<pre>regex:pattern=Label Name</pre>
+<p>Example:</p>
+<pre>regex:^(http|https)://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+=Block IPv4
+regex:.*\.(exe|msi|dmg)$=Executable Files</pre>
+
+<p>The dashboard will show how many blocks each ACL generated and identify which ACL blocked each request.</p>
+
+<h3>Blocked Requests Detail View</h3>
+<p>The "Blocked Requests by Client IP" section shows all clients with blocked requests. Click on any client IP to expand and see:</p>
+<ul>
+<li>Date and time of each blocked request</li>
+<li>Domain or IP that was blocked</li>
+<li>Which ACL performed the block</li>
+</ul>
+
+<h3>Performance Notes</h3>
+<ul>
+<li>Parsing is done in real-time when you load the page</li>
+<li>Large log files may take a few seconds to parse</li>
+<li>Adjust "Lines to parse" if the page loads slowly</li>
+<li>Squid automatically rotates logs, so access.log stays manageable</li>
+<li>Regex ACLs are slightly slower than file-based ACLs</li>
+</ul>
+
+<footer>

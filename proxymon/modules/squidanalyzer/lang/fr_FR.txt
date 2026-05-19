@@ -1,0 +1,118 @@
+#------------------------------------------------------------------------------
+# Fichier de traduction des chaines de caractères du programme SquidAnalyzer.
+# La premiere colonne correspond aux clés d'accès par le programme aux
+# traductions données dans la deuxieme colonne. Les clés ne doivent pas être
+# modifiés et la casse doit etre repectée. Le séparateur de colonne est la
+# tabulation.
+#
+# Les tags %s et %d dans les chaines de traduction correspondent aux valeurs
+# dynamiques subtituées par le programme. Suivant la langue utilisée leur
+# emplacement peut être modifié.
+#
+# Auteur: Gilles Darold
+#------------------------------------------------------------------------------
+CharSet				utf-8
+01				Jan
+02				Fév
+03				Mar
+04				Avr
+05				Mai
+06				Jui
+07				Jui
+08				Aou
+09				Sep
+10				Oct
+11				Nov
+12				Déc
+KB				Kilo octets
+MB				Méga octets
+GB				Giga octets
+Requests			Requêtes
+Bytes				Octets
+Megabytes			Méga octets
+Total				Total
+Years				Années
+Months				Mois
+Days				Jours
+Hit				Trouvés
+Miss				Manquants
+Denied				Rejetés
+Cost				Coût
+Users				Utilisateurs
+Sites				Sites
+Domains				Domaines
+Requests_graph			Requêtes
+Megabytes_graph			Méga octets
+Months_graph			Mois
+Days_graph			Jours
+Hit_graph			Trouvés
+Miss_graph			Manquants
+Denied_graph			Rejetés
+Total_graph			Total
+Domains_graph			Domaines
+Users_help			Nombre total d'utilisateurs différents pendant cette période
+Sites_help			Nombre total de sites différents visités pendant cette période
+Domains_help			Nombre total de domaines différents visités pendant cette période
+Hit_help			Objets trouvés dans le cache
+Miss_help			Objets non trouvés dans le cache
+Denied_help			Objets dont l'accès a été refusé
+Cost_help			1 Méga octet =
+Generation			Rapport généré
+Main_cache_title		Statistiques du cache
+Cache_title			Statistiques du cache pour
+Stat_label			Stats
+Mime_link			Types MIME
+Network_link			Réseaux
+User_link			Utilisateurs
+Top_url_link			Top Urls
+Top_domain_link			Top Domaines
+Back_link			Retour
+Graph_cache_hit_title		Statistiques %s des requêtes pour
+Graph_cache_byte_title		Statistiques %s des transferts pour
+Hourly				par heure
+Hours				Heures
+Daily				Quotidiennes
+Days				Jours
+Monthly				Mensuelles
+Months				Mois
+Mime_title			Statistiques des types MIME pour
+Mime_number			Nombre de types MIME
+Network_title			Statistiques réseaux pour
+Network_number			Nombre de réseaux
+Duration			Durée
+Time				Temps
+Largest				Plus gros transfert
+Url				Url
+User_title			Statistiques utilisateurs pour
+User_number			Nombre d'utilisateurs
+Url_title			Top %d des sites
+Url_Hits_title			Top %d des Urls par requêtes pour
+Url_Bytes_title			Top %d des Urls par transferts pour
+Url_Duration_title		Top %d des Urls par durée pour
+Url_number			Nombre d'Url
+Domain_Hits_title		Top %d des domaines par requêtes pour
+Domain_Bytes_title		Top %d des domaines par transferts pour
+Domain_Duration_title		Top %d des domaines par durée pour
+Domain_number			Nombre de domaines
+Domain_graph_hits_title		Statistiques des requêtes par domaines pour
+Domain_graph_bytes_title	Statistiques des transferts par domaines pour
+Second_domain_graph_hits_title	Statistiques des requêtes par sous-domaines pour
+Second_domain_graph_bytes_title	Statistiques des transferts par sous-domaines pour
+First_visit			Première visite
+Last_visit			Dernière visite
+Globals_Statistics		Statistiques Globales
+Legend				Légende
+File_Generated			Généré par
+Up_link				Haut de Page
+Click_year_stat			Cliquez sur le lien des statistiques annuelles pour plus de détail
+Mime_graph_hits_title		Statistiques des requêtes par type MIME pour
+Mime_graph_bytes_title		Statistiques Mega Octets par type MIME pour
+User				Utilisateur
+Count				Compte
+WeekDay				Di Lu Ma Me Je Ve Sa
+Week				Semaine
+Top_denied_link			Top Rejets
+Blocklist_acl_title		Utilisation des ACL de Blocklist
+Throughput			Throughput
+Graph_throughput_title		%s throughput on
+Throughput_graph		Bytes/sec

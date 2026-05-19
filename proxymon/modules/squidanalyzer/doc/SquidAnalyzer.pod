@@ -1,0 +1,586 @@
+=head1 NAME
+
+SquidAnalyzer - Squid access log report generation tool
+
+
+=head1 DESCRIPTION
+
+SquidAnalyzer parse native access log format of the Squid proxy and
+generate general statistics about hits, bytes, users, networks, top
+url, top second level domain and denied URLs. Common and combined
+log format are also supported. SquidGuard logs can also be parsed
+and ACL's redirection reported into denied URLs report.
+
+Statistic reports are oriented to user and bandwidth control, this
+is not a pure cache statistics generator. SquidAnalyzer use flat
+files to store data and don't need any SQL, SQL Lite or Berkeley
+databases.
+
+This analyzer is incremental so it should be run in a daily cron.
+Take care if you have rotate log enable to run it before rotation
+is done.
+
+=head1 REQUIREMENT
+
+Nothing is required than a modern perl version 5.8 or higher. Graphics
+are based on the Flotr2 Javascript library so they are drawn at your
+browser side without extra installation required.
+
+=head1 INSTALLATION
+
+=head2 Generic install
+
+If you want the package to be intalled into the Perl distribution just
+do the following:
+
+    perl Makefile.PL
+    make
+    make install
+
+Follow the instruction given at the end of install. With this default install
+everything configurable will be installed under /etc/squidanalyzer. The Perl
+library SquidAnalyzer.pm will be installed under your site_perl directory and
+the squid-analyzer Perl script will be copied under /usr/local/bin.
+
+The default output directory for html reports will be /var/www/squidanalyzer/.
+
+On FreeBSD, if make install is freezing and you have the following messages:
+
+	FreeBSD: Registering installation in the package database
+	FreeBSD: Cannot determine short module description
+	FreeBSD: Cannot determine module description
+
+please proceed as follow:
+
+	perl Makefile.PL INSTALLDIRS=site
+	make
+	make install
+
+as the issue is related to an install into the default Perl vendor installdirs
+it will then use Perl site installdirs.
+
+Note: you may not encountered this issue any more, since v6.6 SquidAnalyzer use
+site as default installation directory.
+
+=head2 Custom install
+
+You can create your fully customized SquidAnalyzer installation by using the
+Makefile.PL Perl script. Here is a sample:
+
+	perl Makefile.PL \
+		LOGFILE=/var/log/squid3/access.log \
+		BINDIR=/usr/bin \
+		CONFDIR=/etc \
+		HTMLDIR=/var/www/squidreport \
+		BASEURL=/squidreport \
+		MANDIR=/usr/share/man/man3 \
+		DOCDIR=/usr/share/doc/squidanalyzer
+
+If you want to build a distro package, there are two other options that you may use. The QUIET option is to tell to Makefile.PL to not show the default post install README. The DESTDIR is to create and install all files in a package build base directory. For example for Fedora RPM, thing may look like that:
+
+	# Make Perl and SendmailAnalyzer distrib files
+	%{__perl} Makefile.PL \
+	    INSTALLDIRS=vendor \
+	    QUIET=1 \
+	    LOGFILE=/var/log/squid/access.log \
+	    BINDIR=%{_bindir} \
+	    CONFDIR=%{_sysconfdir} \
+	    BASEDIR=%{_localstatedir}/lib/%{uname} \
+	    HTMLDIR=%{webdir} \
+	    MANDIR=%{_mandir}/man3 \
+	    DOCDIR=%{_docdir}/%{uname}-%{version} \
+	    DESTDIR=%{buildroot} < /dev/null
+
+See spec file in packaging/RPM for full RPM build script. 
+
+=head2 Local install
+
+You can also have a custom installation. Just copy the SquidAnalyzer.pm and the
+squid-analyzer perl script into a directory, copy and modify the configuration
+file and run the script from here with the -c option.
+
+Then copy files sorttable.js, squidanalyzer.css and logo-squidanalyzer.png into
+the output directory.
+
+=head2 Post installation
+
+1. Modify your httpd.conf to allow access to HTML output like follow:
+
+        Alias /squidreport /var/www/squidanalyzer
+        <Directory /var/www/squidanalyzer>
+            Options -Indexes FollowSymLinks MultiViews
+            AllowOverride None
+            Order deny,allow
+            Deny from all
+            Allow from 127.0.0.1
+        </Directory>
+
+2. If necessary, give additional host access to SquidAnalyzer in httpd.conf.
+Restart and ensure that httpd is running.
+
+3. Browse to http://my.host.dom/squidreport/ to ensure that things are working
+properly.
+
+4. Setup a cronjob to run squid-analyzer daily or more often:
+
+	# SquidAnalyzer log reporting daily
+	0 2 * * * /usr/local/bin/squid-analyzer > /dev/null 2>&1
+
+or run it manually. For more information, see README file.
+
+If your squid logfiles are rotated then cron isn't going to give the expected
+result as there exists a time between when the cron is run and the logfiles
+are rotated. It would be better to call squid-analyzer from logrotate, eg:
+
+	/var/log/proxy/squid-access.log {
+	    daily
+	    compress
+	    rotate 730
+	    missingok
+	    nocreate
+	    sharedscripts
+	    postrotate
+		test ! -e /var/run/squid.pid || /usr/sbin/squid -k rotate
+		/usr/bin/squid-analyzer -d -l /var/log/proxy/squid-access.log.1
+	    endscript
+	}
+
+You can also use network name instead of network ip addresses by using the
+network-aliases file. Also if you don't have authentication enable and
+want to replace client ip addresses by some know user or computer you
+can use the user-aliases file to do so. 
+
+See the file squidanalyzer.conf to customized your output statistics and
+match your network and file system configuration.
+
+=head1 USAGE
+
+SquidAnalyzer can be run manually or by cron job using the squid-analyzer Perl
+script. Here are authorized usage:
+
+Usage: squid-analyzer [ -c squidanalyzer.conf ] [logfile(s)]
+
+    -c | --configfile filename : path to the SquidAnalyzer configuration file.
+				 By default: /etc/squidanalyzer/squidanalyzer.conf
+    -b | --build_date date     : set the date to be rebuilt, format: yyyy-mm-dd
+				 or yyyy-mm or yyyy. Used with -r or --rebuild.
+    -d | --debug               : show debug information.
+    -h | --help                : show this message and exit.
+    -j | --jobs number         : number of jobs to run at same time. Default
+                                 is 1, run as single process.
+    -p | --preserve number     : used to set the statistic obsolescence in
+				 number of month. Older stats will be removed.
+    -P | --pid_dir directory   : set directory where pid file will be stored.
+				 Default /tmp/
+    -r | --rebuild             : use this option to rebuild all html and graphs
+				 output from all data files.
+    -s | --start HH:MM         : log lines before this time will not be parsed.
+    -S | --stop  HH:MM         : log lines after this time will not be parsed.
+    -t | --timezone +/-HH      : set number of hours from GMT of the timezone.
+                                 Use this to adjust date/time of SquidAnalyzer
+                                 output when it is run on a different timezone
+                                 than the squid server.
+    -v | version               : show version and exit.
+    --no-year-stat             : disable years statistics, reports will start
+                                 from month level only.
+    --no-week-stat             : disable weekly statistics.
+
+Log files to parse can be given as command line arguments or as a comma separated
+list of file for the LogFile configuration directive. By default SquidAnalyer will
+use file: /var/log/squid/access.log
+
+There is special options like --rebuild that force SquidAnalyzer to rebuild all
+HTML reports, useful after an new feature or a bug fix. If you want to limit the
+rebuild to a single day, a single month or year, you can use the --build_date
+option by specifying the date part to rebuild, format: yyyy-mm-dd, yyyy-mm or yyyy.
+
+The --preserve option should be used if you want to rotate your statistics and
+data. The value is the number of months to keep, older reports and data will be
+removed from the filesystem. Useful to preserve space, for example:
+
+	squid-analyzer -p 6 -c /etc/squidanalyzer/squidanalyzer.conf
+
+will only preserve six month of statistics from the last run of squidanalyzer.
+
+If you have a SquidGuard log you can add it to the list of file to be parsed,
+either in the LogFile configuration directive log list, either at command line:
+
+	squid-analyzer /var/log/squid3/access.log /var/log/squid/SquidGuard.log
+
+SquidAnalyzer will automatically detect the log format and report SquidGuard
+ACL's redirection to the Denied Urls report.
+
+=head1 MULTIPROCESS
+
+If you have huges squid access.log you will be interested by using multiprocess
+with SquidAnalyzer. Using the -j or --jobs command line option you can force
+SquidAnalyzer to use as many cores/cpus as wanted.
+
+	squid-analyzer -j 8 -l /var/log/squid3/huge_access.log
+
+Here SquidAnalyzer will use 8 cpus to parse the file and compute all statistics
+reports. It will also use much more memory at the same time.
+
+=head1 LOGFORMAT
+
+SquidAnalyzer supports the following predefined log format:
+
+    logformat squid %ts.%03tu %6tr %>a %Ss/%03>Hs %<st %rm %ru %un %Sh/%<A %mt
+    logformat common %>a %ui %un [%tl] "%rm %ru HTTP/%rv" %>Hs %<st %Ss:%Sh
+    logformat combined %>a %ui %un [%tl] "%rm %ru HTTP/%rv" %>Hs %<st "%{Referer}>h" "%{User-Agent}>h" %Ss:%Sh
+
+The common and combined log format can have one more field to add mime-type
+report like with the native squid log format:
+
+    logformat common %>a %ui %un [%tl] "%rm %ru HTTP/%rv" %>Hs %<st %Ss:%Sh %mt
+    logformat combined %>a %ui %un [%tl] "%rm %ru HTTP/%rv" %>Hs %<st "%{Referer}>h" "%{User-Agent}>h" %Ss:%Sh %mt
+
+Those are the default format used by squid, you can switch to any of the three
+log format by giving the name at end of the access_log directive:
+
+	access_log /var/log/squid3/access.log squid
+
+or
+
+	access_log /var/log/squid3/access.log common
+
+
+=head1 CONFIGURATION
+
+Unless previous version customization of SquidAnalyzer is now
+done by a single configuration file squidanalyzer.conf.
+
+Here follow the configuration directives used by Squid Analyzer.
+
+=over 4
+
+=item Output output_directory
+
+Where SquidAnalyzer should dump all HTML, data and images files.
+You should give a path that can be read by a Web browser.
+
+=item WebUrl
+
+The URL of the SquidAnalyzer javascript, HTML and images files.
+Default: /squidreport
+
+=item CustomHeader
+
+This directive allow you to replace the SquidAnalyze logo by your custom
+logo. The default value is defined as follow:
+
+	<a href="$self->{WebUrl}">
+	<img src="$self->{WebUrl}images/logo-squidanalyzer.png" title="SquidAnalyzer $VERSION" border="0">
+	</a> SquidAnalyzer
+
+Feel free to define your own header but take care to not break current design.
+For example:
+
+	CustomHeader   <a href="http://my.isp.dom/"><img src="http://my.isp.dom/logo.png" title="My ISP link" border="0" width="100" height="110"></a> My ISP Company
+                                                                                           126,1         Bas
+
+=item LogFile squid_access_log_file
+
+Set the path to the Squid log file. This can be a comma separated list of files
+to process several files at the same time. If the files comes from differents
+Squid servers, they will be merges in a single reports. You can also add to the
+list a SquidGuard log file, SquidAnalyzer will automatically detect the format.
+
+=item UseClientDNSName        0
+
+If you want to use DNS name instead of client Ip address as username enable
+this directive. When you don't have authentication, the username is set to
+the client ip address, this allow you to use the DNS name instead.
+Note that you must have a working DNS resolution and that it can really slow
+down the generation of reports.
+
+=item DNSLookupTimeout        0.0001
+
+If you have enabled UseClientDNSName and have lot of ip addresses that do not
+resolve you may want to increase the DNS lookup timeout. By default SquidAnalyzer
+will stop to lookup a DNS name after 0.0001 second (100 ms).
+
+=item NetworkAlias network-aliases_file
+
+Set path to the file containing network alias name. Network are
+show as Ip addresses so if you want to display name instead
+create a file with this format:
+
+    LOCATION_NAME IP_NETWORK_ADDRESS
+
+Separator must be a tabulation this allow the use of space character
+in the network alias name.
+
+You can use regex to match and group some network addresses. See
+network-aliases file for examples.
+
+=item UserAlias user-aliases_file
+
+Set path to the file containing user alias name. If you don't have
+auth_proxy enable users are seen as ip addresses. So if you want to
+show username or computer name instead, create a file with this format:
+
+    FULL_USERNAME IP_ADDRESS
+
+When 'UseClientDNSName' is ebabled you can replace ip address by a DNS name.
+
+If you have auth_proxy enable but want to replace login name by full
+user name for example, create a file with this format:
+
+    FULL_USERNAME LOGIN_NAME
+
+Separator for both must be a tabulation this allow the use of space character
+in the user alias name.
+
+You can use regex to match and group some user login or ip addresses. See
+user-aliases file for examples.
+
+=item AnonymizeLogin  0
+
+Set this to 1 if you want to anonymize all user login. The username
+will be replaced by an unique id that change at each squid-analyzer
+run. Default disable.
+
+=item OrderNetwork bytes|hits|duration
+
+=item OrderUser bytes|hits|duration
+
+=item OrderUrl bytes|hits|duration
+
+Used to set how SquidAnalyzer sort Network, User and User detailed Urls
+reports screen. Value can be: bytes, hits or duration. Default is bytes.
+Note that OrderUrl is limited to User detailed Urls reports and does not
+apply to Top Url and Top domain report where there is three reports each
+already ordered.
+
+=item OrderMime bytes|hits
+
+Used to set how SquidAnalyzer sort Mime types report screen
+Value can be: bytes or hits. Default is bytes.
+
+=item UrlReport 0|1
+
+Should SquidAnalyzer display user url details. This will show all
+URL read by user. Take care to have enougth space disk for large
+user. Default is 0, no url detail report.
+
+=item UserReport 0|1
+
+Should SquidAnalyzer display user details. This will show statistics
+about user. Default is 1, show user detail report. Disable it to be
+able to remove any user related reports, statistics about URL and domains
+will remain.
+
+=item UrlHitsOnly 0|1
+
+Enable this directive if you don't want the tree Top URL and Domain tables.
+You will just have the table of Url/Domain ordered per hits then you can still
+sort the URL/Domain order by clicking on each column. This is useful when you
+have set a high value to TopNumber.
+
+=item QuietMode 0|1
+
+Run in quiet mode for batch processing or print debug information.
+Default is 0, verbose mode.
+
+=item CostPrice price/Mb
+
+Used to set a cost of the bandwidth per Mb. If you want to generate
+invoice per Mb for bandwidth traffic this can help you. Value 0 mean
+no cost, this is the default value, the "Cost" column is not displayed
+
+=item Currency currency_abreviation
+
+Used to set the currency of the bandwidth cost. Preferably the html
+special character. Default is &euro;
+
+=item TopNumber number
+
+Used to set the number of top url and second level domain to show.
+Default is top 100.
+
+=item TopStorage number
+
+Top number of url to preserve on each data file sorted by OrderUrl.
+On huge access log it will improve a lot the performances but you
+will have less precision in the top url. Default to 0, all url will
+be stored.
+
+=item TopUrlUser
+Use this directive to show the top N users that look at an URL or a domain.
+Set it to 0 to disable this feature. Default is top 10.
+
+=item Exclude exclusion_file
+
+Used to set client ip addresses, network addresses, auth login or
+uri to exclude from report.
+
+You can define one by line exclusion by specifying first the type of the
+exclusion (USER, CLIENT or URI) and a space separated list of valid regex.
+
+You can also use the NETWORK type to define network address with netmask
+using the CIDR notation: xxx.xxx.xxx.xxx/n
+
+See example below:
+
+	NETWORK        192.168.1.0/24 10.10.0.0/16
+	CLIENT         192\.168\.1\.2 
+	CLIENT         10\.169\.1\.\d+ 192\.168\.10\..*
+	USER           myloginstr
+	USER           guestlogin\d+ guestdemo
+	URI            http:\/\/myinternetdomain.dom.*
+	URI            .*\.webmail\.com\/.*\/login\.php.*
+
+you can have multiple line of the same exclusion type.
+
+=item Include inclusion_file
+
+Used to set client ip addresses, network addresses or auth login
+to include into the report. All others will not be included. It
+works as the opposite of the Include parameter.
+
+You can define one by line inclusion by specifying first the type of the
+inclusion (USER or CLIENT) and a space separated list of valid regex.
+
+You can also use the NETWORK type to define network address with netmask
+using the CIDR notation: xxx.xxx.xxx.xxx/n
+
+See example below:
+
+	NETWORK        192.168.1.0/24 10.10.0.0/16
+	CLIENT         192\.168\.1\.2 
+	CLIENT         10\.169\.1\.\d+ 192\.168\.10\..*
+	USER           myloginstr
+	USER           guestlogin\d+ guestdemo
+	URI            http:\/\/myinternetdomain.dom.*
+	URI            .*\.webmail\.com\/.*\/login\.php.*
+
+you can have multiple line of the same inclusion type.
+
+=item ExcludedMethods
+
+This directive allow exclusion of some unwanted methods in report statistics
+like HEAD, POST, CONNECT, etc. Can be a comma separated list of methods.
+
+=item ExcludedMimes
+
+This directive allow exclusion of some unwanted mimetypes in report statistics
+like text/html, text/plain, or more generally text/*, etc. Can be a comma
+separated list of perl regular expression. Ex:
+
+	ExcludedMimes   text/.*,image/.*
+
+=item Lang
+
+Used to set the translation file to be used. Value must be set to
+a file containing all string translated. See the lang directory
+for translation files. Default is defined internally in English.
+
+=item ExcludedCodes
+
+This directive allow exclusion of some unwanted codes in report statistics
+like TCP_DENIED/403 which are generated when a user accesses a page the first
+time without authentication. Can be a comma separated list of methods.
+Default is none, all codes will be parsed.
+
+=item DateFormat
+
+Date format used to display date (year = %y, month = %m and day = %d)
+You can also use %M to replace month by its 3 letters abbreviation.
+Default: %y-%m-%d
+
+=item SiblingHit
+
+Adds peer cache hit (CD_SIBLING_HIT) to be taken has local cache hit.
+Enabled by default, you must disabled it if you don't want to report
+peer cache hit onto your stats.
+
+=item TransfertUnit
+
+Allow one to change the default unit used to display transfert size. Default
+is BYTES, other possible values are KB, MB and GB.
+
+=item MinPie
+
+Minimum percentage of data in pie's graphs to not be placed in the others
+item. Lower values will be summarized into the others item.
+
+=item Locale
+
+Set this to your locale to display generated date in your language. Default
+is to use the current locale of the system. If you want date in German for
+example, set it to de_DE.
+
+	Rapport genere le mardi 11 decembre 2012, 15:13:09 (UTC+0100).
+
+with a Locale set to fr_FR.
+
+=item MaxFormatError
+
+When SquidAnalyzer find a corrupted line in his data file, it exit immedialtly.
+You can force him to wait for a certain amount of errors before exiting. Of
+course you might want to remove the corrupted line before the next run. This
+can be useful if you have special characters in some fields like mime type.
+
+=item TimeZone
+
+Set timezone to use when SquidAnalyzer is used in a different server than
+the one running squid and there is a different timezone between these two
+machines. The value must follow format: +/-HH. Default is to use local time.
+For example:
+
+	TimeZone	+01
+
+for a log file generated on zone Europe/Paris with UTC+0100 and parsed on a
+computer with different timezone.
+
+=item UseUrlPort
+
+Enable this directive if you want to include port number into Url statistics.
+Default is to remove the port information from the Url.
+
+=item UpdateAlias
+
+Enable this directive if you want to apply immedialtly the changes made in
+aliases files to avoid duplicates. You still have to use --rebuild to
+recreate previous reports with new aliases. Enabling this will imply a lost
+of performances with huges log files.
+
+=item TimeStart and TimeStop
+
+The two following configuration directive allow you to specify a start and
+stop time. Log line out of this time range will not be parsed. The format
+of the value is HH:MM
+
+=back
+
+=head1 SUPPORT
+
+=head2 Release announcement
+
+Please follow us on twitter to receive release announcement and latest news : https://twitter.com/SquidAnalyzer
+
+=head2 Bugs and Feature requests
+
+Please report any bugs, patches, discussion and feature request using tools on the git repository at
+https://github.com/darold/squidanalyzer.
+
+=head2 How to contribute ?
+
+Any contribution to build a better tool is welcome, you just have to send me your ideas, features request or
+patches using the tools on the git repository at https://github.com/darold/squidanalyzer
+
+You can also support the developer by donate some contribution by clicking on the "Donate" button on the
+SquidAnalyzer web site at http://squidanalyzer.darold.net/
+
+=head1 AUTHOR
+
+Gilles DAROLD <gilles@darold.net>
+
+=head1 COPYRIGHT
+
+Copyright (c) 2001-2017 Gilles DAROLD
+    
+This package is free software and published under the GPL v3 or above
+license.
+
