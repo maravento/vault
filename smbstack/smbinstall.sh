@@ -461,6 +461,13 @@ fi
 NMBD
             systemctl enable --now nmbd.service
             echo "NetBIOS enabled"
+            echo ""
+            echo "NOTE: NetBIOS requires the following iptables rules on interface $SMB_IFACE:"
+            echo "  iptables -A INPUT   -i $SMB_IFACE -p udp -m multiport --dports 137,138 -j ACCEPT"
+            echo "  iptables -A FORWARD -i $SMB_IFACE -p udp -m multiport --dports 137,138 -j ACCEPT"
+            echo "  iptables -A INPUT   -i $SMB_IFACE -p tcp --dport 139 -j ACCEPT"
+            echo "  iptables -A FORWARD -i $SMB_IFACE -p tcp --dport 139 -j ACCEPT"
+            echo ""
             ;;
         *)
             echo "NetBIOS disabled"
@@ -469,8 +476,6 @@ NMBD
 
     systemctl daemon-reload
     systemctl restart smbd winbind rsyslog apache2
-
-
 
     # detect server IP from SMB_IFACE
     SERVER_IP=$(ip -4 addr show "$SMB_IFACE" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)

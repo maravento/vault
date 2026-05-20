@@ -653,8 +653,12 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    allLogs = result.data;
-                    filteredLogs = result.data;
+                    allLogs = result.data.sort((a, b) => {
+                        const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+                        const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                        return tb - ta;
+                    });
+                    filteredLogs = [...allLogs];
                     
                     document.getElementById('recordsCount').textContent = allLogs.length;
                     document.getElementById('recordsCounter').classList.remove('hidden');

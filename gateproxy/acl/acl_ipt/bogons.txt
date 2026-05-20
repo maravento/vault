@@ -7,7 +7,7 @@
 # RFC6598 - Shared Address Space
 100.64.0.0/10
 # RFC1122 - Loopback
-127.0.0.0/8
+#127.0.0.0/8
 # RFC3927 - Link-local (APIPA)
 169.254.0.0/16
 # RFC5737 - Test-nets
