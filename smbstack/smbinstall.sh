@@ -108,7 +108,7 @@ select_shared_folder() {
             perms_ok=0
         fi
 
-        for dir in $(find "$SHARED_PATH" -mindepth 1 -maxdepth 1 -type d); do
+        while IFS= read -r dir; do
             dir_owner=$(stat -c "%U" "$dir")
             dir_group=$(stat -c "%G" "$dir")
             dir_mode=$(stat -c "%a" "$dir")
@@ -122,7 +122,23 @@ select_shared_folder() {
                 chmod 2775 "$dir"
                 perms_ok=0
             fi
-        done
+        done < <(find "$SHARED_PATH" -mindepth 1 -type d)
+
+        while IFS= read -r file; do
+            file_owner=$(stat -c "%U" "$file")
+            file_group=$(stat -c "%G" "$file")
+            file_mode=$(stat -c "%a" "$file")
+            if [ "$file_owner" != "$local_user" ] || [ "$file_group" != "sambashare" ]; then
+                echo "  Fixing owner/group on: $file"
+                chown "$local_user":sambashare "$file"
+                perms_ok=0
+            fi
+            if [ "$file_mode" != "664" ]; then
+                echo "  Fixing mode on: $file"
+                chmod 664 "$file"
+                perms_ok=0
+            fi
+        done < <(find "$SHARED_PATH" -mindepth 1 -type f)
 
         if ! getfacl "$SHARED_PATH" 2>/dev/null | grep -q "user:www-data:r-x"; then
             echo "  Missing ACL for www-data. Fixing..."
@@ -150,12 +166,8 @@ select_shared_folder() {
         chown "$local_user":sambashare "$SHARED_PATH"
         sudo -u "$local_user" mkdir -p "$SHARED_PATH/DEMO"
         sudo -u "$local_user" bash -c "echo 'this is a demo file' > '$SHARED_PATH/DEMO/demo.txt'"
-        for dir in $(find "$SHARED_PATH" -mindepth 1 -maxdepth 1 -type d); do
-            chown "$local_user":sambashare "$dir"
-            chmod 2775 "$dir"
-        done
-        chown "$local_user":sambashare "$SHARED_PATH/DEMO/demo.txt"
-        chmod 664 "$SHARED_PATH/DEMO/demo.txt"
+        find "$SHARED_PATH" -mindepth 1 -type d -exec chown "$local_user":sambashare {} \; -exec chmod 2775 {} \;
+        find "$SHARED_PATH" -mindepth 1 -type f -exec chown "$local_user":sambashare {} \; -exec chmod 664 {} \;
         setfacl -m u:www-data:r-x "$SHARED_PATH"
         setfacl -m mask::r-x "$SHARED_PATH"
         setfacl -d -m u:www-data:r-x "$SHARED_PATH"

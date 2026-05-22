@@ -55,6 +55,8 @@ echo "Iptables Start. Wait..."
 acl_path="/etc/acl"
 acl_mac_path="$acl_path/acl_mac"
 acl_ipt_path="$acl_path/acl_ipt"
+# Hotspot (Optional)
+#hotspot_path="/etc/unhotspot"
 # interfaces
 wan=eth0
 lan=eth1
@@ -368,9 +370,9 @@ echo "Port Rules..."
 # BLOCKPORTS
 # path: /etc/acl/acl_ipt/blockports.txt
 # Block Direct Connections:
-# HTTPs (443), HTTPs Fallback (4444,9443), DoT (853,8053), DNS over QUIC DoQ (784), DoQ Fallback (8853), OpenVPN (1194), L2TP/IPsec (1701), IPsec IKE (500), IPsec NAT-T (4500), WireGuard (51820), SOCKS5 proxies (1080), Shadowsocks (7300), HTTP-Proxy Alternative (8080,8000,3129,3130), Spotify (4070).
+# HTTPs (443), HTTPs Fallback (4444,9443), DoT (853,8053), DNS over QUIC DoQ (784), DoQ Fallback (8853), OpenVPN (1194), L2TP/IPsec (1701), IPsec IKE (500), IPsec NAT-T (4500), WireGuard (51820), SOCKS5 proxies (1080), Shadowsocks (7300), HTTP-Proxy Alternative (8080,8000,3129,3130), Spotify (4070),
 # Block legacy, risky or potentially abusive services:
-# Echo (7), CHARGEN (19), FTP (20,21), SSH (22), 6to4 (41,43,44,58,59,60,3544), FINGER (79), TOR Ports (9001,9050,9150), Brave Tor (9001:9004,9090,9101:9103,9030,9031,9050), IRC (6660-6669), Trojans/Metasploit (4444), SQL inyection/XSS (8088,8888), bittorrent (6881-6889,58251,58252,58687,6969), others P2P (1000,1007,1337,2760,4662,4672), Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560), WINS (42), BTC/ETH (8332,8333,8545,30303), IPP (631).
+# Echo (7), CHARGEN (19), FTP (20,21), SSH (22), 6to4 (41,43,44,58,59,60,3544), FINGER (79), PPTP (1723), TOR Ports (9001,9050,9150), Brave Tor (9001:9004,9090,9101:9103,9030,9031,9050), IRC (6660-6669), Trojans/Metasploit (4444), SQL inyection/XSS (8088,8888), bittorrent (6881-6889,58251,58252,58687,6969), others P2P (1000,1007,1337,2760,4662,4672,5001), Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560), WINS (42), BTC/ETH (8332,8333,8545,30303), IPP (631).
 # Verificar si el set blockports existe
 if ! ipset list blockports &>/dev/null; then
     ipset create blockports bitmap:port range 0-65535 -exist
@@ -397,12 +399,11 @@ fi
 for mac in $(awk -F";" '$2 != "" {print $2}' $acl_mac_path/mac-*); do
     ipset add macports $mac -exist
 done
-if [ -f "$hotspot_path/mac-hotspot.txt" ]; then
-    for mac in $(awk -F";" '$2 != "" {print $2}' $hotspot_path/mac-hotspot.txt); do
-        ipset add macports $mac -exist
-    done
-fi
-
+#if [ -f "$hotspot_path/mac-hotspot.txt" ]; then
+#    for mac in $(awk -F";" '$2 != "" {print $2}' $hotspot_path/mac-hotspot.txt); do
+#        ipset add macports $mac -exist
+#    done
+#fi
 # DNS
 dns="8.8.8.8 8.8.4.4 1.1.1.1 1.0.0.1"
 for dnsip in $dns; do
@@ -411,7 +412,6 @@ for dnsip in $dns; do
 done
 iptables -A FORWARD -i $lan -o $wan -p udp --dport 53 -j DROP
 iptables -A FORWARD -i $lan -o $wan -p tcp --dport 53 -j DROP
-
 # PRINTERS
 for chain in INPUT FORWARD; do
     # PRINTERS & SCANNERS UDP: SNMP (161,162) + prnrequest/prnstatus (3910/3911)
@@ -463,27 +463,42 @@ iptables -A syn_flood -i $lan -m limit --limit 200/s --limit-burst 500 -j RETURN
 iptables -A syn_flood -m limit --limit 1/min -j NFLOG --nflog-prefix "SYNFLOOD: "
 iptables -A syn_flood -j DROP
 
-# Windows Update Delivery Optimization WUDO
+# Windows Update Delivery Optimization (WUDO)
+# Allow peer-to-peer update sharing within the local network.
+# Block outbound WUDO traffic to WAN and direct connections to the firewall.
 for proto in tcp udp; do
     iptables -A FORWARD -i $lan -p $proto --dport 7680 -s $localnet/$netmask -d $localnet/$netmask -j ACCEPT
 done
-for proto in tcp udp; do
-    iptables -A FORWARD -i $lan -o $wan -p $proto --dport 7680 -j DROP
+for chain in INPUT FORWARD; do
+    for proto in tcp udp; do
+        iptables -A $chain -i $lan -p $proto --dport 7680 -j DROP
+    done
+done
+
+# Block GRE (Generic Routing Encapsulation) protocol 47
+for chain in INPUT FORWARD; do
+    iptables -A $chain -i $lan -p 47 -j DROP
 done
 
 # Block Windows Mobile Hotspot sharing
 iptables -A FORWARD -i $lan -d 192.168.137.0/24 -j DROP
+
 # Block WS-Discovery unicast to server (Windows clients noise)
 iptables -A INPUT -i $lan -p udp --sport 3702 -d $serverip -j DROP
+
 # KMS Windows activation noise
 iptables -A INPUT -i $lan -p tcp --dport 1688 -j DROP
 iptables -A FORWARD -i $lan -o $wan -p tcp --dport 1688 -j DROP
+
 # Spotify LAN sync broadcast noise
 iptables -A INPUT -i $lan -p udp --dport 57621 -j DROP
+
 # Cisco IP phones discovery noise
 iptables -A INPUT -i $lan -p udp -m multiport --dports 2007,2008 -j DROP
+
 # SAP broadcast noise (Optional)
 #iptables -A INPUT -i $lan -p udp --dport 3289 -j DROP
+
 # Dropbox LAN sync broadcast noise (Optional)
 #iptables -A INPUT -i $lan -p udp --dport 17500 -j DROP
 
@@ -520,19 +535,6 @@ echo OK
 ## MAC RULES ##
 echo "MAC Rules"
 
-# MACTRANSPARENT (WARNING: Not recommended) (check blockports.txt)
-#if ! ipset list mactransparent &>/dev/null; then
-#    ipset create mactransparent hash:mac -exist
-#else
-#    ipset flush mactransparent
-#fi
-#for mac in $(awk -F";" '$2 != "" {print $2}' $acl_mac_path/mac-transparent.txt); do
-#   ipset add mactransparent $mac -exist
-#done
-#for chain in INPUT FORWARD; do
-#    iptables -A $chain -i $lan -p tcp -m multiport --dports 80,443,853 -m set --match-set mactransparent src -j ACCEPT
-#done
-
 # MACPROXY (PAC 18100 - Opcion 252 DHCP, HTTP 80 to 3128)
 if ! ipset list macproxy &>/dev/null; then
     ipset create macproxy hash:mac -exist
@@ -546,6 +548,34 @@ iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m set --match-set macpr
 for chain in INPUT FORWARD; do
     iptables -A $chain -i $lan -p tcp -m multiport --dports 18100,3128 -m set --match-set macproxy src -j ACCEPT
 done
+
+# MACTRANSPARENT (WARNING: Not recommended) (check blockports.txt)
+#if ! ipset list mactransparent &>/dev/null; then
+#    ipset create mactransparent hash:mac -exist
+#else
+#    ipset flush mactransparent
+#fi
+#for mac in $(awk -F";" '$2 != "" {print $2}' $acl_mac_path/mac-transparent.txt); do
+#   ipset add mactransparent $mac -exist
+#done
+#for chain in INPUT FORWARD; do
+#    iptables -A $chain -i $lan -p tcp -m multiport --dports 80,443,853 -m set --match-set mactransparent src -j ACCEPT
+#done
+
+## HOTSPOT RULES ##
+# MACHOTSPOT (PAC 18100 - Opcion 252 DHCP, HTTP 80 to 3128)
+#if ! ipset list machotspot &>/dev/null; then
+#    ipset create machotspot hash:mac -exist
+#else
+#    ipset flush machotspot
+#fi
+#for mac in $(awk -F";" '$2 != "" {print $2}' $hotspot_path/mac-hotspot.txt); do
+#    ipset add machotspot $mac -exist
+#done
+#iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m set --match-set machotspot src -j REDIRECT --to-port 3128
+#for chain in INPUT FORWARD; do
+#    iptables -A $chain -i $lan -p tcp -m multiport --dports 18100,3128 -m set --match-set machotspot src -j ACCEPT
+#done
 
 echo OK
 

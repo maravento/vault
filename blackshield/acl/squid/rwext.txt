@@ -1225,6 +1225,7 @@
 \.cryptgh0st([a-zA-Z][0-9]*)?(\?.*)?$
 \.crypticsociety([a-zA-Z][0-9]*)?(\?.*)?$
 \.CryptInfinite([a-zA-Z][0-9]*)?(\?.*)?$
+\.crypt_lock([a-zA-Z][0-9]*)?(\?.*)?$
 \.crypto1317([a-zA-Z][0-9]*)?(\?.*)?$
 \.crypto24([a-zA-Z][0-9]*)?(\?.*)?$
 \.crypto([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2211,6 +2212,7 @@
 \.goaq([a-zA-Z][0-9]*)?(\?.*)?$
 \.goba([a-zA-Z][0-9]*)?(\?.*)?$
 \.gocr([a-zA-Z][0-9]*)?(\?.*)?$
+\.God8Damn([a-zA-Z][0-9]*)?(\?.*)?$
 \.g^od([a-zA-Z][0-9]*)?(\?.*)?$
 \.god([a-zA-Z][0-9]*)?(\?.*)?$
 \.godes([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3238,6 +3240,7 @@
 \.lqepjhgjczo([a-zA-Z][0-9]*)?(\?.*)?$
 \.lqqw([a-zA-Z][0-9]*)?(\?.*)?$
 \.LQQW([a-zA-Z][0-9]*)?(\?.*)?$
+\.lqtoreq([a-zA-Z][0-9]*)?(\?.*)?$
 \.lr([a-zA-Z][0-9]*)?(\?.*)?$
 \.LRO([a-zA-Z][0-9]*)?(\?.*)?$
 \.lsas([a-zA-Z][0-9]*)?(\?.*)?$
@@ -4477,6 +4480,7 @@
 \.readmefordecrypt.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.read_me_fucking_bitch([a-zA-Z][0-9]*)?(\?.*)?$
 \.README-GENTLEMEN.txt([a-zA-Z][0-9]*)?(\?.*)?$
+\.README_LQTOREG.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.README_NBLOCK.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.README-NOBODY.txt([a-zA-Z][0-9]*)?(\?.*)?$
 \.READ_ME_NOW.txt([a-zA-Z][0-9]*)?(\?.*)?$

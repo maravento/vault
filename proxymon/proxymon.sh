@@ -242,7 +242,7 @@ install_proxymon() {
     block_list_week=$acl_bandata_path/banweek.txt
     block_list_month=$acl_bandata_path/banmonth.txt
 
-    wget -q --show-progress -N https://raw.githubusercontent.com/maravento/blackweb/refs/heads/master/bwupdate/lst/blocktlds.txt -O $acl_mac_path/blocktlds.txt
+    wget -q --show-progress -N https://raw.githubusercontent.com/maravento/blackweb/refs/heads/master/bwupdate/lst/blocktlds.txt -O $acl_squid_path/blocktlds.txt
     chmod 644 $acl_squid_path/blocktlds.txt
     chown root:root $acl_squid_path/blocktlds.txt
     echo -e "${GREEN}✅ blocktlds.txt downloaded${NC}"
