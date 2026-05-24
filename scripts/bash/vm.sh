@@ -4,20 +4,14 @@
 ################################################################################
 #
 # Start | Stop VMs Virtualbox
-
-# how to use:           /path_to/vm.sh {start|stop|shutdown|reset|status}
-# update-rc.d add:      update-rc.d vm.sh defaults 99 01
-# remove:               update-rc.d -f vm.sh remove
-# confirm update-rc.d:  ls -al /etc/rc?.d/ | grep vm.sh
-# add user vboxusers:   usermod -a -G vboxusers $USER # where $USER is your user
+#
+# Usage: /path_to/vm.sh {start|stop|shutdown|reset|status}
+# Add user to vboxusers: usermod -a -G vboxusers $USER
 #
 ################################################################################
 
 echo "Virtualbox Starting. Wait..."
 printf "\n"
-
-# PATH for cron
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -66,7 +60,7 @@ if ! sudo -H -u "$local_user" VBoxManage showvminfo "$VMNAME" &>/dev/null; then
     exit 1
 fi
 
-case "$1" in
+case "${1:-}" in
 start)
     echo "Starting $VMNAME..."
     sudo -H -u "$local_user" VBoxManage startvm "$VMNAME" --type headless

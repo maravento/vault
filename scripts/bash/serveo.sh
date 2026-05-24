@@ -15,13 +15,21 @@
 echo "Serveo Tunnel Starting. Wait..."
 printf "\n"
 
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-if [ "$(id -u)" == "0" ]; then
-    echo "❌ This script should not be run as root."
+## root check
+if [ "$(id -u)" != "0" ]; then
+    echo "ERROR: This script must be run as root"
     exit 1
 fi
 
+# prevent overlapping runs
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    echo "Script $(basename "$0") is already running"
+    exit 1
+fi
+
+# LOCAL USER (multi-strategy detection with validation)
 local_user=""
 local_user=$(who | awk '/\(:0\)/{print $1; exit}')
 [ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
@@ -34,6 +42,7 @@ if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
 fi
 echo "Using local user: $local_user"
 
+# check dependencies
 if ! command -v ssh >/dev/null 2>&1; then
     echo "⚠️ SSH is not installed"
     echo "run: sudo apt install openssh-server"

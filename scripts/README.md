@@ -70,7 +70,6 @@ Tested on: Ubuntu 24.04.x LTS x64
 - [Rustdesk Client (install|uninstall|update)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rustdesk.sh)
 
 #### Proxy & Firewall
-- [Ban IP (Block IPs via ipset/iptables from ulogd2 NFLOG log)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/banip.sh)
 - [IP Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ipkill.sh)
 - [Squid Analysis Tool](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/squidtool.sh)
 - [Squid-OpenSSL (ssl-bump)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/sslbump.sh)

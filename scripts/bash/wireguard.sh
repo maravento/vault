@@ -10,9 +10,6 @@
 echo "WireGuard Install | Remove Starting. Wait..."
 printf "\n"
 
-# PATH for cron
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
 ## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"

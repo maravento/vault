@@ -7,26 +7,23 @@
 #
 ################################################################################
 
-set -euo pipefail
-
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
+## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
 
+# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-cleanup() {
-    rm -f "$SCRIPT_LOCK"
-}
-trap cleanup EXIT
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
 
+set -euo pipefail
+
+# LOCAL USER (multi-strategy detection with validation)
 local_user=""
 local_user=$(who | awk '/\(:0\)/{print $1; exit}')
 [ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)

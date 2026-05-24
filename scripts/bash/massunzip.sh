@@ -11,6 +11,7 @@
 echo "Unzip Files With Pass Starting. Wait..."
 printf "\n"
 
+# check no-root
 if [ "$(id -u)" == "0" ]; then
     echo "❌ This script should not be run as root."
     exit 1

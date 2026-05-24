@@ -10,13 +10,13 @@
 echo "IP Kill Starting. Wait..."
 printf "\n"
 
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
+## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
 
+# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
@@ -61,4 +61,5 @@ sleep "${sleep_time}"
 kill "$tcpkill_pid" 2>/dev/null
 wait "$tcpkill_pid" 2>/dev/null
 
-echo "IP Kill Done: $(date)" | tee -a /var/log/syslog
+logger -t ipkill "IP Kill Done: $target_ip_validated on $eth"
+echo "IP Kill Done: $(date)"

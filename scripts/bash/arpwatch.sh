@@ -47,12 +47,35 @@ if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
 fi
 echo "Using local user: $local_user"
 
-# Capture local user UID once — used for DBUS notification path
-local_uid=$(id -u "$local_user")
+# Desktop notification helper (X11 and Wayland, silent if no desktop session)
+_notify() {
+    local user="$1"; shift
+    local uid
+    uid=$(id -u "$user")
+    local bus="unix:path=/run/user/${uid}/bus"
+    local xdg_runtime="/run/user/${uid}"
+    local session_type
+    session_type=$(loginctl show-session \
+        "$(loginctl show-user "$user" 2>/dev/null | awk -F= '/^Sessions=/{print $2}')" \
+        -p Type --value 2>/dev/null || echo "x11")
+    if [[ "$session_type" == "wayland" ]]; then
+        sudo -u "$user" \
+            DBUS_SESSION_BUS_ADDRESS="$bus" \
+            WAYLAND_DISPLAY=wayland-1 \
+            XDG_RUNTIME_DIR="$xdg_runtime" \
+            notify-send "$@" 2>/dev/null || true
+    else
+        sudo -u "$user" \
+            DISPLAY=:0 \
+            DBUS_SESSION_BUS_ADDRESS="$bus" \
+            XDG_RUNTIME_DIR="$xdg_runtime" \
+            notify-send "$@" 2>/dev/null || true
+    fi
+}
 
 # check dependencies
 pkgs='arpwatch libnotify-bin'
-missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
+missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done | xargs)
 unavailable=""
 for p in $missing; do
     apt-cache show "$p" &>/dev/null || unavailable+=" $p"
@@ -140,11 +163,9 @@ start() {
                 mac=$(echo "$line" | grep -o -i -E '([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}')
                 if ! grep -iq "$mac" "$WHITELIST"; then
                     msg="[$iface] $line"
-                    sudo -u "$local_user" \
-                        DISPLAY=:0 \
-                        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${local_uid}/bus" \
-                        notify-send -i checkbox "ARPWatch" "$msg"
-                    echo "$(date +'%F %T') $msg" >> "$UNIFIED_LOG"
+                    logger -t arpwatch "$msg"
+                    echo "$(date +'%F %T') $msg" | tee -a "$UNIFIED_LOG"
+                    _notify "$local_user" -i checkbox "ARPWatch" "$msg"
                 fi
             fi
         done &

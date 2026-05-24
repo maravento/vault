@@ -29,10 +29,42 @@
 #
 ################################################################################
 
+# PATH for cron
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 # check no-root
-if [ "$(id -u)" == "0" ]; then
-    echo "❌ This script should not be run as root"
+if [ "$(id -u)" -eq 0 ]; then
+    echo "❌ This script should not be run as root."
+    exit 1
 fi
+
+# check dependencies
+if ! command -v notify-send &>/dev/null; then
+    echo "❌ libnotify-bin is not installed. Run: sudo apt install libnotify-bin"
+    exit 1
+fi
+
+# Desktop notification helper (X11 and Wayland, silent if no desktop session)
+current_uid=$(id -u)
+_notify() {
+    local bus="unix:path=/run/user/${current_uid}/bus"
+    local xdg_runtime="/run/user/${current_uid}"
+    local session_type
+    session_type=$(loginctl show-session \
+        "$(loginctl show-user "$(id -un)" 2>/dev/null | awk -F= '/^Sessions=/{print $2}')" \
+        -p Type --value 2>/dev/null || echo "x11")
+    if [[ "$session_type" == "wayland" ]]; then
+        DBUS_SESSION_BUS_ADDRESS="$bus" \
+        WAYLAND_DISPLAY=wayland-1 \
+        XDG_RUNTIME_DIR="$xdg_runtime" \
+        notify-send "$@" 2>/dev/null || true
+    else
+        DISPLAY=:0 \
+        DBUS_SESSION_BUS_ADDRESS="$bus" \
+        XDG_RUNTIME_DIR="$xdg_runtime" \
+        notify-send "$@" 2>/dev/null || true
+    fi
+}
 
 PIDFILE="/tmp/watchdog.pid"
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
@@ -54,6 +86,7 @@ start() {
 
             if echo "$result" | grep -q "0 received"; then
                 echo "[$timestamp] Internet DOWN" >> "$LOGFILE"
+                _notify -i network-error -u critical "Watchdog" "Internet DOWN"
             else
                 loss=$(echo "$result" | grep -oP '\d+(?=% packet loss)')
                 latency=$(echo "$result" | grep "rtt" | awk -F '/' '{print $5}')

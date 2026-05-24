@@ -261,13 +261,45 @@ ip6tables -A INPUT -i lo -j ACCEPT
 ip6tables -A OUTPUT -o lo -j ACCEPT
 iptables -A INPUT -s 127.0.0.0/8 ! -i lo -j DROP
 
-# WAN DROP: Local Ranges
+# WAN DROP: CIDR
 iptables -A INPUT -i $wan -s 10.0.0.0/8 -j DROP
 iptables -A INPUT -i $wan -s 172.16.0.0/12 -j DROP
 #iptables -A INPUT -i $wan -s 192.168.0.0/16 -j DROP
-# WAN DROP: Local Ports (reduce noise)
-iptables -A INPUT -i $wan -p tcp -m multiport --dports 80,3128,5636,10000,18100,18080,18081,18082 -j DROP
-iptables -A INPUT -i $wan -p udp --dport 5353 -j DROP
+# UNIFI WAN
+# STUN responses from Ubiquiti (3478) and Google (19302) — needed for APs behind NAT
+iptables -A INPUT -i $wan -p udp -m multiport --sports 3478,19302 -j ACCEPT
+# Device discovery from management LAN via WAN interface
+iptables -A INPUT -i $wan -p udp --dport 10001 -j ACCEPT
+# Uncomment if using Ubiquiti remote access cloud service
+# iptables -A INPUT -i $wan -p tcp -s 66.203.125.0/24 --sport 443 -d $wan -j ACCEPT
+# LAN Unifi — ports required for LAN clients and APs to communicate with self-hosted controller
+# 8080  TCP - AP to controller communication
+# 8880  TCP - captive portal HTTP
+# 8881  TCP - captive portal HTTP alternate
+# 8882  TCP - captive portal HTTP alternate
+# 8843  TCP - captive portal HTTPS
+# 6789  TCP - UniFi speed test / throughput measurement (Podman/pasta userspace network)
+# 3478  UDP - STUN for APs
+# 123   UDP - NTP
+# 10001 UDP - device discovery
+# Removed (administrative/internal only — blocked in WAN DROP rules):
+# 5005  TCP - UniFi/Podman (pasta userspace network)
+# 5671  TCP - UniFi/Podman AMQP (pasta userspace network)
+# 8443  TCP - GUI/API admin access (pasta userspace network)
+# 8444  TCP - UniFi OS HTTPS GUI admin (pasta userspace network)
+# 9543  TCP - UniFi/Podman (pasta userspace network)
+# 11084 TCP - UniFi/Podman (pasta userspace network)
+# 11443 TCP - UniFi OS self-hosted GUI admin (pasta userspace network)
+# 27117 TCP - MongoDB internal database
+# 1900  UDP - UPnP optional discovery
+unifi_tcp="8080,8880:8882,8843,6789"
+unifi_udp="3478,123,10001"
+for chain in INPUT FORWARD; do
+    iptables -A $chain -i $lan -p tcp -m multiport --dports $unifi_tcp -j ACCEPT
+    iptables -A $chain -i $lan -p udp -m multiport --dports $unifi_udp -j ACCEPT
+done
+iptables -t mangle -A PREROUTING -i $lan -p tcp -m multiport --dports $unifi_tcp -j ACCEPT
+iptables -t mangle -A PREROUTING -i $lan -p udp -m multiport --dports $unifi_udp -j ACCEPT
 
 # MASQUERADE: NAT for LAN to share dynamic WAN IP
 iptables -t nat -A POSTROUTING -s $localnet/$netmask -o $wan -j MASQUERADE
@@ -423,17 +455,13 @@ done
 iptables -A FORWARD -i $lan -p udp --dport 3478 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i $lan -o $wan -p udp -m multiport --dports 19302:19309 -m set --match-set macports src -j ACCEPT
 # FILE SHARING SAMBA (SMB)
-iptables -A INPUT -i $lan -p tcp --dport 445 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i $lan -p tcp --dport 445 -m set --match-set macports src -j ACCEPT
+iptables -A INPUT -i $lan -p tcp -m multiport --dports 445,3092 -m set --match-set macports src -j ACCEPT
 # EMAIL (SMTP, IMAP, POP3)
 iptables -A FORWARD -i $lan -p tcp -m multiport --dports 465,587,143,993,110,995 -m set --match-set macports src -j ACCEPT
 # MESSAGING & XMPP (Jabber, FCM)
 iptables -A FORWARD -i $lan -p tcp -m multiport --dports 5222,5223,5228,5269 -m set --match-set macports src -j ACCEPT
 # WSD (Web Services Discovery) - TCP
 iptables -A FORWARD -i $lan -p tcp -m multiport --dports 5357,5358 -m set --match-set macports src -j ACCEPT
-# NETBIOS NMBD (disabled in smb.conf)
-iptables -A INPUT -i $lan -p udp -m multiport --dports 137,138 -j DROP
-iptables -A INPUT -i $lan -p tcp --dport 139 -j DROP
 # Drop local multicast (collaboration tools: Zoom, Teams, etc.)
 iptables -A INPUT -i $lan -d 239.255.0.0/16 -j DROP
 # LAN traffic: discovery, printing, collaboration
@@ -450,6 +478,9 @@ iptables -A FORWARD -i $lan -o $lan -d 239.255.255.250 -p udp --dport 3702 -m se
 iptables -A FORWARD -i $lan -o $lan -p tcp -m multiport --dports 2869,8200,10243 -m set --match-set macports src -j ACCEPT
 # IGMP (required for multicast group management)
 iptables -A FORWARD -i $lan -o $lan -p igmp -m set --match-set macports src -j ACCEPT
+# NETBIOS NMBD (disabled in smb.conf)
+iptables -A INPUT -i $lan -p udp -m multiport --dports 137,138 -j DROP
+iptables -A INPUT -i $lan -p tcp --dport 139 -j DROP
 
 ## SECURITY RULES ##
 echo "Sec Rules..."

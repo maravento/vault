@@ -23,7 +23,7 @@
 
 | File |  OS  | Size |
 | :--: | :--: | :--: |
-| [netscan.exe (.zip)](https://mega.nz/file/2Z8ShAwD#02jFrwjB9qM55kIWZOf525s8wKGYLGDpbLd1D6O4dKc) | Windows 10/11 x64 | 78,2 MB |
+| [netscan.exe (.zip)](https://mega.nz/file/bc8GkYzJ#QIYe7nmVpbBWZOcETVMFnyp1ZLm5U9PH2v8MIcOR8rU) | Windows 10/11 x64 | 78,8 MB |
 
 ### Package Contents
 
@@ -93,8 +93,8 @@
 | Scan Mode | Nmap Options | Description | Descripción |
 | --------- | ------------ | ----------- | ----------- |
 | 1. LAN Scan | `-sS -T4 -F -sV` | Fast network scan with service detection | Escaneo rápido de red con detección de servicios |
-| 2. Advanced LAN Scan | `-sS -T4 -F -sV -sC --max-retries 3 --host-timeout 5m` | Deep scanning with scripts | Escaneo profundo con scripts |
-| 3. IP Scan | `-sS -T4 -F -sV --version-intensity 8 -sC -O --script vuln --traceroute -oA scan_ip --max-retries 3 --host-timeout 10m` | Comprehensive single-host audit with OS detection, vulnerability scanning, and detailed service enumeration | Auditoría completa de un host con detección de OS, escaneo de vulnerabilidades y enumeración detallada de servicios |
+| 2. Advanced LAN Scan | `-sS -T4 -p- -sV -sC --max-retries 3 --host-timeout 5m` | Deep scanning with scripts on all ports | Escaneo profundo con scripts en todos los puertos |
+| 3. IP Scan | `-Pn -sS -T4 -p- -sV --version-intensity 8 -sC -O --script vuln --traceroute -oA scan_ip --max-retries 3 --host-timeout 10m` | Comprehensive single-host audit with OS detection, vulnerability scanning, and detailed service enumeration | Auditoría completa de un host con detección de OS, escaneo de vulnerabilidades y enumeración detallada de servicios |
 
 ### Installation Messages
 

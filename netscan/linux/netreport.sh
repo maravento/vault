@@ -18,12 +18,17 @@
 #
 # Menu options:
 #   1) LAN Scan
-#      nmap -sS -T4 -F -sV <detected-network>  -> output: scan_TIMESTAMP.html
+#      Lists available interfaces and asks user to select one.
+#      nmap -sS -T4 -F -sV <selected-network>
+#      -> output: scan_TIMESTAMP.html
 #   2) Advanced LAN Scan
-#      nmap -sS -T4 -F -sV -sC --max-retries 3 --host-timeout 5m <network>
+#      Lists available interfaces and asks user to select one.
+#      nmap -sS -T4 -p- -sV -sC --max-retries 3 --host-timeout 5m <network>
 #      -> output: scan_deep_TIMESTAMP.html
-#   3) IP Scan
-#      nmap -sS -T4 -F -sV --version-intensity 8 -sC -O --script vuln --traceroute \
+#   3) IP/Host Scan
+#      Lists available interfaces, asks user to select one, performs a quick
+#      ping sweep to show active hosts, then asks for the target IP or hostname.
+#      nmap -Pn -sS -T4 -p- -sV --version-intensity 8 -sC -O --script vuln --traceroute \
 #          -oA <base> --max-retries 3 --host-timeout 10m <target>
 #      -> output: scan_ip_TIMESTAMP.html
 #   4) Exit
@@ -464,6 +469,29 @@ finalize_html_report() {
   echo ""
 }
 
+# Prompt for a valid network interface and derive its network CIDR
+select_interface() {
+  SEL_IFACE=""
+  SEL_NET=""
+  echo "Available network interfaces:"
+  ip -4 addr show scope global | awk '/inet /{ip=$2} /inet /{iface=$NF; printf "  %-12s %s\n", iface, ip}'
+  echo ""
+  while true; do
+    read -rp "Select interface: " SEL_IFACE
+    [ -n "$SEL_IFACE" ] || { warn "No interface specified. Try again."; continue; }
+    if ! ip link show "$SEL_IFACE" &>/dev/null; then
+      warn "Interface '$SEL_IFACE' does not exist. Try again."
+      continue
+    fi
+    SEL_NET=$(ip -4 addr show dev "$SEL_IFACE" scope global | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+' | head -n1)
+    if [ -z "$SEL_NET" ]; then
+      warn "No IPv4 address found on '$SEL_IFACE'. Try again."
+      continue
+    fi
+    break
+  done
+}
+
 # MENU
 TS=$(timestamp)
 echo ""
@@ -473,22 +501,24 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo "1) LAN Scan"
 echo "2) Advanced LAN Scan"
-echo "3) IP Scan"
-echo "4) IP Scan (Fast - Top 1000)"
-echo "5) Exit"
+echo "3) IP/Host Scan"
+echo "4) Exit"
 echo ""
-read -rp "Select [1-5]: " opt
+while true; do
+  read -rp "Select [1-4]: " opt
+  [[ "$opt" =~ ^[1-4]$ ]] && break
+  warn "Invalid option '$opt'. Enter a number between 1 and 4."
+done
 echo ""
 
 case "$opt" in
   1)
     # Option 1: LAN Scan => scan_TIMESTAMP.html
     log "=== Option 1: LAN Scan ==="
-    net=$(ip -4 addr show scope global | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+' | head -n1)
-    if [ -z "$net" ]; then
-      warn "Could not detect local network. Using fallback 192.168.0.0/24"
-      net="192.168.0.0/24"
-    fi
+    select_interface
+    iface="$SEL_IFACE"
+    net="$SEL_NET"
+    log "Using network: $net on $iface"
     xml_file="${report_dir}/scan_${TS}.xml"
     html_file="${report_dir}/scan_${TS}.html"
     
@@ -509,11 +539,10 @@ case "$opt" in
   2)
     # Option 2: Advanced LAN Scan => scan_deep_TIMESTAMP.html
     log "=== Option 2: Advanced LAN Scan ==="
-    net=$(ip -4 addr show scope global | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+' | head -n1)
-    if [ -z "$net" ]; then
-      warn "Could not detect local network. Using fallback 192.168.0.0/24"
-      net="192.168.0.0/24"
-    fi
+    select_interface
+    iface="$SEL_IFACE"
+    net="$SEL_NET"
+    log "Using network: $net on $iface"
     xml_file="${report_dir}/scan_deep_${TS}.xml"
     html_file="${report_dir}/scan_deep_${TS}.html"
     
@@ -521,7 +550,7 @@ case "$opt" in
     log "This may take several minutes..."
     
     # Run nmap in background
-    nmap -sS -T4 -F -sV -sC --max-retries 3 --host-timeout 5m "$net" -oX "$xml_file" > /tmp/netreport_nmap_out 2>&1 &
+    nmap -sS -T4 -p- -sV -sC --max-retries 3 --host-timeout 5m "$net" -oX "$xml_file" > /tmp/netreport_nmap_out 2>&1 &
     pid=$!
     show_spinner_for_pid "$pid"
     
@@ -533,11 +562,21 @@ case "$opt" in
     ;;
     
   3)
-    # Option 3: IP Scan (Complete) => scan_ip_TIMESTAMP.html
-    log "=== Option 3: IP/Host Scan (Complete) ==="
-    read -rp "Target IP/Host: " target
-    [ -n "$target" ] || die "No target specified"
-    
+    # Option 3: IP/Host Scan => scan_ip_TIMESTAMP.html
+    log "=== Option 3: IP/Host Scan ==="
+    select_interface
+    iface="$SEL_IFACE"
+    net="$SEL_NET"
+    log "Discovering active hosts on $net ..."
+    echo ""
+    nmap -sn "$net" 2>/dev/null | awk '/report for/{ip=$5} /MAC/{printf "  %-18s %s %s %s\n", ip, $3, $4, $5}' | sort -t. -k4 -n
+    echo ""
+    while true; do
+      read -rp "Target IP or hostname: " target
+      [ -n "$target" ] && break
+      warn "No target specified. Try again."
+    done
+
     # Validate target format (basic check)
     if ! [[ "$target" =~ ^[a-zA-Z0-9][a-zA-Z0-9\.\-]+$ ]]; then
       die "Invalid target format: $target"
@@ -547,13 +586,11 @@ case "$opt" in
     xml_file="${base}.xml"
     html_file="${report_dir}/scan_ip_${TS}.html"
     
-    log "Starting complete IP Scan on: $target"
-    log "This scan includes vulnerability detection and may take 10-15 minutes..."
+    log "Starting IP/Host Scan on: $target"
+    log "This scan covers all ports and includes vulnerability detection. May take 20-30 minutes..."
     
-    # Complete scan matching Windows version EXACTLY
-    # -Pn: Skip host discovery (CRITICAL for gateways that filter pings)
-    # Same options as Windows version that works
-    nmap -Pn -sS -T4 -F -sV --version-intensity 8 -sC -O \
+    # Full scan: all 65535 ports, OS detection, version intensity, vuln scripts and traceroute
+    nmap -Pn -sS -T4 -p- -sV --version-intensity 8 -sC -O \
          --script vuln --traceroute \
          -oA "$base" \
          --max-retries 3 --host-timeout 10m \
@@ -607,88 +644,9 @@ case "$opt" in
     ;;
     
   4)
-    # Option 4: IP Scan (Fast - Top 1000) => scan_ip_fast_TIMESTAMP.html
-    log "=== Option 4: IP/Host Scan (Fast) ==="
-    read -rp "Target IP/Host: " target
-    [ -n "$target" ] || die "No target specified"
-    
-    # Validate target format (basic check)
-    if ! [[ "$target" =~ ^[a-zA-Z0-9][a-zA-Z0-9\.\-]+$ ]]; then
-      die "Invalid target format: $target"
-    fi
-    
-    base="${report_dir}/scan_ip_fast_${TS}"
-    xml_file="${base}.xml"
-    html_file="${report_dir}/scan_ip_fast_${TS}.html"
-    
-    log "Starting FAST scan on: $target"
-    log "Scanning top 1000 most common ports (5-10 minutes)..."
-    
-    # Fast scan: Top 1000 ports, skip host discovery for reliability
-    # -Pn: Skip ping (avoids being filtered by gateway)
-    # -T4: Aggressive timing
-    # --top-ports 1000: Most common 1000 ports
-    nmap -Pn -sS -T4 --top-ports 1000 -sV --version-intensity 6 -sC \
-         --script vuln --traceroute \
-         -oA "$base" \
-         --max-retries 2 --host-timeout 10m \
-         "$target" > /tmp/netreport_nmap_out 2>&1 &
-    pid=$!
-    show_spinner_for_pid "$pid"
-    
-    # Verify XML was created
-    if [ ! -f "$xml_file" ]; then
-      warn "XML file not found: $xml_file"
-      
-      # Check if .nmap file exists as fallback
-      if [ -f "${base}.nmap" ]; then
-        warn "Found .nmap file, converting to HTML..."
-        {
-          echo '<!DOCTYPE html>'
-          echo '<html><head><meta charset="UTF-8">'
-          echo '<title>Nmap Scan Report - '$target'</title>'
-          echo '<style>body{font-family:monospace;padding:20px;background:#f5f5f5}pre{background:#fff;padding:15px;border:1px solid #ddd;overflow:auto;line-height:1.4}</style>'
-          echo '</head><body><h1>Nmap Scan Report: '$target'</h1>'
-          echo '<p><strong>Note:</strong> XML output not available, displaying text format.</p><pre>'
-          cat "${base}.nmap"
-          echo '</pre></body></html>'
-        } > "$html_file"
-        
-        finalize_html_report "$html_file"
-        cleanup_intermediate_files "$base"
-        prune_report_dir_keep_html
-        exit 0
-      else
-        die "No nmap output files found. Check /tmp/netreport_nmap_out and $log_file"
-      fi
-    fi
-    
-    # Verify XML is not empty
-    if [ ! -s "$xml_file" ]; then
-      die "XML file is empty: $xml_file. Check $log_file for details"
-    fi
-    
-    log "XML file created successfully ($(du -h "$xml_file" | cut -f1))"
-    
-    # Convert to HTML
-    if ! xml_to_html "$xml_file" "$html_file"; then
-      die "Failed to convert XML to HTML. Check $log_file for details"
-    fi
-    
-    # Finalize and cleanup
-    finalize_html_report "$html_file"
-    cleanup_intermediate_files "$base"
-    prune_report_dir_keep_html
-    ;;
-    
-  5)
     log "Exit requested"
     echo "Goodbye!"
     exit 0
-    ;;
-    
-  *)
-    die "Invalid option: $opt"
     ;;
 esac
 

@@ -13,30 +13,37 @@
 
 echo "ngLocalhost Tunnel Starting. Wait..."
 printf "\n"
+
+# check no-root
 if [ "$(id -u)" == "0" ]; then
     echo "❌ This script should not be run as root."
     exit 1
 fi
+
 if ! command -v ssh >/dev/null 2>&1; then
     echo "⚠️ SSH is not installed"
     echo "run: sudo apt install openssh-server"
     exit 1
 fi
+
 if ! nc -z -w 5 nglocalhost.com 22; then
     echo "ngLocalhost Offline"
     exit 1
 fi
+
 if [ ! -f ~/.ssh/known_hosts ]; then
     mkdir -p ~/.ssh
     touch ~/.ssh/known_hosts
     chmod 600 ~/.ssh/known_hosts
 fi
+
 if grep -q "nglocalhost.com" ~/.ssh/known_hosts; then
     echo "Fingerprint OK (nglocalhost.com)"
 else
     ssh-keyscan -t rsa nglocalhost.com >> ~/.ssh/known_hosts && \
     echo "Fingerprint Add (nglocalhost.com)"
 fi
+
 SCRIPT_NAME=$(basename "$0")
 ACTIVE_FLAG="/tmp/${SCRIPT_NAME}_active"
 PID_FILE="/tmp/${SCRIPT_NAME}.pid"

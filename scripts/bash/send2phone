@@ -17,10 +17,14 @@
 
 echo "Start KDE Connect Send. Wait..."
 printf "\n"
-if [ "$(id -u)" == "0" ]; then
+
+# check no-root
+if [ "$(id -u)" -eq 0 ]; then
     echo "❌ This script should not be run as root."
     exit 1
 fi
+
+# check dependencies
 for pkg in kdeconnect-cli; do
   dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {
     echo "❌ '$pkg' is not installed. Run:"
@@ -28,6 +32,7 @@ for pkg in kdeconnect-cli; do
     exit 1
   }
 done
+
 files=()
 if [ -n "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS" ]; then
     IFS=$'\n' read -d '' -r -a files <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"

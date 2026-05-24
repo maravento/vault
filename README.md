@@ -80,8 +80,6 @@ python gitfolder.py https://github.com/maravento/vault/project_name
 
 - [blackshield](https://github.com/maravento/vault/tree/master/blackshield)
 - [blackusb](https://github.com/maravento/vault/tree/master/blackusb)
-- [ddos](https://github.com/maravento/vault/tree/master/ddos)
-- [dextroyer](https://github.com/maravento/vault/tree/master/dextroyer)
 - [dofi](https://github.com/maravento/vault/tree/master/dofi)
 - [gateproxy](https://github.com/maravento/vault/tree/master/gateproxy)
 - [itsm](https://github.com/maravento/vault/tree/master/itsm)
@@ -91,7 +89,6 @@ python gitfolder.py https://github.com/maravento/vault/project_name
 - [scripts](https://github.com/maravento/vault/tree/master/scripts)
 - [smbstack](https://github.com/maravento/vault/tree/master/smbstack)
 - [trek](https://github.com/maravento/vault/tree/master/trek)
-- [uniopos](https://github.com/maravento/vault/tree/master/uniopos)
 - [winzenity](https://github.com/maravento/vault/tree/master/winzenity)
 
 ## NOTICE

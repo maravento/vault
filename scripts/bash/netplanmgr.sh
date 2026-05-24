@@ -35,9 +35,6 @@
 #   sudo ./netplanmgr.sh uninstall    # Direct uninstallation
 ################################################################################
 
-# PATH for cron
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
 ## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
@@ -1151,11 +1148,6 @@ show_usage() {
 # Main
 # ============================================================
 main() {
-    if [ "$EUID" -ne 0 ]; then
-        echo "Error: This script must be run as root"
-        exit 1
-    fi
-    
     if [ ! -d "/usr/share/webmin" ] && [ ! -d "/etc/webmin" ]; then
         echo "Error: Webmin is not installed on this system"
         exit 1

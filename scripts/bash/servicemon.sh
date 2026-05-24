@@ -8,7 +8,7 @@
 # Description:
 #   This script installs or uninstalls the Services Monitor module for Webmin.
 #   The module provides a modern interface to monitor and manage systemd services,
-#   with real-time status updates, syslog integration, and desktop notifications.
+#   with real-time status updates and syslog integration.
 #
 # Features:
 #   - Modern and user-friendly web interface
@@ -16,7 +16,6 @@
 #   - Start, stop, and restart services
 #   - Multi-language support (English and Spanish)
 #   - Syslog integration for service events
-#   - Desktop notifications via libnotify
 #   - Automatic dependency checking
 #   - Configurable service filtering (Default/Active/Failed)
 #
@@ -35,13 +34,13 @@
 #
 ################################################################################
 
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
+## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
 
+# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
@@ -62,9 +61,7 @@ install_module() {
     echo "=========================================="
     echo ""
     
-    pkg="libnotify-bin"
     echo "Checking dependencies..."
-    dpkg -s "$pkg" &>/dev/null || (apt-get update -qq >/dev/null && apt-get install -y -qq "$pkg" >/dev/null)
     echo "✓ Dependencies checked"
     
     echo "Creating Services Monitor module structure..."
@@ -103,13 +100,10 @@ foreach my $key (keys %in) {
         
         if ($action eq 'stop' && $status ne 'active') {
             system("logger -t servicemon -p daemon.warning 'Service stopped: $service'");
-            send_notification("Service Monitor", "Service $service has been stopped", "dialog-warning");
         } elsif ($action eq 'start' && $status eq 'active') {
             system("logger -t servicemon -p daemon.info 'Service started: $service'");
-            send_notification("Service Monitor", "Service $service has been started", "dialog-information");
         } elsif ($action eq 'restart') {
             system("logger -t servicemon -p daemon.info 'Service restarted: $service'");
-            send_notification("Service Monitor", "Service $service has been restarted", "dialog-information");
         }
         
         my $timestamp = time();
@@ -513,28 +507,7 @@ sub check_service_status {
     return 'stopped';
 }
 
-sub send_notification {
-    my ($title, $message, $icon) = @_;
-    
-    my @users = `who | awk '{print \$1}' | sort -u`;
-    
-    foreach my $user (@users) {
-        chomp($user);
-        next if $user eq '';
-        my $shell = `getent passwd '$user' 2>/dev/null | cut -d: -f7`;
-        chomp($shell);
-        next if $shell =~ m{/(false|nologin)$};
 
-        my @displays = `ps e -u $user 2>/dev/null | grep -o 'DISPLAY=[^ ]*' | cut -d= -f2 | sort -u`;
-        
-        foreach my $display (@displays) {
-            chomp($display);
-            next if $display eq '';
-            
-            system("su - $user -c 'DISPLAY=$display notify-send -u critical -i $icon \"$title\" \"$message\"' 2>/dev/null &");
-        }
-    }
-}
 INDEXCGI
     
     chmod +x "$MODDIR/index.cgi"
@@ -586,16 +559,15 @@ config_feature_1=Monitor all enabled system services in real-time
 config_feature_2=Start, stop, and restart services with one click
 config_feature_3=Visual status indicators (Active/Failed)
 config_feature_4=Syslog integration for all service actions
-config_feature_5=Desktop notifications for service status changes
-config_feature_6=Multi-language support (English and Spanish)
+config_feature_5=Multi-language support (English and Spanish)
 config_location_title=Module Locations
 config_module_dir=Module directory
 config_config_dir=Configuration directory
 config_access_url=Access URL
 config_logs_title=System Logs
 config_logs_desc=All service actions are logged to syslog with the tag 'servicemon'. You can view them using:
-config_notifications_title=Desktop Notifications
-config_notifications_desc=When a service is stopped or restarted, desktop notifications are automatically sent to all logged users with active graphical sessions (requires libnotify-bin).
+config_notifications_title=System Logs
+config_notifications_desc=All service actions are logged to syslog with the tag 'servicemon'.
 config_filter_title=Service Display Filter
 config_filter_desc=Select which services to display in the main interface:
 config_filter_default=Default (Failed + Active services)
@@ -644,16 +616,15 @@ config_feature_1=Monitorear todos los servicios del sistema habilitados en tiemp
 config_feature_2=Iniciar, detener y reiniciar servicios con un clic
 config_feature_3=Indicadores visuales de estado (Activo/Fallido)
 config_feature_4=Integración con syslog para todas las acciones de servicios
-config_feature_5=Notificaciones de escritorio para cambios de estado de servicios
-config_feature_6=Soporte multiidioma (Inglés y Español)
+config_feature_5=Soporte multiidioma (Inglés y Español)
 config_location_title=Ubicaciones del Módulo
 config_module_dir=Directorio del módulo
 config_config_dir=Directorio de configuración
 config_access_url=URL de acceso
 config_logs_title=Registros del Sistema
 config_logs_desc=Todas las acciones de servicios se registran en syslog con la etiqueta 'servicemon'. Puede verlos usando:
-config_notifications_title=Notificaciones de Escritorio
-config_notifications_desc=Cuando un servicio se detiene o reinicia, las notificaciones de escritorio se envían automáticamente a todos los usuarios conectados con sesiones gráficas activas (requiere libnotify-bin).
+config_notifications_title=Registros del Sistema
+config_notifications_desc=Todas las acciones de servicios se registran en syslog con la etiqueta 'servicemon'.
 config_filter_title=Filtro de Visualización de Servicios
 config_filter_desc=Seleccione qué servicios mostrar en la interfaz principal:
 config_filter_default=Predeterminado (Servicios Fallidos + Activos)
@@ -738,7 +709,7 @@ EOF
 <li>See service status (Active or Failed)</li>
 <li>Start, stop, or restart services</li>
 <li>Real-time status updates</li>
-<li>Automatic notifications via syslog and desktop notifications</li>
+<li>Automatic notifications via syslog</li>
 <li>Configurable service filtering</li>
 </ul>
 
@@ -758,7 +729,6 @@ EOF
 <p>When a service is stopped, the module will:</p>
 <ul>
 <li>Log the event to syslog with tag 'servicemon'</li>
-<li>Send a desktop notification to all logged users (if libnotify-bin is installed)</li>
 </ul>
 
 <footer>
@@ -776,7 +746,7 @@ EOF
 <li>Ver el estado de los servicios (Activo o Fallido)</li>
 <li>Iniciar, detener o reiniciar servicios</li>
 <li>Actualizaciones de estado en tiempo real</li>
-<li>Notificaciones automáticas vía syslog y notificaciones de escritorio</li>
+<li>Notificaciones automáticas vía syslog</li>
 <li>Filtrado configurable de servicios</li>
 </ul>
 
@@ -796,7 +766,6 @@ EOF
 <p>Cuando un servicio se detiene, el módulo:</p>
 <ul>
 <li>Registra el evento en syslog con la etiqueta 'servicemon'</li>
-<li>Envía una notificación de escritorio a todos los usuarios conectados (si libnotify-bin está instalado)</li>
 </ul>
 
 <footer>
@@ -859,7 +828,6 @@ ICONEOF
     echo "Features:"
     echo "  ✓ Modern and user-friendly interface"
     echo "  ✓ Syslog integration (tag: servicemon)"
-    echo "  ✓ Desktop notifications (libnotify-bin)"
     echo "  ✓ Real-time service monitoring"
     echo "  ✓ Configuration page available"
     echo "  ✓ Configurable service filtering"

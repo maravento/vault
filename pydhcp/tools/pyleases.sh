@@ -94,6 +94,7 @@ if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
     echo "ERROR: Cannot determine a valid local user"
     exit 1
 fi
+echo "Using local user: $local_user"
 
 ### VARIABLES
 # date — used inline where needed

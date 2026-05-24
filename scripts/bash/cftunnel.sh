@@ -14,6 +14,9 @@
 #   status     List active/inactive tunnels
 ################################################################################
 
+# PATH for cron
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 # check no-root
 if [ "$(id -u)" == "0" ]; then
     echo "[ERROR] This script should not be run as root."

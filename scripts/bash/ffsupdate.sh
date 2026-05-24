@@ -24,8 +24,8 @@ if ! flock -n 200; then
     exit 1
 fi
 
-pkgs='expect tcl-expect libnotify-bin'
-missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
+pkgs='expect tcl-expect'
+missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done | xargs)
 unavailable=""
 for p in $missing; do
     apt-cache show "$p" &>/dev/null || unavailable+=" $p"
@@ -56,6 +56,8 @@ fi
 ffsfile="FreeFileSync.tar.gz"
 ffsrun="FreeFileSync.run"
 url="https://www.freefilesync.org/download.php"
+
+trap 'rm -f "$ffsfile" "$ffsrun"; echo "❌ Aborted. Temporary files cleaned up."; exit 1' ERR INT TERM
 
 link=$(wget -q "$url" -O - | grep -Pio '/download/[^"]+Linux[^"]+gz')
 if [ -z "$link" ]; then
@@ -99,14 +101,13 @@ echo OK
 
 echo "Run Update..."
 /usr/bin/expect <<'EOF'
-set timeout -1
+set timeout 120
 log_user 0
 spawn ./FreeFileSync.run --accept-license
 log_user 1
 expect -exact "to begin installation:"
 send -- "y\r"
-expect -exact "https://freefilesync.org/donate\r
-\r"
+expect eof
 EOF
 
 rm -f "$ffsfile" "$ffsrun"

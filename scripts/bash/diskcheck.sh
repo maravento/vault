@@ -6,7 +6,7 @@
 # Disk Check Monitor
 # Checks temperature, SMART status and degradation indicators on HDD, SSD and NVMe.
 # Sends desktop alert and logs to syslog if any issue is detected.
-# Requires: libnotify-bin, inxi, smartmontools
+# Requires: inxi, smartmontools
 # Usage: sudo ./diskcheck.sh
 # Cron Root: @daily /etc/scr/diskcheck.sh >> /var/log/diskcheck.log 2>&1
 # Log rotate: /etc/logrotate.d/diskcheck
@@ -15,8 +15,6 @@
 
 echo "Check Disk Temp Starting. Wait..."
 printf "\n"
-
-set -uo pipefail
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -35,6 +33,8 @@ if ! flock -n 200; then
     exit 1
 fi
 
+set -uo pipefail
+
 # LOCAL USER (multi-strategy detection with validation)
 local_user=""
 # 1. Local graphical session (:0)
@@ -43,13 +43,8 @@ local_user=$(who | awk '/\(:0\)/{print $1; exit}')
 [ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
 # 3. SUDO_USER variable (when run via sudo from terminal)
 [ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-# 4. First active session user (SSH or other), restricted to real users (UID >= 1000)
-[ -z "$local_user" ] && {
-    _candidate=$(who | awk 'NR==1{print $1}')
-    [ -n "$_candidate" ] && \
-        local_user=$(awk -F: -v u="$_candidate" '$1==u && $3>=1000{print $1; exit}' /etc/passwd) || true
-    unset _candidate
-}
+# 4. First active session user (SSH or other)
+[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
 # 5. First valid home directory
 [ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
 # Validate the user actually exists on the system
@@ -59,13 +54,9 @@ if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
 fi
 echo "Using local user: $local_user"
 
-# Desktop user UID (resolved after final local_user determination)
-local_uid=$(id -u "$local_user")
-echo "Desktop user: $local_user (uid=$local_uid)"
-
 # check dependencies
-pkgs='libnotify-bin inxi smartmontools'
-missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
+pkgs='inxi smartmontools'
+missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done | xargs)
 unavailable=""
 for p in $missing; do
     apt-cache show "$p" &>/dev/null || unavailable+=" $p"
@@ -122,25 +113,39 @@ fi
 # ---------------------------------------------------------------------
 # HELPER: send desktop notification + syslog
 # ---------------------------------------------------------------------
+_notify() {
+    local user="$1"; shift
+    local uid
+    uid=$(id -u "$user")
+    local bus="unix:path=/run/user/${uid}/bus"
+    local xdg_runtime="/run/user/${uid}"
+    local session_type
+    session_type=$(loginctl show-session \
+        "$(loginctl show-user "$user" 2>/dev/null | awk -F= '/^Sessions=/{print $2}')" \
+        -p Type --value 2>/dev/null || echo "x11")
+    if [[ "$session_type" == "wayland" ]]; then
+        sudo -u "$user" \
+            DBUS_SESSION_BUS_ADDRESS="$bus" \
+            WAYLAND_DISPLAY=wayland-1 \
+            XDG_RUNTIME_DIR="$xdg_runtime" \
+            notify-send "$@" 2>/dev/null || true
+    else
+        sudo -u "$user" \
+            DISPLAY=:0 \
+            DBUS_SESSION_BUS_ADDRESS="$bus" \
+            XDG_RUNTIME_DIR="$xdg_runtime" \
+            notify-send "$@" 2>/dev/null || true
+    fi
+}
+
 notify_alert() {
     local msg="$1"
     local icon="${2:-dialog-warning}"
     logger -t disktemp "$msg"
     echo "$msg"
-    sudo -u "$local_user" \
-        DISPLAY=:0 \
-        DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${local_uid}/bus \
-        notify-send -i "$icon" "⚠️ DISK ALERT" "$msg" 2>/dev/null \
+    _notify "$local_user" -i "$icon" "⚠️ DISK ALERT" "$msg" \
         || echo "   ⚠️ notify-send failed (no desktop session?)"
 }
-
-# Check desktop notification channel (terminal only)
-sudo -u "$local_user" \
-    DISPLAY=:0 \
-    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${local_uid}/bus \
-    notify-send --version &>/dev/null \
-    && echo "✅ Desktop notifications: OK" \
-    || echo "⚠️ Desktop notifications: not available"
 
 # ---------------------------------------------------------------------
 # TEMPERATURE CHECK

@@ -10,11 +10,6 @@
 echo "CPU limit Starting. Wait..."
 printf "\n"
 
-set -uo pipefail
-
-# PATH for cron
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
 ## root check
 if [ "$(id -u)" -ne 0 ]; then
     echo "ERROR: This script must be run as root"
@@ -22,17 +17,19 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 # prevent overlapping runs
-readonly LOCK_FD=200
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-exec {LOCK_FD}>"$SCRIPT_LOCK"
-if ! flock -n $LOCK_FD; then
+rm -f "$SCRIPT_LOCK"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
 
+set -uo pipefail
+
 # check dependencies
 pkgs='cpulimit'
-missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
+missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done | xargs)
 unavailable=""
 for p in $missing; do
     apt-cache show "$p" &>/dev/null || unavailable+=" $p"
@@ -61,19 +58,20 @@ else
 fi
 
 start_limit() {
+    echo "Running processes:"
+    ps -eo pid,comm --no-headers | grep -v kworker | sort -k2 | awk '{printf "  PID: %-8s %s\n", $1, $2}'
+    echo ""
     # program name:
     read -p "Enter the program name: " program_name
 
-    # PID capture
-    pid=$(pgrep -f "$program_name" | head -n1)
-    pid_count=$(pgrep -f "$program_name" | wc -l)
-    if [ -z "$pid" ]; then
-        echo "PID was not found '$program_name'."
+    # Verify process exists
+    if ! pgrep -f "$program_name" &>/dev/null; then
+        echo "❌ No running process found for '$program_name'."
         exit 1
     fi
-    if [ "$pid_count" -gt 1 ]; then
-        echo "⚠️  Multiple PIDs found for '$program_name'. Using first PID: $pid"
-    fi
+
+    pid_count=$(pgrep -f "$program_name" | wc -l)
+    echo "✅ Found $pid_count process(es) matching '$program_name'."
 
     # CPU %
     read -p "Enter the CPU % number for '$program_name' (0-100): " cpu_limit
@@ -84,11 +82,14 @@ start_limit() {
         exit 1
     fi
 
-    # Apply cpulimit to the program's PID
-    cpulimit -l "$cpu_limit" -p "$pid" &
-    cpulimit_pid=$!
-    echo "$cpulimit_pid" > /var/run/cpulimit_managed.pid
-    echo "$cpu_limit% has been applied to the '$program_name' (PID: $pid). cpulimit PID: $cpulimit_pid"
+    # Apply cpulimit to each matching PID
+    > /var/run/cpulimit_managed.pid
+    while IFS= read -r pid; do
+        cpulimit -l "$cpu_limit" -p "$pid" >/dev/null &
+        cpulimit_pid=$!
+        echo "$cpulimit_pid" >> /var/run/cpulimit_managed.pid
+        echo "✅ $cpu_limit% CPU limit applied to '$program_name' (PID: $pid, cpulimit PID: $cpulimit_pid)"
+    done < <(pgrep -f "$program_name")
 }
 
 status_limit() {
@@ -122,7 +123,7 @@ stop_limit() {
 
 # start|stop|status
 
-case "$1" in
+case "${1:-}" in
     start)
         start_limit
         ;;

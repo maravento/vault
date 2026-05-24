@@ -16,11 +16,13 @@ printf "\n"
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
 
+# LOCAL USER (multi-strategy detection with validation)
 local_user=""
 local_user=$(who | awk '/\(:0\)/{print $1; exit}')
 [ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
@@ -33,6 +35,7 @@ if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
 fi
 echo "Using local user: $local_user"
 
+# check dependencies
 pkgs='google-drive-ocamlfuse libcurl3-gnutls libfuse2 libsqlite3-0'
 for pkg in $pkgs; do
     dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {

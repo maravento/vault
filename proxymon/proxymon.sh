@@ -41,7 +41,7 @@ check_dependencies() {
         [apache2]="apache2 apache2-bin apache2-data apache2-doc apache2-utils"
     )
 
-    pkgs='wget git ipset libnotify-bin nbtscan libcgi-session-perl libgd-perl python-is-python3 coreutils sarg php libapache2-mod-php php-cli php-curl fonts-lato fonts-liberation fonts-dejavu'
+    pkgs='wget git ipset nbtscan libcgi-session-perl libgd-perl python-is-python3 coreutils sarg php libapache2-mod-php php-cli php-curl fonts-lato fonts-liberation fonts-dejavu'
     for p in "${!pkgs_alts[@]}"; do
         pkgs+=" $p"
     done
@@ -404,7 +404,6 @@ install_proxymon() {
     echo -e "${GREEN}✅ Proxy Monitor installed successfully${NC}"
     echo -e "${GREEN}🌐 Access Proxy Monitor: http://localhost:18080${NC}"
     echo -e "${GREEN}🌐 Access Warning Portal: http://localhost:18081${NC}"
-    notify-send "Proxy Monitor Installed" "$(date)" -i checkbox 2>/dev/null || true
 }
 
 # ════════════════════════════════════════════════════════════════
@@ -480,7 +479,6 @@ uninstall_proxymon() {
     a2query -s
     
     echo -e "${GREEN}✅ Proxy Monitor uninstalled successfully${NC}"
-    notify-send "Proxy Monitor Uninstalled" "$(date)" -i checkbox 2>/dev/null || true
 }
 
 # ════════════════════════════════════════════════════════════════
