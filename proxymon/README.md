@@ -1,6 +1,6 @@
 # [Proxy Monitor](https://github.com/maravento)
 
-[![status-release-candidate](https://img.shields.io/badge/status-release_candidate-skyblue.svg)](https://github.com/maravento)
+[![status-beta](https://img.shields.io/badge/status-beta-magenta.svg)](https://github.com/maravento/vault)
 
 <!-- markdownlint-disable MD033 -->
 
@@ -1092,30 +1092,42 @@ sudo -u www-data crontab -e
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <b>🔧 API Setup:</b> SquidAI requires a valid LLM API key to function. Edit the configuration file:
-      <pre><code>sudo nano /var/www/proxymon/squidai/.env</code></pre>
-      Set your API key and endpoint URL (according to your LLM provider):
-      <pre><code>API_KEY=your_api_key_here
-LLM_URL=https://your-llm-provider.com/endpoint?key={key}</code></pre>
-      The <code>{key}</code> placeholder will be replaced automatically with your API key.
+      <b>🔧 API Setup:</b> SquidAI requires an LLM provider to function. The configuration file is located outside the webroot for security:
+      <pre><code>sudo nano /etc/proxymon/.env</code></pre>
+      Set your provider URL, API key and response format:
+      <pre><code>LLM_URL=https://your-provider.com/endpoint
+LLM_API_KEY=your_api_key
+LLM_MODEL=model-name
+LLM_RESPONSE_FORMAT=openai</code></pre>
+      <b>Note:</b> The URL format depends on the provider. Some providers include account IDs or model names directly in the URL (e.g. Cloudflare: <code>…/accounts/ACCOUNT_ID/ai/run/MODEL_NAME</code>), others use a fixed URL with the model in <code>LLM_MODEL</code> (e.g. OpenAI, Groq), and others embed the API key as a URL parameter (e.g. Gemini: <code>…?key=YOUR_KEY</code>). Check the commented examples in the <code>.env</code> file for each provider's exact format. Leave <code>LLM_MODEL</code> empty if the model is already part of the URL.
       <br><br>
-      <b>🔒 Security:</b> The <code>.env</code> file is protected by the virtualhost configuration and is not publicly accessible. Access attempts return <code>403 Forbidden</code>.
+      <code>LLM_RESPONSE_FORMAT</code> tells the worker how to read the response: <code>openai</code> (most providers), <code>ollama</code> (local Ollama), or <code>gemini</code> (Google Gemini passthrough).
       <br><br>
-      <b>🔄 Rate Limits & Retries:</b> LLM APIs may experience congestion depending on demand. SquidAI implements an automatic retry mechanism: up to <b>4 attempts</b> with progressive delays (4s, 8s, 15s) before giving up. If the API is temporarily unavailable, the assistant will display retry messages. After all attempts fail, it will show a message (check table).
+      The file includes commented examples for: <b>Cloudflare Workers AI</b>, <b>OpenAI</b>, <b>Groq</b>, <b>OpenRouter</b>, <b>Together AI</b>, <b>Ollama</b> (local), <b>LM Studio</b> (local) and <b>Google Gemini</b>. Uncomment one block and fill in your credentials.
+      <br><br>
+      <b>🔒 Security:</b> The <code>.env</code> file is stored in <code>/etc/proxymon/</code>, outside the Apache webroot. Permissions are set to <code>640</code> (<code>root:www-data</code>) so only PHP can read it.
+      <br><br>
+      <b>🔄 Rate Limits &amp; Retries:</b> LLM APIs may experience congestion depending on demand. SquidAI implements an automatic retry mechanism: up to <b>4 attempts</b> with progressive delays (4s, 8s, 15s) before giving up. If the API is temporarily unavailable, the assistant will display retry messages. After all attempts fail, it will show a message (check table).
       <br><br>
       <b>🔌 LLM Status:</b> The connection indicator shows three states: <b>Checking</b> (yellow), <b>Connected</b> (green), and <b>Offline</b> (red) (check table).
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <b>🔧 Configuración de API:</b> SquidAI requiere una API key de LLM válida para funcionar. Edite el archivo de configuración:
-      <pre><code>sudo nano /var/www/proxymon/squidai/.env</code></pre>
-      Configure su API key y la URL del endpoint (según su proveedor LLM):
-      <pre><code>API_KEY=tu_api_key_aqui
-LLM_URL=https://url-de-tu-proveedor-llm.com/endpoint?key={key}</code></pre>
-      El marcador <code>{key}</code> será reemplazado automáticamente con su API key.
+      <b>🔧 Configuración de API:</b> SquidAI requiere un proveedor LLM para funcionar. El archivo de configuración se encuentra fuera del webroot por seguridad:
+      <pre><code>sudo nano /etc/proxymon/.env</code></pre>
+      Configure la URL del proveedor, la API key y el formato de respuesta:
+      <pre><code>LLM_URL=https://su-proveedor.com/endpoint
+LLM_API_KEY=su_api_key
+LLM_MODEL=nombre-del-modelo
+LLM_RESPONSE_FORMAT=openai</code></pre>
+      <b>Nota:</b> El formato de la URL depende del proveedor. Algunos incluyen el Account ID o el nombre del modelo directamente en la URL (ej: Cloudflare: <code>…/accounts/ACCOUNT_ID/ai/run/NOMBRE_MODELO</code>), otros usan una URL fija con el modelo en <code>LLM_MODEL</code> (ej: OpenAI, Groq), y otros insertan la API key como parámetro en la URL (ej: Gemini: <code>…?key=SU_KEY</code>). Consulte los ejemplos comentados en el archivo <code>.env</code> para el formato exacto de cada proveedor. Deje <code>LLM_MODEL</code> vacío si el modelo ya forma parte de la URL.
       <br><br>
-      <b>🔒 Seguridad:</b> El archivo <code>.env</code> está protegido por la configuración del virtualhost y no es accesible públicamente. Los intentos de acceso devuelven <code>403 Forbidden</code>.
+      <code>LLM_RESPONSE_FORMAT</code> indica al worker cómo leer la respuesta: <code>openai</code> (la mayoría de proveedores), <code>ollama</code> (Ollama local) o <code>gemini</code> (Google Gemini passthrough).
       <br><br>
-      <b>🔄 Límites de tasa y reintentos:</b> Las APIs LLM pueden experimentar congestión según la demanda. SquidAI implementa un mecanismo de reintento automático: hasta <b>4 intentos</b> con retardos progresivos (4s, 8s, 15s) antes de desistir. Si la API no está disponible temporalmente, el asistente mostrará un mensaje de reintento y al finalizar, mostrará un mensaje (ver tabla).
+      El archivo incluye ejemplos comentados para: <b>Cloudflare Workers AI</b>, <b>OpenAI</b>, <b>Groq</b>, <b>OpenRouter</b>, <b>Together AI</b>, <b>Ollama</b> (local), <b>LM Studio</b> (local) y <b>Google Gemini</b>. Descomente un bloque y complete sus credenciales.
+      <br><br>
+      <b>🔒 Seguridad:</b> El archivo <code>.env</code> se almacena en <code>/etc/proxymon/</code>, fuera del webroot de Apache. Los permisos son <code>640</code> (<code>root:www-data</code>) para que solo PHP pueda leerlo.
+      <br><br>
+      <b>🔄 Límites de tasa y reintentos:</b> Las APIs LLM pueden experimentar congestión según la demanda. SquidAI implementa un mecanismo de reintento automático: hasta <b>4 intentos</b> con retardos progresivos (4s, 8s, 15s) antes de desistir. Si la API no está disponible temporalmente, el asistente mostrará mensajes de reintento y al finalizar mostrará un mensaje (ver tabla).
       <br><br>
       <b>🔌 Estado LLM:</b> El indicador de conexión muestra tres estados: <b>Checking</b> (amarillo), <b>Connected</b> (verde) y <b>Offline</b> (rojo) (ver tabla).
     </td>
@@ -1124,8 +1136,8 @@ LLM_URL=https://url-de-tu-proveedor-llm.com/endpoint?key={key}</code></pre>
 
 | Message | Description | Descripción |
 | ------- | ----------- | ----------- |
-| <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/squidai-retry.png" width="400" height="80"> | Example of the automatic retry message. | Ejemplo del mensaje de reintento automático. |
-| <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/squidai-api.png" width="400" height="80"> | API Down Example | Ejemplo de API caída |
+| <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/squidai-retry.png" width="400"> | Example of the automatic retry message. | Ejemplo del mensaje de reintento automático. |
+| <img src="https://raw.githubusercontent.com/maravento/vault/master/proxymon/img/squidai-api.png" width="400"> | API Down Example. | Ejemplo de API caída. |
 
 #### LLM status
 

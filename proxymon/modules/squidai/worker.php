@@ -69,7 +69,7 @@ define('MAX_LOG_LINES_REQUEST', 5000);
 
 // ── API KEY FROM .env ─────────────────────────────────────────────
 function loadEnv(): void {
-    $envFile = __DIR__ . '/.env';
+    $envFile = '/etc/proxymon/.env';
     if (!file_exists($envFile)) return;
     foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
         $line = trim($line);
@@ -165,43 +165,149 @@ try {
             break;
         
         case 'get_api_status':
-            $key = $_ENV['API_KEY'] ?? '';
-            echo json_encode(['configured' => $key !== '']);
+            // Check that LLM_URL is configured in /etc/proxymon/.env
+            $configured = ($_ENV['LLM_URL'] ?? '') !== '';
+            echo json_encode(['configured' => $configured]);
             break;
 
         case 'llm_proxy':
-            $key = $_ENV['API_KEY'] ?? '';
-            if (!$key) {
-                http_response_code(503);
-                echo json_encode(['error' => msg('api_key_missing')]);
-                break;
-            }
-            $template = $_ENV['LLM_URL'] ?? '';
-            $url      = str_replace('{key}', $key, $template);
+            // ── LLM PROXY ─────────────────────────────────────────────────────
+            // Provider-agnostic LLM proxy. All configuration lives in /etc/proxymon/.env
+            // The frontend always sends Gemini format and always receives Gemini format.
+            // This proxy handles the transformation transparently.
+            //
+            // Required in .env:
+            //   LLM_URL             Full endpoint URL of the provider
+            //   LLM_API_KEY         Bearer token (leave empty for local providers)
+            //   LLM_MODEL           Model name (leave empty if included in the URL)
+            //   LLM_RESPONSE_FORMAT Response format: openai | ollama | gemini
+            //
+            // LLM_RESPONSE_FORMAT reference:
+            //   openai  → standard: choices[0].message.content
+            //             also handles wrapped responses: result.choices[0].message.content
+            //   ollama  → message.content
+            //   gemini  → passthrough (no transformation needed)
+            // ─────────────────────────────────────────────────────────────────
+
             $rawInput = stream_get_contents(fopen('php://input', 'r'), 32768);
             $decoded  = json_decode($rawInput, true);
-            if (!$decoded || !isset($decoded['contents'][0]['parts'][0]['text'])) {
+            if (!$decoded || !isset($decoded['contents'])) {
                 http_response_code(400);
                 echo json_encode(['error' => 'Invalid request']);
                 break;
             }
-            $payload = $rawInput;
-            $ch = curl_init($url);
+
+            $llmUrl    = $_ENV['LLM_URL']             ?? '';
+            $llmKey    = $_ENV['LLM_API_KEY']         ?? '';
+            $llmModel  = $_ENV['LLM_MODEL']           ?? '';
+            $llmFormat = $_ENV['LLM_RESPONSE_FORMAT'] ?? 'openai';
+
+            if (!$llmUrl) {
+                http_response_code(503);
+                echo json_encode(['error' => msg('api_key_missing')]);
+                break;
+            }
+
+            $systemText = $decoded['system_instruction']['parts'][0]['text'] ?? '';
+            $maxTokens  = $decoded['generationConfig']['maxOutputTokens']    ?? 8192;
+
+            // Transform Gemini conversation history → messages[] (OpenAI-compatible)
+            $messages = [];
+            if ($systemText !== '') {
+                $messages[] = ['role' => 'system', 'content' => $systemText];
+            }
+            foreach ($decoded['contents'] as $turn) {
+                $role    = ($turn['role'] === 'model') ? 'assistant' : 'user';
+                $content = $turn['parts'][0]['text'] ?? '';
+                if ($content !== '') {
+                    $messages[] = ['role' => $role, 'content' => $content];
+                }
+            }
+
+            // Build payload according to format
+            if ($llmFormat === 'gemini') {
+                $payload = $rawInput; // passthrough — no transformation needed
+            } elseif ($llmFormat === 'ollama') {
+                $payload = json_encode([
+                    'model'    => $llmModel,
+                    'messages' => $messages,
+                    'stream'   => false,
+                ]);
+            } else {
+                // openai-compatible (default) — works with most providers
+                $body = ['messages' => $messages, 'max_tokens' => $maxTokens, 'stream' => false];
+                if ($llmModel !== '') $body['model'] = $llmModel;
+                $payload = json_encode($body);
+            }
+
+            // Build headers — Authorization is optional (omitted for local providers)
+            $headers = ['Content-Type: application/json'];
+            if ($llmKey !== '') {
+                $headers[] = 'Authorization: Bearer ' . $llmKey;
+            }
+
+            $ch = curl_init($llmUrl);
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-            $resp = curl_exec($ch);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+
+            $resp      = curl_exec($ch);
             $curlError = curl_error($ch);
             curl_close($ch);
+
             if ($resp === false) {
                 http_response_code(502);
-                error_log('SquidAI curl error: ' . $curlError);
+                error_log('SquidAI LLM curl error: ' . $curlError);
                 echo json_encode(['error' => 'Service unavailable']);
                 break;
             }
-            echo $resp;
+
+            $data = json_decode($resp, true);
+            if (!$data) {
+                http_response_code(502);
+                error_log('SquidAI LLM invalid response: ' . $resp);
+                echo json_encode(['error' => 'Invalid response from LLM']);
+                break;
+            }
+
+            // Extract response text according to format
+            if ($llmFormat === 'gemini') {
+                echo $resp; // passthrough — already in Gemini format
+                break;
+            } elseif ($llmFormat === 'ollama') {
+                $responseText = $data['message']['content'] ?? '';
+            } else {
+                // openai-compatible
+                // Standard path:  choices[0].message.content
+                // Wrapped path:   result.choices[0].message.content (some providers add a wrapper object)
+                $responseText = $data['choices'][0]['message']['content']
+                    ?? $data['result']['choices'][0]['message']['content']
+                    ?? $data['result']['response']
+                    ?? '';
+
+                $providerError = $data['error']['message']
+                    ?? $data['errors'][0]['message']
+                    ?? null;
+                if ($responseText === '' && $providerError) {
+                    http_response_code(502);
+                    error_log('SquidAI LLM provider error: ' . $resp);
+                    echo json_encode(['error' => $providerError]);
+                    break;
+                }
+            }
+
+            // Return Gemini format — the frontend never needs to change
+            echo json_encode([
+                'candidates' => [[
+                    'content' => [
+                        'parts' => [['text' => $responseText]],
+                        'role'  => 'model',
+                    ],
+                    'finishReason' => 'STOP',
+                ]],
+            ]);
             break;
 
         default:

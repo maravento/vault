@@ -1,38 +1,19 @@
 # [PyDHCP](https://github.com/maravento)
 
-[![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento)
+[![status-beta](https://img.shields.io/badge/status-beta-magenta.svg)](https://github.com/maravento/vault)
 
 <!-- markdownlint-disable MD033 -->
 
 <table>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <b>pydhcp</b> is an open-source IPv4 DHCP server written in Python, designed as a drop-in replacement for <code>isc-dhcp-server</code>. It implements RFC 2131 over UDP 67/68, uses compatible configuration and lease file formats, and runs as a native <code>systemd</code> service with an <code>init.d</code> wrapper included.
+      <b>pydhcp</b> is an open-source IPv4 DHCP server written in Python, designed as a drop-in replacement for <a href="https://github.com/isc-projects/dhcp">isc-dhcp-server</a> — which reached End-of-Life (EOL) in 2022. It implements RFC 2131 over UDP 67/68, replicates the same functionality using compatible configuration syntax and lease file format under its own file paths, and runs as a native <code>systemd</code> service with an <code>init.d</code> wrapper included.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <b>pydhcp</b> es un servidor DHCP IPv4 de código abierto escrito en Python, diseñado como reemplazo directo de <code>isc-dhcp-server</code>. Implementa RFC 2131 sobre UDP 67/68, usa formatos de configuración y concesiones compatibles, y corre como servicio <code>systemd</code> nativo con wrapper <code>init.d</code> incluido.
+      <b>pydhcp</b> es un servidor DHCP IPv4 de código abierto escrito en Python, diseñado como reemplazo directo de <a href="https://github.com/isc-projects/dhcp">isc-dhcp-server</a> — que alcanzó su fin de vida (EOL) en 2022. Implementa RFC 2131 sobre UDP 67/68, replica la misma funcionalidad usando sintaxis de configuración y formato de concesiones compatible bajo sus propias rutas de archivo, y corre como servicio <code>systemd</code> nativo con wrapper <code>init.d</code> incluido.
     </td>
   </tr>
 </table>
-
-## PROJECT ORIGIN
-
----
-
-<table>
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      This project is a Python reimplementation of <a href="https://github.com/isc-projects/dhcp">isc-dhcp-server</a>, which reached End-of-Life (EOL) in 2022. It replicates the same functionality using compatible configuration syntax and lease file format, under its own file paths.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      Este proyecto es una reimplementación en Python de <a href="https://github.com/isc-projects/dhcp">isc-dhcp-server</a>, que alcanzó su fin de vida (EOL) en 2022. Replica la misma funcionalidad usando sintaxis de configuración y formato de concesiones compatible, bajo sus propias rutas de archivo.
-    </td>
-  </tr>
-</table>
-
-| Original Project | Original Version | EOL Date |
-| :--------------: | :--------------: | :------: |
-| [ISC DHCP](https://github.com/isc-projects/dhcp) | 4.4.3-P1-4ubuntu2 | 2022 |
 
 ## Scope
 
@@ -400,6 +381,14 @@ iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
 | Rogue acknowledges | `DHCPACK on 192.168.10.222 to bb:cc:dd:ee:ff:aa (BAR) via enp2s0` | — |
 | Authoritative server rejects | — | `NAK → bb:cc:dd:ee:ff:aa` |
 | Client rediscovers | `DHCPDISCOVER from bb:cc:dd:ee:ff:aa via enp2s0` | `DISCOVER from bb:cc:dd:ee:ff:aa (BAR)` |
+
+## ORIGINAL PROJECT
+
+---
+
+| Project | Version | EOL Date |
+| :-----: | :-----: | :------: |
+| [ISC DHCP](https://github.com/isc-projects/dhcp) | 4.4.3-P1-4ubuntu2 | 2022 |
 
 ## DISCLAIMER
 

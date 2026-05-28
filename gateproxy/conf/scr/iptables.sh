@@ -265,41 +265,31 @@ iptables -A INPUT -s 127.0.0.0/8 ! -i lo -j DROP
 iptables -A INPUT -i $wan -s 10.0.0.0/8 -j DROP
 iptables -A INPUT -i $wan -s 172.16.0.0/12 -j DROP
 #iptables -A INPUT -i $wan -s 192.168.0.0/16 -j DROP
-# UNIFI WAN
-# STUN responses from Ubiquiti (3478) and Google (19302) — needed for APs behind NAT
-iptables -A INPUT -i $wan -p udp -m multiport --sports 3478,19302 -j ACCEPT
-# Device discovery from management LAN via WAN interface
-iptables -A INPUT -i $wan -p udp --dport 10001 -j ACCEPT
-# Uncomment if using Ubiquiti remote access cloud service
-# iptables -A INPUT -i $wan -p tcp -s 66.203.125.0/24 --sport 443 -d $wan -j ACCEPT
-# LAN Unifi — ports required for LAN clients and APs to communicate with self-hosted controller
-# 8080  TCP - AP to controller communication
-# 8880  TCP - captive portal HTTP
-# 8881  TCP - captive portal HTTP alternate
-# 8882  TCP - captive portal HTTP alternate
-# 8843  TCP - captive portal HTTPS
-# 6789  TCP - UniFi speed test / throughput measurement (Podman/pasta userspace network)
-# 3478  UDP - STUN for APs
-# 123   UDP - NTP
-# 10001 UDP - device discovery
-# Removed (administrative/internal only — blocked in WAN DROP rules):
-# 5005  TCP - UniFi/Podman (pasta userspace network)
-# 5671  TCP - UniFi/Podman AMQP (pasta userspace network)
-# 8443  TCP - GUI/API admin access (pasta userspace network)
-# 8444  TCP - UniFi OS HTTPS GUI admin (pasta userspace network)
-# 9543  TCP - UniFi/Podman (pasta userspace network)
-# 11084 TCP - UniFi/Podman (pasta userspace network)
-# 11443 TCP - UniFi OS self-hosted GUI admin (pasta userspace network)
-# 27117 TCP - MongoDB internal database
-# 1900  UDP - UPnP optional discovery
-unifi_tcp="8080,8880:8882,8843,6789"
-unifi_udp="3478,123,10001"
-for chain in INPUT FORWARD; do
-    iptables -A $chain -i $lan -p tcp -m multiport --dports $unifi_tcp -j ACCEPT
-    iptables -A $chain -i $lan -p udp -m multiport --dports $unifi_udp -j ACCEPT
-done
-iptables -t mangle -A PREROUTING -i $lan -p tcp -m multiport --dports $unifi_tcp -j ACCEPT
-iptables -t mangle -A PREROUTING -i $lan -p udp -m multiport --dports $unifi_udp -j ACCEPT
+# WAN DROP: Local Ports (reduce noise)
+# 25     TCP - Postfix SMTP (master)
+# 80     TCP - HTTP
+# 3128   TCP - Squid proxy
+# 4330   TCP - PCP pmlogger (Performance Co-Pilot)
+# 5005   TCP - UniFi/Podman (pasta userspace network)
+# 5636   TCP - UniFi/Podman (pasta userspace network)
+# 5671   TCP - UniFi/Podman AMQP (pasta userspace network)
+# 6789   TCP - UniFi speed test (pasta userspace network)
+# 8443   TCP - UniFi HTTPS GUI (pasta userspace network)
+# 8444   TCP - UniFi OS HTTPS GUI (pasta userspace network)
+# 9543   TCP - UniFi/Podman (pasta userspace network)
+# 10000  TCP - Webmin
+# 11084  TCP - UniFi/Podman (pasta userspace network)
+# 11443  TCP - UniFi OS self-hosted GUI (pasta userspace network)
+# 18100  TCP - PAC proxy
+# 18080  TCP - Internal HTTP
+# 18081  TCP - Warning page (bandata)
+# 18082  TCP - Internal HTTP alternate
+# 44321  TCP - PCP pmcd (Performance Co-Pilot daemon)
+# 44322  TCP - PCP pmproxy
+# 44323  TCP - PCP pmproxy HTTPS
+iptables -A INPUT -i $wan -p tcp -m multiport --dports 25,80,3128,4330,5005,5636,5671,6789,8443,8444,9543,10000,11084,11443,18100 -j DROP
+iptables -A INPUT -i $wan -p tcp -m multiport --dports 18080,18081,18082,44321,44322,44323 -j DROP
+iptables -A INPUT -i $wan -p udp --dport 5353 -j DROP
 
 # MASQUERADE: NAT for LAN to share dynamic WAN IP
 iptables -t nat -A POSTROUTING -s $localnet/$netmask -o $wan -j MASQUERADE
@@ -314,6 +304,93 @@ iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -A OUTPUT -m conntrack --ctstate NEW,ESTABLISHED,RELATED -j ACCEPT
 # Squid proxy outbound traffic
 iptables -A OUTPUT -o $wan -m owner --uid-owner proxy -j ACCEPT
+
+# DHCP
+iptables -A OUTPUT -o $wan -p udp --sport 68 --dport 67 -j ACCEPT
+iptables -A INPUT -i $wan -p udp --sport 67 --dport 68 -j ACCEPT
+iptables -A INPUT -i $lan -p udp --sport 68 --dport 67 -j ACCEPT
+iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
+
+# UNIFI WAN (Opcional)
+# STUN responses from Ubiquiti (3478) and Google (19302) — needed for APs behind NAT
+#iptables -A INPUT -i $wan -p udp -m multiport --sports 3478,19302 -j ACCEPT
+# Device discovery from management LAN via WAN interface
+#iptables -A INPUT -i $wan -p udp --dport 10001 -j ACCEPT
+# Uncomment if using Ubiquiti remote access cloud service
+#iptables -A INPUT -i $wan -p tcp -s 66.203.125.0/24 --sport 443 -d $wan -j ACCEPT
+# LAN Unifi — ports required for LAN clients and APs to communicate with self-hosted controller
+# 8080  TCP - AP to controller communication
+# 8880  TCP - captive portal HTTP
+# 8881  TCP - captive portal HTTP alternate
+# 8882  TCP - captive portal HTTP alternate
+# 8843  TCP - captive portal HTTPS
+# 6789  TCP - UniFi speed test / throughput measurement (Podman/pasta userspace network)
+# 3478  UDP - STUN for APs
+# 123   UDP - NTP
+# 10001 UDP - device discovery
+# Removed (administrative/internal only):
+# 8443  TCP - GUI/API admin access
+# 8444  TCP - UniFi OS HTTPS GUI admin
+# 11443 TCP - UniFi OS self-hosted GUI admin
+# 27117 TCP - MongoDB internal database
+# 1900  UDP - UPnP optional discovery
+#unifi_tcp="8080,6789"
+#unifi_udp="3478,123,10001"
+#portal_tcp="8880,8881,8882,8843"
+
+# Create ipsets
+#if ! ipset list macpending &>/dev/null; then
+#    ipset create macpending hash:mac -exist
+#else
+#    ipset flush macpending
+#fi
+#if ! ipset list machotspot &>/dev/null; then
+#    ipset create machotspot hash:mac -exist
+#else
+#    ipset flush machotspot
+#fi
+
+# Populate ipsets
+#if [ -f "$hotspot_path/guest-pending.txt" ]; then
+#    for mac in $(awk -F";" '$2 != "" {print $2}' $hotspot_path/guest-pending.txt); do
+#        ipset add macpending $mac -exist
+#    done
+#fi
+#if [ -f "$hotspot_path/mac-hotspot.txt" ]; then
+#    for mac in $(awk -F";" '$2 != "" {print $2}' $hotspot_path/mac-hotspot.txt); do
+#        ipset add machotspot $mac -exist
+#    done
+#fi
+
+# UniFi infrastructure ports
+#for chain in INPUT FORWARD; do
+#    iptables -A $chain -i $lan -p tcp -m multiport --dports $unifi_tcp -j ACCEPT
+#    iptables -A $chain -i $lan -p udp -m multiport --dports $unifi_udp -j ACCEPT
+#done
+#iptables -t mangle -A PREROUTING -i $lan -p tcp -m multiport --dports $unifi_tcp -j ACCEPT
+#iptables -t mangle -A PREROUTING -i $lan -p udp -m multiport --dports $unifi_udp -j ACCEPT
+
+# Portal ports — macpending only
+#iptables -t mangle -A PREROUTING -i $lan -m set --match-set macpending src -p udp --dport 53 -j ACCEPT
+#iptables -t mangle -A PREROUTING -i $lan -m set --match-set macpending src -p tcp --dport 80 -j ACCEPT
+#iptables -t mangle -A PREROUTING -i $lan -m set --match-set macpending src -p tcp -m multiport --dports $portal_tcp -j ACCEPT
+#iptables -A FORWARD -i $lan -o $wan -m set --match-set macpending src -p udp --dport 53 -j ACCEPT
+#iptables -A FORWARD -i $lan -o $wan -m set --match-set macpending src -p tcp --dport 80 -j ACCEPT
+#iptables -A FORWARD -i $lan -m set --match-set macpending src -p tcp -m multiport --dports $portal_tcp -j ACCEPT
+#for chain in INPUT FORWARD; do
+#   iptables -A $chain -i $lan -p tcp -m multiport --dports 443,3092,18080,18081,18100,3128 -m set --match-set macpending src -j DROP
+#done
+
+# Portal ports — machotspot only
+#iptables -t mangle -A PREROUTING -i $lan -m set --match-set machotspot src -p udp --dport 53 -j ACCEPT
+#iptables -t mangle -A PREROUTING -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports $portal_tcp -j ACCEPT
+#iptables -A FORWARD -i $lan -o $wan -m set --match-set machotspot src -p udp --dport 53 -j ACCEPT
+#iptables -A FORWARD -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports $portal_tcp -j ACCEPT
+
+# Block portal ports for everyone else
+#iptables -t mangle -A PREROUTING -i $lan -p tcp -m multiport --dports $portal_tcp -j DROP
+#iptables -A INPUT -i $lan -p tcp -m multiport --dports $portal_tcp -j DROP
+#iptables -A FORWARD -i $lan -p tcp -m multiport --dports $portal_tcp -j DROP
 
 # WARNING PAGE HTTP FOR BANDATA (TCP 18081)
 # https://github.com/maravento/vault/tree/master/proxymon
@@ -331,16 +408,6 @@ iptables -A FORWARD -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
 # Invalid NEW connections with SYN+ACK
 iptables -A INPUT -p tcp --tcp-flags SYN,ACK SYN,ACK -m conntrack --ctstate NEW -j DROP
 iptables -A FORWARD -p tcp --tcp-flags SYN,ACK SYN,ACK -m conntrack --ctstate NEW -j DROP
-
-# DHCP
-iptables -A OUTPUT -o $wan -p udp --sport 68 --dport 67 -j ACCEPT
-iptables -A INPUT -i $wan -p udp --sport 67 --dport 68 -j ACCEPT
-iptables -A INPUT -i $lan -p udp --sport 68 --dport 67 -s $localnet/$netmask -j ACCEPT
-iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -d $localnet/$netmask -j ACCEPT
-
-# NTP
-iptables -A INPUT -i $lan -p udp --dport 123 -s $localnet/$netmask -j ACCEPT
-iptables -A FORWARD -i $lan -p udp --dport 123 -s $localnet/$netmask -j ACCEPT
 
 echo OK
 
@@ -454,6 +521,7 @@ done
 # STUN / TURN - VoIP, WebRTC, Videoconference
 iptables -A FORWARD -i $lan -p udp --dport 3478 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i $lan -o $wan -p udp -m multiport --dports 19302:19309 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i $lan -o $wan -p tcp --dport 7500 -m set --match-set macports src -j ACCEPT
 # FILE SHARING SAMBA (SMB)
 iptables -A INPUT -i $lan -p tcp -m multiport --dports 445,3092 -m set --match-set macports src -j ACCEPT
 # EMAIL (SMTP, IMAP, POP3)
@@ -595,14 +663,6 @@ done
 
 ## HOTSPOT RULES ##
 # MACHOTSPOT (PAC 18100 - Opcion 252 DHCP, HTTP 80 to 3128)
-#if ! ipset list machotspot &>/dev/null; then
-#    ipset create machotspot hash:mac -exist
-#else
-#    ipset flush machotspot
-#fi
-#for mac in $(awk -F";" '$2 != "" {print $2}' $hotspot_path/mac-hotspot.txt); do
-#    ipset add machotspot $mac -exist
-#done
 #iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m set --match-set machotspot src -j REDIRECT --to-port 3128
 #for chain in INPUT FORWARD; do
 #    iptables -A $chain -i $lan -p tcp -m multiport --dports 18100,3128 -m set --match-set machotspot src -j ACCEPT
@@ -612,9 +672,9 @@ echo OK
 
 ## END ## 
 echo "DROP All..."
-iptables -A INPUT -j NFLOG --nflog-prefix "FINAL-DROP-INPUT: "
+iptables -A INPUT -m hashlimit --hashlimit-name input-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip,dstport -j NFLOG --nflog-prefix "FINAL-INPUT DROP: "
 iptables -A INPUT -j DROP
-iptables -A FORWARD -j NFLOG --nflog-prefix "FINAL-DROP-FORWARD: "
+iptables -A FORWARD -m hashlimit --hashlimit-name forward-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip,dstport -j NFLOG --nflog-prefix "FINAL-FORWARD DROP: "
 iptables -A FORWARD -j DROP
 
 echo "iptables Load at: $(date)" | tee -a /var/log/syslog

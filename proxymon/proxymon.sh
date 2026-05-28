@@ -364,6 +364,87 @@ install_proxymon() {
     a2enmod headers &>/dev/null
     a2enconf security &>/dev/null
      
+    echo -e "${YELLOW}🔧 Configuring SquidAI...${NC}"
+    mkdir -p /etc/proxymon
+    if [ ! -f /etc/proxymon/.env ]; then
+        cat > /etc/proxymon/.env << 'EOF'
+# SquidAI — LLM Provider Configuration
+# ─────────────────────────────────────────────────────────────────
+# Uncomment ONE provider block and fill in your credentials.
+# Leave LLM_MODEL empty if the model is already part of the URL.
+# LLM_API_KEY can be left empty for local providers (Ollama, LM Studio).
+#
+# LLM_RESPONSE_FORMAT tells the worker how to read the response:
+#   openai  → choices[0].message.content  (most cloud providers)
+#   ollama  → message.content             (Ollama)
+#   gemini  → passthrough, no transform   (Google Gemini)
+# ─────────────────────────────────────────────────────────────────
+
+# ── Active provider (uncomment one block below) ──────────────────
+LLM_URL=
+LLM_API_KEY=
+LLM_MODEL=
+LLM_RESPONSE_FORMAT=openai
+
+# ─────────────────────────────────────────────────────────────────
+# PROVIDER EXAMPLES — copy the values above and replace
+# ─────────────────────────────────────────────────────────────────
+
+# Cloudflare Workers AI (model goes in the URL, no LLM_MODEL needed)
+# LLM_URL=https://api.cloudflare.com/client/v4/accounts/ACCOUNT_ID/ai/run/@cf/meta/llama-3.1-8b-instruct-fast
+# LLM_API_KEY=your_token
+# LLM_RESPONSE_FORMAT=openai
+
+# OpenAI
+# LLM_URL=https://api.openai.com/v1/chat/completions
+# LLM_API_KEY=sk-...
+# LLM_MODEL=gpt-4o-mini
+# LLM_RESPONSE_FORMAT=openai
+
+# Groq (fast inference, free tier available)
+# LLM_URL=https://api.groq.com/openai/v1/chat/completions
+# LLM_API_KEY=gsk_...
+# LLM_MODEL=llama-3.1-8b-instant
+# LLM_RESPONSE_FORMAT=openai
+
+# OpenRouter (access to many models, free tier available)
+# LLM_URL=https://openrouter.ai/api/v1/chat/completions
+# LLM_API_KEY=sk-or-...
+# LLM_MODEL=mistralai/mistral-7b-instruct
+# LLM_RESPONSE_FORMAT=openai
+
+# Together AI
+# LLM_URL=https://api.together.xyz/v1/chat/completions
+# LLM_API_KEY=your_key
+# LLM_MODEL=meta-llama/Llama-3-8b-chat-hf
+# LLM_RESPONSE_FORMAT=openai
+
+# Ollama (local, no API key required)
+# LLM_URL=http://localhost:11434/api/chat
+# LLM_API_KEY=
+# LLM_MODEL=llama3.1
+# LLM_RESPONSE_FORMAT=ollama
+
+# LM Studio (local, OpenAI-compatible)
+# LLM_URL=http://localhost:1234/v1/chat/completions
+# LLM_API_KEY=lm-studio
+# LLM_MODEL=
+# LLM_RESPONSE_FORMAT=openai
+
+# Google Gemini
+# LLM_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=YOUR_KEY
+# LLM_API_KEY=
+# LLM_MODEL=
+# LLM_RESPONSE_FORMAT=gemini
+EOF
+    fi
+    chmod 640 /etc/proxymon/.env
+    chown root:www-data /etc/proxymon/.env
+    chmod 750 /etc/proxymon
+    chown root:www-data /etc/proxymon
+    echo -e "${GREEN}✅ SquidAI config directory created: /etc/proxymon/${NC}"
+    echo -e "${YELLOW}⚠️  Edit /etc/proxymon/.env and set your LLM credentials${NC}"
+
     echo -e "${YELLOW}🔐 Setting Permissions...${NC}"
     chmod -R 755 /var/www/proxymon/
     chown -R www-data:www-data /var/www/proxymon
@@ -458,6 +539,16 @@ uninstall_proxymon() {
     if [[ -d "/var/www/proxymon" ]]; then
         rm -rf /var/www/proxymon
         echo -e "${GREEN}✅ Installation directory removed${NC}"
+    fi
+
+    if [[ -d "/etc/proxymon" ]]; then
+        read -p "Remove /etc/proxymon/ (contains LLM credentials)? (y/n): " -r
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            rm -rf /etc/proxymon
+            echo -e "${GREEN}✅ SquidAI config directory removed${NC}"
+        else
+            echo -e "${YELLOW}⚠️  /etc/proxymon kept — remove manually if needed${NC}"
+        fi
     fi
     
     sed -i '/Listen 0.0.0.0:18080/d' /etc/apache2/ports.conf

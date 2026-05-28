@@ -6,12 +6,41 @@
 # UniFi Network Hotspot - ACL Manager v4
 #
 # USAGE:
-#   Manual : sudo /etc/scr/unhotspot.sh
-#   Cron   : * * * * * /etc/scr/unhotspot.sh
+#   Manual : sudo /etc/unhotspot/unhotspot.sh
+#   Cron   : auto-registered on first run (every 30 seconds)
+#            * * * * * /etc/unhotspot/unhotspot.sh; sleep 30 && /etc/unhotspot/unhotspot.sh
 #
 # DEPENDENCIES:
-#   isc-dhcp-server (default), iptables, ipset, jq, curl, bash, UniFi Controller
-#   Optional (experimental): pydhcp (drop-in replacement for isc-dhcp-server)
+#   iptables, ipset, jq, curl, bash, UniFi Controller
+#   DHCP server (auto-detected on startup — one of the following must be active):
+#     - pydhcpd       (preferred)
+#     - isc-dhcp-server
+#
+# CHANGES:
+#   - DHCP server auto-detected from active systemd service (pydhcpd or
+#     isc-dhcp-server). No manual variable editing required. Aborts if both
+#     are active simultaneously or neither is running.
+#   - Crontab entry auto-registered on first run if not present.
+#   - LOG_FILE declared at bootstrap so all messages (including pre-main
+#     validations) are captured in a single log.
+#   - dedup_mac_lists: uses two internal scopes:
+#       MANAGED_MACS (global) — only MACs from /etc/acl/acl_mac/mac-*.txt,
+#         used to block portal entry for clients already managed by pyleases.
+#       all_macs (local) — all lists combined, used to clean blockdhcp.txt
+#         and dhcpd.leases.
+#   - process_pending_guests and process_sessions: double verification against
+#     MANAGED_MACS — a MAC present in /etc/acl/acl_mac/mac-*.txt is never
+#     added to guest-pending.txt or mac-hotspot.txt, regardless of what the
+#     UniFi API reports or whether the client forces a portal URL.
+#   - Log format standardized with visual separators for readability:
+#
+#     ────────────────────────────────────────────────────────────────────────────────
+#     2026-05-27 09:42:01 INFO: DHCP server detected — pydhcpd
+#     2026-05-27 09:42:01 INFO: UnHotspot Start. Wait...
+#     2026-05-27 09:42:01 INFO: UniFi login OK
+#     2026-05-27 09:42:02 INFO: ACLs unchanged — skipping reload
+#     2026-05-27 09:42:02 INFO: vouchers=2 | authorized=14 | pending=2 | new_pending=0 | new_auth=0 | revoked=0
+#     2026-05-27 09:42:02 INFO: Done
 #
 # TESTED ON:
 #   Ubuntu 24.04.x — UniFi OS Network 10.3.55
@@ -50,13 +79,14 @@
 #   None of the above are defects in unhotspot.sh or dhcp.
 #
 # LOGIC:
-#   The script runs every minute via cron and executes 9 steps:
+#   The script runs every 30 seconds via cron and executes 9 steps:
 #
-#   1. DEDUP: verifies that no MAC appears in more than one list.
-#      If a MAC is in guest-pending.txt or in any mac-*.txt, it is
-#      automatically removed from blockdhcp.txt and dhcpd.leases.
-#      Entries in blockdhcp.txt with extra fields are sanitized to
-#      the canonical 4-field format (a;MAC;IP;HOSTNAME;).
+#   1. DEDUP: verifies consistency across all ACL lists. MACs present in
+#      guest-pending.txt, mac-hotspot.txt, or /etc/acl/acl_mac/mac-*.txt
+#      are removed from blockdhcp.txt and dhcpd.leases. A MAC cannot belong
+#      to more than one list simultaneously. Entries in blockdhcp.txt with
+#      extra fields are sanitized to the canonical 4-field format
+#      (a;MAC;IP;HOSTNAME;).
 #
 #   2. SNAPSHOT: records md5sum baselines of mac-hotspot.txt and
 #      guest-pending.txt before any processing begins.
@@ -65,19 +95,24 @@
 #      (END_TIME < now). Moves them to guest-pending.txt preserving IP and
 #      hostname, provided the client is still connected to the guest SSID.
 #
-#   4. PENDING: queries stat/sta on the UniFi API. Clients connected
-#      to the guest SSID without authorization receive a sequential IP
-#      from the user-defined range (e.g., 192.168.10.160 to 192.168.10.180)
-#      starting from the lowest available IP. Their initial dynamic DHCP
-#      lease is removed. Hostname is constructed as guest{sequential_number}
-#      and enriched with the voucher code in step 5. Example: guest5
+#   4. PENDING: queries stat/sta on the UniFi API. Clients connected to the
+#      guest SSID without authorization receive a sequential IP from the
+#      user-defined range (e.g., 192.168.10.160 to 192.168.10.180) starting
+#      from the lowest available IP. Their initial dynamic DHCP lease is
+#      removed. Hostname is constructed as guest{sequential_number} and
+#      enriched with the voucher code in step 5. Example: guest5.
 #      If the IP range is exhausted, the oldest entry in guest-pending.txt
 #      is evicted (its lease removed) to free one slot before assigning.
+#      Clients already present in /etc/acl/acl_mac/mac-*.txt are skipped —
+#      they have a fixed-address lease and must not enter the portal.
 #
 #   5. SESSIONS: queries stat/guest. UniFi records completed voucher sessions
 #      here after the client authenticates. Clients are moved from
 #      guest-pending.txt to mac-hotspot.txt with their end_time, and the
 #      hostname is enriched with the voucher code (e.g. guest5-4652724159).
+#      Clients already present in /etc/acl/acl_mac/mac-*.txt are skipped —
+#      even if they force a portal URL and enter a voucher, they will never
+#      be added to mac-hotspot.txt.
 #
 #   6. REVOKE: queries stat/sta. MACs present in mac-hotspot.txt that UniFi
 #      reports as authorized=false are moved back to guest-pending.txt.
@@ -136,6 +171,9 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
+# Log file (declared early so all bootstrap messages are captured)
+LOG_FILE="/var/log/unhotspot.log"
+
 # Prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
@@ -163,6 +201,19 @@ if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
 fi
 echo "Using local user: $local_user"
 
+# ─── Crontab entry verification ───────────────────────────────────────────────
+script_path="$(realpath "$0")"
+expected="* * * * * ${script_path}; sleep 30 && ${script_path}"
+
+if ! crontab -l 2>/dev/null | grep -qF "$expected"; then
+    if crontab -l 2>/dev/null | grep -qF "$script_path"; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: crontab contains entries for $script_path but not in the expected format — review manually" | tee -a "$LOG_FILE"
+    else
+        ( crontab -l 2>/dev/null; echo "$expected" ) | crontab -
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Crontab entry added: $expected" | tee -a "$LOG_FILE"
+    fi
+fi
+
 # Hotspot path
 HOTSPOT_PATH="/etc/unhotspot"
 
@@ -174,7 +225,6 @@ CONFIG_FILE="$HOTSPOT_PATH/config.conf"
 SESSION_TOKEN=""
 MAC_LIST="$HOTSPOT_PATH/mac-hotspot.txt"
 PENDING_LIST="$HOTSPOT_PATH/guest-pending.txt"
-LOG_FILE="/var/log/unhotspot.log"
 PENDING_NEW=0
 SESSIONS_AUTHORIZED=0
 REVOKED=0
@@ -184,18 +234,38 @@ REVOKED=0
 # Format: a;MAC;IP;HOSTNAME;   (4 fields — no epoch; trailing semicolon required)
 BLOCK_DHCP="/etc/acl/acl_dhcp/blockdhcp.txt"
 
-# ─── DHCP leases file ─────────────────────────────────────────────────────────
-# Set the path and owner matching the DHCP server in use.
-# To switch servers: uncomment the active line and comment the other.
-DHCP_LEASES="/var/lib/dhcp/dhcpd.leases"                                    # isc-dhcp-server (default)
-DHCP_LEASES_OWNER="dhcpd:dhcpd"                                             # isc-dhcp-server (default)
-#DHCP_LEASES="/etc/pydhcp/pydhcpd.leases"                                   # pydhcp (experimental)
-#DHCP_LEASES_OWNER="pydhcpd:pydhcpd"                                        # pydhcp (experimental)
+# ─── Shared ACL MAC path (also used by pyleases) ─────────────────────────────
+# MACs in any mac-*.txt here must not appear in mac-hotspot.txt or guest-pending.txt.
+ACL_MAC_PATH="/etc/acl/acl_mac"
+
+# ─── DHCP server auto-detection ──────────────────────────────────────────────
+_pydhcp_active=false
+_isc_active=false
+systemctl is-active --quiet pydhcpd        2>/dev/null && _pydhcp_active=true
+systemctl is-active --quiet isc-dhcp-server 2>/dev/null && _isc_active=true
+
+echo "────────────────────────────────────────────────────────────────────────────────" | tee -a "$LOG_FILE"
+if [[ "$_pydhcp_active" == "true" && "$_isc_active" == "true" ]]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Both pydhcpd and isc-dhcp-server are active — only one DHCP server can run at a time" | tee -a "$LOG_FILE"
+    exit 1
+elif [[ "$_pydhcp_active" == "true" ]]; then
+    DHCP_LEASES="/etc/pydhcp/pydhcpd.leases"
+    DHCP_LEASES_OWNER="pydhcpd:pydhcpd"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: DHCP server detected — pydhcpd" | tee -a "$LOG_FILE"
+elif [[ "$_isc_active" == "true" ]]; then
+    DHCP_LEASES="/var/lib/dhcp/dhcpd.leases"
+    DHCP_LEASES_OWNER="dhcpd:dhcpd"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: DHCP server detected — isc-dhcp-server" | tee -a "$LOG_FILE"
+else
+    echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: No DHCP server active — install and start either pydhcpd or isc-dhcp-server" | tee -a "$LOG_FILE"
+    exit 1
+fi
 
 
 CSRF_TOKEN=""
 VOUCHER_CACHE=""
 VOUCHER_COUNT=0
+MANAGED_MACS=""
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 log() {
@@ -249,7 +319,7 @@ ask_ip() {
             done
             [[ $valid -eq 1 ]] && printf -v "$var" '%s' "$answer" && break
         fi
-        echo "  ✗ '$answer' is not a valid IPv4 address (e.g. 192.168.10.2)."
+        echo "  ✗ '$answer' is not a valid IPv4 address (e.g. 192.168.0.1)."
     done
 }
 
@@ -266,7 +336,7 @@ ask_ip_range() {
             done
             [[ $valid -eq 1 ]] && printf -v "$var" '%s' "$answer" && break
         fi
-        echo "  ✗ '$answer' is not valid. Enter 3 octets only (e.g. 192.168.10)."
+        echo "  ✗ '$answer' is not valid. Enter 3 octets only (e.g. 192.168.0)."
     done
 }
 
@@ -378,7 +448,7 @@ setup_config() {
         found_type="$DISCOVERED_TYPE"
     else
         echo "  ✗ No UniFi controller detected automatically."
-        ask "Enter controller URL manually (e.g. https://192.168.1.1:8443)" "" found_url
+        ask "Enter controller URL manually (e.g. https://192.168.0.1:8443)" "" found_url
         echo "  Enter controller type:"
         select found_type in "unifi-os" "classic"; do
             [[ -n "$found_type" ]] && break
@@ -467,6 +537,7 @@ load_config() {
         log "ERROR: Edit $CONFIG_FILE and set the missing values, then re-run the script"
         exit 1
     fi
+
 }
 
 # ─── ACL file init ────────────────────────────────────────────────────────────
@@ -718,13 +789,27 @@ dedup_mac_lists() {
     local acl_dir
     acl_dir="$(dirname "$MAC_LIST")"
 
-    local managed_macs
-    managed_macs=$(
+    # MANAGED_MACS: only MACs from /etc/acl/acl_mac/mac-*.txt.
+    # Used to block portal entry for clients already managed by another ACL list.
+    MANAGED_MACS=$(
         {
-            grep -ih '^a;' "$PENDING_LIST" 2>/dev/null || true
-            grep -rih '^a;' "$acl_dir"/mac-*.txt 2>/dev/null || true
+            for f in "$ACL_MAC_PATH"/mac-*.txt; do
+                [[ -f "$f" ]] && grep -ih '^a;' "$f" 2>/dev/null || true
+            done
         } | awk -F';' '{print tolower($2)}' \
           | grep -E '^([0-9a-f]{2}:){5}[0-9a-f]{2}$' \
+          | sort -u
+    )
+
+    # all_macs: all managed MACs across all lists.
+    # Used internally to clean blockdhcp.txt and dhcpd.leases.
+    local all_macs
+    all_macs=$(
+        {
+            grep -ih '^a;' "$PENDING_LIST" 2>/dev/null || true
+            grep -ih '^a;' "$MAC_LIST"     2>/dev/null || true
+            echo "$MANAGED_MACS"
+        } | grep -E '^([0-9a-f]{2}:){5}[0-9a-f]{2}$' \
           | sort -u
     )
 
@@ -742,7 +827,7 @@ dedup_mac_lists() {
             bmac=$(echo "$bmac" | tr '[:upper:]' '[:lower:]')
 
             # Skip if this MAC is already managed
-            if echo "$managed_macs" | grep -q "^${bmac}$"; then
+            if echo "$all_macs" | grep -q "^${bmac}$"; then
                 log "INFO: dedup → removed $bmac from blockdhcp.txt"
                 (( removed_block++ )) || true
                 continue
@@ -762,7 +847,7 @@ dedup_mac_lists() {
     fi
 
     local dhcpd_leases="$DHCP_LEASES"
-    if [[ -f "$dhcpd_leases" && -n "$managed_macs" ]]; then
+    if [[ -f "$dhcpd_leases" && -n "$all_macs" ]]; then
         local tmp_leases in_block=0 block=""
         tmp_leases=$(mktemp)
         while IFS= read -r line; do
@@ -777,7 +862,7 @@ dedup_mac_lists() {
                     lmac=$(echo "$block" | grep -i 'hardware ethernet' \
                         | sed -E 's/.*hardware ethernet ([0-9a-f:]+);.*/\1/I' \
                         | tr '[:upper:]' '[:lower:]')
-                    if [[ -n "$lmac" ]] && echo "$managed_macs" | grep -q "^${lmac}$"; then
+                    if [[ -n "$lmac" ]] && echo "$all_macs" | grep -q "^${lmac}$"; then
                         log "INFO: dedup → removed lease for $lmac from dhcpd.leases"
                         (( removed_leases++ )) || true
                     else
@@ -1004,9 +1089,15 @@ process_pending_guests() {
     while IFS=$'\t' read -r mac ip; do
         [[ -z "$mac" || "$mac" == "null" ]] && continue
 
-        # Skip if already managed
+        # Skip if already managed by hotspot lists
         grep -qi "^a;${mac};" "$MAC_LIST"     2>/dev/null && continue
         grep -qi "^a;${mac};" "$PENDING_LIST" 2>/dev/null && continue
+
+        # Skip if already managed by another ACL list (mac-proxy, mac-transparent, etc.)
+        if echo "$MANAGED_MACS" | grep -qi "^${mac}$"; then
+            log "INFO: Skipping $mac — already managed in ACL lists (mac-*)"
+            continue
+        fi
 
         # Assign IP and hostname from the hotspot range
         local iph assigned_ip assigned_hostname
@@ -1058,6 +1149,12 @@ process_sessions() {
 
         # Skip sessions that are already expired
         if (( end_time <= now )); then
+            continue
+        fi
+
+        # Skip if already managed by another ACL list (mac-proxy, mac-transparent, etc.)
+        if echo "$MANAGED_MACS" | grep -qi "^${mac}$"; then
+            log "INFO: Skipping $mac — already managed in ACL lists (mac-*)"
             continue
         fi
 
@@ -1264,7 +1361,7 @@ set -euo pipefail
 main() {
     load_config
     setup_logrotate
-    log "INFO: ══════ run start ══════"
+    log "INFO: UnHotspot Start. Wait..."
     init_acl_files
     if ! unifi_login; then
         log "ERROR: Cannot authenticate to UniFi controller — aborting"
@@ -1289,7 +1386,7 @@ main() {
     authorized_total=$(grep -c "^a;" "$MAC_LIST" 2>/dev/null || true)
     authorized_total=$(( ${authorized_total:-0} + 0 ))
     log "INFO: vouchers=$VOUCHER_COUNT | authorized=$authorized_total | pending=$pending_total | new_pending=$PENDING_NEW | new_auth=$SESSIONS_AUTHORIZED | revoked=$REVOKED"
-    log "INFO: ══════ run end ══════"
+    log "INFO: Done"
 }
 
 main
