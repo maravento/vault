@@ -806,8 +806,8 @@ dedup_mac_lists() {
     local all_macs
     all_macs=$(
         {
-            grep -ih '^a;' "$PENDING_LIST" 2>/dev/null || true
-            grep -ih '^a;' "$MAC_LIST"     2>/dev/null || true
+            awk -F';' '/^a;/{print tolower($2)}' "$PENDING_LIST" 2>/dev/null || true
+            awk -F';' '/^a;/{print tolower($2)}' "$MAC_LIST"     2>/dev/null || true
             echo "$MANAGED_MACS"
         } | grep -E '^([0-9a-f]{2}:){5}[0-9a-f]{2}$' \
           | sort -u

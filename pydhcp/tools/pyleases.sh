@@ -23,6 +23,7 @@
 #   - All paths, ACL files and network settings read from pyleases.env
 #   - Optional WPAD/PAC support (activated by install.sh)
 #   - Optional Unifi Hotspot integration (controlled via pyleases.env)
+#   - Grace period for unknown MACs before blocking (hotspot mode only)
 #
 # REQUIREMENTS:
 #   - pydhcpd installed and running
@@ -30,11 +31,15 @@
 #   - Root privileges
 #   - python3 (for network calculations on first run)
 #
-# ACL FORMAT:
-#   a;MAC;IP;HOSTNAME;
+# ACL FORMATS:
+#   Standard (mac-*.txt, blockdhcp.txt):
+#       a;MAC;IP;HOSTNAME;
 #
-# ACL HOTSPOT:
-#   a;MAC;IP;HOSTNAME;END_TIME_EPOCH;
+#   Hotspot voucher (mac-hotspot.txt):
+#       a;MAC;IP;HOSTNAME;END_TIME_EPOCH;
+#
+#   Grace (gracedhcp.txt, hotspot mode only):
+#       a;MAC;IP;HOSTNAME;FIRST_SEEN_EPOCH;
 #
 # NOTES:
 #   - Designed for environments enforcing DHCP-based access control
@@ -42,33 +47,42 @@
 #   - On first run, pyleases.env is created with network/path configuration
 #   - Delete pyleases.env to re-run setup
 #
-# OPTIONAL ENTERPRISE MODULE: UniFi Hotspot Integration (independent block)
+# OPTIONAL ENTERPRISE MODULE: UniFi Hotspot Integration
 #
 # DESCRIPTION:
 #   Optional integration layer that:
-#   - Imports hotspot client data (mac-hotspot, guest-pending)
+#   - Imports hotspot client data (mac-hotspot, guest-pending) as authoritative
+#     exclusion lists during lease classification
 #   - Extends DHCP reservations for hotspot users
 #   - Synchronizes hotspot-related ACL entries
+#   - Provides a grace period (BLOCKDHCP_GRACE_SECONDS) during which a previously
+#     unseen MAC receives leases but is NOT yet listed in blockdhcp.txt
 #
 # USAGE:
 #   - Controlled via UNIFI_HOTSPOT_ENABLED in pyleases.env
 #   - Can be safely disabled without affecting core DHCP logic
+#
+# WPAD/PAC OPTION (option 252)
+# If you need WPAD/PAC for proxy auto-configuration:
+# 1. Install and configure Apache2
+# 2. Create virtual host on port 18100
+# 3. Create wpad.pac file in Apache document root
+# 4. Uncomment these two lines in /etc/pydhcp/pydhcpd.conf:
+#    option wpad code 252 = text;
+#    option wpad "http://<server_ip>:18100/wpad.pac";
 #
 ################################################################################
 
 echo "Leases Start. Wait..."
 printf "\n"
 
-# PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
 
-# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 rm -f "$SCRIPT_LOCK"
 exec 200>"$SCRIPT_LOCK"
@@ -77,31 +91,17 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# LOCAL USER (multi-strategy detection with validation)
 local_user=""
-# 1. Local graphical session (:0)
 local_user=$(who | awk '/\(:0\)/{print $1; exit}')
-# 2. Parent process logname (works well with sudo)
 [ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
-# 3. SUDO_USER variable (when run via sudo from terminal)
 [ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-# 4. First active session user (SSH or other)
 [ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
-# 5. First valid home directory
 [ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
-# Validate the user actually exists on the system
 if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
     echo "ERROR: Cannot determine a valid local user"
     exit 1
 fi
-echo "Using local user: $local_user"
 
-### VARIABLES
-# date — used inline where needed
-
-# =============================================================================
-# ENV SETUP
-# =============================================================================
 setup_env() {
     local env_file="$1"
 
@@ -207,10 +207,24 @@ ACL_MAC_HOTSPOT=/etc/unhotspot/mac-hotspot.txt
 ACL_GUEST_PENDING=/etc/unhotspot/guest-pending.txt
 ACL_BLOCK_FILE=/etc/acl/acl_dhcp/blockdhcp.txt
 
+EOF
+
+    if [[ "$UNIFI_HOTSPOT_ENABLED" == "true" ]]; then
+        cat >> "$env_file" <<EOF
+# Hotspot grace file
+ACL_GRACE_FILE=/etc/acl/acl_dhcp/gracedhcp.txt
+# Grace period in seconds (24h default = 86400)
+BLOCKDHCP_GRACE_SECONDS=86400
+EOF
+    fi
+
+    cat >> "$env_file" <<EOF
+
 # Features
 UNIFI_HOTSPOT_ENABLED=$UNIFI_HOTSPOT_ENABLED
 EOF
-    chmod 600 "$env_file"
+    chmod 640 "$env_file"
+    chown root:pydhcpd "$env_file"
     echo "Configuration saved to $env_file"
 }
 
@@ -221,14 +235,34 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 source "$ENV_FILE"
 
-# =============================================================================
-# UNIFI HOTSPOT (ENTERPRISE) — comment this block if not using Unifi hotspot
-# =============================================================================
-# Controlled via UNIFI_HOTSPOT_ENABLED in pyleases.env
+ACL_GRACE_FILE="${ACL_GRACE_FILE:-/etc/acl/acl_dhcp/gracedhcp.txt}"
 
-# -----------------------------------------------------------------------------
-# VERIFICATION FUNCTIONS
-# -----------------------------------------------------------------------------
+_notify() {
+    local user="$1"; shift
+    local uid
+    uid=$(id -u "$user")
+    local bus="unix:path=/run/user/${uid}/bus"
+    local xdg_runtime="/run/user/${uid}"
+
+    local session_type
+    session_type=$(loginctl show-session \
+        "$(loginctl show-user "$user" 2>/dev/null | awk -F= '/^Sessions=/{print $2}')" \
+        -p Type --value 2>/dev/null || echo "x11")
+
+    if [[ "$session_type" == "wayland" ]]; then
+        sudo -u "$user" \
+            DBUS_SESSION_BUS_ADDRESS="$bus" \
+            WAYLAND_DISPLAY=wayland-1 \
+            XDG_RUNTIME_DIR="$xdg_runtime" \
+            notify-send "$@" 2>/dev/null || true
+    else
+        sudo -u "$user" \
+            DISPLAY=:0 \
+            DBUS_SESSION_BUS_ADDRESS="$bus" \
+            XDG_RUNTIME_DIR="$xdg_runtime" \
+            notify-send "$@" 2>/dev/null || true
+    fi
+}
 
 verify_dhcp_service() {
     if ! command -v python3 &>/dev/null; then
@@ -300,23 +334,20 @@ initialize_empty_files() {
             chmod 600 "$ACL_GUEST_PENDING"
             chown root:root "$ACL_GUEST_PENDING"
         fi
+        if [ ! -f "$ACL_GRACE_FILE" ]; then
+            touch "$ACL_GRACE_FILE"
+            chmod 600 "$ACL_GRACE_FILE"
+            chown root:root "$ACL_GRACE_FILE"
+        fi
     fi
 }
 
-# -----------------------------------------------------------------------------
-# RUN VERIFICATIONS
-# -----------------------------------------------------------------------------
 verify_dhcp_service
 verify_dhcp_files
 verify_dhcp_config
 verify_directories
 initialize_empty_files
 
-### LEASES
-
-# -----------------------------------------------------------------------------
-# UNIFI HOTSPOT FUNCTIONS — comment this block if not using Unifi hotspot
-# -----------------------------------------------------------------------------
 function guest_pending_fixed() {
     for line in $(cat "$ACL_GUEST_PENDING" 2>/dev/null); do
         macsource=$(echo "$line" | cut -d ';' -f 2)
@@ -336,79 +367,132 @@ function clean_hotspot_list() {
         grep -vF "$mac_actual" "$ACL_MAC_HOTSPOT" > "$ACL_MAC_HOTSPOT".tmp && mv "$ACL_MAC_HOTSPOT".tmp "$ACL_MAC_HOTSPOT"
     done <"$ACL_MAC_UNLIMITED"
 }
-# -----------------------------------------------------------------------------
 
-function is_iscdhcp() {
+function clean_grace_list() {
+    [ ! -f "$ACL_GRACE_FILE" ] && return
+    local file_temp
+    file_temp=$(mktemp)
+
+    {
+        grep -h '^a;' "$ACL_MAC_PATH"/mac-* 2>/dev/null
+        grep -h '^a;' "$ACL_MAC_HOTSPOT" 2>/dev/null
+        grep -h '^a;' "$ACL_GUEST_PENDING" 2>/dev/null
+    } | awk -F';' '{print tolower($2)}' | sort -u > "$file_temp"
+
+    while IFS= read -r mac_actual; do
+        [ -z "$mac_actual" ] && continue
+        grep -vi "^a;${mac_actual};" "$ACL_GRACE_FILE" > "$ACL_GRACE_FILE.tmp" \
+            && mv "$ACL_GRACE_FILE.tmp" "$ACL_GRACE_FILE"
+    done < "$file_temp"
+    rm -f "$file_temp"
+}
+
+function expire_grace_entries() {
+    [ ! -f "$ACL_GRACE_FILE" ] && return
+    local file_temp now_epoch age
+    file_temp=$(mktemp)
+    now_epoch=$(date +%s)
+
+    while IFS=';' read -r status mac ip hostname epoch _; do
+        if [[ "$status" != "a" || -z "$mac" || -z "$epoch" ]]; then
+            continue
+        fi
+        age=$(( now_epoch - epoch ))
+        if (( age >= BLOCKDHCP_GRACE_SECONDS )); then
+            echo "a;${mac};${ip};${hostname};" >> "$ACL_BLOCK_FILE"
+        else
+            echo "a;${mac};${ip};${hostname};${epoch};" >> "$file_temp"
+        fi
+    done < "$ACL_GRACE_FILE"
+
+    mv "$file_temp" "$ACL_GRACE_FILE"
+    chmod 600 "$ACL_GRACE_FILE"
+    chown root:root "$ACL_GRACE_FILE"
+}
+
+function is_pydhcp() {
     dhcpd=/etc/pydhcp/pydhcpd.leases
     dhcpd_temp=/etc/pydhcp/pydhcpd.leases.temp
     dhcp_conf="/etc/pydhcp/pydhcpd.conf"
     dhcp_conf_temp="/etc/pydhcp/pydhcpd.conf.temp"
     echo "" >"$dhcp_conf_temp"
 
-    function read_leases {
-        num_line_actual=0
-        while read line; do
-            num_line_actual=$(($num_line_actual + 1))
-            if $(echo "$line" | grep -E -q 'lease [0-9,.]+ {'); then
-                host="no_name_$(get_cadena_random 10)"
-                mac_address=""
-                ip_address=$(echo "$line" | grep -E -o '([0-9]{1,3}\.){3}[0-9]{1,3}')
-                num_line_ini_lease=$num_line_actual
-                num_line_end_lease=0
+    function read_leases() {
+        local temp_leases="/tmp/pydhcpd.leases.$$"
+        > "$temp_leases"
+
+        while IFS= read -r line; do
+            if echo "$line" | grep -qE '^lease [0-9,.]+ {$'; then
+                current_lease="$line"
+                lease_content="$line"$'\n'
                 continue
             fi
 
-            if $(echo "$line" | grep -E -q 'client-hostname "[^"]+";'); then
-                host_candidate=$(echo "$line" | cut -d'"' -f2 | tr " " "_")
-                if [[ -n "$host_candidate" ]]; then
-                    host="$host_candidate"
-                fi
-                if [[ $mac_address != "" && $(grep -F "$mac_address;" "$ACL_MAC_PATH"/mac-* "$ACL_BLOCK_FILE" 2>/dev/null | grep -E ";no_name_[^;]+;") != "" ]]; then
-                    line_aux=$(grep -F "$mac_address;" "$ACL_MAC_PATH"/mac-* "$ACL_BLOCK_FILE" 2>/dev/null | grep -E ";no_name_[^;]+;" | cut -d":" -f2- | head -1)
-                    wcstatus_aux=$(echo "$line_aux" | cut -d ';' -f 1)
-                    ipsource_aux=$(echo "$line_aux" | cut -d ';' -f 3)
-                    date_aux=$(echo "$line_aux" | cut -d ';' -f 5)
-                    for _f in "$ACL_BLOCK_FILE" "$ACL_MAC_PATH"/mac-*; do
-                        [ -f "$_f" ] || continue
-                        awk -F';' -v mac="$mac_address" -v w="$wcstatus_aux" -v ip="$ipsource_aux" \
-                            -v h="$host" -v d="$date_aux" \
-                            '$2==mac && $4~/^no_name_/ { $0=w";"mac";"ip";"h";"d } { print }' \
-                            "$_f" > "$_f.tmp" && mv "$_f.tmp" "$_f"
-                    done
-                fi
-                continue
+            if [ -n "$current_lease" ]; then
+                lease_content+="$line"$'\n'
             fi
 
-            if $(echo "$line" | grep -E -q 'hardware ethernet [0-9,a-f,:]+;'); then
-                mac_address=$(echo "$line" | grep -E -o '([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}')
-                continue
-            fi
+            if echo "$line" | grep -q '^}$'; then
+                if [ -n "$current_lease" ]; then
+                    mac_address=$(echo "$lease_content" | grep -oE '([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}' | head -1)
+                    ip_address=$(echo "$lease_content" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
+                    host_candidate=$(echo "$lease_content" | grep -oE 'client-hostname "[^"]+"' | cut -d'"' -f2 | tr " " "_")
+                    host="${host_candidate:-no_name_$(head -c100 /dev/urandom | sha1sum | head -c10)}"
 
-            if $(echo "$line" | grep -E -q '}'); then
-                num_line_end_lease=$num_line_actual
-                if [[ $host != "" && $mac_address != "" && $ip_address != "" ]]; then
-                    line_lease="a;$mac_address;$ip_address;$host;"
-                    if [[ $(grep -o "$mac_address" "$ACL_MAC_PATH"/mac-*) == "" ]]; then
-                        if [[ $(grep -o "$mac_address" "$ACL_BLOCK_FILE") == "" ]]; then
-                            echo "$line_lease" >>"$ACL_BLOCK_FILE"
-                            sed "$num_line_ini_lease,$num_line_end_lease!d" "$dhcpd" >>"$dhcpd_temp"
+                    if [[ -n "$mac_address" && -n "$ip_address" ]]; then
+                        line_lease="a;$mac_address;$ip_address;$host;"
+
+                        if [[ "${UNIFI_HOTSPOT_ENABLED:-false}" == "true" ]]; then
+                            mac_authoritative=""
+                            if grep -qi "^a;${mac_address};" "$ACL_MAC_PATH"/mac-* 2>/dev/null; then
+                                mac_authoritative="yes"
+                            elif grep -qi "^a;${mac_address};" "$ACL_MAC_HOTSPOT" 2>/dev/null; then
+                                mac_authoritative="yes"
+                            elif grep -qi "^a;${mac_address};" "$ACL_GUEST_PENDING" 2>/dev/null; then
+                                mac_authoritative="yes"
+                            fi
+
+                            if [[ -n "$mac_authoritative" ]]; then
+                                echo "$lease_content" >> "$temp_leases"
+                            elif grep -qi "^a;${mac_address};" "$ACL_BLOCK_FILE" 2>/dev/null; then
+                                :
+                            elif grep -qi "^a;${mac_address};" "$ACL_GRACE_FILE" 2>/dev/null; then
+                                existing_epoch=$(grep -i "^a;${mac_address};" "$ACL_GRACE_FILE" | head -1 | cut -d';' -f5)
+                                now_epoch=$(date +%s)
+                                age=$(( now_epoch - existing_epoch ))
+                                if (( age >= BLOCKDHCP_GRACE_SECONDS )); then
+                                    echo "a;${mac_address};${ip_address};${host};" >> "$ACL_BLOCK_FILE"
+                                    sed -i "/^a;${mac_address};/Id" "$ACL_GRACE_FILE"
+                                else
+                                    echo "$lease_content" >> "$temp_leases"
+                                fi
+                            else
+                                echo "a;${mac_address};${ip_address};${host};$(date +%s);" >> "$ACL_GRACE_FILE"
+                                echo "$lease_content" >> "$temp_leases"
+                            fi
+                        else
+                            if [[ $(grep -o "$mac_address" "$ACL_MAC_PATH"/mac-*) == "" ]]; then
+                                if [[ $(grep -o "$mac_address" "$ACL_BLOCK_FILE") == "" ]]; then
+                                    echo "$line_lease" >> "$ACL_BLOCK_FILE"
+                                    echo "$lease_content" >> "$temp_leases"
+                                fi
+                            else
+                                echo "$lease_content" >> "$temp_leases"
+                            fi
                         fi
-                    else
-                        sed "$num_line_ini_lease,$num_line_end_lease!d" "$dhcpd" >>"$dhcpd_temp"
-                        echo "" >>"$dhcpd_temp"
                     fi
+                    current_lease=""
+                    lease_content=""
                 fi
             fi
+        done < "$dhcpd"
 
-        done <"$dhcpd"
-
-        if [[ -e "$dhcpd_temp" ]]; then
-            mv -f "$dhcpd_temp" "$dhcpd"
-            chown pydhcpd:pydhcpd "$dhcpd"
+        if [[ -s "$temp_leases" ]]; then
+            mv -f "$temp_leases" "$dhcpd"
         else
-            echo "" >"$dhcpd"
-            chown pydhcpd:pydhcpd "$dhcpd"
+            echo "" > "$dhcpd"
         fi
+        chown pydhcpd:pydhcpd "$dhcpd"
     }
 
     function update_dhcp_conf {
@@ -474,13 +558,13 @@ class "blockdhcp" {
     option broadcast-address $SERV_BROADCAST;
     #option domain-name \"example.org\";
     option domain-name-servers $SERV_DNS;
-	min-lease-time 2592000; # 30 days
-	default-lease-time 2592000; # 30 days
-	max-lease-time 2592000; # 30 days
+    min-lease-time 2592000;
+    default-lease-time 2592000;
+    max-lease-time 2592000;
     pool {
-        min-lease-time 120;
-        default-lease-time 120;
-        max-lease-time 120;
+        min-lease-time 60;
+        default-lease-time 60;
+        max-lease-time 60;
         deny members of \"blockdhcp\";
         range $SERV_INI_RANGE_BLOCK $SERV_END_RANGE_BLOCK;
     }
@@ -527,19 +611,22 @@ class "blockdhcp" {
         sed '/^$/d' -i "$ACL_MAC_UNLIMITED"
         if [[ "${UNIFI_HOTSPOT_ENABLED:-false}" == "true" ]]; then
             sed '/^$/d' -i "$ACL_MAC_HOTSPOT"
+            sed '/^$/d' -i "$ACL_GRACE_FILE"
         fi
-    }
-
-    function get_cadena_random {
-        head -c100 /dev/urandom | sha1sum | head -c10
     }
 
     function order_files_acl {
         sort -V "$ACL_BLOCK_FILE" -o "$ACL_BLOCK_FILE"
         if [[ "${UNIFI_HOTSPOT_ENABLED:-false}" == "true" ]]; then
             sort -t';' -k3,3V -u "$ACL_MAC_HOTSPOT" -o "$ACL_MAC_HOTSPOT"
+            sort -V "$ACL_GRACE_FILE" -o "$ACL_GRACE_FILE"
         fi
     }
+
+    if [[ "${UNIFI_HOTSPOT_ENABLED:-false}" == "true" ]]; then
+        clean_grace_list
+        expire_grace_entries
+    fi
 
     clean_acl
     clean_block_list
@@ -548,7 +635,6 @@ class "blockdhcp" {
         clean_hotspot_list
     fi
     clean_transparent_list
-
     systemctl stop pydhcpd
     read_leases
     order_files_acl
@@ -556,7 +642,6 @@ class "blockdhcp" {
     systemctl start pydhcpd
 }
 
-# Stops the service if there are duplicates
 function duplicate() {
     if [[ "${UNIFI_HOTSPOT_ENABLED:-false}" == "true" ]]; then
         aclall=$(for field in 2 3 4; do
@@ -570,12 +655,11 @@ function duplicate() {
     fi
 
     if [ "${aclall}" == "" ]; then
-        is_iscdhcp
+        is_pydhcp
         echo OK
     else
         echo "Duplicate Data: $(date) $aclall" | tee -a /var/log/syslog
-        sudo -u "$local_user" DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u "$local_user")/bus \
-            notify-send "Warning: Abort" "Duplicate: $aclall. $(date)" -i error
+        _notify "$local_user" "Warning: Abort" "Duplicate: $aclall. $(date)" -i error
         exit
     fi
 }
