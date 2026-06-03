@@ -3,7 +3,7 @@
 #
 ################################################################################
 #
-# Script      : unaudit.sh
+# Script      : uaudit.sh
 # Description : UniFi Network Hotspot - Full Client Audit & Management Tool
 #
 # REPORT SECTIONS
@@ -25,8 +25,8 @@
 #   UNIFI_CONTROLLER_URL, UNIFI_USERNAME, UNIFI_PASSWORD in config.conf
 #
 # DEPENDENCIES : curl, jq
-# CONFIG       : /etc/unhotspot/config.conf
-# LOG          : /etc/unhotspot/unaudit.log
+# CONFIG       : /etc/uhotspot/config.conf
+# LOG          : /etc/uhotspot/uaudit.log
 # TESTED ON    : Ubuntu 24.04 - UniFi OS Network 10.x
 #
 ################################################################################
@@ -56,7 +56,7 @@ for dep in curl jq; do
     fi
 done
 
-CONFIG="/etc/unhotspot/config.conf"
+CONFIG="/etc/uhotspot/config.conf"
 if [ ! -f "$CONFIG" ]; then
     echo "ERROR: Config file not found: $CONFIG"
     exit 1
@@ -70,7 +70,8 @@ if [ -z "$UNIFI_CONTROLLER_URL" ] || [ -z "$UNIFI_USERNAME" ] || [ -z "$UNIFI_PA
 fi
 
 SITE="${UNIFI_SITE:-default}"
-LOG="/etc/unhotspot/unaudit.log"
+TYPE="${UNIFI_TYPE:-unifi-os}"
+LOG="/etc/uhotspot/uaudit.log"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
 # ── Authentication ────────────────────────────────────────────────────────────
@@ -79,15 +80,21 @@ TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 # Netscape cookie jar silently discards cookies with the "partitioned" attribute,
 # which UniFi OS uses since version 3.x.
 do_login() {
+    local login_path
+    if [[ "$TYPE" == "classic" ]]; then
+        login_path="/api/login"
+    else
+        login_path="/api/auth/login"
+    fi
     LOGIN=$(curl -sk -i -X POST -H "Content-Type: application/json" \
         -d "{\"username\":\"$UNIFI_USERNAME\",\"password\":\"$UNIFI_PASSWORD\"}" \
-        "$UNIFI_CONTROLLER_URL/api/auth/login")
+        "$UNIFI_CONTROLLER_URL$login_path")
 
-    TOKEN=$(echo "$LOGIN" | grep -i "^x-csrf-token:" | cut -d" " -f2 | tr -d "\r")
-    COOKIE=$(echo "$LOGIN" | grep -i "^set-cookie:" | grep -i "TOKEN=" | head -1 \
+    CSRF_TOKEN=$(echo "$LOGIN" | grep -i "^x-csrf-token:" | cut -d" " -f2 | tr -d "\r")
+    SESSION_COOKIE=$(echo "$LOGIN" | grep -i "^set-cookie:" | grep -i "TOKEN=" | head -1 \
         | sed -E "s/.*TOKEN=([^;]+).*/TOKEN=\1/" | tr -d "\r")
 
-    if [ -z "$TOKEN" ] || [ -z "$COOKIE" ]; then
+    if [ -z "$CSRF_TOKEN" ] || [ -z "$SESSION_COOKIE" ]; then
         echo "ERROR: Authentication failed. Check credentials in $CONFIG"
         exit 1
     fi
@@ -96,19 +103,23 @@ do_login() {
 do_login
 
 # ── API helpers ───────────────────────────────────────────────────────────────
-BASE="$UNIFI_CONTROLLER_URL/proxy/network/api/s/$SITE"
+if [[ "$TYPE" == "classic" ]]; then
+    BASE="$UNIFI_CONTROLLER_URL/api/s/$SITE"
+else
+    BASE="$UNIFI_CONTROLLER_URL/proxy/network/api/s/$SITE"
+fi
 
 api_get() {
     curl -sk -X GET \
-        -H "X-CSRF-Token: $TOKEN" \
-        -H "Cookie: $COOKIE" \
+        -H "X-CSRF-Token: $CSRF_TOKEN" \
+        -H "Cookie: $SESSION_COOKIE" \
         "$BASE/$1"
 }
 
 api_post() {
     curl -sk -X POST \
-        -H "X-CSRF-Token: $TOKEN" \
-        -H "Cookie: $COOKIE" \
+        -H "X-CSRF-Token: $CSRF_TOKEN" \
+        -H "Cookie: $SESSION_COOKIE" \
         -H "Content-Type: application/json" \
         -d "$2" \
         "$BASE/$1"
@@ -129,7 +140,7 @@ echo "  stat/voucher -> $VCH_RC    ($(echo "$VOUCHER" | jq '.data|length' 2>/dev
 
 # ── Section 1: Authorized clients (mac-hotspot.txt + stat/guest + stat/sta) ───
 print_authorized() {
-    local ACL_HOTSPOT="/etc/unhotspot/mac-hotspot.txt"
+    local ACL_HOTSPOT="/etc/uhotspot/mac-hotspot.txt"
     [ ! -f "$ACL_HOTSPOT" ] && return
 
     echo ""
@@ -172,7 +183,7 @@ print_authorized() {
 
 # ── Section 2: Pending clients (guest-pending.txt + stat/sta) ────────────────
 print_pending() {
-    local ACL_PENDING="/etc/unhotspot/guest-pending.txt"
+    local ACL_PENDING="/etc/uhotspot/guest-pending.txt"
     [ ! -f "$ACL_PENDING" ] && return
 
     echo ""

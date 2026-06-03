@@ -380,4 +380,4 @@ info "Interface     : $(grep INTERFACESv4 "$INSTALL_DIR/pydhcpd.defaults" | cut 
 info "Leases        : $INSTALL_DIR/pydhcpd.leases"
 info "Logs          : journalctl -u pydhcpd -f"
 echo ""
-info "To remove     : sudo bash install.sh --remove"
+info "To remove     : sudo bash pyinstall.sh --remove"

@@ -482,11 +482,13 @@ Version 1.0 (2025)
 EOF
 
     # ── icon (reuse servicemon base64 gif, neutral gear icon) ────────────────
-    cat > /tmp/pydhcp_icon.gif.b64 <<'ICONEOF'
+    local icon_tmp
+    icon_tmp=$(mktemp /tmp/pydhcp_icon.XXXXXX.b64)
+    cat > "$icon_tmp" <<'ICONEOF'
 R0lGODlhMAAwAPAAAAAAAAAAACH5BAEAAAAALAAAAAAwADAAAAKrhI+py+0Po5wqJEszCpyf7mkUiAGkOJJqiUKr2krvGS/zDdYGzusmj6vdLjPfynb0/XIVmnLZQTKfsOZU95I6W8NNUQj8yq5hcWRbzk62xOA5BIX/Pj0XML6rP9JuvJ3v4cTGAChncpFR+JSXtshIlgSm5mWWWPlYJdLVFqmxSdlpOQmayRU6isXnGHfnqEhVyBITazgbuxiFWXKlxFJ6uGpVGywsS3yMHFMAADs=
 ICONEOF
-    base64 -d /tmp/pydhcp_icon.gif.b64 > "$MODDIR/images/icon.gif" 2>/dev/null || true
-    rm -f /tmp/pydhcp_icon.gif.b64
+    base64 -d "$icon_tmp" > "$MODDIR/images/icon.gif" 2>/dev/null || true
+    rm -f "$icon_tmp"
 
     # ── Permissions ───────────────────────────────────────────────────────────
     chown -R root:root "$MODDIR" "$ETCDIR"

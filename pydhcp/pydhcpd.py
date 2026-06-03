@@ -33,6 +33,7 @@ import threading
 import subprocess
 import ipaddress
 import collections
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import pwd
 import grp
@@ -181,8 +182,34 @@ class DHCPConfig:
         raw = re.sub(r'#[^\n]*', '', raw)
 
         self._parse(raw)
+        self._validate()
         log.info("Config loaded: %d static hosts, %d blocked MACs",
                  len(self.static_hosts), len(self.blocked_macs))
+
+    def _validate(self):
+        """Sanity checks on the parsed configuration."""
+        if self.pool_range_start and self.pool_range_end:
+            try:
+                s = ipaddress.IPv4Address(self.pool_range_start)
+                e = ipaddress.IPv4Address(self.pool_range_end)
+                if s > e:
+                    log.error("Pool range start (%s) is greater than end (%s)", s, e)
+                    sys.exit(1)
+                if self.subnet and self.netmask:
+                    net = ipaddress.IPv4Network(f"{self.subnet}/{self.netmask}", strict=False)
+                    if s not in net or e not in net:
+                        log.error("Pool range %s–%s is outside subnet %s", s, e, net)
+                        sys.exit(1)
+            except ValueError as err:
+                log.error("Invalid pool range address: %s", err)
+                sys.exit(1)
+
+        seen_ips = {}
+        for mac, ip in self.static_hosts.items():
+            if ip in seen_ips:
+                log.error("Duplicate static IP %s assigned to %s and %s", ip, seen_ips[ip], mac)
+                sys.exit(1)
+            seen_ips[ip] = mac
 
     def _parse(self, raw):
         # Global directives
@@ -428,6 +455,12 @@ class LeaseManager:
             return None, None
 
         # Unknown MAC → goes to block pool (will be registered in blockdhcp by pyleases.sh)
+        # If the client requested a specific IP, verify it is available for this MAC
+        if requested_ip and requested_ip != "0.0.0.0" and requested_ip in self.pool:
+            existing_lease = self.leases.get(requested_ip)
+            if existing_lease and existing_lease.mac != mac and not existing_lease.is_expired():
+                return None, None
+
         ip = self._get_pool_ip(mac)
         if ip:
             self._create_lease(ip, mac, hostname, self.config.pool_def_lease)
@@ -629,7 +662,9 @@ class DHCPServer:
         self.broadcast_ip = config.broadcast or BROADCAST_ADDR
         self.running      = False
         self.sock         = None
-        self._pending     = collections.OrderedDict()  # xid -> offered_ip, max 1024 entries
+        self._pending     = collections.OrderedDict()
+        self._pending_lock = threading.Lock()           # protects _pending across threads
+        self._thread_pool  = ThreadPoolExecutor(max_workers=32)
 
     def start(self):
         if not self.interface:
@@ -699,10 +734,11 @@ class DHCPServer:
             if len(data) < 240:
                 continue
 
-            threading.Thread(target=self._handle, args=(data, None), daemon=True).start()
+            self._thread_pool.submit(self._handle, data)
 
     def stop(self):
         self.running = False
+        self._thread_pool.shutdown(wait=False)
         if hasattr(self, 'raw_sock') and self.raw_sock:
             self.raw_sock.close()
         if self.sock:
@@ -714,7 +750,7 @@ class DHCPServer:
             time.sleep(60)
             self.leases.cleanup_expired()
 
-    def _handle(self, data, addr):
+    def _handle(self, data):
         pkt = parse_packet(data)
         if not pkt:
             return
@@ -763,9 +799,10 @@ class DHCPServer:
             return
 
         xid_hex = pkt["xid"].hex()
-        self._pending[xid_hex] = offered_ip
-        if len(self._pending) > 1024:
-            self._pending.popitem(last=False)
+        with self._pending_lock:
+            self._pending[xid_hex] = offered_ip
+            if len(self._pending) > 1024:
+                self._pending.popitem(last=False)
 
         reply = build_packet(MSG_OFFER, pkt["xid"], mac, offered_ip,
                              self.server_ip, self.config, lease_time)
@@ -797,7 +834,8 @@ class DHCPServer:
             self._send_nak(pkt, mac)
             return
 
-        self._pending.pop(xid_key, None)
+        with self._pending_lock:
+            self._pending.pop(xid_key, None)
 
         reply = build_packet(MSG_ACK, pkt["xid"], mac, offered_ip,
                              self.server_ip, self.config, lease_time)
@@ -884,22 +922,11 @@ def main():
         try:
             new_config = DHCPConfig()
             new_config.load(defaults["conf"])
-            new_config._pool = []
-            start_ip = new_config.pool_range_start
-            end_ip   = new_config.pool_range_end
-            if start_ip and end_ip:
-                s = ipaddress.IPv4Address(start_ip)
-                e = ipaddress.IPv4Address(end_ip)
-                ip = s
-                while ip <= e:
-                    new_config._pool.append(str(ip))
-                    ip += 1
-            new_pool                 = list(new_config._pool)
             server.config            = new_config
             server.leases.config     = new_config
-            server.leases.pool       = new_pool
+            server.leases._build_pool()
             log.info("Configuration reloaded: %d static hosts, %d blocked MACs, %d pool IPs",
-                     len(new_config.static_hosts), len(new_config.blocked_macs), len(new_config._pool))
+                     len(new_config.static_hosts), len(new_config.blocked_macs), len(server.leases.pool))
         except Exception as e:
             log.error("Failed to reload configuration — keeping current config: %s", e)
 

@@ -89,6 +89,7 @@ python gitfolder.py https://github.com/maravento/vault/project_name
 - [scripts](https://github.com/maravento/vault/tree/master/scripts)
 - [smbstack](https://github.com/maravento/vault/tree/master/smbstack)
 - [trek](https://github.com/maravento/vault/tree/master/trek)
+- [uhotspot](https://github.com/maravento/vault/tree/master/uhotspot)
 - [winzenity](https://github.com/maravento/vault/tree/master/winzenity)
 
 ## NOTICE

@@ -113,11 +113,6 @@ Tested on: Ubuntu 24.04.x LTS x64
 - [Realtek Linux drivers](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/realtekdrv.sh)
 - [Winpower UPS (install|remove|start|stop|status|restart)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/winpower.sh)
 
-#### Unifi Linux Tools
-
-- [Unifi Hotspot Access](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/unhotspot.sh)
-- [Unifi Hotspot Audit](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/unaudit.sh)
-
 #### Webmin Module Installation Tools
 
 - [Netplan Manager - Networking Category (install|uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/netplanmgr.sh)

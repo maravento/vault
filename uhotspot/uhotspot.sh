@@ -6,21 +6,25 @@
 # UniFi Network Hotspot - ACL Manager v4
 #
 # USAGE:
-#   Manual : sudo /etc/unhotspot/unhotspot.sh
-#   Cron   : auto-registered on first run (every 30 seconds)
-#            * * * * * /etc/unhotspot/unhotspot.sh; sleep 30 && /etc/unhotspot/unhotspot.sh
+#   Manual : sudo /etc/uhotspot/uhotspot.sh
+#   Cron   : registered by usetup.sh (every 30 seconds)
+#            * * * * * /etc/uhotspot/uhotspot.sh; sleep 30 && /etc/uhotspot/uhotspot.sh
 #
 # DEPENDENCIES:
-#   iptables, ipset, jq, curl, bash, UniFi Controller
-#   DHCP server (auto-detected on startup — one of the following must be active):
-#     - pydhcpd       (preferred)
-#     - isc-dhcp-server
+#   jq, curl, bash, UniFi Controller, pydhcpd
+#
+#   Indirect (used by uiptables.sh, not by this script):
+#     iptables, ipset
 #
 # CHANGES:
-#   - DHCP server auto-detected from active systemd service (pydhcpd or
-#     isc-dhcp-server). No manual variable editing required. Aborts if both
-#     are active simultaneously or neither is running.
-#   - Crontab entry auto-registered on first run if not present.
+#   - Configuration delegated to usetup.sh (installer). config.conf is
+#     generated interactively during installation and sourced at runtime.
+#     uhotspot.sh never prompts the user or writes config.conf.
+#   - verify_installation() validates filesystem state (config.conf,
+#     SERVER_RELOAD_SCRIPT) before the main loop. Exits with actionable
+#     error messages if anything is missing or misconfigured.
+#   - DHCP server pydhcpd is required. Script aborts if pydhcpd is not active.
+#   - Crontab entry registered by usetup.sh (installer).
 #   - LOG_FILE declared at bootstrap so all messages (including pre-main
 #     validations) are captured in a single log.
 #   - dedup_mac_lists: uses two internal scopes:
@@ -36,7 +40,7 @@
 #
 #     ────────────────────────────────────────────────────────────────────────────────
 #     2026-05-27 09:42:01 INFO: DHCP server detected — pydhcpd
-#     2026-05-27 09:42:01 INFO: UnHotspot Start. Wait...
+#     2026-05-27 09:42:01 INFO: uhotspot Start. Wait...
 #     2026-05-27 09:42:01 INFO: UniFi login OK
 #     2026-05-27 09:42:02 INFO: ACLs unchanged — skipping reload
 #     2026-05-27 09:42:02 INFO: vouchers=2 | authorized=14 | pending=2 | new_pending=0 | new_auth=0 | revoked=0
@@ -76,7 +80,7 @@
 #     connection. Users must disable MAC randomization for the guest SSID
 #     before connecting, so the real hardware MAC is used and registered.
 #
-#   None of the above are defects in unhotspot.sh or dhcp.
+#   None of the above are defects in uhotspot.sh or dhcp.
 #
 # LOGIC:
 #   The script runs every 30 seconds via cron and executes 9 steps:
@@ -172,7 +176,7 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # Log file (declared early so all bootstrap messages are captured)
-LOG_FILE="/var/log/unhotspot.log"
+LOG_FILE="/var/log/uhotspot.log"
 
 # Prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
@@ -182,40 +186,18 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# LOCAL USER (multi-strategy detection with validation)
-local_user=""
-# 1. Local graphical session (:0)
-local_user=$(who | awk '/\(:0\)/{print $1; exit}')
-# 2. Parent process logname (works well with sudo)
-[ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
-# 3. SUDO_USER variable (when run via sudo from terminal)
-[ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-# 4. First active session user (SSH or other)
-[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
-# 5. First valid home directory
-[ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
-# Validate the user actually exists on the system
-if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
-    echo "ERROR: Cannot determine a valid local user"
-    exit 1
-fi
-echo "Using local user: $local_user"
-
-# ─── Crontab entry verification ───────────────────────────────────────────────
-script_path="$(realpath "$0")"
-expected="* * * * * ${script_path}; sleep 30 && ${script_path}"
-
-if ! crontab -l 2>/dev/null | grep -qF "$expected"; then
-    if crontab -l 2>/dev/null | grep -qF "$script_path"; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: crontab contains entries for $script_path but not in the expected format — review manually" | tee -a "$LOG_FILE"
-    else
-        ( crontab -l 2>/dev/null; echo "$expected" ) | crontab -
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Crontab entry added: $expected" | tee -a "$LOG_FILE"
+# ─── Logging ──────────────────────────────────────────────────────────────────
+log() {
+    local msg
+    msg="$(date '+%Y-%m-%d %H:%M:%S') $*"
+    echo "$msg"
+    if [[ -n "$LOG_FILE" ]]; then
+        echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
     fi
-fi
+}
 
 # Hotspot path
-HOTSPOT_PATH="/etc/unhotspot"
+HOTSPOT_PATH="/etc/uhotspot"
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 # SESSION_TOKEN: stores the raw JWT extracted from the set-cookie header.
@@ -240,284 +222,28 @@ ACL_MAC_PATH="/etc/acl/acl_mac"
 
 # ─── DHCP server auto-detection ──────────────────────────────────────────────
 _pydhcp_active=false
-_isc_active=false
 systemctl is-active --quiet pydhcpd        2>/dev/null && _pydhcp_active=true
-systemctl is-active --quiet isc-dhcp-server 2>/dev/null && _isc_active=true
 
-echo "────────────────────────────────────────────────────────────────────────────────" | tee -a "$LOG_FILE"
-if [[ "$_pydhcp_active" == "true" && "$_isc_active" == "true" ]]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Both pydhcpd and isc-dhcp-server are active — only one DHCP server can run at a time" | tee -a "$LOG_FILE"
-    exit 1
-elif [[ "$_pydhcp_active" == "true" ]]; then
+echo "────────────────────────────────────────────────────────────────────────────────" >> "$LOG_FILE" 2>/dev/null || true
+if [[ "$_pydhcp_active" == "true" ]]; then
     DHCP_LEASES="/etc/pydhcp/pydhcpd.leases"
     DHCP_LEASES_OWNER="pydhcpd:pydhcpd"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: DHCP server detected — pydhcpd" | tee -a "$LOG_FILE"
-elif [[ "$_isc_active" == "true" ]]; then
-    DHCP_LEASES="/var/lib/dhcp/dhcpd.leases"
-    DHCP_LEASES_OWNER="dhcpd:dhcpd"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: DHCP server detected — isc-dhcp-server" | tee -a "$LOG_FILE"
+    log "INFO: DHCP server detected — pydhcpd"
 else
-    echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: No DHCP server active — install and start either pydhcpd or isc-dhcp-server" | tee -a "$LOG_FILE"
+    log "WARNING: pydhcpd is not active — install and start pydhcpd"
     exit 1
 fi
-
 
 CSRF_TOKEN=""
 VOUCHER_CACHE=""
 VOUCHER_COUNT=0
 MANAGED_MACS=""
 
-# ─── Logging ──────────────────────────────────────────────────────────────────
-log() {
-    local msg
-    msg="$(date '+%Y-%m-%d %H:%M:%S') $*"
-    echo "$msg"
-    if [[ -n "$LOG_FILE" ]]; then
-        echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
-    fi
-}
-
-# ─── Setup input helpers ──────────────────────────────────────────────────────
-
-ask() {
-    local prompt="$1" default="$2" var="$3" answer
-    if [[ -n "$default" ]]; then
-        read -rp "  ${prompt} [${default}]: " answer
-        printf -v "$var" '%s' "${answer:-$default}"
-    else
-        while true; do
-            read -rp "  ${prompt}: " answer
-            [[ -n "$answer" ]] && break
-            echo "  ✗ This field is required."
-        done
-        printf -v "$var" '%s' "$answer"
-    fi
-}
-
-ask_interface() {
-    local prompt="$1" default="$2" var="$3" answer
-    while true; do
-        read -rp "  ${prompt} [${default}]: " answer
-        answer="${answer:-$default}"
-        if ip link show "$answer" &>/dev/null; then
-            printf -v "$var" '%s' "$answer"
-            break
-        fi
-        echo "  ✗ Interface '$answer' not found. Available: $(ip -o link show | awk -F': ' '{print $2}' | grep -v lo | tr '\n' ' ')"
-    done
-}
-
-ask_ip() {
-    local prompt="$1" var="$2" answer
-    while true; do
-        read -rp "  ${prompt}: " answer
-        if [[ "$answer" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-            local valid=1
-            IFS='.' read -ra octs <<< "$answer"
-            for o in "${octs[@]}"; do
-                (( o < 0 || o > 255 )) && valid=0 && break
-            done
-            [[ $valid -eq 1 ]] && printf -v "$var" '%s' "$answer" && break
-        fi
-        echo "  ✗ '$answer' is not a valid IPv4 address (e.g. 192.168.0.1)."
-    done
-}
-
-ask_ip_range() {
-    local prompt="$1" default="$2" var="$3" answer
-    while true; do
-        read -rp "  ${prompt} [${default}]: " answer
-        answer="${answer:-$default}"
-        if [[ "$answer" =~ ^([0-9]{1,3}\.){2}[0-9]{1,3}$ ]]; then
-            local valid=1
-            IFS='.' read -ra octs <<< "$answer"
-            for o in "${octs[@]}"; do
-                (( o < 0 || o > 255 )) && valid=0 && break
-            done
-            [[ $valid -eq 1 ]] && printf -v "$var" '%s' "$answer" && break
-        fi
-        echo "  ✗ '$answer' is not valid. Enter 3 octets only (e.g. 192.168.0)."
-    done
-}
-
-ask_octet() {
-    local prompt="$1" default="$2" var="$3" ref_start="${4:-0}" answer
-    while true; do
-        read -rp "  ${prompt} [${default}]: " answer
-        answer="${answer:-$default}"
-        if [[ "$answer" =~ ^[0-9]+$ ]] && (( answer >= 1 && answer <= 254 )); then
-            if [[ -n "$ref_start" ]] && (( answer <= ref_start )); then
-                echo "  ✗ End octet must be greater than start octet (${ref_start})."
-                continue
-            fi
-            printf -v "$var" '%s' "$answer"
-            break
-        fi
-        echo "  ✗ '$answer' is not valid. Enter a number between 1 and 254."
-    done
-}
-
-# ─── Controller discovery ─────────────────────────────────────────────────────
-discover_unifi_controller() {
-    local user="$1" pass="$2" server_ip="$3"
-    local ports=(8443 11443)
-    local test_url http_code payload
-
-    echo "  Checking ${server_ip} on ports 8443, 11443 ..."
-    payload=$(jq -n --arg u "$user" --arg p "$pass" '{username: $u, password: $p}')
-
-    for port in "${ports[@]}"; do
-        test_url="https://${server_ip}:${port}"
-
-        http_code=$(curl -sk -o /dev/null -w "%{http_code}" \
-            -X POST "${test_url}/api/auth/login" \
-            -H "Content-Type: application/json" \
-            -d "$payload" \
-            --connect-timeout 3 || echo "000")
-        if [[ "$http_code" == "200" ]]; then
-            echo "  ✔ Found UniFi OS controller at ${test_url}"
-            DISCOVERED_URL="$test_url"
-            DISCOVERED_TYPE="unifi-os"
-            return 0
-        fi
-
-        http_code=$(curl -sk -o /dev/null -w "%{http_code}" \
-            -X POST "${test_url}/api/login" \
-            -H "Content-Type: application/json" \
-            -d "$payload" \
-            --connect-timeout 3 || echo "000")
-        if [[ "$http_code" == "200" ]]; then
-            echo "  ✔ Found classic UniFi controller at ${test_url}"
-            DISCOVERED_URL="$test_url"
-            DISCOVERED_TYPE="classic"
-            return 0
-        fi
-    done
-
-    return 1
-}
-
-# ─── Interactive setup (runs only when config.conf is missing) ────────────────
-setup_config() {
-    echo ""
-    echo "══════════════════════════════════════════════════════"
-    echo "  UniFi Network Hotspot ACL Manager — First-time setup"
-    echo "══════════════════════════════════════════════════════"
-    echo "  Config file not found: $CONFIG_FILE"
-    echo "  Answer the following questions to create it."
-    echo "══════════════════════════════════════════════════════"
-    echo ""
-
-    echo "── Network ───────────────────────────────────────────"
-    local ifaces
-    ifaces=$(ip -o link show | awk -F': ' '{print $2}' | grep -v lo | tr '\n' '  ')
-    echo "  Available interfaces: $ifaces"
-    ask_interface "WAN interface" "eth0" CFG_WAN_IF
-    ask_interface "LAN interface" "eth1" CFG_LAN_IF
-    ask_ip        "Server IP (this machine)" CFG_SERVER_IP
-
-    echo ""
-    echo "── Hotspot IP range ──────────────────────────────────"
-    CFG_IP_RANGE=$(echo "$CFG_SERVER_IP" | cut -d'.' -f1-3)
-    echo "  Hotspot IP range base (auto-detected): $CFG_IP_RANGE"
-    ask_octet    "Range start (last octet)" "160" CFG_RANGE_START
-    ask_octet    "Range end   (last octet)" "170" CFG_RANGE_END "$CFG_RANGE_START"
-
-    echo ""
-    echo "── Hotspot SSID ──────────────────────────────────────"
-    ask "Guest SSID name (must match exactly in UniFi)" "" CFG_ESSID
-
-    echo ""
-    echo "── UniFi credentials ────────────────────────────────"
-    ask "UniFi admin username" "admin" CFG_UNIFI_USER
-    while true; do
-        read -rsp "  UniFi admin password: " CFG_UNIFI_PASS; echo ""
-        [[ -n "$CFG_UNIFI_PASS" ]] && break
-        echo "  ✗ Password cannot be empty."
-    done
-
-
-    echo ""
-    echo "── Scanning for UniFi Controller ─────────────────────"
-    local found_url="" found_type=""
-    DISCOVERED_URL=""
-    DISCOVERED_TYPE=""
-
-    if discover_unifi_controller "$CFG_UNIFI_USER" "$CFG_UNIFI_PASS" "$CFG_SERVER_IP"; then
-        found_url="$DISCOVERED_URL"
-        found_type="$DISCOVERED_TYPE"
-    else
-        echo "  ✗ No UniFi controller detected automatically."
-        ask "Enter controller URL manually (e.g. https://192.168.0.1:8443)" "" found_url
-        echo "  Enter controller type:"
-        select found_type in "unifi-os" "classic"; do
-            [[ -n "$found_type" ]] && break
-        done
-    fi
-
-    echo ""
-    echo "── Reload script ─────────────────────────────────────"
-    echo "  Script to run after ACL changes (restart DHCP, reload iptables, etc.)"
-    echo "  Must exist and be executable (chmod +x)"
-    while true; do
-        read -rp "  Full path to reload script: " CFG_RELOAD_SCRIPT
-        if [[ -n "$CFG_RELOAD_SCRIPT" ]]; then
-            break
-        else
-            echo "  ✗ This field is required. The script will not work without it."
-        fi
-    done
-
-    echo ""
-    echo "── Writing $CONFIG_FILE ──────────────────────────────"
-    mkdir -p "$(dirname "$CONFIG_FILE")"
-    chmod 700 "$(dirname "$CONFIG_FILE")"
-
-    cat > "$CONFIG_FILE" <<EOF
-# UniFi Network Hotspot - ACL Manager v4
-# Auto-generated by setup on $(date '+%Y-%m-%d %H:%M:%S')
-# Edit this file to adjust any value.
-
-# ── Network ───────────────────────────────────────────────────────────────────
-WAN_IF="${CFG_WAN_IF}"
-LAN_IF="${CFG_LAN_IF}"
-SERVER_IP="${CFG_SERVER_IP}"
-LOCAL_USER="${local_user}"
-
-# ── Hotspot IP range ──────────────────────────────────────────────────────────
-HOTSPOT_IP_RANGE="${CFG_IP_RANGE}"
-HOTSPOT_RANGE_START=${CFG_RANGE_START}
-HOTSPOT_RANGE_END=${CFG_RANGE_END}
-
-# ── Guest SSID ────────────────────────────────────────────────────────────────
-HOTSPOT_ESSID="${CFG_ESSID}"
-
-# ── UniFi Controller ──────────────────────────────────────────────────────────
-UNIFI_CONTROLLER_URL="${found_url}"
-UNIFI_USERNAME="${CFG_UNIFI_USER}"
-UNIFI_PASSWORD="${CFG_UNIFI_PASS}"
-# UniFi always creates a site named "default". If the administrator renamed it,
-# edit this value to match the exact site name shown in the UniFi controller.
-UNIFI_SITE="default"
-UNIFI_TYPE="${found_type}"
-
-# ── Fixed ports (edit only if your setup differs) ─────────────────────────────
-PORTAL_PORTS="53,67,68,8880,8881,8882,8843"
-LOCAL_PORTS="137:139,445,162,631,8000,3128,853"
-
-# ── Reload script (required) ──────────────────────────────────────────────────
-SERVER_RELOAD_SCRIPT="${CFG_RELOAD_SCRIPT}"
-EOF
-
-    chmod 600 "$CONFIG_FILE"
-    echo "  ✔ Config saved to $CONFIG_FILE"
-    echo ""
-}
-
 # ─── Load config ──────────────────────────────────────────────────────────────
 load_config() {
     if [[ ! -f "$CONFIG_FILE" ]]; then
-        setup_config
+        echo "ERROR: $CONFIG_FILE not found. Run usetup.sh first." >&2
+        exit 1
     fi
     # shellcheck source=/dev/null
     source "$CONFIG_FILE"
@@ -538,6 +264,44 @@ load_config() {
         exit 1
     fi
 
+}
+
+# ─── Verify installation integrity ───────────────────────────────────────────
+# Defense-in-depth validation after config is loaded. Catches filesystem and
+# configuration problems with actionable error messages before the main loop.
+verify_installation() {
+    local missing=0
+
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        echo "ERROR: $CONFIG_FILE not found. Run 'sudo usetup.sh' first." >&2
+        missing=1
+    fi
+
+    if [[ ! -f "${SERVER_RELOAD_SCRIPT:-}" ]]; then
+        echo "ERROR: Reload script not found: ${SERVER_RELOAD_SCRIPT:-unset}" >&2
+        echo "       Run 'sudo usetup.sh' to fix." >&2
+        missing=1
+    elif [[ ! -x "$SERVER_RELOAD_SCRIPT" ]]; then
+        echo "ERROR: Reload script not executable: $SERVER_RELOAD_SCRIPT" >&2
+        echo "       Run: chmod +x $SERVER_RELOAD_SCRIPT" >&2
+        missing=1
+    fi
+
+    if [[ -z "${HOTSPOT_ESSID:-}" ]]; then
+        echo "ERROR: HOTSPOT_ESSID not set in $CONFIG_FILE" >&2
+        missing=1
+    fi
+
+    if [[ -z "${UNIFI_CONTROLLER_URL:-}" ]]; then
+        echo "ERROR: UNIFI_CONTROLLER_URL not set in $CONFIG_FILE" >&2
+        missing=1
+    fi
+
+    if (( missing )); then
+        exit 1
+    fi
+
+    log "INFO: Installation verified — config and scripts found"
 }
 
 # ─── ACL file init ────────────────────────────────────────────────────────────
@@ -565,7 +329,7 @@ unifi_login() {
         login_url="${UNIFI_CONTROLLER_URL}/api/login"
     fi
 
-    header_file=$(mktemp /tmp/unifi-hdr-XXXXXX)
+    header_file=$(mktemp)
     payload=$(jq -n --arg u "$UNIFI_USERNAME" --arg p "$UNIFI_PASSWORD" \
         '{username: $u, password: $p}')
 
@@ -1335,33 +1099,14 @@ check_and_reload_if_changed() {
     fi
 }
 
-# ─── Setup logrotate ──────────────────────────────────────────────────────────
-setup_logrotate() {
-    local logrotate_file="/etc/logrotate.d/unhotspot"
-    if [[ ! -f "$logrotate_file" ]]; then
-        cat > "$logrotate_file" << EOF
-/var/log/unhotspot.log {
-    daily
-    rotate 7
-    compress
-    delaycompress
-    missingok
-    notifempty
-    create 640 root adm
-}
-EOF
-        chmod 644 "$logrotate_file"
-        log "INFO: Created logrotate config at $logrotate_file"
-    fi
-}
 
 set -euo pipefail
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 main() {
     load_config
-    setup_logrotate
-    log "INFO: UnHotspot Start. Wait..."
+    verify_installation
+    log "INFO: uhotspot Start. Wait..."
     init_acl_files
     if ! unifi_login; then
         log "ERROR: Cannot authenticate to UniFi controller — aborting"
@@ -1389,4 +1134,4 @@ main() {
     log "INFO: Done"
 }
 
-main
+main "$@"

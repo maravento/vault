@@ -170,8 +170,11 @@ sudo bash pyinstall.sh --remove
 | `pydhcpd.conf` | ⛔ preserved | ✅ removed |
 | `pydhcpd.defaults` | ⛔ preserved | ✅ removed |
 | `pydhcpd.leases` | ⛔ preserved | ✅ removed |
+| `pydhcpd.env` | ⛔ preserved | ✅ removed |
+| `tools/pyleases.env` | ⛔ preserved | ✅ removed |
 | `/var/log/pydhcpd.log` | ⛔ preserved | ✅ removed |
 | `/etc/logrotate.d/pydhcpd` | ⛔ preserved | ✅ removed |
+| system user/group `pydhcpd` | ⛔ preserved | ✅ removed |
 
 ### Config
 
@@ -199,6 +202,8 @@ sudo bash pyinstall.sh --remove
 | Main configuration file | Archivo de configuración principal | `/etc/pydhcp/pydhcpd.conf` |
 | Default interface settings | Configuración de interfaz por defecto | `/etc/pydhcp/pydhcpd.defaults` |
 | Active leases database | Base de datos de concesiones activas | `/etc/pydhcp/pydhcpd.leases` |
+| Install-time environment (network params) | Entorno de instalación (parámetros de red) | `/etc/pydhcp/pydhcpd.env` |
+| pyleases environment (auto-generated on first run) | Entorno de pyleases (auto-generado en primera corrida) | `/etc/pydhcp/tools/pyleases.env` |
 | systemd unit | Unidad systemd | `/etc/systemd/system/pydhcpd.service` |
 | init.d wrapper | Wrapper init.d | `/etc/init.d/pydhcpd` |
 
@@ -236,12 +241,12 @@ grep pydhcpd /var/log/syslog
     <td style="width: 50%; vertical-align: top;">
       <b>pyleases.sh</b> — Advanced DHCP lease and ACL manager for pydhcpd. Parses <code>pydhcpd.leases</code>, detects unauthorized clients, rebuilds <code>pydhcpd.conf</code> from ACL files, and restarts the daemon. Designed for environments enforcing DHCP-based access control.<br><br>
       ACL directories: <code>/etc/acl/acl_mac/</code> (authorized: <code>mac-proxy.txt</code>, <code>mac-transparent.txt</code>, <code>mac-unlimited.txt</code>) and <code>/etc/acl/acl_dhcp/</code> (blocked: <code>blockdhcp.txt</code>).<br>
-      Entry format: <code>a;MAC;IP;HOSTNAME;</code> — hotspot: <code>a;MAC;IP;HOSTNAME;END_TIME_EPOCH;</code>
+      Entry format: <code>a;MAC;IP;HOSTNAME;</code>
     </td>
     <td style="width: 50%; vertical-align: top;">
       <b>pyleases.sh</b> — Gestor avanzado de concesiones y ACLs DHCP para pydhcpd. Parsea <code>pydhcpd.leases</code>, detecta clientes no autorizados, reconstruye <code>pydhcpd.conf</code> a partir de archivos ACL y reinicia el demonio. Diseñado para entornos que aplican control de acceso basado en DHCP.<br><br>
       Directorios ACL: <code>/etc/acl/acl_mac/</code> (autorizados: <code>mac-proxy.txt</code>, <code>mac-transparent.txt</code>, <code>mac-unlimited.txt</code>) y <code>/etc/acl/acl_dhcp/</code> (bloqueados: <code>blockdhcp.txt</code>).<br>
-      Formato: <code>a;MAC;IP;HOSTNAME;</code> — hotspot: <code>a;MAC;IP;HOSTNAME;END_TIME_EPOCH;</code>
+      Formato: <code>a;MAC;IP;HOSTNAME;</code>
     </td>
   </tr>
 </table>
@@ -250,16 +255,11 @@ grep pydhcpd /var/log/syslog
 sudo bash tools/pyleases.sh
 ```
 
-> **Mobile device limitations when `UNIFI_HOTSPOT_ENABLED=true`**
->
-> If this option is enabled together with DHCP option 252 (WPAD), be aware of the following constraints on Android and iOS:
->
-> - **WPAD not supported**: Android and iOS ignore DHCP option 252. The proxy must be configured manually on each device.
-> - **Captive portal probes**: Android probes `connectivitycheck.gstatic.com`; iOS probes `captive.apple.com`. If these are blocked or intercepted, the device reports "connected without internet" even when the proxy is working correctly. Add these domains to the Squid whitelist without authentication.
-> - **App proxy bypass**: Most apps on Android and iOS bypass the system proxy and connect directly. Only browsers reliably honor the manual proxy setting. Without SSL bump, direct HTTPS traffic cannot be redirected.
-> - **MAC randomization**: Android 10+ and iOS 14+ use a randomized MAC address per network by default. A randomized MAC will never match an ACL entry and the device will be treated as an unauthorized client on every connection. Users must disable MAC randomization for the network before connecting, so the real hardware MAC is registered.
->
-> These are platform limitations, not defects in pydhcpd or pyleases.sh.
+> **First run / Primera corrida**: pyleases.sh launches an interactive setup that asks for DHCP server IP, netmask, block-pool range, and DNS servers, and writes `/etc/pydhcp/tools/pyleases.env`. Delete this file to re-run the setup. Some of these prompts overlap with `pyinstall.sh` — answer consistently.
+> pyleases.sh inicia un setup interactivo que pregunta IP del servidor DHCP, máscara, rango del pool de bloqueo y DNS, y escribe `/etc/pydhcp/tools/pyleases.env`. Elimine ese archivo para volver a ejecutar el setup. Algunas preguntas se solapan con `pyinstall.sh` — responda consistentemente.
+
+> **Warning / Advertencia**: every run **regenerates `/etc/pydhcp/pydhcpd.conf` from scratch** using a built-in template plus the ACL files. Any manual edit to `pydhcpd.conf` is overwritten. To persist a custom directive, edit the template inside `pyleases.sh` itself.
+> cada corrida **regenera `/etc/pydhcp/pydhcpd.conf` desde cero** usando un template interno más los archivos ACL. Cualquier edición manual a `pydhcpd.conf` se sobrescribe. Para preservar una directiva personalizada, edite el template dentro del propio `pyleases.sh`.
 
 #### pywebmin
 
