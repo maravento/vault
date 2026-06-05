@@ -157,7 +157,7 @@ if [ -n "$missing" ]; then
         exit 1
     fi
 else
-    echo "✅ Dependencies OK"
+    echo "Dependencies OK"
 fi
 
 ### BASIC

@@ -92,6 +92,7 @@ OPT_MSG_TYPE           = 53
 OPT_SERVER_ID          = 54
 OPT_PARAM_REQUEST_LIST = 55
 OPT_MAX_MSG_SIZE       = 57
+OPT_MESSAGE            = 56
 OPT_CLIENT_ID          = 61
 OPT_WPAD               = 252
 OPT_END                = 255
@@ -178,8 +179,14 @@ class DHCPConfig:
         with open(path) as f:
             raw = f.read()
 
-        # Strip comments
-        raw = re.sub(r'#[^\n]*', '', raw)
+        # Strip comments outside quoted strings.
+        # The alternation matches a full "..." literal OR a # comment;
+        # quoted strings are preserved, comments are dropped.
+        raw = re.sub(
+            r'"(?:[^"\\]|\\.)*"|#[^\n]*',
+            lambda m: m.group(0) if m.group(0).startswith('"') else '',
+            raw,
+        )
 
         self._parse(raw)
         self._validate()
@@ -210,6 +217,23 @@ class DHCPConfig:
                 log.error("Duplicate static IP %s assigned to %s and %s", ip, seen_ips[ip], mac)
                 sys.exit(1)
             seen_ips[ip] = mac
+
+    @staticmethod
+    def _balanced_braces(text, start):
+        """Given text and the position right after an opening {,
+        return the slice up to its matching closing }. None if unbalanced."""
+        depth = 1
+        i = start
+        while i < len(text):
+            c = text[i]
+            if c == '{':
+                depth += 1
+            elif c == '}':
+                depth -= 1
+                if depth == 0:
+                    return text[start:i]
+            i += 1
+        return None
 
     def _parse(self, raw):
         # Global directives
@@ -242,21 +266,16 @@ class DHCPConfig:
         ):
             self.blocked_macs.add(m.group(1).lower())
 
-        # Subnet block
-        m = re.search(
-            r'\bsubnet\s+([\d.]+)\s+netmask\s+([\d.]+)\s*\{(.*?)\}(?!\s*\})',
-            raw, re.DOTALL
-        )
+        # Subnet block with balanced-brace matching
+        m = re.search(r'\bsubnet\s+([\d.]+)\s+netmask\s+([\d.]+)\s*\{', raw)
         if m:
-            self.subnet  = m.group(1)
-            self.netmask = m.group(2)
-            subnet_body  = m.group(3)
-            self._parse_subnet(subnet_body)
+            subnet_body = self._balanced_braces(raw, m.end())
+            if subnet_body is not None:
+                self.subnet  = m.group(1)
+                self.netmask = m.group(2)
+                self._parse_subnet(subnet_body)
 
     def _parse_subnet(self, body):
-        def lease_seconds(s):
-            return int(s)
-
         m = re.search(r'option\s+routers\s+([\d.]+)\s*;', body)
         if m:
             self.routers = m.group(1)
@@ -285,21 +304,20 @@ class DHCPConfig:
 
         m = re.search(r'min-lease-time\s+(\d+)\s*;', body)
         if m:
-            self.min_lease = lease_seconds(m.group(1))
+            self.min_lease = int(m.group(1))
 
         m = re.search(r'default-lease-time\s+(\d+)\s*;', body)
         if m:
-            self.default_lease = lease_seconds(m.group(1))
+            self.default_lease = int(m.group(1))
 
         m = re.search(r'max-lease-time\s+(\d+)\s*;', body)
         if m:
-            self.max_lease = lease_seconds(m.group(1))
+            self.max_lease = int(m.group(1))
 
-        # Pool block
-        pool_m = re.search(r'\bpool\s*\{(.*?)\}', body, re.DOTALL)
-        if pool_m:
-            pool = pool_m.group(1)
-
+        # Pool block with balanced-brace matching
+        pool_m = re.search(r'\bpool\s*\{', body)
+        pool = self._balanced_braces(body, pool_m.end()) if pool_m else None
+        if pool is not None:
             m = re.search(r'range\s+([\d.]+)\s+([\d.]+)\s*;', pool)
             if m:
                 self.pool_range_start = m.group(1)
@@ -307,16 +325,16 @@ class DHCPConfig:
 
             m = re.search(r'min-lease-time\s+(\d+)\s*;', pool)
             if m:
-                self.pool_min_lease = lease_seconds(m.group(1))
+                self.pool_min_lease = int(m.group(1))
 
             m = re.search(r'default-lease-time\s+(\d+)\s*;', pool)
             if m:
-                self.pool_def_lease = lease_seconds(m.group(1))
+                self.pool_def_lease = int(m.group(1))
 
             m = re.search(r'max-lease-time\s+(\d+)\s*;', pool)
             if m:
-                self.pool_max_lease = lease_seconds(m.group(1))
-
+                self.pool_max_lease = int(m.group(1))
+                
 # =============================================================================
 # LEASE MANAGER
 # =============================================================================
@@ -325,7 +343,7 @@ class Lease:
     def __init__(self, ip, mac, hostname, start, end, binding="active"):
         self.ip       = ip
         self.mac      = mac
-        self.hostname = re.sub(r'[\x00-\x1f\x7f"\\]', '', str(hostname))[:64]
+        self.hostname = re.sub(r'[\x00-\x1f\x7f"\\;{}]', '', str(hostname))[:64]
         self.start    = start
         self.end      = end
         self.binding  = binding
@@ -355,8 +373,9 @@ class LeaseManager:
     def __init__(self, path, config, daemon_user="pydhcpd", daemon_group="pydhcpd"):
         self.path   = path
         self.config = config
-        self.lock   = threading.Lock()
+        self.lock   = threading.RLock()
         self.leases = {}   # ip -> Lease
+        self._alloc_counter = 0
         self._uid   = None
         self._gid   = None
         try:
@@ -398,24 +417,38 @@ class LeaseManager:
                 continue
 
             lease = Lease(ip, mac, hostname, time.time(), end, binding)
-            self.leases[ip] = lease
+            if not lease.is_expired():
+                self.leases[ip] = lease
 
         log.info("Leases loaded: %d entries", len(self.leases))
 
-    def _build_pool(self):
-        """Build the list of available IPs from the pool range."""
-        self.pool = []
-        if not self.config.pool_range_start or not self.config.pool_range_end:
-            return
+    @staticmethod
+    def _compute_pool(config):
+        """Build a fresh set of available pool IPs from the given config.
+        Using a set gives O(1) membership checks and avoids the linear
+        scan that a list incurred for `ip in self.pool`."""
+        pool = set()
+        if not config.pool_range_start or not config.pool_range_end:
+            return pool
         try:
-            start = ipaddress.IPv4Address(self.config.pool_range_start)
-            end   = ipaddress.IPv4Address(self.config.pool_range_end)
+            start = ipaddress.IPv4Address(config.pool_range_start)
+            end   = ipaddress.IPv4Address(config.pool_range_end)
             ip    = start
             while ip <= end:
-                self.pool.append(str(ip))
+                pool.add(str(ip))
                 ip += 1
         except ValueError as e:
             log.error("Invalid pool range: %s", e)
+        return pool
+
+    def _build_pool(self):
+        """Build self.pool from current self.config (called once at init)."""
+        self.pool = self._compute_pool(self.config)
+
+    @staticmethod
+    def _ip_key(ip):
+        """Sort key that orders IPv4 addresses numerically, not lexicographically."""
+        return tuple(int(o) for o in ip.split('.'))
 
     def save(self):
         with self.lock:
@@ -424,9 +457,10 @@ class LeaseManager:
 
     def get_by_mac(self, mac):
         mac = mac.lower()
-        for lease in self.leases.values():
-            if lease.mac == mac and not lease.is_expired():
-                return lease
+        with self.lock:
+            for lease in self.leases.values():
+                if lease.mac == mac and not lease.is_expired():
+                    return lease
         return None
 
     def get_static(self, mac):
@@ -454,17 +488,20 @@ class LeaseManager:
         if self.is_blocked(mac):
             return None, None
 
-        # Unknown MAC → goes to block pool (will be registered in blockdhcp by pyleases.sh)
-        # If the client requested a specific IP, verify it is available for this MAC
-        if requested_ip and requested_ip != "0.0.0.0" and requested_ip in self.pool:
-            existing_lease = self.leases.get(requested_ip)
-            if existing_lease and existing_lease.mac != mac and not existing_lease.is_expired():
-                return None, None
+        # Hold the lock across the read-then-write window so two concurrent
+        # allocations cannot pick the same free IP from the pool.
+        with self.lock:
+            # Unknown MAC → goes to block pool (will be registered in blockdhcp by pyleases.sh)
+            # If the client requested a specific IP, verify it is available for this MAC
+            if requested_ip and requested_ip != "0.0.0.0" and requested_ip in self.pool:
+                existing_lease = self.leases.get(requested_ip)
+                if existing_lease and existing_lease.mac != mac and not existing_lease.is_expired():
+                    return None, None
 
-        ip = self._get_pool_ip(mac)
-        if ip:
-            self._create_lease(ip, mac, hostname, self.config.pool_def_lease)
-            return ip, self.config.pool_def_lease
+            ip = self._get_pool_ip(mac)
+            if ip:
+                self._create_lease(ip, mac, hostname, self.config.pool_def_lease)
+                return ip, self.config.pool_def_lease
 
         return None, None
 
@@ -474,11 +511,17 @@ class LeaseManager:
             return existing.ip
 
         static_ips = set(self.config.static_hosts.values())
-        used = set(self.leases.keys()) | static_ips
-        for ip in self.pool:
-            if ip not in used:
-                return ip
-        return None
+        active_ips = {ip for ip, lease in self.leases.items() if not lease.is_expired()}
+        free = self.pool - active_ips - static_ips
+        if not free:
+            return None
+        # Round-robin: sort the free IPs and pick starting from a rotating
+        # index so that allocations cycle through the pool range instead of
+        # always reusing the numerically lowest IP.
+        sorted_free = sorted(free, key=self._ip_key)
+        idx = self._alloc_counter % len(sorted_free)
+        self._alloc_counter = idx + 1
+        return sorted_free[idx]
 
     def _create_lease(self, ip, mac, hostname, duration):
         now = time.time()
@@ -489,16 +532,21 @@ class LeaseManager:
         self._save_snapshot(snapshot)
 
     def _save_snapshot(self, snapshot):
-        with open(self.path, "w") as f:
+        tmp_path = self.path + ".tmp"
+        with open(tmp_path, "w") as f:
             for lease in snapshot.values():
                 f.write(lease.to_conf())
                 f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
         if self._uid is not None and self._gid is not None:
             try:
-                os.chown(self.path, self._uid, self._gid)
-            except PermissionError:
-                pass
-        os.chmod(self.path, 0o640)
+                os.chown(tmp_path, self._uid, self._gid)
+            except PermissionError as e:
+                log.warning("Cannot chown %s to %d:%d: %s",
+                            tmp_path, self._uid, self._gid, e)
+        os.chmod(tmp_path, 0o640)
+        os.replace(tmp_path, self.path)
 
     def release(self, mac):
         mac = mac.lower()
@@ -577,8 +625,9 @@ def parse_packet(data):
 
     pkt["msg_type"] = pkt["options"].get(OPT_MSG_TYPE, b"\x00")[0]
     raw_hostname = pkt["options"].get(12, b"").decode("ascii", errors="replace").strip("\x00").strip()
-    pkt["hostname"] = re.sub(r'[\x00-\x1f\x7f"\\]', '', raw_hostname).strip()
-    pkt["requested_ip"] = bytes_to_ip(pkt["options"].get(OPT_REQUESTED_IP, b"\x00\x00\x00\x00"))
+    pkt["hostname"] = re.sub(r'[\x00-\x1f\x7f"\\;{}]', '', raw_hostname).strip()
+    opt_req_ip = pkt["options"].get(OPT_REQUESTED_IP, b"\x00\x00\x00\x00")
+    pkt["requested_ip"] = bytes_to_ip(opt_req_ip) if len(opt_req_ip) == 4 else "0.0.0.0"
 
     return pkt
 
@@ -637,34 +686,76 @@ def build_packet(msg_type, xid, mac_str, offered_ip, server_ip, config, lease_ti
 # PING CHECK
 # =============================================================================
 
+# A short-TTL cache to avoid invoking `ping` repeatedly for the same IP within
+# a single allocation burst, which under high client load was a measurable
+# source of latency and CPU.
+_PING_CACHE_TTL = 30  # seconds
+_ping_cache_lock = threading.Lock()
+_ping_cache = {}     # ip -> (alive: bool, expires_at: float)
+
 def ping_check(ip, timeout=1):
-    """Returns True if IP responds to ping (IP is in use)."""
+    """Returns True if IP responds to ping (IP is in use).
+    Results are cached for _PING_CACHE_TTL seconds."""
+    now = time.time()
+    with _ping_cache_lock:
+        entry = _ping_cache.get(ip)
+        if entry and entry[1] > now:
+            return entry[0]
+        # Opportunistic cleanup when the cache grows.
+        if len(_ping_cache) > 256:
+            for k in [k for k, v in _ping_cache.items() if v[1] <= now]:
+                del _ping_cache[k]
     try:
         result = subprocess.run(
             ["ping", "-c", "1", "-W", str(timeout), "-q", ip],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            timeout=timeout + 1,
         )
-        return result.returncode == 0
+        alive = result.returncode == 0
     except Exception:
-        return False
+        alive = False
+    with _ping_cache_lock:
+        _ping_cache[ip] = (alive, now + _PING_CACHE_TTL)
+    return alive
 
 # =============================================================================
 # DHCP SERVER
 # =============================================================================
 
 class DHCPServer:
+    # Maximum number of DHCP packets that can be queued or in-flight in the
+    # worker pool. Beyond this, additional packets are dropped to bound memory
+    # usage under flood / DoS conditions.
+    MAX_INFLIGHT = 256
+
     def __init__(self, interface, config, lease_manager):
         self.interface    = interface
         self.config       = config
         self.leases       = lease_manager
         self.server_ip    = config.server_id or config.routers
+        if not self.server_ip:
+            raise ValueError("DHCPServer: neither server-identifier nor routers configured")
         self.broadcast_ip = config.broadcast or BROADCAST_ADDR
         self.running      = False
         self.sock         = None
         self._pending     = collections.OrderedDict()
         self._pending_lock = threading.Lock()           # protects _pending across threads
         self._thread_pool  = ThreadPoolExecutor(max_workers=32)
+        # Bounded backlog: workers acquire the semaphore on submit and release
+        # on completion. If acquire fails, the packet is dropped (and counted).
+        self._inflight     = threading.Semaphore(self.MAX_INFLIGHT)
+        self._dropped      = 0
+
+    def apply_config(self, new_config):
+        """Atomically swap server and lease-manager config + rebuild pool.
+        The new pool is built outside the lock to avoid blocking allocations
+        for the duration of the pool iteration."""
+        new_pool = LeaseManager._compute_pool(new_config)
+        with self.leases.lock:
+            self.config        = new_config
+            self.leases.config = new_config
+            self.leases.pool   = new_pool
 
     def start(self):
         if not self.interface:
@@ -734,7 +825,25 @@ class DHCPServer:
             if len(data) < 240:
                 continue
 
-            self._thread_pool.submit(self._handle, data)
+            # Bounded backlog: drop the packet if the worker queue is full.
+            # This protects the daemon from unbounded memory growth under
+            # high-rate floods.
+            if not self._inflight.acquire(blocking=False):
+                self._dropped += 1
+                if self._dropped % 100 == 1:
+                    log.warning("Worker backlog full (%d) — dropping packets "
+                                "(total dropped: %d)", self.MAX_INFLIGHT, self._dropped)
+                continue
+            self._thread_pool.submit(self._handle_packet, data)
+
+    def _handle_packet(self, data):
+        """Wrapper around _handle that always releases the backlog slot."""
+        try:
+            self._handle(data)
+        except Exception as e:
+            log.exception("Unhandled error in worker: %s", e)
+        finally:
+            self._inflight.release()
 
     def stop(self):
         self.running = False
@@ -813,25 +922,64 @@ class DHCPServer:
         log.info("REQUEST from %s (%s)", mac, log_hostname)
 
         requested = pkt["requested_ip"]
+        ciaddr    = pkt["ciaddr"]
         xid_key   = pkt["xid"].hex()
 
-        # authoritative: NAK if client requests an IP that does not match its static reservation
-        if self.config.authoritative and requested and requested != "0.0.0.0":
-            static_ip = self.leases.get_static(mac)
-            if static_ip and requested != static_ip:
-                log.info("NAK (authoritative) → %s requested %s but assigned %s", mac, requested, static_ip)
-                self._send_nak(pkt, mac)
+        # Determine the client's target IP for this REQUEST:
+        #   SELECTING / INIT-REBOOT → option 50 (requested_ip)
+        #   RENEWING / REBINDING    → ciaddr (renewal of current binding)
+        if requested and requested != "0.0.0.0":
+            target_ip = requested
+        elif ciaddr and ciaddr != "0.0.0.0":
+            target_ip = ciaddr
+        else:
+            target_ip = None
+
+        # RFC 2131 §4.3.2: in SELECTING state, the client includes option 54
+        # with the IP of the server whose OFFER it is accepting. If present
+        # and it does not match us, this REQUEST is for another server — we
+        # must ignore it silently.
+        server_id_opt = pkt["options"].get(OPT_SERVER_ID, b"")
+        if len(server_id_opt) == 4:
+            selected_server = bytes_to_ip(server_id_opt)
+            if selected_server != self.server_ip:
+                log.debug("REQUEST from %s is for server %s, ignoring", mac, selected_server)
                 return
 
-        if self.config.one_per_client:
-            existing = self.leases.get_by_mac(mac)
-            if existing and existing.ip != requested and not self.leases.is_blocked(mac):
-                self.leases.release(mac)
+        # SELECTING state: if we sent an OFFER for this xid, the REQUEST must
+        # reference the same IP. Mismatch means the client is misbehaving or
+        # responding to a different server with our xid → NAK.
+        with self._pending_lock:
+            pending_ip = self._pending.get(xid_key)
+        if pending_ip and target_ip and target_ip != pending_ip:
+            log.info("NAK (SELECTING mismatch) → %s requested %s but we offered %s",
+                     mac, target_ip, pending_ip)
+            self._send_nak(pkt, mac, "Requested IP does not match offer")
+            return
 
-        offered_ip, lease_time = self.leases.allocate(mac, hostname, requested_ip=requested)
+        # authoritative: NAK if the client asks for an IP that does not match
+        # its static reservation. Applies to both option-50 requests and
+        # ciaddr-based renewals.
+        if self.config.authoritative and target_ip:
+            static_ip = self.leases.get_static(mac)
+            if static_ip and target_ip != static_ip:
+                log.info("NAK (authoritative) → %s requested %s but assigned %s",
+                         mac, target_ip, static_ip)
+                self._send_nak(pkt, mac, "Not authorized for this IP")
+                return
+
+        # one_per_client release and allocate must be atomic so the freed IP
+        # cannot be grabbed by another thread between the two operations.
+        with self.leases.lock:
+            if self.config.one_per_client and target_ip:
+                existing = self.leases.get_by_mac(mac)
+                if existing and existing.ip != target_ip and not self.leases.is_blocked(mac):
+                    self.leases.release(mac)
+
+            offered_ip, lease_time = self.leases.allocate(mac, hostname, requested_ip=target_ip)
 
         if not offered_ip:
-            self._send_nak(pkt, mac)
+            self._send_nak(pkt, mac, "No address available")
             return
 
         with self._pending_lock:
@@ -842,7 +990,7 @@ class DHCPServer:
         self._send(reply)
         log.info("ACK %s → %s (lease %ds)", mac, offered_ip, lease_time)
 
-    def _send_nak(self, pkt, mac):
+    def _send_nak(self, pkt, mac, reason=None):
         nak = bytearray(236)
         nak[0]   = 2
         nak[4:8] = pkt["xid"]
@@ -850,9 +998,13 @@ class DHCPServer:
         opts = bytearray(DHCP_MAGIC)
         opts += bytes([OPT_MSG_TYPE, 1, MSG_NAK])
         opts += bytes([OPT_SERVER_ID, 4]) + ip_to_bytes(self.server_ip)
+        if reason:
+            # RFC 2132 §9.9: option 56 carries a human-readable error message.
+            msg = reason.encode("ascii", errors="replace")[:255]
+            opts += bytes([OPT_MESSAGE, len(msg)]) + msg
         opts.append(OPT_END)
         self._send(bytes(nak) + bytes(opts))
-        log.info("NAK → %s", mac)
+        log.info("NAK → %s%s", mac, f" ({reason})" if reason else "")
 
     def _send(self, data):
         try:
@@ -880,9 +1032,11 @@ def remove_pid(path):
 # =============================================================================
 
 def main():
-    if os.geteuid() != 0:
-        print("ERROR: pydhcpd must be run as root")
-        sys.exit(1)
+    # The daemon is launched by systemd as user 'pydhcpd' with the ambient
+    # capabilities CAP_NET_RAW (raw socket on the interface) and
+    # CAP_NET_BIND_SERVICE (bind on port 67). A euid==root check would block
+    # that intended unprivileged execution, so we let the socket open call
+    # fail with a clear error if capabilities are missing.
 
     os.makedirs(BASE_DIR, exist_ok=True)
 
@@ -891,17 +1045,15 @@ def main():
     if not interface:
         log.error("No interface defined in %s (INTERFACESv4)", DEFAULTS_FILE)
         sys.exit(1)
+    if not os.path.isdir(f"/sys/class/net/{interface}"):
+        log.error("Interface '%s' does not exist on this system", interface)
+        sys.exit(1)
 
     config = DHCPConfig()
     config.load(defaults["conf"])
 
     if not config.server_id:
         log.error("server-identifier not set in %s", defaults["conf"])
-        sys.exit(1)
-
-    server_ip = config.server_id or config.routers
-    if not server_ip:
-        log.error("Neither server-identifier nor routers defined — cannot determine server IP")
         sys.exit(1)
 
     lease_mgr = LeaseManager(LEASES_FILE, config,
@@ -922,9 +1074,7 @@ def main():
         try:
             new_config = DHCPConfig()
             new_config.load(defaults["conf"])
-            server.config            = new_config
-            server.leases.config     = new_config
-            server.leases._build_pool()
+            server.apply_config(new_config)
             log.info("Configuration reloaded: %d static hosts, %d blocked MACs, %d pool IPs",
                      len(new_config.static_hosts), len(new_config.blocked_macs), len(server.leases.pool))
         except Exception as e:

@@ -62,9 +62,9 @@ for p in $missing; do
     apt-cache show "$p" &>/dev/null || unavailable+=" $p"
 done
 if [ -n "$unavailable" ]; then
-    echo "❌ Missing dependencies not found in APT:"
+    echo "Missing dependencies not found in APT:"
     for u in $unavailable; do echo "   - $u"; done
-    echo "💡 Please install them manually or enable the required repositories."
+    echo "Please install them manually or enable the required repositories."
     exit 1
 fi
 if [ -n "$missing" ]; then
@@ -74,14 +74,14 @@ if [ -n "$missing" ]; then
     rm -f /var/lib/dpkg/lock
     rm -f /var/lib/dpkg/lock-frontend
     dpkg --configure -a
-    echo "📦 Installing: $missing"
+    echo "Installing: $missing"
     apt-get -qq update
     if ! apt-get -y install $missing; then
-        echo "❌ Error installing: $missing"
+        echo "Error installing: $missing"
         exit 1
     fi
 else
-    echo "✅ Dependencies OK"
+    echo "Dependencies OK"
 fi
 # check ppa
 the_ppa=malcscott/ppa
@@ -105,9 +105,9 @@ if [ ! -f "$LOGROTATE_CONF" ]; then
     notifempty
 }
 EOF
-    echo "✅ Logrotate config created: $LOGROTATE_CONF"
+    echo "Logrotate config created: $LOGROTATE_CONF"
 else
-    echo "✅ Logrotate config: OK"
+    echo "Logrotate config: OK"
 fi
 
 # ---------------------------------------------------------------------
@@ -143,8 +143,8 @@ notify_alert() {
     local icon="${2:-dialog-warning}"
     logger -t disktemp "$msg"
     echo "$msg"
-    _notify "$local_user" -i "$icon" "⚠️ DISK ALERT" "$msg" \
-        || echo "   ⚠️ notify-send failed (no desktop session?)"
+    _notify "$local_user" -i "$icon" "DISK ALERT" "$msg" \
+        || echo "  notify-send failed (no desktop session?)"
 }
 
 # ---------------------------------------------------------------------
@@ -180,20 +180,20 @@ UNCORRECTABLE_THRESHOLD=1  # uncorrectable errors (critical from the first one)
 DISKS=$(lsblk -dno NAME,TYPE | awk '$2=="disk" {print "/dev/"$1}')
 
 if [ -z "$DISKS" ]; then
-    echo "⚠️ No disks found"
+    echo "No disks found"
 else
     for DISK in $DISKS; do
-        echo "→ Checking $DISK"
+        echo "Checking $DISK"
         DISK_ALERTS=0
 
         if ! smartctl -i "$DISK" &>/dev/null; then
-            echo "   ⚠️ $DISK: SMART not available or not supported"
+            echo "$DISK: SMART not available or not supported"
             continue
         fi
 
         SMART_STATUS=$(smartctl -H "$DISK" 2>/dev/null | grep -i "overall-health" | awk '{print $NF}')
         if [ "$SMART_STATUS" = "FAILED!" ]; then
-            notify_alert "🔴 $DISK: SMART status FAILED. Replace immediately." "drive-harddisk"
+            notify_alert "$DISK: SMART status FAILED. Replace immediately." "drive-harddisk"
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
 
@@ -201,15 +201,15 @@ else
         if echo "$DISK" | grep -q "nvme"; then
             CRITICAL=$(smartctl -A "$DISK" 2>/dev/null | grep -i "critical_warning" | awk '{print $2}')
             if [ -n "$CRITICAL" ] && [ "$CRITICAL" != "0x00" ] && [ "$CRITICAL" != "0" ]; then
-                notify_alert "🔴 $DISK (NVMe): Critical warning detected ($CRITICAL). Check disk immediately." "drive-harddisk"
+                notify_alert "$DISK (NVMe): Critical warning detected ($CRITICAL). Check disk immediately." "drive-harddisk"
                 DISK_ALERTS=$((DISK_ALERTS + 1))
             fi
             WEAR=$(smartctl -A "$DISK" 2>/dev/null | grep -i "percentage_used" | awk '{print $2}' | tr -d '%')
             if [ -n "$WEAR" ] && [ "$WEAR" -ge 90 ] 2>/dev/null; then
-                notify_alert "🟠 $DISK (NVMe): Wear level at ${WEAR}%. Plan replacement soon." "drive-harddisk"
+                notify_alert "$DISK (NVMe): Wear level at ${WEAR}%. Plan replacement soon." "drive-harddisk"
                 DISK_ALERTS=$((DISK_ALERTS + 1))
             fi
-            [ "$DISK_ALERTS" -eq 0 ] && echo "   ✅ $DISK: OK"
+            [ "$DISK_ALERTS" -eq 0 ] && echo "$DISK: OK"
             continue
         fi
 
@@ -221,23 +221,23 @@ else
         POWER_HOURS=$(echo "$SMART_ATTRS" | awk '/Power_On_Hours/ {print $10}')
 
         if [ -n "$REALLOCATED" ] && [ "$REALLOCATED" -ge "$REALLOCATED_THRESHOLD" ] 2>/dev/null; then
-            notify_alert "🟠 $DISK: $REALLOCATED reallocated sectors detected. Disk degrading — plan replacement." "drive-harddisk"
+            notify_alert "$DISK: $REALLOCATED reallocated sectors detected. Disk degrading — plan replacement." "drive-harddisk"
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
         if [ -n "$PENDING" ] && [ "$PENDING" -ge "$PENDING_THRESHOLD" ] 2>/dev/null; then
-            notify_alert "🟠 $DISK: $PENDING pending sectors. Possible imminent failure." "drive-harddisk"
+            notify_alert "$DISK: $PENDING pending sectors. Possible imminent failure." "drive-harddisk"
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
         if [ -n "$UNCORRECTABLE" ] && [ "$UNCORRECTABLE" -ge "$UNCORRECTABLE_THRESHOLD" ] 2>/dev/null; then
-            notify_alert "🔴 $DISK: $UNCORRECTABLE uncorrectable errors. Replace disk immediately." "drive-harddisk"
+            notify_alert "$DISK: $UNCORRECTABLE uncorrectable errors. Replace disk immediately." "drive-harddisk"
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
         if [ -n "$POWER_HOURS" ] && [ "$POWER_HOURS" -ge 40000 ] 2>/dev/null; then
-            notify_alert "🟡 $DISK: ${POWER_HOURS}h of use. Consider replacement as preventive measure." "drive-harddisk"
+            notify_alert "$DISK: ${POWER_HOURS}h of use. Consider replacement as preventive measure." "drive-harddisk"
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
 
-        [ "$DISK_ALERTS" -eq 0 ] && echo "   ✅ $DISK: OK"
+        [ "$DISK_ALERTS" -eq 0 ] && echo "$DISK: OK"
     done
 fi
 

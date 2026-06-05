@@ -236,7 +236,9 @@ fi
 info "Creating $INSTALL_DIR ..."
 mkdir -p "$INSTALL_DIR"
 chown root:"$SYSTEM_USER" "$INSTALL_DIR"
-chmod 750 "$INSTALL_DIR"
+# 770 (not 750) so the unprivileged pydhcpd group can create the .tmp file
+# used by the atomic write of pydhcpd.leases after systemd drops privileges.
+chmod 770 "$INSTALL_DIR"
 
 # Deploy daemon and config files
 info "Deploying pydhcpd.py ..."

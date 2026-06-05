@@ -59,7 +59,6 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-rm -f "$SCRIPT_LOCK"
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
@@ -71,7 +70,8 @@ cleanup_temp() {
     for f in "${TEMP_FILES_TO_CLEAN[@]}"; do
         rm -f "$f" 2>/dev/null
     done
-    rm -f "$SCRIPT_LOCK" 2>/dev/null
+    # Lockfile is NOT removed: deleting it creates a TOCTOU race
+    # where two processes could flock different inodes of the same path.
 }
 trap cleanup_temp EXIT
 
@@ -306,7 +306,7 @@ function is_pydhcp() {
                     if [[ -n "$mac_address" && -n "$ip_address" ]]; then
                         line_lease="a;$mac_address;$ip_address;$host;"
 
-                        if [[ $(grep -o "$mac_address" "$ACL_MAC_PATH"/mac-*) == "" ]]; then
+                        if ! grep -qo "$mac_address" "$ACL_MAC_PATH"/mac-* 2>/dev/null; then
                             if [[ $(grep -o "$mac_address" "$ACL_BLOCK_FILE") == "" ]]; then
                                 echo "$line_lease" >> "$ACL_BLOCK_FILE"
                                 echo "$lease_content" >> "$temp_leases"
@@ -343,7 +343,14 @@ log-facility local7;
 ddns-update-style none;
         " >"$dhcp_conf_temp"
 
-        acl_sources=$(cat "$ACL_MAC_PATH"/mac-* 2>/dev/null)
+        shopt -s nullglob
+        acl_files=("$ACL_MAC_PATH"/mac-*)
+        shopt -u nullglob
+        if [ ${#acl_files[@]} -gt 0 ]; then
+            acl_sources=$(cat "${acl_files[@]}")
+        else
+            acl_sources=""
+        fi
 
         while IFS= read -r line; do
             wcstatus=$(echo "$line" | cut -d ';' -f 1)
@@ -393,16 +400,17 @@ class "blockdhcp" {
 }
         " >>"$dhcp_conf_temp"
 
+        # Keep a backup of the previous config in case the new one is faulty.
+        [ -f "$dhcp_conf" ] && cp -f "$dhcp_conf" "${dhcp_conf}.bak"
         mv -f "$dhcp_conf_temp" "$dhcp_conf"
     }
 
     function clean_block_list {
         file_temp=$(mktemp)
         TEMP_FILES_TO_CLEAN+=("$file_temp")
-        grep -E ';[0-9,a-f,:]+;' "$ACL_MAC_PATH"/mac-* | cut -d ";" -f2 >"$file_temp"
-        while read line; do
-            mac_actual=$(echo "$line" | cut -d ';' -f 2)
-            grep -vF "$mac_actual" "$ACL_BLOCK_FILE" > "$ACL_BLOCK_FILE".tmp && mv "$ACL_BLOCK_FILE".tmp "$ACL_BLOCK_FILE"
+        grep -E ';[0-9a-f:]+;' "$ACL_MAC_PATH"/mac-* 2>/dev/null | cut -d ";" -f2 >"$file_temp"
+        while read -r mac_actual; do
+            grep -vF ";${mac_actual};" "$ACL_BLOCK_FILE" > "$ACL_BLOCK_FILE".tmp && mv "$ACL_BLOCK_FILE".tmp "$ACL_BLOCK_FILE"
         done <"$file_temp"
         rm -f "$file_temp"
     }
@@ -454,7 +462,7 @@ class "blockdhcp" {
 
 function duplicate() {
     aclall=$(for field in 2 3 4; do
-        cut -d\; -f${field} "$ACL_MAC_PATH"/mac-* | sort | uniq -d
+        cut -d\; -f${field} "$ACL_MAC_PATH"/mac-* 2>/dev/null | sort | uniq -d
     done)
 
     if [ "${aclall}" == "" ]; then
@@ -463,7 +471,7 @@ function duplicate() {
     else
         echo "Duplicate Data: $(date) $aclall" | tee -a /var/log/syslog
         _notify "$local_user" "Warning: Abort" "Duplicate: $aclall. $(date)" -i error
-        exit
+        exit 1
     fi
 }
 duplicate

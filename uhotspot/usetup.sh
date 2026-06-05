@@ -12,8 +12,9 @@
 #  Run from inside the cloned repo. The script expects to find:
 #    ./uhotspot.sh
 #    ./tools/uaudit.sh
+#    ./tools/ucheck.sh
 #    ./tools/ureload.sh
-#    ./tools/pyleases.sh
+#    ./tools/uleases.sh
 #
 #  Hard dependencies (auto-installed via apt when missing):
 #    bash, curl, jq, iptables, ipset, cron
@@ -32,16 +33,13 @@ TOOLS_DIR="${HOTSPOT_DIR}/tools"
 CONFIG_FILE="${HOTSPOT_DIR}/config.conf"
 LOG_FILE="/var/log/uhotspot.log"
 LOGROTATE_FILE="/etc/logrotate.d/uhotspot"
-PYDHCP_TOOLS_DIR="/etc/pydhcp/tools"
-PYLEASES_DEST="${PYDHCP_TOOLS_DIR}/pyleases.sh"
+PYDHCP_DIR="/etc/pydhcp"
 UIPTABLES_STUB="${TOOLS_DIR}/uiptables.sh"
 
 # ─── Repo file expectations (relative to this script) ────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_UHOTSPOT="${SCRIPT_DIR}/uhotspot.sh"
-REPO_UAUDIT="${SCRIPT_DIR}/tools/uaudit.sh"
-REPO_URELOAD="${SCRIPT_DIR}/tools/ureload.sh"
-REPO_PYLEASES="${SCRIPT_DIR}/tools/pyleases.sh"
+REPO_TOOLS="${SCRIPT_DIR}/tools"
 
 # ─── Required apt packages (auto-installed when missing) ─────────────────────
 APT_DEPS=(curl jq iptables ipset cron)
@@ -102,14 +100,8 @@ detect_local_user() {
 }
 
 check_repo_files() {
-    local missing=()
-    for f in "$REPO_UHOTSPOT" "$REPO_UAUDIT" "$REPO_URELOAD" "$REPO_PYLEASES"; do
-        [[ -r "$f" ]] || missing+=("$(basename "$f")")
-    done
-    if (( ${#missing[@]} > 0 )); then
-        err "Missing repo files: ${missing[*]}"
-        abort "Run usetup.sh from inside the cloned uhotspot repository."
-    fi
+    [[ -r "$REPO_UHOTSPOT" ]] || abort "Missing $(basename "$REPO_UHOTSPOT"). Run usetup.sh from inside the cloned uhotspot repository."
+    [[ -d "$REPO_TOOLS" ]]    || abort "Missing tools/ directory. Run usetup.sh from inside the cloned uhotspot repository."
     info "Repo files located"
 }
 
@@ -355,36 +347,8 @@ deploy_directories() {
 
 deploy_scripts() {
     install -m 755 -o root -g root "$REPO_UHOTSPOT" "${HOTSPOT_DIR}/uhotspot.sh"
-    install -m 755 -o root -g root "$REPO_UAUDIT"   "${TOOLS_DIR}/uaudit.sh"
-    install -m 755 -o root -g root "$REPO_URELOAD"  "${TOOLS_DIR}/ureload.sh"
+    install -m 755 -o root -g root "${REPO_TOOLS}/"*.sh "${TOOLS_DIR}/"
     info "Scripts deployed to ${HOTSPOT_DIR}"
-}
-
-deploy_pyleases() {
-    if [[ "$DHCP_BACKEND" != "pydhcpd" ]]; then
-        return 0
-    fi
-    if [[ ! -d "$PYDHCP_TOOLS_DIR" ]]; then
-        warn "$PYDHCP_TOOLS_DIR does not exist — is pydhcp installed?"
-        warn "Skipping pyleases.sh deployment. Install pydhcp and re-run usetup.sh."
-        return 0
-    fi
-    if [[ -f "$PYLEASES_DEST" ]]; then
-        # Compare contents; if different, back up the existing file.
-        if ! cmp -s "$REPO_PYLEASES" "$PYLEASES_DEST"; then
-            local bak="${PYLEASES_DEST}.bak"
-            if [[ -e "$bak" ]]; then
-                bak="${PYLEASES_DEST}.bak.$(date '+%Y%m%d-%H%M%S')"
-            fi
-            cp -p "$PYLEASES_DEST" "$bak"
-            info "Existing pyleases.sh backed up to $bak"
-        else
-            info "pyleases.sh already up to date — no changes"
-            return 0
-        fi
-    fi
-    install -m 755 -o root -g root "$REPO_PYLEASES" "$PYLEASES_DEST"
-    info "Hotspot-aware pyleases.sh installed at $PYLEASES_DEST"
 }
 
 deploy_uiptables_stub() {
@@ -458,11 +422,6 @@ final_sanity_check() {
     step "Sanity check"
     local issues=0
 
-    if [[ ! -x "$PYLEASES_DEST" ]]; then
-        warn "Hotspot-aware pyleases.sh not deployed (pydhcp may be missing)"
-        (( issues++ ))
-    fi
-
     if [[ ! -x "$UIPTABLES_STUB" ]] || grep -q "not configured" "$UIPTABLES_STUB" 2>/dev/null; then
         warn "uiptables.sh is not configured — ACL changes will not reach the firewall"
         (( issues++ ))
@@ -495,7 +454,6 @@ do_install() {
     step "Filesystem layout"
     deploy_directories
     deploy_scripts
-    deploy_pyleases
     deploy_uiptables_stub
 
     run_setup_wizard
@@ -544,14 +502,10 @@ do_update() {
     mkdir -p "$backup_dir"
     cp -p "${HOTSPOT_DIR}/uhotspot.sh" "$backup_dir/"
     cp -p "${TOOLS_DIR}/"*.sh "$backup_dir/" 2>/dev/null || true
-    if [[ -f "$PYLEASES_DEST" ]]; then
-        cp -p "$PYLEASES_DEST" "$backup_dir/"
-    fi
     info "Current scripts backed up to $backup_dir"
 
     step "Deploy updated scripts"
     deploy_scripts
-    deploy_pyleases
 
     echo ""
     echo "══════════════════════════════════════════════════════"
@@ -581,7 +535,6 @@ do_remove() {
     echo "  The following actions will be offered (each with confirmation):"
     echo "    • Remove cron entry pointing to ${HOTSPOT_DIR}/uhotspot.sh"
     echo "    • Remove ${LOGROTATE_FILE}"
-    echo "    • Restore the original pyleases.sh from backup (if available)"
     echo "    • Remove ${HOTSPOT_DIR} (includes config.conf, ACLs, uiptables.sh)"
     echo "    • Remove ${LOG_FILE} and rotated logs"
     echo ""
@@ -612,29 +565,6 @@ do_remove() {
         fi
     else
         info "No logrotate config found"
-    fi
-
-    # pyleases.sh restoration
-    step "pyleases.sh"
-    local latest_bak=""
-    if [[ -f "${PYLEASES_DEST}.bak" ]]; then
-        latest_bak="${PYLEASES_DEST}.bak"
-    else
-        # Find the most recent timestamped backup if any
-        latest_bak=$(ls -1t "${PYLEASES_DEST}".bak.* 2>/dev/null | head -1 || true)
-    fi
-    if [[ -n "$latest_bak" && -f "$latest_bak" ]]; then
-        echo "  Backup found: $latest_bak"
-        if confirm "Restore original pyleases.sh from this backup?" "n"; then
-            mv "$latest_bak" "$PYLEASES_DEST"
-            chown root:root "$PYLEASES_DEST"
-            chmod 755 "$PYLEASES_DEST"
-            info "Restored pyleases.sh from $latest_bak"
-        else
-            warn "Backup preserved at $latest_bak (manual restore later if needed)"
-        fi
-    else
-        info "No pyleases.sh backup found"
     fi
 
     # /etc/uhotspot

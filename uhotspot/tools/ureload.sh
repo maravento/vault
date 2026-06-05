@@ -5,9 +5,9 @@
 LOG_FILE="/var/log/uhotspot.log"
 TS=$(date '+%Y-%m-%d %H:%M:%S')
 
-echo "$TS INFO: ureload: running pyleases.sh..." >> "$LOG_FILE"
-if ! /etc/pydhcp/tools/pyleases.sh >> "$LOG_FILE" 2>&1; then
-    echo "$TS ERROR: ureload: pyleases.sh failed — aborting" >> "$LOG_FILE"
+echo "$TS INFO: ureload: running uleases.sh..." >> "$LOG_FILE"
+if ! /etc/uhotspot/tools/uleases.sh >> "$LOG_FILE" 2>&1; then
+    echo "$TS ERROR: ureload: uleases.sh failed — aborting" >> "$LOG_FILE"
     exit 1
 fi
 

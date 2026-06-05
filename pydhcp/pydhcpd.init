@@ -34,7 +34,12 @@ case "$1" in
             fi
         fi
         $DAEMON $DAEMON_ARGS &
-        sleep 1
+        # Poll for the PID file instead of a fixed sleep — the daemon may
+        # take longer than 1s on busy systems or under load.
+        for _ in $(seq 1 40); do
+            [ -f "$PID_FILE" ] && break
+            sleep 0.25
+        done
         if [ -f "$PID_FILE" ]; then
             read -r pid < "$PID_FILE" 2>/dev/null || pid=""
             if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then

@@ -29,9 +29,13 @@
 #     validations) are captured in a single log.
 #   - dedup_mac_lists: uses two internal scopes:
 #       MANAGED_MACS (global) — only MACs from /etc/acl/acl_mac/mac-*.txt,
-#         used to block portal entry for clients already managed by pyleases.
-#       all_macs (local) — all lists combined, used to clean blockdhcp.txt
-#         and dhcpd.leases.
+#         used to block portal entry for clients already managed by uleases.
+#       all_macs (local) — all lists combined, used to clean blockdhcp.txt.
+#   - Lease removal is queue-based: uhotspot.sh never modifies
+#     pydhcpd.leases directly (pydhcpd may be writing to it). Instead,
+#     queue_lease_removal() appends a MAC to leases-remove-queue.txt only on
+#     a real state transition (new pending, eviction, or move to hotspot).
+#     uleases.sh drains this queue during its safe stop→modify→start cycle.
 #   - process_pending_guests and process_sessions: double verification against
 #     MANAGED_MACS — a MAC present in /etc/acl/acl_mac/mac-*.txt is never
 #     added to guest-pending.txt or mac-hotspot.txt, regardless of what the
@@ -87,10 +91,9 @@
 #
 #   1. DEDUP: verifies consistency across all ACL lists. MACs present in
 #      guest-pending.txt, mac-hotspot.txt, or /etc/acl/acl_mac/mac-*.txt
-#      are removed from blockdhcp.txt and dhcpd.leases. A MAC cannot belong
-#      to more than one list simultaneously. Entries in blockdhcp.txt with
-#      extra fields are sanitized to the canonical 4-field format
-#      (a;MAC;IP;HOSTNAME;).
+#      are removed from blockdhcp.txt. A MAC cannot belong to more than one
+#      list simultaneously. Entries in blockdhcp.txt with extra fields are
+#      sanitized to the canonical 4-field format (a;MAC;IP;HOSTNAME;).
 #
 #   2. SNAPSHOT: records md5sum baselines of mac-hotspot.txt and
 #      guest-pending.txt before any processing begins.
@@ -103,12 +106,12 @@
 #      guest SSID without authorization receive a sequential IP from the
 #      user-defined range (e.g., 192.168.10.160 to 192.168.10.180) starting
 #      from the lowest available IP. Their initial dynamic DHCP lease is
-#      removed. Hostname is constructed as guest{sequential_number} and
-#      enriched with the voucher code in step 5. Example: guest5.
+#      queued for removal. Hostname is constructed as guest{sequential_number}
+#      and enriched with the voucher code in step 5. Example: guest5.
 #      If the IP range is exhausted, the oldest entry in guest-pending.txt
-#      is evicted (its lease removed) to free one slot before assigning.
-#      Clients already present in /etc/acl/acl_mac/mac-*.txt are skipped —
-#      they have a fixed-address lease and must not enter the portal.
+#      is evicted (its lease queued for removal) to free one slot before
+#      assigning. Clients already present in /etc/acl/acl_mac/mac-*.txt are
+#      skipped — they have a fixed-address lease and must not enter the portal.
 #
 #   5. SESSIONS: queries stat/guest. UniFi records completed voucher sessions
 #      here after the client authenticates. Clients are moved from
@@ -175,9 +178,6 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
-# Log file (declared early so all bootstrap messages are captured)
-LOG_FILE="/var/log/uhotspot.log"
-
 # Prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
@@ -185,6 +185,9 @@ if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
+
+# Log file (declared early so all bootstrap messages are captured)
+LOG_FILE="/var/log/uhotspot.log"
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 log() {
@@ -216,23 +219,22 @@ REVOKED=0
 # Format: a;MAC;IP;HOSTNAME;   (4 fields — no epoch; trailing semicolon required)
 BLOCK_DHCP="/etc/acl/acl_dhcp/blockdhcp.txt"
 
-# ─── Shared ACL MAC path (also used by pyleases) ─────────────────────────────
+# ─── Lease removal queue (consumed by uleases.sh) ───────────────────────────
+# MACs written here are removed from pydhcpd.leases by uleases.sh during its
+# safe stop→modify→start cycle. One MAC per line, lowercase.
+LEASE_REMOVE_QUEUE="$HOTSPOT_PATH/leases-remove-queue.txt"
+
+# ─── Shared ACL MAC path (also used by uleases) ─────────────────────────────
 # MACs in any mac-*.txt here must not appear in mac-hotspot.txt or guest-pending.txt.
 ACL_MAC_PATH="/etc/acl/acl_mac"
 
-# ─── DHCP server auto-detection ──────────────────────────────────────────────
-_pydhcp_active=false
-systemctl is-active --quiet pydhcpd        2>/dev/null && _pydhcp_active=true
-
+# ─── DHCP backend requirement check ──────────────────────────────────────────
 echo "────────────────────────────────────────────────────────────────────────────────" >> "$LOG_FILE" 2>/dev/null || true
-if [[ "$_pydhcp_active" == "true" ]]; then
-    DHCP_LEASES="/etc/pydhcp/pydhcpd.leases"
-    DHCP_LEASES_OWNER="pydhcpd:pydhcpd"
-    log "INFO: DHCP server detected — pydhcpd"
-else
+if ! systemctl is-active --quiet pydhcpd 2>/dev/null; then
     log "WARNING: pydhcpd is not active — install and start pydhcpd"
     exit 1
 fi
+log "INFO: DHCP server detected — pydhcpd"
 
 CSRF_TOKEN=""
 VOUCHER_CACHE=""
@@ -419,6 +421,23 @@ api_post() {
     local raw code
     raw=$(curl --max-time 30 "${args[@]}" -d "$payload" "$url" 2>/dev/null || true)
     code=$(echo "$raw" | grep '__CODE__:' | cut -d: -f2 | tr -d '\r\n')
+
+    if [[ "$code" == "401" ]]; then
+        log "INFO: Session expired on POST, re-authenticating..."
+        if ! unifi_login; then
+            log "ERROR: Re-authentication failed on POST"
+            echo "$code"
+            return 1
+        fi
+        args=(-sk -w "\n__CODE__:%{http_code}"
+            -X POST
+            -H "Content-Type: application/json"
+            -H "Cookie: TOKEN=${SESSION_TOKEN}")
+        [[ -n "$CSRF_TOKEN" ]] && args+=(-H "x-csrf-token: $CSRF_TOKEN")
+        raw=$(curl --max-time 30 "${args[@]}" -d "$payload" "$url" 2>/dev/null || true)
+        code=$(echo "$raw" | grep '__CODE__:' | cut -d: -f2 | tr -d '\r\n')
+    fi
+
     echo "$code"
 }
 
@@ -511,38 +530,17 @@ get_voucher_code_by_end_time() {
     ' 2>/dev/null | head -1 || true
 }
 
-# ─── dhcpd.leases cleanup ─────────────────────────────────────────────────────
-remove_from_leases() {
+# ─── Lease removal queue ─────────────────────────────────────────────────────
+# Queues a MAC for removal from pydhcpd.leases. The actual removal is performed
+# by uleases.sh during its safe stop→modify→start cycle, avoiding writes to the
+# leases file while pydhcpd is running.
+queue_lease_removal() {
     local mac="$1"
-    local dhcpd_leases="$DHCP_LEASES"
-    [[ ! -f "$dhcpd_leases" ]] && return 0
-
-    local tmp in_block=0 block="" removed=0
-    tmp=$(mktemp)
-    while IFS= read -r line; do
-        if echo "$line" | grep -qE "^lease [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ \{"; then
-            in_block=1; block="$line"; continue
-        fi
-        if [[ $in_block -eq 1 ]]; then
-            block+=$'\n'"$line"
-            if echo "$line" | grep -qE "^\}"; then
-                in_block=0
-                if echo "$block" | grep -qi "hardware ethernet ${mac};"; then
-                    (( removed++ )) || true
-                else
-                    echo "$block" >> "$tmp"
-                fi
-                block=""
-            fi
-            continue
-        fi
-        echo "$line" >> "$tmp"
-    done < "$dhcpd_leases"
-    mv "$tmp" "$dhcpd_leases"
-    chown "$DHCP_LEASES_OWNER" "$dhcpd_leases"
-
-    if [[ $removed -gt 0 ]]; then
-        log "INFO: Removed $removed lease(s) for $mac from dhcpd.leases"
+    local lc_mac
+    lc_mac=$(echo "$mac" | tr '[:upper:]' '[:lower:]')
+    if ! grep -qxF "$lc_mac" "$LEASE_REMOVE_QUEUE" 2>/dev/null; then
+        echo "$lc_mac" >> "$LEASE_REMOVE_QUEUE"
+        log "INFO: Queued lease removal for $lc_mac"
     fi
 }
 
@@ -566,7 +564,7 @@ dedup_mac_lists() {
     )
 
     # all_macs: all managed MACs across all lists.
-    # Used internally to clean blockdhcp.txt and dhcpd.leases.
+    # Used internally to clean blockdhcp.txt.
     local all_macs
     all_macs=$(
         {
@@ -577,7 +575,7 @@ dedup_mac_lists() {
           | sort -u
     )
 
-    local removed_block=0 removed_leases=0 sanitized_block=0
+    local removed_block=0 sanitized_block=0
 
     # Sanitize and clean blockdhcp.txt
     if [[ -f "$BLOCK_DHCP" ]]; then
@@ -608,38 +606,6 @@ dedup_mac_lists() {
             fi
         done < "$BLOCK_DHCP"
         mv "$tmp_block" "$BLOCK_DHCP" && chmod 600 "$BLOCK_DHCP"
-    fi
-
-    local dhcpd_leases="$DHCP_LEASES"
-    if [[ -f "$dhcpd_leases" && -n "$all_macs" ]]; then
-        local tmp_leases in_block=0 block=""
-        tmp_leases=$(mktemp)
-        while IFS= read -r line; do
-            if echo "$line" | grep -qE "^lease [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ \{"; then
-                in_block=1; block="$line"; continue
-            fi
-            if [[ $in_block -eq 1 ]]; then
-                block+=$'\n'"$line"
-                if echo "$line" | grep -qE "^\}"; then
-                    in_block=0
-                    local lmac
-                    lmac=$(echo "$block" | grep -i 'hardware ethernet' \
-                        | sed -E 's/.*hardware ethernet ([0-9a-f:]+);.*/\1/I' \
-                        | tr '[:upper:]' '[:lower:]')
-                    if [[ -n "$lmac" ]] && echo "$all_macs" | grep -q "^${lmac}$"; then
-                        log "INFO: dedup → removed lease for $lmac from dhcpd.leases"
-                        (( removed_leases++ )) || true
-                    else
-                        echo "$block" >> "$tmp_leases"
-                    fi
-                    block=""
-                fi
-                continue
-            fi
-            echo "$line" >> "$tmp_leases"
-        done < "$dhcpd_leases"
-        mv "$tmp_leases" "$dhcpd_leases"
-        chown "$DHCP_LEASES_OWNER" "$dhcpd_leases"
     fi
 
     if (( sanitized_block > 0 )); then
@@ -714,7 +680,7 @@ add_mac_to_acl() {
         sed -i "/^a;${mac};/Id" "$PENDING_LIST"
     fi
 
-    remove_from_leases "$mac"
+    queue_lease_removal "$mac"
 
     if grep -qi "^a;${mac};" "$MAC_LIST" 2>/dev/null; then
         local existing_end
@@ -791,6 +757,11 @@ clean_disconnected_pending() {
         | (.mac | ascii_downcase)
     ' 2>/dev/null || true)
 
+    if [[ -z "$active_macs" ]]; then
+        log "INFO: clean_disconnected_pending: no active MACs from stat/sta — skipping to avoid false removals"
+        return
+    fi
+
     local tmp removed=0
     tmp=$(mktemp)
     while IFS=';' read -r status mac ip hostname _; do
@@ -840,7 +811,7 @@ process_pending_guests() {
         if [[ -n "$oldest_mac" && -n "$oldest_ip" ]]; then
             log "INFO: Range exhausted — evicting oldest pending $oldest_mac (ip=$oldest_ip)"
             sed -i "/^a;${oldest_mac};/Id" "$PENDING_LIST"
-            remove_from_leases "$oldest_mac"
+            queue_lease_removal "$oldest_mac"
         else
             log "WARNING: Range exhausted and no pending guest to evict — skipping pending"
             return
@@ -872,7 +843,7 @@ process_pending_guests() {
         echo "a;${mac};${assigned_ip};${assigned_hostname};" >> "$PENDING_LIST"
         log "INFO: Pending guest $mac → ip=$assigned_ip hostname=$assigned_hostname (ssid=$HOTSPOT_ESSID)"
 
-        remove_from_leases "$mac"
+        queue_lease_removal "$mac"
         (( count++ )) || true
 
     done < <(echo "$guests_data" | jq -r \
@@ -1064,36 +1035,44 @@ unauthorize_pending() {
 # ─── ACL change detector & reload trigger ────────────────────────────────────
 # Call snapshot_acls BEFORE the processing functions to record the baseline.
 # Call check_and_reload_if_changed AFTER all processing functions; it compares
-# the current state of MAC_LIST and PENDING_LIST against the baseline and
-# invokes SERVER_RELOAD_SCRIPT exactly once if either file changed.
+# the current state of MAC_LIST, PENDING_LIST and the lease removal queue
+# against the baseline and invokes SERVER_RELOAD_SCRIPT exactly once if any
+# of them changed.
 _ACL_SNAPSHOT_HOTSPOT=""
 _ACL_SNAPSHOT_PENDING=""
+_ACL_SNAPSHOT_QUEUE=""
 
 snapshot_acls() {
     _ACL_SNAPSHOT_HOTSPOT=$(md5sum "$MAC_LIST"     2>/dev/null | awk '{print $1}' || echo "absent")
     _ACL_SNAPSHOT_PENDING=$(md5sum "$PENDING_LIST" 2>/dev/null | awk '{print $1}' || echo "absent")
+    _ACL_SNAPSHOT_QUEUE=$(md5sum "$LEASE_REMOVE_QUEUE" 2>/dev/null | awk '{print $1}' || echo "absent")
 }
 
 check_and_reload_if_changed() {
-    local cur_hotspot cur_pending
+    local cur_hotspot cur_pending cur_queue
     cur_hotspot=$(md5sum "$MAC_LIST"     2>/dev/null | awk '{print $1}' || echo "absent")
     cur_pending=$(md5sum "$PENDING_LIST" 2>/dev/null | awk '{print $1}' || echo "absent")
+    cur_queue=$(md5sum "$LEASE_REMOVE_QUEUE" 2>/dev/null | awk '{print $1}' || echo "absent")
 
     if [[ "$cur_hotspot" == "$_ACL_SNAPSHOT_HOTSPOT" && \
-          "$cur_pending" == "$_ACL_SNAPSHOT_PENDING" ]]; then
+          "$cur_pending" == "$_ACL_SNAPSHOT_PENDING" && \
+          "$cur_queue"   == "$_ACL_SNAPSHOT_QUEUE" ]]; then
         log "INFO: ACLs unchanged — skipping reload"
         return
     fi
 
     [[ "$cur_hotspot" != "$_ACL_SNAPSHOT_HOTSPOT" ]] && log "INFO: mac-hotspot.txt changed"
     [[ "$cur_pending"  != "$_ACL_SNAPSHOT_PENDING"  ]] && log "INFO: guest-pending.txt changed"
+    [[ "$cur_queue"    != "$_ACL_SNAPSHOT_QUEUE"    ]] && log "INFO: lease removal queue changed"
 
     if [[ -n "${SERVER_RELOAD_SCRIPT:-}" && -x "$SERVER_RELOAD_SCRIPT" ]]; then
         log "INFO: ACL changed — invoking $SERVER_RELOAD_SCRIPT"
+        export UHOTSPOT_RELOAD_ACTIVE=1
         timeout 60 bash "$SERVER_RELOAD_SCRIPT" >> "$LOG_FILE" 2>&1 \
             || { rc=$?; [[ $rc -eq 124 ]] \
                 && log "WARNING: $SERVER_RELOAD_SCRIPT timed out after 60s" \
                 || log "WARNING: $SERVER_RELOAD_SCRIPT exited with error (code $rc)"; }
+        unset UHOTSPOT_RELOAD_ACTIVE
     else
         log "WARNING: ACLs changed but SERVER_RELOAD_SCRIPT is not set or not executable"
     fi

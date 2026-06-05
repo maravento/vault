@@ -34,11 +34,11 @@ INTERFACE=""
 check_dependencies() {
     local missing=0
     if ! command -v nmcli &> /dev/null; then
-        echo "✗ NetworkManager is not installed" >&2
+        echo "NetworkManager is not installed" >&2
         missing=1
     fi
     if ! command -v ip &> /dev/null; then
-        echo "✗ iproute2 is not installed" >&2
+        echo "iproute2 is not installed" >&2
         missing=1
     fi
     if [ $missing -eq 1 ]; then
@@ -47,7 +47,7 @@ check_dependencies() {
         echo "  sudo apt-get install network-manager iproute2" >&2
         return 1
     fi
-    echo "✓ All dependencies are installed"
+    echo "All dependencies are installed"
     return 0
 }
 
@@ -56,7 +56,7 @@ detect_ethernet_interface() {
     wifi_interfaces=$(nmcli -t -f DEVICE,TYPE device status | grep -E ":wifi$" | cut -d: -f1)
     for wifi in $wifi_interfaces; do
         if nmcli -t -f DEVICE,STATE device status | grep -q "^${wifi}:connected"; then
-            echo "✗ WiFi interface '$wifi' is active. Please disable WiFi before creating a bridge." >&2
+            echo "WiFi interface '$wifi' is active. Please disable WiFi before creating a bridge." >&2
             echo "   Run: nmcli radio wifi off" >&2
             return 1
         fi
@@ -74,7 +74,7 @@ detect_ethernet_interface() {
         fi
     done
 
-    echo "✗ No active Ethernet interface found with IP address." >&2
+    echo "No active Ethernet interface found with IP address." >&2
     return 1
 }
 
@@ -130,7 +130,7 @@ show_restored_status() {
     local original_conn
     original_conn=$(get_original_connection_name "$INTERFACE")
     if [ -n "$original_conn" ]; then
-        echo "✓ Original connection reactivated: $original_conn"
+        echo "Original connection reactivated: $original_conn"
         nmcli connection show "$original_conn" | grep -E "GENERAL.STATE|IP4.ADDRESS" | head -2
     else
         ip addr show "$INTERFACE" 2>/dev/null | grep -E "inet|ether" | head -2 \
@@ -142,20 +142,20 @@ show_final_status() {
     echo ""
     echo "=== FINAL STATUS ==="
     if ip link show "$BRIDGE_NAME" 2>/dev/null | grep -q "state UP"; then
-        echo "✓ Bridge ${BRIDGE_NAME} activated successfully"
+        echo "Bridge ${BRIDGE_NAME} activated successfully"
         echo ""
         ip -br addr show "$BRIDGE_NAME"
         echo ""
         if bridge link show dev "$INTERFACE" 2>/dev/null | grep -q "$BRIDGE_NAME"; then
-            echo "✓ ${INTERFACE} successfully linked to bridge"
+            echo "${INTERFACE} successfully linked to bridge"
         else
-            echo "✗ ${INTERFACE} NOT linked to bridge"
+            echo "${INTERFACE} NOT linked to bridge"
         fi
         local original_conn
         original_conn=$(get_original_connection_name "$INTERFACE")
-        [ -n "$original_conn" ] && echo "✓ Original connection '$original_conn' preserved (inactive)"
+        [ -n "$original_conn" ] && echo "Original connection '$original_conn' preserved (inactive)"
     else
-        echo "✗ Bridge is not active"
+        echo "Bridge is not active"
         restore_normal_network
         exit 1
     fi
@@ -185,13 +185,13 @@ create_bridge_connection() {
         ipv4.dhcp-timeout 30 ipv6.dhcp-timeout 30 \
         bridge.stp no \
         connection.autoconnect no 2>&1; then
-        echo "✗ Error creating bridge"
+        echo "Error creating bridge"
         return 1
     fi
 
     if ! nmcli connection add type bridge-slave con-name "$BRIDGE_SLAVE" ifname "$INTERFACE" \
         master "$BRIDGE_NAME" connection.autoconnect no 2>&1; then
-        echo "✗ Error creating bridge-slave"
+        echo "Error creating bridge-slave"
         nmcli connection delete "$BRIDGE_NAME" 2>/dev/null || true
         return 1
     fi
@@ -237,7 +237,7 @@ activate_bridge() {
 
     echo "Activating bridge first..."
     if ! nmcli connection up "$BRIDGE_NAME" 2>&1; then
-        echo "✗ Error activating bridge"
+        echo "Error activating bridge"
         return 1
     fi
     sleep 3
@@ -251,10 +251,10 @@ activate_bridge() {
     sleep 3
 
     if bridge link show dev "$INTERFACE" 2>/dev/null | grep -q "$BRIDGE_NAME"; then
-        echo "✓ $INTERFACE successfully linked to $BRIDGE_NAME"
+        echo "$INTERFACE successfully linked to $BRIDGE_NAME"
         return 0
     else
-        echo "✗ Failed to link $INTERFACE to bridge $BRIDGE_NAME"
+        echo "Failed to link $INTERFACE to bridge $BRIDGE_NAME"
         return 1
     fi
 }
@@ -266,7 +266,7 @@ wait_for_dhcp() {
 
     while [ $attempt -lt $max_attempts ]; do
         if ip addr show "$BRIDGE_NAME" | grep -q "inet "; then
-            echo "✓ IP address obtained via DHCP"
+            echo "IP address obtained via DHCP"
             return 0
         fi
 
@@ -312,7 +312,7 @@ restore_normal_network() {
     fi
 
     sleep 3
-    echo "✓ Normal configuration restored"
+    echo "Normal configuration restored"
 }
 
 # Main
@@ -323,10 +323,10 @@ case "$1" in
 
         echo "Scanning for active Ethernet interface..."
         INTERFACE=$(detect_ethernet_interface) || exit 1
-        echo "✓ Found active Ethernet interface: $INTERFACE"
+        echo "Found active Ethernet interface: $INTERFACE"
 
         if bridge_exists; then
-            echo "✗ Bridge $BRIDGE_NAME is already active or exists"
+            echo "Bridge $BRIDGE_NAME is already active or exists"
             echo "   Use '$0 off' to deactivate it first"
             exit 1
         fi
@@ -335,13 +335,13 @@ case "$1" in
         cleanup_all_connections
 
         if ! create_bridge_connection; then
-            echo "✗ Error in bridge configuration"
+            echo "Error in bridge configuration"
             restore_normal_network
             exit 1
         fi
 
         if ! activate_bridge; then
-            echo "✗ Error activating bridge - interface linking failed"
+            echo "Error activating bridge - interface linking failed"
             restore_normal_network
             exit 1
         fi
@@ -353,7 +353,7 @@ case "$1" in
     off)
         INTERFACE=$(get_ethernet_interface_for_status)
         if ! bridge_exists; then
-            echo "✓ Bridge $BRIDGE_NAME is not active, nothing to do"
+            echo "Bridge $BRIDGE_NAME is not active, nothing to do"
             exit 0
         fi
         echo "Deactivating bridge and restoring normal configuration..."
@@ -376,9 +376,9 @@ case "$1" in
         if ip link show "$BRIDGE_NAME" 2>/dev/null; then
             ip -br addr show "$BRIDGE_NAME"
             if bridge link show dev "$INTERFACE" 2>/dev/null | grep -q "$BRIDGE_NAME"; then
-                echo "  ✓ ${INTERFACE} linked to bridge"
+                echo "  ${INTERFACE} linked to bridge"
             else
-                echo "  ✗ ${INTERFACE} NOT linked to bridge"
+                echo "  ${INTERFACE} NOT linked to bridge"
             fi
         else
             echo "  Does not exist"
@@ -397,7 +397,7 @@ case "$1" in
         INTERFACE=$(get_ethernet_interface_for_status)
         echo "Complete cleanup of bridge connections..."
         cleanup_all_connections
-        echo "✓ Cleanup completed"
+        echo "Cleanup completed"
         ;;
 
     *)

@@ -74,23 +74,23 @@ detect_gpu() {
     # Check for NVIDIA GPU
     if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
         HAS_GPU=true
-        echo "✅ NVIDIA GPU detected"
+        echo "NVIDIA GPU detected"
         nvidia-smi --query-gpu=name --format=csv,noheader | head -1 | xargs echo "   GPU Model:"
         
         # Check if nvidia-docker is installed
         if command -v nvidia-container-toolkit &>/dev/null || \
            docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi &>/dev/null 2>&1; then
             HAS_NVIDIA_DOCKER=true
-            echo "✅ NVIDIA Container Toolkit detected (GPU will be used)"
+            echo "NVIDIA Container Toolkit detected (GPU will be used)"
         else
-            echo "⚠️  NVIDIA Container Toolkit not installed"
+            echo "   NVIDIA Container Toolkit not installed"
             echo "   GPU available but Docker cannot use it"
             echo "   Install with:"
             echo "   apt install -y nvidia-container-toolkit"
             echo "   systemctl restart docker"
         fi
     else
-        echo "ℹ️  No NVIDIA GPU detected (will use CPU for Ollama)"
+        echo "No NVIDIA GPU detected (will use CPU for Ollama)"
     fi
 }
 
@@ -222,11 +222,11 @@ header() {
   echo ""
 }
 
-ok()   { echo -e "  ${GREEN}✔${RESET}  $*"; }
-err()  { echo -e "  ${RED}✘${RESET}  $*"; }
-info() { echo -e "  ${BLUE}ℹ${RESET}  $*"; }
-warn() { echo -e "  ${YELLOW}⚠${RESET}  $*"; }
-step() { echo -e "\n  ${MAGENTA}▶${RESET}  ${BOLD}$*${RESET}"; }
+ok()   { echo -e "  ${GREEN}[OK]${RESET}  $*"; }
+err()  { echo -e "  ${RED}[ERROR]${RESET}  $*"; }
+info() { echo -e "  ${BLUE}[INFO]${RESET}  $*"; }
+warn() { echo -e "  ${YELLOW}[WARN]${RESET}  $*"; }
+step() { echo -e "\n  ${MAGENTA}>>${RESET}  ${BOLD}$*${RESET}"; }
 line() { echo -e "  ${DIM}------------------------------------------------${RESET}"; }
 
 pause() { echo ""; read -rp "  Press Enter to continue..." _; }
@@ -686,7 +686,7 @@ menu_models() {
 install_opencode() {
     step "Installing opencode (optional CLI tool)"
     
-    echo -e "  ${DIM}ℹ️  OpenCode runs natively on your system (not in Docker)${RESET}"
+    echo -e "  ${DIM}   OpenCode runs natively on your system (not in Docker)${RESET}"
     echo -e "  ${DIM}   It provides AI assistance directly in your terminal/editor${RESET}"
     echo -e "  ${DIM}   You don't need it if you already use Open Web UI${RESET}"
     echo ""

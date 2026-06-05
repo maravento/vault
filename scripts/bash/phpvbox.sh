@@ -63,9 +63,9 @@ for p in $missing; do
     apt-cache show "$p" &>/dev/null || unavailable+=" $p"
 done
 if [ -n "$unavailable" ]; then
-    echo "❌ Missing dependencies not found in APT:"
+    echo "Missing dependencies not found in APT:"
     for u in $unavailable; do echo "   - $u"; done
-    echo "💡 Please install them manually or enable the required repositories."
+    echo "Please install them manually or enable the required repositories."
     exit 1
 fi
 if [ -n "$missing" ]; then
@@ -75,21 +75,21 @@ if [ -n "$missing" ]; then
     APT_LOCK_FILES="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
     while lsof $APT_LOCK_FILES >/dev/null 2>&1; do
         if [ "$APT_LOCK_ELAPSED" -ge "$APT_LOCK_TIMEOUT" ]; then
-            echo "❌ APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
+            echo "APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
             exit 1
         fi
         echo "   Locks still held, waiting... (${APT_LOCK_ELAPSED}s elapsed)"
         sleep 5
         APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
     done
-    echo "📦 Installing: $missing"
+    echo "Installing: $missing"
     apt-get -qq update
     if ! apt-get -y install $missing; then
-        echo "❌ Error installing: $missing"
+        echo "Error installing: $missing"
         exit 1
     fi
 else
-    echo "✅ Dependencies OK"
+    echo "Dependencies OK"
 fi
 
 # check Virtualbox 7x
@@ -123,12 +123,12 @@ if ! id -nG "$local_user" | grep -qw vboxusers; then
 fi
 # restart services
 if ! service apache2 restart; then
-    echo "❌ Failed to restart apache2"
+    echo "Failed to restart apache2"
     exit 1
 fi
 service vboxweb-service stop >/dev/null 2>&1 || true
 if ! service vboxweb-service start; then
-    echo "❌ Failed to start vboxweb-service"
+    echo "Failed to start vboxweb-service"
     exit 1
 fi
 
@@ -157,7 +157,7 @@ if ! crontab -l 2>/dev/null | grep -qF "$CRON_ENTRY"; then
     (crontab -l 2>/dev/null; echo "$CRON_ENTRY") | crontab -
 fi
 if ! service cron restart; then
-    echo "❌ Failed to restart cron"
+    echo "Failed to restart cron"
     exit 1
 fi
 echo "Script and cron task added successfully."

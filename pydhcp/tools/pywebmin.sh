@@ -311,12 +311,19 @@ if (@leases) {
     print "<th>$text{'table_hostname'}</th><th>$text{'table_expires'}</th>";
     print "<th>$text{'table_binding'}</th></tr>\n";
     for my $l (@leases) {
+        my $ip       = &html_escape($l->{ip});
+        my $mac      = &html_escape($l->{mac});
+        my $host     = $l->{hostname}
+            ? &html_escape($l->{hostname})
+            : '<span style="color:#aaa">—</span>';
+        my $ends     = &html_escape($l->{ends});
+        my $binding  = &html_escape($l->{binding});
         print "<tr>";
-        print "<td>$l->{ip}</td>";
-        print "<td>$l->{mac}</td>";
-        print "<td>" . ($l->{hostname} || '<span style="color:#aaa">—</span>') . "</td>";
-        print "<td>$l->{ends}</td>";
-        print "<td>$l->{binding}</td>";
+        print "<td>$ip</td>";
+        print "<td>$mac</td>";
+        print "<td>$host</td>";
+        print "<td>$ends</td>";
+        print "<td>$binding</td>";
         print "</tr>\n";
     }
     print "</table>\n";
@@ -332,6 +339,17 @@ print "<a class='pyd-link' href='config.cgi'>&#9881; $text{'index_config'}</a>\n
 &ui_print_footer("", "");
 
 # ── Lease parser ───────────────────────────────────────────────────────────────
+sub html_escape {
+    my ($s) = @_;
+    return "" unless defined $s;
+    $s =~ s/&/&amp;/g;
+    $s =~ s/</&lt;/g;
+    $s =~ s/>/&gt;/g;
+    $s =~ s/"/&quot;/g;
+    $s =~ s/'/&#39;/g;
+    return $s;
+}
+
 sub parse_leases {
     my ($file) = @_;
     my @result;
@@ -380,16 +398,34 @@ print "Cache-Control: no-cache\r\n";
 
 my $message = "";
 
-# Save action
+# Save action — CSRF protection: require POST and, when a Referer header is
+# present, verify it originates from this Webmin host.  We use SERVER_NAME
+# (set by the web-server config, not controllable by the client) instead of
+# HTTP_HOST.  Absent Referer is accepted because some browsers and privacy
+# extensions strip it.
 if ($in{'action'} eq 'save' && defined $in{'conf_content'}) {
-    my $content = $in{'conf_content'};
-    $content =~ s/\r\n/\n/g;
-    if (open(my $fh, '>', $CONF_FILE)) {
-        print $fh $content;
-        close($fh);
-        $message = "<div style='margin:10px 0;padding:10px 14px;background:#d4edda;color:#155724;border-radius:4px;border:1px solid #c3e6cb;font-size:13px;'>$text{'config_saved'}</div>\n";
+    my $method  = $ENV{'REQUEST_METHOD'} || '';
+    my $referer = $ENV{'HTTP_REFERER'}   || '';
+    my $server  = $ENV{'SERVER_NAME'}    || 'localhost';
+    my $port    = $ENV{'SERVER_PORT'}    || '';
+    my $origin  = $port ? "${server}:${port}" : $server;
+    my $ok      = ($method eq 'POST');
+    # Only reject if Referer is present AND does not match our origin.
+    if ($ok && $referer ne '' && $referer !~ m{^https?://\Q$origin\E/}i) {
+        $ok = 0;
+    }
+    if (!$ok) {
+        $message = "<div style='margin:10px 0;padding:10px 14px;background:#f8d7da;color:#721c24;border-radius:4px;border:1px solid #f5c6cb;font-size:13px;'>Request rejected (CSRF protection: invalid method or referer)</div>\n";
     } else {
-        $message = "<div style='margin:10px 0;padding:10px 14px;background:#f8d7da;color:#721c24;border-radius:4px;border:1px solid #f5c6cb;font-size:13px;'>$text{'config_error'}: $!</div>\n";
+        my $content = $in{'conf_content'};
+        $content =~ s/\r\n/\n/g;
+        if (open(my $fh, '>', $CONF_FILE)) {
+            print $fh $content;
+            close($fh);
+            $message = "<div style='margin:10px 0;padding:10px 14px;background:#d4edda;color:#155724;border-radius:4px;border:1px solid #c3e6cb;font-size:13px;'>$text{'config_saved'}</div>\n";
+        } else {
+            $message = "<div style='margin:10px 0;padding:10px 14px;background:#f8d7da;color:#721c24;border-radius:4px;border:1px solid #f5c6cb;font-size:13px;'>$text{'config_error'}: $!</div>\n";
+        }
     }
 }
 
@@ -500,9 +536,9 @@ ICONEOF
     # ── Register in webmin.acl ────────────────────────────────────────────────
     if [ -f /etc/webmin/webmin.acl ]; then
         if ! grep -q "$MODNAME" /etc/webmin/webmin.acl 2>/dev/null; then
+            # Keep .bak as a recovery point in case the edit corrupts the file.
             sed -i.bak "s/\(^root:.*\)/\1 $MODNAME/" /etc/webmin/webmin.acl
-            rm -f /etc/webmin/webmin.acl.bak
-            echo "✓ Module added to webmin.acl"
+            echo "✓ Module added to webmin.acl (backup: /etc/webmin/webmin.acl.bak)"
         fi
     else
         echo "⚠ Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
@@ -546,10 +582,11 @@ uninstall_module() {
     echo "✓ Module directories removed"
 
     if [ -f /etc/webmin/webmin.acl ]; then
-        if grep -q "$MODNAME" /etc/webmin/webmin.acl 2>/dev/null; then
-            sed -i.bak "s/ $MODNAME//g" /etc/webmin/webmin.acl
-            rm -f /etc/webmin/webmin.acl.bak
-            echo "✓ Module removed from webmin.acl"
+        if grep -qw "$MODNAME" /etc/webmin/webmin.acl 2>/dev/null; then
+            # Anchor the match to a whole word so similarly-named modules
+            # (e.g. pydhcptest, xpydhcp) are not partially mangled.
+            sed -i.bak "s/[[:space:]]\+${MODNAME}\b//g" /etc/webmin/webmin.acl
+            echo "✓ Module removed from webmin.acl (backup: /etc/webmin/webmin.acl.bak)"
         fi
     else
         echo "⚠ Warning: /etc/webmin/webmin.acl not found, skipping ACL update"

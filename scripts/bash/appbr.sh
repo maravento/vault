@@ -56,9 +56,9 @@ for p in "${missing[@]}"; do
     apt-cache show "$p" &>/dev/null || unavailable+=("$p")
 done
 if [ ${#unavailable[@]} -gt 0 ]; then
-    echo "❌ Missing dependencies not found in APT:"
+    echo "Missing dependencies not found in APT:"
     for u in "${unavailable[@]}"; do echo "   - $u"; done
-    echo "💡 Please install them manually or enable the required repositories."
+    echo "Please install them manually or enable the required repositories."
     exit 1
 fi
 if [ ${#missing[@]} -gt 0 ]; then
@@ -68,14 +68,14 @@ if [ ${#missing[@]} -gt 0 ]; then
     rm -f /var/lib/dpkg/lock
     rm -f /var/lib/dpkg/lock-frontend
     dpkg --configure -a
-    echo "📦 Installing: ${missing[*]}"
+    echo "Installing: ${missing[*]}"
     apt-get -qq update
     if ! apt-get -y install "${missing[@]}"; then
-        echo "❌ Error installing: ${missing[*]}"
+        echo "Error installing: ${missing[*]}"
         exit 1
     fi
 else
-    echo "✅ Dependencies OK"
+    echo "Dependencies OK"
 fi
 
 ### VARIABLES
@@ -115,15 +115,15 @@ backup() {
 
     # Verify the archive is intact before declaring success
     if tar -tzf "$OUTFILE" > /dev/null 2>&1; then
-        echo "✅ Backup complete: $OUTFILE ($(du -sh "$OUTFILE" | cut -f1))"
+        echo "Backup complete: $OUTFILE ($(du -sh "$OUTFILE" | cut -f1))"
     else
-        echo "❌ Archive verification FAILED. Backup may be corrupt."
+        echo "Archive verification FAILED. Backup may be corrupt."
         exit 1
     fi
 
     # Generate SHA256 hash of the archive
     sha256sum "$OUTFILE" > "${OUTFILE}.sha256"
-    echo "🔑 Hash saved: ${OUTFILE}.sha256"
+    echo "Hash saved: ${OUTFILE}.sha256"
     echo "   $(cat "${OUTFILE}.sha256")"
 }
 
@@ -133,23 +133,23 @@ restore() {
 
     # Verify archive integrity BEFORE touching the live system
     if ! tar -tzf "$OUTFILE" > /dev/null 2>&1; then
-        echo "❌ Archive $OUTFILE is missing or corrupt. Aborting."
+        echo "Archive $OUTFILE is missing or corrupt. Aborting."
         exit 1
     fi
 
     # Verify SHA256 hash if it exists (optional — warns but does not abort)
     HASHFILE="${OUTFILE}.sha256"
     if [ -f "$HASHFILE" ]; then
-        echo "🔑 Verifying hash..."
+        echo "Verifying hash..."
         if sha256sum -c "$HASHFILE" > /dev/null 2>&1; then
-            echo "   ✅ Hash OK — archive integrity confirmed"
+            echo "   Hash OK — archive integrity confirmed"
         else
-            echo "   ⚠️  Hash MISMATCH — archive may have been modified or corrupted"
+            echo "   Hash MISMATCH — archive may have been modified or corrupted"
             read -r -p "   Continue anyway? (y/N): " override
             [[ ! "$override" =~ ^[Yy]$ ]] && { echo "Restore cancelled."; exit 0; }
         fi
     else
-        echo "   ℹ️  No hash file found (${HASHFILE}) — skipping verification"
+        echo "   No hash file found (${HASHFILE}) — skipping verification"
     fi
 
     # Recreate staging dir
@@ -161,11 +161,11 @@ restore() {
 
     # Diff report: show what would change in /etc before touching anything
     echo ""
-    echo "📋 Differences between backup and current /etc:"
+    echo "Differences between backup and current /etc:"
     diff_output=$(rsync -avnc --delete "$BACKUP_DIR/etc_backup/" /etc/ 2>/dev/null \
         | grep -E '^(>|<|deleting)')
     if [ -z "$diff_output" ]; then
-        echo "   ✅ No differences found. /etc is identical to backup."
+        echo "   No differences found. /etc is identical to backup."
     else
         echo "$diff_output"
         echo ""
@@ -199,7 +199,7 @@ restore() {
     # Restore program configuration files
     rsync -a "$BACKUP_DIR/etc_backup/" /etc/
 
-    echo "✅ Restore complete."
+    echo "Restore complete."
 }
 
 # menu

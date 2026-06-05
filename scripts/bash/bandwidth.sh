@@ -36,26 +36,26 @@ for p in $missing; do
     apt-cache show "$p" &>/dev/null || unavailable+=" $p"
 done
 if [ -n "$unavailable" ]; then
-    echo "❌ Missing dependencies not found in APT:"
+    echo "Missing dependencies not found in APT:"
     for u in $unavailable; do echo "   - $u"; done
-    echo "💡 Please install them manually or enable the required repositories."
+    echo "Please install them manually or enable the required repositories."
     exit 1
 fi
 if [ -n "$missing" ]; then
-    echo "🔧 Releasing APT/DPKG locks..."
+    echo "Releasing APT/DPKG locks..."
     rm -f /var/lib/apt/lists/lock
     rm -f /var/cache/apt/archives/lock
     rm -f /var/lib/dpkg/lock
     rm -f /var/lib/dpkg/lock-frontend
     dpkg --configure -a
-    echo "📦 Installing: $missing"
+    echo "Installing: $missing"
     apt-get -qq update
     if ! apt-get -y install $missing; then
-        echo "❌ Error installing: $missing"
+        echo "Error installing: $missing"
         exit 1
     fi
 else
-    echo "✅ Dependencies OK"
+    echo "Dependencies OK"
 fi
 
 ### VARIABLES
@@ -69,7 +69,7 @@ echo "Running speedtest (this may take ~30s)..."
 resume=$(speedtest-cli --secure --simple 2>&1)
 
 if ! echo "$resume" | grep -q "^Download:"; then
-    echo "❌ speedtest-cli failed or returned unexpected output:"
+    echo "speedtest-cli failed or returned unexpected output:"
     echo "$resume"
     exit 1
 fi
@@ -83,7 +83,7 @@ dlmb=$(echo "$dl" | awk '{print $3}')
 ulmb=$(echo "$ul" | awk '{print $3}')
 
 if [ -z "$dlvalue" ] || [ -z "$ulvalue" ]; then
-    echo "❌ Could not parse speedtest output:"
+    echo "Could not parse speedtest output:"
     echo "$resume"
     exit 1
 fi

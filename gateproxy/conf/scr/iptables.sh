@@ -56,7 +56,7 @@ acl_path="/etc/acl"
 acl_mac_path="$acl_path/acl_mac"
 acl_ipt_path="$acl_path/acl_ipt"
 # Hotspot (Optional)
-#hotspot_path="/etc/unhotspot"
+#hotspot_path="/etc/uhotspot"
 # interfaces
 wan=eth0
 lan=eth1

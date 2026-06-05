@@ -76,7 +76,7 @@ fi
 # check dependencies
 # Check if Squid (basic or OpenSSL version) is installed
 if ! dpkg -s squid &>/dev/null && ! dpkg -s squid-openssl &>/dev/null; then
-  echo "❌ 'Squid (basic or OpenSSL version)' is not installed. Run:"
+  echo "'Squid (basic or OpenSSL version)' is not installed. Run:"
   echo "sudo apt install squid or sudo apt install squid-openssl"
   exit 1
 fi
@@ -85,7 +85,7 @@ fi
 DEPENDENCIES="perl"
 for pkg in $DEPENDENCIES; do
   if ! dpkg -s "$pkg" &>/dev/null; then
-    echo "❌ '$pkg' is not installed. Run:"
+    echo "'$pkg' is not installed. Run:"
     echo "sudo apt install $pkg"
     exit 1
   fi
@@ -98,13 +98,13 @@ CACHE_LOG="/var/log/squid/cache.log*"
 
 # Verify at least one access log file exists
 if ! ls /var/log/squid/access.log* 1> /dev/null 2>&1; then
-    echo "❌ Access log not found: /var/log/squid/access.log*"
+    echo "Access log not found: /var/log/squid/access.log*"
     exit 1
 fi
 
 # Verify at least one cache log file exists
 if ! ls /var/log/squid/cache.log* 1> /dev/null 2>&1; then
-    echo "❌ Cache log not found: /var/log/squid/cache.log*"
+    echo "Cache log not found: /var/log/squid/cache.log*"
     exit 1
 fi
 
@@ -148,7 +148,7 @@ squid_audit() {
     REQUIRED_DEBUG="ALL,1 33,2 28,9"
 
     if [[ ! -f "$SQUID_CONF" ]] || ! grep -q "^debug_options\s\+$REQUIRED_DEBUG" "$SQUID_CONF"; then
-        echo "❌ ERROR: debug_options $REQUIRED_DEBUG is not enabled in $SQUID_CONF" | tee -a "$LOG_FILE"
+        echo "ERROR: debug_options $REQUIRED_DEBUG is not enabled in $SQUID_CONF" | tee -a "$LOG_FILE"
         echo "Please enable this line and restart Squid before running this script." >> "$LOG_FILE"
         echo "Results saved to $(pwd)/$LOG_FILE"
         return
@@ -196,7 +196,7 @@ squid_traffic() {
 
     # Verify access log exists
     if ! ls /var/log/squid/access.log* 1> /dev/null 2>&1; then
-        echo "❌ ERROR: Access log file not found: /var/log/squid/access.log*" | tee -a "$LOG_FILE"
+        echo "ERROR: Access log file not found: /var/log/squid/access.log*" | tee -a "$LOG_FILE"
         echo "Results saved to $LOG_FILE"
         return
     fi
@@ -221,10 +221,10 @@ squid_traffic() {
     ALERT_IPS=$(awk -v th="$ALERT_THRESHOLD" '$1 >= th {print $0}' "$LOG_FILE")
     if [[ -n "$ALERT_IPS" ]]; then
         ALERT_COUNT=$(echo "$ALERT_IPS" | wc -l)
-        ALERT_MSG="🚨 ALERT: $ALERT_COUNT IP(s) exceed threshold of $ALERT_THRESHOLD hits"
+        ALERT_MSG="ALERT: $ALERT_COUNT IP(s) exceed threshold of $ALERT_THRESHOLD hits"
         echo -e "$ALERT_MSG" | tee -a "$LOG_FILE"
     else
-        INFO_MSG="✅ No IPs exceed the alert threshold of $ALERT_THRESHOLD hits"
+        INFO_MSG="No IPs exceed the alert threshold of $ALERT_THRESHOLD hits"
         echo -e "$INFO_MSG" | tee -a "$LOG_FILE"
     fi
 
@@ -235,12 +235,12 @@ squid_global() {
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     CSV_FILE="$SCRIPT_DIR/squid_global.csv"
 
-    echo "⚠️  WARNING: Generating this CSV may take some time depending on log size."
+    echo "WARNING: Generating this CSV may take some time depending on log size."
     read -p "Enter the number of hours to analyze (default 72): " PERIOD_HOURS
     PERIOD_HOURS=${PERIOD_HOURS:-72}
 
     if ! ls /var/log/squid/access.log* 1> /dev/null 2>&1; then
-        echo "❌ ERROR: Access log not found: /var/log/squid/access.log*"
+        echo "ERROR: Access log not found: /var/log/squid/access.log*"
         return
     fi
 
@@ -249,7 +249,7 @@ squid_global() {
     PERIOD=$((PERIOD_HOURS * 3600))
     CUTOFF=$((NOW - PERIOD))
 
-    echo "⏳ Starting CSV export..."
+    echo "Starting CSV export..."
     echo "date,time,ip,method,http_code,size,cache_status,url,domain,status,error_type" > "$CSV_FILE"
 
     zcat -f $ACCESS_LOG 2>/dev/null | gawk -v cutoff="$CUTOFF" '
@@ -308,12 +308,12 @@ squid_stats() {
     CSV_FILE="$SCRIPT_DIR/squid_stats.csv"
     HTML_FILE="$SCRIPT_DIR/squid_stats.html"
 
-    echo "⚠️  WARNING: Generating stats may take some time depending on log size."
+    echo "WARNING: Generating stats may take some time depending on log size."
     read -p "Enter the number of hours to analyze (default 72): " PERIOD_HOURS
     PERIOD_HOURS=${PERIOD_HOURS:-72}
 
     if ! ls /var/log/squid/access.log* 1> /dev/null 2>&1; then
-        echo "❌ ERROR: Access log not found: /var/log/squid/access.log*"
+        echo "ERROR: Access log not found: /var/log/squid/access.log*"
         return
     fi
 
@@ -472,9 +472,9 @@ squid_stats() {
     } > "$HTML_FILE"
 
     END=$(date +%s)
-    echo "✅ Stats CSV generated: $CSV_FILE"
-    echo "✅ Stats HTML generated: $HTML_FILE"
-    echo "📊 Summary: $TOTAL_REQUESTS requests, ${SUCCESS_PCT}% success rate, ${CACHE_HIT_PCT}% cache hit rate"
+    echo "Stats CSV generated: $CSV_FILE"
+    echo "Stats HTML generated: $HTML_FILE"
+    echo "Summary: $TOTAL_REQUESTS requests, ${SUCCESS_PCT}% success rate, ${CACHE_HIT_PCT}% cache hit rate"
 }
 
 squid_ip_timeframe() {
@@ -491,7 +491,7 @@ squid_ip_timeframe() {
     # 2. User Input & Validation
     # Prompt for IP and validate format
     read -p "Enter IP address (e.g. 192.168.10.42): " IP
-    [[ ! "$IP" =~ ^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}$ ]] && { echo "❌ Invalid IP format"; return; }
+    [[ ! "$IP" =~ ^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}$ ]] && { echo "Invalid IP format"; return; }
 
     # Prompt for date, default to current system date if empty
     read -p "Date (YYYY-MM-DD, enter for today): " USER_DATE
@@ -509,7 +509,7 @@ squid_ip_timeframe() {
 
     # Validate that the date/time conversion was successful
     if [[ -z "$START_EPOCH" || -z "$END_EPOCH" ]]; then
-        echo "❌ Error: Invalid date or time format provided."
+        echo "Error: Invalid date or time format provided."
         return
     fi
 
@@ -568,9 +568,9 @@ squid_ip_timeframe() {
     {
         echo "------------------------------------------------------------"
         if [ $FOUND -gt 0 ]; then
-            echo "✅ Total entries found: $FOUND"
+            echo "Total entries found: $FOUND"
         else
-            echo "❌ No entries found for $IP in that timeframe."
+            echo "No entries found for $IP in that timeframe."
         fi
         echo "============================================================"
     } >> "$LOG_FILE"

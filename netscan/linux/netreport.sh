@@ -43,9 +43,9 @@ IFS=$'\n\t'
 
 timestamp() { date +%F-%H_%M_%S; }
 now() { date '+%F %T'; }
-log() { echo "ℹ️  $(now) - $*"; }
-warn() { echo "⚠️  $(now) - $*" >&2; }
-die() { echo "❌ $(now) - $*" >&2; exit 1; }
+log() { echo "INFO $(now) - $*"; }
+warn() { echo "WARN $(now) - $*" >&2; }
+die() { echo "ERROR $(now) - $*" >&2; exit 1; }
 
 # root required (nmap syn scans and -O require root)
 [ "$(id -u)" -eq 0 ] || die "Run as root (use sudo)"
@@ -81,7 +81,7 @@ done
 if [ "${#missing[@]}" -gt 0 ]; then
     die "Missing packages: ${missing[*]}. Please install them first."
 else
-    log "✅ Dependencies OK"
+    log "Dependencies OK"
 fi
 
 # Create embedded custom XSL stylesheet
@@ -393,7 +393,7 @@ xml_to_html() {
   # Try conversion with custom XSL
   log "Converting with custom XSL..."
   if xsltproc -o "$html" "$xsl" "$xml" 2>"$xsl_error"; then
-    log "✅ Conversion successful"
+    log "Conversion successful"
     rm -f "$xsl_error"
     return 0
   else
@@ -405,7 +405,7 @@ xml_to_html() {
   # Fallback: try default nmap XSL
   log "Attempting conversion with default nmap XSL..."
   if xsltproc "$xml" -o "$html" 2>"$xsl_error"; then
-    log "✅ Conversion successful with default XSL"
+    log "Conversion successful with default XSL"
     rm -f "$xsl_error"
     return 0
   else
@@ -460,11 +460,11 @@ finalize_html_report() {
   chmod 0644 "$html_file"
   
   local file_size=$(du -h "$html_file" | cut -f1)
-  log "✅ Report saved: $html_file (size: $file_size)"
+  log "Report saved: $html_file (size: $file_size)"
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "📄 Report: $html_file"
-  echo "📊 Size: $file_size"
+  echo "Report: $html_file"
+  echo "Size: $file_size"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo ""
 }
