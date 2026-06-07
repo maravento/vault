@@ -813,8 +813,8 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
             sed -i 's/detect-thread-ratio: 1.0/detect-thread-ratio: 0.5/' /etc/suricata/suricata.yaml
         fi
         # suricata cron
-        (crontab -l 2>/dev/null; echo "0 2 * * * /etc/suricata/suricata-update.sh") | crontab -
-        (crontab -l 2>/dev/null; echo "@monthly /etc/suricata/suricata-clean.sh") | crontab -
+        (crontab -l 2>/dev/null; echo "0 2 * * * /etc/suricata/suricata-update.sh >/dev/null 2>&1") | crontab -
+        (crontab -l 2>/dev/null; echo "@monthly /etc/suricata/suricata-clean.sh >/dev/null 2>&1") | crontab -
         # suricata check IDS
         SURICATA_SERVICE="/usr/lib/systemd/system/suricata.service"
         CORRECT_EXECSTART="ExecStart=/usr/bin/suricata -D --af-packet -c /etc/suricata/suricata.yaml --pidfile /run/suricata.pid"

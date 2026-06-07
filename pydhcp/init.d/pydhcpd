@@ -11,7 +11,7 @@
 # Short-Description: Python DHCP Daemon
 ### END INIT INFO
 
-DEFAULTS_FILE="/etc/pydhcp/pydhcpd.defaults"
+DEFAULTS_FILE="/etc/pydhcp/default/pydhcpd"
 DAEMON=/usr/bin/python3
 DAEMON_ARGS=/etc/pydhcp/pydhcpd.py
 NAME=pydhcpd

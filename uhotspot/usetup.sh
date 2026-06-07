@@ -30,10 +30,9 @@ set -eu
 # ─── Paths ───────────────────────────────────────────────────────────────────
 HOTSPOT_DIR="/etc/uhotspot"
 TOOLS_DIR="${HOTSPOT_DIR}/tools"
-CONFIG_FILE="${HOTSPOT_DIR}/config.conf"
+CONFIG_FILE="${HOTSPOT_DIR}/uhotspot.conf"
 LOG_FILE="/var/log/uhotspot.log"
 LOGROTATE_FILE="/etc/logrotate.d/uhotspot"
-PYDHCP_DIR="/etc/pydhcp"
 UIPTABLES_STUB="${TOOLS_DIR}/uiptables.sh"
 
 # ─── Repo file expectations (relative to this script) ────────────────────────
@@ -403,19 +402,31 @@ EOF
 
 register_cron() {
     local script_path="${HOTSPOT_DIR}/uhotspot.sh"
-    local expected="* * * * * ${script_path}; sleep 30 && ${script_path}"
+    local ureload_path="${HOTSPOT_DIR}/tools/ureload.sh"
+    local expected="* * * * * ${script_path} >/dev/null 2>&1; sleep 30 && ${script_path} >/dev/null 2>&1"
+    local expected_hourly="@hourly UHOTSPOT_RELOAD_ACTIVE=1 flock -w 60 /var/lock/uhotspot.lock -c '${ureload_path}'"
     local current
     current=$(crontab -l 2>/dev/null || true)
+
     if echo "$current" | grep -qF "$expected"; then
-        info "Cron entry already present"
-        return 0
-    fi
-    if echo "$current" | grep -qF "$script_path"; then
+        info "Cron entry (uhotspot) already present"
+    elif echo "$current" | grep -qF "$script_path"; then
         warn "Crontab contains entries for $script_path in a different format — review manually"
-        return 0
+    else
+        current=$(printf '%s\n%s\n' "$current" "$expected")
+        info "Cron entry registered: $expected"
     fi
-    ( echo "$current"; echo "$expected" ) | crontab -
-    info "Cron entry registered: $expected"
+
+    if echo "$current" | grep -qF "$expected_hourly"; then
+        info "Cron entry (ureload @daily) already present"
+    elif echo "$current" | grep -qF "$ureload_path"; then
+        warn "Crontab contains entries for $ureload_path in a different format — review manually"
+    else
+        current=$(printf '%s\n%s\n' "$current" "$expected_hourly")
+        info "Cron entry registered: $expected_hourly"
+    fi
+
+    echo "$current" | crontab -
 }
 
 final_sanity_check() {
@@ -507,6 +518,9 @@ do_update() {
     step "Deploy updated scripts"
     deploy_scripts
 
+    step "Cron"
+    register_cron
+
     echo ""
     echo "══════════════════════════════════════════════════════"
     echo "  Update complete."
@@ -515,8 +529,9 @@ do_update() {
     echo "    - ${CONFIG_FILE}"
     echo "    - ${UIPTABLES_STUB}"
     echo "    - ACL data files (*.txt)"
-    echo "    - Cron entry"
     echo "    - Logrotate config"
+    echo ""
+    echo "  Cron entries reconciled (missing entries added; existing ones untouched)"
     echo ""
     echo "  Backup: $backup_dir"
     echo "══════════════════════════════════════════════════════"
@@ -533,25 +548,26 @@ do_remove() {
 
     echo ""
     echo "  The following actions will be offered (each with confirmation):"
-    echo "    • Remove cron entry pointing to ${HOTSPOT_DIR}/uhotspot.sh"
+    echo "    • Remove cron entries pointing to ${HOTSPOT_DIR}/uhotspot.sh and ${HOTSPOT_DIR}/tools/ureload.sh"
     echo "    • Remove ${LOGROTATE_FILE}"
     echo "    • Remove ${HOTSPOT_DIR} (includes config.conf, ACLs, uiptables.sh)"
     echo "    • Remove ${LOG_FILE} and rotated logs"
     echo ""
     confirm "Proceed with uninstall?" "n" || { info "Aborted by user."; exit 0; }
 
-    # Cron entry
+    # Cron entries
     step "Cron"
     local script_path="${HOTSPOT_DIR}/uhotspot.sh"
-    if crontab -l 2>/dev/null | grep -qF "$script_path"; then
-        if confirm "Remove cron entry for $script_path?" "y"; then
-            crontab -l 2>/dev/null | grep -vF "$script_path" | crontab -
-            info "Cron entry removed"
+    local ureload_path="${HOTSPOT_DIR}/tools/ureload.sh"
+    if crontab -l 2>/dev/null | grep -qE "$(printf '%s|%s' "${script_path//\//\\/}" "${ureload_path//\//\\/}")"; then
+        if confirm "Remove cron entries for $script_path and $ureload_path?" "y"; then
+            crontab -l 2>/dev/null | grep -vF "$script_path" | grep -vF "$ureload_path" | crontab -
+            info "Cron entries removed"
         else
-            warn "Cron entry preserved"
+            warn "Cron entries preserved"
         fi
     else
-        info "No cron entry found"
+        info "No cron entries found"
     fi
 
     # Logrotate

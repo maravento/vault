@@ -227,7 +227,7 @@ verify_dhcp_service() {
 verify_dhcp_files() {
     mkdir -p /etc/pydhcp
     chown root:pydhcpd /etc/pydhcp
-    chmod 750 /etc/pydhcp
+    chmod 770 /etc/pydhcp
     if [ ! -f /etc/pydhcp/pydhcpd.leases ]; then
         touch /etc/pydhcp/pydhcpd.leases
     fi
@@ -327,6 +327,7 @@ function is_pydhcp() {
             echo "" > "$dhcpd"
         fi
         chown pydhcpd:pydhcpd "$dhcpd"
+        chmod 640 "$dhcpd"
     }
 
     function update_dhcp_conf {
@@ -339,7 +340,6 @@ one-lease-per-client true;
 deny declines;
 deny client-updates;
 ping-check true;
-log-facility local7;
 ddns-update-style none;
         " >"$dhcp_conf_temp"
 
@@ -403,6 +403,8 @@ class "blockdhcp" {
         # Keep a backup of the previous config in case the new one is faulty.
         [ -f "$dhcp_conf" ] && cp -f "$dhcp_conf" "${dhcp_conf}.bak"
         mv -f "$dhcp_conf_temp" "$dhcp_conf"
+        chown root:pydhcpd "$dhcp_conf"
+        chmod 640 "$dhcp_conf"
     }
 
     function clean_block_list {
@@ -454,17 +456,19 @@ class "blockdhcp" {
     clean_transparent_list
 
     systemctl stop pydhcpd
+    trap 'systemctl is-active --quiet pydhcpd || systemctl start pydhcpd' EXIT
     read_leases
     order_files_acl
     update_dhcp_conf
     systemctl start pydhcpd
+    trap - EXIT
 }
 
 function duplicate() {
     aclall=$(for field in 2 3 4; do
-        cut -d\; -f${field} "$ACL_MAC_PATH"/mac-* 2>/dev/null | sort | uniq -d
+        awk -F';' '/^a;/' "$ACL_MAC_PATH"/mac-* 2>/dev/null \
+            | cut -d\; -f${field} | sort | uniq -d
     done)
-
     if [ "${aclall}" == "" ]; then
         is_pydhcp
         echo OK

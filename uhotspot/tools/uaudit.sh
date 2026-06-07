@@ -22,10 +22,10 @@
 #
 # AUTH
 #   Authenticates against UniFi OS (/api/auth/login). Requires HOTSPOT_ESSID,
-#   UNIFI_CONTROLLER_URL, UNIFI_USERNAME, UNIFI_PASSWORD in config.conf
+#   UNIFI_CONTROLLER_URL, UNIFI_USERNAME, UNIFI_PASSWORD in uhotspot.conf
 #
 # DEPENDENCIES : curl, jq
-# CONFIG       : /etc/uhotspot/config.conf
+# CONFIG       : /etc/uhotspot/uhotspot.conf
 # LOG          : /etc/uhotspot/uaudit.log
 # TESTED ON    : Ubuntu 24.04 - UniFi OS Network 10.x
 #
@@ -56,7 +56,7 @@ for dep in curl jq; do
     fi
 done
 
-CONFIG="/etc/uhotspot/config.conf"
+CONFIG="/etc/uhotspot/uhotspot.conf"
 if [ ! -f "$CONFIG" ]; then
     echo "ERROR: Config file not found: $CONFIG"
     exit 1
@@ -90,7 +90,7 @@ do_login() {
         -d "{\"username\":\"$UNIFI_USERNAME\",\"password\":\"$UNIFI_PASSWORD\"}" \
         "$UNIFI_CONTROLLER_URL$login_path")
 
-    CSRF_TOKEN=$(echo "$LOGIN" | grep -i "^x-csrf-token:" | cut -d" " -f2 | tr -d "\r")
+    CSRF_TOKEN=$(echo "$LOGIN" | grep -iE "^x-(updated-)?csrf-token:" | tail -1 | awk '{print $2}' | tr -d "\r")
     SESSION_COOKIE=$(echo "$LOGIN" | grep -i "^set-cookie:" | grep -i "TOKEN=" | head -1 \
         | sed -E "s/.*TOKEN=([^;]+).*/TOKEN=\1/" | tr -d "\r")
 
@@ -230,7 +230,7 @@ print_voucher() {
         printf "CODE|STATUS|DURATION|QUOTA|USED|EXPIRES\n"
         echo "$VOUCHER" | jq -r '
             .data[]
-            | [.code//"N/A", ((.status//"N/A")[0:12]), (((.duration//0)/60|floor|tostring) + "h"), (.quota//0|tostring), (.used//0|tostring), (if .create_time and .duration then ((.create_time + ((.duration//0)*60))|strftime("%m-%d %H:%M")) else "N/A" end)]
+            | [.code//"N/A", (.status//"N/A"), (((.duration//0)/60|floor|tostring) + "h"), (.quota//0|tostring), (.used//0|tostring), (if .end_time then (.end_time|strftime("%m-%d %H:%M")) else "N/A" end)]
             | join("|")
         ' 2>/dev/null
     } | column -t -s '|'
@@ -479,13 +479,14 @@ _voucher_selector() {
     fi
 }
 
-# ── Interactive: revoke used vouchers (used > 0) ──────────────────────────────
-# Targets vouchers that have been activated at least once. Deletes the voucher,
-# unauthorizes active sessions, and optionally removes client history.
+# ── Interactive: revoke fully consumed vouchers ──────────────────────────────
+# Targets vouchers where all available slots have been used (used >= quota).
+# Deletes the voucher, unauthorizes active sessions, and optionally removes
+# client history.
 interactive_revoke_used() {
     _voucher_selector \
         "REVOKE USED VOUCHERS - activated vouchers with active or past sessions" \
-        '.data[] | select((.status == "VALID_ONE" or .status == "VALID_MULTI") and .used > 0) | ._id' \
+        '.data[] | select(.quota > 0 and .used >= .quota) | ._id' \
         "Revoke"
 }
 
@@ -495,8 +496,71 @@ interactive_revoke_used() {
 interactive_delete_unused() {
     _voucher_selector \
         "DELETE UNUSED VOUCHERS - vouchers that have never been activated" \
-        '.data[] | select((.status == "VALID_ONE" or .status == "VALID_MULTI") and .used == 0) | ._id' \
+        '.data[] | select(.used == 0) | ._id' \
         "Delete"
+}
+
+# ── Interactive: purge all vouchers and client history ────────────────────────
+# Deletes ALL vouchers regardless of status or usage, unauthorizes ALL active
+# guest sessions, and erases ALL client history from UniFi. Requires typing
+# YES to confirm. This action cannot be undone.
+interactive_purge_all() {
+    echo ""
+    echo "======================================================================="
+    echo " PURGE ALL — THIS WILL DESTROY ALL VOUCHERS AND CLIENT HISTORY"
+    echo "======================================================================="
+    echo ""
+    echo "  This action will:"
+    echo "    - Delete ALL vouchers (${#VOUCHER_IDS_ALL[@]:-all} in stat/voucher)"
+    echo "    - Unauthorize ALL active guest sessions"
+    echo "    - Erase ALL client history from UniFi"
+    echo ""
+    echo "  This cannot be undone."
+    echo ""
+    read -rp "  Type YES to confirm: " CONFIRM
+    [[ "$CONFIRM" != "YES" ]] && echo "  Cancelled." && return
+
+    echo ""
+
+    # 1. Delete all vouchers
+    local vid code rc
+    while IFS= read -r vid; do
+        [ -z "$vid" ] && continue
+        code=$(echo "$VOUCHER" | jq -r --arg id "$vid" \
+            '.data[] | select(._id == $id) | .code' 2>/dev/null)
+        rc=$(api_post "cmd/hotspot" "{\"cmd\":\"delete-voucher\",\"_id\":\"${vid}\"}" \
+            | jq -r '.meta.rc // "error"' 2>/dev/null)
+        [ "$rc" = "ok" ] \
+            && echo "  Deleted voucher: $code" \
+            || echo "  Failed to delete voucher: $code"
+    done < <(echo "$VOUCHER" | jq -r '.data[] | ._id' 2>/dev/null)
+
+    # 2. Unauthorize all active sessions
+    local mac unauth_rc
+    while IFS= read -r mac; do
+        [ -z "$mac" ] && continue
+        unauth_rc=$(api_post "cmd/stamgr" \
+            "{\"cmd\":\"unauthorize-guest\",\"mac\":\"${mac}\"}" \
+            | jq -r '.meta.rc // "error"' 2>/dev/null)
+        [ "$unauth_rc" = "ok" ] \
+            && echo "  Unauthorized: $mac" \
+            || echo "  ~ No active session: $mac"
+    done < <(echo "$GUEST" | jq -r '.data[] | (.mac | ascii_downcase)' 2>/dev/null | sort -u)
+
+    # 3. Forget all client history
+    while IFS= read -r mac; do
+        [ -z "$mac" ] && continue
+        local frc
+        frc=$(api_post "cmd/stamgr" \
+            "{\"cmd\":\"forget-sta\",\"macs\":[\"${mac}\"]}" \
+            | jq -r '.meta.rc // "error"' 2>/dev/null)
+        [ "$frc" = "ok" ] \
+            && echo "  Forgotten: $mac" \
+            || echo "  Failed to forget: $mac"
+    done < <(echo "$STA" | jq -r '.data[] | (.mac | ascii_downcase)' 2>/dev/null | sort -u)
+
+    echo ""
+    echo "  Purge complete."
 }
 
 # ── Run report ────────────────────────────────────────────────────────────────
@@ -520,10 +584,11 @@ echo ""
 echo "======================================================================="
 echo " AVAILABLE ACTIONS"
 echo "======================================================================="
-echo "  [1] Revoke used vouchers    - delete + unauthorize active sessions"
+echo "  [1] Revoke used vouchers    - delete fully consumed vouchers"
 echo "  [2] Delete unused vouchers  - remove vouchers never activated"
 echo "  [3] Forget inactive clients - erase expired session history in UniFi"
 echo "  [4] All of the above"
+echo "  [5] Purge everything        - DELETE all vouchers and history (DESTRUCTIVE)"
 echo "  [q] Quit"
 echo ""
 read -rp "  Your choice: " ACTION
@@ -533,6 +598,7 @@ case "$ACTION" in
     2) interactive_delete_unused ;;
     3) interactive_forget ;;
     4) interactive_revoke_used; interactive_delete_unused; interactive_forget ;;
+    5) interactive_purge_all ;;
     q|Q) echo "  Goodbye." ;;
     *) echo "  Invalid option. Exiting." ;;
 esac

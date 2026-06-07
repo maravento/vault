@@ -254,7 +254,7 @@ install_proxymon() {
 
     crontab -l 2>/dev/null | {
         cat
-        echo "*/5 * * * * /var/www/proxymon/tools/bandata.sh"
+        echo "*/5 * * * * /var/www/proxymon/tools/bandata.sh >/dev/null 2>&1"
     } | crontab -
     echo -e "${GREEN}Squid Monitor crontab added${NC}"
     

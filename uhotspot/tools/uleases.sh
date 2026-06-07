@@ -289,8 +289,8 @@ verify_dhcp_config() {
         echo "ERROR: /etc/pydhcp/pydhcpd.conf does not exist"
         exit 1
     fi
-    chmod 644 "/etc/pydhcp/pydhcpd.conf"
-    chown root:root "/etc/pydhcp/pydhcpd.conf"
+    chmod 640 "/etc/pydhcp/pydhcpd.conf"
+    chown root:pydhcpd "/etc/pydhcp/pydhcpd.conf"
 }
 
 verify_directories() {
@@ -469,8 +469,8 @@ function is_pydhcp() {
                                 echo "$lease_content" >> "$temp_leases"
                             fi
                         else
-                            if ! grep -qi "$mac_address" "$ACL_MAC_PATH"/mac-* 2>/dev/null; then
-                                if ! grep -qi "$mac_address" "$ACL_BLOCK_FILE" 2>/dev/null; then
+                            if ! grep -qi "^a;${mac_address};" "$ACL_MAC_PATH"/mac-* 2>/dev/null; then
+                                if ! grep -qi "^a;${mac_address};" "$ACL_BLOCK_FILE" 2>/dev/null; then
                                     echo "$line_lease" >> "$ACL_BLOCK_FILE"
                                     echo "$lease_content" >> "$temp_leases"
                                 fi
@@ -494,7 +494,7 @@ function is_pydhcp() {
                     fi
                 fi
             done < "$ACL_GRACE_FILE"
-        fi        
+        fi      
 
         if [[ -s "$temp_leases" ]]; then
             mv -f "$temp_leases" "$dhcpd"
@@ -502,6 +502,7 @@ function is_pydhcp() {
             echo "" > "$dhcpd"
         fi
         chown pydhcpd:pydhcpd "$dhcpd"
+        chmod 640 "$dhcpd"
     }
 
     function update_dhcp_conf {
@@ -514,7 +515,6 @@ one-lease-per-client true;
 deny declines;
 deny client-updates;
 ping-check true;
-log-facility local7;
 ddns-update-style none;
         " >"$dhcp_conf_temp"
 
@@ -578,9 +578,9 @@ class "blockdhcp" {
     default-lease-time 2592000;
     max-lease-time 2592000;
     pool {
-        min-lease-time 60;
-        default-lease-time 60;
-        max-lease-time 60;
+        min-lease-time 30;
+        default-lease-time 30;
+        max-lease-time 30;
         deny members of \"blockdhcp\";
         range $SERV_INI_RANGE_BLOCK $SERV_END_RANGE_BLOCK;
     }
@@ -590,6 +590,8 @@ class "blockdhcp" {
         # Keep a backup of the previous config in case the new one is faulty.
         [ -f "$dhcp_conf" ] && cp -f "$dhcp_conf" "${dhcp_conf}.bak"
         mv -f "$dhcp_conf_temp" "$dhcp_conf"
+        chown root:pydhcpd "$dhcp_conf"
+        chmod 640 "$dhcp_conf"
     }
 
     function clean_block_list {
@@ -635,7 +637,7 @@ class "blockdhcp" {
     function order_files_acl {
         sort -V "$ACL_BLOCK_FILE" -o "$ACL_BLOCK_FILE"
         if [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]]; then
-            sort -t';' -k3,3V -u "$ACL_MAC_HOTSPOT" -o "$ACL_MAC_HOTSPOT"
+            sort -t';' -k3,3V "$ACL_MAC_HOTSPOT" -o "$ACL_MAC_HOTSPOT"
             sort -V "$ACL_GRACE_FILE" -o "$ACL_GRACE_FILE"
         fi
     }
@@ -653,11 +655,13 @@ class "blockdhcp" {
     fi
     clean_transparent_list
     systemctl stop pydhcpd
+    trap 'systemctl is-active --quiet pydhcpd || systemctl start pydhcpd' EXIT
     drain_lease_queue
     read_leases
     order_files_acl
     update_dhcp_conf
     systemctl start pydhcpd
+    trap - EXIT
 }
 
 drain_lease_queue() {
@@ -695,6 +699,7 @@ drain_lease_queue() {
 
     mv "$tmp" "$dhcpd_leases"
     chown pydhcpd:pydhcpd "$dhcpd_leases"
+    chmod 640 "$dhcpd_leases"
     : > "$LEASE_REMOVE_QUEUE"
 
     if (( removed > 0 )); then
@@ -704,13 +709,14 @@ drain_lease_queue() {
 
 function duplicate() {
     if [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]]; then
-        aclall=$(for field in 2 3; do
-            cat "$ACL_MAC_PATH"/mac-* "$ACL_MAC_HOTSPOT" 2>/dev/null \
+        aclall=$(for field in 2 3 4; do
+            awk -F';' '/^a;/' "$ACL_MAC_PATH"/mac-* "$ACL_MAC_HOTSPOT" 2>/dev/null \
                 | cut -d\; -f${field} | sort | uniq -d
         done)
     else
-        aclall=$(for field in 2 3; do
-            cut -d\; -f${field} "$ACL_MAC_PATH"/mac-* 2>/dev/null | sort | uniq -d
+        aclall=$(for field in 2 3 4; do
+            awk -F';' '/^a;/' "$ACL_MAC_PATH"/mac-* 2>/dev/null \
+                | cut -d\; -f${field} | sort | uniq -d
         done)
     fi
 

@@ -51,9 +51,6 @@ echo "Apache2 Restart..."
 systemctl restart apache2.service
 echo "Samba Restart..."
 systemctl restart smbd.service
-# Optional: Netbios
-#echo "Netbios Restart..."
-#systemctl restart nmbd.service
 echo "Winbind Reload..."
 systemctl restart winbind.service
 echo "Rsyslog Reload..."

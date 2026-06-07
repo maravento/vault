@@ -55,6 +55,38 @@ mkdir -p "$CONFIG_DIR"
 
 ### --- FUNCTIONS --- ###
 
+preflight_check() {
+    local max_retries=10
+    local interval=5
+    local log_file="$CONFIG_DIR/preflight.log"
+    local attempt=1
+    local ts reason
+
+    while (( attempt <= max_retries )); do
+        ts=$(date '+%Y-%m-%d %H:%M:%S')
+        reason=""
+
+        if ! getent hosts cloudflare.com >/dev/null 2>&1; then
+            reason="DNS resolution failed (cloudflare.com)"
+        elif ! curl -sf --max-time 5 https://www.cloudflare.com/cdn-cgi/trace >/dev/null 2>&1; then
+            reason="Cloudflare edge unreachable"
+        elif ! curl -sf --max-time 5 https://api.cloudflare.com/cdn-cgi/trace >/dev/null 2>&1; then
+            reason="Cloudflare API unreachable"
+        else
+            echo "[$ts] [OK] Preflight passed on attempt $attempt/$max_retries" | tee -a "$log_file"
+            return 0
+        fi
+
+        echo "[$ts] [WARN] Preflight attempt $attempt/$max_retries failed: $reason" | tee -a "$log_file"
+        sleep "$interval"
+        ((attempt++))
+    done
+
+    ts=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$ts] [ERROR] Preflight failed after $max_retries attempts. Aborting." | tee -a "$log_file"
+    return 1
+}
+
 detect_tunnels() {
     local tunnels=()
     if [[ -d "$CONFIG_DIR" ]]; then
@@ -250,6 +282,10 @@ start_multiple_tunnels() {
     echo "Cloudflare Tunnel - Start Multiple Tunnels"
     echo "============================================"
     echo ""
+    
+    if ! preflight_check; then
+        return 1
+    fi
 
     local tunnels=()
     mapfile -t tunnels < <(detect_tunnels | tr ' ' '\n' | grep -v '^$')
@@ -283,6 +319,9 @@ start_multiple_tunnels() {
 }
 
 startall_tunnels() {
+    if ! preflight_check; then
+        return 1
+    fi
     local tunnels=()
     mapfile -t tunnels < <(detect_tunnels | tr ' ' '\n' | grep -v '^$')
 

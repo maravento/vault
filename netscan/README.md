@@ -23,7 +23,7 @@
 
 | File |  OS  | Size |
 | :--: | :--: | :--: |
-| [netscan.exe (.zip)](https://mega.nz/file/bc8GkYzJ#QIYe7nmVpbBWZOcETVMFnyp1ZLm5U9PH2v8MIcOR8rU) | Windows 10/11 x64 | 78,8 MB |
+| [netscan.exe (.zip)](https://mega.nz/file/rJFQhCBQ#TKKSfa8FcOtmUVx8B7xOAQfkIhf7FlAsPU5R1uZ6EIo) | Windows 10/11 x64 | 78,8 MB |
 
 ### Package Contents
 

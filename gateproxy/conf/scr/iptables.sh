@@ -541,6 +541,9 @@ iptables -A FORWARD -i $lan -o $lan -d 239.255.255.250 -p udp --dport 3702 -m se
 iptables -A FORWARD -i $lan -o $lan -p tcp -m multiport --dports 2869,8200,10243 -m set --match-set macports src -j ACCEPT
 # IGMP (required for multicast group management)
 iptables -A FORWARD -i $lan -o $lan -p igmp -m set --match-set macports src -j ACCEPT
+# CoAP/CoAPs 5683/5684
+iptables -A FORWARD -i $lan -p udp -m multiport --dports 5683,5684 -j DROP
+iptables -A INPUT -i $lan -p udp -m multiport --dports 5683,5684 -j DROP
 # NETBIOS NMBD (disabled in smb.conf)
 iptables -A INPUT -i $lan -p udp -m multiport --dports 137,138 -j DROP
 iptables -A INPUT -i $lan -p tcp --dport 139 -j DROP

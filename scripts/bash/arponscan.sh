@@ -74,7 +74,7 @@ ARPSTATIC_FILE="$(dirname "$(realpath "$0")")/arpstatic"
 function ip2mac() {
     echo '#!/bin/bash' > "$ARPSTATIC_FILE"
     awk -F";" '{print "ip neigh replace " $3 " lladdr " $2 " nud permanent dev '"$lan"'"}' "$acl_path"/mac* \
-        | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n -k 7,7n -k 8,8n -k 9,9n \
+        | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n \
         | uniq >> "$ARPSTATIC_FILE"
 }
 

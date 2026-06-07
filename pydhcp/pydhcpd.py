@@ -3,7 +3,7 @@
 # maravento.com
 #
 # Drop-in replacement for isc-dhcp-server.
-# Reads /etc/pydhcp/pydhcpd.conf and /etc/pydhcp/pydhcpd.defaults,
+# Reads /etc/pydhcp/pydhcpd.conf and /etc/pydhcp/default/pydhcpd,
 # writes /etc/pydhcp/pydhcpd.leases and /etc/pydhcp/pydhcpd.pid.
 #
 # Supported dhcpd.conf directives:
@@ -43,7 +43,7 @@ import grp
 # =============================================================================
 
 BASE_DIR        = "/etc/pydhcp"
-DEFAULTS_FILE   = os.path.join(BASE_DIR, "pydhcpd.defaults")
+DEFAULTS_FILE   = os.path.join(BASE_DIR, "default", "pydhcpd")
 CONF_FILE       = os.path.join(BASE_DIR, "pydhcpd.conf")
 LEASES_FILE     = os.path.join(BASE_DIR, "pydhcpd.leases")
 PID_FILE        = os.path.join(BASE_DIR, "pydhcpd.pid")
@@ -102,7 +102,7 @@ OPT_END                = 255
 # =============================================================================
 
 def parse_defaults(path):
-    """Parse /etc/pydhcp/pydhcpd.defaults (shell variable format)."""
+    """Parse /etc/pydhcp/default/pydhcpd (shell variable format)."""
     defaults = {
         "conf":      CONF_FILE,
         "pid":       PID_FILE,

@@ -1,12 +1,13 @@
 [Unit]
 Description=pydhcpd - Python DHCP Daemon
-Documentation=https://github.com/maravento/pydhcp
+Documentation=https://github.com/maravento/vault/tree/master/pydhcp
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 Environment="PYTHONUNBUFFERED=1"
+Environment="PYTHONDONTWRITEBYTECODE=1"
 ExecStart=/usr/bin/python3 /etc/pydhcp/pydhcpd.py
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/etc/pydhcp/pydhcpd.pid

@@ -65,7 +65,7 @@ touch "$allow_list" "$block_list_day" "$block_list_week" "$block_list_month"
 # =============================================================================
 # UNIFI HOTSPOT (ENTERPRISE) - comment this block if not using Unifi hotspot
 # =============================================================================
-UNIFI_HOTSPOT_ENABLED=true
+UNIFI_HOTSPOT_ENABLED=false
 hotspot_path="/etc/uhotspot"
 # =============================================================================
 

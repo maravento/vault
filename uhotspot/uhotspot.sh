@@ -17,10 +17,10 @@
 #     iptables, ipset
 #
 # CHANGES:
-#   - Configuration delegated to usetup.sh (installer). config.conf is
+#   - Configuration delegated to usetup.sh (installer). uhotspot.conf is
 #     generated interactively during installation and sourced at runtime.
-#     uhotspot.sh never prompts the user or writes config.conf.
-#   - verify_installation() validates filesystem state (config.conf,
+#     uhotspot.sh never prompts the user or writes uhotspot.conf.
+#   - verify_installation() validates filesystem state (uhotspot.conf,
 #     SERVER_RELOAD_SCRIPT) before the main loop. Exits with actionable
 #     error messages if anything is missing or misconfigured.
 #   - DHCP server pydhcpd is required. Script aborts if pydhcpd is not active.
@@ -156,7 +156,7 @@
 # UNIFI SITE:
 #   UniFi always creates a site named "default" and this script uses it.
 #   If the administrator renamed the site in the UniFi controller, edit
-#   UNIFI_SITE in config.conf to match the exact name shown there.
+#   UNIFI_SITE in uhotspot.conf to match the exact name shown there.
 #
 # COOKIE NOTE:
 #   UniFi OS uses a JWT cookie with the "partitioned" flag, which curl's
@@ -206,7 +206,7 @@ HOTSPOT_PATH="/etc/uhotspot"
 # SESSION_TOKEN: stores the raw JWT extracted from the set-cookie header.
 # curl's Netscape cookie jar silently drops cookies with the "partitioned"
 # flag (used by UniFi OS >= 3.x). The token is injected manually instead.
-CONFIG_FILE="$HOTSPOT_PATH/config.conf"
+CONFIG_FILE="$HOTSPOT_PATH/uhotspot.conf"
 SESSION_TOKEN=""
 MAC_LIST="$HOTSPOT_PATH/mac-hotspot.txt"
 PENDING_LIST="$HOTSPOT_PATH/guest-pending.txt"
@@ -456,36 +456,6 @@ load_all_vouchers() {
     VOUCHER_COUNT="$count"
 }
 
-get_voucher_end_for_mac() {
-    local mac="$1" voucher_code="${2:-}" result=""
-    [[ -z "$VOUCHER_CACHE" ]] && return 0
-
-    if [[ -n "$voucher_code" && "$voucher_code" != "null" ]]; then
-        result=$(echo "$VOUCHER_CACHE" | jq -r \
-            --arg code "$voucher_code" '
-            .data[]
-            | select(.code == $code)
-            | select(.status == "VALID_ONE" or .status == "VALID_MULTI")
-            | (.create_time + ((.duration // 0) * 60)) | tostring
-        ' 2>/dev/null | sort -n | tail -1 || true)
-    fi
-
-    if [[ -z "$result" ]]; then
-        result=$(echo "$VOUCHER_CACHE" | jq -r \
-            --arg mac "$mac" '
-            .data[]
-            | select(.status == "VALID_ONE" or .status == "VALID_MULTI")
-            | select(.used > 0)
-            | select(
-                (.used_by_sta // []) | map(ascii_downcase) | contains([$mac | ascii_downcase])
-              )
-            | (.create_time + ((.duration // 0) * 60)) | tostring
-        ' 2>/dev/null | sort -n | tail -1 || true)
-    fi
-
-    echo "$result"
-}
-
 # ─── IP / hostname assignment ─────────────────────────────────────────────────
 get_next_guest_number() {
     local used n=1
@@ -661,13 +631,13 @@ sort_acl_files() {
 
     if [[ -s "$MAC_LIST" ]]; then
         tmp=$(mktemp)
-        sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n "$MAC_LIST" | uniq > "$tmp"
+        sort -t';' -k3,3V "$MAC_LIST" | uniq > "$tmp"
         mv "$tmp" "$MAC_LIST" && chmod 600 "$MAC_LIST"
     fi
 
     if [[ -s "$PENDING_LIST" ]]; then
         tmp=$(mktemp)
-        sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n "$PENDING_LIST" | uniq > "$tmp"
+        sort -t';' -k3,3V "$PENDING_LIST" | uniq > "$tmp"
         mv "$tmp" "$PENDING_LIST" && chmod 600 "$PENDING_LIST"
     fi
 }

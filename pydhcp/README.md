@@ -78,10 +78,10 @@
 pydhcp/
 ├── pydhcpd.py          # Daemon + all DHCP logic (DISCOVER/OFFER/REQUEST/ACK)
 ├── pydhcpd.conf        # Main config (replaces /etc/dhcp/dhcpd.conf)
-├── pydhcpd.defaults    # Interface settings (replaces /etc/default/isc-dhcp-server)
 ├── pydhcpd.service     # systemd unit
-├── pydhcpd.init        # init.d wrapper
 ├── pyinstall.sh        # Installer / uninstaller
+├── init.d/
+│   └── pydhcpd         # init.d wrapper (replaces /etc/init.d/isc-dhcp-server)
 └── tools/
     ├── pyleases.sh     # Optional ACL and lease manager (see Tools section)
     └── pywebmin.sh     # Optional Webmin module installer (see Tools section)
@@ -99,8 +99,11 @@ pydhcp/
 </table>
 
 ```
-/etc/pydhcp/pydhcpd.leases   # Active leases database
-/etc/pydhcp/pydhcpd.pid      # PID file
+/etc/pydhcp/default/pydhcpd       # Interface and daemon settings (created by installer, preserved on update)
+/etc/pydhcp/pydhcpd.leases        # Active leases database
+/etc/pydhcp/pydhcpd.pid           # PID file
+/etc/pydhcp/pydhcpd.env           # Install-time environment (network params)
+/etc/pydhcp/tools/pyleases.env    # pyleases environment (auto-generated on first run)
 ```
 
 ## Requirements
@@ -164,11 +167,11 @@ sudo bash pyinstall.sh --remove
 |------|-----------|------------|
 | `pydhcpd.py` | ✅ overwritten | ✅ removed |
 | `pydhcpd.service` | ✅ overwritten | ✅ removed |
-| `pydhcpd.init` | ✅ overwritten | ✅ removed |
+| `init.d/pydhcpd` | ✅ overwritten | ✅ removed |
 | `tools/pyleases.sh` | ✅ overwritten | ✅ removed |
 | `tools/pywebmin.sh` | ✅ overwritten | ✅ removed |
 | `pydhcpd.conf` | ⛔ preserved | ✅ removed |
-| `pydhcpd.defaults` | ⛔ preserved | ✅ removed |
+| `default/pydhcpd` | ⛔ preserved | ✅ removed |
 | `pydhcpd.leases` | ⛔ preserved | ✅ removed |
 | `pydhcpd.env` | ⛔ preserved | ✅ removed |
 | `tools/pyleases.env` | ⛔ preserved | ✅ removed |
@@ -189,10 +192,10 @@ sudo bash pyinstall.sh --remove
   </tr>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <b>Note:</b> <code>ping-check true</code> is enabled by default. The daemon sends a ping before each OFFER to verify the IP is not already in use. In environments with strict firewalls this may cause delays or false positives. To disable it, set <code>ping-check false;</code> in <code>/etc/pydhcp/pydhcpd.conf</code>.
+      <b>Note:</b> <code>ping-check true</code> is enabled in the shipped <code>pydhcpd.conf</code>. The daemon sends a ping before each OFFER to verify the IP is not already in use. In environments with strict firewalls this may cause delays or false positives. To disable it, set <code>ping-check false;</code> in <code>/etc/pydhcp/pydhcpd.conf</code>.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <b>Nota:</b> <code>ping-check true</code> está habilitado por defecto. El demonio envía un ping antes de cada OFFER para verificar que la IP no está en uso. En entornos con firewall estricto esto puede causar demoras o falsos positivos. Para desactivarlo, establece <code>ping-check false;</code> en <code>/etc/pydhcp/pydhcpd.conf</code>.
+      <b>Nota:</b> <code>ping-check true</code> viene activado en el <code>pydhcpd.conf</code> enviado. El demonio envía un ping antes de cada OFFER para verificar que la IP no está en uso. En entornos con firewall estricto esto puede causar demoras o falsos positivos. Para desactivarlo, establece <code>ping-check false;</code> en <code>/etc/pydhcp/pydhcpd.conf</code>.
     </td>
   </tr>
 </table>
@@ -200,7 +203,7 @@ sudo bash pyinstall.sh --remove
 | Description | Descripción | File / Archivo |
 |-------------|-------------|----------------|
 | Main configuration file | Archivo de configuración principal | `/etc/pydhcp/pydhcpd.conf` |
-| Default interface settings | Configuración de interfaz por defecto | `/etc/pydhcp/pydhcpd.defaults` |
+| Default interface settings | Configuración de interfaz por defecto | `/etc/pydhcp/default/pydhcpd` |
 | Active leases database | Base de datos de concesiones activas | `/etc/pydhcp/pydhcpd.leases` |
 | Install-time environment (network params) | Entorno de instalación (parámetros de red) | `/etc/pydhcp/pydhcpd.env` |
 | pyleases environment (auto-generated on first run) | Entorno de pyleases (auto-generado en primera corrida) | `/etc/pydhcp/tools/pyleases.env` |
@@ -223,11 +226,11 @@ cat /etc/pydhcp/pydhcpd.leases
 # Reload config without restart (SIGHUP) | Recargar configuración sin reiniciar (SIGHUP)
 sudo systemctl reload pydhcpd
 
-# View logs | Ver logs
+# View logs (journald) | Ver logs (journald)
 sudo journalctl -u pydhcpd -f
 
-# View logs via syslog (log-facility local7) | Ver logs por syslog (log-facility local7)
-grep pydhcpd /var/log/syslog
+# View logs (file) | Ver logs (archivo)
+sudo tail -f /var/log/pydhcpd.log
 ```
 
 ### Tools
@@ -258,8 +261,8 @@ sudo bash tools/pyleases.sh
 > **First run / Primera corrida**: pyleases.sh launches an interactive setup that asks for DHCP server IP, netmask, block-pool range, and DNS servers, and writes `/etc/pydhcp/tools/pyleases.env`. Delete this file to re-run the setup. Some of these prompts overlap with `pyinstall.sh` — answer consistently.
 > pyleases.sh inicia un setup interactivo que pregunta IP del servidor DHCP, máscara, rango del pool de bloqueo y DNS, y escribe `/etc/pydhcp/tools/pyleases.env`. Elimine ese archivo para volver a ejecutar el setup. Algunas preguntas se solapan con `pyinstall.sh` — responda consistentemente.
 
-> **Warning / Advertencia**: every run **regenerates `/etc/pydhcp/pydhcpd.conf` from scratch** using a built-in template plus the ACL files. Any manual edit to `pydhcpd.conf` is overwritten. To persist a custom directive, edit the template inside `pyleases.sh` itself.
-> cada corrida **regenera `/etc/pydhcp/pydhcpd.conf` desde cero** usando un template interno más los archivos ACL. Cualquier edición manual a `pydhcpd.conf` se sobrescribe. Para preservar una directiva personalizada, edite el template dentro del propio `pyleases.sh`.
+> **Warning / Advertencia**: every run **regenerates `/etc/pydhcp/pydhcpd.conf` from scratch** using a built-in template plus the ACL files. The previous config is saved as `/etc/pydhcp/pydhcpd.conf.bak` before being overwritten. Any manual edit to `pydhcpd.conf` is overwritten. To persist a custom directive, edit the template inside `pyleases.sh` itself.
+> cada corrida **regenera `/etc/pydhcp/pydhcpd.conf` desde cero** usando un template interno más los archivos ACL. La configuración previa se guarda como `/etc/pydhcp/pydhcpd.conf.bak` antes de ser sobrescrita. Cualquier edición manual a `pydhcpd.conf` se sobrescribe. Para preservar una directiva personalizada, edite el template dentro del propio `pyleases.sh`.
 
 #### pywebmin
 
@@ -324,7 +327,7 @@ iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
 |-----------------|--------|
 | `/etc/dhcp/dhcpd.conf` | `/etc/pydhcp/pydhcpd.conf` |
 | `/var/lib/dhcp/dhcpd.leases` | `/etc/pydhcp/pydhcpd.leases` |
-| `/etc/default/isc-dhcp-server` | `/etc/pydhcp/pydhcpd.defaults` |
+| `/etc/default/isc-dhcp-server` | `/etc/pydhcp/default/pydhcpd` |
 | `/var/run/dhcpd.pid` | `/etc/pydhcp/pydhcpd.pid` |
 | `/etc/systemd/system/isc-dhcp-server.service` | `/etc/systemd/system/pydhcpd.service` |
 | `/etc/init.d/isc-dhcp-server` | `/etc/init.d/pydhcpd` |
@@ -352,6 +355,10 @@ iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
 | Log file | `/var/log/syslog` | `/var/log/pydhcpd.log` |
 | Log rotation | `/etc/logrotate.d/rsyslog` | `/etc/logrotate.d/pydhcpd` |
 | journald | `journalctl -u isc-dhcp-server` | `journalctl -u pydhcpd` |
+
+> **Note**: pydhcpd writes logs directly to `/var/log/pydhcpd.log`. It does not use syslog, therefore no `log-facility` directive is needed or supported.
+>
+> **Nota**: pydhcpd escribe los logs directamente a `/var/log/pydhcpd.log`. No utiliza syslog, por lo tanto no se necesita ni se soporta la directiva `log-facility`.
 
 #### Scenario
 
@@ -395,3 +402,4 @@ iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
 ---
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
