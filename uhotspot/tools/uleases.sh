@@ -243,7 +243,7 @@ _notify() {
 
     local session_type
     session_type=$(loginctl show-session \
-        "$(loginctl show-user "$user" 2>/dev/null | awk -F= '/^Sessions=/{print $2}')" \
+        "$(loginctl show-user "$user" 2>/dev/null | awk -F'[= ]' '/^Sessions=/{print $2}')" \
         -p Type --value 2>/dev/null || echo "x11")
 
     if [[ "$session_type" == "wayland" ]]; then

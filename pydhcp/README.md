@@ -226,6 +226,9 @@ cat /etc/pydhcp/pydhcpd.leases
 # Reload config without restart (SIGHUP) | Recargar configuración sin reiniciar (SIGHUP)
 sudo systemctl reload pydhcpd
 
+# Test configuration syntax without starting the daemon
+sudo /etc/pydhcp/pydhcpd.py --test
+
 # View logs (journald) | Ver logs (journald)
 sudo journalctl -u pydhcpd -f
 
@@ -263,6 +266,44 @@ sudo bash tools/pyleases.sh
 
 > **Warning / Advertencia**: every run **regenerates `/etc/pydhcp/pydhcpd.conf` from scratch** using a built-in template plus the ACL files. The previous config is saved as `/etc/pydhcp/pydhcpd.conf.bak` before being overwritten. Any manual edit to `pydhcpd.conf` is overwritten. To persist a custom directive, edit the template inside `pyleases.sh` itself.
 > cada corrida **regenera `/etc/pydhcp/pydhcpd.conf` desde cero** usando un template interno más los archivos ACL. La configuración previa se guarda como `/etc/pydhcp/pydhcpd.conf.bak` antes de ser sobrescrita. Cualquier edición manual a `pydhcpd.conf` se sobrescribe. Para preservar una directiva personalizada, edite el template dentro del propio `pyleases.sh`.
+
+##### WPAD/PAC via DHCP option 252 (optional)
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <code>pyleases.sh</code> generates <code>/etc/pydhcp/pydhcpd.conf</code> dynamically on every run. The generated config includes two commented-out lines for WPAD/PAC (proxy auto-configuration via DHCP option 252). These lines are intentionally left commented — <b>pydhcp does not require WPAD to work</b>. Uncomment them only if you need automatic proxy discovery for desktop clients.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <code>pyleases.sh</code> genera <code>/etc/pydhcp/pydhcpd.conf</code> dinámicamente en cada ejecución. La configuración generada incluye dos líneas comentadas para WPAD/PAC (auto-configuración de proxy vía opción DHCP 252). Estas líneas se dejan comentadas intencionalmente — <b>pydhcp no requiere WPAD para funcionar</b>. Descoméntelas solo si necesita descubrimiento automático de proxy para clientes de escritorio.
+    </td>
+  </tr>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      To enable WPAD:
+      <ol>
+        <li>Install Apache2 and create a VirtualHost on port 18100.</li>
+        <li>Place a valid <code>wpad.pac</code> file in the Apache document root for that VirtualHost.</li>
+        <li>In <code>pyleases.sh</code>, uncomment the two <code>#option wpad</code> lines inside <code>update_dhcp_conf()</code>. They will be written into <code>/etc/pydhcp/pydhcpd.conf</code> on the next run.</li>
+      </ol>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Para habilitar WPAD:
+      <ol>
+        <li>Instale Apache2 y cree un VirtualHost en el puerto 18100.</li>
+        <li>Coloque un archivo <code>wpad.pac</code> válido en el document root de ese VirtualHost.</li>
+        <li>En <code>pyleases.sh</code>, descomente las dos líneas <code>#option wpad</code> dentro de <code>update_dhcp_conf()</code>. Se escribirán en <code>/etc/pydhcp/pydhcpd.conf</code> en la próxima ejecución.</li>
+      </ol>
+    </td>
+  </tr>
+</table>
+
+```text
+#option wpad code 252 = text;                     ← global declaration (pydhcpd.conf header)
+#option wpad "http://<server_ip>:18100/wpad.pac"; ← subnet block
+```
+
+> **Note / Nota:** Android and iOS ignore DHCP option 252. The proxy must be configured manually on those devices. / Android e iOS ignoran la opción DHCP 252. El proxy debe configurarse manualmente en esos dispositivos.
 
 #### pywebmin
 
@@ -365,7 +406,7 @@ iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
 | Scenario / Escenario | isc-dhcp-server | pydhcpd |
 |----------------------|-----------------|---------|
 | Authorized client with static IP (renewal) / Cliente autorizado con IP estática (renovación) | `DHCPREQUEST for 192.168.10.50 (192.168.10.2) from aa:bb:cc:dd:ee:ff via enp2s0`<br>`DHCPACK on 192.168.10.50 to aa:bb:cc:dd:ee:ff (FOO) via enp2s0` | `REQUEST from aa:bb:cc:dd:ee:ff (FOO)`<br>`ACK aa:bb:cc:dd:ee:ff → 192.168.10.50 (lease 2592000s)` |
-| Unknown client entering the block pool / Cliente desconocido ingresando al pool de bloqueo | `DHCPDISCOVER from bb:cc:dd:ee:ff:aa via enp2s0`<br>`DHCPOFFER on 192.168.10.230 to bb:cc:dd:ee:ff:aa (BAR) via enp2s0`<br>`DHCPREQUEST for 192.168.10.230 (192.168.10.2) from bb:cc:dd:ee:ff:aa (BAR) via enp2s0`<br>`DHCPACK on 192.168.10.230 to bb:cc:dd:ee:ff:aa (BAR) via enp2s0` | `DISCOVER from bb:cc:dd:ee:ff:aa (BAR)`<br>`OFFER bb:cc:dd:ee:ff:aa → 192.168.10.230`<br>`REQUEST from bb:cc:dd:ee:ff:aa (BAR)`<br>`ACK bb:cc:dd:ee:ff:aa → 192.168.10.230 (lease 120s)` |
+| Unknown client entering the block pool / Cliente desconocido ingresando al pool de bloqueo | `DHCPDISCOVER from bb:cc:dd:ee:ff:aa via enp2s0`<br>`DHCPOFFER on 192.168.10.230 to bb:cc:dd:ee:ff:aa (BAR) via enp2s0`<br>`DHCPREQUEST for 192.168.10.230 (192.168.10.2) from bb:cc:dd:ee:ff:aa (BAR) via enp2s0`<br>`DHCPACK on 192.168.10.230 to bb:cc:dd:ee:ff:aa (BAR) via enp2s0` | `DISCOVER from bb:cc:dd:ee:ff:aa (BAR)`<br>`OFFER bb:cc:dd:ee:ff:aa → 192.168.10.230`<br>`REQUEST from bb:cc:dd:ee:ff:aa (BAR)`<br>`ACK bb:cc:dd:ee:ff:aa → 192.168.10.230 (lease 60s)` |
 | Blocked client - pool exhausted / Cliente bloqueado - pool agotado | `DHCPDISCOVER from bb:cc:dd:ee:ff:aa via enp2s0: network 192.168.10.0/24: no free leases` | `DISCOVER from bb:cc:dd:ee:ff:aa (BAR)`<br>`No IP available for bb:cc:dd:ee:ff:aa` |
 
 #### Authoritative

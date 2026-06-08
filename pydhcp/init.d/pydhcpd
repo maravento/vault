@@ -1,7 +1,4 @@
-#!/bin/bash
-# /etc/init.d/pydhcpd
-# Init script for pydhcpd — compatible with isc-dhcp-server init interface
-
+#!/bin/sh
 ### BEGIN INIT INFO
 # Provides:          pydhcpd
 # Required-Start:    $network $remote_fs
@@ -9,12 +6,18 @@
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: Python DHCP Daemon
+# Description:       Starts, stops, restarts and reports status of pydhcpd
 ### END INIT INFO
+
+# Author: maravento.com
+
+set -e
 
 DEFAULTS_FILE="/etc/pydhcp/default/pydhcpd"
 DAEMON=/usr/bin/python3
 DAEMON_ARGS=/etc/pydhcp/pydhcpd.py
 NAME=pydhcpd
+LOG_FILE="/var/log/pydhcpd.log"
 
 # Read PID path from defaults file
 PID_FILE="/etc/pydhcp/pydhcpd.pid"
@@ -23,46 +26,56 @@ if [ -f "$DEFAULTS_FILE" ]; then
     [ -n "$val" ] && PID_FILE="$val"
 fi
 
-case "$1" in
+case "${1:-}" in
     start)
         echo "Starting $NAME..."
         if [ -f "$PID_FILE" ]; then
-            read -r pid < "$PID_FILE" 2>/dev/null || pid=""
+            pid=""
+            read -r pid < "$PID_FILE" 2>/dev/null || true
             if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
                 echo "$NAME is already running (pid $pid)"
                 exit 0
             fi
+            rm -f "$PID_FILE"
         fi
         $DAEMON $DAEMON_ARGS &
-        # Poll for the PID file instead of a fixed sleep — the daemon may
-        # take longer than 1s on busy systems or under load.
         for _ in $(seq 1 40); do
             [ -f "$PID_FILE" ] && break
             sleep 0.25
         done
-        if [ -f "$PID_FILE" ]; then
-            read -r pid < "$PID_FILE" 2>/dev/null || pid=""
-            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-                echo "$NAME started (pid $pid)"
-            else
-                echo "ERROR: $NAME failed to start. Check: journalctl -u pydhcpd -n 50"
-                exit 1
-            fi
+        pid=""
+        [ -f "$PID_FILE" ] && { read -r pid < "$PID_FILE" 2>/dev/null || true; }
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            echo "$NAME started (pid $pid)"
         else
-            echo "ERROR: $NAME did not write PID file. Check: journalctl -u pydhcpd -n 50"
+            echo "ERROR: $NAME failed to start. Check: $LOG_FILE"
             exit 1
         fi
         ;;
     stop)
         echo "Stopping $NAME..."
         if [ -f "$PID_FILE" ]; then
-            read -r pid < "$PID_FILE" 2>/dev/null || pid=""
-            if [[ "$pid" =~ ^[0-9]+$ ]] && [ "$pid" -gt 0 ]; then
-                kill "$pid" 2>/dev/null
+            pid=""
+            read -r pid < "$PID_FILE" 2>/dev/null || true
+            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                kill "$pid" 2>/dev/null || true
+                # Wait up to 5 seconds for process to terminate
+                for _ in $(seq 1 20); do
+                    kill -0 "$pid" 2>/dev/null || break
+                    sleep 0.25
+                done
+                if kill -0 "$pid" 2>/dev/null; then
+                    echo "WARNING: Process $pid did not terminate, forcing..."
+                    kill -9 "$pid" 2>/dev/null || true
+                fi
+                echo "$NAME stopped"
+            else
+                echo "$NAME was not running (stale PID file)"
             fi
             rm -f "$PID_FILE"
+        else
+            echo "$NAME was not running"
         fi
-        echo "Done"
         ;;
     restart)
         $0 stop
@@ -71,7 +84,8 @@ case "$1" in
         ;;
     status)
         if [ -f "$PID_FILE" ]; then
-            read -r pid < "$PID_FILE" 2>/dev/null || pid=""
+            pid=""
+            read -r pid < "$PID_FILE" 2>/dev/null || true
             if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
                 echo "$NAME is running (pid $pid)"
                 exit 0
@@ -85,4 +99,5 @@ case "$1" in
         exit 1
         ;;
 esac
+
 exit 0

@@ -28,13 +28,25 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-exec 200>"$SCRIPT_LOCK"
+exec 200>>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
 
-set -e
+# Dependency checks
+if [ ! -d "/usr/share/webmin" ] && [ ! -d "/etc/webmin" ]; then
+    echo "ERROR: Webmin is not installed on this system"
+    exit 1
+fi
+
+if [ ! -f "/etc/pydhcp/pydhcpd.py" ]; then
+    echo "ERROR: pydhcpd is not installed on this system"
+    echo "Please install pydhcpd first"
+    exit 1
+fi
+
+set -euo pipefail
 
 MODNAME="pydhcp"
 MODDIR="/usr/share/webmin/$MODNAME"
@@ -53,7 +65,6 @@ install_module() {
     mkdir -p "$MODDIR/help"
     mkdir -p "$ETCDIR"
 
-    # ── module.info ────────────────────────────────────────────────────────────
     cat > "$MODDIR/module.info" <<'EOF'
 desc=PyDHCP Server
 longdesc=Manage the pydhcpd DHCP server daemon
@@ -72,7 +83,6 @@ version=1.0
 depends=webmin
 EOF
 
-    # ── lang/en ────────────────────────────────────────────────────────────────
     cat > "$MODDIR/lang/en" <<'EOF'
 index_title=PyDHCP Server
 index_status=Service Status
@@ -97,9 +107,9 @@ status_unknown=Unknown
 config_title=Edit pydhcpd.conf
 config_saved=Configuration saved. Reload the daemon to apply changes.
 config_error=Error saving configuration.
+config_syntax_error=Syntax error in configuration. Not saved.
 EOF
 
-    # ── lang/es ────────────────────────────────────────────────────────────────
     cat > "$MODDIR/lang/es" <<'EOF'
 index_title=Servidor PyDHCP
 index_status=Estado del Servicio
@@ -124,13 +134,15 @@ status_unknown=Desconocido
 config_title=Editar pydhcpd.conf
 config_saved=Configuración guardada. Recargue el demonio para aplicar los cambios.
 config_error=Error al guardar la configuración.
+config_syntax_error=Error de sintaxis en la configuración. No guardado.
 EOF
 
-    # ── index.cgi ──────────────────────────────────────────────────────────────
     cat > "$MODDIR/index.cgi" <<'INDEXCGI'
 #!/usr/bin/perl
 use strict;
 use warnings;
+use POSIX 'strftime';
+use Time::Local 'timegm';
 
 do '../web-lib.pl';
 do '../ui-lib.pl';
@@ -140,18 +152,40 @@ do '../ui-lib.pl';
 our ($module_name, %text, %in);
 &load_language($module_name);
 
+# Read paths from defaults file
+sub read_defaults {
+    my $defaults_file = "/etc/pydhcp/default/pydhcpd";
+    my %defaults;
+    if (open(my $fh, '<', $defaults_file)) {
+        while (<$fh>) {
+            chomp;
+            next if /^\s*#/ or not /=/;
+            my ($key, $val) = split(/=/, $_, 2);
+            $val =~ s/^\s+|\s+$//g;
+            $val =~ s/^["']|["']$//g;
+            $defaults{$key} = $val;
+        }
+        close($fh);
+    }
+    return \%defaults;
+}
+
+my $defaults = read_defaults();
 my $DAEMON_BIN  = "/etc/pydhcp/pydhcpd.py";
-my $LEASES_FILE = "/etc/pydhcp/pydhcpd.leases";
-my $CONF_FILE   = "/etc/pydhcp/pydhcpd.conf";
+my $LEASES_FILE = $defaults->{DHCPDv4_LEASES} || "/etc/pydhcp/pydhcpd.leases";
+my $CONF_FILE   = $defaults->{DHCPDv4_CONF}   || "/etc/pydhcp/pydhcpd.conf";
 my $SERVICE     = "pydhcpd";
 
-# ── Actions ────────────────────────────────────────────────────────────────────
 if ($in{'action'}) {
     my $act = $in{'action'};
-    if ($act eq 'start')   { system("systemctl start   $SERVICE 2>&1"); }
-    elsif ($act eq 'stop')    { system("systemctl stop    $SERVICE 2>&1"); }
-    elsif ($act eq 'restart') { system("systemctl restart $SERVICE 2>&1"); }
-    elsif ($act eq 'reload')  { system("systemctl reload  $SERVICE 2>&1"); }
+    if (fork() == 0) {
+        setsid();
+        if ($act eq 'start')   { system("systemctl start   $SERVICE >/dev/null 2>&1"); }
+        elsif ($act eq 'stop')    { system("systemctl stop    $SERVICE >/dev/null 2>&1"); }
+        elsif ($act eq 'restart') { system("systemctl restart $SERVICE >/dev/null 2>&1"); }
+        elsif ($act eq 'reload')  { system("systemctl reload  $SERVICE >/dev/null 2>&1"); }
+        exit 0;
+    }
     sleep 1;
     my $ts = time();
     &redirect("index.cgi?nocache=$ts");
@@ -163,7 +197,6 @@ print "Expires: Thu, 01 Jan 1970 00:00:00 GMT\r\n";
 
 &ui_print_header(undef, $text{'index_title'}, "", undef, 1, 1);
 
-# ── CSS ────────────────────────────────────────────────────────────────────────
 print <<'EOCSS';
 <style>
 .pyd-section {
@@ -267,14 +300,12 @@ print <<'EOCSS';
 </style>
 EOCSS
 
-# ── Check installation ─────────────────────────────────────────────────────────
 if (!-f $DAEMON_BIN) {
     print "<div class='pyd-section'><div class='pyd-warning'>$text{'index_not_installed'}</div></div>\n";
     &ui_print_footer("", "");
     exit 0;
 }
 
-# ── Service status ─────────────────────────────────────────────────────────────
 my $status_raw = `systemctl is-active $SERVICE 2>/dev/null`;
 chomp $status_raw;
 my ($status_label, $status_class);
@@ -300,11 +331,10 @@ print "<a class='pyd-btn pyd-btn-reload'  href='index.cgi?action=reload'>$text{'
 print "<a class='pyd-btn pyd-btn-refresh' href='index.cgi'>$text{'btn_refresh'}</a>\n";
 print "</div></div>\n";
 
-# ── Active leases ──────────────────────────────────────────────────────────────
 print "<div class='pyd-section'>\n";
 print "<div class='pyd-section-title'>$text{'index_leases'}</div>\n";
 
-my @leases = parse_leases($LEASES_FILE);
+my @leases = parse_active_leases($LEASES_FILE);
 if (@leases) {
     print "<table class='pyd-table'>\n";
     print "<tr><th>$text{'table_ip'}</th><th>$text{'table_mac'}</th>";
@@ -333,12 +363,10 @@ if (@leases) {
 
 print "</div>\n";
 
-# ── Link to config editor ──────────────────────────────────────────────────────
 print "<a class='pyd-link' href='config.cgi'>&#9881; $text{'index_config'}</a>\n";
 
 &ui_print_footer("", "");
 
-# ── Lease parser ───────────────────────────────────────────────────────────────
 sub html_escape {
     my ($s) = @_;
     return "" unless defined $s;
@@ -350,7 +378,7 @@ sub html_escape {
     return $s;
 }
 
-sub parse_leases {
+sub parse_active_leases {
     my ($file) = @_;
     my @result;
     return @result unless -f $file;
@@ -358,30 +386,41 @@ sub parse_leases {
     my $raw = do { local $/; <$fh> };
     close($fh);
 
+    my $now = time();
+
     while ($raw =~ /lease\s+([\d.]+)\s*\{(.*?)\}/gs) {
         my ($ip, $body) = ($1, $2);
         my ($mac)      = $body =~ /hardware\s+ethernet\s+([\da-f:]+)\s*;/i;
         my ($hostname) = $body =~ /client-hostname\s+"([^"]+)"\s*;/;
-        my ($ends)     = $body =~ /ends\s+\d+\s+([\d\/]+\s[\d:]+)\s*;/;
+        my ($ends_str)   = $body =~ /ends\s+\d+\s+([\d\/]+\s[\d:]+)\s*;/;
         my ($binding)  = $body =~ /binding\s+state\s+(\w+)\s*;/;
-        next unless $mac && $ends;
+        next unless $mac && $ends_str;
+
+        # Convert ends date string to epoch
+        my ($date, $time) = split(/\s/, $ends_str);
+        my ($year, $month, $day) = split(/\//, $date);
+        my ($hour, $min, $sec) = split(/:/, $time);
+        my $ends_epoch = timegm($sec, $min, $hour, $day, $month-1, $year-1900);
+
+        next unless $ends_epoch > $now;
+
         push @result, {
             ip       => $ip,
             mac      => lc($mac),
             hostname => $hostname || '',
-            ends     => $ends,
+            ends     => $ends_str,
             binding  => $binding || 'active',
         };
     }
-    return sort { $a->{ip} cmp $b->{ip} } @result;
+    return sort { my @a = split(/\./, $a->{ip}); my @b = split(/\./, $b->{ip}); $a[0]<=>$b[0] || $a[1]<=>$b[1] || $a[2]<=>$b[2] || $a[3]<=>$b[3] } @result;
 }
 INDEXCGI
 
-    # ── config.cgi ────────────────────────────────────────────────────────────
     cat > "$MODDIR/config.cgi" <<'CONFIGCGI'
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Copy;
 
 do '../web-lib.pl';
 do '../ui-lib.pl';
@@ -391,45 +430,74 @@ do '../ui-lib.pl';
 our ($module_name, %text, %in);
 &load_language($module_name);
 
-my $CONF_FILE = "/etc/pydhcp/pydhcpd.conf";
+# Read paths from defaults file
+sub read_defaults {
+    my $defaults_file = "/etc/pydhcp/default/pydhcpd";
+    my %defaults;
+    if (open(my $fh, '<', $defaults_file)) {
+        while (<$fh>) {
+            chomp;
+            next if /^\s*#/ or not /=/;
+            my ($key, $val) = split(/=/, $_, 2);
+            $val =~ s/^\s+|\s+$//g;
+            $val =~ s/^["']|["']$//g;
+            $defaults{$key} = $val;
+        }
+        close($fh);
+    }
+    return \%defaults;
+}
 
-print "Cache-Control: no-cache\r\n";
+my $defaults = read_defaults();
+my $CONF_FILE = $defaults->{DHCPDv4_CONF} || "/etc/pydhcp/pydhcpd.conf";
+my $BACKUP_FILE = "/etc/pydhcp/pydhcpd.conf.bak";
+my $DAEMON_BIN = "/etc/pydhcp/pydhcpd.py";
+
+print "Cache-Control: no-cache, no-store, must-revalidate\r\n";
 &ui_print_header(undef, $text{'config_title'}, "", undef, 1, 1);
 
 my $message = "";
 
-# Save action — CSRF protection: require POST and, when a Referer header is
-# present, verify it originates from this Webmin host.  We use SERVER_NAME
-# (set by the web-server config, not controllable by the client) instead of
-# HTTP_HOST.  Absent Referer is accepted because some browsers and privacy
-# extensions strip it.
 if ($in{'action'} eq 'save' && defined $in{'conf_content'}) {
     my $method  = $ENV{'REQUEST_METHOD'} || '';
     my $referer = $ENV{'HTTP_REFERER'}   || '';
     my $server  = $ENV{'SERVER_NAME'}    || 'localhost';
     my $port    = $ENV{'SERVER_PORT'}    || '';
     my $origin  = $port ? "${server}:${port}" : $server;
-    my $ok      = ($method eq 'POST');
-    # Only reject if Referer is present AND does not match our origin.
-    if ($ok && $referer ne '' && $referer !~ m{^https?://\Q$origin\E/}i) {
-        $ok = 0;
-    }
-    if (!$ok) {
-        $message = "<div style='margin:10px 0;padding:10px 14px;background:#f8d7da;color:#721c24;border-radius:4px;border:1px solid #f5c6cb;font-size:13px;'>Request rejected (CSRF protection: invalid method or referer)</div>\n";
+
+    if ($method ne 'POST') {
+        $message = "<div style='margin:10px 0;padding:10px 14px;background:#f8d7da;color:#721c24;border-radius:4px;border:1px solid #f5c6cb;font-size:13px;'>Request rejected (method not POST)</div>\n";
+    } elsif ($referer ne '' && $referer !~ m{^https?://\Q$origin\E/}i) {
+        $message = "<div style='margin:10px 0;padding:10px 14px;background:#f8d7da;color:#721c24;border-radius:4px;border:1px solid #f5c6cb;font-size:13px;'>Request rejected (invalid referer)</div>\n";
     } else {
         my $content = $in{'conf_content'};
         $content =~ s/\r\n/\n/g;
-        if (open(my $fh, '>', $CONF_FILE)) {
+
+        my $tmpfile = $CONF_FILE . ".tmp";
+        if (open(my $fh, '>', $tmpfile)) {
             print $fh $content;
             close($fh);
-            $message = "<div style='margin:10px 0;padding:10px 14px;background:#d4edda;color:#155724;border-radius:4px;border:1px solid #c3e6cb;font-size:13px;'>$text{'config_saved'}</div>\n";
+
+            if (system("$DAEMON_BIN --test $tmpfile >/dev/null 2>&1") != 0) {
+                unlink($tmpfile);
+                $message = "<div style='margin:10px 0;padding:10px 14px;background:#f8d7da;color:#721c24;border-radius:4px;border:1px solid #f5c6cb;font-size:13px;'>$text{'config_syntax_error'}</div>\n";
+            } else {
+                if (-f $CONF_FILE) {
+                    copy($CONF_FILE, $BACKUP_FILE);
+                }
+                if (rename($tmpfile, $CONF_FILE)) {
+                    $message = "<div style='margin:10px 0;padding:10px 14px;background:#d4edda;color:#155724;border-radius:4px;border:1px solid #c3e6cb;font-size:13px;'>$text{'config_saved'}</div>\n";
+                } else {
+                    unlink($tmpfile);
+                    $message = "<div style='margin:10px 0;padding:10px 14px;background:#f8d7da;color:#721c24;border-radius:4px;border:1px solid #f5c6cb;font-size:13px;'>$text{'config_error'}: rename failed</div>\n";
+                }
+            }
         } else {
             $message = "<div style='margin:10px 0;padding:10px 14px;background:#f8d7da;color:#721c24;border-radius:4px;border:1px solid #f5c6cb;font-size:13px;'>$text{'config_error'}: $!</div>\n";
         }
     }
 }
 
-# Read current config
 my $conf_content = "";
 if (-f $CONF_FILE) {
     open(my $fh, '<', $CONF_FILE) or die "Cannot open $CONF_FILE: $!";
@@ -437,7 +505,6 @@ if (-f $CONF_FILE) {
     close($fh);
 }
 
-# Escape for HTML
 (my $escaped = $conf_content) =~ s/&/&amp;/g;
 $escaped =~ s/</&lt;/g;
 $escaped =~ s/>/&gt;/g;
@@ -464,7 +531,6 @@ EOFORM
 &ui_print_footer("index.cgi", $text{'index_title'});
 CONFIGCGI
 
-    # ── help/intro.en.html ────────────────────────────────────────────────────
     cat > "$MODDIR/help/intro.en.html" <<'EOF'
 <header>PyDHCP Server</header>
 
@@ -485,7 +551,6 @@ It provides service control, a live view of active DHCP leases, and a built-in e
 <footer>
 EOF
 
-    # ── help/intro.es.html ────────────────────────────────────────────────────
     cat > "$MODDIR/help/intro.es.html" <<'EOF'
 <header>Servidor PyDHCP</header>
 
@@ -506,7 +571,6 @@ Ofrece control del servicio, una vista en tiempo real de las concesiones DHCP ac
 <footer>
 EOF
 
-    # ── CHANGELOG ─────────────────────────────────────────────────────────────
     cat > "$MODDIR/CHANGELOG" <<'EOF'
 Version 1.0 (2025)
 - Initial release
@@ -517,7 +581,6 @@ Version 1.0 (2025)
 - Detects pydhcpd installation status
 EOF
 
-    # ── icon (reuse servicemon base64 gif, neutral gear icon) ────────────────
     local icon_tmp
     icon_tmp=$(mktemp /tmp/pydhcp_icon.XXXXXX.b64)
     cat > "$icon_tmp" <<'ICONEOF'
@@ -526,17 +589,14 @@ ICONEOF
     base64 -d "$icon_tmp" > "$MODDIR/images/icon.gif" 2>/dev/null || true
     rm -f "$icon_tmp"
 
-    # ── Permissions ───────────────────────────────────────────────────────────
     chown -R root:root "$MODDIR" "$ETCDIR"
     chmod -R 755 "$MODDIR"
     chmod 644 "$MODDIR"/module.info* "$MODDIR/lang/"* "$MODDIR/help/"* "$MODDIR/CHANGELOG" 2>/dev/null || true
     chmod 755 "$MODDIR"/*.cgi 2>/dev/null || true
     chmod 644 "$MODDIR/images/"* 2>/dev/null || true
 
-    # ── Register in webmin.acl ────────────────────────────────────────────────
     if [ -f /etc/webmin/webmin.acl ]; then
         if ! grep -q "$MODNAME" /etc/webmin/webmin.acl 2>/dev/null; then
-            # Keep .bak as a recovery point in case the edit corrupts the file.
             sed -i.bak "s/\(^root:.*\)/\1 $MODNAME/" /etc/webmin/webmin.acl
             echo "✓ Module added to webmin.acl (backup: /etc/webmin/webmin.acl.bak)"
         fi
@@ -583,8 +643,6 @@ uninstall_module() {
 
     if [ -f /etc/webmin/webmin.acl ]; then
         if grep -qw "$MODNAME" /etc/webmin/webmin.acl 2>/dev/null; then
-            # Anchor the match to a whole word so similarly-named modules
-            # (e.g. pydhcptest, xpydhcp) are not partially mangled.
             sed -i.bak "s/[[:space:]]\+${MODNAME}\b//g" /etc/webmin/webmin.acl
             echo "✓ Module removed from webmin.acl (backup: /etc/webmin/webmin.acl.bak)"
         fi

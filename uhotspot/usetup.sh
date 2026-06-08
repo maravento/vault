@@ -418,7 +418,7 @@ register_cron() {
     fi
 
     if echo "$current" | grep -qF "$expected_hourly"; then
-        info "Cron entry (ureload @daily) already present"
+        info "Cron entry (ureload @hourly) already present"
     elif echo "$current" | grep -qF "$ureload_path"; then
         warn "Crontab contains entries for $ureload_path in a different format — review manually"
     else
@@ -532,6 +532,9 @@ do_update() {
     echo "    - Logrotate config"
     echo ""
     echo "  Cron entries reconciled (missing entries added; existing ones untouched)"
+    echo ""
+    echo "  NOTE: If you had uncommented the WPAD/option 252 lines in uleases.sh,"
+    echo "        they have been overwritten. Re-enable them manually if needed."
     echo ""
     echo "  Backup: $backup_dir"
     echo "══════════════════════════════════════════════════════"

@@ -237,281 +237,263 @@ print_voucher() {
     echo ""
 }
 
-# ── Interactive: forget expired/inactive clients ──────────────────────────────
-# Lists all clients with expired guest sessions and lets the user choose which
-# ones to remove from UniFi's client history via forget-sta.
-interactive_forget() {
+# ── Interactive [1]: delete unused vouchers (used == 0) ──────────────────────
+# Targets vouchers that were never activated (no client ever used them).
+# Safe to delete: no sessions to unauthorize, no client history to remove.
+interactive_delete_unused() {
     echo ""
     echo "======================================================================="
-    echo " FORGET INACTIVE CLIENTS - expired sessions from stat/guest"
+    echo " DELETE UNUSED VOUCHERS - vouchers that have never been activated"
     echo "======================================================================="
 
-    # Collect MACs with expired sessions
-    mapfile -t EXPIRED_MACS < <(echo "$GUEST" | jq -r '
-        .data[]
-        | select(.expired == true or .end == null or .end < now)
-        | (.mac | ascii_downcase)
-    ' 2>/dev/null | grep -v '^$' | sort -u)
+    mapfile -t UNUSED_IDS < <(echo "$VOUCHER" | jq -r '
+        .data[] | select(.used == 0) | ._id
+    ' 2>/dev/null)
 
-    if [ ${#EXPIRED_MACS[@]} -eq 0 ]; then
-        echo "  No expired or inactive clients found."
+    if [ ${#UNUSED_IDS[@]} -eq 0 ]; then
+        echo "  No unused vouchers found."
         return
     fi
 
-    echo "  Expired clients in history:"
+    echo "  Unused vouchers to delete:"
     echo ""
-    declare -A MAC_INFO
-    local idx=1
-    for mac in "${EXPIRED_MACS[@]}"; do
-        local info
-        info=$(echo "$GUEST" | jq -r --arg m "$mac" '
-            .data[]
-            | select((.mac | ascii_downcase) == $m)
-            | [(.voucher_code // "N/A"), (if .end then (.end | todate) else "N/A" end), (.ip // "N/A")]
-            | join(" | ")
-        ' 2>/dev/null | head -1)
-        printf "  [%2d] %-19s  voucher=%-14s  end=%s  ip=%s\n" \
-            "$idx" "$mac" \
-            "$(echo "$info" | cut -d'|' -f1 | xargs)" \
-            "$(echo "$info" | cut -d'|' -f2 | xargs)" \
-            "$(echo "$info" | cut -d'|' -f3 | xargs)"
-        MAC_INFO[$idx]="$mac"
-        (( idx++ ))
-    done
-
-    echo ""
-    echo "  Options:"
-    echo "    all   --> forget all listed clients"
-    echo "    1 3 5 --> forget by number (space-separated)"
-    echo "    q     --> cancel"
-    echo ""
-    read -rp "  Your choice: " CHOICE
-
-    [ "$CHOICE" = "q" ] && echo "  Cancelled." && return
-
-    local selected=()
-    if [ "$CHOICE" = "all" ]; then
-        selected=("${EXPIRED_MACS[@]}")
-    else
-        read -ra CHOICES <<< "$CHOICE"
-        for n in "${CHOICES[@]}"; do
-            if [[ "$n" =~ ^[0-9]+$ ]] && [ -n "${MAC_INFO[$n]+_}" ]; then
-                selected+=("${MAC_INFO[$n]}")
-            else
-                echo "  WARN: '$n' is not valid, skipped."
-            fi
-        done
-    fi
-
-    if [ ${#selected[@]} -eq 0 ]; then
-        echo "  Nothing selected."
-        return
-    fi
-
-    echo ""
-    echo "  About to forget ${#selected[@]} client(s):"
-    for mac in "${selected[@]}"; do echo "    - $mac"; done
-    echo ""
-    read -rp "  Are you sure? [y/N]: " CONFIRM
-    [[ ! "$CONFIRM" =~ ^[yY](es)?$ ]] && echo "  Cancelled." && return
-
-    echo "  Forgetting ${#selected[@]} client(s)..."
-    for mac in "${selected[@]}"; do
-        local result rc
-        result=$(api_post "cmd/stamgr" "{\"cmd\":\"forget-sta\",\"macs\":[\"${mac}\"]}")
-        rc=$(echo "$result" | jq -r '.meta.rc // "error"' 2>/dev/null)
-        if [ "$rc" = "ok" ]; then
-            echo "  Forgotten: $mac"
-        else
-            echo "  Failed to forget $mac: $result"
-        fi
-    done
-}
-
-# ── Helper: interactive voucher selector ─────────────────────────────────────
-# Shared logic for voucher revocation and deletion.
-# Args:
-#   $1  title        - section header shown to the user
-#   $2  filter       - jq filter expression to select vouchers from $VOUCHER
-#   $3  label_action - action verb shown in prompts ("Revoke" or "Delete")
-_voucher_selector() {
-    local title="$1" filter="$2" label_action="$3"
-
-    echo ""
-    echo "======================================================================="
-    echo " ${title}"
-    echo "======================================================================="
-
-    mapfile -t VOUCHER_IDS < <(echo "$VOUCHER" | jq -r "${filter}" 2>/dev/null)
-
-    if [ ${#VOUCHER_IDS[@]} -eq 0 ]; then
-        echo "  No vouchers found in this category."
-        return
-    fi
-
-    declare -A VCH_ID_MAP
-    local idx=1
-    for vid in "${VOUCHER_IDS[@]}"; do
+    for vid in "${UNUSED_IDS[@]}"; do
         local info
         info=$(echo "$VOUCHER" | jq -r --arg id "$vid" '
-            .data[]
-            | select(._id == $id)
+            .data[] | select(._id == $id)
             | [
                 (.code // "N/A"),
-                (.status // "N/A"),
                 (((.duration // 0) / 60 | floor | tostring) + "h"),
-                ("quota=" + ((.quota // 0) | tostring) + " used=" + ((.used // 0) | tostring)),
-                (if .create_time then (.create_time | todate) else "N/A" end)
+                ("quota=" + ((.quota // 0) | tostring)),
+                (if .create_time then (.create_time | strftime("%Y-%m-%d")) else "N/A" end)
               ]
-            | join(" | ")
+            | join("  ")
         ' 2>/dev/null)
-        printf "  [%2d] code=%-14s  %s\n" \
-            "$idx" \
-            "$(echo "$info" | cut -d'|' -f1 | xargs)" \
-            "$(echo "$info" | cut -d'|' -f2- | xargs)"
-        VCH_ID_MAP[$idx]="$vid"
-        (( idx++ ))
+        echo "    code=$info"
     done
 
     echo ""
-    echo "  Options:"
-    echo "    all   -> ${label_action} all"
-    echo "    1 3 5 -> ${label_action} by number (space-separated)"
-    echo "    q     -> cancel"
+    read -rp "  Confirm deletion of ${#UNUSED_IDS[@]} unused voucher(s)? [y/N]: " CONFIRM
+    [[ ! "$CONFIRM" =~ ^[yY]$ ]] && echo "  Cancelled." && return
+
     echo ""
-    read -rp "  Your choice: " CHOICE
+    for vid in "${UNUSED_IDS[@]}"; do
+        local code rc
+        code=$(echo "$VOUCHER" | jq -r --arg id "$vid" \
+            '.data[] | select(._id == $id) | .code' 2>/dev/null)
+        rc=$(api_post "cmd/hotspot" "{\"cmd\":\"delete-voucher\",\"_id\":\"${vid}\"}" \
+            | jq -r '.meta.rc // "error"' 2>/dev/null)
+        [ "$rc" = "ok" ] \
+            && echo "  Deleted voucher: $code" \
+            || echo "  Failed to delete voucher: $code"
+    done
 
-    [ "$CHOICE" = "q" ] && echo "  Cancelled." && return
+    echo ""
+    echo "  Done."
+}
 
-    local selected_ids=()
-    if [ "$CHOICE" = "all" ]; then
-        selected_ids=("${VOUCHER_IDS[@]}")
-    else
-        read -ra CHOICES <<< "$CHOICE"
-        for n in "${CHOICES[@]}"; do
-            if [[ "$n" =~ ^[0-9]+$ ]] && [ -n "${VCH_ID_MAP[$n]+_}" ]; then
-                selected_ids+=("${VCH_ID_MAP[$n]}")
-            else
-                echo "  WARN: '$n' is not valid, skipped."
-            fi
-        done
+# ── Interactive [2]: forget portal clients who never submitted a voucher ───────
+# Targets clients in rest/user (is_guest=true) who have no record in stat/guest
+# (never used a voucher) and are not currently connected to the hotspot ESSID
+# in stat/sta. Action: forget-sta only (they were never authorized).
+interactive_forget_no_voucher() {
+    echo ""
+    echo "======================================================================="
+    echo " FORGET CLIENTS WITHOUT VOUCHER - connected to portal but never used one"
+    echo "======================================================================="
+
+    local ALLUSER
+    ALLUSER=$(api_get "rest/user")
+    local ALLUSER_RC
+    ALLUSER_RC=$(echo "$ALLUSER" | jq -r '.meta.rc // "error"' 2>/dev/null)
+    if [ "$ALLUSER_RC" != "ok" ]; then
+        echo "  ERROR: Could not fetch rest/user (rc=$ALLUSER_RC)"
+        return
     fi
 
-    [ ${#selected_ids[@]} -eq 0 ] && echo "  Nothing selected." && return
+    # MACs que sí usaron voucher (presentes en stat/guest)
+    local guest_macs
+    guest_macs=$(echo "$GUEST" | jq -r '
+        .data[]
+        | select(.voucher_code != null and .voucher_code != "")
+        | (.mac | ascii_downcase)
+    ' 2>/dev/null | sort -u)
 
+    # MACs actualmente conectados al ESSID del hotspot (presentes en stat/sta)
+    local sta_macs
+    sta_macs=$(echo "$STA" | jq -r --arg essid "$HOTSPOT_ESSID" '
+        .data[]
+        | select(.essid == $essid)
+        | (.mac | ascii_downcase)
+    ' 2>/dev/null | sort -u)
+
+    # Candidatos: is_guest=true, no en stat/guest, no en stat/sta activo
+    mapfile -t NOVOUCHER_MACS < <(echo "$ALLUSER" | jq -r '
+        .data[]
+        | select(.is_guest == true)
+        | (.mac | ascii_downcase)
+    ' 2>/dev/null | sort -u | while IFS= read -r mac; do
+        echo "$guest_macs" | grep -qx "$mac" && continue
+        echo "$sta_macs"   | grep -qx "$mac" && continue
+        echo "$mac"
+    done)
+
+    if [ ${#NOVOUCHER_MACS[@]} -eq 0 ]; then
+        echo "  No clients found matching the criteria."
+        return
+    fi
+
+    echo "  Clients to forget (${#NOVOUCHER_MACS[@]}):"
     echo ""
-    echo "  About to process ${#selected_ids[@]} voucher(s):"
-    for vid in "${selected_ids[@]}"; do
-        local c
-        c=$(echo "$VOUCHER" | jq -r --arg id "$vid" '.data[] | select(._id == $id) | .code' 2>/dev/null)
-        echo "    - $c"
+    for mac in "${NOVOUCHER_MACS[@]}"; do
+        local hostname last_seen
+        hostname=$(echo "$ALLUSER" | jq -r --arg m "$mac" '
+            .data[] | select((.mac | ascii_downcase) == $m) | .hostname // "N/A"
+        ' 2>/dev/null | head -1)
+        last_seen=$(echo "$ALLUSER" | jq -r --arg m "$mac" '
+            .data[] | select((.mac | ascii_downcase) == $m)
+            | if .last_seen then (.last_seen | strftime("%Y-%m-%d %H:%M")) else "N/A" end
+        ' 2>/dev/null | head -1)
+        printf "    %-20s  %-25s  last_seen=%s\n" "$mac" "$hostname" "$last_seen"
     done
-    echo ""
-    read -rp "  Are you sure? [y/N]: " CONFIRM
-    [[ ! "$CONFIRM" =~ ^[yY](es)?$ ]] && echo "  Cancelled." && return
 
     echo ""
-    echo "  Processing ${#selected_ids[@]} voucher(s)..."
-    local affected_macs=()
+    read -rp "  Confirm forget of ${#NOVOUCHER_MACS[@]} client(s)? [y/N]: " CONFIRM
+    [[ ! "$CONFIRM" =~ ^[yY]$ ]] && echo "  Cancelled." && return
 
-    for vid in "${selected_ids[@]}"; do
-        local code result rc
+    echo ""
+    for mac in "${NOVOUCHER_MACS[@]}"; do
+        local frc
+        frc=$(api_post "cmd/stamgr" \
+            "{\"cmd\":\"forget-sta\",\"macs\":[\"${mac}\"]}" \
+            | jq -r '.meta.rc // "error"' 2>/dev/null)
+        [ "$frc" = "ok" ] \
+            && echo "  Forgotten: $mac" \
+            || echo "  Failed to forget: $mac"
+    done
+
+    echo ""
+    echo "  Done."
+}
+
+# ── Interactive [3]: delete expired vouchers + forget their clients ────────────
+# A voucher is considered expired when its end_time has passed.
+# For each expired voucher:
+#   1. Delete the voucher from UniFi
+#   2. Unauthorize any still-active sessions linked to it (via stat/sta)
+#   3. Forget all client history linked to it (via stat/guest by voucher_code)
+# This matches the lifecycle model: expired time = no reason to keep anything.
+interactive_delete_expired() {
+    local now
+    now=$(date +%s)
+
+    echo ""
+    echo "======================================================================="
+    echo " DELETE EXPIRED VOUCHERS + FORGET THEIR CLIENTS"
+    echo "======================================================================="
+
+    mapfile -t EXPIRED_IDS < <(echo "$VOUCHER" | jq -r \
+        --argjson now "$now" '
+        .data[]
+        | select(.end_time != null and .end_time < $now)
+        | ._id
+    ' 2>/dev/null)
+
+    if [ ${#EXPIRED_IDS[@]} -eq 0 ]; then
+        echo "  No expired vouchers found."
+        return
+    fi
+
+    echo "  Expired vouchers to delete:"
+    echo ""
+    for vid in "${EXPIRED_IDS[@]}"; do
+        local info
+        info=$(echo "$VOUCHER" | jq -r --arg id "$vid" '
+            .data[] | select(._id == $id)
+            | [
+                (.code // "N/A"),
+                (((.duration // 0) / 60 | floor | tostring) + "h"),
+                ("used=" + ((.used // 0) | tostring)),
+                (if .end_time then (.end_time | strftime("%Y-%m-%d %H:%M")) else "N/A" end)
+              ]
+            | join("  ")
+        ' 2>/dev/null)
+        echo "    code=$info"
+    done
+
+    echo ""
+    read -rp "  Confirm deletion of ${#EXPIRED_IDS[@]} expired voucher(s)? [y/N]: " CONFIRM
+    [[ ! "$CONFIRM" =~ ^[yY]$ ]] && echo "  Cancelled." && return
+
+    echo ""
+
+    for vid in "${EXPIRED_IDS[@]}"; do
+        local code rc
         code=$(echo "$VOUCHER" | jq -r --arg id "$vid" \
             '.data[] | select(._id == $id) | .code' 2>/dev/null)
 
-        result=$(api_post "cmd/hotspot" "{\"cmd\":\"delete-voucher\",\"_id\":\"${vid}\"}")
-        rc=$(echo "$result" | jq -r '.meta.rc // "error"' 2>/dev/null)
-
+        # 1. Delete the voucher
+        rc=$(api_post "cmd/hotspot" "{\"cmd\":\"delete-voucher\",\"_id\":\"${vid}\"}" \
+            | jq -r '.meta.rc // "error"' 2>/dev/null)
         if [ "$rc" = "ok" ]; then
             echo "  Deleted voucher: $code"
-
-            # Collect MACs associated with this voucher (only used vouchers have sessions)
-            while IFS= read -r mac; do
-                [ -n "$mac" ] && affected_macs+=("$mac")
-            done < <(echo "$GUEST" | jq -r --arg code "$code" '
-                .data[]
-                | select(.voucher_code == $code)
-                | (.mac | ascii_downcase)
-            ' 2>/dev/null)
-
-            # Unauthorize any active sessions tied to this voucher
-            while IFS= read -r mac; do
-                [ -z "$mac" ] && continue
-                local unauth_rc
-                unauth_rc=$(api_post "cmd/stamgr" \
-                    "{\"cmd\":\"unauthorize-guest\",\"mac\":\"${mac}\"}" \
-                    | jq -r '.meta.rc // "error"' 2>/dev/null)
-                if [ "$unauth_rc" = "ok" ]; then
-                    echo "  Session revoked: $mac"
-                else
-                    echo "  ~ No active session found for: $mac"
-                fi
-            done < <(echo "$GUEST" | jq -r --arg code "$code" '
-                .data[]
-                | select(.voucher_code == $code)
-                | (.mac | ascii_downcase)
-            ' 2>/dev/null)
         else
-            echo "  Failed to delete voucher $code: $result"
+            echo "  Failed to delete voucher: $code — skipping its clients"
+            continue
         fi
+
+        # 2. Unauthorize active sessions linked to this voucher (stat/sta)
+        while IFS= read -r mac; do
+            [ -z "$mac" ] && continue
+            local unauth_rc
+            unauth_rc=$(api_post "cmd/stamgr" \
+                "{\"cmd\":\"unauthorize-guest\",\"mac\":\"${mac}\"}" \
+                | jq -r '.meta.rc // "error"' 2>/dev/null)
+            [ "$unauth_rc" = "ok" ] \
+                && echo "    Unauthorized: $mac" \
+                || echo "    ~ No active session: $mac"
+        done < <(echo "$STA" | jq -r --arg code "$code" '
+            .data[]
+            | select(.voucher_code == $code)
+            | (.mac | ascii_downcase)
+        ' 2>/dev/null | sort -u)
+
+        # 3. Forget all client history linked to this voucher (stat/guest)
+        while IFS= read -r mac; do
+            [ -z "$mac" ] && continue
+            local frc
+            frc=$(api_post "cmd/stamgr" \
+                "{\"cmd\":\"forget-sta\",\"macs\":[\"${mac}\"]}" \
+                | jq -r '.meta.rc // "error"' 2>/dev/null)
+            [ "$frc" = "ok" ] \
+                && echo "    Forgotten: $mac" \
+                || echo "    Failed to forget: $mac"
+        done < <(echo "$GUEST" | jq -r --arg code "$code" '
+            .data[]
+            | select(.voucher_code == $code)
+            | (.mac | ascii_downcase)
+        ' 2>/dev/null | sort -u)
     done
 
-    # Offer to forget client history for all affected MACs
-    if [ ${#affected_macs[@]} -gt 0 ]; then
-        echo ""
-        echo "  The following clients have sessions linked to the deleted vouchers:"
-        for mac in "${affected_macs[@]}"; do
-            echo "    - $mac"
-        done
-        echo ""
-        read -rp "  Remove their history from UniFi as well? [y/N]: " FORGET_CHOICE
-        if [[ "$FORGET_CHOICE" =~ ^[yY]$ ]]; then
-            for mac in "${affected_macs[@]}"; do
-                local frc
-                frc=$(api_post "cmd/stamgr" \
-                    "{\"cmd\":\"forget-sta\",\"macs\":[\"${mac}\"]}" \
-                    | jq -r '.meta.rc // "error"' 2>/dev/null)
-                [ "$frc" = "ok" ] \
-                    && echo "  History removed: $mac" \
-                    || echo "  Failed to forget: $mac"
-            done
-        fi
-    fi
+    echo ""
+    echo "  Done."
 }
 
-# ── Interactive: revoke fully consumed vouchers ──────────────────────────────
-# Targets vouchers where all available slots have been used (used >= quota).
-# Deletes the voucher, unauthorizes active sessions, and optionally removes
-# client history.
-interactive_revoke_used() {
-    _voucher_selector \
-        "REVOKE USED VOUCHERS - activated vouchers with active or past sessions" \
-        '.data[] | select(.quota > 0 and .used >= .quota) | ._id' \
-        "Revoke"
-}
-
-# ── Interactive: delete unused vouchers (used == 0) ───────────────────────────
-# Targets vouchers that were never activated. Safe to delete with no session
-# or client side effects.
-interactive_delete_unused() {
-    _voucher_selector \
-        "DELETE UNUSED VOUCHERS - vouchers that have never been activated" \
-        '.data[] | select(.used == 0) | ._id' \
-        "Delete"
-}
-
-# ── Interactive: purge all vouchers and client history ────────────────────────
-# Deletes ALL vouchers regardless of status or usage, unauthorizes ALL active
-# guest sessions, and erases ALL client history from UniFi. Requires typing
-# YES to confirm. This action cannot be undone.
+# ── Interactive [4]: purge all vouchers and client history ────────────────────
+# Deletes ALL vouchers regardless of status or expiry, unauthorizes ALL active
+# guest sessions, and erases ALL client history from UniFi.
+# Requires typing YES to confirm. This action cannot be undone.
 interactive_purge_all() {
+    local voucher_total
+    voucher_total=$(echo "$VOUCHER" | jq -r '.data | length' 2>/dev/null || echo "?")
+
     echo ""
     echo "======================================================================="
     echo " PURGE ALL — THIS WILL DESTROY ALL VOUCHERS AND CLIENT HISTORY"
     echo "======================================================================="
     echo ""
     echo "  This action will:"
-    echo "    - Delete ALL vouchers (${#VOUCHER_IDS_ALL[@]:-all} in stat/voucher)"
+    echo "    - Delete ALL vouchers ($voucher_total in stat/voucher)"
     echo "    - Unauthorize ALL active guest sessions"
     echo "    - Erase ALL client history from UniFi"
     echo ""
@@ -535,7 +517,7 @@ interactive_purge_all() {
             || echo "  Failed to delete voucher: $code"
     done < <(echo "$VOUCHER" | jq -r '.data[] | ._id' 2>/dev/null)
 
-    # 2. Unauthorize all active sessions
+    # 2. Unauthorize all active sessions (stat/sta — currently connected)
     local mac unauth_rc
     while IFS= read -r mac; do
         [ -z "$mac" ] && continue
@@ -545,9 +527,9 @@ interactive_purge_all() {
         [ "$unauth_rc" = "ok" ] \
             && echo "  Unauthorized: $mac" \
             || echo "  ~ No active session: $mac"
-    done < <(echo "$GUEST" | jq -r '.data[] | (.mac | ascii_downcase)' 2>/dev/null | sort -u)
+    done < <(echo "$STA" | jq -r '.data[] | (.mac | ascii_downcase)' 2>/dev/null | sort -u)
 
-    # 3. Forget all client history
+    # 3. Forget all client history (stat/guest — all past and present sessions)
     while IFS= read -r mac; do
         [ -z "$mac" ] && continue
         local frc
@@ -557,7 +539,7 @@ interactive_purge_all() {
         [ "$frc" = "ok" ] \
             && echo "  Forgotten: $mac" \
             || echo "  Failed to forget: $mac"
-    done < <(echo "$STA" | jq -r '.data[] | (.mac | ascii_downcase)' 2>/dev/null | sort -u)
+    done < <(echo "$GUEST" | jq -r '.data[] | (.mac | ascii_downcase)' 2>/dev/null | sort -u)
 
     echo ""
     echo "  Purge complete."
@@ -580,25 +562,28 @@ echo "$OUTPUT"
 printf "\nAudit complete. Log saved to: %s\n" "$LOG"
 
 # ── Interactive action menu ───────────────────────────────────────────────────
+# INTERACTIVE ACTIONS (after report)
+#   [1] Delete unused vouchers  - delete vouchers never activated (used=0)
+#   [2] Forget clients no voucher - forget guests who never submitted a voucher
+#   [3] Delete expired vouchers - delete expired vouchers and forget their clients
+#   [4] Purge everything        - DELETE all vouchers and client history (DESTRUCTIVE)
 echo ""
 echo "======================================================================="
 echo " AVAILABLE ACTIONS"
 echo "======================================================================="
-echo "  [1] Revoke used vouchers    - delete fully consumed vouchers"
-echo "  [2] Delete unused vouchers  - remove vouchers never activated"
-echo "  [3] Forget inactive clients - erase expired session history in UniFi"
-echo "  [4] All of the above"
-echo "  [5] Purge everything        - DELETE all vouchers and history (DESTRUCTIVE)"
+echo "  [1] Delete unused vouchers   - remove vouchers never activated"
+echo "  [2] Forget clients no voucher - connected to portal but never used one"
+echo "  [3] Delete expired vouchers  - remove expired vouchers and forget their clients"
+echo "  [4] Purge everything         - DELETE all vouchers and history (DESTRUCTIVE)"
 echo "  [q] Quit"
 echo ""
 read -rp "  Your choice: " ACTION
 
 case "$ACTION" in
-    1) interactive_revoke_used ;;
-    2) interactive_delete_unused ;;
-    3) interactive_forget ;;
-    4) interactive_revoke_used; interactive_delete_unused; interactive_forget ;;
-    5) interactive_purge_all ;;
+    1) interactive_delete_unused ;;
+    2) interactive_forget_no_voucher ;;
+    3) interactive_delete_expired ;;
+    4) interactive_purge_all ;;
     q|Q) echo "  Goodbye." ;;
     *) echo "  Invalid option. Exiting." ;;
 esac

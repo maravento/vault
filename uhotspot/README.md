@@ -555,7 +555,43 @@ sudo /etc/uhotspot/tools/uleases.sh
 # This creates /etc/uhotspot/tools/uleases.env
 ```
 
-> Optional: WPAD/PAC via DHCP option 252 — uncomment `option wpad code 252 = text;` in `/etc/pydhcp/pydhcpd.conf` and serve `wpad.pac` from Apache on port 18100. Honored by most desktops; ignored by Android and iOS.
+#### WPAD/PAC via DHCP option 252 (optional)
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <code>uleases.sh</code> replaces <code>pyleases.sh</code> shipped by default with pydhcp. Unlike the original, it generates <code>/etc/pydhcp/pydhcpd.conf</code> dynamically on every run. The generated config includes two commented-out lines for WPAD/PAC (proxy auto-configuration via DHCP option 252). These lines are intentionally left commented — <b>uhotspot does not require WPAD to work</b>. Uncomment them only if you need automatic proxy discovery for desktop clients.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <code>uleases.sh</code> reemplaza el <code>pyleases.sh</code> que viene por defecto con pydhcp. A diferencia del original, genera <code>/etc/pydhcp/pydhcpd.conf</code> dinámicamente en cada ejecución. La configuración generada incluye dos líneas comentadas para WPAD/PAC (auto-configuración de proxy vía opción DHCP 252). Estas líneas se dejan comentadas intencionalmente — <b>uhotspot no requiere WPAD para funcionar</b>. Descoméntelas solo si necesita descubrimiento automático de proxy para clientes de escritorio.
+    </td>
+  </tr>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      To enable WPAD:
+      <ol>
+        <li>Install Apache2 and create a VirtualHost on port 18100.</li>
+        <li>Place a valid <code>wpad.pac</code> file in the Apache document root for that VirtualHost.</li>
+        <li>In <code>uleases.sh</code>, uncomment the two <code>#option wpad</code> lines inside <code>update_dhcp_conf()</code>. They will be written into <code>/etc/pydhcp/pydhcpd.conf</code> on the next run.</li>
+      </ol>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Para habilitar WPAD:
+      <ol>
+        <li>Instale Apache2 y cree un VirtualHost en el puerto 18100.</li>
+        <li>Coloque un archivo <code>wpad.pac</code> válido en el document root de ese VirtualHost.</li>
+        <li>En <code>uleases.sh</code>, descomente las dos líneas <code>#option wpad</code> dentro de <code>update_dhcp_conf()</code>. Se escribirán en <code>/etc/pydhcp/pydhcpd.conf</code> en la próxima ejecución.</li>
+      </ol>
+    </td>
+  </tr>
+</table>
+
+```text
+#option wpad code 252 = text;                    ← global declaration (pydhcpd.conf header)
+#option wpad "http://<server_ip>:18100/wpad.pac"; ← subnet block
+```
+
+> **Note / Nota:** Android and iOS ignore DHCP option 252 — see [Mobile device limitations](#mobile-device-limitations--limitaciones-en-dispositivos-móviles). / Android e iOS ignoran la opción DHCP 252 — ver [Mobile device limitations](#mobile-device-limitations--limitaciones-en-dispositivos-móviles).
 
 ### uaudit
 
@@ -686,13 +722,15 @@ No consistency issues detected
 
 > Applies to the whole ecosystem (captive portal, WPAD, voucher redemption) — not specific to any single tool.
 > Aplica a todo el ecosistema (portal cautivo, WPAD, canje de vouchers) — no es específico de ninguna herramienta.
->
-> - **WPAD not supported / WPAD no soportado**: Android and iOS ignore DHCP option 252. The proxy must be configured manually on each device.
-> - **Captive portal probes / Sondas del portal cautivo**: Android probes `connectivitycheck.gstatic.com`; iOS probes `captive.apple.com`. If blocked or intercepted, the device reports *"connected without internet"* even when the proxy works. Whitelist these in Squid without auth.
-> - **App proxy bypass / Apps que bypasean el proxy**: Most apps on Android and iOS bypass the system proxy and connect directly. Only browsers reliably honor a manual proxy. Without SSL bump, direct HTTPS traffic cannot be redirected.
-> - **MAC randomization / Aleatorización de MAC**: Android 10+ and iOS 14+ randomize the MAC per network by default. A randomized MAC will never match an ACL entry and will appear as unauthorized on every connection. Users must disable MAC randomization for the SSID before connecting.
->
-> These are platform limitations, not defects in `uhotspot`, `uleases.sh`, or `uaudit.sh`.
+
+| Limitation | ENG | ESP |
+|------------|-----|-----|
+| **WPAD not supported / WPAD no soportado** | Android and iOS ignore DHCP option 252. The proxy must be configured manually on each device. | Android e iOS ignoran la opción DHCP 252. El proxy debe configurarse manualmente en cada dispositivo. |
+| **Captive portal probes / Sondas del portal cautivo** | Android probes `connectivitycheck.gstatic.com`; iOS probes `captive.apple.com`. If blocked or intercepted, the device reports *"connected without internet"* even when the proxy works. Whitelist these in Squid without auth. | Android sondea `connectivitycheck.gstatic.com`; iOS sondea `captive.apple.com`. Si están bloqueados o interceptados, el dispositivo reporta *"conectado sin internet"* aunque el proxy funcione. Agréguelos a la whitelist de Squid sin autenticación. |
+| **App proxy bypass / Apps que bypasean el proxy** | Most apps on Android and iOS bypass the system proxy and connect directly. Only browsers reliably honor a manual proxy. Without SSL bump, direct HTTPS traffic cannot be redirected. | La mayoría de las apps en Android e iOS bypasean el proxy del sistema y se conectan directamente. Solo los navegadores respetan de forma confiable un proxy manual. Sin SSL bump, el tráfico HTTPS directo no puede ser redirigido. |
+| **MAC randomization / Aleatorización de MAC** | Android 10+ and iOS 14+ randomize the MAC per network by default. A randomized MAC will never match an ACL entry and will appear as unauthorized on every connection. Users must disable MAC randomization for the SSID before connecting. | Android 10+ e iOS 14+ aleatorizan la MAC por red por defecto. Una MAC aleatorizada nunca coincidirá con una entrada ACL y aparecerá como no autorizada en cada conexión. El usuario debe deshabilitar la aleatorización de MAC para el SSID antes de conectarse. |
+
+> These are platform limitations, not defects in `uhotspot`, `uleases.sh`, or `uaudit.sh`. / Estas son limitaciones de plataforma, no defectos de `uhotspot`, `uleases.sh` ni `uaudit.sh`.
 
 ## Logs
 

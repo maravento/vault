@@ -79,8 +79,8 @@ if [[ "${1:-}" == "--update" ]]; then
     for f in pydhcpd.py tools/pyleases.sh tools/pywebmin.sh; do
         [ -f "$INSTALL_DIR/$f" ] && cp "$INSTALL_DIR/$f" "$BACKUP_DIR/$f"
     done
-    [ -f "$SERVICE_FILE" ]                   && cp "$SERVICE_FILE"                   "$BACKUP_DIR/pydhcpd.service"
-    [ -f "$INIT_FILE" ]                      && cp "$INIT_FILE"                      "$BACKUP_DIR/init.d/pydhcpd"
+    [ -f "$SERVICE_FILE" ] && cp "$SERVICE_FILE" "$BACKUP_DIR/pydhcpd.service"
+    [ -f "$INIT_FILE" ]    && cp "$INIT_FILE"    "$BACKUP_DIR/init.d/pydhcpd"
 
     info "Stopping pydhcpd service..."
     systemctl stop pydhcpd 2>/dev/null || true
@@ -125,6 +125,8 @@ if [[ "${1:-}" == "--update" ]]; then
     info "  $INSTALL_DIR/default/pydhcpd  — unchanged"
     info "  $INSTALL_DIR/pydhcpd.leases  — unchanged"
     info "  $INSTALL_DIR/pydhcpd.env     — unchanged"
+    warn "  NOTE: If you had uncommented the WPAD/option 252 lines in pyleases.sh,"
+    warn "        they have been overwritten. Re-enable them manually if needed."
     echo ""
     exit 0
 fi
@@ -145,8 +147,9 @@ done
 echo ""
 while true; do
     read -rp "  Select interface number [1-${#IFACES[@]}]: " SEL
-    if [[ "$SEL" =~ ^[0-9]+$ ]] && (( SEL >= 1 && SEL <= ${#IFACES[@]} )); then
-        IFACE="${IFACES[$((SEL-1))]}"
+    # Octal trap fix: force decimal with 10# prefix
+    if [[ "$SEL" =~ ^[0-9]+$ ]] && (( 10#$SEL >= 1 && 10#$SEL <= ${#IFACES[@]} )); then
+        IFACE="${IFACES[$((10#$SEL-1))]}"
         break
     fi
     warn "Invalid selection, try again"
@@ -178,16 +181,20 @@ while true; do
 done
 info "Netmask: $NETMASK"
 
-# Calculate network values from SERVER_IP and NETMASK
-NET_BASE=$(echo "$SERVER_IP" | cut -d. -f1-3)
-SUBNET="${NET_BASE}.0"
+# Calculate network values from SERVER_IP and NETMASK using python3
+SUBNET=$(python3 -c "
+import ipaddress
+net = ipaddress.IPv4Network('$SERVER_IP/$NETMASK', strict=False)
+print(net.network_address)
+")
 BROADCAST=$(python3 -c "
 import ipaddress
 net = ipaddress.IPv4Network('$SERVER_IP/$NETMASK', strict=False)
 print(net.broadcast_address)
 ")
-info "Network base: $NET_BASE"
+NET_BASE=$(echo "$SUBNET" | cut -d. -f1-3)
 info "Subnet: $SUBNET"
+info "Network base: $NET_BASE"
 info "Broadcast: $BROADCAST"
 
 # Pool range
@@ -196,7 +203,7 @@ while true; do
     read -rp "  Enter pool start (last octet, default: 220): " POOL_START
     POOL_START=$(echo "$POOL_START" | xargs)
     [[ -z "$POOL_START" ]] && POOL_START="220"
-    if [[ "$POOL_START" =~ ^[0-9]+$ ]] && (( POOL_START >= 1 && POOL_START <= 254 )); then
+    if [[ "$POOL_START" =~ ^[0-9]+$ ]] && (( 10#$POOL_START >= 1 && 10#$POOL_START <= 254 )); then
         break
     fi
     warn "Invalid value, enter a number between 1 and 254"
@@ -205,7 +212,7 @@ while true; do
     read -rp "  Enter pool end   (last octet, default: 235): " POOL_END
     POOL_END=$(echo "$POOL_END" | xargs)
     [[ -z "$POOL_END" ]] && POOL_END="235"
-    if [[ "$POOL_END" =~ ^[0-9]+$ ]] && (( POOL_END > POOL_START && POOL_END <= 254 )); then
+    if [[ "$POOL_END" =~ ^[0-9]+$ ]] && (( 10#$POOL_END > 10#$POOL_START && 10#$POOL_END <= 254 )); then
         break
     fi
     warn "Pool end must be greater than pool start ($POOL_START) and <= 254"
@@ -236,8 +243,6 @@ fi
 info "Creating $INSTALL_DIR ..."
 mkdir -p "$INSTALL_DIR"
 chown root:"$SYSTEM_USER" "$INSTALL_DIR"
-# 770 (not 750) so the unprivileged pydhcpd group can create the .tmp file
-# used by the atomic write of pydhcpd.leases after systemd drops privileges.
 chmod 770 "$INSTALL_DIR"
 
 # Deploy daemon and config files
@@ -272,18 +277,15 @@ else
 # Read by pydhcpd.py at startup and by /etc/init.d/pydhcpd
 
 # Path to pydhcpd config file
-# Used by pydhcpd.py to locate pydhcpd.conf at startup
 DHCPDv4_CONF=/etc/pydhcp/pydhcpd.conf
 
 # Path to pydhcpd PID file
-# Used by pydhcpd.py to write its PID and by init.d to stop the daemon
 DHCPDv4_PID=/etc/pydhcp/pydhcpd.pid
 
 # Network interface to listen on (IPv4 only, single interface)
 INTERFACESv4="$IFACE"
 
 # System user and group under which pydhcpd runs.
-# Created automatically by pyinstall.sh — change only if you renamed them.
 DAEMON_USER="pydhcpd"
 DAEMON_GROUP="pydhcpd"
 DEFEOF
@@ -299,7 +301,8 @@ sed -i "s|option routers .*;|option routers ${SERVER_IP};|" "$INSTALL_DIR/pydhcp
 sed -i "s|option subnet-mask .*;|option subnet-mask ${NETMASK};|" "$INSTALL_DIR/pydhcpd.conf"
 sed -i "s|option broadcast-address .*;|option broadcast-address ${BROADCAST};|" "$INSTALL_DIR/pydhcpd.conf"
 sed -i "s|range [0-9.]* [0-9.]*;|range ${NET_BASE}.${POOL_START} ${NET_BASE}.${POOL_END};|" "$INSTALL_DIR/pydhcpd.conf"
-sed -i "s|SERVER_IP|${SERVER_IP}|g" "$INSTALL_DIR/pydhcpd.conf"
+# Greedy sed fix: only replace SERVER_IP placeholder, not entire line
+sed -i "s|#\(.*\)SERVER_IP\(.*\)|#\1${SERVER_IP}\2|g" "$INSTALL_DIR/pydhcpd.conf"
 info "Network parameters set in pydhcpd.conf"
 
 # Re-apply permissions after sed edits
