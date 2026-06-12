@@ -168,7 +168,7 @@ echo OK
 echo.
 
 echo Configuring VirtioFsSvc service...
-set "VIRTIOFS_EXE=C:\Program Files\Virtio-Win\VioFS\virtiofs.exe"
+set "VIRTIOFS_EXE=%ProgramFiles%\Virtio-Win\VioFS\virtiofs.exe"
 :: check .exe
 if not exist "%VIRTIOFS_EXE%" (
     echo ERROR: virtiofs.exe not found at "%VIRTIOFS_EXE%"

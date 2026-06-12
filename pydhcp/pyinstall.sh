@@ -33,6 +33,26 @@ success() { echo -e "${GREEN}[OK]${NC}    $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 
+# Verify that a source file is a regular, non-empty, non-world-writable file
+# owned by root or the current user, and that its path is inside SCRIPT_DIR.
+verify_source() {
+    local f="$1"
+    local real
+    real=$(realpath "$f" 2>/dev/null) || error "Cannot resolve path: $f"
+    [[ "$real" == "$SCRIPT_DIR"/* ]] || error "Source file outside SCRIPT_DIR: $f"
+    [ -f "$real" ]          || error "Source is not a regular file: $f"
+    [ -s "$real" ]          || error "Source file is empty: $f"
+    local mode owner
+    mode=$(stat -c '%a' "$real")
+    owner=$(stat -c '%u' "$real")
+    if (( (8#$mode & 8#002) != 0 )); then
+        error "Source file is world-writable (mode $mode): $f"
+    fi
+    if [[ "$owner" != "0" && "$owner" != "${SUDO_UID:-$(id -u)}" ]]; then
+        error "Source file owned by unexpected uid $owner: $f"
+    fi
+}
+
 # ─── Root check ─────────────────────────────────────────────────────────────
 if [ "$(id -u)" -ne 0 ]; then
     error "This script must be run as root (use sudo)"
@@ -86,22 +106,26 @@ if [[ "${1:-}" == "--update" ]]; then
     systemctl stop pydhcpd 2>/dev/null || true
 
     info "Updating pydhcpd.py ..."
+    verify_source "$SCRIPT_DIR/pydhcpd.py"
     cp "$SCRIPT_DIR/pydhcpd.py" "$INSTALL_DIR/pydhcpd.py"
     chown root:root "$INSTALL_DIR/pydhcpd.py"
     chmod 755 "$INSTALL_DIR/pydhcpd.py"
 
     info "Updating systemd unit ..."
+    verify_source "$SCRIPT_DIR/pydhcpd.service"
     cp "$SCRIPT_DIR/pydhcpd.service" "$SERVICE_FILE"
     chown root:root "$SERVICE_FILE"
     chmod 644 "$SERVICE_FILE"
 
     info "Updating init.d wrapper ..."
+    verify_source "$SCRIPT_DIR/init.d/pydhcpd"
     cp "$SCRIPT_DIR/init.d/pydhcpd" "$INIT_FILE"
     chown root:root "$INIT_FILE"
     chmod 755 "$INIT_FILE"
 
     if [ -f "$SCRIPT_DIR/tools/pyleases.sh" ]; then
         info "Updating tools/pyleases.sh ..."
+        verify_source "$SCRIPT_DIR/tools/pyleases.sh"
         cp "$SCRIPT_DIR/tools/pyleases.sh" "$INSTALL_DIR/tools/pyleases.sh"
         chown root:root "$INSTALL_DIR/tools/pyleases.sh"
         chmod 755 "$INSTALL_DIR/tools/pyleases.sh"
@@ -109,6 +133,7 @@ if [[ "${1:-}" == "--update" ]]; then
 
     if [ -f "$SCRIPT_DIR/tools/pywebmin.sh" ]; then
         info "Updating tools/pywebmin.sh ..."
+        verify_source "$SCRIPT_DIR/tools/pywebmin.sh"
         cp "$SCRIPT_DIR/tools/pywebmin.sh" "$INSTALL_DIR/tools/pywebmin.sh"
         chown root:root "$INSTALL_DIR/tools/pywebmin.sh"
         chmod 755 "$INSTALL_DIR/tools/pywebmin.sh"
@@ -124,7 +149,6 @@ if [[ "${1:-}" == "--update" ]]; then
     info "  $INSTALL_DIR/pydhcpd.conf    — unchanged"
     info "  $INSTALL_DIR/default/pydhcpd  — unchanged"
     info "  $INSTALL_DIR/pydhcpd.leases  — unchanged"
-    info "  $INSTALL_DIR/pydhcpd.env     — unchanged"
     warn "  NOTE: If you had uncommented the WPAD/option 252 lines in pyleases.sh,"
     warn "        they have been overwritten. Re-enable them manually if needed."
     echo ""
@@ -243,10 +267,11 @@ fi
 info "Creating $INSTALL_DIR ..."
 mkdir -p "$INSTALL_DIR"
 chown root:"$SYSTEM_USER" "$INSTALL_DIR"
-chmod 770 "$INSTALL_DIR"
+chmod 775 "$INSTALL_DIR"
 
 # Deploy daemon and config files
 info "Deploying pydhcpd.py ..."
+verify_source "$SCRIPT_DIR/pydhcpd.py"
 cp "$SCRIPT_DIR/pydhcpd.py" "$INSTALL_DIR/pydhcpd.py"
 chown root:root "$INSTALL_DIR/pydhcpd.py"
 chmod 755 "$INSTALL_DIR/pydhcpd.py"
@@ -256,6 +281,7 @@ if [ -f "$INSTALL_DIR/pydhcpd.conf" ]; then
     warn "pydhcpd.conf already exists in $INSTALL_DIR — skipping (not overwritten)"
 else
     info "Deploying pydhcpd.conf ..."
+    verify_source "$SCRIPT_DIR/pydhcpd.conf"
     cp "$SCRIPT_DIR/pydhcpd.conf" "$INSTALL_DIR/pydhcpd.conf"
 fi
 chown root:"$SYSTEM_USER" "$INSTALL_DIR/pydhcpd.conf"
@@ -295,7 +321,7 @@ chmod 640 "$INSTALL_DIR/default/pydhcpd"
 info "Interface set in default/pydhcpd: $IFACE"
 
 # Apply network parameters to pydhcpd.conf
-sed -i "s/^server-identifier .*/server-identifier ${SERVER_IP};/" "$INSTALL_DIR/pydhcpd.conf"
+sed -i "s|^server-identifier .*|server-identifier ${SERVER_IP};|" "$INSTALL_DIR/pydhcpd.conf"
 sed -i "s|subnet [0-9.]* netmask|subnet ${SUBNET} netmask|" "$INSTALL_DIR/pydhcpd.conf"
 sed -i "s|option routers .*;|option routers ${SERVER_IP};|" "$INSTALL_DIR/pydhcpd.conf"
 sed -i "s|option subnet-mask .*;|option subnet-mask ${NETMASK};|" "$INSTALL_DIR/pydhcpd.conf"
@@ -308,31 +334,6 @@ info "Network parameters set in pydhcpd.conf"
 # Re-apply permissions after sed edits
 chown root:"$SYSTEM_USER" "$INSTALL_DIR/pydhcpd.conf"
 chmod 640 "$INSTALL_DIR/pydhcpd.conf"
-
-# Create pydhcpd.env
-info "Creating pydhcpd.env ..."
-cat > "$INSTALL_DIR/pydhcpd.env" <<EOF
-# pydhcpd environment configuration
-# Generated by install.sh on $(date)
-# Do not edit manually unless you know what you are doing.
-
-# Network
-IFACE=$IFACE
-SERVER_IP=$SERVER_IP
-NETMASK=$NETMASK
-NET_BASE=$NET_BASE
-SUBNET=$SUBNET
-BROADCAST=$BROADCAST
-POOL_START=${NET_BASE}.${POOL_START}
-POOL_END=${NET_BASE}.${POOL_END}
-
-# Paths
-INSTALL_DIR=$INSTALL_DIR
-LOG_FILE=$LOG_FILE
-EOF
-chown root:"$SYSTEM_USER" "$INSTALL_DIR/pydhcpd.env"
-chmod 640 "$INSTALL_DIR/pydhcpd.env"
-info "pydhcpd.env created"
 
 # Initialize empty leases file if not present
 if [ ! -f "$INSTALL_DIR/pydhcpd.leases" ]; then
@@ -356,6 +357,7 @@ chmod 755 "$INSTALL_DIR/tools"
 for tool in pyleases.sh pywebmin.sh; do
     if [ -f "$SCRIPT_DIR/tools/$tool" ]; then
         info "Deploying tools/$tool ..."
+        verify_source "$SCRIPT_DIR/tools/$tool"
         cp "$SCRIPT_DIR/tools/$tool" "$INSTALL_DIR/tools/$tool"
         chown root:root "$INSTALL_DIR/tools/$tool"
         chmod 755 "$INSTALL_DIR/tools/$tool"
@@ -364,12 +366,14 @@ done
 
 # Deploy systemd service
 info "Deploying systemd unit ..."
+verify_source "$SCRIPT_DIR/pydhcpd.service"
 cp "$SCRIPT_DIR/pydhcpd.service" "$SERVICE_FILE"
 chown root:root "$SERVICE_FILE"
 chmod 644 "$SERVICE_FILE"
 
 # Deploy init.d wrapper
 info "Deploying init.d wrapper ..."
+verify_source "$SCRIPT_DIR/init.d/pydhcpd"
 cp "$SCRIPT_DIR/init.d/pydhcpd" "$INIT_FILE"
 chown root:root "$INIT_FILE"
 chmod 755 "$INIT_FILE"

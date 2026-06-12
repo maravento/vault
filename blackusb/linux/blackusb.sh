@@ -39,9 +39,9 @@ fi
 demo='no'
 
 # Commands to run on trigger
+# To enable paranoid mode (shutdown on unknown device), uncomment 'poweroff'
 commands_list=(
     'sync'
-    # Uncomment to activate paranoid mode (poweroff: turn off the computer when detecting unauthorized removable device)
     #'poweroff'
 )
 
@@ -54,7 +54,7 @@ colors='yes'
 # Logging, you possibly don't want to turn it off
 log_enabled='yes'
 log_file='/var/log/blackusb.log'
-if [ ! -f "$log_file" ]; then touch $log_file; fi
+if [ ! -f "$log_file" ]; then touch "$log_file"; fi
 
 # Use custom editor
 custom_editor='yes'
@@ -131,6 +131,9 @@ rule_end="SUBSYSTEM==\"usb\", ENV{ACTION}==\"add\", ENV{DEVTYPE}==\"usb_device\"
 LABEL=\"end\""
 
 read_values() {
+    if ! command -v lsusb &>/dev/null; then
+        die "lsusb not found. Install the usbutils package (e.g. apt install usbutils)"
+    fi
     while read key value; do
         case "$key" in
         "idVendor")
@@ -171,10 +174,10 @@ eject_product() {
 choose_remove() {
     message "\nChoose number to add"
     read -e number
-    [[ -z "${vendors[$number]}" || !($number == ?(-)+([0-9])) ]] && die "wrong number"
+    [[ -z "${vendors[$number]}" || ! "$number" =~ ^[0-9]+$ ]] && die "wrong number"
 
-    string_eject="SUBSYSTEM==\"usb\", ENV{ID_VENDOR_ID}==\""${vendors[$number]}"\", ENV{ID_MODEL_ID}==\""${products[$number]}"\""
-    [[ -z ${serials[$number]} ]] || string_eject="${string_eject}, ENV{ID_SERIAL_SHORT}==\""${serials[$number]}"\""
+    string_eject="SUBSYSTEM==\"usb\", ENV{ID_VENDOR_ID}==\"${vendors[$number]}\", ENV{ID_MODEL_ID}==\"${products[$number]}\""
+    [[ -z ${serials[$number]} ]] || string_eject="${string_eject}, ENV{ID_SERIAL_SHORT}==\"${serials[$number]}\""
     string_eject="${string_eject}, ACTION==\"remove\", RUN+=\""$trigger_cmd_remove"\", OPTIONS+=\"last_rule\""
 
     [[ -f "${rule_file}.off" ]] && rule_file="${rule_file}.off"
@@ -183,7 +186,7 @@ choose_remove() {
         rulevar='# blackusb rules file\n'
         eject_product
     else
-        rulevar="$(<$rule_file)"
+        rulevar="$(<"$rule_file")"
         if [[ "$rulevar" =~ .*"$rule_end".* ]]; then
             rulevar="${rulevar%%$rule_end}"
             rulevar="${rulevar/%$'\n'/}"
@@ -206,14 +209,14 @@ gen_whitelist() {
     if [[ ! -f "$rule_file" ]]; then
         rulevar='# blackusb rules file\n'
     else
-        rulevar="$(<$rule_file)"
+        rulevar="$(<"$rule_file")"
         rulevar="${rulevar%%$rule_end}"
         rulevar="${rulevar/%$'\n'/}"
     fi
 
     for ((i = 0; i < "${#vendors[@]}"; i++)); do
-        string="SUBSYSTEM==\"usb\", ATTR{idVendor}==\""${vendors[$i]}"\", ATTR{idProduct}==\""${products[$i]}"\""
-        [[ -z ${serials[$i]} ]] || string="${string}, ATTR{serial}==\""${serials[$i]}"\""
+        string="SUBSYSTEM==\"usb\", ATTR{idVendor}==\"${vendors[$i]}\", ATTR{idProduct}==\"${products[$i]}\""
+        [[ -z ${serials[$i]} ]] || string="${string}, ATTR{serial}==\"${serials[$i]}\""
         string="${string}, ENV{ACTION}==\"add\", GOTO=\"end\""
 
         if [[ !("$rulevar" =~ .*"$string".*) ]]; then
@@ -273,12 +276,13 @@ edit_rules() {
 }
 
 trigger() {
+    [[ ! -f "$rule_file" ]] && die "Rules file not found. Run: $(basename "$0") on"
     read_values
-    rulevar="$(<$rule_file)"
+    rulevar="$(<"$rule_file")"
 
     for ((i = 0; i < "${#vendors[@]}"; i++)); do
-        string="SUBSYSTEM==\"usb\", ATTR{idVendor}==\""${vendors[$i]}"\", ATTR{idProduct}==\""${products[$i]}"\""
-        [[ -z ${serials[$i]} ]] || string="${string}, ATTR{serial}==\""${serials[$i]}"\""
+        string="SUBSYSTEM==\"usb\", ATTR{idVendor}==\"${vendors[$i]}\", ATTR{idProduct}==\"${products[$i]}\""
+        [[ -z ${serials[$i]} ]] || string="${string}, ATTR{serial}==\"${serials[$i]}\""
 
         if [[ !("$rulevar" =~ .*"$string".*) ]]; then
             [[ -z ${products_name[$i]} ]] || string+="\n${products_name[$i]}"

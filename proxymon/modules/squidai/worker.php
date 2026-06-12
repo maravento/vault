@@ -717,7 +717,9 @@ function getBlockedByType(string $type): array {
                 $line = trim($line);
                 if ($line === '' || $line[0] === '#') continue;
 
-                $patterns[] = ['/' . preg_quote($line, '/') . '/i', $line];
+                if (@preg_match('/' . $line . '/i', '') !== false) {
+                    $patterns[] = ['/' . $line . '/i', $line];
+                }
             }
         }
     }

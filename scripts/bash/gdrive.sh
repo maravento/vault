@@ -47,6 +47,10 @@ for pkg in $pkgs; do
 done
 
 GD="/home/$local_user/gdrive"
+if [ -e "$GD" ] && [ ! -d "$GD" ]; then
+    echo "ERROR: $GD exists but is not a directory"
+    exit 1
+fi
 if [ ! -d "$GD" ]; then
     mkdir -p "$GD"
     chmod 755 "$GD"

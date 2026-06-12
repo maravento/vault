@@ -44,7 +44,7 @@ if [[ "$PS" =~ $PROTECTED ]]; then
     exit 1
 fi
 
-pids=$(ps ax | awk '{print $1, $5}' | grep -F "$PS" | awk '{print $1}' 2>/dev/null) || {
+pids=$(ps ax | awk '{print $1, $5}' | grep -wF "$PS" | awk '{print $1}' 2>/dev/null) || {
     echo "ERROR: Failed to query process list"
     exit 1
 }
@@ -54,7 +54,7 @@ if [ -z "$pids" ]; then
 else
     kill -TERM $pids 2>/dev/null
     sleep 3
-    surviving=$(ps ax | awk '{print $1, $5}' | grep -F "$PS" | awk '{print $1}' 2>/dev/null)
+    surviving=$(ps ax | awk '{print $1, $5}' | grep -wF "$PS" | awk '{print $1}' 2>/dev/null)
     if [ -n "$surviving" ]; then
         kill -KILL $surviving 2>/dev/null
     fi

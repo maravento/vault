@@ -100,24 +100,11 @@ Cruzer Blade
 
 ### Dependencies
 
-`bash`, `udev`
+`bash`, `udev`, `usbutils`
 
 ### Fork
 
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-     This project is a fork of:
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-     Este proyecto es un fork de:
-    </td>
-  </tr>
-</table>
-
-[usbkill](https://github.com/hephaest0s/usbkill)
-
-[usbdeath](https://github.com/trpt/usbdeath)
+[usbkill](https://github.com/hephaest0s/usbkill), [usbdeath](https://github.com/trpt/usbdeath)
 
 ## FOR WINDOWS OS
 

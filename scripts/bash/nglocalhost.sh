@@ -100,7 +100,7 @@ start() {
     if [ -z "$assigned_ports" ]; then
         echo "No remote ports assigned"
         rm -f "$ACTIVE_FLAG"
-        kill $SSH_PID 2>/dev/null
+        kill "$SSH_PID" 2>/dev/null
         exit 1
     fi
     > /tmp/nglocalhost_ports.txt

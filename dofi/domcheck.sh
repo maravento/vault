@@ -63,7 +63,7 @@ else
 fi | xargs -I {} -P "$PROCS" sh -c "if timeout 5 host {} >/dev/null 2>&1; then echo HIT {}; else echo FAULT {}; fi" >>dnslookup2
 sed '/^FAULT/d' dnslookup2 | awk '{print $2}' | awk '{print "."$1}' | sort -u >>hit.txt
 sed '/^HIT/d' dnslookup2 | awk '{print $2}' | awk '{print "."$1}' | sort -u >fault.txt
-comm -23 <(sort "$infile") <(sort hit.txt) >outdiff.txt
+comm -23 <(sed '/^$/d; /#/d; s/\r//g; s/^\.//' "$infile" | sort -u) <(sed 's/^\.//' hit.txt | sort -u) >outdiff.txt
 echo "hit.txt: existing domains from your list"
 echo "outdiff.txt: non-existent domains removed"
 echo "Done"

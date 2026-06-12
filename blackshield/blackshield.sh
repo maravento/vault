@@ -19,14 +19,16 @@ fi
 
 ### VARIABLES
 wgetd='wget -q -c --no-check-certificate --retry-connrefused --timeout=10 --tries=4'
-output=
 
 # Bad User-Agents
-$wgetd bad-user-agents.list "https://raw.githubusercontent.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker/refs/heads/master/_generator_lists/bad-user-agents.list"
-sed -E 's/\\//g; s#/#-#g' bad-user-agents.list >> acl/squid/blockua.txt
-sort -o acl/squid/blockua.txt -u acl/squid/blockua.txt
-rm -f bad-user-agents.list
-echo "Bad User-Agents for Squid: blockua.txt"
+if $wgetd -O bad-user-agents.list "https://raw.githubusercontent.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker/refs/heads/master/_generator_lists/bad-user-agents.list"; then
+    sed -E 's/\\//g; s#/#-#g' bad-user-agents.list >> acl/squid/blockua.txt
+    sort -o acl/squid/blockua.txt -u acl/squid/blockua.txt
+    rm -f bad-user-agents.list
+    echo "Bad User-Agents for Squid: blockua.txt"
+else
+    echo "ERROR: failed to download bad-user-agents.list"
+fi
 
 # Ransomware
 function rw() {
@@ -34,7 +36,8 @@ function rw() {
     if [ $? -eq 0 ]; then
         $wgetd "$1" -O - >> source_lst.txt
     else
-        echo ERROR "$1"
+        echo "ERROR: $1"
+        return 1
     fi
 }
 rw 'https://raw.githubusercontent.com/dannyroemhild/ransomware-fileext-list/refs/heads/master/fileextlist.txt' && sleep 1
@@ -54,7 +57,7 @@ cat acl/squid/{output_lst,debug_lst}.txt | sed -E 's/^\*\.\?//; s/^/\\./; s/(.*)
 echo "Ransomware ACL for Squid: rwext.txt"
 
 # For Samba Veto Files
-echo "veto files = $(cat acl/squid/{output_lst,debug_lst}.txt | sed 's/^/*./' | paste -sd '' - | sed 's/*/\/&/g; s/$/\//' | sort -u)" > acl/smb/ransom_veto.txt
+echo "veto files = $(cat acl/squid/{output_lst,debug_lst}.txt | sort -u | sed 's/^/*./' | paste -sd '' - | sed 's/*/\/&/g; s/$/\//')" > acl/smb/ransom_veto.txt
 chmod +x acl/smb/merge_veto.sh
 acl/smb/merge_veto.sh
 echo "Ransomware ACL for Samba: ransom_veto.txt"

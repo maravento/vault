@@ -65,6 +65,8 @@ def process_page(url, email, session):
                 if not any(path.endswith(e) for e in SKIP_EXTENSIONS):
                     links.add(norm)
         return found, links
+    except KeyboardInterrupt:
+        raise
     except Exception as e:
         print(f"  [ERROR] {url} → {e}")
         return False, set()
@@ -73,6 +75,7 @@ def scan():
     domain = urlparse(BASE_URL).netloc
     visited = set()
     pending = deque([normalize_url(BASE_URL)])
+    pending_set = {normalize_url(BASE_URL)}
     matches = []
     session = requests.Session()
     session.headers.update(HEADERS)
@@ -93,8 +96,9 @@ def scan():
             matches.append(current_url)
             print(f"        ✅ EMAIL FOUND!")
         for link in new_links:
-            if link not in visited:
+            if link not in visited and link not in pending_set:
                 pending.append(link)
+                pending_set.add(link)
         if REQUEST_DELAY > 0:
             time.sleep(REQUEST_DELAY)
     print("\n" + "="*65)

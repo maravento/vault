@@ -12,6 +12,7 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
+setlocal
 REM safe with network/safe minimal/normal mode
 echo.
 echo Start PC in the following modes:

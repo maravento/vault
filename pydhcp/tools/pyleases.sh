@@ -53,6 +53,17 @@ printf "\n"
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+LOG_FILE="/var/log/pyleases.log"
+ulog() {
+    local msg
+    msg="$(date '+%Y-%m-%d %H:%M:%S') $*"
+    echo "$msg"
+    echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
+}
+
+echo "────────────────────────────────────────────────────────────────────────────────" >> "$LOG_FILE" 2>/dev/null || true
+ulog "pyleases Start"
+
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
     exit 1
@@ -80,7 +91,6 @@ local_user=$(who | awk '/\(:0\)/{print $1; exit}')
 [ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
 [ -z "$local_user" ] && local_user="${SUDO_USER:-}"
 [ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
-[ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
 if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
     echo "ERROR: Cannot determine a valid local user"
     exit 1
@@ -173,6 +183,9 @@ ACL_MAC_PROXY=/etc/acl/acl_mac/mac-proxy.txt
 ACL_MAC_TRANSPARENT=/etc/acl/acl_mac/mac-transparent.txt
 ACL_MAC_UNLIMITED=/etc/acl/acl_mac/mac-unlimited.txt
 ACL_BLOCK_FILE=/etc/acl/acl_dhcp/blockdhcp.txt
+
+# Lease cleanup interval in seconds (should be <= pool min-lease-time)
+CLEANUP_INTERVAL=60
 EOF
     chmod 640 "$env_file"
     chown root:pydhcpd "$env_file"
@@ -273,6 +286,7 @@ verify_dhcp_files
 verify_dhcp_config
 verify_directories
 initialize_empty_files
+ulog "Verification OK — pydhcpd active, paths valid"
 
 function is_pydhcp() {
     dhcpd=/etc/pydhcp/pydhcpd.leases
@@ -306,12 +320,16 @@ function is_pydhcp() {
                     if [[ -n "$mac_address" && -n "$ip_address" ]]; then
                         line_lease="a;$mac_address;$ip_address;$host;"
 
-                        if ! grep -qo "$mac_address" "$ACL_MAC_PATH"/mac-* 2>/dev/null; then
-                            if [[ $(grep -o "$mac_address" "$ACL_BLOCK_FILE") == "" ]]; then
+                        if ! grep -qi "^a;${mac_address};" "$ACL_MAC_PATH"/mac-* 2>/dev/null; then
+                            if ! grep -qi "^a;${mac_address};" "$ACL_BLOCK_FILE" 2>/dev/null; then
+                                ulog "read_leases: $mac_address → unknown → blockdhcp (ip=$ip_address host=$host)"
                                 echo "$line_lease" >> "$ACL_BLOCK_FILE"
                                 echo "$lease_content" >> "$temp_leases"
+                            else
+                                ulog "read_leases: $mac_address → blocked (lease discarded)"
                             fi
                         else
+                            ulog "read_leases: $mac_address → authoritative (ip=$ip_address)"
                             echo "$lease_content" >> "$temp_leases"
                         fi
                     fi
@@ -320,6 +338,10 @@ function is_pydhcp() {
                 fi
             fi
         done < "$dhcpd"
+
+        local leases_kept=0
+        [[ -s "$temp_leases" ]] && { leases_kept=$(grep -c '^lease ' "$temp_leases" 2>/dev/null) || true; }
+        ulog "read_leases: done (leases_kept=$leases_kept)"
 
         if [[ -s "$temp_leases" ]]; then
             mv -f "$temp_leases" "$dhcpd"
@@ -333,6 +355,7 @@ function is_pydhcp() {
     function update_dhcp_conf {
         echo "# pydhcpd Configuration
 authoritative;
+cleanup-interval $CLEANUP_INTERVAL;
 #option wpad code 252 = text;
 server-identifier $SERV_DHCP;
 deny duplicates;
@@ -358,6 +381,20 @@ ddns-update-style none;
             ipsource=$(echo "$line" | cut -d ';' -f 3)
             usersource=$(echo "$line" | cut -d ';' -f 4)
             if [[ $wcstatus == "a" ]]; then
+                # Validate every field before writing it into the config so an
+                # ACL entry cannot inject arbitrary dhcpd directives.
+                if ! [[ $macsource =~ ^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$ ]]; then
+                    ulog "update_dhcp_conf: skipping entry, invalid MAC: $macsource"
+                    continue
+                fi
+                if ! [[ $ipsource =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+                    ulog "update_dhcp_conf: skipping entry, invalid IP: $ipsource"
+                    continue
+                fi
+                if ! [[ $usersource =~ ^[A-Za-z0-9._-]{1,63}$ ]]; then
+                    ulog "update_dhcp_conf: skipping entry, invalid hostname: $usersource"
+                    continue
+                fi
                 echo "
     host $usersource {
     hardware ethernet $macsource;
@@ -408,38 +445,55 @@ class "blockdhcp" {
     }
 
     function clean_block_list {
+        local removed=0
         file_temp=$(mktemp)
         TEMP_FILES_TO_CLEAN+=("$file_temp")
-        grep -E ';[0-9a-f:]+;' "$ACL_MAC_PATH"/mac-* 2>/dev/null | cut -d ";" -f2 >"$file_temp"
+        grep -hE ';[0-9a-f:]+;' "$ACL_MAC_PATH"/mac-* 2>/dev/null | cut -d ";" -f2 >"$file_temp"
         while read -r mac_actual; do
+            if grep -qF ";${mac_actual};" "$ACL_BLOCK_FILE" 2>/dev/null; then
+                ulog "clean_block_list: removing $mac_actual from blockdhcp (found in acl_mac)"
+                (( removed++ )) || true
+            fi
             grep -vF ";${mac_actual};" "$ACL_BLOCK_FILE" > "$ACL_BLOCK_FILE".tmp && mv "$ACL_BLOCK_FILE".tmp "$ACL_BLOCK_FILE"
         done <"$file_temp"
         rm -f "$file_temp"
+        ulog "clean_block_list: done (removed=$removed)"
     }
 
     function clean_proxy_list {
-        local file_temp
+        local file_temp removed=0
         file_temp=$(mktemp)
         TEMP_FILES_TO_CLEAN+=("$file_temp")
-        while read line; do
+        while IFS= read -r line; do
             mac_actual=$(echo "$line" | cut -d ';' -f 2)
-            grep -vF "$mac_actual" "$ACL_MAC_PROXY" > "$file_temp" && mv "$file_temp" "$ACL_MAC_PROXY"
+            if grep -qF ";${mac_actual};" "$ACL_MAC_PROXY" 2>/dev/null; then
+                ulog "clean_proxy_list: removing $mac_actual from mac-proxy (found in mac-unlimited)"
+                (( removed++ )) || true
+            fi
+            grep -vF ";${mac_actual};" "$ACL_MAC_PROXY" > "$file_temp" && mv "$file_temp" "$ACL_MAC_PROXY"
         done <"$ACL_MAC_UNLIMITED"
         rm -f "$file_temp"
+        ulog "clean_proxy_list: done (removed=$removed)"
     }
 
     function clean_transparent_list {
-        local file_temp
+        local file_temp removed=0
         file_temp=$(mktemp)
         TEMP_FILES_TO_CLEAN+=("$file_temp")
-        while read line; do
+        while IFS= read -r line; do
             mac_actual=$(echo "$line" | cut -d ';' -f 2)
-            grep -vF "$mac_actual" "$ACL_MAC_TRANSPARENT" > "$file_temp" && mv "$file_temp" "$ACL_MAC_TRANSPARENT"
+            if grep -qF ";${mac_actual};" "$ACL_MAC_TRANSPARENT" 2>/dev/null; then
+                ulog "clean_transparent_list: removing $mac_actual from mac-transparent (found in mac-unlimited)"
+                (( removed++ )) || true
+            fi
+            grep -vF ";${mac_actual};" "$ACL_MAC_TRANSPARENT" > "$file_temp" && mv "$file_temp" "$ACL_MAC_TRANSPARENT"
         done <"$ACL_MAC_UNLIMITED"
         rm -f "$file_temp"
+        ulog "clean_transparent_list: done (removed=$removed)"
     }
 
     function clean_acl {
+        ulog "clean_acl: removing empty lines from ACL files"
         sed '/^$/d' -i "$ACL_BLOCK_FILE"
         sed '/^$/d' -i "$ACL_MAC_PROXY"
         sed '/^$/d' -i "$ACL_MAC_TRANSPARENT"
@@ -455,11 +509,16 @@ class "blockdhcp" {
     clean_proxy_list
     clean_transparent_list
 
+    ulog "Stopping pydhcpd"
     systemctl stop pydhcpd
     trap 'systemctl is-active --quiet pydhcpd || systemctl start pydhcpd' EXIT
+    ulog "Processing leases"
     read_leases
+    ulog "Sorting ACL files"
     order_files_acl
+    ulog "Rebuilding pydhcpd.conf"
     update_dhcp_conf
+    ulog "Starting pydhcpd"
     systemctl start pydhcpd
     trap - EXIT
 }
@@ -470,9 +529,10 @@ function duplicate() {
             | cut -d\; -f${field} | sort | uniq -d
     done)
     if [ "${aclall}" == "" ]; then
+        ulog "Duplicate check: OK"
         is_pydhcp
-        echo OK
     else
+        ulog "ERROR: Duplicate data detected: $aclall"
         echo "Duplicate Data: $(date) $aclall" | tee -a /var/log/syslog
         _notify "$local_user" "Warning: Abort" "Duplicate: $aclall. $(date)" -i error
         exit 1
@@ -480,4 +540,6 @@ function duplicate() {
 }
 duplicate
 
-echo "Done"
+_count() { local c; c=$(grep -c '^a;' "$1" 2>/dev/null) || true; echo "${c:-0}"; }
+ulog "Summary: blockdhcp=$(_count "$ACL_BLOCK_FILE") | proxy=$(_count "$ACL_MAC_PROXY") | transparent=$(_count "$ACL_MAC_TRANSPARENT") | unlimited=$(_count "$ACL_MAC_UNLIMITED")"
+ulog "Done"

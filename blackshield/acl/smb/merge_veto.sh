@@ -32,5 +32,3 @@ final_output="veto files = $final_output"
 # Save the final content to the output file
 echo "$final_output" > "$output"
 
-echo Done
-

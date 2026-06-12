@@ -203,7 +203,7 @@ echo Installing JRE...
 cd /d "%installpath%" || exit /b 1
 set "latest_msi=OpenJDK21U-!jdk_type!_!os_arch!_!vm_type!_!file_version!.msi"
 echo [%date% %time%] Installing MSI: !latest_msi! >> "%logfile%"
-start /wait msiexec /i "!latest_msi!" ADDLOCAL=FeatureMain,FeatureEnvironment,FeatureJarFileRunWith,FeatureJavaHome INSTALLDIR="%ProgramFiles%\Temurin\" /quiet >nul 2>&1
+start /wait msiexec /i "!latest_msi!" ADDLOCAL=FeatureMain,FeatureEnvironment,FeatureJarFileRunWith,FeatureJavaHome INSTALLDIR="%ProgramFiles%\Temurin" /quiet >nul 2>&1
 set "msi_error=!errorlevel!"
 if !msi_error! NEQ 0 (
     echo Error installing JRE
@@ -725,6 +725,7 @@ echo [%date% %time%] Java path: %JAVA_PATH% >> "%logfile%"
 
 echo [%date% %time%] Running: %JAVA_PATH% -jar lib\ace.jar startsvc >> "%logfile%"
 "%JAVA_PATH%" -jar lib\ace.jar startsvc &
+timeout /t 5 /nobreak >nul
 echo [%date% %time%] Running: %JAVA_PATH% -jar lib\ace.jar installsvc >> "%logfile%"
 "%JAVA_PATH%" -jar lib\ace.jar installsvc >nul 2>&1
 set "service_error=!errorlevel!"
@@ -1224,7 +1225,7 @@ if not exist "%unifidir%" (
 )
 
 set "backupdir=%installpath%\backup"
-for /f "tokens=*" %%I in ('PowerShell -Command "Get-Date -Format 'yyyyMMdd'"') do set "date=%%I"
+for /f "tokens=*" %%I in ('PowerShell -Command "Get-Date -Format 'yyyyMMdd'"') do set "backup_date=%%I"
 
 if not exist "%backupdir%" mkdir "%backupdir%"
 
@@ -1247,7 +1248,7 @@ set "sourcefile=%unifidir%\%latest%"
 echo Latest backup found: "%latest%"
 echo.
 
-set "destfile=%backupdir%\%product_name%_backup_%date%.unf"
+set "destfile=%backupdir%\%product_name%_backup_%backup_date%.unf"
 
 copy "%sourcefile%" "%destfile%" /Y
 if %ERRORLEVEL% NEQ 0 (

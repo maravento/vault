@@ -176,19 +176,51 @@ my $LEASES_FILE = $defaults->{DHCPDv4_LEASES} || "/etc/pydhcp/pydhcpd.leases";
 my $CONF_FILE   = $defaults->{DHCPDv4_CONF}   || "/etc/pydhcp/pydhcpd.conf";
 my $SERVICE     = "pydhcpd";
 
+# Per-install CSRF secret: a random value stored 0600 and embedded in every
+# state-changing form, required back on submission. A cross-site attacker
+# cannot read it, so it cannot forge a valid request.
+sub csrf_token {
+    our $module_config_directory;
+    my $f = "$module_config_directory/.csrf_token";
+    my $tok;
+    if (open(my $fh, '<', $f)) { local $/; $tok = <$fh>; close($fh); $tok =~ s/\s+//g if defined $tok; }
+    if (!$tok || $tok !~ /^[0-9a-f]{64}$/) {
+        $tok = '';
+        if (open(my $r, '<', '/dev/urandom')) {
+            my $buf; binmode $r; read($r, $buf, 32); close($r);
+            $tok = unpack('H*', $buf);
+        }
+        if (length($tok) != 64) {
+            my @h = ('0'..'9','a'..'f');
+            $tok = join('', map { $h[int(rand(16))] } 1..64);
+        }
+        if (open(my $fh, '>', $f)) { print $fh $tok; close($fh); chmod 0600, $f; }
+    }
+    return $tok;
+}
+my $CSRF = &csrf_token();
+
 if ($in{'action'}) {
     my $act = $in{'action'};
+    # State-changing actions require POST and a valid CSRF token.
+    if (($ENV{'REQUEST_METHOD'} || '') ne 'POST' || ($in{'token'} || '') ne $CSRF) {
+        &redirect("index.cgi");
+        exit 0;
+    }
     if (fork() == 0) {
         setsid();
-        if ($act eq 'start')   { system("systemctl start   $SERVICE >/dev/null 2>&1"); }
-        elsif ($act eq 'stop')    { system("systemctl stop    $SERVICE >/dev/null 2>&1"); }
-        elsif ($act eq 'restart') { system("systemctl restart $SERVICE >/dev/null 2>&1"); }
-        elsif ($act eq 'reload')  { system("systemctl reload  $SERVICE >/dev/null 2>&1"); }
+        open(STDOUT, '>', '/dev/null');
+        open(STDERR, '>', '/dev/null');
+        if    ($act eq 'start')   { system("systemctl", "start",   $SERVICE); }
+        elsif ($act eq 'stop')    { system("systemctl", "stop",    $SERVICE); }
+        elsif ($act eq 'restart') { system("systemctl", "restart", $SERVICE); }
+        elsif ($act eq 'reload')  { system("systemctl", "reload",  $SERVICE); }
         exit 0;
     }
     sleep 1;
     my $ts = time();
     &redirect("index.cgi?nocache=$ts");
+    exit 0;
 }
 
 print "Cache-Control: no-cache, no-store, must-revalidate\r\n";
@@ -324,10 +356,10 @@ print "<div class='pyd-section'>\n";
 print "<div class='pyd-section-title'>$text{'index_status'}</div>\n";
 print "<div class='pyd-status-bar'>\n";
 print "<span class='pyd-badge $status_class'>$status_label</span>\n";
-print "<a class='pyd-btn pyd-btn-start'   href='index.cgi?action=start'>$text{'btn_start'}</a>\n";
-print "<a class='pyd-btn pyd-btn-stop'    href='index.cgi?action=stop'>$text{'btn_stop'}</a>\n";
-print "<a class='pyd-btn pyd-btn-restart' href='index.cgi?action=restart'>$text{'btn_restart'}</a>\n";
-print "<a class='pyd-btn pyd-btn-reload'  href='index.cgi?action=reload'>$text{'btn_reload'}</a>\n";
+print "<form method='post' action='index.cgi' style='display:inline'><input type='hidden' name='token' value='$CSRF'><input type='hidden' name='action' value='start'><button type='submit' class='pyd-btn pyd-btn-start'>$text{'btn_start'}</button></form>\n";
+print "<form method='post' action='index.cgi' style='display:inline'><input type='hidden' name='token' value='$CSRF'><input type='hidden' name='action' value='stop'><button type='submit' class='pyd-btn pyd-btn-stop'>$text{'btn_stop'}</button></form>\n";
+print "<form method='post' action='index.cgi' style='display:inline'><input type='hidden' name='token' value='$CSRF'><input type='hidden' name='action' value='restart'><button type='submit' class='pyd-btn pyd-btn-restart'>$text{'btn_restart'}</button></form>\n";
+print "<form method='post' action='index.cgi' style='display:inline'><input type='hidden' name='token' value='$CSRF'><input type='hidden' name='action' value='reload'><button type='submit' class='pyd-btn pyd-btn-reload'>$text{'btn_reload'}</button></form>\n";
 print "<a class='pyd-btn pyd-btn-refresh' href='index.cgi'>$text{'btn_refresh'}</a>\n";
 print "</div></div>\n";
 
@@ -453,6 +485,29 @@ my $CONF_FILE = $defaults->{DHCPDv4_CONF} || "/etc/pydhcp/pydhcpd.conf";
 my $BACKUP_FILE = "/etc/pydhcp/pydhcpd.conf.bak";
 my $DAEMON_BIN = "/etc/pydhcp/pydhcpd.py";
 
+# Per-install CSRF secret (see index.cgi): unpredictable to a cross-site
+# attacker and required back as a hidden field on save.
+sub csrf_token {
+    our $module_config_directory;
+    my $f = "$module_config_directory/.csrf_token";
+    my $tok;
+    if (open(my $fh, '<', $f)) { local $/; $tok = <$fh>; close($fh); $tok =~ s/\s+//g if defined $tok; }
+    if (!$tok || $tok !~ /^[0-9a-f]{64}$/) {
+        $tok = '';
+        if (open(my $r, '<', '/dev/urandom')) {
+            my $buf; binmode $r; read($r, $buf, 32); close($r);
+            $tok = unpack('H*', $buf);
+        }
+        if (length($tok) != 64) {
+            my @h = ('0'..'9','a'..'f');
+            $tok = join('', map { $h[int(rand(16))] } 1..64);
+        }
+        if (open(my $fh, '>', $f)) { print $fh $tok; close($fh); chmod 0600, $f; }
+    }
+    return $tok;
+}
+my $CSRF = &csrf_token();
+
 print "Cache-Control: no-cache, no-store, must-revalidate\r\n";
 &ui_print_header(undef, $text{'config_title'}, "", undef, 1, 1);
 
@@ -467,7 +522,9 @@ if ($in{'action'} eq 'save' && defined $in{'conf_content'}) {
 
     if ($method ne 'POST') {
         $message = "<div style='margin:10px 0;padding:10px 14px;background:#f8d7da;color:#721c24;border-radius:4px;border:1px solid #f5c6cb;font-size:13px;'>Request rejected (method not POST)</div>\n";
-    } elsif ($referer ne '' && $referer !~ m{^https?://\Q$origin\E/}i) {
+    } elsif (($in{'token'} || '') ne $CSRF) {
+        $message = "<div style='margin:10px 0;padding:10px 14px;background:#f8d7da;color:#721c24;border-radius:4px;border:1px solid #f5c6cb;font-size:13px;'>Request rejected (invalid or missing token)</div>\n";
+    } elsif ($referer eq '' || $referer !~ m{^https?://\Q$origin\E/}i) {
         $message = "<div style='margin:10px 0;padding:10px 14px;background:#f8d7da;color:#721c24;border-radius:4px;border:1px solid #f5c6cb;font-size:13px;'>Request rejected (invalid referer)</div>\n";
     } else {
         my $content = $in{'conf_content'};
@@ -478,7 +535,17 @@ if ($in{'action'} eq 'save' && defined $in{'conf_content'}) {
             print $fh $content;
             close($fh);
 
-            if (system("$DAEMON_BIN --test $tmpfile >/dev/null 2>&1") != 0) {
+            # List-form system avoids any shell interpretation of the path.
+            my $devnull;
+            open($devnull, '>', '/dev/null');
+            my $rc;
+            {
+                local *STDOUT = $devnull if $devnull;
+                local *STDERR = $devnull if $devnull;
+                $rc = system($DAEMON_BIN, "--test", $tmpfile);
+            }
+            close($devnull) if $devnull;
+            if ($rc != 0) {
                 unlink($tmpfile);
                 $message = "<div style='margin:10px 0;padding:10px 14px;background:#f8d7da;color:#721c24;border-radius:4px;border:1px solid #f5c6cb;font-size:13px;'>$text{'config_syntax_error'}</div>\n";
             } else {
@@ -513,6 +580,7 @@ print $message;
 print <<EOFORM;
 <form method="post" action="config.cgi">
 <input type="hidden" name="action" value="save">
+<input type="hidden" name="token" value="$CSRF">
 <textarea name="conf_content"
     style="width:100%;height:520px;font-family:monospace;font-size:13px;
            padding:10px;border:1px solid #ced4da;border-radius:4px;
@@ -607,7 +675,9 @@ ICONEOF
     rm -f /var/webmin/module.infos.cache
 
     echo "Restarting Webmin service..."
-    systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
+    if ! { systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null; }; then
+        echo "WARNING: Webmin restart failed — reload it manually so the module takes effect"
+    fi
 
     echo ""
     echo "=========================================="
@@ -654,7 +724,9 @@ uninstall_module() {
     echo "✓ Module cache cleared"
 
     echo "Restarting Webmin service..."
-    systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
+    if ! { systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null; }; then
+        echo "WARNING: Webmin restart failed — reload it manually so the module is removed from the UI"
+    fi
 
     echo ""
     echo "=========================================="

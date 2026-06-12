@@ -62,7 +62,14 @@ fi
 
 if ! command -v rclone &>/dev/null; then
     echo "Installing Rclone..."
-    curl https://rclone.org/install.sh | sudo bash
+    _rclone_installer=$(mktemp /tmp/rclone_install.XXXXXX.sh)
+    if ! curl -fsSL https://rclone.org/install.sh -o "$_rclone_installer"; then
+        echo "Error downloading Rclone installer"
+        rm -f "$_rclone_installer"
+        exit 1
+    fi
+    bash "$_rclone_installer"
+    rm -f "$_rclone_installer"
     if ! command -v rclone &>/dev/null; then
         echo "Error installing Rclone"
         exit 1

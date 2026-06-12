@@ -9,7 +9,7 @@ ini_set('log_errors', '1');
 ini_set('error_log', '/var/log/apache2/proxymon_error.log');
 
 // SIMPLE PERSISTENT REFRESH FIX
-$refresh_config_file = 'sqstat_refresh.conf';
+$refresh_config_file = '/var/www/proxymon/sqstat_refresh.conf';
 
 // Default refresh value
 $current_refresh = 5;
@@ -65,10 +65,10 @@ if(is_file("config.inc.php")) {
 	@$hosts_file=$hosts_file[$config];
 	if(isset($group_by[$config])) $group_by=$group_by[$config];
 	else $group_by="ip";
-	if(isset($group_by[$config]) && !preg_match('/^(host|username)$/',$group_by)) {
+	if(!preg_match('/^(host|username|ip)$/',$group_by)) {
 		$squidclass->errno=4;
 		$squidclass->errstr="Error in the configuration file.<br>".
-		'"group_by" can be only "username" or "host"';
+		'"group_by" can be only "username", "host" or "ip"';
 		$squidclass->showError();
 		exit(4);
 	}

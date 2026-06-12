@@ -178,6 +178,8 @@ class DHCPConfig:
         self.pool_def_lease   = 7200
         self.pool_max_lease   = 86400
 
+        self.cleanup_interval = 60
+
         self.static_hosts     = {}
         self.blocked_macs     = set()
 
@@ -220,6 +222,13 @@ class DHCPConfig:
                     f"Duplicate static IP {ip} assigned to {seen_ips[ip]} and {mac}")
             seen_ips[ip] = mac
 
+        if self.wpad_url and len(self.wpad_url.encode()) > 255:
+            raise ConfigError(
+                f"wpad URL is {len(self.wpad_url.encode())} bytes; DHCP option 252 max is 255")
+        if len(self.dns_servers) > 63:
+            raise ConfigError(
+                f"{len(self.dns_servers)} DNS servers configured; DHCP option 6 holds at most 63")
+
     @staticmethod
     def _balanced_braces(text, start):
         depth = 1
@@ -250,11 +259,9 @@ class DHCPConfig:
         return None
 
     def _parse(self, raw):
-        if re.search(r'\bclass\s+"blockdhcp"', raw):
-            log.warning(
-                "'class \"blockdhcp\" { match ... }' directive is not enforced — "
-                "use 'subclass \"blockdhcp\" 1:MAC;' for effective MAC blocking"
-            )
+        m = re.search(r'\bcleanup-interval\s+(\d+)\s*;', raw)
+        if m:
+            self.cleanup_interval = max(5, int(m.group(1)))
 
         self.authoritative   = bool(re.search(r'\bauthoritative\s*;', raw))
         self.deny_duplicates = bool(re.search(r'\bdeny\s+duplicates\s*;', raw))
@@ -312,10 +319,10 @@ class DHCPConfig:
                     except ValueError:
                         log.warning("Invalid DNS server IP: %s (skipped)", entry)
                 else:
-                    try:
-                        resolved.append(socket.gethostbyname(entry))
-                    except socket.gaierror:
-                        log.warning("Cannot resolve DNS server hostname: %s (skipped)", entry)
+                    # Hostnames are not accepted: resolving them blocks the main
+                    # thread (including SIGHUP reload) for an unbounded time.
+                    log.warning("DNS server must be an IP address, not a hostname: "
+                                "%s (skipped)", entry)
             self.dns_servers = resolved
 
         m = re.search(r'option\s+wpad\s+"([^"]+)"\s*;', body)
@@ -362,7 +369,7 @@ class Lease:
     def __init__(self, ip, mac, hostname, start, end, binding="active"):
         self.ip       = ip
         self.mac      = mac
-        self.hostname = re.sub(r'[\x00-\x1f\x7f"\\;{}]', '', str(hostname))[:64]
+        self.hostname = re.sub(r'[\x00-\x1f\x7f"\\;{}%]', '', str(hostname))[:64]
         self.start    = start
         self.end      = end
         self.binding  = binding
@@ -388,6 +395,12 @@ class Lease:
 
 
 class LeaseManager:
+    # Token-bucket rate-limit for DISCOVER/REQUEST: at most this many new lease
+    # allocations per MAC within the sliding window, to limit pool exhaustion
+    # by an attacker rotating MACs.
+    _RATE_LIMIT_WINDOW = 60   # seconds
+    _RATE_LIMIT_MAX    = 5    # allocations per window per MAC
+
     def __init__(self, path, config, daemon_user="pydhcpd", daemon_group="pydhcpd"):
         self.path   = path
         self.config = config
@@ -395,6 +408,7 @@ class LeaseManager:
         self.leases = {}
         self._alloc_counter = 0
         self._quarantine = {}
+        self._rate    = {}   # mac -> deque of timestamps
         self._uid   = None
         self._gid   = None
         try:
@@ -516,35 +530,58 @@ class LeaseManager:
         with self.lock:
             self._quarantine[ip] = time.time() + duration
 
-    def allocate(self, mac, hostname, requested_ip=None):
+    def allocate(self, mac, hostname, requested_ip=None, src_mac=None):
         mac = mac.lower()
+        # Use the frame's source MAC (src_mac) as the rate-limit key when
+        # available: an attacker rotating chaddr still uses the same NIC MAC.
+        rate_key = (src_mac.lower() if src_mac else mac)
+        # Captured inside the lock, written to disk after the lock is released
+        # so fsync does not block concurrent allocations.
+        snapshot_to_save = None
+        try:
+            with self.lock:
+                static_ip = self.config.static_hosts.get(mac)
+                if static_ip:
+                    return static_ip, self.config.max_lease, None
 
-        with self.lock:
-            static_ip = self.config.static_hosts.get(mac)
-            if static_ip:
-                return static_ip, self.config.max_lease
+                if mac in self.config.blocked_macs:
+                    return None, None, "deny members of blockdhcp"
 
-            if mac in self.config.blocked_macs:
-                return None, None
+                # Sliding-window rate-limit: reject new allocations from MACs that
+                # have already consumed their quota in the last window.
+                now = time.time()
+                window_start = now - self._RATE_LIMIT_WINDOW
+                bucket = self._rate.setdefault(rate_key, collections.deque())
+                while bucket and bucket[0] < window_start:
+                    bucket.popleft()
+                if len(bucket) >= self._RATE_LIMIT_MAX:
+                    log.warning("Rate-limit: %s exceeded %d allocations in %ds — dropped",
+                                rate_key, self._RATE_LIMIT_MAX, self._RATE_LIMIT_WINDOW)
+                    return None, None, "rate limited"
 
-            if requested_ip and requested_ip != "0.0.0.0":
-                if requested_ip in self.pool:
-                    existing_lease = self.leases.get(requested_ip)
-                    if not existing_lease or existing_lease.is_expired():
-                        self._create_lease(requested_ip, mac, hostname, self.config.pool_def_lease)
-                        return requested_ip, self.config.pool_def_lease
-                    elif existing_lease.mac == mac:
-                        self._create_lease(requested_ip, mac, hostname, self.config.pool_def_lease)
-                        return requested_ip, self.config.pool_def_lease
-                    else:
-                        return None, None
+                if requested_ip and requested_ip != "0.0.0.0":
+                    if requested_ip in self.pool:
+                        existing_lease = self.leases.get(requested_ip)
+                        if not existing_lease or existing_lease.is_expired():
+                            bucket.append(now)
+                            snapshot_to_save = self._create_lease_locked(requested_ip, mac, hostname, self.config.pool_def_lease)
+                            return requested_ip, self.config.pool_def_lease, None
+                        elif existing_lease.mac == mac:
+                            snapshot_to_save = self._create_lease_locked(requested_ip, mac, hostname, self.config.pool_def_lease)
+                            return requested_ip, self.config.pool_def_lease, None
+                        else:
+                            return None, None, "pool exhausted"
 
-            ip = self._get_pool_ip(mac)
-            if ip:
-                self._create_lease(ip, mac, hostname, self.config.pool_def_lease)
-                return ip, self.config.pool_def_lease
+                ip = self._get_pool_ip(mac)
+                if ip:
+                    bucket.append(now)
+                    snapshot_to_save = self._create_lease_locked(ip, mac, hostname, self.config.pool_def_lease)
+                    return ip, self.config.pool_def_lease, None
 
-        return None, None
+            return None, None, "pool exhausted"
+        finally:
+            if snapshot_to_save is not None:
+                self._save_snapshot(snapshot_to_save)
 
     def _get_pool_ip(self, mac):
         existing = self.get_by_mac(mac)
@@ -563,12 +600,18 @@ class LeaseManager:
         self._alloc_counter = (idx + 1) % (2**16)
         return sorted_free[idx]
 
-    def _create_lease(self, ip, mac, hostname, duration):
+    def _create_lease_locked(self, ip, mac, hostname, duration):
+        # Caller must hold self.lock. Mutates self.leases and returns a
+        # snapshot the caller is expected to persist after releasing the lock,
+        # so disk I/O does not serialize concurrent allocations.
         now = time.time()
         lease = Lease(ip, mac, hostname, now, now + duration)
+        self.leases[ip] = lease
+        return dict(self.leases)
+
+    def _create_lease(self, ip, mac, hostname, duration):
         with self.lock:
-            self.leases[ip] = lease
-            snapshot = dict(self.leases)
+            snapshot = self._create_lease_locked(ip, mac, hostname, duration)
         self._save_snapshot(snapshot)
 
     def _save_snapshot(self, snapshot):
@@ -601,6 +644,19 @@ class LeaseManager:
         if snapshot is not None:
             self._save_snapshot(snapshot)
 
+    def release_owned(self, mac, ip):
+        # Release a single lease only when it is currently held by this MAC.
+        # Returns True if a lease was removed, False otherwise.
+        mac = mac.lower()
+        with self.lock:
+            lease = self.leases.get(ip)
+            if not lease or lease.mac != mac:
+                return False
+            del self.leases[ip]
+            snapshot = dict(self.leases)
+        self._save_snapshot(snapshot)
+        return True
+
     def cleanup_expired(self):
         with self.lock:
             expired = [ip for ip, l in self.leases.items() if l.is_expired()]
@@ -615,6 +671,18 @@ class LeaseManager:
             stale = [ip for ip, exp in self._quarantine.items() if exp <= now]
             for ip in stale:
                 del self._quarantine[ip]
+            # Drop rate-limit buckets that have aged out completely so the map
+            # does not grow unbounded for MACs that never come back (random-MAC
+            # privacy on phones rotates the source MAC on every association).
+            window_start = now - self._RATE_LIMIT_WINDOW
+            stale_rate = []
+            for key, bucket in self._rate.items():
+                while bucket and bucket[0] < window_start:
+                    bucket.popleft()
+                if not bucket:
+                    stale_rate.append(key)
+            for key in stale_rate:
+                del self._rate[key]
         if snapshot is not None:
             self._save_snapshot(snapshot)
 
@@ -691,7 +759,7 @@ def parse_packet(data):
     else:
         pkt["msg_type"] = msg_type_opt[0]
     raw_hostname = pkt["options"].get(12, b"").decode("ascii", errors="replace").strip("\x00").strip()
-    pkt["hostname"] = re.sub(r'[\x00-\x1f\x7f"\\;{}]', '', raw_hostname).strip()
+    pkt["hostname"] = re.sub(r'[\x00-\x1f\x7f"\\;{}%]', '', raw_hostname).strip()
     opt_req_ip = pkt["options"].get(OPT_REQUESTED_IP, b"\x00\x00\x00\x00")
     pkt["requested_ip"] = bytes_to_ip(opt_req_ip) if len(opt_req_ip) == 4 else "0.0.0.0"
 
@@ -728,6 +796,10 @@ def build_packet(msg_type, xid, mac_str, offered_ip, server_ip, config, lease_ti
 
     def add_opt(code, value):
         nonlocal options
+        if len(value) > 255:
+            log.error("DHCP option %d value too long (%d bytes) — skipped",
+                      code, len(value))
+            return
         options += bytes([code, len(value)]) + value
 
     add_opt(OPT_MSG_TYPE,  bytes([msg_type]))
@@ -820,6 +892,14 @@ class DHCPServer:
                 self.config        = new_config
                 self.leases.config = new_config
                 self.leases.pool   = new_pool
+                # Remove leases whose IP is no longer in the new pool so the
+                # lease table stays consistent after a range change.
+                stale = [ip for ip in list(self.leases.leases)
+                         if ip not in new_pool
+                         and ip not in new_config.static_hosts.values()]
+                for ip in stale:
+                    log.info("apply_config: removing lease %s (outside new pool)", ip)
+                    del self.leases.leases[ip]
             self.server_ip    = new_config.server_id or new_config.routers
             self.broadcast_ip = new_config.broadcast or BROADCAST_ADDR
 
@@ -883,6 +963,7 @@ class DHCPServer:
                 continue
 
             src_mac = mac_bytes_to_str(frame[6:12])
+            src_ip  = bytes_to_ip(frame[ip_start + 12:ip_start + 16])
 
             if not self._inflight.acquire(blocking=False):
                 self._dropped += 1
@@ -891,13 +972,13 @@ class DHCPServer:
                                 "(total dropped: %d)", self.MAX_INFLIGHT, self._dropped)
                 continue
             try:
-                self._thread_pool.submit(self._handle_packet, data, src_mac)
+                self._thread_pool.submit(self._handle_packet, data, src_mac, src_ip)
             except RuntimeError:
                 self._inflight.release()
 
-    def _handle_packet(self, data, src_mac):
+    def _handle_packet(self, data, src_mac, src_ip):
         try:
-            self._handle(data, src_mac)
+            self._handle(data, src_mac, src_ip)
         except Exception as e:
             log.exception("Unhandled error in worker: %s", e)
         finally:
@@ -914,10 +995,12 @@ class DHCPServer:
 
     def _cleanup_loop(self):
         while self.running:
-            time.sleep(60)
+            with self._config_lock:
+                interval = self.config.cleanup_interval
+            time.sleep(interval)
             self.leases.cleanup_expired()
 
-    def _handle(self, data, src_mac):
+    def _handle(self, data, src_mac, src_ip):
         pkt = parse_packet(data)
         if not pkt:
             return
@@ -929,6 +1012,15 @@ class DHCPServer:
                 log.warning("chaddr spoofing detected: frame src=%s chaddr=%s — dropped",
                             src_mac, pkt["chaddr"])
                 return
+        else:
+            # Relayed traffic: a genuine relay agent increments hops and sources
+            # the frame from giaddr itself. Reject anything else, so the server
+            # cannot be steered into replying to an arbitrary giaddr (UDP
+            # reflection) nor used to bypass the chaddr check above.
+            if pkt.get("hops", 0) < 1 or dhcp_giaddr != src_ip:
+                log.warning("Spoofed relay dropped: giaddr=%s frame src=%s hops=%d",
+                            dhcp_giaddr, src_ip, pkt.get("hops", 0))
+                return
 
         mac      = pkt["chaddr"]
         hostname = pkt["hostname"] or ""
@@ -936,10 +1028,10 @@ class DHCPServer:
         log_hostname = hostname if hostname else "<no hostname>"
 
         if msg_type == MSG_DISCOVER:
-            self._handle_discover(pkt, mac, hostname, log_hostname)
+            self._handle_discover(pkt, mac, hostname, log_hostname, src_mac)
 
         elif msg_type == MSG_REQUEST:
-            self._handle_request(pkt, mac, hostname, log_hostname)
+            self._handle_request(pkt, mac, hostname, log_hostname, src_mac)
 
         elif msg_type == MSG_DECLINE:
             with self._config_lock:
@@ -948,15 +1040,35 @@ class DHCPServer:
             if config_deny_declines:
                 log.warning("DECLINE from %s ignored (deny declines)", mac)
             else:
-                declined = self.leases.get_by_mac(mac)
-                if declined:
-                    self.leases.quarantine_ip(declined.ip)
-                    log.info("DECLINE from %s: IP %s quarantined", mac, declined.ip)
-                self.leases.release(mac)
+                # RFC 2131 4.4.5: the declined address travels in the
+                # requested-ip option (falling back to ciaddr). Only act on it
+                # when it is actually leased to this client, so a forged DECLINE
+                # cannot quarantine an address belonging to someone else.
+                declined_ip = pkt.get("requested_ip", "0.0.0.0")
+                if declined_ip == "0.0.0.0":
+                    declined_ip = pkt.get("ciaddr", "0.0.0.0")
+                if self.leases.release_owned(mac, declined_ip):
+                    self.leases.quarantine_ip(declined_ip)
+                    log.info("DECLINE from %s: IP %s quarantined", mac, declined_ip)
+                else:
+                    log.warning("DECLINE from %s for %s not owned by it — ignored",
+                                mac, declined_ip)
 
         elif msg_type == MSG_RELEASE:
-            log.info("RELEASE from %s", mac)
-            self.leases.release(mac)
+            # RFC 2131 4.4.4: honour RELEASE only from the current lease holder.
+            # ciaddr must carry the client's address and, when present, the
+            # server-identifier must point at us. Prevents a forged RELEASE from
+            # freeing another client's lease.
+            ciaddr  = pkt.get("ciaddr", "0.0.0.0")
+            sid_opt = pkt["options"].get(OPT_SERVER_ID, b"")
+            if len(sid_opt) == 4 and bytes_to_ip(sid_opt) != self.server_ip:
+                log.debug("RELEASE from %s targets another server — ignored", mac)
+            elif ciaddr == "0.0.0.0":
+                log.warning("RELEASE from %s without ciaddr — ignored", mac)
+            elif self.leases.release_owned(mac, ciaddr):
+                log.info("RELEASE from %s: %s", mac, ciaddr)
+            else:
+                log.warning("RELEASE from %s for %s not owned by it — ignored", mac, ciaddr)
 
         elif msg_type == MSG_INFORM:
             self._handle_inform(pkt, mac, hostname, log_hostname)
@@ -1003,6 +1115,10 @@ class DHCPServer:
 
         def add_opt(code, value):
             nonlocal options
+            if len(value) > 255:
+                log.error("DHCP option %d value too long (%d bytes) — skipped",
+                          code, len(value))
+                return
             options += bytes([code, len(value)]) + value
 
         add_opt(OPT_MSG_TYPE, bytes([MSG_ACK]))
@@ -1027,26 +1143,32 @@ class DHCPServer:
         reply = bytes(pkt_buf) + bytes(options)
         self._send(reply, giaddr=pkt.get("giaddr", "0.0.0.0"), ciaddr=pkt.get("ciaddr", "0.0.0.0"))
 
-    def _handle_discover(self, pkt, mac, hostname, log_hostname):
+    def _handle_discover(self, pkt, mac, hostname, log_hostname, src_mac=None):
         log.info("DISCOVER from %s (%s)", mac, log_hostname)
 
         with self._config_lock:
-            config_deny_duplicates = self.config.deny_duplicates
-            config_ping_check = self.config.ping_check
-            config_default_lease = self.config.default_lease
+            config_snapshot = self.config
+            server_ip_snapshot = self.server_ip
+            config_deny_duplicates = config_snapshot.deny_duplicates
+            config_ping_check = config_snapshot.ping_check
+            config_default_lease = config_snapshot.default_lease
 
         if config_deny_duplicates:
             existing = self.leases.get_by_mac(mac)
             if existing and not self.leases.is_blocked(mac):
                 offered_ip  = existing.ip
                 lease_time  = config_default_lease
+                alloc_reason = None
             else:
-                offered_ip, lease_time = self.leases.allocate(mac, hostname)
+                offered_ip, lease_time, alloc_reason = self.leases.allocate(mac, hostname, src_mac=src_mac)
         else:
-            offered_ip, lease_time = self.leases.allocate(mac, hostname)
+            offered_ip, lease_time, alloc_reason = self.leases.allocate(mac, hostname, src_mac=src_mac)
 
         if not offered_ip:
-            log.warning("No IP available for %s", mac)
+            if alloc_reason and "blockdhcp" in alloc_reason:
+                log.warning("Blocked: %s (deny blockdhcp)", mac)
+            else:
+                log.warning("No IP available for %s", mac)
             return
 
         is_static = bool(self.leases.get_static(mac))
@@ -1073,13 +1195,13 @@ class DHCPServer:
 
         use_broadcast = self._should_broadcast(pkt)
         reply = build_packet(MSG_OFFER, pkt["xid"], mac, offered_ip,
-                             self.server_ip, self.config, lease_time,
+                             server_ip_snapshot, config_snapshot, lease_time,
                              broadcast=use_broadcast)
         if reply:
             self._send(reply, giaddr=pkt.get("giaddr", "0.0.0.0"), ciaddr=pkt.get("ciaddr", "0.0.0.0"))
             log.info("OFFER %s → %s", mac, offered_ip)
 
-    def _handle_request(self, pkt, mac, hostname, log_hostname):
+    def _handle_request(self, pkt, mac, hostname, log_hostname, src_mac=None):
         log.info("REQUEST from %s (%s)", mac, log_hostname)
 
         requested = pkt["requested_ip"]
@@ -1106,13 +1228,18 @@ class DHCPServer:
         if pending_ip and target_ip and target_ip != pending_ip:
             log.info("NAK (SELECTING mismatch) → %s requested %s but we offered %s",
                      mac, target_ip, pending_ip)
+            # Drop the stale offer: the client will restart with a new xid.
+            with self._pending_lock:
+                self._pending.pop(xid_key, None)
             self._send_nak(pkt, mac, "Requested IP does not match offer")
             return
 
         with self._config_lock:
-            config_auth = self.config.authoritative
-            config_one_per_client = self.config.one_per_client
-            config_pool_def_lease = self.config.pool_def_lease
+            config_snapshot = self.config
+            server_ip_snapshot = self.server_ip
+            config_auth = config_snapshot.authoritative
+            config_one_per_client = config_snapshot.one_per_client
+            config_pool_def_lease = config_snapshot.pool_def_lease
 
         if config_auth and target_ip:
             static_ip = self.leases.get_static(mac)
@@ -1128,10 +1255,10 @@ class DHCPServer:
                 if existing and existing.ip != target_ip and not self.leases.is_blocked(mac):
                     self.leases.release(mac)
 
-            offered_ip, lease_time = self.leases.allocate(mac, hostname, requested_ip=target_ip)
+            offered_ip, lease_time, alloc_reason = self.leases.allocate(mac, hostname, requested_ip=target_ip, src_mac=src_mac)
 
         if not offered_ip:
-            self._send_nak(pkt, mac, "No address available")
+            self._send_nak(pkt, mac, alloc_reason or "No address available")
             return
 
         with self._pending_lock:
@@ -1139,7 +1266,7 @@ class DHCPServer:
 
         use_broadcast = self._should_broadcast(pkt)
         reply = build_packet(MSG_ACK, pkt["xid"], mac, offered_ip,
-                             self.server_ip, self.config, lease_time,
+                             server_ip_snapshot, config_snapshot, lease_time,
                              broadcast=use_broadcast)
         if reply:
             self._send(reply, giaddr=pkt.get("giaddr", "0.0.0.0"), ciaddr=pkt.get("ciaddr", "0.0.0.0"))
@@ -1186,15 +1313,37 @@ class DHCPServer:
 # PID / SIGNAL
 # =============================================================================
 
+def _pid_is_pydhcpd(pid):
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            cmdline = f.read().replace(b"\x00", b" ").decode("utf-8", "replace")
+    except OSError:
+        return False
+    return "pydhcpd.py" in cmdline
+
 def write_pid(path):
     if os.path.exists(path):
         try:
             with open(path, 'r') as f:
                 old_pid = int(f.read().strip())
-            os.kill(old_pid, 0)
-            log.warning("PID file %s exists with running process %d, overwriting", path, old_pid)
-        except (ValueError, OSError, ProcessLookupError):
-            pass
+        except (ValueError, OSError):
+            old_pid = None
+        if old_pid is not None:
+            try:
+                os.kill(old_pid, 0)
+                alive = True
+            except ProcessLookupError:
+                alive = False
+            except OSError:
+                # Process exists but we cannot signal it (different owner).
+                alive = True
+            if alive and _pid_is_pydhcpd(old_pid):
+                log.error("pydhcpd already running (pid %d) — refusing to start "
+                          "a second instance", old_pid)
+                sys.exit(1)
+            elif alive:
+                log.warning("PID %d in %s is alive but not pydhcpd — overwriting",
+                            old_pid, path)
     with open(path, "w") as f:
         f.write(str(os.getpid()))
     os.chmod(path, 0o640)
@@ -1235,6 +1384,7 @@ def main():
         log.error("Interface '%s' does not exist on this system", interface)
         sys.exit(1)
 
+
     config = DHCPConfig()
     try:
         config.load(defaults["conf"])
@@ -1254,11 +1404,11 @@ def main():
     write_pid(defaults["pid"])
 
     def signal_shutdown(signum, frame):
+        # Keep the handler minimal: flip the run flag and close the sockets so
+        # the main loop unblocks and tears down cleanly via the finally clause.
         log.info("Signal %d received, shutting down...", signum)
-        _shutdown_ping_executor()
+        server.running = False
         server.stop()
-        remove_pid(defaults["pid"])
-        sys.exit(0)
 
     def reload_config(signum, frame):
         log.info("SIGHUP received — reloading configuration...")

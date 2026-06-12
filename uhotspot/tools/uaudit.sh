@@ -86,8 +86,11 @@ do_login() {
     else
         login_path="/api/auth/login"
     fi
+    local payload
+    payload=$(jq -n --arg u "$UNIFI_USERNAME" --arg p "$UNIFI_PASSWORD" \
+        '{username:$u, password:$p}')
     LOGIN=$(curl -sk -i -X POST -H "Content-Type: application/json" \
-        -d "{\"username\":\"$UNIFI_USERNAME\",\"password\":\"$UNIFI_PASSWORD\"}" \
+        -d "$payload" \
         "$UNIFI_CONTROLLER_URL$login_path")
 
     CSRF_TOKEN=$(echo "$LOGIN" | grep -iE "^x-(updated-)?csrf-token:" | tail -1 | awk '{print $2}' | tr -d "\r")
@@ -172,7 +175,7 @@ print_authorized() {
             ' 2>/dev/null | head -1)
             [ -z "$voucher" ] && voucher="N/A"
 
-            connected=$(echo "$sta_map" | grep -i "^${mac}" | awk -F'\t' '{print "YES"}')
+            connected=$(echo "$sta_map" | awk -v mac="${mac}" 'tolower($1) == tolower(mac) {print "YES"}' FS='\t')
             [ -z "$connected" ] && connected="NO"
 
             echo "$mac|$ip|$voucher|$expires|$connected"
@@ -205,7 +208,7 @@ print_pending() {
             [ "$status" != "a" ] && continue
             [ -z "$mac" ] && continue
 
-            sta_row=$(echo "$sta_map" | grep -i "^${mac}" | head -1)
+            sta_row=$(echo "$sta_map" | awk -v mac="${mac}" 'tolower($1) == tolower(mac)' FS='\t' | head -1)
             if [ -n "$sta_row" ]; then
                 connected="YES"
                 auth=$(echo "$sta_row" | awk -F'\t' '{print $2}')

@@ -42,7 +42,6 @@ from urllib3.exceptions import InsecureRequestWarning
 import argparse
 import sys
 import os
-from concurrent.futures import ThreadPoolExecutor
 
 VERIFY_SSL = True
 
@@ -65,7 +64,7 @@ def process_tlds_file(input_file: str = "sourcetld.txt", output_file: str = "tld
     processed_lines = set()
     with open(input_file, 'r', encoding='utf-8') as f:
         for line in f:
-            line = line.strip()
+            line = line.strip().lower()
             if (not line or 
                 line.startswith('//') or 
                 line.startswith('#') or 

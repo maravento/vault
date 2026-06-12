@@ -117,7 +117,7 @@ python domfilter.py --input mylst.txt
 </table>
 
 ```bash
-python domfilter.py --input mylst.txt --output outlst.txt --remove removelst.txt
+python domfilter.py --input mylst.txt --output outlst.txt --removed removelst.txt
 ```
 
 #### TLD Includes
@@ -175,14 +175,71 @@ chmod +x domcheck.sh
   <tr>
     <td style="width: 50%; vertical-align: top;"> 
         Replace <code>50</code> with the number of parallel processes. <br>
-        If you provide no argument, by default, it will process 100 in parallel. <br>
+        If you provide no argument, by default, it will use <code>nproc × 4</code> parallel processes. <br>
     </td>
     <td style="width: 50%; vertical-align: top;"> 
         Reemplace <code>50</code> con el número de procesos paralelos. <br> 
-        Si no proporciona argumento, por defecto, procesará 100 en paralelo. <br>
+        Si no proporciona argumento, por defecto, usará <code>nproc × 4</code> procesos paralelos. <br>
     </td>
   </tr>
 </table>
+
+### Simple DNS Domain Checker
+
+[Simple DNS Domain Checker](https://raw.githubusercontent.com/maravento/vault/master/dofi/simplecheck.sh)
+
+#### What Does The Bash Script Do?
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      A lightweight alternative to <code>domcheck.sh</code> for quick, one-pass DNS resolution checks. Unlike <code>domcheck.sh</code>, it does not retry failed domains, does not sanitize the input list, and does not produce a diff file. It assumes the input is already clean and is best suited for small to medium lists.<br><br>
+      Output files:<br>
+      - <code>exists.txt</code>: Domains that successfully resolved.<br>
+      - <code>not_exists.txt</code>: Domains that did not resolve.<br>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Alternativa ligera a <code>domcheck.sh</code> para verificaciones DNS rápidas en un solo paso. A diferencia de <code>domcheck.sh</code>, no reintenta dominios fallidos, no sanitiza la lista de entrada y no produce un archivo diff. Asume que la entrada ya está limpia y es ideal para listas pequeñas o medianas.<br><br>
+      Archivos de salida:<br>
+      - <code>exists.txt</code>: Dominios que resolvieron correctamente.<br>
+      - <code>not_exists.txt</code>: Dominios que no resolvieron.<br>
+    </td>
+  </tr>
+</table>
+
+#### Configuration
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Edit the <code>list</code> variable inside the script to set your input file (default: <code>mylist.txt</code>). Parallel execution uses <code>nproc × 4</code> processes automatically.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Edite la variable <code>list</code> dentro del script para definir su archivo de entrada (por defecto: <code>mylist.txt</code>). La ejecución paralela usa <code>nproc × 4</code> procesos automáticamente.
+    </td>
+  </tr>
+</table>
+
+#### Using Bash Script
+
+```bash
+# Edit the list variable inside the script first
+nano simplecheck.sh  # set list="your_domain_list.txt"
+
+chmod +x simplecheck.sh
+./simplecheck.sh
+```
+
+#### Comparison: simplecheck.sh vs domcheck.sh
+
+| Feature / Característica | simplecheck.sh | domcheck.sh |
+|---|---|---|
+| DNS passes / Pasadas DNS | 1 | 2 (retries failures / reintenta fallos) |
+| Input sanitization / Sanitización de entrada | No | Yes / Sí |
+| Resumable on interrupt / Reanudable tras interrupción | No | Yes / Sí (`dnslookup` cache) |
+| Output diff file / Archivo diff de salida | No | Yes / Sí (`outdiff.txt`) |
+| Input file / Archivo de entrada | Hardcoded variable / Variable interna | CLI argument / Argumento CLI |
+| Best for / Ideal para | Small/quick lists / Listas pequeñas y rápidas | Large or untrusted lists / Listas grandes o sin limpiar |
 
 ## SOURCES
 

@@ -321,7 +321,7 @@ install_docker() {
         mkdir -p /etc/docker
         systemctl start docker
         systemctl enable docker
-        usermod -aG docker $local_user
+        usermod -aG docker "$local_user"
         
         ok "Docker installed successfully"
     fi
@@ -881,7 +881,7 @@ uninstall_opencode() {
     local pnpm_home="/home/$local_user/.local/share/pnpm"
     local pnpm_bin="$pnpm_home/bin/pnpm"
     local nvm_sh="/home/$local_user/.nvm/nvm.sh"
-    local pnpm_env="source '$nvm_sh' 2>/dev/null; export PNPM_HOME='$pnpm_home'; export PATH="$pnpm_home/bin:$PATH""
+    local pnpm_env="source '$nvm_sh' 2>/dev/null; export PNPM_HOME='$pnpm_home'; export PATH=\"$pnpm_home/bin:\$PATH\""
 
     # Check if opencode is actually installed anywhere
     local found=false

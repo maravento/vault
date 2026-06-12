@@ -203,7 +203,7 @@ install_proxymon() {
     echo -e "${GREEN}Initial LightSquid report generated${NC}"
     
     sudo -u www-data crontab -l 2>/dev/null | {
-        cat
+        grep -v "lightparser.pl"
         echo "*/10 * * * * /var/www/proxymon/lightsquid/lightparser.pl today"
     } | sudo -u www-data crontab -
     
@@ -253,7 +253,7 @@ install_proxymon() {
     echo -e "${GREEN}blockdomains.txt downloaded${NC}"
 
     crontab -l 2>/dev/null | {
-        cat
+        grep -v "bandata.sh"
         echo "*/5 * * * * /var/www/proxymon/tools/bandata.sh >/dev/null 2>&1"
     } | crontab -
     echo -e "${GREEN}Squid Monitor crontab added${NC}"
@@ -279,12 +279,12 @@ install_proxymon() {
     echo -e "${GREEN}Initial SARG report generated${NC}"
     
     sudo -u www-data crontab -l 2>/dev/null | {
-        cat
+        grep -v "sarg.*sarg.conf.*access.log"
         echo "@daily /usr/bin/sarg -f /etc/sarg/sarg.conf -l /var/log/squid/access.log"
     } | sudo -u www-data crontab -
 
     sudo -u www-data crontab -l 2>/dev/null | {
-        cat
+        grep -v "find.*sarg.*squid-reports"
         echo '@weekly find /var/www/proxymon/sarg/squid-reports -name "2*" -mtime +30 -type d -exec rm -rf "{}" \;'
     } | sudo -u www-data crontab -
     

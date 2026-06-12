@@ -22,7 +22,7 @@ fi
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 cleanup() {
-    rm -f "$SCRIPT_LOCK"
+    : # lock file intentionally preserved; kernel releases flock on exit
 }
 trap cleanup EXIT
 exec 200>"$SCRIPT_LOCK"

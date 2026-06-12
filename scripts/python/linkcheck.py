@@ -106,6 +106,8 @@ def check_link(url, session):
                 final = session.get(url, timeout=TIMEOUT, allow_redirects=True)
                 error = classify_http(final.status_code)
                 return final.status_code, error if error else None
+            except KeyboardInterrupt:
+                raise
             except Timeout:
                 return None, "timeout"
             except SSLError:
@@ -116,12 +118,12 @@ def check_link(url, session):
         error = classify_http(resp.status_code)
         return resp.status_code, error
 
+    except KeyboardInterrupt:
+        raise
     except Timeout:
         return None, "timeout"
     except SSLError:
         return None, "ssl"
-    except TooManyRedirects:
-        return None, "too_many_redirects"
     except ConnectionError as e:
         msg = str(e).lower()
         if any(x in msg for x in ["nodename nor servname", "name or service not known",
@@ -142,16 +144,19 @@ def collect_links(url, session):
         content_type = resp.headers.get("Content-Type", "")
         parser = "xml" if any(x in content_type for x in ("xml", "rss", "atom")) else "html.parser"
         soup = BeautifulSoup(resp.text, parser)
-        domain = urlparse(url).netloc
+        final_url = resp.url
+        domain = urlparse(final_url).netloc
         links = set()
         for tag in soup.find_all("a", href=True):
-            href = urljoin(url, tag["href"])
+            href = urljoin(final_url, tag["href"])
             norm = normalize_url(href)
             if norm.startswith("http") and same_domain(norm, domain):
                 path = norm.split("?")[0].lower()
                 if not any(path.endswith(e) for e in SKIP_EXTENSIONS):
                     links.add(norm)
         return links
+    except KeyboardInterrupt:
+        raise
     except Exception:
         return set()
 

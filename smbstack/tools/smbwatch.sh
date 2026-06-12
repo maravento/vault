@@ -64,14 +64,15 @@ load_env
 ### HANDLE NEW FILE
 handle_new_file() {
     local NEWFILE="$1"
-    local DIR
-    DIR=$(dirname "$NEWFILE")
     sleep 1
 
     [ ! -e "$NEWFILE" ] && return
 
+    local REL="${NEWFILE#"$SHARED_PATH"/}"
+    local TOP_DIR="$SHARED_PATH/${REL%%/*}"
+
     local SIZE
-    SIZE=$(du -sb "$DIR" 2>/dev/null | awk '{print $1}')
+    SIZE=$(du -sb "$TOP_DIR" 2>/dev/null | awk '{print $1}')
 
     if [ "$SIZE" -ge "$LIMIT" ]; then
         mkdir -p "$RECYCLE_DIR"
@@ -107,6 +108,15 @@ start() {
         chown root:root "$LOGFILE"
     fi
 
+set_env_var() {
+    local key="$1" val="$2"
+    if grep -q "^${key}=" "$SMBSTACK_ENV"; then
+        sed -i "s|^${key}=.*|${key}=\"${val}\"|" "$SMBSTACK_ENV"
+    else
+        echo "${key}=\"${val}\"" >> "$SMBSTACK_ENV"
+    fi
+}
+
     ### CHECK AND SET WATCH_LIMIT_GB
     if [ -z "${WATCH_LIMIT_GB:-}" ]; then
         while true; do
@@ -114,7 +124,7 @@ start() {
             input_limit="${input_limit:-10}"
             if [[ "$input_limit" =~ ^[0-9]+$ ]] && [ "$input_limit" -gt 0 ]; then
                 WATCH_LIMIT_GB="$input_limit"
-                echo "WATCH_LIMIT_GB=\"$WATCH_LIMIT_GB\"" >> "$SMBSTACK_ENV"
+                set_env_var "WATCH_LIMIT_GB" "$WATCH_LIMIT_GB"
                 echo "Watch limit set to ${WATCH_LIMIT_GB} GB"
                 break
             else
@@ -128,11 +138,11 @@ start() {
         read -p "Enter folders to exclude from watch limit (comma-separated, or leave empty): " input_exclude
         if [ -n "$input_exclude" ]; then
             WATCH_EXCLUDE="$input_exclude"
-            echo "WATCH_EXCLUDE=\"$WATCH_EXCLUDE\"" >> "$SMBSTACK_ENV"
+            set_env_var "WATCH_EXCLUDE" "$WATCH_EXCLUDE"
             echo "Excluded folders: ${WATCH_EXCLUDE}"
         else
             WATCH_EXCLUDE=""
-            echo "WATCH_EXCLUDE=\"\"" >> "$SMBSTACK_ENV"
+            set_env_var "WATCH_EXCLUDE" ""
             echo "No folders excluded"
         fi
     fi

@@ -11,10 +11,15 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
+setlocal
+
 :check_os
-for /f "tokens=4-5 delims=. " %%i in ('ver') do set VERSION=%%i.%%j
-echo Windows Version Detected: %VERSION%
-if NOT "%VERSION%" == "10.0" (
+for /f "tokens=3" %%i in ('reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v CurrentMajorVersionNumber 2^>nul') do set MAJOR=%%i
+if not defined MAJOR (
+    echo OS Incompatible
+    exit /b 1
+)
+if %MAJOR% LSS 10 (
    echo OS Incompatible
    exit /b 1
 )

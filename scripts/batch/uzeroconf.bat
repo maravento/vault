@@ -15,8 +15,9 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-set uzero=%HOMEDRIVE%\UniServerZ
-set winfnr=%WINDIR%\System32\fnr.exe
+setlocal enabledelayedexpansion
+set "uzero=%HOMEDRIVE%\UniServerZ"
+set "winfnr=%WINDIR%\System32\fnr.exe"
 
 :Menu
 cls

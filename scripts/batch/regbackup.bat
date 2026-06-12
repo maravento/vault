@@ -33,10 +33,10 @@ if "%choice%"=="1" (
 )
 
 :backup
-set DEST=%HOMEDRIVE%\RegBackup
+set "DEST=%HOMEDRIVE%\RegBackup"
 
-if not exist %DEST% (
-    mkdir %DEST%
+if not exist "%DEST%" (
+    mkdir "%DEST%"
     echo.
     echo Creating directory %DEST%...
 ) else (
@@ -49,10 +49,10 @@ set filebk=RegBk_%yyyymmdd%.reg
 
 echo.
 echo Exporting Windows Registry to %DEST%\%filebk%
-start /wait %windir%\regedit.exe /s /y /e %DEST%\%filebk%
+start /wait %windir%\regedit.exe /s /e "%DEST%\%filebk%"
 
-if exist %DEST%\* (
-    attrib /d /s -r -h -s %DEST%\*
+if exist "%DEST%\*" (
+    attrib /d /s -r -h -s "%DEST%\*"
 )
 goto end
 

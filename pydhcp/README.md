@@ -102,7 +102,6 @@ pydhcp/
 /etc/pydhcp/default/pydhcpd       # Interface and daemon settings (created by installer, preserved on update)
 /etc/pydhcp/pydhcpd.leases        # Active leases database
 /etc/pydhcp/pydhcpd.pid           # PID file
-/etc/pydhcp/pydhcpd.env           # Install-time environment (network params)
 /etc/pydhcp/tools/pyleases.env    # pyleases environment (auto-generated on first run)
 ```
 
@@ -173,7 +172,6 @@ sudo bash pyinstall.sh --remove
 | `pydhcpd.conf` | ⛔ preserved | ✅ removed |
 | `default/pydhcpd` | ⛔ preserved | ✅ removed |
 | `pydhcpd.leases` | ⛔ preserved | ✅ removed |
-| `pydhcpd.env` | ⛔ preserved | ✅ removed |
 | `tools/pyleases.env` | ⛔ preserved | ✅ removed |
 | `/var/log/pydhcpd.log` | ⛔ preserved | ✅ removed |
 | `/etc/logrotate.d/pydhcpd` | ⛔ preserved | ✅ removed |
@@ -198,14 +196,21 @@ sudo bash pyinstall.sh --remove
       <b>Nota:</b> <code>ping-check true</code> viene activado en el <code>pydhcpd.conf</code> enviado. El demonio envía un ping antes de cada OFFER para verificar que la IP no está en uso. En entornos con firewall estricto esto puede causar demoras o falsos positivos. Para desactivarlo, establece <code>ping-check false;</code> en <code>/etc/pydhcp/pydhcpd.conf</code>.
     </td>
   </tr>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <b>Note:</b> <code>cleanup-interval</code> controls how often (in seconds) the daemon removes expired leases from memory. The default is <code>60</code>. If you use a short pool lease-time (e.g. <code>10</code> or <code>30</code> seconds), set <code>cleanup-interval</code> to the same value or lower so that expired leases are freed promptly and the pool does not appear exhausted. When using <code>pyleases.sh</code>, set <code>CLEANUP_INTERVAL</code> in <code>pyleases.env</code> — it is written into <code>pydhcpd.conf</code> on every run.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <b>Nota:</b> <code>cleanup-interval</code> controla con qué frecuencia (en segundos) el demonio elimina los arrendamientos expirados de la memoria. El valor por defecto es <code>60</code>. Si usas un lease-time corto en el pool (p.ej. <code>10</code> o <code>30</code> segundos), establece <code>cleanup-interval</code> al mismo valor o menor para que los arrendamientos expirados se liberen rápidamente y el pool no parezca agotado. Al usar <code>pyleases.sh</code>, define <code>CLEANUP_INTERVAL</code> en <code>pyleases.env</code> — se escribe en <code>pydhcpd.conf</code> en cada ejecución.
+    </td>
+  </tr>
 </table>
 
-| Description | Descripción | File / Archivo |
-|-------------|-------------|----------------|
+| Description | Descripción | File |
+|-------------|-------------|------|
 | Main configuration file | Archivo de configuración principal | `/etc/pydhcp/pydhcpd.conf` |
 | Default interface settings | Configuración de interfaz por defecto | `/etc/pydhcp/default/pydhcpd` |
 | Active leases database | Base de datos de concesiones activas | `/etc/pydhcp/pydhcpd.leases` |
-| Install-time environment (network params) | Entorno de instalación (parámetros de red) | `/etc/pydhcp/pydhcpd.env` |
 | pyleases environment (auto-generated on first run) | Entorno de pyleases (auto-generado en primera corrida) | `/etc/pydhcp/tools/pyleases.env` |
 | systemd unit | Unidad systemd | `/etc/systemd/system/pydhcpd.service` |
 | init.d wrapper | Wrapper init.d | `/etc/init.d/pydhcpd` |
@@ -219,6 +224,29 @@ sudo systemctl restart pydhcpd
 
 # Check status | Verificar estado
 sudo systemctl status pydhcpd
+# ● pydhcpd.service - pydhcpd - Python DHCP Daemon
+#      Loaded: loaded (/etc/systemd/system/pydhcpd.service; enabled; preset: enabled)
+#      Active: active (running) since Tue 2026-06-09 17:51:49 -05; 17s ago
+#        Docs: https://github.com/maravento/vault/tree/master/pydhcp
+#    Main PID: 2356158 (python3)
+#       Tasks: 3 (limit: 76240)
+#      Memory: 11.0M (peak: 11.6M)
+#         CPU: 331ms
+#      CGroup: /system.slice/pydhcpd.service
+#              └─2356158 /usr/bin/python3 /etc/pydhcp/pydhcpd.py
+# jun 09 17:51:49 host python3[2356158]: 2026-06-09 17:51:49,070 [INFO] Config loaded: 10 static hosts, 5 blocked MACs
+# jun 09 17:51:49 host python3[2356158]: 2026-06-09 17:51:49,071 [INFO] Leases loaded: 0 entries
+# jun 09 17:51:49 host python3[2356158]: 2026-06-09 17:51:49,071 [INFO] pydhcpd started (pid 2356158, interface eth0)
+# jun 09 17:51:49 host python3[2356158]: 2026-06-09 17:51:49,072 [INFO] Listening on eth0 (DHCP port 67)
+# jun 09 17:51:52 host python3[2356158]: 2026-06-09 17:51:52,316 [INFO] DISCOVER from aa:bb:cc:dd:ee:ff (FooBar)
+# jun 09 17:51:52 host python3[2356158]: 2026-06-09 17:51:52,316 [WARNING] Blocked: aa:bb:cc:dd:ee:ff (deny blockdhcp)
+# jun 09 17:52:02 host python3[2356158]: 2026-06-09 17:52:02,086 [INFO] DISCOVER from bb:cc:dd:ee:ff:aa (<no hostname>)
+# jun 09 17:52:02 host python3[2356158]: 2026-06-09 17:52:02,154 [INFO] OFFER bb:cc:dd:ee:ff:aa → 192.168.10.231
+# jun 09 17:52:02 host python3[2356158]: 2026-06-09 17:52:02,264 [INFO] REQUEST from bb:cc:dd:ee:ff:aa (<no hostname>)
+# jun 09 17:52:02 host python3[2356158]: 2026-06-09 17:52:02,283 [INFO] ACK bb:cc:dd:ee:ff:aa → 192.168.10.231 (lease 10s)
+# jun 09 17:52:15 host python3[2356158]: 2026-06-09 17:52:15,391 [INFO] DISCOVER from cc:dd:ee:ff:aa:bb (BazHost)
+# jun 09 17:52:15 host python3[2356158]: 2026-06-09 17:52:15,391 [WARNING] No IP available for cc:dd:ee:ff:aa:bb
+# jun 09 17:53:02 host python3[2356158]: 2026-06-09 17:53:02,173 [INFO] Lease expired: 192.168.10.230
 
 # View active leases | Ver concesiones activas
 cat /etc/pydhcp/pydhcpd.leases
@@ -261,11 +289,13 @@ sudo tail -f /var/log/pydhcpd.log
 sudo bash tools/pyleases.sh
 ```
 
-> **First run / Primera corrida**: pyleases.sh launches an interactive setup that asks for DHCP server IP, netmask, block-pool range, and DNS servers, and writes `/etc/pydhcp/tools/pyleases.env`. Delete this file to re-run the setup. Some of these prompts overlap with `pyinstall.sh` — answer consistently.
-> pyleases.sh inicia un setup interactivo que pregunta IP del servidor DHCP, máscara, rango del pool de bloqueo y DNS, y escribe `/etc/pydhcp/tools/pyleases.env`. Elimine ese archivo para volver a ejecutar el setup. Algunas preguntas se solapan con `pyinstall.sh` — responda consistentemente.
+> **First run**: pyleases.sh launches an interactive setup that asks for DHCP server IP, netmask, block-pool range, and DNS servers, and writes `/etc/pydhcp/tools/pyleases.env`. Delete this file to re-run the setup. Some of these prompts overlap with `pyinstall.sh` — answer consistently.
+>
+> **Primera corrida**: pyleases.sh inicia un setup interactivo que pregunta IP del servidor DHCP, máscara, rango del pool de bloqueo y DNS, y escribe `/etc/pydhcp/tools/pyleases.env`. Elimine ese archivo para volver a ejecutar el setup. Algunas preguntas se solapan con `pyinstall.sh` — responda consistentemente.
 
-> **Warning / Advertencia**: every run **regenerates `/etc/pydhcp/pydhcpd.conf` from scratch** using a built-in template plus the ACL files. The previous config is saved as `/etc/pydhcp/pydhcpd.conf.bak` before being overwritten. Any manual edit to `pydhcpd.conf` is overwritten. To persist a custom directive, edit the template inside `pyleases.sh` itself.
-> cada corrida **regenera `/etc/pydhcp/pydhcpd.conf` desde cero** usando un template interno más los archivos ACL. La configuración previa se guarda como `/etc/pydhcp/pydhcpd.conf.bak` antes de ser sobrescrita. Cualquier edición manual a `pydhcpd.conf` se sobrescribe. Para preservar una directiva personalizada, edite el template dentro del propio `pyleases.sh`.
+> **Warning**: `--update` backs up replaced files to `/etc/pydhcp/bak/TIMESTAMP/`before overwriting them. `pydhcpd.conf` and `default/pydhcpd` are **never overwritten** by `--update` (user config is preserved). Any manual edit to the code files (`pydhcpd.py`, `pyleases.sh`, `pywebmin.sh`) will be replaced. To persist a custom directive, edit the template inside `pyleases.sh` itself.
+>
+> **Advertencia**: `--update` respalda los archivos reemplazados en `/etc/pydhcp/bak/TIMESTAMP/` antes de sobrescribirlos. `pydhcpd.conf` y `default/pydhcpd` **nunca se sobreescriben** (la configuración del usuario se preserva). Cualquier edición manual a los archivos de código (`pydhcpd.py`, `pyleases.sh`, `pywebmin.sh`) será reemplazada. Para preservar una directiva personalizada, edite el template dentro del propio `pyleases.sh`.
 
 ##### WPAD/PAC via DHCP option 252 (optional)
 
@@ -303,7 +333,9 @@ sudo bash tools/pyleases.sh
 #option wpad "http://<server_ip>:18100/wpad.pac"; ← subnet block
 ```
 
-> **Note / Nota:** Android and iOS ignore DHCP option 252. The proxy must be configured manually on those devices. / Android e iOS ignoran la opción DHCP 252. El proxy debe configurarse manualmente en esos dispositivos.
+> **Note**: Android and iOS ignore DHCP option 252. The proxy must be configured manually on those devices.
+> 
+> **Nota**: Android e iOS ignoran la opción DHCP 252. El proxy debe configurarse manualmente en esos dispositivos.
 
 #### pywebmin
 
@@ -403,11 +435,12 @@ iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
 
 #### Scenario
 
-| Scenario / Escenario | isc-dhcp-server | pydhcpd |
-|----------------------|-----------------|---------|
+| Scenario | isc-dhcp-server | pydhcpd |
+|----------|-----------------|---------|
 | Authorized client with static IP (renewal) / Cliente autorizado con IP estática (renovación) | `DHCPREQUEST for 192.168.10.50 (192.168.10.2) from aa:bb:cc:dd:ee:ff via enp2s0`<br>`DHCPACK on 192.168.10.50 to aa:bb:cc:dd:ee:ff (FOO) via enp2s0` | `REQUEST from aa:bb:cc:dd:ee:ff (FOO)`<br>`ACK aa:bb:cc:dd:ee:ff → 192.168.10.50 (lease 2592000s)` |
 | Unknown client entering the block pool / Cliente desconocido ingresando al pool de bloqueo | `DHCPDISCOVER from bb:cc:dd:ee:ff:aa via enp2s0`<br>`DHCPOFFER on 192.168.10.230 to bb:cc:dd:ee:ff:aa (BAR) via enp2s0`<br>`DHCPREQUEST for 192.168.10.230 (192.168.10.2) from bb:cc:dd:ee:ff:aa (BAR) via enp2s0`<br>`DHCPACK on 192.168.10.230 to bb:cc:dd:ee:ff:aa (BAR) via enp2s0` | `DISCOVER from bb:cc:dd:ee:ff:aa (BAR)`<br>`OFFER bb:cc:dd:ee:ff:aa → 192.168.10.230`<br>`REQUEST from bb:cc:dd:ee:ff:aa (BAR)`<br>`ACK bb:cc:dd:ee:ff:aa → 192.168.10.230 (lease 60s)` |
-| Blocked client - pool exhausted / Cliente bloqueado - pool agotado | `DHCPDISCOVER from bb:cc:dd:ee:ff:aa via enp2s0: network 192.168.10.0/24: no free leases` | `DISCOVER from bb:cc:dd:ee:ff:aa (BAR)`<br>`No IP available for bb:cc:dd:ee:ff:aa` |
+| Pool exhausted / Pool agotado | `DHCPDISCOVER from bb:cc:dd:ee:ff:aa via enp2s0: network 192.168.10.0/24: no free leases` | `DISCOVER from bb:cc:dd:ee:ff:aa (BAR)`<br>`No IP available for bb:cc:dd:ee:ff:aa` |
+| Blocked client / Cliente bloqueado | `DHCPDISCOVER from bb:cc:dd:ee:ff:aa via enp2s0: network 192.168.10.0/24: no free leases` | `DISCOVER from bb:cc:dd:ee:ff:aa (BAR)`<br>`Blocked: bb:cc:dd:ee:ff:aa (deny blockdhcp)` |
 
 #### Authoritative
 
@@ -422,21 +455,21 @@ iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
   </tr>
 </table>
 
-| | isc-dhcp-server (rogue) | pydhcpd (authoritative) |
-|--|-------------------------|-------------------------|
+| Event | isc-dhcp-server (rogue) | pydhcpd (authoritative) |
+|-------|-------------------------|-------------------------|
 | Rogue offers IP to client | `DHCPOFFER on 192.168.10.222 to bb:cc:dd:ee:ff:aa (BAR) via enp2s0` | — |
 | Client requests rogue IP | `DHCPREQUEST for 192.168.10.222 (192.168.10.249) from bb:cc:dd:ee:ff:aa (BAR) via enp2s0` | `REQUEST from bb:cc:dd:ee:ff:aa (BAR)` |
 | Rogue acknowledges | `DHCPACK on 192.168.10.222 to bb:cc:dd:ee:ff:aa (BAR) via enp2s0` | — |
 | Authoritative server rejects | — | `NAK → bb:cc:dd:ee:ff:aa` |
 | Client rediscovers | `DHCPDISCOVER from bb:cc:dd:ee:ff:aa via enp2s0` | `DISCOVER from bb:cc:dd:ee:ff:aa (BAR)` |
 
-## ORIGINAL PROJECT
+## EOL
 
 ---
 
 | Project | Version | EOL Date |
 | :-----: | :-----: | :------: |
-| [ISC DHCP](https://github.com/isc-projects/dhcp) | 4.4.3-P1-4ubuntu2 | 2022 |
+| [ISC-DHCP](https://github.com/isc-projects/dhcp) | 4.4.3-P1-4ubuntu2 | 2022 |
 
 ## DISCLAIMER
 

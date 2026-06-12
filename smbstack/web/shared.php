@@ -76,8 +76,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['upload'])) {
         if ($safe_name === '') $safe_name = 'upload_' . time() . '_' . $i;
         $target = $full_path . '/' . $safe_name;
         if (move_uploaded_file($tmp_name, $target)) {
-            chmod($target, 0666);
-            write_audit('mkdirat', $target);
+            chmod($target, 0664);
+            write_audit('pwrite', $target);
             $succeeded++;
         } else {
             $failed++;

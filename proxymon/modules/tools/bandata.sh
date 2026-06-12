@@ -93,7 +93,7 @@ else
         : > "$block_list_day"
     else
         (
-            cd "$day_logs" || exit 1
+            cd "$day_logs"
             shopt -s nullglob
             for file in $range; do
                 total=$(awk '$1=="total:" {print $2}' "$file")

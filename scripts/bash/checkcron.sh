@@ -27,9 +27,9 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
-readonly LOCK_FD=200
+LOCK_FD=200
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-exec {LOCK_FD}>"$SCRIPT_LOCK"
+exec 200>"$SCRIPT_LOCK"
 if ! flock -n $LOCK_FD; then
     echo "Script $(basename "$0") is already running"
     exit 1

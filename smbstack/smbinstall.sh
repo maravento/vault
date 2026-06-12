@@ -199,9 +199,13 @@ check_already_installed() {
         reasons+="  - smbstack.env already exists: $SMBSTACK_ENV\n"
     fi
 
-    if [ -f "/etc/samba/smb.conf" ] && grep -q "\[compartida\]" /etc/samba/smb.conf 2>/dev/null; then
-        installed=1
-        reasons+="  - smb.conf already configured: /etc/samba/smb.conf\n"
+    if [ -f "/etc/samba/smb.conf" ]; then
+        _existing_share=""
+        [ -f "$SMBSTACK_ENV" ] && _existing_share=$(grep "^SHARED_NAME=" "$SMBSTACK_ENV" | cut -d= -f2 | tr -d '"')
+        if [ -n "$_existing_share" ] && grep -q "\[${_existing_share}\]" /etc/samba/smb.conf 2>/dev/null; then
+            installed=1
+            reasons+="  - smb.conf already configured: /etc/samba/smb.conf\n"
+        fi
     fi
 
     if [ "$installed" -eq 1 ]; then
@@ -495,6 +499,17 @@ NMBD
         echo "WARNING: Could not detect IP for interface $SMB_IFACE"
         SERVER_IP=""
     fi
+
+    # create Samba account for local user
+    SMBNAME="$local_user"
+    while true; do
+        read -s -p "Enter Samba password for $SMBNAME: " smb_pass; echo
+        read -s -p "Confirm password: " smb_pass2; echo
+        [ "$smb_pass" = "$smb_pass2" ] && break
+        echo "Passwords do not match. Try again."
+    done
+    printf "%s\n%s\n" "$smb_pass" "$smb_pass2" | smbpasswd -a -s "$SMBNAME"
+    unset smb_pass smb_pass2
 
     # save install config
     cat > "$SMBSTACK_ENV" <<ENV

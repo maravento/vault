@@ -33,6 +33,7 @@ echo "Check GPE list..."
 grep enabled /sys/firmware/acpi/interrupts/* 2>/dev/null > "$kworker"
 
 gpe=$(grep -E '[1-9][0-9][0-9][0-9]+ ' "$kworker" | sort -rnk 2 | head -n1 | cut -d":" -f1)
+# Pattern matches GPE interrupt counts >= 1000, indicating a potential IRQ storm
 
 if [ -z "$gpe" ]; then
     echo "No Kworker to Disable"

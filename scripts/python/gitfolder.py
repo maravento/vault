@@ -24,9 +24,10 @@ if GITHUB_TOKEN:
     HEADERS["Authorization"] = f"token {GITHUB_TOKEN}"
 
 
-def download_folder_from_github(repo_owner, repo_name, folder_path, output_dir):
+def download_folder_from_github(repo_owner, repo_name, folder_path, output_dir, branch=""):
     os.makedirs(output_dir, exist_ok=True)
-    url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{folder_path}"
+    ref_param = f"?ref={branch}" if branch else ""
+    url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{folder_path}{ref_param}"
     try:
         response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
     except requests.exceptions.RequestException as e:
@@ -43,7 +44,7 @@ def download_folder_from_github(repo_owner, repo_name, folder_path, output_dir):
             elif item["type"] == "dir":
                 subfolder_path = folder_path + '/' + item["name"]
                 subfolder_output_dir = os.path.join(output_dir, item["name"])
-                download_folder_from_github(repo_owner, repo_name, subfolder_path, subfolder_output_dir)
+                download_folder_from_github(repo_owner, repo_name, subfolder_path, subfolder_output_dir, branch)
     else:
         print(f"Failed to retrieve folder contents [{response.status_code}]: {url}")
 
@@ -53,6 +54,7 @@ def download_item(item, output_dir):
     if not file_url:
         print(f"Skipped (no download_url): {item.get('name', '?')}")
         return
+    os.makedirs(output_dir, exist_ok=True)
     file_path = os.path.join(output_dir, item["name"])
     try:
         response = requests.get(file_url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
@@ -83,23 +85,30 @@ if __name__ == "__main__":
     repo_owner = path_parts[0]
     repo_name = path_parts[1]
 
+    branch = ""
     if len(path_parts) < 3:
         folder_path = ""
         output_dir = repo_name
     elif path_parts[2] in ("tree", "blob"):
-        if len(path_parts) < 5:
+        if len(path_parts) < 4:
+            folder_path = ""
+            output_dir = repo_name
+        elif len(path_parts) < 5:
+            branch = path_parts[3]
             folder_path = ""
             output_dir = repo_name
         else:
+            branch = path_parts[3]
             folder_path = "/".join(path_parts[4:])
-            output_dir = path_parts[4]
+            output_dir = folder_path
     else:
         folder_path = "/".join(path_parts[2:])
-        output_dir = path_parts[2]
+        output_dir = folder_path
 
     print(f"""
           Owner: {repo_owner}
           Repository: {repo_name}
-          Directory: {folder_path}
+          Branch: {branch or "(default)"}
+          Directory: {folder_path or "(root)"}
     """)
-    download_folder_from_github(repo_owner, repo_name, folder_path, output_dir)
+    download_folder_from_github(repo_owner, repo_name, folder_path, output_dir, branch)

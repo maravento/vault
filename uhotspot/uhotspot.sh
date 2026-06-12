@@ -567,7 +567,7 @@ dedup_mac_lists() {
 
             # Normalize to 4-field format a;MAC;IP;HOSTNAME;
             field_count=$(echo "$line" | tr -cd ';' | wc -c)
-            if (( field_count > 4 )); then
+            if (( field_count != 4 )); then
                 local clean_line="a;${bmac};${bip};${bhostname};"
                 echo "$clean_line" >> "$tmp_block"
                 (( sanitized_block++ )) || true
@@ -579,7 +579,7 @@ dedup_mac_lists() {
     fi
 
     if (( sanitized_block > 0 )); then
-        log "INFO: dedup → sanitized $sanitized_block blockdhcp entries (extra fields removed)"
+        log "INFO: dedup → sanitized $sanitized_block blockdhcp entries (field count normalized)"
     fi
 }
 
@@ -615,13 +615,16 @@ mac_hotspot_backup() {
 
     # ── Always: remove from blockdhcp.txt any MAC present in guest-wellknow.txt
     if [[ -s "$BLOCK_DHCP" && -s "$wellknow_file" ]]; then
-        local removed
-        removed=$(grep -cFf "$wellknow_file" "$BLOCK_DHCP" || true)
+        local removed pattern_file
+        pattern_file=$(mktemp)
+        sed 's/.*/;\0;/' "$wellknow_file" > "$pattern_file"
+        removed=$(grep -cFf "$pattern_file" "$BLOCK_DHCP" || true)
         if [[ $removed -gt 0 ]]; then
-            grep -vFf "$wellknow_file" "$BLOCK_DHCP" > "${BLOCK_DHCP}.tmp" \
+            grep -vFf "$pattern_file" "$BLOCK_DHCP" > "${BLOCK_DHCP}.tmp" \
                 && mv "${BLOCK_DHCP}.tmp" "$BLOCK_DHCP"
             log "WARNING: mac_hotspot_backup: removed $removed entry/entries from blockdhcp.txt — MAC(s) found in guest-wellknow.txt"
         fi
+        rm -f "$pattern_file"
     fi
 }
 

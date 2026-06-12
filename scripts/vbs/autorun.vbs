@@ -73,6 +73,9 @@ sUnr = "Unrecoverable error"
 
 Dim ibtn
 Dim wshShell
+Dim objWMIService
+Dim strQuery
+Dim sMsg
 Set wshShell = Wscript.CreateObject("Wscript.shell")
 
 dim bOK
@@ -118,10 +121,8 @@ End If
 
 'ibtn = wshShell.Popup("This script was made for your operating system",,"",BTNOK)
 
-Dim objWMIService 'As WbemScripting.SWbemServicesEx
 Dim colQF 'As WbemScripting.SWbemObjectSet
 Dim objQF 'As WbemScripting.SWbemObjectEx
-Dim strQuery 'As String
 
 if bOK Then
     Err.Clear()
@@ -228,19 +229,15 @@ If bOK and not bCERTAutoRunDisabled Then
 End If
 
 If bAutorunDisabled and bCERTAutorunDisabled Then 
-    sMsg = "  " 
+    sMsg = ""
     sVS = "Vulnerability Status"
-    sMsg =  sMsg & " "  & vbCrLf & vbcrlf
-    sMsg =  sMsg & "PC Protected"  & vbCrLf & vbcrlf
-    sMsg =  sMsg & " "  & vbCrLf & vbcrlf
-    sMsg =  sMsg & "Autorun Disabled"  & vbCrLf & vbcrlf
-    sMsg =  sMsg & " "  & vbCrLf & vbcrlf 
-    sMsg =  sMSG & "No necesita ninguna accion"  + vbCrLf + "No need to take any action"  & vbcrlf 
+    sMsg = sMsg & "PC Protected" & vbCrLf
+    sMsg = sMsg & "Autorun Disabled" & vbCrLf
+    sMsg = sMsg & "No necesita ninguna accion" & vbCrLf & "No need to take any action" & vbCrLf
     ibtn = wshShell.Popup(sMsg,,sVS,BTNOK+ICONINFO)
     Wscript.Quit(0)
 End If 
 
-Dim sMsg 'As String
 sMsg = " " & vbcrlf 
 sVS = "Vulnerability Status"
 
@@ -251,37 +248,37 @@ Else
 End If
 
 If bGothotfix Then
-    sMsg = sMsg &  "PC Vulnerable " & vbcrlf & vbcrlf
+    sMsg = sMsg &  "PC Protected (hotfix applied)" & vbcrlf & vbcrlf
 Else
-    sMsg = sMsg &  "PC Vulnerable" & vbcrlf & vbcrlf
+    sMsg = sMsg &  "PC Vulnerable (hotfix missing)" & vbcrlf & vbcrlf
 End If
 
 If bAutorunDisabled and not bCERTAutorunDisabled Then
-    sMsg = sMSG & "Desea desactivar autorun? (recomendado)"  + vbCrLf + "Do you want to disable autorun? (recommended)"
+    sMsg = sMSG & "Autorun ya desactivado. Desea aplicar metodo adicional CERT? (recomendado)" + vbCrLf + "Autorun already disabled. Apply additional CERT method? (recommended)"
 
     ibtn = wshShell.Popup(sMsg,,sVS,BTNOKCANCEL+ICONBANG)
     If ibtn <> IBTNOK Then
-        ibtn = wshShell.PopUp("Operaci" & Chr(243) & "n Cancelada - Operation Cancelled",,sVS,BTNOK+ICONSTOP)
+        ibtn = wshShell.PopUp("Operacion Cancelada" & vbCrLf & "Operation Cancelled",,sVS,BTNOK+ICONSTOP)
 
         Wscript.Quit(0)
     End If
 End If
 
 If not bAutorunDisabled and bCERTAutorunDisabled Then
-    sMsg = sMSG & "Desea desactivar autorun? (recomendado)"  + vbCrLf + "Do you want to disable autorun? (recommended)"
+    sMsg = sMSG & "Desea desactivar autorun? (recomendado)" + vbCrLf + "Do you want to disable autorun? (recommended)"
     ibtn = wshShell.Popup(sMsg,,sVS,BTNOKCANCEL+ICONBANG)
     If ibtn <> IBTNOK Then
-        ibtn = wshShell.PopUp("Operaci" & Chr(243) & "n cancelada - Operation Cancelled",,sVS,BTNOK+ICONSTOP)
+        ibtn = wshShell.PopUp("Operacion Cancelada" & vbCrLf & "Operation Cancelled",,sVS,BTNOK+ICONSTOP)
         Wscript.Quit(0)
     End If
 End If
 
 If not bAutorunDisabled and not bCERTAutorunDisabled Then
-    sMsg = sMSG & "Desea desactivar autorun? (recomendado)"  + vbCrLf + "Do you want to disable autorun? (recommended)"
+    sMsg = sMSG & "Desea desactivar autorun? (recomendado)" + vbCrLf + "Do you want to disable autorun? (recommended)"
 
     ibtn = wshShell.Popup(sMsg,,sVS,BTNOKCANCEL+ICONBANG)
     If ibtn <> IBTNOK Then
-        ibtn = wshShell.PopUp("Operaci" & Chr(243) & "n cancelada - Operation Cancelled",,sVS,BTNOK+ICONSTOP)
+        ibtn = wshShell.PopUp("Operacion Cancelada" & vbCrLf & "Operation Cancelled",,sVS,BTNOK+ICONSTOP)
         Wscript.Quit(0)
     End If
 End If
@@ -311,7 +308,7 @@ If not bCERTAutorunDisabled Then
 End If
 
 
-    ibtn = wshShell.Popup("Autorun Desactivado. Los cambios tendran efecto al reiniciar el PC"  + vbCrLf + "Autorun Disabled. The changes will take effect when you restart PC",,sVS,BTNOK+ICONINFO)
+    ibtn = wshShell.Popup("Autorun Desactivado. Los cambios tendran efecto al reiniciar el PC" + vbCrLf + "Autorun Disabled. The changes will take effect when you restart PC",,sVS,BTNOK+ICONINFO)
     Wscript.Quit(0)
 
 On Error GoTo 0

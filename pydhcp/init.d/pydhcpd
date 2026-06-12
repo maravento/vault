@@ -19,33 +19,84 @@ DAEMON_ARGS=/etc/pydhcp/pydhcpd.py
 NAME=pydhcpd
 LOG_FILE="/var/log/pydhcpd.log"
 
-# Read PID path from defaults file
+# Defaults; may be overridden from DEFAULTS_FILE below.
 PID_FILE="/etc/pydhcp/pydhcpd.pid"
+DAEMON_USER="pydhcpd"
+DAEMON_GROUP="pydhcpd"
+
+# Read PID path, user and group from the defaults file so this wrapper stays
+# in sync with the systemd unit and pyinstall.sh.
 if [ -f "$DEFAULTS_FILE" ]; then
-    val=$(grep '^DHCPDv4_PID=' "$DEFAULTS_FILE" | cut -d= -f2 | xargs)
+    val=$(grep '^DHCPDv4_PID=' "$DEFAULTS_FILE" | cut -d= -f2- | tr -d '"' | xargs 2>/dev/null || true)
     [ -n "$val" ] && PID_FILE="$val"
+    val=$(grep '^DAEMON_USER=' "$DEFAULTS_FILE" | cut -d= -f2- | tr -d '"' | xargs 2>/dev/null || true)
+    [ -n "$val" ] && DAEMON_USER="$val"
+    val=$(grep '^DAEMON_GROUP=' "$DEFAULTS_FILE" | cut -d= -f2- | tr -d '"' | xargs 2>/dev/null || true)
+    [ -n "$val" ] && DAEMON_GROUP="$val"
 fi
+
+# Detect whether systemd is the active init. When it is, defer to systemctl so
+# the daemon runs under the exact security context defined in the unit
+# (unprivileged user + ambient capabilities) instead of as unconfined root.
+have_systemd() {
+    [ -d /run/systemd/system ]
+}
+
+# Confirm a PID belongs to this daemon before signalling it. Guards against
+# killing an unrelated process that recycled a PID left in a stale PID file.
+pid_is_pydhcpd() {
+    _pid="$1"
+    [ -n "$_pid" ] || return 1
+    [ -r "/proc/$_pid/cmdline" ] || return 1
+    # cmdline is NUL-separated; translate to spaces for matching.
+    tr '\0' ' ' < "/proc/$_pid/cmdline" 2>/dev/null | grep -q "$DAEMON_ARGS"
+}
+
+read_pid() {
+    pid=""
+    [ -f "$PID_FILE" ] && { read -r pid < "$PID_FILE" 2>/dev/null || true; }
+    printf '%s' "$pid"
+}
+
+start_daemon() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "ERROR: must be run as root" >&2
+        exit 1
+    fi
+    # Prefer setpriv to drop to the unprivileged user while granting only the
+    # capabilities the daemon needs (raw socket + bind on port 67). Refuse to
+    # start as unconfined root if no privilege-dropping mechanism is available.
+    if command -v setpriv >/dev/null 2>&1; then
+        setpriv --reuid "$DAEMON_USER" --regid "$DAEMON_GROUP" --init-groups \
+            --inh-caps +net_raw,+net_bind_service \
+            --ambient-caps +net_raw,+net_bind_service \
+            "$DAEMON" "$DAEMON_ARGS" &
+    else
+        echo "ERROR: setpriv not found; refusing to start $NAME as unconfined root." >&2
+        echo "       Install util-linux (setpriv) or start via systemd: systemctl start $NAME" >&2
+        exit 1
+    fi
+}
 
 case "${1:-}" in
     start)
-        echo "Starting $NAME..."
-        if [ -f "$PID_FILE" ]; then
-            pid=""
-            read -r pid < "$PID_FILE" 2>/dev/null || true
-            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-                echo "$NAME is already running (pid $pid)"
-                exit 0
-            fi
-            rm -f "$PID_FILE"
+        if have_systemd; then
+            exec systemctl start "$NAME"
         fi
-        $DAEMON $DAEMON_ARGS &
+        echo "Starting $NAME..."
+        pid=$(read_pid)
+        if pid_is_pydhcpd "$pid"; then
+            echo "$NAME is already running (pid $pid)"
+            exit 0
+        fi
+        [ -f "$PID_FILE" ] && rm -f "$PID_FILE"
+        start_daemon
         for _ in $(seq 1 40); do
             [ -f "$PID_FILE" ] && break
             sleep 0.25
         done
-        pid=""
-        [ -f "$PID_FILE" ] && { read -r pid < "$PID_FILE" 2>/dev/null || true; }
-        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+        pid=$(read_pid)
+        if pid_is_pydhcpd "$pid"; then
             echo "$NAME started (pid $pid)"
         else
             echo "ERROR: $NAME failed to start. Check: $LOG_FILE"
@@ -53,43 +104,46 @@ case "${1:-}" in
         fi
         ;;
     stop)
-        echo "Stopping $NAME..."
-        if [ -f "$PID_FILE" ]; then
-            pid=""
-            read -r pid < "$PID_FILE" 2>/dev/null || true
-            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-                kill "$pid" 2>/dev/null || true
-                # Wait up to 5 seconds for process to terminate
-                for _ in $(seq 1 20); do
-                    kill -0 "$pid" 2>/dev/null || break
-                    sleep 0.25
-                done
-                if kill -0 "$pid" 2>/dev/null; then
-                    echo "WARNING: Process $pid did not terminate, forcing..."
-                    kill -9 "$pid" 2>/dev/null || true
-                fi
-                echo "$NAME stopped"
-            else
-                echo "$NAME was not running (stale PID file)"
-            fi
-            rm -f "$PID_FILE"
-        else
-            echo "$NAME was not running"
+        if have_systemd; then
+            exec systemctl stop "$NAME"
         fi
+        echo "Stopping $NAME..."
+        pid=$(read_pid)
+        if pid_is_pydhcpd "$pid"; then
+            kill "$pid" 2>/dev/null || true
+            # Wait up to 5 seconds for the process to terminate.
+            for _ in $(seq 1 20); do
+                kill -0 "$pid" 2>/dev/null || break
+                sleep 0.25
+            done
+            # Re-check identity before escalating to SIGKILL: the PID may have
+            # been recycled while we waited.
+            if pid_is_pydhcpd "$pid"; then
+                echo "WARNING: Process $pid did not terminate, forcing..."
+                kill -9 "$pid" 2>/dev/null || true
+            fi
+            echo "$NAME stopped"
+        else
+            echo "$NAME was not running (stale or foreign PID file)"
+        fi
+        [ -f "$PID_FILE" ] && rm -f "$PID_FILE"
         ;;
     restart)
-        $0 stop
+        if have_systemd; then
+            exec systemctl restart "$NAME"
+        fi
+        "$0" stop
         sleep 1
-        $0 start
+        "$0" start
         ;;
     status)
-        if [ -f "$PID_FILE" ]; then
-            pid=""
-            read -r pid < "$PID_FILE" 2>/dev/null || true
-            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-                echo "$NAME is running (pid $pid)"
-                exit 0
-            fi
+        if have_systemd; then
+            exec systemctl status "$NAME"
+        fi
+        pid=$(read_pid)
+        if pid_is_pydhcpd "$pid"; then
+            echo "$NAME is running (pid $pid)"
+            exit 0
         fi
         echo "$NAME is not running"
         exit 1

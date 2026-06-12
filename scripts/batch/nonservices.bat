@@ -40,27 +40,15 @@ REM List of services to stop and disable
 set SERVICES="wsearch" "SysMain" "DiagTrack" "dmwappushservice"
 
 for %%S in (%SERVICES%) do (
-    REM Stop service and redirect errors to null
-    sc stop %%S >nul 2>&1
-
-    :loop_stop
-    REM Wait for the service to stop
-    sc query %%S | find "STATE" | find /i "STOPPED" > nul
-    if %errorlevel%==0 (
-        echo %%S has been stopped.
-        :disable_service
-        REM Disable the service
-        sc config %%S start=disabled >nul 2>&1
-        if %errorlevel%==0 (
-            echo %%S has been disabled.
-        ) else (
-            echo Unable to disable %%S.
-        )
+    sc config %%S start=disabled >nul 2>&1
+    if !errorlevel!==0 (
+        echo %%S has been disabled.
+        sc stop %%S >nul 2>&1
     ) else (
-        ping 127.0.0.1 -n 2 > nul
-        goto loop_stop
+        echo Unable to disable %%S.
     )
 )
+echo Note: some services may remain running until next reboot.
 
 endlocal
 goto end
@@ -70,25 +58,29 @@ REM List of services to start and enable
 set SERVICES="wsearch" "SysMain" "DiagTrack" "dmwappushservice"
 
 for %%S in (%SERVICES%) do (
-    REM Enable the service
     sc config %%S start=auto >nul 2>&1
-    echo %%S has been enable
-
-    REM Start the service
+    echo %%S has been enabled.
     sc start %%S >nul 2>&1
-
-    :loop
-    REM Wait for the service to start
-    sc query %%S | find /i "RUNNING" > nul
-    if %errorlevel%==0 (
-        echo %%S has been started.
-    ) else (
-        ping 127.0.0.1 -n 2 > nul
-        goto loop
-    )
+    call :wait_running %%S
 )
-:endlocal
+endlocal
 goto end
+
+:wait_running
+set /a _retries=0
+:wait_running_loop
+sc query %1 | find /i "RUNNING" >nul 2>&1
+if not errorlevel 1 (
+    echo %~1 has been started.
+    exit /b 0
+)
+set /a _retries+=1
+if %_retries% geq 15 (
+    echo Warning: %~1 did not start after waiting. Continuing...
+    exit /b 1
+)
+ping 127.0.0.1 -n 2 >nul
+goto wait_running_loop
 
 :invalid
 echo Invalid choice. Exiting...

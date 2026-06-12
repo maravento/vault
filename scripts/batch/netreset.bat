@@ -73,7 +73,10 @@ for %%k in (%keys%) do (
 for /F "skip=3 tokens=3*" %%a in ('netsh interface show interface') do (
     if not "%%b"=="" (
         set "interface=%%b"
-        echo !TEXT4[%L%]! !interface!
+        setlocal disabledelayedexpansion
+        echo !TEXT4[%L%]! %interface%
+        endlocal
+        setlocal enabledelayedexpansion
         echo Reset IP...
         netsh interface ip set address name="!interface!" dhcp >nul
         echo Reset DNS...
