@@ -37,14 +37,12 @@
 #   - On first run, pyleases.env is created with network/path configuration
 #   - Delete pyleases.env to re-run setup
 #
-# WPAD/PAC OPTION (DHCP option 252)
+# WPAD/PAC OPTION (option 252)
 # If you need WPAD/PAC for proxy auto-configuration:
 # 1. Install and configure Apache2
 # 2. Create virtual host on port 18100
 # 3. Create wpad.pac file in Apache document root
-# 4. Uncomment these two lines in /etc/pydhcp/pydhcpd.conf:
-#    option wpad code 252 = text;
-#    option wpad "http://<server_ip>:18100/wpad.pac";
+# 4. Set WPAD_ENABLED=true in /etc/pydhcp/tools/pyleases.env
 #
 ################################################################################
 
@@ -186,6 +184,16 @@ ACL_BLOCK_FILE=/etc/acl/acl_dhcp/blockdhcp.txt
 
 # Lease cleanup interval in seconds (should be <= pool min-lease-time)
 CLEANUP_INTERVAL=60
+
+# DHCP timing (seconds) (min-lease|default-lease|max-lease -time)
+AUTHORIZED_LEASE_TIME=2592000
+
+# WPAD/PAC support (requires Apache2 on port 18100 with wpad.pac)
+WPAD_ENABLED=false
+
+# Ping check: pydhcpd pings each IP before OFFER to detect conflicts.
+# Set to false in environments with strict ICMP firewall rules.
+PING_CHECK_ENABLED=true
 EOF
     chmod 640 "$env_file"
     chown root:pydhcpd "$env_file"
@@ -198,6 +206,20 @@ if [ ! -f "$ENV_FILE" ]; then
     setup_env "$ENV_FILE"
 fi
 source "$ENV_FILE"
+
+if [[ "${WPAD_ENABLED:-false}" == "true" ]]; then
+    wpad_header="option wpad code 252 = text;"
+    wpad_subnet="option wpad \"http://$SERV_DHCP:18100/wpad.pac\";"
+else
+    wpad_header="#option wpad code 252 = text;"
+    wpad_subnet="#option wpad \"http://$SERV_DHCP:18100/wpad.pac\";"
+fi
+
+if [[ "${PING_CHECK_ENABLED:-true}" == "true" ]]; then
+    ping_check_line="ping-check true;"
+else
+    ping_check_line="ping-check false;"
+fi
 
 _notify() {
     local user="$1"; shift
@@ -356,13 +378,13 @@ function is_pydhcp() {
         echo "# pydhcpd Configuration
 authoritative;
 cleanup-interval $CLEANUP_INTERVAL;
-#option wpad code 252 = text;
+$wpad_header
 server-identifier $SERV_DHCP;
 deny duplicates;
 one-lease-per-client true;
 deny declines;
 deny client-updates;
-ping-check true;
+$ping_check_line
 ddns-update-style none;
         " >"$dhcp_conf_temp"
 
@@ -418,19 +440,19 @@ class "blockdhcp" {
         echo "" >>"$dhcp_conf_temp"
 
         echo "subnet $SERV_SUBNET netmask $SERV_MASK {
-    #option wpad \"http://$SERV_DHCP:18100/wpad.pac\";
+    $wpad_subnet
     option routers $SERV_DHCP;
     option subnet-mask $SERV_MASK;
     option broadcast-address $SERV_BROADCAST;
     #option domain-name \"example.org\";
     option domain-name-servers $SERV_DNS;
-    min-lease-time 2592000;
-    default-lease-time 2592000;
-    max-lease-time 2592000;
+    min-lease-time $AUTHORIZED_LEASE_TIME;
+    default-lease-time $AUTHORIZED_LEASE_TIME;
+    max-lease-time $AUTHORIZED_LEASE_TIME;
     pool {
-        min-lease-time 60;
-        default-lease-time 60;
-        max-lease-time 60;
+        min-lease-time $CLEANUP_INTERVAL;
+        default-lease-time $CLEANUP_INTERVAL;
+        max-lease-time $CLEANUP_INTERVAL;
         deny members of \"blockdhcp\";
         range $SERV_INI_RANGE_BLOCK $SERV_END_RANGE_BLOCK;
     }

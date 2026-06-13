@@ -33,6 +33,8 @@ TOOLS_DIR="${HOTSPOT_DIR}/tools"
 CONFIG_FILE="${HOTSPOT_DIR}/uhotspot.conf"
 LOG_FILE="/var/log/uhotspot.log"
 LOGROTATE_FILE="/etc/logrotate.d/uhotspot"
+LOGROTATE_ULEASES_FILE="/etc/logrotate.d/uleases"
+ULEASES_LOG_FILE="/var/log/uleases.log"
 UIPTABLES_STUB="${TOOLS_DIR}/uiptables.sh"
 
 # ─── Repo file expectations (relative to this script) ────────────────────────
@@ -383,9 +385,8 @@ STUB
 install_logrotate() {
     if [[ -f "$LOGROTATE_FILE" ]]; then
         info "logrotate config already present at $LOGROTATE_FILE"
-        return 0
-    fi
-    cat > "$LOGROTATE_FILE" <<EOF
+    else
+        cat > "$LOGROTATE_FILE" <<EOF
 ${LOG_FILE} {
     daily
     rotate 7
@@ -395,9 +396,29 @@ ${LOG_FILE} {
     create 640 root adm
 }
 EOF
-    chown root:root "$LOGROTATE_FILE"
-    chmod 644 "$LOGROTATE_FILE"
-    info "logrotate config installed at $LOGROTATE_FILE"
+        chown root:root "$LOGROTATE_FILE"
+        chmod 644 "$LOGROTATE_FILE"
+        info "logrotate config installed at $LOGROTATE_FILE"
+    fi
+
+    if [[ -f "$LOGROTATE_ULEASES_FILE" ]]; then
+        info "logrotate config already present at $LOGROTATE_ULEASES_FILE"
+    else
+        cat > "$LOGROTATE_ULEASES_FILE" <<EOF
+${ULEASES_LOG_FILE} {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF
+        chown root:root "$LOGROTATE_ULEASES_FILE"
+        chmod 644 "$LOGROTATE_ULEASES_FILE"
+        info "logrotate config installed at $LOGROTATE_ULEASES_FILE"
+    fi
 }
 
 register_cron() {

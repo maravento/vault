@@ -778,7 +778,7 @@ process_pending_guests() {
 
     if [[ $available_count -eq 0 ]]; then
         local oldest_line oldest_mac oldest_ip
-        oldest_line=$(grep '^a;' "$PENDING_LIST" 2>/dev/null | head -1 || true)
+        oldest_line=$(grep '^a;' "$PENDING_LIST" 2>/dev/null | sort -t';' -k4,4V | head -1 || true)
         oldest_mac=$(echo "$oldest_line" | awk -F';' '{print $2}')
         oldest_ip=$(echo "$oldest_line"  | awk -F';' '{print $3}')
         if [[ -n "$oldest_mac" && -n "$oldest_ip" ]]; then

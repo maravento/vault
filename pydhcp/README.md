@@ -27,7 +27,7 @@
         <li>Python daemon implementing DHCP (RFC 2131) over UDP 67/68</li>
         <li>Reads <code>/etc/pydhcp/pydhcpd.conf</code> (compatible with <code>dhcpd.conf</code> format)</li>
         <li>Writes <code>/etc/pydhcp/pydhcpd.leases</code> (compatible with <code>dhcpd.leases</code> format)</li>
-        <li>Supports the directives used by <a href="https://raw.githubusercontent.com/maravento/vault/master/pydhcp/tools/pyleases.sh">pyleases.sh</a> — nothing more</li>
+        <li>Supports a subset of <code>isc-dhcp-server</code> directives (see <a href="#config">Config</a> section for the full list)</li>
         <li>Runs as a <code>systemd</code> service under the <code>pydhcpd</code> user</li>
         <li>Responds to <code>/etc/init.d/pydhcpd stop|start</code> (compatible wrapper)</li>
         <li>IPv4 only, single interface</li>
@@ -39,7 +39,7 @@
         <li>Demonio Python que implementa DHCP (RFC 2131) sobre UDP 67/68</li>
         <li>Lee <code>/etc/pydhcp/pydhcpd.conf</code> (compatible con el formato de <code>dhcpd.conf</code>)</li>
         <li>Escribe <code>/etc/pydhcp/pydhcpd.leases</code> (compatible con el formato de <code>dhcpd.leases</code>)</li>
-        <li>Soporta las directivas usadas por <a href="https://raw.githubusercontent.com/maravento/vault/master/pydhcp/tools/pyleases.sh">pyleases.sh</a> — nada más</li>
+        <li>Soporta un subconjunto de directivas de <code>isc-dhcp-server</code> (ver sección <a href="#config">Config</a> para la lista completa)</li>
         <li>Corre como servicio <code>systemd</code> bajo el usuario <code>pydhcpd</code></li>
         <li>Responde a <code>/etc/init.d/pydhcpd stop|start</code> (wrapper compatible)</li>
         <li>Solo IPv4, interfaz única</li>
@@ -188,22 +188,6 @@ sudo bash pyinstall.sh --remove
       El instalador configura la interfaz, IP del servidor, subred y rango del pool de forma interactiva. Tras la instalación, edita el archivo de configuración solo para agregar reservas estáticas o MACs bloqueadas. Luego reinicia el servicio para aplicar los cambios.
     </td>
   </tr>
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      <b>Note:</b> <code>ping-check true</code> is enabled in the shipped <code>pydhcpd.conf</code>. The daemon sends a ping before each OFFER to verify the IP is not already in use. In environments with strict firewalls this may cause delays or false positives. To disable it, set <code>ping-check false;</code> in <code>/etc/pydhcp/pydhcpd.conf</code>.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      <b>Nota:</b> <code>ping-check true</code> viene activado en el <code>pydhcpd.conf</code> enviado. El demonio envía un ping antes de cada OFFER para verificar que la IP no está en uso. En entornos con firewall estricto esto puede causar demoras o falsos positivos. Para desactivarlo, establece <code>ping-check false;</code> en <code>/etc/pydhcp/pydhcpd.conf</code>.
-    </td>
-  </tr>
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      <b>Note:</b> <code>cleanup-interval</code> controls how often (in seconds) the daemon removes expired leases from memory. The default is <code>60</code>. If you use a short pool lease-time (e.g. <code>10</code> or <code>30</code> seconds), set <code>cleanup-interval</code> to the same value or lower so that expired leases are freed promptly and the pool does not appear exhausted. When using <code>pyleases.sh</code>, set <code>CLEANUP_INTERVAL</code> in <code>pyleases.env</code> — it is written into <code>pydhcpd.conf</code> on every run.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      <b>Nota:</b> <code>cleanup-interval</code> controla con qué frecuencia (en segundos) el demonio elimina los arrendamientos expirados de la memoria. El valor por defecto es <code>60</code>. Si usas un lease-time corto en el pool (p.ej. <code>10</code> o <code>30</code> segundos), establece <code>cleanup-interval</code> al mismo valor o menor para que los arrendamientos expirados se liberen rápidamente y el pool no parezca agotado. Al usar <code>pyleases.sh</code>, define <code>CLEANUP_INTERVAL</code> en <code>pyleases.env</code> — se escribe en <code>pydhcpd.conf</code> en cada ejecución.
-    </td>
-  </tr>
 </table>
 
 | Description | Descripción | File |
@@ -243,7 +227,7 @@ sudo systemctl status pydhcpd
 # jun 09 17:52:02 host python3[2356158]: 2026-06-09 17:52:02,086 [INFO] DISCOVER from bb:cc:dd:ee:ff:aa (<no hostname>)
 # jun 09 17:52:02 host python3[2356158]: 2026-06-09 17:52:02,154 [INFO] OFFER bb:cc:dd:ee:ff:aa → 192.168.10.231
 # jun 09 17:52:02 host python3[2356158]: 2026-06-09 17:52:02,264 [INFO] REQUEST from bb:cc:dd:ee:ff:aa (<no hostname>)
-# jun 09 17:52:02 host python3[2356158]: 2026-06-09 17:52:02,283 [INFO] ACK bb:cc:dd:ee:ff:aa → 192.168.10.231 (lease 10s)
+# jun 09 17:52:02 host python3[2356158]: 2026-06-09 17:52:02,283 [INFO] ACK bb:cc:dd:ee:ff:aa → 192.168.10.231 (lease 60s)
 # jun 09 17:52:15 host python3[2356158]: 2026-06-09 17:52:15,391 [INFO] DISCOVER from cc:dd:ee:ff:aa:bb (BazHost)
 # jun 09 17:52:15 host python3[2356158]: 2026-06-09 17:52:15,391 [WARNING] No IP available for cc:dd:ee:ff:aa:bb
 # jun 09 17:53:02 host python3[2356158]: 2026-06-09 17:53:02,173 [INFO] Lease expired: 192.168.10.230
@@ -263,6 +247,14 @@ sudo journalctl -u pydhcpd -f
 # View logs (file) | Ver logs (archivo)
 sudo tail -f /var/log/pydhcpd.log
 ```
+
+> **Note:** `ping-check true` is enabled in the shipped `pydhcpd.conf`. The daemon sends a ping before each OFFER to verify the IP is not already in use. In environments with strict firewall rules blocking ICMP, the ping will always time out silently and `ping-check` will have no effect. To disable it, set `ping-check false;` in `/etc/pydhcp/pydhcpd.conf`. If using `pyleases.sh`, set `PING_CHECK_ENABLED=false` in `pyleases.env` instead — the script regenerates `pydhcpd.conf` on every run.
+>
+> **Nota:** `ping-check true` viene activado en el `pydhcpd.conf` enviado. El demonio envía un ping antes de cada OFFER para verificar que la IP no está en uso. En entornos con reglas de firewall estrictas que bloquean ICMP, el ping siempre expirará sin respuesta y `ping-check` no tendrá ningún efecto. Para desactivarlo, establece `ping-check false;` en `/etc/pydhcp/pydhcpd.conf`. Si usas `pyleases.sh`, establece `PING_CHECK_ENABLED=false` en `pyleases.env` — el script regenera `pydhcpd.conf` en cada ejecución.
+
+> **Note:** `cleanup-interval` controls how often (in seconds) the daemon removes expired leases from memory. The default is `60`. If you use a short pool lease-time (e.g. `10` or `30` seconds), set `cleanup-interval` to the same value or lower so that expired leases are freed promptly and the pool does not appear exhausted. When using `pyleases.sh`, set `CLEANUP_INTERVAL` in `pyleases.env` — it is written into `pydhcpd.conf` on every run.
+>
+> **Nota:** `cleanup-interval` controla con qué frecuencia (en segundos) el demonio elimina los arrendamientos expirados de la memoria. El valor por defecto es `60`. Si usas un lease-time corto en el pool (p.ej. `10` o `30` segundos), establece `cleanup-interval` al mismo valor o menor para que los arrendamientos expirados se liberen rápidamente y el pool no parezca agotado. Al usar `pyleases.sh`, define `CLEANUP_INTERVAL` en `pyleases.env` — se escribe en `pydhcpd.conf` en cada ejecución.
 
 ### Tools
 
@@ -293,45 +285,83 @@ sudo bash tools/pyleases.sh
 >
 > **Primera corrida**: pyleases.sh inicia un setup interactivo que pregunta IP del servidor DHCP, máscara, rango del pool de bloqueo y DNS, y escribe `/etc/pydhcp/tools/pyleases.env`. Elimine ese archivo para volver a ejecutar el setup. Algunas preguntas se solapan con `pyinstall.sh` — responda consistentemente.
 
-> **Warning**: `--update` backs up replaced files to `/etc/pydhcp/bak/TIMESTAMP/`before overwriting them. `pydhcpd.conf` and `default/pydhcpd` are **never overwritten** by `--update` (user config is preserved). Any manual edit to the code files (`pydhcpd.py`, `pyleases.sh`, `pywebmin.sh`) will be replaced. To persist a custom directive, edit the template inside `pyleases.sh` itself.
->
-> **Advertencia**: `--update` respalda los archivos reemplazados en `/etc/pydhcp/bak/TIMESTAMP/` antes de sobrescribirlos. `pydhcpd.conf` y `default/pydhcpd` **nunca se sobreescriben** (la configuración del usuario se preserva). Cualquier edición manual a los archivos de código (`pydhcpd.py`, `pyleases.sh`, `pywebmin.sh`) será reemplazada. Para preservar una directiva personalizada, edite el template dentro del propio `pyleases.sh`.
+##### Supported directives / Directivas soportadas
+
+| Directive | Description | Descripción |
+|-----------|-------------|-------------|
+| `authoritative;` | Server sends NAK to clients with foreign leases | El servidor envía NAK a clientes con leases ajenos |
+| `cleanup-interval N;` | How often (seconds) expired leases are removed from memory | Frecuencia (segundos) con que se eliminan leases expirados de memoria |
+| `server-identifier IP;` | IP the server uses to identify itself in DHCP replies | IP con la que el servidor se identifica en las respuestas DHCP |
+| `deny duplicates;` | Reject requests from a MAC that already holds a lease | Rechaza solicitudes de una MAC que ya tiene un lease |
+| `one-lease-per-client true;` | Release old lease before assigning a new one to the same MAC | Libera el lease anterior antes de asignar uno nuevo a la misma MAC |
+| `deny declines;` | Ignore DHCPDECLINE messages | Ignora mensajes DHCPDECLINE |
+| `deny client-updates;` | Ignore client-requested hostname updates | Ignora actualizaciones de hostname solicitadas por el cliente |
+| `ping-check true\|false;` | Ping IP before OFFER to detect conflicts (controlled via `PING_CHECK_ENABLED` in `pyleases.env`) | Ping a la IP antes del OFFER para detectar conflictos (controlado via `PING_CHECK_ENABLED` en `pyleases.env`) |
+| `ddns-update-style none;` | Disable dynamic DNS updates | Deshabilita actualizaciones DNS dinámicas |
+| `option wpad ...;` | WPAD/PAC proxy auto-configuration (controlled via `WPAD_ENABLED` in `pyleases.env`) | Autoconfiguración de proxy WPAD/PAC (controlado via `WPAD_ENABLED` en `pyleases.env`) |
+| `subnet ... { pool { ... } }` | Subnet declaration with dynamic block pool | Declaración de subred con pool de bloqueo dinámico |
+| `host NAME { hardware ethernet MAC; fixed-address IP; }` | Static host reservation | Reserva estática de host |
+| `class "blockdhcp" { ... }` / `subclass "blockdhcp" ...` | MAC-based DHCP block list | Lista de bloqueo DHCP por MAC |
+| `min-lease-time`, `default-lease-time`, `max-lease-time` | Lease duration controls | Control de duración de leases |
+| `option routers`, `option subnet-mask`, `option broadcast-address`, `option domain-name-servers` | Standard DHCP options | Opciones DHCP estándar |
+
+**Warning / Advertencia:**
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <ul>
+        <li><code>--update</code> backs up replaced files to <code>/etc/pydhcp/bak/TIMESTAMP/</code> before overwriting them. <code>pydhcpd.conf</code> and <code>default/pydhcpd</code> are <b>never overwritten</b> by <code>--update</code> (user config is preserved). Any manual edit to the code files (<code>pydhcpd.py</code>, <code>pyleases.sh</code>, <code>pywebmin.sh</code>) will be replaced. To persist a custom directive, edit the template inside <code>pyleases.sh</code> itself.</li>
+        <li><code>pyleases.sh</code> fully rebuilds <code>/etc/pydhcp/pydhcpd.conf</code> on every run from its ACL files and <code>pyleases.env</code>. Any manual edits to <code>pydhcpd.conf</code> — including custom lease times, pools, or directives — will be lost. If you manage <code>pydhcpd.conf</code> manually, do not use <code>pyleases.sh</code>.</li>
+      </ul>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <ul>
+        <li><code>--update</code> respalda los archivos reemplazados en <code>/etc/pydhcp/bak/TIMESTAMP/</code> antes de sobrescribirlos. <code>pydhcpd.conf</code> y <code>default/pydhcpd</code> <b>nunca se sobreescriben</b> (la configuración del usuario se preserva). Cualquier edición manual a los archivos de código (<code>pydhcpd.py</code>, <code>pyleases.sh</code>, <code>pywebmin.sh</code>) será reemplazada. Para preservar una directiva personalizada, edite el template dentro del propio <code>pyleases.sh</code>.</li>
+        <li><code>pyleases.sh</code> reconstruye completamente <code>/etc/pydhcp/pydhcpd.conf</code> en cada ejecución a partir de sus archivos ACL y <code>pyleases.env</code>. Cualquier edición manual a <code>pydhcpd.conf</code> — incluyendo lease times, pools o directivas personalizadas — se perderá. Si gestiona <code>pydhcpd.conf</code> manualmente, no utilice <code>pyleases.sh</code>.</li>
+      </ul>
+    </td>
+  </tr>
+</table>
 
 ##### WPAD/PAC via DHCP option 252 (optional)
 
 <table>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <code>pyleases.sh</code> generates <code>/etc/pydhcp/pydhcpd.conf</code> dynamically on every run. The generated config includes two commented-out lines for WPAD/PAC (proxy auto-configuration via DHCP option 252). These lines are intentionally left commented — <b>pydhcp does not require WPAD to work</b>. Uncomment them only if you need automatic proxy discovery for desktop clients.
+      <code>pyleases.sh</code> generates <code>/etc/pydhcp/pydhcpd.conf</code> dynamically on every run. WPAD/PAC support is controlled entirely from <code>pyleases.env</code> — no manual editing of <code>pyleases.sh</code> is required.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <code>pyleases.sh</code> genera <code>/etc/pydhcp/pydhcpd.conf</code> dinámicamente en cada ejecución. La configuración generada incluye dos líneas comentadas para WPAD/PAC (auto-configuración de proxy vía opción DHCP 252). Estas líneas se dejan comentadas intencionalmente — <b>pydhcp no requiere WPAD para funcionar</b>. Descoméntelas solo si necesita descubrimiento automático de proxy para clientes de escritorio.
+      <code>pyleases.sh</code> genera <code>/etc/pydhcp/pydhcpd.conf</code> dinámicamente en cada ejecución. El soporte WPAD/PAC se controla completamente desde <code>pyleases.env</code> — no se requiere editar manualmente <code>pyleases.sh</code>.
     </td>
   </tr>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      To enable WPAD:
+      <b>To enable/disable WPAD:</b>
+      <ul>
+        <li>Set <code>WPAD_ENABLED=true</code> in <code>/etc/pydhcp/tools/pyleases.env</code> to enable</li>
+        <li>Set <code>WPAD_ENABLED=false</code> in <code>/etc/pydhcp/tools/pyleases.env</code> to disable (default)</li>
+      </ul>
+      <b>Prerequisites (if enabled):</b>
       <ol>
         <li>Install Apache2 and create a VirtualHost on port 18100.</li>
         <li>Place a valid <code>wpad.pac</code> file in the Apache document root for that VirtualHost.</li>
-        <li>In <code>pyleases.sh</code>, uncomment the two <code>#option wpad</code> lines inside <code>update_dhcp_conf()</code>. They will be written into <code>/etc/pydhcp/pydhcpd.conf</code> on the next run.</li>
-      </ol>
+      </ol> The two <code>option wpad</code> lines will be automatically written to <code>/etc/pydhcp/pydhcpd.conf</code> on the next <code>pyleases.sh</code> run.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Para habilitar WPAD:
+      <b>Para activar/desactivar WPAD:</b>
+      <ul>
+        <li>Establezca <code>WPAD_ENABLED=true</code> en <code>/etc/pydhcp/tools/pyleases.env</code> para activar</li>
+        <li>Establezca <code>WPAD_ENABLED=false</code> en <code>/etc/pydhcp/tools/pyleases.env</code> para desactivar (por defecto)</li>
+      </ul>
+      <b>Requisitos previos (si está activado):</b>
       <ol>
         <li>Instale Apache2 y cree un VirtualHost en el puerto 18100.</li>
         <li>Coloque un archivo <code>wpad.pac</code> válido en el document root de ese VirtualHost.</li>
-        <li>En <code>pyleases.sh</code>, descomente las dos líneas <code>#option wpad</code> dentro de <code>update_dhcp_conf()</code>. Se escribirán en <code>/etc/pydhcp/pydhcpd.conf</code> en la próxima ejecución.</li>
-      </ol>
+      </ol> Las dos líneas <code>option wpad</code> se escribirán automáticamente en <code>/etc/pydhcp/pydhcpd.conf</code> en la próxima ejecución de <code>pyleases.sh</code>.
     </td>
   </tr>
 </table>
-
-```text
-#option wpad code 252 = text;                     ← global declaration (pydhcpd.conf header)
-#option wpad "http://<server_ip>:18100/wpad.pac"; ← subnet block
-```
 
 > **Note**: Android and iOS ignore DHCP option 252. The proxy must be configured manually on those devices.
 > 
@@ -404,7 +434,8 @@ iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
 | `/var/run/dhcpd.pid` | `/etc/pydhcp/pydhcpd.pid` |
 | `/etc/systemd/system/isc-dhcp-server.service` | `/etc/systemd/system/pydhcpd.service` |
 | `/etc/init.d/isc-dhcp-server` | `/etc/init.d/pydhcpd` |
-| `systemctl restart isc-dhcp-server` | `systemctl restart pydhcpd` |
+| `systemctl start\|stop\|restart\|status isc-dhcp-server` | `systemctl start\|stop\|restart\|status pydhcpd` |
+| `service isc-dhcp-server start\|stop\|restart\|status` | `service pydhcpd start\|stop\|restart\|status` |
 
 ### Logs
 
@@ -476,4 +507,3 @@ iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
 ---
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-

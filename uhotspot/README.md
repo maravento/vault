@@ -557,57 +557,165 @@ sudo /etc/uhotspot/tools/uleases.sh
 # This creates /etc/uhotspot/tools/uleases.env
 ```
 
-#### WPAD/PAC via DHCP option 252 (optional)
+**Configuration variables in uleases.env:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SERV_DHCP` | *(required)* | DHCP server IP address |
+| `SERV_SUBNET` | *(auto)* | Network subnet (auto-calculated) |
+| `SERV_BROADCAST` | *(auto)* | Broadcast address (auto-calculated) |
+| `SERV_MASK` | 255.255.255.0 | Netmask |
+| `SERV_INI_RANGE_BLOCK` | *(required)* | Start of block pool IP range |
+| `SERV_END_RANGE_BLOCK` | *(required)* | End of block pool IP range |
+| `SERV_DNS` | *(required)* | DNS servers (comma-separated) |
+| `ACL_PATH` | /etc/acl | Base path for ACL directories |
+| `ACL_MAC_PATH` | /etc/acl/acl_mac | MAC-based ACL directory |
+| `ACL_DHCP_PATH` | /etc/acl/acl_dhcp | DHCP ACL directory |
+| `HOTSPOT_PATH` | /etc/uhotspot | Hotspot working directory |
+| `ACL_MAC_PROXY` | /etc/acl/acl_mac/mac-proxy.txt | Proxy-forced clients |
+| `ACL_MAC_TRANSPARENT` | /etc/acl/acl_mac/mac-transparent.txt | Transparent proxy clients |
+| `ACL_MAC_UNLIMITED` | /etc/acl/acl_mac/mac-unlimited.txt | Unrestricted clients |
+| `ACL_MAC_HOTSPOT` | /etc/uhotspot/mac-hotspot.txt | Hotspot authorized (read-only) |
+| `ACL_GUEST_PENDING` | /etc/uhotspot/guest-pending.txt | Hotspot pending (read-only) |
+| `ACL_BLOCK_FILE` | /etc/acl/acl_dhcp/blockdhcp.txt | Blocked clients |
+| `ACL_GRACE_FILE` | /etc/acl/acl_dhcp/gracedhcp.txt | Grace period clients |
+| `BLOCKDHCP_GRACE_SECONDS` | 86400 | Grace period duration (seconds, 24h) |
+| `UNIFI_HOTSPOT_ENABLED` | true | Enable/disable UniFi Hotspot integration |
+| `CLEANUP_INTERVAL` | 40 | Cleanup frequency and pool lease time (seconds) |
+| `AUTHORIZED_LEASE_TIME` | 2592000 | Lease duration for authorized clients (30 days) |
+| `WPAD_ENABLED` | false | Enable WPAD/PAC via DHCP option 252 |
+| `PING_CHECK_ENABLED` | true | Ping IP before OFFER to detect conflicts. Set to `false` in environments with strict ICMP firewall rules |
+| `LEASE_REMOVE_QUEUE` | /etc/uhotspot/leases-remove-queue.txt | Queue file for lease removals |
+
+##### Supported directives / Directivas soportadas
+
+| Directive | Description | Descripción |
+|-----------|-------------|-------------|
+| `authoritative;` | Server sends NAK to clients with foreign leases | El servidor envía NAK a clientes con leases ajenos |
+| `cleanup-interval N;` | How often (seconds) expired leases are removed from memory (controlled via `CLEANUP_INTERVAL` in `uleases.env`) | Frecuencia (segundos) con que se eliminan leases expirados de memoria (controlado via `CLEANUP_INTERVAL` en `uleases.env`) |
+| `server-identifier IP;` | IP the server uses to identify itself in DHCP replies | IP con la que el servidor se identifica en las respuestas DHCP |
+| `deny duplicates;` | Reject requests from a MAC that already holds a lease | Rechaza solicitudes de una MAC que ya tiene un lease |
+| `one-lease-per-client true;` | Release old lease before assigning a new one to the same MAC | Libera el lease anterior antes de asignar uno nuevo a la misma MAC |
+| `deny declines;` | Ignore DHCPDECLINE messages | Ignora mensajes DHCPDECLINE |
+| `deny client-updates;` | Ignore client-requested hostname updates | Ignora actualizaciones de hostname solicitadas por el cliente |
+| `ping-check true\|false;` | Ping IP before OFFER to detect conflicts (controlled via `PING_CHECK_ENABLED` in `uleases.env`) | Ping a la IP antes del OFFER para detectar conflictos (controlado via `PING_CHECK_ENABLED` en `uleases.env`) |
+| `ddns-update-style none;` | Disable dynamic DNS updates | Deshabilita actualizaciones DNS dinámicas |
+| `option wpad ...;` | WPAD/PAC proxy auto-configuration (controlled via `WPAD_ENABLED` in `uleases.env`) | Autoconfiguración de proxy WPAD/PAC (controlado via `WPAD_ENABLED` en `uleases.env`) |
+| `subnet ... { pool { ... } }` | Subnet declaration with dynamic block pool | Declaración de subred con pool de bloqueo dinámico |
+| `host NAME { hardware ethernet MAC; fixed-address IP; }` | Static host reservation from ACL files | Reserva estática de host desde archivos ACL |
+| `class "blockdhcp" { ... }` / `subclass "blockdhcp" ...` | MAC-based DHCP block list | Lista de bloqueo DHCP por MAC |
+| `min-lease-time`, `default-lease-time`, `max-lease-time` | Lease duration controls | Control de duración de leases |
+| `option routers`, `option subnet-mask`, `option broadcast-address`, `option domain-name-servers` | Standard DHCP options | Opciones DHCP estándar |
+
+**Warning / Advertencia:**
 
 <table>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <code>uleases.sh</code> replaces <code>pyleases.sh</code> shipped by default with pydhcp. Unlike the original, it generates <code>/etc/pydhcp/pydhcpd.conf</code> dynamically on every run. The generated config includes two commented-out lines for WPAD/PAC (proxy auto-configuration via DHCP option 252). These lines are intentionally left commented — <b>uhotspot does not require WPAD to work</b>. Uncomment them only if you need automatic proxy discovery for desktop clients.
+      <code>uleases.sh</code> fully rebuilds <code>/etc/pydhcp/pydhcpd.conf</code> on every run from its ACL files and <code>uleases.env</code>. Any manual edits to <code>pydhcpd.conf</code> — including custom lease times, pools, or directives — will be lost. If you manage <code>pydhcpd.conf</code> manually, do not use <code>uleases.sh</code>.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <code>uleases.sh</code> reemplaza el <code>pyleases.sh</code> que viene por defecto con pydhcp. A diferencia del original, genera <code>/etc/pydhcp/pydhcpd.conf</code> dinámicamente en cada ejecución. La configuración generada incluye dos líneas comentadas para WPAD/PAC (auto-configuración de proxy vía opción DHCP 252). Estas líneas se dejan comentadas intencionalmente — <b>uhotspot no requiere WPAD para funcionar</b>. Descoméntelas solo si necesita descubrimiento automático de proxy para clientes de escritorio.
-    </td>
-  </tr>
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      To enable WPAD:
-      <ol>
-        <li>Install Apache2 and create a VirtualHost on port 18100.</li>
-        <li>Place a valid <code>wpad.pac</code> file in the Apache document root for that VirtualHost.</li>
-        <li>In <code>uleases.sh</code>, uncomment the two <code>#option wpad</code> lines inside <code>update_dhcp_conf()</code>. They will be written into <code>/etc/pydhcp/pydhcpd.conf</code> on the next run.</li>
-      </ol>
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      Para habilitar WPAD:
-      <ol>
-        <li>Instale Apache2 y cree un VirtualHost en el puerto 18100.</li>
-        <li>Coloque un archivo <code>wpad.pac</code> válido en el document root de ese VirtualHost.</li>
-        <li>En <code>uleases.sh</code>, descomente las dos líneas <code>#option wpad</code> dentro de <code>update_dhcp_conf()</code>. Se escribirán en <code>/etc/pydhcp/pydhcpd.conf</code> en la próxima ejecución.</li>
-      </ol>
+      <code>uleases.sh</code> reconstruye completamente <code>/etc/pydhcp/pydhcpd.conf</code> en cada ejecución a partir de sus archivos ACL y <code>uleases.env</code>. Cualquier edición manual a <code>pydhcpd.conf</code> — incluyendo lease times, pools o directivas personalizadas — se perderá. Si gestiona <code>pydhcpd.conf</code> manualmente, no utilice <code>uleases.sh</code>.
     </td>
   </tr>
 </table>
 
-```text
-#option wpad code 252 = text;                    ← global declaration (pydhcpd.conf header)
-#option wpad "http://<server_ip>:18100/wpad.pac"; ← subnet block
-```
+> **Note / Nota:** Variables marked as (auto) are calculated automatically from SERV_DHCP and SERV_MASK. Variables marked as (required) are prompted during first-run setup. All other variables have sensible defaults but can be modified manually in uleases.env. / Las variables marcadas como (auto) se calculan automáticamente desde SERV_DHCP y SERV_MASK. Las variables marcadas como (required) se solicitan durante la configuración inicial. El resto de variables tienen valores predeterminados sensatos pero pueden modificarse manualmente en uleases.env.
+
+**WPAD/PAC via DHCP option 252 (optional):**
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <code>uleases.sh</code> generates <code>/etc/pydhcp/pydhcpd.conf</code> dynamically on every run. WPAD/PAC support is controlled entirely from <code>uleases.env</code> — no manual editing of <code>uleases.sh</code> is required.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <code>uleases.sh</code> genera <code>/etc/pydhcp/pydhcpd.conf</code> dinámicamente en cada ejecución. El soporte WPAD/PAC se controla completamente desde <code>uleases.env</code> — no se requiere editar manualmente <code>uleases.sh</code>.
+    </td>
+  </tr>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <b>To enable/disable WPAD:</b>
+      <ul>
+        <li>Set <code>WPAD_ENABLED=true</code> in <code>/etc/uhotspot/tools/uleases.env</code> to enable </li>
+        <li>Set <code>WPAD_ENABLED=false</code> in <code>/etc/uhotspot/tools/uleases.env</code> to disable (default) </li>
+      </ul>
+      <b>Prerequisites (if enabled):</b>
+      <ol>
+        <li>Install Apache2 and create a VirtualHost on port 18100.</li>
+        <li>Place a valid <code>wpad.pac</code> file in the Apache document root for that VirtualHost. </li>
+      </ol> The two <code>option wpad</code> lines will be automatically written to <code>/etc/pydhcp/pydhcpd.conf</code> on the next <code>uleases.sh</code> run.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <b>Para activar/desactivar WPAD:</b>
+      <ul>
+        <li>Establezca <code>WPAD_ENABLED=true</code> en <code>/etc/uhotspot/tools/uleases.env</code> para activar </li>
+        <li>Establezca <code>WPAD_ENABLED=false</code> en <code>/etc/uhotspot/tools/uleases.env</code> para desactivar (por defecto) </li>
+      </ul>
+      <b>Requisitos previos (si está activado):</b>
+      <ol>
+        <li>Instale Apache2 y cree un VirtualHost en el puerto 18100.</li>
+        <li>Coloque un archivo <code>wpad.pac</code> válido en el document root de ese VirtualHost. </li>
+      </ol> Las dos líneas <code>option wpad</code> se escribirán automáticamente en <code>/etc/pydhcp/pydhcpd.conf</code> en la próxima ejecución de <code>uleases.sh</code>.
+    </td>
+  </tr>
+</table>
 
 > **Note / Nota:** Android and iOS ignore DHCP option 252 — see [Mobile device limitations](#mobile-device-limitations--limitaciones-en-dispositivos-móviles). / Android e iOS ignoran la opción DHCP 252 — ver [Mobile device limitations](#mobile-device-limitations--limitaciones-en-dispositivos-móviles).
+
+> **Note:** `ping-check true` is enabled by default in the `pydhcpd.conf` generated by `uleases.sh`. The daemon sends a ping before each OFFER to verify the IP is not already in use. In environments with strict firewall rules blocking ICMP, the ping will always time out silently and `ping-check` will have no effect. To disable it, set `PING_CHECK_ENABLED=false` in `uleases.env` — the script regenerates `pydhcpd.conf` on every run.
+>
+> **Nota:** `ping-check true` está activado por defecto en el `pydhcpd.conf` generado por `uleases.sh`. El demonio envía un ping antes de cada OFFER para verificar que la IP no está en uso. En entornos con reglas de firewall estrictas que bloquean ICMP, el ping siempre expirará sin respuesta y `ping-check` no tendrá ningún efecto. Para desactivarlo, establece `PING_CHECK_ENABLED=false` en `uleases.env` — el script regenera `pydhcpd.conf` en cada ejecución.
 
 ### uaudit
 
 <table>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <b>uaudit.sh</b> — Authenticates against UniFi OS (<code>/api/auth/login</code>) and pulls three datasets: <code>stat/sta</code> (live clients), <code>stat/guest</code> (voucher-redeemed guests), and <code>stat/voucher</code> (full voucher inventory). Cross-references them against <code>mac-hotspot.txt</code> and <code>guest-pending.txt</code>, then prints a three-section report (Authorized, Pending, Vouchers) and offers four interactive cleanup actions. Logs to <code>/etc/uhotspot/uaudit.log</code>.
-      <br><br>
-      Reads credentials from <code>/etc/uhotspot/uhotspot.conf</code>. Required variables: <code>UNIFI_CONTROLLER_URL</code>, <code>UNIFI_USERNAME</code>, <code>UNIFI_PASSWORD</code>, <code>HOTSPOT_ESSID</code>. Optional: <code>UNIFI_SITE</code> (defaults to <code>default</code>).
+      <b>uaudit.sh</b> — Authenticates against UniFi OS ( <code>/api/auth/login</code>) and pulls three datasets: <code>stat/sta</code> (live clients), <code>stat/guest</code> (voucher-redeemed guests), and <code>stat/voucher</code> (full voucher inventory). Cross-references them against <code>mac-hotspot.txt</code> and <code>guest-pending.txt</code>, then prints a three-section report (Authorized, Pending, Vouchers) and offers five interactive cleanup actions. <br>
+      <br>
+      <b>Action details:</b>
+      <ul>
+        <li>
+          <b>[1] Delete unused vouchers</b> — Removes vouchers with <code>used=0</code> (never activated). Safe — no sessions to clean.
+        </li>
+        <li>
+          <b>[2] Forget clients no voucher</b> — Forgets guests who connected to portal but never submitted a voucher. Only affects clients not currently on the SSID and with no voucher record.
+        </li>
+        <li>
+          <b>[3] Delete expired vouchers</b> — Deletes vouchers past <code>end_time</code>, then unauthorizes active sessions and forgets all client history linked to them.
+        </li>
+        <li>
+          <b>[4] Revoke by voucher code</b> — Surgical revocation: delete voucher (if exists), unauthorize active sessions, forget all client history for that code. <b>Workaround for a known UniFi bug:</b> when a voucher is manually deleted from the UniFi UI, <code>stat/guest</code> still retains session records with that voucher_code, allowing affected clients to reconnect without re-entering a code. This action cleans everything regardless of whether the voucher still exists in <code>stat/voucher</code> or not.
+        </li>
+        <li>
+          <b>[5] Purge everything</b> — DESTROYS all vouchers, disconnects all active guests, erases all client history. Requires typing <code>YES</code> to confirm. This action cannot be undone.
+        </li>
+      </ul> Logs to <code>/etc/uhotspot/uaudit.log</code>. <br>
+      <br> Reads credentials from <code>/etc/uhotspot/uhotspot.conf</code>. Required variables: <code>UNIFI_CONTROLLER_URL</code>, <code>UNIFI_USERNAME</code>, <code>UNIFI_PASSWORD</code>, <code>HOTSPOT_ESSID</code>. Optional: <code>UNIFI_SITE</code> (defaults to <code>default</code>).
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <b>uaudit.sh</b> — Se autentica contra UniFi OS (<code>/api/auth/login</code>) y consulta tres datasets: <code>stat/sta</code> (clientes en vivo), <code>stat/guest</code> (invitados con voucher canjeado), y <code>stat/voucher</code> (inventario completo de vouchers). Los cruza contra <code>mac-hotspot.txt</code> y <code>guest-pending.txt</code>, imprime un reporte de tres secciones (Autorizados, Pendientes, Vouchers) y ofrece cuatro acciones interactivas de limpieza. Registra en <code>/etc/uhotspot/uaudit.log</code>.
-      <br><br>
-      Lee las credenciales de <code>/etc/uhotspot/uhotspot.conf</code>. Variables requeridas: <code>UNIFI_CONTROLLER_URL</code>, <code>UNIFI_USERNAME</code>, <code>UNIFI_PASSWORD</code>, <code>HOTSPOT_ESSID</code>. Opcional: <code>UNIFI_SITE</code> (default <code>default</code>).
+      <b>uaudit.sh</b> — Se autentica contra UniFi OS ( <code>/api/auth/login</code>) y consulta tres datasets: <code>stat/sta</code> (clientes en vivo), <code>stat/guest</code> (invitados con voucher canjeado), y <code>stat/voucher</code> (inventario completo de vouchers). Los cruza contra <code>mac-hotspot.txt</code> y <code>guest-pending.txt</code>, imprime un reporte de tres secciones (Autorizados, Pendientes, Vouchers) y ofrece cinco acciones interactivas de limpieza. <br>
+      <br>
+      <b>Detalles de las acciones:</b>
+      <ul>
+        <li>
+          <b>[1] Delete unused vouchers</b> — Elimina vouchers con <code>used=0</code> (nunca activados). Seguro — no hay sesiones que limpiar.
+        </li>
+        <li>
+          <b>[2] Forget clients no voucher</b> — Olvida invitados que se conectaron al portal pero nunca ingresaron un voucher. Solo afecta clientes no conectados actualmente al SSID y sin registro de voucher.
+        </li>
+        <li>
+          <b>[3] Delete expired vouchers</b> — Elimina vouchers cuya <code>end_time</code> ya pasó, luego desautoriza sesiones activas y olvida todo el historial de clientes vinculados.
+        </li>
+        <li>
+          <b>[4] Revoke by voucher code</b> — Revocación quirúrgica: elimina el voucher (si existe), desautoriza sesiones activas, olvida todo el historial de clientes para ese código. <b>Workaround para un bug conocido de UniFi:</b> cuando se elimina manualmente un voucher desde la UI de UniFi, <code>stat/guest</code> retiene registros de sesión con ese voucher_code, permitiendo que los clientes afectados se reconecten sin volver a ingresar un código. Esta acción limpia todo independientemente de si el voucher aún existe en <code>stat/voucher</code> o no.
+        </li>
+        <li>
+          <b>[5] Purge everything</b> — DESTRUYE todos los vouchers, desconecta todos los invitados activos, borra todo el historial de clientes. Requiere escribir <code>YES</code> para confirmar. Esta acción no se puede deshacer.
+        </li>
+      </ul> Registra en <code>/etc/uhotspot/uaudit.log</code>. <br>
+      <br> Lee las credenciales de <code>/etc/uhotspot/uhotspot.conf</code>. Variables requeridas: <code>UNIFI_CONTROLLER_URL</code>, <code>UNIFI_USERNAME</code>, <code>UNIFI_PASSWORD</code>, <code>HOTSPOT_ESSID</code>. Opcional: <code>UNIFI_SITE</code> (default <code>default</code>).
     </td>
   </tr>
 </table>
@@ -615,6 +723,8 @@ sudo /etc/uhotspot/tools/uleases.sh
 ```bash
 sudo bash /etc/uhotspot/tools/uaudit.sh
 ```
+
+Report:
 
 ```text
 UniFi Clients Audit - starting, please wait...
@@ -647,10 +757,11 @@ Audit complete. Log saved to: /etc/uhotspot/uaudit.log
 =======================================================================
  AVAILABLE ACTIONS
 =======================================================================
-  [1] Revoke used vouchers    - delete + unauthorize active sessions
-  [2] Delete unused vouchers  - remove vouchers never activated
-  [3] Forget inactive clients - erase expired session history in UniFi
-  [4] All of the above
+  [1] Delete unused vouchers    - remove vouchers never activated
+  [2] Forget clients no voucher  - connected to portal but never used one
+  [3] Delete expired vouchers   - remove expired vouchers + forget their clients
+  [4] Revoke by voucher code    - surgical invalidation by code (UniFi workaround)
+  [5] Purge everything          - DELETE all vouchers and history (DESTRUCTIVE)
   [q] Quit
 
   Your choice:

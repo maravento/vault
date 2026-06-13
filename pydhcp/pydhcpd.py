@@ -900,8 +900,12 @@ class DHCPServer:
                 for ip in stale:
                     log.info("apply_config: removing lease %s (outside new pool)", ip)
                     del self.leases.leases[ip]
+                snapshot = dict(self.leases.leases) if stale else None
             self.server_ip    = new_config.server_id or new_config.routers
             self.broadcast_ip = new_config.broadcast or BROADCAST_ADDR
+
+        if snapshot is not None:
+            self.leases._save_snapshot(snapshot)
 
     def start(self):
         if not self.interface:

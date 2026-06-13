@@ -7,18 +7,31 @@
 # Description : UniFi Network Hotspot - Full Client Audit & Management Tool
 #
 # REPORT SECTIONS
-#   1. Authorized  - mac-hotspot.txt enriched with voucher (stat/guest) and
-#                    live connection status (stat/sta)
+#   1. Authorized  - mac-hotspot.txt enriched with voucher code and status.
+#                    Voucher code is extracted from the hostname field
+#                    (format: guest{n}-{code}) and verified against stat/voucher.
+#                    STATUS values: MULTI (USED_MULTIPLE), VALID (VALID_ONE),
+#                    CONSUMED (quota exhausted, auto-purged by UniFi).
+#                    ON column: YES if client is currently connected to the AP.
 #   2. Pending     - guest-pending.txt enriched with live connection status
 #                    and authorization flag (stat/sta)
 #   3. Vouchers    - full voucher list from stat/voucher with usage stats
 #
 # INTERACTIVE ACTIONS (after report)
-#   [1] Revoke used vouchers    - delete (used>0), unauthorize sessions,
-#                                 optionally forget client history
-#   [2] Delete unused vouchers  - delete vouchers never used (used=0)
-#   [3] Forget inactive clients - remove expired guest session history
-#   [4] All of the above
+#   [1] Delete unused vouchers   - delete vouchers never activated (used=0)
+#   [2] Forget clients no voucher - forget guests who connected to the portal
+#                                   but never submitted a voucher code
+#   [3] Delete expired vouchers  - delete vouchers past their end_time and
+#                                   forget all associated client history
+#   [4] Revoke by voucher code   - surgical invalidation of a single voucher:
+#                                   delete from stat/voucher if still present,
+#                                   unauthorize active sessions, forget all
+#                                   associated MACs from stat/guest and stat/sta
+#                                   Workaround for UniFi bug: stat/guest does not
+#                                   distinguish manually deleted vouchers from
+#                                   quota-exhausted ones (community.ui.com/31faff3e)
+#   [5] Purge everything         - DELETE all vouchers and client history
+#                                   (DESTRUCTIVE — requires typing YES)
 #
 # AUTH
 #   Authenticates against UniFi OS (/api/auth/login). Requires HOTSPOT_ESSID,
@@ -75,10 +88,6 @@ LOG="/etc/uhotspot/uaudit.log"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
 # ── Authentication ────────────────────────────────────────────────────────────
-# Logs into UniFi OS and extracts TOKEN + CSRF token from response headers.
-# The TOKEN cookie is injected manually on every request because curl's
-# Netscape cookie jar silently discards cookies with the "partitioned" attribute,
-# which UniFi OS uses since version 3.x.
 do_login() {
     local login_path
     if [[ "$TYPE" == "classic" ]]; then
@@ -142,14 +151,25 @@ echo "  stat/guest   -> $GUEST_RC  ($(echo "$GUEST"   | jq '.data|length' 2>/dev
 echo "  stat/voucher -> $VCH_RC    ($(echo "$VOUCHER" | jq '.data|length' 2>/dev/null) entries)"
 
 # ── Section 1: Authorized clients (mac-hotspot.txt + stat/guest + stat/sta) ───
+# VOUCHER RESOLUTION STRATEGY:
+#   1. Extract voucher code from hostname field in mac-hotspot.txt
+#      (format: guest{n}-{voucher_code}, e.g. guest3-7708162928)
+#      This is always available even when the client is disconnected,
+#      because uhotspot.sh writes it at authorization time.
+#   2. Verify the code exists in stat/voucher (API) and enrich with status.
+#      If found: show as CODE(STATUS)  e.g. 7708162928(USED_MULTIPLE)
+#      If not found in stat/voucher: quota exhausted and auto-purged by UniFi, show as CODE(CONSUMED)
+#   3. Fallback: if hostname has no voucher code, query stat/guest by MAC.
+#      This covers clients still connected whose session is in stat/guest.
+#   4. If neither source yields a code: show N/A.
 print_authorized() {
     local ACL_HOTSPOT="/etc/uhotspot/mac-hotspot.txt"
     [ ! -f "$ACL_HOTSPOT" ] && return
 
     echo ""
-    echo "======================================================================="
+    echo "============================================================================"
     echo " AUTHORIZED — mac-hotspot.txt"
-    echo "======================================================================="
+    echo "============================================================================"
 
     local sta_map
     sta_map=$(echo "$STA" | jq -r --arg essid "$HOTSPOT_ESSID" '
@@ -160,7 +180,7 @@ print_authorized() {
     ' 2>/dev/null)
 
     {
-        printf "MAC|IP|VOUCHER|EXPIRES|CONNECTED\n"
+        printf "MAC|IP|CODE|STATUS|EXPIRES|ON\n"
         while IFS=';' read -r status mac ip hostname end_time _; do
             [ "$status" != "a" ] && continue
             [ -z "$mac" ] && continue
@@ -168,17 +188,42 @@ print_authorized() {
             expires="N/A"
             [ -n "$end_time" ] && expires=$(date -d "@$end_time" '+%m-%d %H:%M' 2>/dev/null || echo "$end_time")
 
-            voucher=$(echo "$GUEST" | jq -r --arg m "$mac" '
-                .data[]
-                | select((.mac | ascii_downcase) == $m)
-                | .voucher_code // "N/A"
-            ' 2>/dev/null | head -1)
-            [ -z "$voucher" ] && voucher="N/A"
+            # Step 1: extract code from hostname (guest{n}-{code})
+            voucher=$(echo "$hostname" | sed -n 's/^guest[0-9]*-\([0-9]*\)$/\1/p')
+
+            # Step 2: verify against stat/voucher API and get status
+            vcode=""
+            vstatus=""
+            if [ -n "$voucher" ]; then
+                vcode="$voucher"
+                vstatus=$(echo "$VOUCHER" | jq -r --arg code "$voucher" '
+                    .data[] | select(.code == $code) | .status // ""
+                ' 2>/dev/null | head -1)
+                [ -z "$vstatus" ] && vstatus="CONSUMED"
+            else
+                # Step 3: fallback to stat/guest by MAC
+                vcode=$(echo "$GUEST" | jq -r --arg m "$mac" '
+                    .data[]
+                    | select((.mac | ascii_downcase) == $m)
+                    | .voucher_code // ""
+                ' 2>/dev/null | head -1)
+                if [ -n "$vcode" ]; then
+                    vstatus=$(echo "$VOUCHER" | jq -r --arg code "$vcode" '
+                        .data[] | select(.code == $code) | .status // ""
+                    ' 2>/dev/null | head -1)
+                    [ -z "$vstatus" ] && vstatus="CONSUMED"
+                fi
+            fi
+
+            # Step 4: nothing found
+            [ -z "$vcode" ] && vcode="N/A"
+            [ -z "$vstatus" ] && vstatus="N/A"
+            vstatus=$(echo "$vstatus" | sed 's/USED_MULTIPLE/MULTI/;s/VALID_ONE/VALID/;s/VALID_MULTI/MULTI/')
 
             connected=$(echo "$sta_map" | awk -v mac="${mac}" 'tolower($1) == tolower(mac) {print "YES"}' FS='\t')
             [ -z "$connected" ] && connected="NO"
 
-            echo "$mac|$ip|$voucher|$expires|$connected"
+            echo "$mac|$ip|$vcode|$vstatus|$expires|$connected"
         done < "$ACL_HOTSPOT"
     } | column -t -s '|'
     echo ""
@@ -190,9 +235,9 @@ print_pending() {
     [ ! -f "$ACL_PENDING" ] && return
 
     echo ""
-    echo "======================================================================="
+    echo "============================================================================"
     echo " PENDING — guest-pending.txt"
-    echo "======================================================================="
+    echo "============================================================================"
 
     local sta_map
     sta_map=$(echo "$STA" | jq -r --arg essid "$HOTSPOT_ESSID" '
@@ -226,9 +271,9 @@ print_pending() {
 # ── Section 3: Vouchers (stat/voucher) ───────────────────────────────────────
 print_voucher() {
     echo ""
-    echo "======================================================================="
+    echo "============================================================================"
     echo " VOUCHERS — stat/voucher"
-    echo "======================================================================="
+    echo "============================================================================"
     {
         printf "CODE|STATUS|DURATION|QUOTA|USED|EXPIRES\n"
         echo "$VOUCHER" | jq -r '
@@ -241,13 +286,11 @@ print_voucher() {
 }
 
 # ── Interactive [1]: delete unused vouchers (used == 0) ──────────────────────
-# Targets vouchers that were never activated (no client ever used them).
-# Safe to delete: no sessions to unauthorize, no client history to remove.
 interactive_delete_unused() {
     echo ""
-    echo "======================================================================="
+    echo "============================================================================"
     echo " DELETE UNUSED VOUCHERS - vouchers that have never been activated"
-    echo "======================================================================="
+    echo "============================================================================"
 
     mapfile -t UNUSED_IDS < <(echo "$VOUCHER" | jq -r '
         .data[] | select(.used == 0) | ._id
@@ -296,14 +339,11 @@ interactive_delete_unused() {
 }
 
 # ── Interactive [2]: forget portal clients who never submitted a voucher ───────
-# Targets clients in rest/user (is_guest=true) who have no record in stat/guest
-# (never used a voucher) and are not currently connected to the hotspot ESSID
-# in stat/sta. Action: forget-sta only (they were never authorized).
 interactive_forget_no_voucher() {
     echo ""
-    echo "======================================================================="
+    echo "============================================================================"
     echo " FORGET CLIENTS WITHOUT VOUCHER - connected to portal but never used one"
-    echo "======================================================================="
+    echo "============================================================================"
 
     local ALLUSER
     ALLUSER=$(api_get "rest/user")
@@ -314,7 +354,6 @@ interactive_forget_no_voucher() {
         return
     fi
 
-    # MACs que sí usaron voucher (presentes en stat/guest)
     local guest_macs
     guest_macs=$(echo "$GUEST" | jq -r '
         .data[]
@@ -322,7 +361,6 @@ interactive_forget_no_voucher() {
         | (.mac | ascii_downcase)
     ' 2>/dev/null | sort -u)
 
-    # MACs actualmente conectados al ESSID del hotspot (presentes en stat/sta)
     local sta_macs
     sta_macs=$(echo "$STA" | jq -r --arg essid "$HOTSPOT_ESSID" '
         .data[]
@@ -330,7 +368,6 @@ interactive_forget_no_voucher() {
         | (.mac | ascii_downcase)
     ' 2>/dev/null | sort -u)
 
-    # Candidatos: is_guest=true, no en stat/guest, no en stat/sta activo
     mapfile -t NOVOUCHER_MACS < <(echo "$ALLUSER" | jq -r '
         .data[]
         | select(.is_guest == true)
@@ -380,20 +417,14 @@ interactive_forget_no_voucher() {
 }
 
 # ── Interactive [3]: delete expired vouchers + forget their clients ────────────
-# A voucher is considered expired when its end_time has passed.
-# For each expired voucher:
-#   1. Delete the voucher from UniFi
-#   2. Unauthorize any still-active sessions linked to it (via stat/sta)
-#   3. Forget all client history linked to it (via stat/guest by voucher_code)
-# This matches the lifecycle model: expired time = no reason to keep anything.
 interactive_delete_expired() {
     local now
     now=$(date +%s)
 
     echo ""
-    echo "======================================================================="
+    echo "============================================================================"
     echo " DELETE EXPIRED VOUCHERS + FORGET THEIR CLIENTS"
-    echo "======================================================================="
+    echo "============================================================================"
 
     mapfile -t EXPIRED_IDS < <(echo "$VOUCHER" | jq -r \
         --argjson now "$now" '
@@ -435,7 +466,6 @@ interactive_delete_expired() {
         code=$(echo "$VOUCHER" | jq -r --arg id "$vid" \
             '.data[] | select(._id == $id) | .code' 2>/dev/null)
 
-        # 1. Delete the voucher
         rc=$(api_post "cmd/hotspot" "{\"cmd\":\"delete-voucher\",\"_id\":\"${vid}\"}" \
             | jq -r '.meta.rc // "error"' 2>/dev/null)
         if [ "$rc" = "ok" ]; then
@@ -445,7 +475,6 @@ interactive_delete_expired() {
             continue
         fi
 
-        # 2. Unauthorize active sessions linked to this voucher (stat/sta)
         while IFS= read -r mac; do
             [ -z "$mac" ] && continue
             local unauth_rc
@@ -461,7 +490,6 @@ interactive_delete_expired() {
             | (.mac | ascii_downcase)
         ' 2>/dev/null | sort -u)
 
-        # 3. Forget all client history linked to this voucher (stat/guest)
         while IFS= read -r mac; do
             [ -z "$mac" ] && continue
             local frc
@@ -483,31 +511,43 @@ interactive_delete_expired() {
 }
 
 # ── Interactive [4]: purge all vouchers and client history ────────────────────
-# Deletes ALL vouchers regardless of status or expiry, unauthorizes ALL active
-# guest sessions, and erases ALL client history from UniFi.
-# Requires typing YES to confirm. This action cannot be undone.
 interactive_purge_all() {
-    local voucher_total
+    local voucher_total sta_total guest_total
     voucher_total=$(echo "$VOUCHER" | jq -r '.data | length' 2>/dev/null || echo "?")
+    sta_total=$(echo "$STA"     | jq -r '.data | length' 2>/dev/null || echo "?")
+    guest_total=$(echo "$GUEST" | jq -r '.data | length' 2>/dev/null || echo "?")
 
     echo ""
-    echo "======================================================================="
+    echo "============================================================================"
     echo " PURGE ALL — THIS WILL DESTROY ALL VOUCHERS AND CLIENT HISTORY"
-    echo "======================================================================="
+    echo "============================================================================"
+    echo ""
+    echo "  Impact summary:"
+    echo "    - Vouchers to delete    : $voucher_total  (stat/voucher)"
+    echo "    - Active sessions to cut: $sta_total  (stat/sta)"
+    echo "    - Client records to erase: $guest_total  (stat/guest)"
     echo ""
     echo "  This action will:"
-    echo "    - Delete ALL vouchers ($voucher_total in stat/voucher)"
-    echo "    - Unauthorize ALL active guest sessions"
-    echo "    - Erase ALL client history from UniFi"
+    echo "    - DELETE all vouchers — all codes become immediately invalid"
+    echo "    - DISCONNECT all currently connected guests"
+    echo "    - ERASE all guest history — clients will be unknown to UniFi"
     echo ""
-    echo "  This cannot be undone."
+    echo "============================================================================"
+    echo "  !!            THIS ACTION CANNOT BE UNDONE                        !!"
+    echo "============================================================================"
     echo ""
-    read -rp "  Type YES to confirm: " CONFIRM
+    read -rp "  Are you sure you want to proceed? [y/N]: " PRECONFIRM
+    [[ ! "$PRECONFIRM" =~ ^[yY]$ ]] && echo "  Cancelled." && return
+
+    echo ""
+    echo "  Final confirmation required."
+    echo "  Type the word YES (uppercase) to execute the purge:"
+    echo ""
+    read -rp "  > " CONFIRM
     [[ "$CONFIRM" != "YES" ]] && echo "  Cancelled." && return
 
     echo ""
 
-    # 1. Delete all vouchers
     local vid code rc
     while IFS= read -r vid; do
         [ -z "$vid" ] && continue
@@ -520,7 +560,6 @@ interactive_purge_all() {
             || echo "  Failed to delete voucher: $code"
     done < <(echo "$VOUCHER" | jq -r '.data[] | ._id' 2>/dev/null)
 
-    # 2. Unauthorize all active sessions (stat/sta — currently connected)
     local mac unauth_rc
     while IFS= read -r mac; do
         [ -z "$mac" ] && continue
@@ -532,7 +571,6 @@ interactive_purge_all() {
             || echo "  ~ No active session: $mac"
     done < <(echo "$STA" | jq -r '.data[] | (.mac | ascii_downcase)' 2>/dev/null | sort -u)
 
-    # 3. Forget all client history (stat/guest — all past and present sessions)
     while IFS= read -r mac; do
         [ -z "$mac" ] && continue
         local frc
@@ -564,20 +602,158 @@ echo "$OUTPUT"
 
 printf "\nAudit complete. Log saved to: %s\n" "$LOG"
 
+# ── Interactive [5]: revoke voucher by code (workaround for UniFi bug) ────────
+interactive_revoke_by_code() {
+    echo ""
+    echo "============================================================================"
+    echo " REVOKE BY VOUCHER CODE — surgical invalidation (UniFi workaround)"
+    echo "============================================================================"
+
+    mapfile -t ACTIVE_VOUCHERS < <(echo "$VOUCHER" | jq -r '
+        .data[]
+        | select(.used > 0)
+        | [.code, (.note // "—"), (.used | tostring)]
+        | @tsv
+    ' 2>/dev/null | sort -t$'\t' -k2)
+
+    if [ ${#ACTIVE_VOUCHERS[@]} -eq 0 ]; then
+        echo ""
+        echo "  No active vouchers found (used > 0)."
+        return
+    fi
+
+    echo ""
+    echo "  Active vouchers:"
+    echo ""
+    printf "  %-15s  %-20s  %s\n" "CODE" "NAME" "USED"
+    printf "  %-15s  %-20s  %s\n" "---------------" "--------------------" "----"
+    for row in "${ACTIVE_VOUCHERS[@]}"; do
+        local code note used
+        code=$(echo "$row" | awk -F'\t' '{print $1}')
+        note=$(echo "$row" | awk -F'\t' '{print $2}')
+        used=$(echo "$row" | awk -F'\t' '{print $3}')
+        printf "  %-15s  %-20s  %s\n" "$code" "$note" "$used"
+    done
+
+    echo ""
+    echo "  NOTE: This list shows vouchers currently reported by stat/voucher."
+    echo "  Vouchers deleted manually from the UniFi UI will not appear here"
+    echo "  but can still be revoked — enter their code directly if you know it."
+    echo ""
+    read -rp "  Enter voucher code to revoke: " TARGET_CODE
+    TARGET_CODE=$(echo "$TARGET_CODE" | tr -d '[:space:]')
+
+    if [ -z "$TARGET_CODE" ]; then
+        echo "  No code entered. Cancelled."
+        return
+    fi
+
+    local target_note
+    target_note=$(printf '%s\n' "${ACTIVE_VOUCHERS[@]}" | awk -F'\t' -v code="$TARGET_CODE" '$1 == code {print $2}')
+    [ -z "$target_note" ] && target_note="manually deleted — not in stat/voucher"
+
+    echo ""
+    echo "  Code : $TARGET_CODE"
+    echo "  Name : $target_note"
+    echo ""
+
+    local voucher_id
+    voucher_id=$(echo "$VOUCHER" | jq -r --arg code "$TARGET_CODE" '
+        .data[] | select(.code == $code) | ._id
+    ' 2>/dev/null | head -1)
+
+    if [ -n "$voucher_id" ]; then
+        local rc
+        rc=$(api_post "cmd/hotspot" "{\"cmd\":\"delete-voucher\",\"_id\":\"${voucher_id}\"}" \
+            | jq -r '.meta.rc // "error"' 2>/dev/null)
+        [ "$rc" = "ok" ] \
+            && echo "  Deleted voucher: $TARGET_CODE" \
+            || echo "  WARNING: Failed to delete voucher from stat/voucher (rc=$rc)"
+    else
+        echo "  Voucher not in stat/voucher (manually deleted) — proceeding with cleanup..."
+    fi
+
+    mapfile -t GUEST_MACS < <(echo "$GUEST" | jq -r --arg code "$TARGET_CODE" '
+        .data[]
+        | select(.voucher_code == $code)
+        | (.mac | ascii_downcase)
+    ' 2>/dev/null | sort -u)
+
+    mapfile -t STA_MACS < <(echo "$STA" | jq -r --arg code "$TARGET_CODE" '
+        .data[]
+        | select(.voucher_code == $code)
+        | (.mac | ascii_downcase)
+    ' 2>/dev/null | sort -u)
+
+    mapfile -t ALL_MACS < <(printf '%s\n' "${GUEST_MACS[@]}" "${STA_MACS[@]}" | sort -u)
+
+    if [ ${#ALL_MACS[@]} -eq 0 ]; then
+        echo ""
+        echo "  No client records found linked to code: $TARGET_CODE"
+        echo "  Done."
+        return
+    fi
+
+    echo ""
+    echo "  Client records linked to this code (${#ALL_MACS[@]}):"
+    echo ""
+    for mac in "${ALL_MACS[@]}"; do
+        local hostname
+        hostname=$(echo "$GUEST" | jq -r --arg m "$mac" '
+            .data[] | select((.mac | ascii_downcase) == $m) | .hostname // "N/A"
+        ' 2>/dev/null | head -1)
+        local active_flag=""
+        echo "$STA" | jq -e --arg m "$mac" \
+            '.data[] | select((.mac | ascii_downcase) == $m)' &>/dev/null \
+            && active_flag=" [CONNECTED]"
+        printf "    %-20s  %-25s%s\n" "$mac" "$hostname" "$active_flag"
+    done
+
+    echo ""
+    read -rp "  Confirm revocation of ${#ALL_MACS[@]} client(s) for code $TARGET_CODE? [y/N]: " CONFIRM
+    [[ ! "$CONFIRM" =~ ^[yY]$ ]] && echo "  Cancelled." && return
+
+    echo ""
+
+    for mac in "${ALL_MACS[@]}"; do
+        local is_active
+        is_active=$(echo "$STA" | jq -r --arg m "$mac" '
+            .data[] | select((.mac | ascii_downcase) == $m) | .mac
+        ' 2>/dev/null | head -1)
+
+        if [ -n "$is_active" ]; then
+            local unauth_rc
+            unauth_rc=$(api_post "cmd/stamgr" \
+                "{\"cmd\":\"unauthorize-guest\",\"mac\":\"${mac}\"}" \
+                | jq -r '.meta.rc // "error"' 2>/dev/null)
+            [ "$unauth_rc" = "ok" ] \
+                && echo "  Unauthorized: $mac" \
+                || echo "  WARNING: Failed to unauthorize: $mac (rc=$unauth_rc)"
+        fi
+
+        local frc
+        frc=$(api_post "cmd/stamgr" \
+            "{\"cmd\":\"forget-sta\",\"macs\":[\"${mac}\"]}" \
+            | jq -r '.meta.rc // "error"' 2>/dev/null)
+        [ "$frc" = "ok" ] \
+            && echo "  Forgotten: $mac" \
+            || echo "  WARNING: Failed to forget: $mac (rc=$frc)"
+    done
+
+    echo ""
+    echo "  Revocation complete for code: $TARGET_CODE ($target_note)"
+}
+
 # ── Interactive action menu ───────────────────────────────────────────────────
-# INTERACTIVE ACTIONS (after report)
-#   [1] Delete unused vouchers  - delete vouchers never activated (used=0)
-#   [2] Forget clients no voucher - forget guests who never submitted a voucher
-#   [3] Delete expired vouchers - delete expired vouchers and forget their clients
-#   [4] Purge everything        - DELETE all vouchers and client history (DESTRUCTIVE)
 echo ""
-echo "======================================================================="
+echo "============================================================================"
 echo " AVAILABLE ACTIONS"
-echo "======================================================================="
-echo "  [1] Delete unused vouchers   - remove vouchers never activated"
-echo "  [2] Forget clients no voucher - connected to portal but never used one"
-echo "  [3] Delete expired vouchers  - remove expired vouchers and forget their clients"
-echo "  [4] Purge everything         - DELETE all vouchers and history (DESTRUCTIVE)"
+echo "============================================================================"
+echo "  [1] Delete unused vouchers   - never activated"
+echo "  [2] Forget clients no voucher - never used a voucher"
+echo "  [3] Delete expired vouchers  - remove + forget their clients"
+echo "  [4] Revoke by voucher code   - surgical invalidation by code"
+echo "  [5] Purge everything         - DELETE all vouchers and history"
 echo "  [q] Quit"
 echo ""
 read -rp "  Your choice: " ACTION
@@ -586,7 +762,8 @@ case "$ACTION" in
     1) interactive_delete_unused ;;
     2) interactive_forget_no_voucher ;;
     3) interactive_delete_expired ;;
-    4) interactive_purge_all ;;
+    4) interactive_revoke_by_code ;;
+    5) interactive_purge_all ;;
     q|Q) echo "  Goodbye." ;;
     *) echo "  Invalid option. Exiting." ;;
 esac

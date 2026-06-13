@@ -5,9 +5,12 @@
 #
 # uleases — DHCP Leases & ACL Manager for pydhcpd (UniFi Hotspot edition)
 #
+# Reimplementation of pyleases.sh with extended directives and built-in
+# UniFi Hotspot integration. Operates exclusively with pydhcpd as backend.
+# Not compatible with isc-dhcp-server or any other DHCP daemon.
+#
 # DESCRIPTION:
-#   Reimplementation of pydhcp's pyleases.sh with built-in UniFi Hotspot
-#   integration. Runs from /etc/uhotspot/tools/ and operates on pydhcpd
+#   Runs from /etc/uhotspot/tools/ and operates on pydhcpd
 #   data located in /etc/pydhcp (which must exist).
 #
 #   This script:
@@ -78,9 +81,7 @@
 # 1. Install and configure Apache2
 # 2. Create virtual host on port 18100
 # 3. Create wpad.pac file in Apache document root
-# 4. Uncomment these two lines in /etc/pydhcp/pydhcpd.conf:
-#    option wpad code 252 = text;
-#    option wpad "http://<server_ip>:18100/wpad.pac";
+# 4. Set WPAD_ENABLED=true in /etc/uhotspot/tools/uleases.env
 #
 ################################################################################
 
@@ -240,7 +241,17 @@ BLOCKDHCP_GRACE_SECONDS=86400
 UNIFI_HOTSPOT_ENABLED=true
 
 # Lease cleanup interval in seconds (should be <= pool min-lease-time)
-CLEANUP_INTERVAL=10
+CLEANUP_INTERVAL=40
+
+# DHCP timing (seconds) (min-lease|default-lease|max-lease -time)
+AUTHORIZED_LEASE_TIME=2592000
+
+# WPAD/PAC support (requires Apache2 on port 18100 with wpad.pac)
+WPAD_ENABLED=false
+
+# Ping check: pydhcpd pings each IP before OFFER to detect conflicts.
+# Set to false in environments with strict ICMP firewall rules.
+PING_CHECK_ENABLED=true
 EOF
     chmod 640 "$env_file"
     chown root:root "$env_file"
@@ -256,6 +267,20 @@ source "$ENV_FILE"
 
 ACL_GRACE_FILE="${ACL_GRACE_FILE:-/etc/acl/acl_dhcp/gracedhcp.txt}"
 LEASE_REMOVE_QUEUE="/etc/uhotspot/leases-remove-queue.txt"
+
+if [[ "${WPAD_ENABLED:-false}" == "true" ]]; then
+    wpad_header="option wpad code 252 = text;"
+    wpad_subnet="option wpad \"http://$SERV_DHCP:18100/wpad.pac\";"
+else
+    wpad_header="#option wpad code 252 = text;"
+    wpad_subnet="#option wpad \"http://$SERV_DHCP:18100/wpad.pac\";"
+fi
+
+if [[ "${PING_CHECK_ENABLED:-true}" == "true" ]]; then
+    ping_check_line="ping-check true;"
+else
+    ping_check_line="ping-check false;"
+fi
 
 _notify() {
     local user="$1"; shift
@@ -491,7 +516,7 @@ function is_pydhcp() {
         TEMP_FILES_TO_CLEAN+=("$temp_leases")
 
         while IFS= read -r line; do
-            if echo "$line" | grep -qE '^lease [0-9.]+ {$'; then
+            if echo "$line" | grep -qE '^lease ((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?) \{$'; then
                 current_lease="$line"
                 lease_content="$line"$'\n'
                 continue
@@ -571,13 +596,13 @@ function is_pydhcp() {
         echo "# pydhcpd Configuration
 authoritative;
 cleanup-interval $CLEANUP_INTERVAL;
-#option wpad code 252 = text;
+$wpad_header
 server-identifier $SERV_DHCP;
 deny duplicates;
 one-lease-per-client true;
 deny declines;
 deny client-updates;
-ping-check true;
+$ping_check_line
 ddns-update-style none;
         " >"$dhcp_conf_temp"
 
@@ -627,7 +652,7 @@ ddns-update-style none;
         if [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]]; then
             guest_pending_fixed
         fi
-
+        
         echo '
 class "blockdhcp" {
      match pick-first-value (option dhcp-client-identifier, hardware);
@@ -643,19 +668,19 @@ class "blockdhcp" {
         echo "" >>"$dhcp_conf_temp"
 
         echo "subnet $SERV_SUBNET netmask $SERV_MASK {
-    #option wpad \"http://$SERV_DHCP:18100/wpad.pac\";
+    $wpad_subnet
     option routers $SERV_DHCP;
     option subnet-mask $SERV_MASK;
     option broadcast-address $SERV_BROADCAST;
     #option domain-name \"example.org\";
     option domain-name-servers $SERV_DNS;
-    min-lease-time 2592000;
-    default-lease-time 2592000;
-    max-lease-time 2592000;
+    min-lease-time $AUTHORIZED_LEASE_TIME;
+    default-lease-time $AUTHORIZED_LEASE_TIME;
+    max-lease-time $AUTHORIZED_LEASE_TIME;
     pool {
-        min-lease-time 10;
-        default-lease-time 10;
-        max-lease-time 10;
+        min-lease-time $CLEANUP_INTERVAL;
+        default-lease-time $CLEANUP_INTERVAL;
+        max-lease-time $CLEANUP_INTERVAL;
         deny members of \"blockdhcp\";
         range $SERV_INI_RANGE_BLOCK $SERV_END_RANGE_BLOCK;
     }
@@ -811,7 +836,7 @@ drain_lease_queue() {
 
     local in_block=0 block=""
     while IFS= read -r line; do
-        if echo "$line" | grep -qE '^lease [0-9.]+ {$'; then
+        if echo "$line" | grep -qE '^lease ((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?) \{$'; then
             in_block=1; block="$line"$'\n'; continue
         fi
         if [[ $in_block -eq 1 ]]; then
