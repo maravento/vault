@@ -345,6 +345,15 @@ interactive_forget_no_voucher() {
     echo " FORGET CLIENTS WITHOUT VOUCHER - connected to portal but never used one"
     echo "============================================================================"
 
+    if [[ "$GUEST_RC" != "ok" ]]; then
+        echo "  ERROR: stat/guest data unavailable (rc=$GUEST_RC) — aborting to prevent unintended mass-forget."
+        return
+    fi
+    if [[ "$STA_RC" != "ok" ]]; then
+        echo "  ERROR: stat/sta data unavailable (rc=$STA_RC) — aborting to prevent unintended mass-forget."
+        return
+    fi
+
     local ALLUSER
     ALLUSER=$(api_get "rest/user")
     local ALLUSER_RC
@@ -425,6 +434,19 @@ interactive_delete_expired() {
     echo "============================================================================"
     echo " DELETE EXPIRED VOUCHERS + FORGET THEIR CLIENTS"
     echo "============================================================================"
+
+    if [[ "$VCH_RC" != "ok" ]]; then
+        echo "  ERROR: stat/voucher data unavailable (rc=$VCH_RC) — aborting."
+        return
+    fi
+    if [[ "$STA_RC" != "ok" ]]; then
+        echo "  ERROR: stat/sta data unavailable (rc=$STA_RC) — aborting to prevent unintended client disconnect."
+        return
+    fi
+    if [[ "$GUEST_RC" != "ok" ]]; then
+        echo "  ERROR: stat/guest data unavailable (rc=$GUEST_RC) — aborting to prevent unintended client forget."
+        return
+    fi
 
     mapfile -t EXPIRED_IDS < <(echo "$VOUCHER" | jq -r \
         --argjson now "$now" '
@@ -512,6 +534,19 @@ interactive_delete_expired() {
 
 # ── Interactive [4]: purge all vouchers and client history ────────────────────
 interactive_purge_all() {
+    if [[ "$VCH_RC" != "ok" ]]; then
+        echo "  ERROR: stat/voucher data unavailable (rc=$VCH_RC) — aborting purge."
+        return
+    fi
+    if [[ "$STA_RC" != "ok" ]]; then
+        echo "  ERROR: stat/sta data unavailable (rc=$STA_RC) — aborting purge."
+        return
+    fi
+    if [[ "$GUEST_RC" != "ok" ]]; then
+        echo "  ERROR: stat/guest data unavailable (rc=$GUEST_RC) — aborting purge."
+        return
+    fi
+
     local voucher_total sta_total guest_total
     voucher_total=$(echo "$VOUCHER" | jq -r '.data | length' 2>/dev/null || echo "?")
     sta_total=$(echo "$STA"     | jq -r '.data | length' 2>/dev/null || echo "?")
@@ -608,6 +643,19 @@ interactive_revoke_by_code() {
     echo "============================================================================"
     echo " REVOKE BY VOUCHER CODE — surgical invalidation (UniFi workaround)"
     echo "============================================================================"
+
+    if [[ "$VCH_RC" != "ok" ]]; then
+        echo "  ERROR: stat/voucher data unavailable (rc=$VCH_RC) — aborting."
+        return
+    fi
+    if [[ "$GUEST_RC" != "ok" ]]; then
+        echo "  ERROR: stat/guest data unavailable (rc=$GUEST_RC) — aborting to prevent unintended client forget."
+        return
+    fi
+    if [[ "$STA_RC" != "ok" ]]; then
+        echo "  ERROR: stat/sta data unavailable (rc=$STA_RC) — aborting to prevent unintended client disconnect."
+        return
+    fi
 
     mapfile -t ACTIVE_VOUCHERS < <(echo "$VOUCHER" | jq -r '
         .data[]

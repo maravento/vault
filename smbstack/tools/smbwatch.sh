@@ -16,6 +16,10 @@
 #  WATCH_EXCLUDE   : comma-separated folder names to exclude from monitoring
 #                    e.g. WATCH_EXCLUDE="FINANCE,LEGAL"
 #
+# Log file:
+#  /var/log/smbwatch.log (root:root, 640)
+#  Rotated weekly via /etc/logrotate.d/smbwatch
+#
 # Usage:
 #  ./smbwatch.sh {start|stop|status}
 #
@@ -32,8 +36,9 @@ SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 
 ### PATHS
 SMBSTACK_ENV="/var/www/smbstack/smbstack.env"
-LOGFILE="/var/www/smbstack/tools/smbwatch.log"
+LOGFILE="/var/log/smbwatch.log"
 PIDFILE="/tmp/smbstack-smbwatch.pid"
+STATEFILE="/tmp/smbstack-smbwatch.state"
 
 ### CHECK DEPENDENCIES
 for pkg in inotify-tools; do
@@ -61,6 +66,17 @@ load_env() {
 }
 load_env
 
+set_env_var() {
+    local key="$1" val="$2"
+    local esc_val
+    esc_val=$(printf '%s' "$val" | sed -e 's/[\&|]/\\&/g')
+    if grep -q "^${key}=" "$SMBSTACK_ENV"; then
+        sed -i "s|^${key}=.*|${key}=\"${esc_val}\"|" "$SMBSTACK_ENV"
+    else
+        echo "${key}=\"${val}\"" >> "$SMBSTACK_ENV"
+    fi
+}
+
 ### HANDLE NEW FILE
 handle_new_file() {
     local NEWFILE="$1"
@@ -73,6 +89,7 @@ handle_new_file() {
 
     local SIZE
     SIZE=$(du -sb "$TOP_DIR" 2>/dev/null | awk '{print $1}')
+    [[ "$SIZE" =~ ^[0-9]+$ ]] || SIZE=0
 
     if [ "$SIZE" -ge "$LIMIT" ]; then
         mkdir -p "$RECYCLE_DIR"
@@ -108,27 +125,18 @@ start() {
         chown root:root "$LOGFILE"
     fi
 
-set_env_var() {
-    local key="$1" val="$2"
-    if grep -q "^${key}=" "$SMBSTACK_ENV"; then
-        sed -i "s|^${key}=.*|${key}=\"${val}\"|" "$SMBSTACK_ENV"
-    else
-        echo "${key}=\"${val}\"" >> "$SMBSTACK_ENV"
-    fi
-}
-
     ### CHECK AND SET WATCH_LIMIT_GB
     if [ -z "${WATCH_LIMIT_GB:-}" ]; then
         while true; do
             read -p "Enter watch limit per folder in GB [10]: " input_limit
             input_limit="${input_limit:-10}"
-            if [[ "$input_limit" =~ ^[0-9]+$ ]] && [ "$input_limit" -gt 0 ]; then
+            if [[ "$input_limit" =~ ^[0-9]+$ ]] && [ "$input_limit" -gt 0 ] && [ "$input_limit" -le 10000 ]; then
                 WATCH_LIMIT_GB="$input_limit"
                 set_env_var "WATCH_LIMIT_GB" "$WATCH_LIMIT_GB"
                 echo "Watch limit set to ${WATCH_LIMIT_GB} GB"
                 break
             else
-                echo "ERROR: Enter a valid number greater than 0"
+                echo "ERROR: Enter a valid number between 1 and 10000"
             fi
         done
     fi
@@ -141,11 +149,12 @@ set_env_var() {
             set_env_var "WATCH_EXCLUDE" "$WATCH_EXCLUDE"
             echo "Excluded folders: ${WATCH_EXCLUDE}"
         else
-            WATCH_EXCLUDE=""
-            set_env_var "WATCH_EXCLUDE" ""
+            WATCH_EXCLUDE="NONE"
+            set_env_var "WATCH_EXCLUDE" "NONE"
             echo "No folders excluded"
         fi
     fi
+    [ "$WATCH_EXCLUDE" = "NONE" ] && WATCH_EXCLUDE=""
 
     LIMIT=$((WATCH_LIMIT_GB * 1024 * 1024 * 1024))
 
@@ -176,6 +185,8 @@ set_env_var() {
         exit 1
     fi
 
+    printf '%s\n' "$WATCH_DIR" > "$STATEFILE"
+
     echo "Starting smbwatch..."
     echo "  Shared path : $SHARED_PATH"
     echo "  Watch limit : ${WATCH_LIMIT_GB} GB per folder"
@@ -186,7 +197,7 @@ set_env_var() {
     echo ""
 
     # shellcheck disable=SC2086
-    inotifywait -m -r -e create --format '%w%f' $WATCH_DIR 2>/dev/null | while read -r NEWFILE; do
+    inotifywait -m -r -e create --format '%w%f' $WATCH_DIR 2>>"$LOGFILE" | while read -r NEWFILE; do
         handle_new_file "$NEWFILE"
     done &
 
@@ -208,8 +219,7 @@ stop() {
         local PID
         PID=$(cat "$PIDFILE")
         kill "$PID" 2>/dev/null && echo "SMBwatch stopped (PID $PID)" || echo "Could not stop smbwatch"
-        rm -f "$PIDFILE"
-        rm -f "$SCRIPT_LOCK"
+        rm -f "$PIDFILE" "$STATEFILE"
     else
         echo "SMBwatch is not running"
     fi
@@ -221,7 +231,11 @@ status() {
     if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
         echo "  SMBwatch is RUNNING (PID $(cat "$PIDFILE"))"
         echo "  Watch limit : ${WATCH_LIMIT_GB} GB per folder"
-        echo "  Watching    : $WATCH_DIR"
+        if [ -f "$STATEFILE" ]; then
+            echo "  Watching    : $(cat "$STATEFILE")"
+        else
+            echo "  Watching    : (unknown, state file missing)"
+        fi
     else
         echo "  SMBwatch is STOPPED"
     fi

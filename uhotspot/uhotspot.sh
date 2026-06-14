@@ -3,7 +3,7 @@
 #
 ################################################################################
 #
-# UniFi Network Hotspot - ACL Manager v4
+# UniFi Network Hotspot - ACL Manager
 #
 # USAGE:
 #   Manual : sudo /etc/uhotspot/uhotspot.sh
@@ -653,8 +653,6 @@ add_mac_to_acl() {
         sed -i "/^a;${mac};/Id" "$PENDING_LIST"
     fi
 
-    queue_lease_removal "$mac"
-
     if grep -qi "^a;${mac};" "$MAC_LIST" 2>/dev/null; then
         local existing_end
         existing_end=$(grep -i "^a;${mac};" "$MAC_LIST" | head -1 | awk -F';' '{print $5}')
@@ -663,6 +661,7 @@ add_mac_to_acl() {
             log "INFO: Updated end_time for $mac ($existing_end → $end_time)"
         fi
     else
+        queue_lease_removal "$mac"
         echo "$new_line" >> "$MAC_LIST"
         local exp_human
         exp_human=$(date -d "@$end_time" 2>/dev/null || echo "$end_time")
@@ -778,7 +777,7 @@ process_pending_guests() {
 
     if [[ $available_count -eq 0 ]]; then
         local oldest_line oldest_mac oldest_ip
-        oldest_line=$(grep '^a;' "$PENDING_LIST" 2>/dev/null | sort -t';' -k4,4V | head -1 || true)
+        oldest_line=$(grep '^a;' "$PENDING_LIST" 2>/dev/null | sort -t';' -k3,3V | head -1 || true)
         oldest_mac=$(echo "$oldest_line" | awk -F';' '{print $2}')
         oldest_ip=$(echo "$oldest_line"  | awk -F';' '{print $3}')
         if [[ -n "$oldest_mac" && -n "$oldest_ip" ]]; then
@@ -883,7 +882,10 @@ process_sessions() {
         # If not in pending or missing IP, assign new ones
         if [[ -z "$assigned_ip" ]]; then
             local iph
-            iph=$(assign_ip_and_hostname) || continue
+            if ! iph=$(assign_ip_and_hostname); then
+                log "WARNING: Range exhausted — cannot assign IP for $mac (voucher active, end_time=$end_time) — will retry next cycle"
+                continue
+            fi
             assigned_ip=$(echo "$iph" | cut -d';' -f1)
             [[ -z "$assigned_hostname" ]] && assigned_hostname=$(echo "$iph" | cut -d';' -f2)
         fi

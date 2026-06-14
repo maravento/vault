@@ -811,7 +811,7 @@ class "blockdhcp" {
     clean_transparent_list
     ulog "Stopping pydhcpd"
     systemctl stop pydhcpd
-    trap 'systemctl is-active --quiet pydhcpd || systemctl start pydhcpd' EXIT
+    trap 'rm -f "${TEMP_FILES_TO_CLEAN[@]}" 2>/dev/null; systemctl is-active --quiet pydhcpd || systemctl start pydhcpd' EXIT
     drain_lease_queue
     ulog "Processing leases"
     read_leases
@@ -831,6 +831,7 @@ drain_lease_queue() {
 
     local tmp removed=0
     tmp=$(mktemp)
+    TEMP_FILES_TO_CLEAN+=("$tmp")
     local queue_macs
     queue_macs=$(tr '[:upper:]' '[:lower:]' < "$LEASE_REMOVE_QUEUE" | sort -u)
 

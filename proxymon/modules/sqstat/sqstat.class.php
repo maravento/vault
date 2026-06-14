@@ -104,8 +104,13 @@ private $fp;
 			$raw[]=trim(fgets($this->fp, 2048));
 		}
 		fclose($this->fp);
-		
-		if($raw[0]!="HTTP/1.1 200 OK"){
+
+		if (empty($raw) || !isset($raw[0])) {
+			$this->errno=1;
+			$this->errstr="Cannot get data. Empty response from server.";
+			return false;
+		}
+		if (!preg_match('#^HTTP/1\.[01]\s+200#', $raw[0])) {
 			$this->errno=1;
 			$this->errstr="Cannot get data. Server answered: $raw[0]";
 			return false;
@@ -143,11 +148,30 @@ private $fp;
 				}
 			}
 		}
+
+		// Normalize connection entries: ensure all expected keys exist,
+		// in case Squid's response for a connection is incomplete.
+		if (isset($parsed["con"]) && is_array($parsed["con"])) {
+			foreach ($parsed["con"] as &$con) {
+				$con += [
+					"username"   => "N/A",
+					"remote"     => "0.0.0.0:0",
+					"local"      => "",
+					"uri"        => "",
+					"delay_pool" => "",
+					"bytes"      => 0,
+					"seconds"    => 0,
+				];
+			}
+			unset($con);
+		}
+
 		return $parsed;
 	}
 	function implode_with_keys($array, $glue) {
+		$ret = [];
 		foreach ($array as $key=>$v){
-			$ret[]=$key.'='.htmlspecialchars($v);
+			$ret[]=$key.'='.htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
 		}
 		return implode($glue, $ret);
 	}
@@ -167,6 +191,9 @@ private $fp;
 			break;
 			case "username":
 			$group_by_name="User";
+			break;
+			case "ip":
+			$group_by_name="IP";
 			break;
 			default:
 			die("wrong group_by!");
@@ -224,7 +251,7 @@ private $fp;
 		$table='';
 		foreach($users as $key=>$v){
 			$ausers++;
-			$table.='<tr><td style="border-right:0;" colspan="2"><b>'.(is_int($key)?long2ip($key):$key).'</b></td>'.
+			$table.='<tr><td style="border-right:0;" colspan="2"><b>'.(is_int($key)?long2ip($key):htmlspecialchars($key, ENT_QUOTES, 'UTF-8')).'</b></td>'.
 			'<td style="border-left:0;" colspan="5">&nbsp;</td></tr>';
 			$user_avg = $user_curr = $con_color =  0;				
 			foreach ($v as $con){

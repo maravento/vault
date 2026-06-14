@@ -296,6 +296,11 @@ do_install() {
     chown root:adm /var/log/samba/log.samba /var/log/samba/log.audit
     chmod 660 /var/log/samba/log.samba /var/log/samba/log.audit
 
+    # smbwatch log
+    touch /var/log/smbwatch.log
+    chown root:root /var/log/smbwatch.log
+    chmod 640 /var/log/smbwatch.log
+
     mkdir -p "$SMBSTACK_WEB"
     cp -f "$WEB_DIR/smbaudit.html" "$SMBSTACK_WEB/"
     cp -f "$WEB_DIR/smbapi.php" "$SMBSTACK_WEB/"
@@ -332,6 +337,7 @@ do_install() {
     weekly
     missingok
     rotate 7
+    create 0660 root adm
     postrotate
         systemctl restart rsyslog > /dev/null 2>&1 || true
     endscript
@@ -350,8 +356,21 @@ do_install() {
 }
 EOF
 
+    # smbwatch logrotate
+    cp -f /etc/logrotate.d/smbwatch{,.bak} &>/dev/null
+    cat > /etc/logrotate.d/smbwatch <<'EOF'
+/var/log/smbwatch.log {
+    weekly
+    missingok
+    rotate 7
+    create 0640 root root
+    compress
+    notifempty
+}
+EOF
+
     # smb.conf
-    configure_smb_conf() {
+    prompt_smb_net_iface() {
         while true; do
             read -p "Enter Samba server IP/network (e.g. 192.168.1.0/24): " SMB_NET
             if [ -z "$SMB_NET" ]; then
@@ -376,6 +395,9 @@ EOF
                 break
             fi
         done
+    }
+
+    apply_smb_conf_interfaces() {
         sed -i "s|interfaces = .*|interfaces = 127.0.0.0/8 $SMB_NET $SMB_IFACE|" /etc/samba/smb.conf
         echo "interfaces set to: 127.0.0.0/8 $SMB_NET $SMB_IFACE"
     }
@@ -388,11 +410,13 @@ EOF
                     cp -f /etc/samba/smb.conf{,.bak}
                     echo "Backup saved: /etc/samba/smb.conf.bak"
                     cp -f "$CONF_DIR/smb.conf" /etc/samba/smb.conf
-                    configure_smb_conf
+                    prompt_smb_net_iface
+                    apply_smb_conf_interfaces
                     break
                     ;;
                 [Nn])
                     echo "Skipping smb.conf"
+                    prompt_smb_net_iface
                     break
                     ;;
                 *)
@@ -402,7 +426,8 @@ EOF
         done
     else
         cp -f "$CONF_DIR/smb.conf" /etc/samba/smb.conf
-        configure_smb_conf
+        prompt_smb_net_iface
+        apply_smb_conf_interfaces
     fi
 
     # rsyslog
@@ -414,8 +439,10 @@ EOF
     usermod -a -G adm www-data
 
     cp -f /etc/logrotate.d/rsyslog{,.bak} &>/dev/null
-    sed -i '/sharedscripts/a \    create 0644 syslog adm' /etc/logrotate.d/rsyslog
-    sed -i '/^{$/a \	su syslog adm' /etc/logrotate.d/rsyslog
+    grep -qF 'create 0644 syslog adm' /etc/logrotate.d/rsyslog || \
+        sed -i '/sharedscripts/a \    create 0644 syslog adm' /etc/logrotate.d/rsyslog
+    grep -qF 'su syslog adm' /etc/logrotate.d/rsyslog || \
+        sed -i '/^{$/a \	su syslog adm' /etc/logrotate.d/rsyslog
 
     logrotate_out=$(logrotate -f /etc/logrotate.d/samba 2>&1)
     if echo "$logrotate_out" | grep -qi "error"; then
@@ -508,7 +535,7 @@ NMBD
         [ "$smb_pass" = "$smb_pass2" ] && break
         echo "Passwords do not match. Try again."
     done
-    printf "%s\n%s\n" "$smb_pass" "$smb_pass2" | smbpasswd -a -s "$SMBNAME"
+    printf "%s\n%s\n" "$smb_pass" "$smb_pass" | smbpasswd -a -s "$SMBNAME"
     unset smb_pass smb_pass2
 
     # save install config
@@ -651,6 +678,7 @@ do_uninstall() {
     # logrotate
     [ -f /etc/logrotate.d/samba.bak ] && cp -f /etc/logrotate.d/samba.bak /etc/logrotate.d/samba
     [ -f /etc/logrotate.d/rsyslog.bak ] && cp -f /etc/logrotate.d/rsyslog.bak /etc/logrotate.d/rsyslog
+    rm -f /etc/logrotate.d/smbwatch /etc/logrotate.d/smbwatch.bak
 
     # smb.conf
     [ -f /etc/samba/smb.conf.bak ] && cp -f /etc/samba/smb.conf.bak /etc/samba/smb.conf
@@ -660,7 +688,7 @@ do_uninstall() {
 
     # cron entries
     crontab -l 2>/dev/null > "/var/www/smbstack/crontab-uninstall-$(date +%Y%m%d%H%M%S).bak" || true
-    crontab -l 2>/dev/null | grep -v "\.recycle" | grep -v "smbload.sh" | crontab -
+    crontab -l 2>/dev/null | grep -v "\.recycle" | grep -v "smbload.sh" | grep -v "smbwatch.sh" | crontab -
 
     # samba packages
     apt-get remove -y samba samba-common samba-common-bin smbclient winbind cifs-utils

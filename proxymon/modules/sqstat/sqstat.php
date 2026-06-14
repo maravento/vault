@@ -58,11 +58,11 @@ if(is_file("config.inc.php")) {
 	for($i=0;$i<count($squidhost);$i++){
 		$configs[$i]=$squidhost[$i].':'.$squidport[$i];
 	}
-	@$squidhost=$squidhost[$config];
-	@$squidport=$squidport[$config];
-	@$cachemgr_passwd=$cachemgr_passwd[$config];
-	@$resolveip=$resolveip[$config]; 
-	@$hosts_file=$hosts_file[$config];
+	$squidhost=$squidhost[$config];
+	$squidport=$squidport[$config];
+	$cachemgr_passwd = $cachemgr_passwd[$config] ?? '';
+	$resolveip       = $resolveip[$config]       ?? false;
+	$hosts_file      = $hosts_file[$config]      ?? null;
 	if(isset($group_by[$config])) $group_by=$group_by[$config];
 	else $group_by="ip";
 	if(!preg_match('/^(host|username|ip)$/',$group_by)) {

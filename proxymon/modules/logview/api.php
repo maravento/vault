@@ -19,7 +19,8 @@ define('MAX_LOG_LINES_REQUEST', 5000);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function err($msg) {
+function err($msg, $code = 500) {
+    http_response_code($code);
     echo json_encode(['error' => $msg]);
     exit;
 }
@@ -78,7 +79,7 @@ function fmt_bytes($bytes) {
 
 if (!file_exists($LOG_FILE)) {
     error_log('Logview: log file not found: ' . $LOG_FILE);
-    err("Log file not found.");
+    err("Log file not found.", 404);
 }
 if (!is_readable($LOG_FILE)) {
     error_log('Logview: log file not readable: ' . $LOG_FILE);
@@ -101,12 +102,13 @@ if (isset($_GET['grep']) && $_GET['grep'] !== '') {
 
     // Sanitize: only allow safe characters
     if (!preg_match('/^[\w\.\-\:\/@\s]+$/', $term)) {
-        err('Invalid search term. Only alphanumeric characters, dots, dashes, colons, slashes and @ are allowed.');
+        err('Invalid search term. Only alphanumeric characters, dots, dashes, colons, slashes and @ are allowed.', 400);
     }
 
     $escaped = escapeshellarg($term);
     $log     = escapeshellarg($LOG_FILE);
-    $output  = shell_exec("grep -Fa $escaped $log 2>/dev/null");
+    $max_matches = 5000;
+    $output  = shell_exec("timeout 20 grep -Fa $escaped $log 2>/dev/null | tail -n $max_matches");
 
     if ($output === null || $output === '') {
         echo json_encode([
@@ -141,7 +143,7 @@ if (isset($_GET['grep']) && $_GET['grep'] !== '') {
 // ── Mode: poll new lines since byte offset ────────────────────────────────────
 
 if (isset($_GET['since'])) {
-    $since = (int)$_GET['since'];
+    $since = max(0, (int)$_GET['since']);
     if ($since >= $file_size) {
         echo json_encode(['rows' => [], 'offset' => $file_size]);
         exit;
@@ -167,12 +169,13 @@ $lines_req = max(MIN_LOG_LINES_REQUEST, min(MAX_LOG_LINES_REQUEST, $lines_req));
 
 // Read last N lines efficiently using tail-like seek
 $fh = fopen($LOG_FILE, 'rb');
-$chunk = 65536; // 64KB chunks
-$pos   = $file_size;
-$buf   = '';
-$found = 0;
+$chunk    = 65536; // 64KB chunks
+$pos      = $file_size;
+$buf      = '';
+$found    = 0;
+$max_buf  = 10 * 1024 * 1024; // 10MB safety cap
 
-while ($pos > 0 && $found < $lines_req + 1) {
+while ($pos > 0 && $found < $lines_req + 1 && strlen($buf) < $max_buf) {
     $read = min($chunk, $pos);
     $pos -= $read;
     fseek($fh, $pos);

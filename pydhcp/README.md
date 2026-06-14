@@ -1,6 +1,6 @@
 # [PyDHCP](https://github.com/maravento)
 
-[![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento)
+[![status-beta](https://img.shields.io/badge/status-beta-magenta.svg)](https://github.com/maravento/vault)
 
 <!-- markdownlint-disable MD033 -->
 

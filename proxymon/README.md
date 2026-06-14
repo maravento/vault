@@ -74,6 +74,7 @@ sudo bash proxymon.sh
 # - SARG report generator (detailed and customizable reports)
 # - SquidAnalyzer log analysis module (graphical traffic statistics and usage trends)
 # - Bandata script for bandwidth control, usage limits, and quota management (integrated with LightSquid)
+#   Configuration: /etc/proxymon/proxymon.env — automatically syncs quota values to the warning portal
 # - Squidmon statistics module (advanced statistics, report printing, and ACL-driven operations)
 # - Warning portal for quota limit notifications
 # - Automatic dependency checking
@@ -1094,6 +1095,7 @@ sudo -u www-data crontab -e
     <td style="width: 50%; vertical-align: top;">
       <b>🔧 API Setup:</b> SquidAI requires an LLM provider to function. The configuration file is located outside the webroot for security:
       <pre><code>sudo nano /etc/proxymon/.env</code></pre>
+      <b>Note:</b> <code>/etc/proxymon/</code> contains two files: <code>.env</code> (SquidAI LLM credentials) and <code>proxymon.env</code> (Bandata network and quota settings). Do not confuse them.
       Set your provider URL, API key and response format:
       <pre><code>LLM_URL=https://your-provider.com/endpoint
 LLM_API_KEY=your_api_key
@@ -1114,6 +1116,7 @@ LLM_RESPONSE_FORMAT=openai</code></pre>
     <td style="width: 50%; vertical-align: top;">
       <b>🔧 Configuración de API:</b> SquidAI requiere un proveedor LLM para funcionar. El archivo de configuración se encuentra fuera del webroot por seguridad:
       <pre><code>sudo nano /etc/proxymon/.env</code></pre>
+      <b>Nota:</b> <code>/etc/proxymon/</code> contiene dos archivos: <code>.env</code> (credenciales LLM de SquidAI) y <code>proxymon.env</code> (configuración de red y cuotas de Bandata). No los confunda.
       Configure la URL del proveedor, la API key y el formato de respuesta:
       <pre><code>LLM_URL=https://su-proveedor.com/endpoint
 LLM_API_KEY=su_api_key
@@ -1163,6 +1166,7 @@ LLM_RESPONSE_FORMAT=openai</code></pre>
 ```bash
 /var/log/apache2/proxymon_access.log
 /var/log/apache2/proxymon_error.log
+/var/log/bandata.log
 ```
 
 ## ORIGINAL PROJECTS

@@ -77,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['upload'])) {
         $target = $full_path . '/' . $safe_name;
         if (move_uploaded_file($tmp_name, $target)) {
             chmod($target, 0664);
+            @chgrp($target, 'sambashare');
             write_audit('pwrite', $target);
             $succeeded++;
         } else {
@@ -111,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mkdir'])) {
     }
     if (mkdir($target, 0775)) {
         chown($target, 'www-data');
+        @chgrp($target, 'sambashare');
         write_audit('mkdirat', $target);
         $mkdir_msg = 'success';
     } else {
@@ -296,6 +298,7 @@ foreach ($files as $f) $total_size += filesize($full_path . '/' . $f);
         }
         .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
         .alert-error   { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .alert-warning { background: #fef9c3; color: #854d0e; border: 1px solid #fde68a; }
 
         .mkdir-area {
             display: none;
@@ -376,6 +379,8 @@ foreach ($files as $f) $total_size += filesize($full_path . '/' . $f);
 <div class="alert alert-error">🔒 Root folders cannot be deleted.</div>
 <?php elseif ($msg === 'mkdir_success'): ?>
 <div class="alert alert-success">✅ Folder created successfully.</div>
+<?php elseif ($msg === 'mkdir_error'): ?>
+<div class="alert alert-error">❌ Could not create folder. Check permissions.</div>
 <?php elseif ($msg === 'exists'): ?>
 <div class="alert alert-error">⚠️ A folder with that name already exists.</div>
 <?php elseif ($msg === 'error'): ?>
@@ -398,7 +403,6 @@ foreach ($files as $f) $total_size += filesize($full_path . '/' . $f);
 
 <div class="upload-area" id="upload-area">
     <form method="POST" enctype="multipart/form-data">
-        <input type="hidden" name="path" value="<?= htmlspecialchars($request) ?>">
         <label class="btn btn-secondary" style="cursor:pointer;margin:0">
             📂 Select Files
             <input type="file" name="upload[]" required multiple style="display:none" onchange="
@@ -416,7 +420,6 @@ foreach ($files as $f) $total_size += filesize($full_path . '/' . $f);
 
 <div class="mkdir-area" id="mkdir-area">
     <form method="POST">
-        <input type="hidden" name="path" value="<?= htmlspecialchars($request) ?>">
         <input type="text" name="mkdir" placeholder="Folder name" required style="flex:1;padding:0.4rem 0.7rem;border-radius:6px;border:1px solid #ced4da;font-size:0.85rem">
         <button type="submit" class="btn btn-secondary">✔️ Create</button>
         <button type="button" class="btn btn-secondary" onclick="document.getElementById('mkdir-area').classList.remove('open')">✖️ Cancel</button>
@@ -492,7 +495,7 @@ foreach ($files as $f) $total_size += filesize($full_path . '/' . $f);
             $rel       = ($request ? $request . '/' : '') . $file;
             $size      = filesize($file_full);
             $mtime     = filemtime($file_full);
-            $dl_url    = '/shared/files/' . ltrim($rel, '/');
+            $dl_url    = '/shared/files/' . implode('/', array_map('rawurlencode', explode('/', ltrim($rel, '/'))));
         ?>
             <tr>
                 <td>

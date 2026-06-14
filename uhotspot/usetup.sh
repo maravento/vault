@@ -428,6 +428,7 @@ register_cron() {
     local expected_hourly="@hourly UHOTSPOT_RELOAD_ACTIVE=1 flock -w 60 /var/lock/uhotspot.lock -c '${ureload_path}'"
     local current
     current=$(crontab -l 2>/dev/null || true)
+    local changed=0
 
     if echo "$current" | grep -qF "$expected"; then
         info "Cron entry (uhotspot) already present"
@@ -436,6 +437,7 @@ register_cron() {
     else
         current=$(printf '%s\n%s\n' "$current" "$expected")
         info "Cron entry registered: $expected"
+        changed=1
     fi
 
     if echo "$current" | grep -qF "$expected_hourly"; then
@@ -445,9 +447,10 @@ register_cron() {
     else
         current=$(printf '%s\n%s\n' "$current" "$expected_hourly")
         info "Cron entry registered: $expected_hourly"
+        changed=1
     fi
 
-    echo "$current" | crontab -
+    (( changed )) && echo "$current" | crontab -
 }
 
 final_sanity_check() {

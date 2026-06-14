@@ -177,6 +177,7 @@ select option{background:#1e2a35}
   flex-shrink:0;flex-wrap:wrap;
 }
 .statsbar b{color:#e6eef8}
+.cap-note{color:#ffb74d}
 .stime{color:#66bb6a;font-weight:700}
 .logpath{color:#546e7a;font-size:10px;margin-left:auto}
 
@@ -396,6 +397,7 @@ tbody td{
 <!-- ── Stats bar ─────────────────────────────────────────────────────── -->
 <div class="statsbar">
   Showing <b id="sShown">0</b> of <b id="sTotal">0</b>
+  <span id="sCapNote" class="cap-note" style="display:none"> (display limited to 1000 rows — refine your filter)</span>
   &nbsp;·&nbsp;
   HIT: <b id="sHit" style="color:#2e7d32">0</b>
   &nbsp;
@@ -452,13 +454,16 @@ var isLoading = false;
 var grepMode = false;
 
 var POLL_INTERVAL = 3000;
+var MAX_ROWS = 5000;
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function esc(s) {
   return String(s)
     .replace(/&/g,'&amp;')
     .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;');
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
 }
 
 function hl(text, q) {
@@ -640,7 +645,17 @@ function poll() {
 
       var newRows = buildIndex(data.rows);
       fileOffset = data.offset;
+
+      // Dedup against the most recent rows already in ALL, in case
+      // of overlap from log rotation or offset edge cases.
+      var recentIdx = {};
+      for (var i = 0; i < Math.min(ALL.length, newRows.length + 50); i++) {
+        recentIdx[ALL[i]._idx] = true;
+      }
+      newRows = newRows.filter(function(r){ return !recentIdx[r._idx]; });
+
       ALL = newRows.concat(ALL);
+      if (ALL.length > MAX_ROWS) ALL = ALL.slice(0, MAX_ROWS);
       newRowCount += newRows.length;
 
       applyFilters();
@@ -693,8 +708,11 @@ function applyFilters(newCount) {
 }
 
 function updateStats() {
-  document.getElementById('sShown').textContent = CUR.length.toLocaleString();
+  var RENDER_CAP = 1000;
+  var shown = Math.min(CUR.length, RENDER_CAP);
+  document.getElementById('sShown').textContent = shown.toLocaleString();
   document.getElementById('sTotal').textContent = ALL.length.toLocaleString();
+  document.getElementById('sCapNote').style.display = (CUR.length > RENDER_CAP) ? '' : 'none';
   document.getElementById('sHit').textContent =
     ALL.filter(function(r){return r.cache_code==='TCP_HIT'||r.cache_code==='TCP_MEM_HIT';}).length.toLocaleString();
   document.getElementById('sMiss').textContent =
@@ -716,12 +734,12 @@ function renderTable(q, animateFirst) {
   }
   empty.style.display = 'none';
 
-  var slice = CUR.slice(0, 1000);
+  var slice = CUR.slice(0, 1000); // keep in sync with RENDER_CAP in updateStats()
 
   tbody.innerHTML = slice.map(function(r, i) {
     var rowClass = i < animateFirst ? 'new-row' : '';
     return '<tr class="' + rowClass + '">' +
-      '<td class="col-ts">'     + hl(new Date(r.ts + ' UTC').toLocaleString(), q)         + '</td>' +
+      '<td class="col-ts">'     + hl(new Date(r.ts.replace(' ', 'T') + 'Z').toLocaleString(), q) + '</td>' +
       '<td class="col-client">' + hl(r.client, q)      + '</td>' +
       '<td><span class="pill ' + pillClass(r.cache_code) + '">' + hl(r.cache_code, q) + '</span></td>' +
       '<td class="' + httpClass(r.http_code) + '">'   + hl(r.http_code, q) + '</td>' +
