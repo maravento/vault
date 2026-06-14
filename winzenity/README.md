@@ -55,7 +55,7 @@
      This project has reached EOL - EOS. No longer supported or updated.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Este proyecto a alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.
+     Este proyecto ha alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.
     </td>
   </tr>
 </table>

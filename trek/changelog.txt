@@ -42,7 +42,7 @@ Fixed: BUGS
 Fixed: BUGS
 Added: MySQL/MariaDB and WampServer Support
 
-2019.05.90
+2019.05.31
 Fixed: BUGS and Links
 
 2017.07.01

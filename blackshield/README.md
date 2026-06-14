@@ -40,6 +40,21 @@ chmod +x blackshield.sh
 ./blackshield.sh
 ```
 
+## FILE REFERENCE
+
+---
+
+| File | Description | Descripción |
+|------|-------------|-------------|
+| `acl/rw/rw.txt` | Administrator-defined blacklist. Entries are always included in the final ransomware extension list. | Lista negra definida por el administrador. Las entradas siempre se incluyen en la lista final de extensiones de ransomware. |
+| `acl/rw/wl.txt` | Administrator-defined whitelist. Entries override external feeds and `rw.txt`. | Lista blanca definida por el administrador. Sus entradas tienen prioridad sobre las fuentes externas y sobre `rw.txt`. |
+| `acl/squid/rwext.txt` | Generated Squid ACL for ransomware file extensions. | ACL generada para Squid con extensiones asociadas a ransomware. |
+| `acl/squid/blockua.txt` | Generated Squid ACL for malicious User-Agent strings. | ACL generada para Squid con cadenas User-Agent maliciosas o sospechosas. |
+| `acl/smb/ransom_veto.txt` | Generated Samba veto list based on ransomware extensions. | Lista veto generada para Samba basada en extensiones asociadas a ransomware. |
+| `acl/smb/common_veto.txt` | Static Samba veto list for common unwanted file types. | Lista veto estática para Samba con tipos de archivo comunes no deseados. |
+| `acl/smb/vetofiles.txt` | Generated merged Samba veto list (`ransom_veto.txt` + `common_veto.txt`). | Lista veto consolidada para Samba generada a partir de `ransom_veto.txt` y `common_veto.txt`. |
+| `acl/discarded_lst.txt` | Entries rejected during normalization and filtering for manual review. | Entradas descartadas durante la normalización y el filtrado para revisión manual. |
+
 ## ⚠️ WARNING: BEFORE YOU CONTINUE
 
 ---
@@ -161,14 +176,14 @@ http_access deny all
       Important:
       <ul>
         <li>You cannot include more than one list in <code>smb.conf</code> for the <code>veto files</code> directive.</li>
-        <li>Use the <code>acl/smb/merge_veto.sh</code> script to merge the <code>ransom_veto.txt</code> (updated with <code>blackshield.sh</code>) and <code>common_veto.txt</code> (static. You can add or remove extensions manually) lists.</li>
+        <li><code>vetofiles.txt</code> is generated automatically by <code>blackshield.sh</code>, merging <code>ransom_veto.txt</code> (updated dynamically) and <code>common_veto.txt</code> (static. You can add or remove extensions manually).</li>
       </ul>
     </td>
     <td style="width: 50%; vertical-align: top;">
       Importante:
       <ul>
         <li>No puede incluir más de una lista en <code>smb.conf</code> para la directiva <code>veto files</code>.</li>
-        <li>Use el script <code>acl/smb/merge_veto.sh</code> para unificar las listas <code>ransom_veto.txt</code> (se actualiza con <code>blackshield.sh</code>) y <code>common_veto.txt</code> (estática. Puede agregar o quitar extensiones manualmente).</li>
+        <li><code>vetofiles.txt</code> se genera automáticamente con <code>blackshield.sh</code>, unificando <code>ransom_veto.txt</code> (se actualiza dinámicamente) y <code>common_veto.txt</code> (estática. Puede agregar o quitar extensiones manualmente).</li>
       </ul>
     </td>
   </tr>
@@ -222,7 +237,7 @@ Jul  8 18:42:36 user Illegal-HexString IN=enp2s1 OUT=enp2s0 MAC=94:18:82:XX:XX:X
 
 ```bash
 # Lock: BitTorrent Protocol
-bt=$(curl -s https://raw.githubusercontent.com/maravento/vault/master/blackshied/acl/ipt/torrent.txt)
+bt=$(curl -s https://raw.githubusercontent.com/maravento/vault/master/blackshield/acl/ipt/torrent.txt)
 for string in $(echo -e "$bt" | sed -e '/^#/d' -e 's:#.*::g'); do
     iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j NFLOG --nflog-prefix 'BitTorrent'
     iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j DROP
@@ -267,7 +282,7 @@ Jul  9 09:54:03 user Tor IN=enp2s1 OUT=enp2s0 MAC=94:18:82:XX:XX:XX:08:00:27:XX:
 - [dannyroemhild - ransomware-fileext-list](https://github.com/dannyroemhild/ransomware-fileext-list/blob/master/fileextlist.txt)
 - [eshlomo1 - Ransomware-NOTE](https://github.com/eshlomo1/Ransomware-NOTE/blob/main/ransomware-extension-list.txt)
 - [giacomoarru - ransomware-extensions-2024](https://github.com/giacomoarru/ransomware-extensions-2024/blob/main/ransomware-extensions.txt)
-- [kinomakino - ransomware_file_extensions](https://github.com/kinomakino/ransomware_file_extensions/blob/master/extensions.csv)
+- [kinomakino - ransomware_file_extensions](https://github.com/kinomakino/ransomware_file_extensions/blob/master/extensions.csv) (optional)
 - [nspoab - malicious_extensions](https://github.com/nspoab/malicious_extensions/blob/main/list1)
 
 ### Malicious User-Agents

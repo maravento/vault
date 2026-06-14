@@ -16,6 +16,7 @@ Ai2Bot
 AIBOT
 AiHitBot
 Aipbot
+AIWebIndex
 Alexibot
 ALittle Client
 Aliyun
@@ -32,6 +33,7 @@ Anthill
 anthropic-ai
 Apexoo
 archive.org_bot
+aria2
 arquivo.pt
 arquivo-web-crawler
 Aspiegel
@@ -181,6 +183,7 @@ EyeNetIE
 Ezooms
 FacebookBot
 facebookscraper
+fasthttp
 FDM
 FemtosearchBot
 FHscan
@@ -473,6 +476,7 @@ ScreenerBot
 ScrepyBot
 Searchestate
 SearchmetricsBot
+SEBot-WA
 Seekport
 SeekportBot
 SemanticJuice
@@ -565,15 +569,18 @@ TeleportPro
 Telesoft
 Telesphoreo
 Telesphorep
+terrabot-owned-you
 The Intraformant
 TheNomad
 Thumbor
 TightTwatBot
 TinyTestBot
 Titan
+TMP
 Toata
 Toweyabot
 Tracemyfile
+trafilatura
 Trendiction
 Trendictionbot
 trendiction.com
