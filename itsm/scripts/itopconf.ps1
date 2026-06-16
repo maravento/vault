@@ -35,25 +35,10 @@ function Create-Backup {
     param (
         [string]$configPath
     )
-    
+
     $backupPath = $configPath + ".backup"
     Copy-Item -Path $configPath -Destination $backupPath -Force
     Write-Host "Backup created at: $backupPath"
-}
-
-# Paths to check for the config file
-$configPaths = @(
-    "$env:HOMEDRIVE\wamp64\www\itop\web\conf\production\config-itop.php",
-    "$env:HOMEDRIVE\xampp\htdocs\itop\web\conf\production\config-itop.php",
-    "$env:HOMEDRIVE\UniServer\www\itop\web\conf\production\config-itop.php"
-)
-
-# Iterate through paths and create backup if the file exists
-foreach ($path in $configPaths) {
-    if (Test-Path $path) {
-        Create-Backup -configPath $path
-        break # Exit the loop after the first valid backup
-    }
 }
 
 # Function to get the configuration path based on stack selection
@@ -65,7 +50,7 @@ function Get-ConfigPath {
     switch ($stackSelection) {
         "1" { return "$env:HOMEDRIVE\wamp64\www\itop\web\conf\production\config-itop.php" }
         "2" { return "$env:HOMEDRIVE\xampp\htdocs\itop\web\conf\production\config-itop.php" }
-        "3" { return "$env:HOMEDRIVE\UniServer\www\itop\web\conf\production\config-itop.php" }
+        "3" { return "$env:HOMEDRIVE\UniServerZ\www\itop\web\conf\production\config-itop.php" }
         default { 
             Write-Host "Invalid option"
             pause
@@ -103,21 +88,21 @@ switch ($choice) {
 			exit
 		}
 
+		# Create a backup of the current config before modifying it
+		Create-Backup -configPath $configPath
+
 		$originalAttributes = (Get-Item $configPath).Attributes
 		Set-ItemProperty $configPath -Name Attributes -Value ((Get-ItemProperty $configPath).Attributes -band (-bnot [System.IO.FileAttributes]::ReadOnly))
 
-		# insert and replace lines
-		$configContent = Get-Content $configPath
-		$newLine = '$base_url = $_SERVER["REQUEST_SCHEME"] . "://" . $_SERVER["SERVER_NAME"] . (($_SERVER["SERVER_PORT"] ?? "80") != "80" ? ":" . $_SERVER["SERVER_PORT"] : "");'
-		$configContent = $configContent[0], $newLine, $configContent[1..($configContent.Count - 1)]
-		$configContent | Set-Content $configPath
+		# Define the dynamic base_url expression to inject into app_root_url
+		$baseUrlExpr = '$_SERVER["REQUEST_SCHEME"] . "://" . $_SERVER["SERVER_NAME"] . (($_SERVER["SERVER_PORT"] ?? "80") != "80" ? ":" . $_SERVER["SERVER_PORT"] : "")'
 
 		$configContent = Get-Content $configPath
 		$newConfigContent = $configContent | ForEach-Object {
 			if ($_ -match "'app_root_url' =>") {
-				# Construye la cadena de forma explícita
-				$newLine = "'app_root_url' => " + "`$base_url" + " . '/itop/web/',"
-				return $newLine
+				# Replace the whole line with a dynamic app_root_url based on the current request
+				$indent = ($_ -replace "^(\s*).*", '$1')
+				return "$indent'app_root_url' => $baseUrlExpr . '/itop/web/',"
 			}
 			return $_
 		}
@@ -196,15 +181,37 @@ switch ($choice) {
 
 		# Modify the corresponding vhosts file
 		if (Test-Path $vhostsPath) {
-			$vhostsContent = Get-Content $vhostsPath
-			$vhostsContentModified = $vhostsContent | ForEach-Object {
-				if ($_ -match "Require local") {
-					return $_ -replace "Require local", "Require all granted"
+			Write-Host ""
+			Write-Host "This will restrict access to the iTop vhost to your local network only."
+			$confirmVhost = Read-Host "Apply this change to $vhostsPath ? (y/n)"
+			if ($confirmVhost -eq "y" -or $confirmVhost -eq "Y") {
+				# Detect local IPv4 network (e.g. 192.168.1.0/24) to restrict access
+				$localIP = (Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Dhcp,Manual -ErrorAction SilentlyContinue |
+					Where-Object { $_.IPAddress -notlike "169.254.*" } | Select-Object -First 1)
+
+				if ($localIP) {
+					$prefix = $localIP.PrefixLength
+					$ipParts = $localIP.IPAddress.Split('.')
+					$network = "$($ipParts[0]).$($ipParts[1]).$($ipParts[2]).0/$prefix"
+					$requireRule = "Require ip $network"
+				} else {
+					Write-Host "Could not detect local network, defaulting to Require local."
+					$requireRule = "Require local"
 				}
-				return $_
+
+				$vhostsContent = Get-Content $vhostsPath
+				$vhostsContentModified = $vhostsContent | ForEach-Object {
+					if ($_ -match "Require local") {
+						return $_ -replace "Require local", $requireRule
+					}
+					return $_
+				}
+				$vhostsContentModified | Set-Content $vhostsPath
+				Write-Host "File modified: $vhostsPath"
+				Write-Host "Access rule applied: $requireRule"
+			} else {
+				Write-Host "Skipped vhosts modification."
 			}
-			$vhostsContentModified | Set-Content $vhostsPath
-			Write-Host "File modified: $vhostsPath"
 		} else {
 			Write-Host "File not found: $vhostsPath"
 		}

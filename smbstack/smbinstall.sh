@@ -263,7 +263,7 @@ do_install() {
     a2enmod -q headers mime rewrite
 
     # samba packages
-    apt-get install -y samba samba-common samba-common-bin smbclient winbind cifs-utils
+    DEBIAN_FRONTEND=noninteractive apt-get install -y samba samba-common samba-common-bin smbclient winbind cifs-utils
 
     systemctl enable smbd.service
     systemctl enable winbind.service
@@ -280,6 +280,7 @@ do_install() {
     # create samba password for smbguest (random, not used interactively)
     SMB_GUEST_PASS=$(openssl rand -base64 16)
     printf "%s\n%s\n" "$SMB_GUEST_PASS" "$SMB_GUEST_PASS" | smbpasswd -a -s smbguest
+    unset SMB_GUEST_PASS
     usermod -a -G sambashare www-data
 
     select_shared_folder
@@ -538,6 +539,16 @@ NMBD
     printf "%s\n%s\n" "$smb_pass" "$smb_pass" | smbpasswd -a -s "$SMBNAME"
     unset smb_pass smb_pass2
 
+    # TRUSTED_PROXIES: used by web/shared.php to decide whether the
+    # CF-Connecting-IP / X-Forwarded-For headers can be trusted when
+    # logging the client IP for web operations (upload/mkdir/delete).
+    # Set to 127.0.0.1 so that, if this host is ever reached through a
+    # local tunnel (cloudflared or similar), the tunnel's own loopback
+    # connection isn't logged as the "client" - the real visitor IP from
+    # the forwarded header is used instead. For plain LAN access this has
+    # no effect: REMOTE_ADDR is simply used as-is.
+    TRUSTED_PROXIES="127.0.0.1"
+
     # save install config
     cat > "$SMBSTACK_ENV" <<ENV
 LOCAL_USER="$local_user"
@@ -548,6 +559,13 @@ SMB_IFACE="$SMB_IFACE"
 SERVER_IP="$SERVER_IP"
 SMBNAME="$SMBNAME"
 NETBIOS="${netbios_ans:-N}"
+
+# TRUSTED_PROXIES: IPv4 address(es), comma-separated, whose REMOTE_ADDR
+# is trusted to supply the real client IP via CF-Connecting-IP /
+# X-Forwarded-For headers (used by web/shared.php for audit logging).
+# Default 127.0.0.1 avoids logging the loopback connection of a local
+# tunnel (if any) as the client. Safe to leave as-is for LAN-only use.
+TRUSTED_PROXIES="$TRUSTED_PROXIES"
 ENV
     chown root:www-data "$SMBSTACK_ENV"
     chmod 640 "$SMBSTACK_ENV"
@@ -587,39 +605,11 @@ do_update() {
     echo "Updating with config: user=$LOCAL_USER shared=$SHARED_PATH net=$SMB_NET iface=$SMB_IFACE"
     echo ""
 
-    # conf files
-    for src in "$CONF_DIR"/*; do
-        [ -f "$src" ] || continue
-        fname="$(basename "$src")"
-        case "$fname" in
-            fullaudit.conf)
-                dst="/etc/rsyslog.d/$fname"
-                ;;
-            smb.conf)
-                dst="/etc/samba/smb.conf"
-                ;;
-            *)
-                continue
-                ;;
-        esac
-        [ -f "$dst" ] || continue
-        cp -f "$dst" "${dst}.bak" &>/dev/null
-        cp -f "$src" "$dst"
-        sed -i "s|your_user|$LOCAL_USER|g" "$dst"
-        sed -i "s|compartida|$SHARED_NAME|g" "$dst"
-        [ "$fname" = "smb.conf" ] && [ -n "$SMB_NET" ] && [ -n "$SMB_IFACE" ] && \
-            sed -i "s|interfaces = .*|interfaces = 127.0.0.0/8 $SMB_NET $SMB_IFACE|" "$dst"
-        echo "  Updated: $fname"
-    done
-
-    # web files
+    # web files (application code only - no user-customized config files)
     for src in "$WEB_DIR"/*; do
         [ -f "$src" ] || continue
         fname="$(basename "$src")"
         case "$fname" in
-            smbweb.conf)
-                dst="/etc/apache2/sites-available/$fname"
-                ;;
             smbaudit.html|smbapi.php|smbaudit-diagnostic.php|shared.php)
                 dst="$SMBSTACK_WEB/$fname"
                 ;;
@@ -687,12 +677,12 @@ do_uninstall() {
     [ -f /lib/systemd/system/smbd.service.bak ] && cp -f /lib/systemd/system/smbd.service.bak /lib/systemd/system/smbd.service
 
     # cron entries
-    crontab -l 2>/dev/null > "/var/www/smbstack/crontab-uninstall-$(date +%Y%m%d%H%M%S).bak" || true
+    crontab -l 2>/dev/null > "/root/crontab-uninstall-$(date +%Y%m%d%H%M%S).bak" || true
     crontab -l 2>/dev/null | grep -v "\.recycle" | grep -v "smbload.sh" | grep -v "smbwatch.sh" | crontab -
 
     # samba packages
-    apt-get remove -y samba samba-common samba-common-bin smbclient winbind cifs-utils
-    apt-get autoremove -y
+    DEBIAN_FRONTEND=noninteractive apt-get remove -y samba samba-common samba-common-bin smbclient winbind cifs-utils
+    DEBIAN_FRONTEND=noninteractive apt-get autoremove -y
 
     systemctl daemon-reload
     systemctl restart apache2 rsyslog

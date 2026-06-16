@@ -20,16 +20,6 @@ var TableDatatablesButtons = function () {
             },
 
             buttons: [
-                { 
-                    extend: 'print', 
-                    className: 'btn dark btn-outline',
-                    exportOptions: {
-                        modifier: {
-                            search: 'none',
-                            order: 'current'
-                        }
-                    }
-                },
                 { extend: 'copy', className: 'btn red btn-outline' },
                 { 
                     extend: 'pdf', 
@@ -95,16 +85,6 @@ var TableDatatablesButtons = function () {
             },
 
             buttons: [
-                { 
-                    extend: 'print', 
-                    className: 'btn default',
-                    exportOptions: {
-                        modifier: {
-                            search: 'none',
-                            order: 'current'
-                        }
-                    }
-                },
                 { extend: 'copy', className: 'btn default' },
                 { 
                     extend: 'pdf', 
@@ -157,6 +137,7 @@ var TableDatatablesButtons = function () {
 
     var initTable3 = function () {
         var table = $('#sample_3');
+        if (!table.length) return;
 
         var oTable = table.dataTable({
 
@@ -175,16 +156,6 @@ var TableDatatablesButtons = function () {
             },
 
             buttons: [
-                { 
-                    extend: 'print', 
-                    className: 'btn dark btn-outline',
-                    exportOptions: {
-                        modifier: {
-                            search: 'none',
-                            order: 'current'
-                        }
-                    }
-                },
                 { extend: 'copy', className: 'btn red btn-outline' },
                 { 
                     extend: 'pdf', 
@@ -235,6 +206,7 @@ var TableDatatablesButtons = function () {
 	
 	var initTable4 = function () {
         var table = $('#metro_tpl_2');
+        if (!table.length) return;
 
         var oTable = table.dataTable({
 
@@ -253,16 +225,6 @@ var TableDatatablesButtons = function () {
             },
 
             buttons: [
-                { 
-                    extend: 'print', 
-                    className: 'btn dark btn-outline',
-                    exportOptions: {
-                        modifier: {
-                            search: 'none',
-                            order: 'current'
-                        }
-                    }
-                },
                 { extend: 'copy', className: 'btn red btn-outline' },
                 { 
                     extend: 'pdf', 
@@ -313,6 +275,7 @@ var TableDatatablesButtons = function () {
 
 	var initTable5 = function () {
         var table = $('#metro_tpl_3');
+        if (!table.length) return;
 
         var oTable = table.dataTable({
 
@@ -331,16 +294,6 @@ var TableDatatablesButtons = function () {
             },
 
             buttons: [
-                { 
-                    extend: 'print', 
-                    className: 'btn dark btn-outline',
-                    exportOptions: {
-                        modifier: {
-                            search: 'none',
-                            order: 'current'
-                        }
-                    }
-                },
                 { extend: 'copy', className: 'btn red btn-outline' },
                 { 
                     extend: 'pdf', 
@@ -424,16 +377,6 @@ var TableDatatablesButtons = function () {
                 ],
 
                 buttons: [
-                    { 
-                        extend: 'print', 
-                        className: 'btn default',
-                        exportOptions: {
-                            modifier: {
-                                search: 'none',
-                                order: 'current'
-                            }
-                        }
-                    },
                     { extend: 'copy', className: 'btn default' },
                     { 
                         extend: 'pdf', 

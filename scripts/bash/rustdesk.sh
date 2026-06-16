@@ -181,18 +181,18 @@ install_rustdesk() {
         rm -f "$DEB_FILE"
         exit 1
     fi
-    if wget -q "${BASE_URL}/${SHA256_FILE}" 2>/dev/null; then
-        EXPECTED_SHA256=$(awk '{print $1}' "$SHA256_FILE")
-        ACTUAL_SHA256=$(sha256sum "$DEB_FILE" | awk '{print $1}')
-        rm -f "$SHA256_FILE"
-        if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
-            echo "❌ Integrity check failed for $DEB_FILE. Aborting."
-            rm -f "$DEB_FILE"
-            exit 1
-        fi
-    else
-        ACTUAL_SHA256=$(sha256sum "$DEB_FILE" | awk '{print $1}')
-        echo "📋 $DEB_FILE SHA256: $ACTUAL_SHA256"
+    if ! wget -q "${BASE_URL}/${SHA256_FILE}" 2>/dev/null; then
+        echo "❌ Failed to download integrity file ${SHA256_FILE}. Aborting."
+        rm -f "$DEB_FILE"
+        exit 1
+    fi
+    EXPECTED_SHA256=$(awk '{print $1}' "$SHA256_FILE")
+    ACTUAL_SHA256=$(sha256sum "$DEB_FILE" | awk '{print $1}')
+    rm -f "$SHA256_FILE"
+    if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+        echo "❌ Integrity check failed for $DEB_FILE. Aborting."
+        rm -f "$DEB_FILE"
+        exit 1
     fi
 
     echo "📦 Installing package..."

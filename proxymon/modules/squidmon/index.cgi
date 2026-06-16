@@ -3,6 +3,18 @@
 use strict;
 use warnings;
 use Time::HiRes qw(gettimeofday);
+
+# Escape special HTML characters to prevent XSS.
+sub h {
+    my ($str) = @_;
+    return '' unless defined $str;
+    $str =~ s/&/&amp;/g;
+    $str =~ s/</&lt;/g;
+    $str =~ s/>/&gt;/g;
+    $str =~ s/"/&quot;/g;
+    $str =~ s/'/&#39;/g;
+    return $str;
+}
 our ($module_name, %text, %config, %in);
 
 do '/var/www/proxymon/squidmon/squidmon-standalone.pl';
@@ -674,7 +686,7 @@ print "<option value=''>-- All ACLs --</option>";
 foreach my $acl (@monitored_acls) {
     my $label = $acl->{label};
     my $sel = ($label eq $show_acl) ? "selected" : "";
-    print "<option value='$label' $sel>$label</option>";
+    print "<option value='".h($label)."' $sel>".h($label)."</option>";
 }
 # Add Unknown ACL at the end if there are unclassified blocks
 if ($acl_hits{'Unknown ACL'} && $acl_hits{'Unknown ACL'} > 0) {
@@ -687,7 +699,7 @@ print "</div>";
 # Search box
 print "<div>";
 print "<label style='color: #ffffff; margin-left: 15px;'>Search: </label>";
-print "<input type='text' name='search_query' value='$search_query' placeholder='IP or domain...' style='width: 250px; padding: 5px; margin-left: 5px;'>";
+print "<input type='text' name='search_query' value='".h($search_query)."' placeholder='IP or domain...' style='width: 250px; padding: 5px; margin-left: 5px;'>";
 print "<input type='submit' name='search' value='Search' style='background-color: #1f2937; color: #ffffff !important; border: 1px solid #ffffff !important; padding: 5px 10px; margin-left: 5px;'>";
 print "</div>";
 
@@ -895,7 +907,7 @@ if ($search_query && $search_query ne '') {
     my $search_type = $search_is_ip ? "IP Address" : "Domain";
     print "<div style='margin-bottom: 15px; padding: 12px; background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px;'>";
     print "<strong style='color: #1e40af;'>🔍 Search Results ($search_type):</strong> ";
-    print "Found <strong style='color: #1e40af;'>$results_count</strong> client(s) matching '<strong>$search_query</strong>' ";
+    print "Found <strong style='color: #1e40af;'>$results_count</strong> client(s) matching '<strong>".h($search_query)."</strong>' ";
     print "in <strong style='color: #1e40af;'>$search_elapsed_ms ms</strong>";
     print "</div>";
     

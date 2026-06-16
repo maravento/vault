@@ -342,7 +342,10 @@ function is_pydhcp() {
                     if [[ -n "$mac_address" && -n "$ip_address" ]]; then
                         line_lease="a;$mac_address;$ip_address;$host;"
 
-                        if ! grep -qi "^a;${mac_address};" "$ACL_MAC_PATH"/mac-* 2>/dev/null; then
+                        shopt -s nullglob
+                        acl_mac_files=("$ACL_MAC_PATH"/mac-*)
+                        shopt -u nullglob
+                        if [ ${#acl_mac_files[@]} -eq 0 ] || ! grep -qi "^a;${mac_address};" "${acl_mac_files[@]}" 2>/dev/null; then
                             if ! grep -qi "^a;${mac_address};" "$ACL_BLOCK_FILE" 2>/dev/null; then
                                 ulog "read_leases: $mac_address → unknown → blockdhcp (ip=$ip_address host=$host)"
                                 echo "$line_lease" >> "$ACL_BLOCK_FILE"
@@ -470,7 +473,14 @@ class "blockdhcp" {
         local removed=0
         file_temp=$(mktemp)
         TEMP_FILES_TO_CLEAN+=("$file_temp")
-        grep -hE ';[0-9a-f:]+;' "$ACL_MAC_PATH"/mac-* 2>/dev/null | cut -d ";" -f2 >"$file_temp"
+        shopt -s nullglob
+        acl_mac_files=("$ACL_MAC_PATH"/mac-*)
+        shopt -u nullglob
+        if [ ${#acl_mac_files[@]} -gt 0 ]; then
+            grep -hE ';[0-9a-f:]+;' "${acl_mac_files[@]}" 2>/dev/null | cut -d ";" -f2 >"$file_temp"
+        else
+            : >"$file_temp"
+        fi
         while read -r mac_actual; do
             if grep -qF ";${mac_actual};" "$ACL_BLOCK_FILE" 2>/dev/null; then
                 ulog "clean_block_list: removing $mac_actual from blockdhcp (found in acl_mac)"
@@ -546,10 +556,17 @@ class "blockdhcp" {
 }
 
 function duplicate() {
-    aclall=$(for field in 2 3 4; do
-        awk -F';' '/^a;/' "$ACL_MAC_PATH"/mac-* 2>/dev/null \
-            | cut -d\; -f${field} | sort | uniq -d
-    done)
+    aclall=$(
+        shopt -s nullglob
+        acl_mac_files=("$ACL_MAC_PATH"/mac-*)
+        shopt -u nullglob
+        if [ ${#acl_mac_files[@]} -gt 0 ]; then
+            for field in 2 3 4; do
+                awk -F';' '/^a;/' "${acl_mac_files[@]}" 2>/dev/null \
+                    | cut -d\; -f${field} | sort | uniq -d
+            done
+        fi
+    )
     if [ "${aclall}" == "" ]; then
         ulog "Duplicate check: OK"
         is_pydhcp

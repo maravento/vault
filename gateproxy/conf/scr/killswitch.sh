@@ -3,7 +3,7 @@
 #
 ################################################################################
 #
-# Iptables NetCut
+# Iptables Kill Switch
 #
 # Warning
 # Use it only in case of attack or illegal access to your network

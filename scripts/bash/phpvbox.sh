@@ -163,6 +163,9 @@ fi
 echo "Script and cron task added successfully."
 echo
 echo "Access: http://localhost/phpvirtualbox"
-echo "default user and password: admin"
+echo "Default user: admin / Default password: admin"
+echo "⚠️  WARNING: Change the default password immediately after first login."
+echo "    Go to: Admin menu → Change Password"
+echo "    Leaving the default password exposes VirtualBox to unauthorized access."
 echo "Use vinagre or remmina to connect (activate Enable Server into Remote Display of VM)"
 echo "Done"

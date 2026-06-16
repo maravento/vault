@@ -40,7 +40,10 @@ PROCS=$(($(nproc) * 4))
 
 check_domain() {
     original="$1"
-    clean="${original#.}"
+    clean="$original"
+    while [[ "$clean" == .* ]]; do
+        clean="${clean#.}"
+    done
     if timeout 5 host "$clean" > /dev/null 2>&1; then
         echo "$original exists"
         echo "$original" >> exists.txt

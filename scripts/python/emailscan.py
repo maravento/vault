@@ -112,14 +112,20 @@ def scan():
             print(f"  • {u}")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"scan_results_{timestamp}.txt"
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(f"Email searched: {TARGET_EMAIL}\n")
-            f.write(f"Site scanned: {BASE_URL}\n")
-            f.write(f"Pages scanned: {count}\n")
-            f.write(f"Pages with email: {len(matches)}\n\n")
+        try:
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(f"Email searched: {TARGET_EMAIL}\n")
+                f.write(f"Site scanned: {BASE_URL}\n")
+                f.write(f"Pages scanned: {count}\n")
+                f.write(f"Pages with email: {len(matches)}\n\n")
+                for u in matches:
+                    f.write(u + "\n")
+            print(f"\n💾 Results saved to: {filename}")
+        except OSError as e:
+            print(f"\n⚠️  Could not save results to file: {e}")
+            print("    Results found (not saved):\n")
             for u in matches:
-                f.write(u + "\n")
-        print(f"\n💾 Results saved to: {filename}")
+                print(f"  • {u}")
     else:
         print("\n⚠️  Email not found on any visited page.")
         print("    Possible reasons:")

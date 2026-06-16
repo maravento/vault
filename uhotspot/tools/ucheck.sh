@@ -52,25 +52,24 @@
 #
 ################################################################################
 
-set -u
+set -uo pipefail
 
-BLOCKDHCP_GRACE_SECONDS=86400
+ULEASES_ENV="$(dirname "$(readlink -f "$0")")/uleases.env"
+if [ -f "$ULEASES_ENV" ]; then
+    _grace=$(grep -E '^BLOCKDHCP_GRACE_SECONDS=' "$ULEASES_ENV" \
+        | cut -d'=' -f2 | tr -d '[:space:]' | head -1)
+    [[ "$_grace" =~ ^[0-9]+$ ]] && BLOCKDHCP_GRACE_SECONDS="$_grace"
+    unset _grace
+fi
+BLOCKDHCP_GRACE_SECONDS=${BLOCKDHCP_GRACE_SECONDS:-86400}
 
 # Paths
-GUEST_PENDING="/etc/uhotspot/guest-pending.txt"
-MAC_HOTSPOT="/etc/uhotspot/mac-hotspot.txt"
-GRACE_DHCP="/etc/acl/acl_dhcp/gracedhcp.txt"
-BLOCK_DHCP="/etc/acl/acl_dhcp/blockdhcp.txt"
-ACL_MAC_DIR="/etc/acl/acl_mac"
+GUEST_PENDING="${ACL_GUEST_PENDING}"
+MAC_HOTSPOT="${ACL_MAC_HOTSPOT}"
+GRACE_DHCP="${ACL_GRACE_FILE}"
+BLOCK_DHCP="${ACL_BLOCK_FILE}"
+ACL_MAC_DIR="${ACL_MAC_PATH}"
 LEASES_FILE="/etc/pydhcp/pydhcpd.leases"
-
-ALL_SOURCES=(
-    "$GUEST_PENDING"
-    "$MAC_HOTSPOT"
-    "$GRACE_DHCP"
-    "$BLOCK_DHCP"
-    "$LEASES_FILE"
-)
 
 # Colors
 if [ -t 1 ]; then

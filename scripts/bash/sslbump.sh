@@ -33,7 +33,7 @@ remove_and_install_squid_openssl() {
 
     echo "Removing old squid..."
     apt purge -y squid* &>/dev/null
-    rm -rf /var/spool/squid* /var/log/squid* /etc/squid* /dev/shm/*
+    rm -rf /var/spool/squid* /var/log/squid* /etc/squid*rm -rf "$CA_CERT_D"/*
 
     echo "Installing squid-openssl..."
     apt update || { echo "ERROR: apt update failed"; exit 1; }
@@ -72,7 +72,6 @@ ssl_bump_setup() {
 
     echo "Adding certificate to system..."
     CA_CERT_D=/usr/local/share/ca-certificates
-    rm -rf "$CA_CERT_D"/*
     mkdir -p "$CA_CERT_D"
     openssl x509 -inform PEM -in "$CERT" -out "$CA_CERT_D/squid_proxyCA.crt"
     update-ca-certificates

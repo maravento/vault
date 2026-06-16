@@ -165,7 +165,7 @@ start() {
     fi
 
     RECYCLE_DIR="$SHARED_PATH/.recycle"
-    WATCH_DIR=""
+    WATCH_DIRS=()
     IFS=',' read -ra EXCLUDE_LIST <<< "${WATCH_EXCLUDE:-}"
     while IFS= read -r -d '' dir; do
         dirname="$(basename "$dir")"
@@ -176,28 +176,28 @@ start() {
             [ "$dirname" = "$ex" ] && excluded=1 && break
         done
         [ "$excluded" -eq 1 ] && continue
-        WATCH_DIR+="$dir "
+        WATCH_DIRS+=("$dir")
     done < <(find "$SHARED_PATH" -mindepth 1 -maxdepth 1 -type d -print0)
-    WATCH_DIR="${WATCH_DIR% }"
 
-    if [ -z "$WATCH_DIR" ]; then
+    if [ "${#WATCH_DIRS[@]}" -eq 0 ]; then
         echo "ERROR: No subdirectories found in $SHARED_PATH"
         exit 1
     fi
 
-    printf '%s\n' "$WATCH_DIR" > "$STATEFILE"
+    printf '%s\n' "${WATCH_DIRS[@]}" > "$STATEFILE"
 
     echo "Starting smbwatch..."
     echo "  Shared path : $SHARED_PATH"
     echo "  Watch limit : ${WATCH_LIMIT_GB} GB per folder"
-    echo "  Watching    : $WATCH_DIR"
+    echo "  Watching    :"
+    printf '    %s\n' "${WATCH_DIRS[@]}"
     echo "  Excluded    : ${WATCH_EXCLUDE:-none}"
     echo "  Recycle bin : $RECYCLE_DIR"
     echo "  Log         : $LOGFILE"
     echo ""
 
-    # shellcheck disable=SC2086
-    inotifywait -m -r -e create --format '%w%f' $WATCH_DIR 2>>"$LOGFILE" | while read -r NEWFILE; do
+    exec 200>&-
+    inotifywait -m -r -e create --format '%w%f' "${WATCH_DIRS[@]}" 2>>"$LOGFILE" | while read -r NEWFILE; do
         handle_new_file "$NEWFILE"
     done &
 
@@ -216,9 +216,19 @@ start() {
 stop() {
     echo "Stopping smbwatch..."
     if [ -f "$PIDFILE" ]; then
-        local PID
+        local PID PGID
         PID=$(cat "$PIDFILE")
-        kill "$PID" 2>/dev/null && echo "SMBwatch stopped (PID $PID)" || echo "Could not stop smbwatch"
+        if kill -0 "$PID" 2>/dev/null; then
+            PGID=$(ps -o pgid= -p "$PID" 2>/dev/null | tr -d ' ')
+            if [ -n "$PGID" ]; then
+                kill -- "-$PGID" 2>/dev/null
+            else
+                kill "$PID" 2>/dev/null
+            fi
+            echo "SMBwatch stopped (PID $PID)"
+        else
+            echo "SMBwatch was not running (stale PID file removed)"
+        fi
         rm -f "$PIDFILE" "$STATEFILE"
     else
         echo "SMBwatch is not running"
@@ -232,7 +242,8 @@ status() {
         echo "  SMBwatch is RUNNING (PID $(cat "$PIDFILE"))"
         echo "  Watch limit : ${WATCH_LIMIT_GB} GB per folder"
         if [ -f "$STATEFILE" ]; then
-            echo "  Watching    : $(cat "$STATEFILE")"
+            echo "  Watching    :"
+            sed 's/^/    /' "$STATEFILE"
         else
             echo "  Watching    : (unknown, state file missing)"
         fi

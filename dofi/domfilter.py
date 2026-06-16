@@ -51,8 +51,6 @@ if not VERIFY_SSL:
 # TLD
 def download_public_suffix(url: str, output_file: str = "sourcetld.txt") -> None:
     try:
-        head_response = requests.head(url, timeout=10, verify=VERIFY_SSL)
-        head_response.raise_for_status()
         response = requests.get(url, timeout=10, verify=VERIFY_SSL)
         response.raise_for_status()
         with open(output_file, 'a', encoding='utf-8') as f:
@@ -68,7 +66,11 @@ def process_tlds_file(input_file: str = "sourcetld.txt", output_file: str = "tld
             if (not line or 
                 line.startswith('//') or 
                 line.startswith('#') or 
-                re.search(r'[^a-z0-9_.-]', line)):
+                line.startswith('!')):
+                continue
+            if line.startswith('*.'):
+                line = line[2:]
+            if re.search(r'[^a-z0-9_.-]', line):
                 continue
             line = line.lstrip('.')
             if not line.startswith('.'):
@@ -98,6 +100,9 @@ def generate_tlds():
     finally:
         if os.path.exists("sourcetld.txt"):
             os.remove("sourcetld.txt")
+
+    if not os.path.exists("tlds.txt") or os.path.getsize("tlds.txt") == 0:
+        sys.exit("ERROR: tlds.txt is empty. All TLD sources failed to download.")
 
 # DOMAINS FILTER
 def should_keep_domain(domain: str, valid_domains: set, tlds: set) -> bool:
@@ -172,8 +177,8 @@ def process_domains(input_file: str, tlds: set, output_file: str = None, removed
 def main():
     parser = argparse.ArgumentParser(description="Generate TLD list and filter domains.")
     parser.add_argument('--input', required=True, help="Path to the capture file.")
-    parser.add_argument('--output', help="Path to the output file (optional).", nargs="?", default="output.txt", type=str)
-    parser.add_argument('--removed', help="Path to the output file for removed domains (optional).", nargs="?", default="removed.txt", type=str)
+    parser.add_argument('--output', help="Path to the output file (optional).", default="output.txt", type=str)
+    parser.add_argument('--removed', help="Path to the output file for removed domains (optional).", default="removed.txt", type=str)
     args = parser.parse_args()
 
     # add .dot

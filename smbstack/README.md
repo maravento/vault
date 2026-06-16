@@ -56,10 +56,10 @@
 <table>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Inside any subfolder, the toolbar allows uploading single or multiple files simultaneously, creating new folders, and reloading the view. All operations are recorded in the audit log with the client's real IP address, including Cloudflare tunnel connections.
+      Inside any subfolder, the toolbar allows uploading single or multiple files simultaneously, creating new folders, and reloading the view. All operations are recorded in the audit log with the client's IP address.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Dentro de cualquier subcarpeta, la barra de herramientas permite subir uno o varios archivos simultáneamente, crear nuevas carpetas y recargar la vista. Todas las operaciones quedan registradas en el log de auditoría con la IP real del cliente, incluyendo conexiones por túnel Cloudflare.
+      Dentro de cualquier subcarpeta, la barra de herramientas permite subir uno o varios archivos simultáneamente, crear nuevas carpetas y recargar la vista. Todas las operaciones quedan registradas en el log de auditoría con la IP del cliente.
     </td>
   </tr>
 </table>
@@ -165,7 +165,7 @@ smbstack/
 /var/www/smbstack/
 │   └── tools/
 │       └── watchdir.log        # smbwatch.sh runtime log
-└── smbstack.env                # Saved install config (user, paths, network, watch limit)
+└── smbstack.env                # Saved install config (user, paths, network, trusted proxies, watch limit)
 
 /home/$USER/shared/             # Shared folder (independent of the installer)
 ├── recycle/                    # Recycle Bin
@@ -257,9 +257,9 @@ sudo bash smbinstall.sh --uninstall
 
 | File | `--update` | `--uninstall` |
 |------|-----------|---------------|
-| `conf/smb.conf` | ✅ overwritten | ✅ restored from `.bak` |
-| `conf/fullaudit.conf` | ✅ overwritten | ✅ removed |
-| `web/smbweb.conf` | ✅ overwritten | ✅ removed |
+| `conf/smb.conf` | ⛔ not touched (user-customized) | ✅ restored from `.bak` |
+| `conf/fullaudit.conf` | ⛔ not touched (user-customized) | ✅ removed |
+| `web/smbweb.conf` | ⛔ not touched (user-customized) | ✅ removed |
 | `web/smbaudit.html` | ✅ overwritten | ✅ removed |
 | `web/smbapi.php` | ✅ overwritten | ✅ removed |
 | `web/smbaudit-diagnostic.php` | ✅ overwritten | ✅ removed |
@@ -268,6 +268,8 @@ sudo bash smbinstall.sh --uninstall
 | `tools/smbwatch.sh` | ✅ overwritten | ✅ removed |
 | `/var/www/smbstack/smbstack.env` | ⛔ preserved | ✅ removed |
 | Shared folder (`/home/$USER/shared/`) | ⛔ never touched | ⛔ never touched |
+
+> `--update` only refreshes application code (web PHP/HTML viewers and `tools/*.sh`). Configuration files deployed at install time (`smb.conf`, `fullaudit.conf`, `smbweb.conf`) are never overwritten by `--update`, since they may contain manual edits (custom shares, `hosts allow`, interfaces, etc.). To pick up changes to these files after an update, compare them manually against `conf/` and `web/smbweb.conf` in the repository and apply changes by hand.
 
 > The shared folder is independent of the installer. To remove it, do so manually: `rm -rf /home/$USER/shared`
 
@@ -299,6 +301,8 @@ Shows: smbd and winbind service status, Apache port 3092, last 5 audit log entri
 | Web vhost (audit + shared) | `/etc/apache2/sites-available/smbweb.conf` |
 | Log rotation | `/etc/logrotate.d/samba` |
 | Install config | `/var/www/smbstack/smbstack.env` |
+
+> `smbstack.env` sets `TRUSTED_PROXIES="127.0.0.1"` by default. It tells `web/shared.php` to use the `CF-Connecting-IP` / `X-Forwarded-For` header (if present) instead of `REMOTE_ADDR` when logging the client IP for requests arriving from localhost — so a local tunnel's loopback connection isn't recorded as the "client" in the audit log. No effect on direct LAN access.
 
 ```bash
 # Verify Samba config | Verificar configuración de Samba

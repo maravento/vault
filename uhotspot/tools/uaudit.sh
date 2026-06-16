@@ -39,13 +39,16 @@
 #
 # DEPENDENCIES : curl, jq
 # CONFIG       : /etc/uhotspot/uhotspot.conf
-# LOG          : /etc/uhotspot/uaudit.log
+# LOG          : /var/log/uaudit.log
 # TESTED ON    : Ubuntu 24.04 - UniFi OS Network 10.x
 #
 ################################################################################
 
 printf "\n"
 echo "UniFi Clients Audit - starting, please wait..."
+
+set -uo pipefail
+
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -84,7 +87,7 @@ fi
 
 SITE="${UNIFI_SITE:-default}"
 TYPE="${UNIFI_TYPE:-unifi-os}"
-LOG="/etc/uhotspot/uaudit.log"
+LOG="/var/log/uaudit.log"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
 # ── Authentication ────────────────────────────────────────────────────────────
@@ -100,6 +103,7 @@ do_login() {
         '{username:$u, password:$p}')
     LOGIN=$(curl -sk -i -X POST -H "Content-Type: application/json" \
         -d "$payload" \
+        --connect-timeout 10 --max-time 40 \
         "$UNIFI_CONTROLLER_URL$login_path")
 
     CSRF_TOKEN=$(echo "$LOGIN" | grep -iE "^x-(updated-)?csrf-token:" | tail -1 | awk '{print $2}' | tr -d "\r")
@@ -123,6 +127,7 @@ fi
 
 api_get() {
     curl -sk -X GET \
+        --connect-timeout 10 --max-time 30 \
         -H "X-CSRF-Token: $CSRF_TOKEN" \
         -H "Cookie: $SESSION_COOKIE" \
         "$BASE/$1"
@@ -130,6 +135,7 @@ api_get() {
 
 api_post() {
     curl -sk -X POST \
+        --connect-timeout 10 --max-time 30 \
         -H "X-CSRF-Token: $CSRF_TOKEN" \
         -H "Cookie: $SESSION_COOKIE" \
         -H "Content-Type: application/json" \

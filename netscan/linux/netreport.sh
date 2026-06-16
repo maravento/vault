@@ -60,7 +60,11 @@ local_user="${local_user:-root}"
 log "Local user: $local_user"
 
 # Report directory (owned by user)
-report_dir="/home/${local_user}/Report"
+if [ "$local_user" = "root" ]; then
+  report_dir="/root/Report"
+else
+  report_dir="/home/${local_user}/Report"
+fi
 mkdir -p "$report_dir"
 chown "$local_user:$local_user" "$report_dir"
 chmod 0755 "$report_dir"
@@ -403,15 +407,20 @@ xml_to_html() {
   fi
   
   # Fallback: try default nmap XSL
-  log "Attempting conversion with default nmap XSL..."
-  if xsltproc "$xml" -o "$html" 2>"$xsl_error"; then
-    log "Conversion successful with default XSL"
-    rm -f "$xsl_error"
-    return 0
+  default_xsl="/usr/share/nmap/nmap.xsl"
+  if [ -f "$default_xsl" ]; then
+    log "Attempting conversion with default nmap XSL..."
+    if xsltproc -o "$html" "$default_xsl" "$xml" 2>"$xsl_error"; then
+      log "Conversion successful with default XSL"
+      rm -f "$xsl_error"
+      return 0
+    else
+      warn "Default XSL conversion failed:"
+      cat "$xsl_error" | head -5 | while read -r line; do warn "  $line"; done
+      cat "$xsl_error" >> "$log_file"
+    fi
   else
-    warn "Default XSL conversion failed:"
-    cat "$xsl_error" | head -5 | while read -r line; do warn "  $line"; done
-    cat "$xsl_error" >> "$log_file"
+    warn "Default nmap XSL not found at $default_xsl, skipping to HTML wrapper"
   fi
   
   # Last resort: create basic HTML wrapper
@@ -474,16 +483,23 @@ select_interface() {
   SEL_IFACE=""
   SEL_NET=""
   echo "Available network interfaces:"
-  ip -4 addr show scope global | awk '/inet /{ip=$2} /inet /{iface=$NF; printf "  %-12s %s\n", iface, ip}'
+  local iface_list
+  iface_list=$(ip -4 addr show scope global | awk '/inet /{ip=$2} /inet /{iface=$NF; printf "  %-12s %s\n", iface, ip}')
+  if [ -z "$iface_list" ]; then
+    die "No network interfaces with a global IPv4 address found."
+  fi
+  echo "$iface_list"
   echo ""
   while true; do
     read -rp "Select interface: " SEL_IFACE
+    SEL_IFACE="${SEL_IFACE#"${SEL_IFACE%%[![:space:]]*}"}"
+    SEL_IFACE="${SEL_IFACE%"${SEL_IFACE##*[![:space:]]}"}"
     [ -n "$SEL_IFACE" ] || { warn "No interface specified. Try again."; continue; }
     if ! ip link show "$SEL_IFACE" &>/dev/null; then
       warn "Interface '$SEL_IFACE' does not exist. Try again."
       continue
     fi
-    SEL_NET=$(ip -4 addr show dev "$SEL_IFACE" scope global | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+' | head -n1)
+    SEL_NET=$(ip -4 addr show dev "$SEL_IFACE" scope global | sed -n 's/.*inet \([0-9.]\{1,\}\/[0-9]\{1,\}\).*/\1/p' | head -n1)
     if [ -z "$SEL_NET" ]; then
       warn "No IPv4 address found on '$SEL_IFACE'. Try again."
       continue
@@ -573,12 +589,14 @@ case "$opt" in
     echo ""
     while true; do
       read -rp "Target IP or hostname: " target
+      target="${target#"${target%%[![:space:]]*}"}"
+      target="${target%"${target##*[![:space:]]}"}"
       [ -n "$target" ] && break
       warn "No target specified. Try again."
     done
 
     # Validate target format (basic check)
-    if ! [[ "$target" =~ ^[a-zA-Z0-9][a-zA-Z0-9\.\-]+$ ]]; then
+    if ! [[ "$target" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$ ]]; then
       die "Invalid target format: $target"
     fi
     

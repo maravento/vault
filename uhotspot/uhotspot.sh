@@ -172,6 +172,9 @@
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+set -euo pipefail
+
+
 # Root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
@@ -185,6 +188,17 @@ if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
+
+# ─── Temp file cleanup (orphaned mktemp files on early exit/crash) ───────────
+TEMP_FILES_TO_CLEAN=()
+cleanup_temp() {
+    local f
+    for f in "${TEMP_FILES_TO_CLEAN[@]+"${TEMP_FILES_TO_CLEAN[@]}"}"; do
+        rm -f "$f" 2>/dev/null || true
+    done
+}
+trap cleanup_temp EXIT
+
 
 # Log file (declared early so all bootstrap messages are captured)
 LOG_FILE="/var/log/uhotspot.log"
@@ -259,6 +273,8 @@ load_config() {
     [[ -z "${HOTSPOT_RANGE_START:-}"  ]] && missing+=("HOTSPOT_RANGE_START")
     [[ -z "${HOTSPOT_RANGE_END:-}"    ]] && missing+=("HOTSPOT_RANGE_END")
     [[ -z "${SERVER_RELOAD_SCRIPT:-}" ]] && missing+=("SERVER_RELOAD_SCRIPT")
+    [[ -z "${UNIFI_TYPE:-}"           ]] && missing+=("UNIFI_TYPE")
+    [[ -z "${UNIFI_SITE:-}"           ]] && missing+=("UNIFI_SITE")
 
     if (( ${#missing[@]} > 0 )); then
         log "ERROR: Missing required variables in $CONFIG_FILE: ${missing[*]}"
@@ -332,6 +348,7 @@ unifi_login() {
     fi
 
     header_file=$(mktemp)
+    TEMP_FILES_TO_CLEAN+=("${header_file}")
     payload=$(jq -n --arg u "$UNIFI_USERNAME" --arg p "$UNIFI_PASSWORD" \
         '{username: $u, password: $p}')
 
@@ -518,9 +535,6 @@ queue_lease_removal() {
 # blockdhcp.txt must use format a;MAC;IP;HOSTNAME; (4 fields, no epoch).
 # Entries with extra fields are sanitized on each run.
 dedup_mac_lists() {
-    local acl_dir
-    acl_dir="$(dirname "$MAC_LIST")"
-
     # MANAGED_MACS: only MACs from /etc/acl/acl_mac/mac-*.txt.
     # Used to block portal entry for clients already managed by another ACL list.
     MANAGED_MACS=$(
@@ -551,6 +565,7 @@ dedup_mac_lists() {
     if [[ -f "$BLOCK_DHCP" ]]; then
         local tmp_block
         tmp_block=$(mktemp)
+        TEMP_FILES_TO_CLEAN+=("${tmp_block}")
         while IFS= read -r line; do
             [[ -z "$line" ]] && continue
 
@@ -617,6 +632,7 @@ mac_hotspot_backup() {
     if [[ -s "$BLOCK_DHCP" && -s "$wellknow_file" ]]; then
         local removed pattern_file
         pattern_file=$(mktemp)
+        TEMP_FILES_TO_CLEAN+=("${pattern_file}")
         sed 's/.*/;\0;/' "$wellknow_file" > "$pattern_file"
         removed=$(grep -cFf "$pattern_file" "$BLOCK_DHCP" || true)
         if [[ $removed -gt 0 ]]; then
@@ -634,12 +650,14 @@ sort_acl_files() {
 
     if [[ -s "$MAC_LIST" ]]; then
         tmp=$(mktemp)
+        TEMP_FILES_TO_CLEAN+=("${tmp}")
         sort -t';' -k3,3V "$MAC_LIST" | uniq > "$tmp"
         mv "$tmp" "$MAC_LIST" && chmod 600 "$MAC_LIST"
     fi
 
     if [[ -s "$PENDING_LIST" ]]; then
         tmp=$(mktemp)
+        TEMP_FILES_TO_CLEAN+=("${tmp}")
         sort -t';' -k3,3V "$PENDING_LIST" | uniq > "$tmp"
         mv "$tmp" "$PENDING_LIST" && chmod 600 "$PENDING_LIST"
     fi
@@ -657,7 +675,9 @@ add_mac_to_acl() {
         local existing_end
         existing_end=$(grep -i "^a;${mac};" "$MAC_LIST" | head -1 | awk -F';' '{print $5}')
         if [[ "$end_time" != "$existing_end" ]]; then
-            sed -i "s|^a;${mac};.*|${new_line}|I" "$MAC_LIST"
+            local escaped_line
+            escaped_line=$(printf '%s' "$new_line" | sed -e 's/[\&|/]/\\&/g')
+            sed -i "s|^a;${mac};.*|${escaped_line}|I" "$MAC_LIST"
             log "INFO: Updated end_time for $mac ($existing_end → $end_time)"
         fi
     else
@@ -680,7 +700,10 @@ expire_to_pending() {
 
     if [[ -z "$ip" || -z "$hostname" ]]; then
         local iph
-        iph=$(assign_ip_and_hostname) || return 0
+        if ! iph=$(assign_ip_and_hostname); then
+            log "WARNING: expire_to_pending: pool exhausted — cannot move $mac to pending"
+            return 1
+        fi
         ip=$(echo "$iph"       | cut -d';' -f1)
         hostname=$(echo "$iph" | cut -d';' -f2)
     fi
@@ -694,6 +717,7 @@ clean_expired_macs() {
     local now tmp
     now=$(date +%s)
     tmp=$(mktemp)
+    TEMP_FILES_TO_CLEAN+=("${tmp}")
 
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
@@ -704,7 +728,10 @@ clean_expired_macs() {
             echo "$line" >> "$tmp"
         else
             log "INFO: Expired $mac at $(date -d "@$end_time" 2>/dev/null || echo "$end_time")"
-            expire_to_pending "$mac"
+            if ! expire_to_pending "$mac"; then
+                log "WARNING: clean_expired_macs: keeping $mac in mac-hotspot.txt (pending slot unavailable — will retry next cycle)"
+                echo "$line" >> "$tmp"
+            fi
         fi
     done < "$MAC_LIST"
 
@@ -736,6 +763,7 @@ clean_disconnected_pending() {
 
     local tmp removed=0
     tmp=$(mktemp)
+    TEMP_FILES_TO_CLEAN+=("${tmp}")
     while IFS=';' read -r status mac ip hostname _; do
         [[ "$status" != "a" ]] && continue
         [[ -z "$mac" ]] && continue
@@ -775,6 +803,17 @@ process_pending_guests() {
         (( available_count++ )) || true
     done
 
+    clean_disconnected_pending "$guests_data"
+
+    # Recount available IPs after cleaning disconnected clients
+    available_count=0
+    for (( i=HOTSPOT_RANGE_START; i<=HOTSPOT_RANGE_END; i++ )); do
+        local candidate="${HOTSPOT_IP_RANGE}.${i}"
+        grep -q ";${candidate};" "$MAC_LIST"     2>/dev/null && continue
+        grep -q ";${candidate};" "$PENDING_LIST" 2>/dev/null && continue
+        (( available_count++ )) || true
+    done
+
     if [[ $available_count -eq 0 ]]; then
         local oldest_line oldest_mac oldest_ip
         oldest_line=$(grep '^a;' "$PENDING_LIST" 2>/dev/null | sort -t';' -k3,3V | head -1 || true)
@@ -790,7 +829,6 @@ process_pending_guests() {
         fi
     fi
 
-    clean_disconnected_pending "$guests_data"
 
     local count=0
     while IFS=$'\t' read -r mac ip; do
@@ -900,7 +938,13 @@ process_sessions() {
         else
             voucher_code=$(get_voucher_code_by_end_time "$end_time")
         fi
-        [[ -n "$voucher_code" ]] && assigned_hostname="${assigned_hostname%-*}-${voucher_code}"
+        if [[ -n "$voucher_code" ]]; then
+            if [[ "$assigned_hostname" == *-* ]]; then
+                assigned_hostname="${assigned_hostname%-*}-${voucher_code}"
+            else
+                assigned_hostname="${assigned_hostname}-${voucher_code}"
+            fi
+        fi
 
         add_mac_to_acl "$mac" "$assigned_ip" "$assigned_hostname" "$end_time"
         (( added++ )) || true
@@ -952,9 +996,12 @@ revoke_unauthorized() {
     for mac in "${macs_to_revoke[@]+"${macs_to_revoke[@]}"}"; do
         [[ -z "$mac" ]] && continue
         log "INFO: Revoking $mac — authorized=false in UniFi"
-        expire_to_pending "$mac"
-        sed -i "/^a;${mac};/Id" "$MAC_LIST" 2>/dev/null || true
-        (( revoked++ )) || true
+        if expire_to_pending "$mac"; then
+            sed -i "/^a;${mac};/Id" "$MAC_LIST" 2>/dev/null || true
+            (( revoked++ )) || true
+        else
+            log "WARNING: revoke_unauthorized: keeping $mac in mac-hotspot.txt (pending slot unavailable — will retry next cycle)"
+        fi
     done
 
     REVOKED=$revoked
@@ -1024,7 +1071,7 @@ snapshot_acls() {
 }
 
 check_and_reload_if_changed() {
-    local cur_hotspot cur_pending cur_queue
+    local cur_hotspot cur_pending cur_queue rc
     cur_hotspot=$(md5sum "$MAC_LIST"     2>/dev/null | awk '{print $1}' || echo "absent")
     cur_pending=$(md5sum "$PENDING_LIST" 2>/dev/null | awk '{print $1}' || echo "absent")
     cur_queue=$(md5sum "$LEASE_REMOVE_QUEUE" 2>/dev/null | awk '{print $1}' || echo "absent")
@@ -1052,9 +1099,6 @@ check_and_reload_if_changed() {
         log "WARNING: ACLs changed but SERVER_RELOAD_SCRIPT is not set or not executable"
     fi
 }
-
-
-set -euo pipefail
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 main() {

@@ -494,6 +494,27 @@ iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
 | Authoritative server rejects | — | `NAK → bb:cc:dd:ee:ff:aa` |
 | Client rediscovers | `DHCPDISCOVER from bb:cc:dd:ee:ff:aa via enp2s0` | `DISCOVER from bb:cc:dd:ee:ff:aa (BAR)` |
 
+#### Rate Limiting
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <b>isc-dhcp-server</b> has no built-in per-client rate-limiting for lease allocation. Abuse mitigation relies on <code>deny duplicates;</code> and <code>one-lease-per-client true;</code>, plus pool exhaustion (once the pool is full, further <code>DHCPDISCOVER</code> messages simply receive no <code>DHCPOFFER</code>). Client identification is based on <code>chaddr</code> (or <code>client-id</code>, option 61) — never on the Ethernet source MAC of the frame, so behavior is identical whether the client is directly attached or behind a relay (<code>giaddr</code> is only used for routing the reply).
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <b>isc-dhcp-server</b> no tiene rate-limiting incorporado por cliente para la asignación de leases. La mitigación de abuso depende de <code>deny duplicates;</code> y <code>one-lease-per-client true;</code>, además del agotamiento del pool (una vez lleno, los <code>DHCPDISCOVER</code> simplemente no reciben <code>DHCPOFFER</code>). La identificación del cliente se basa en <code>chaddr</code> (o <code>client-id</code>, opción 61) — nunca en la MAC Ethernet origen del frame, por lo que el comportamiento es igual si el cliente está conectado directamente o detrás de un relay (<code>giaddr</code> solo se usa para enrutar la respuesta).
+    </td>
+  </tr>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <b>pydhcpd</b> adds a sliding-window rate limit on lease allocation, keyed by <b>client MAC (<code>chaddr</code>)</b> — the same identifier isc-dhcp-server uses. Each client MAC has its own bucket, so multiple clients behind the same relay are rate-limited independently and do not affect each other. If a single MAC exceeds the allowed number of allocations within the window, further requests are rejected with reason <code>"rate limited"</code> until the window slides forward. This is purely an internal safeguard against allocation storms; it is not configurable via <code>pydhcpd.conf</code> and has no equivalent directive in isc-dhcp-server.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <b>pydhcpd</b> agrega un límite de tasa (sliding window) sobre la asignación de leases, indexado por <b>MAC del cliente (<code>chaddr</code>)</b> — el mismo identificador que usa isc-dhcp-server. Cada MAC de cliente tiene su propio cupo, de modo que varios clientes detrás del mismo relay se limitan de forma independiente y no se afectan entre sí. Si una MAC supera el número de asignaciones permitidas dentro de la ventana, las solicitudes adicionales se rechazan con la razón <code>"rate limited"</code> hasta que la ventana avance. Esto es solo una salvaguarda interna contra ráfagas de asignación; no es configurable desde <code>pydhcpd.conf</code> y no tiene directiva equivalente en isc-dhcp-server.
+    </td>
+  </tr>
+</table>
+
 ## EOL
 
 ---

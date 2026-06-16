@@ -68,11 +68,19 @@ if [ -n "$unavailable" ]; then
     exit 1
 fi
 if [ -n "$missing" ]; then
-    echo "🔧 Releasing APT/DPKG locks..."
-    rm -f /var/lib/apt/lists/lock
-    rm -f /var/cache/apt/archives/lock
-    rm -f /var/lib/dpkg/lock
-    rm -f /var/lib/dpkg/lock-frontend
+    echo "Waiting for APT/DPKG locks to be released..."
+    APT_LOCK_TIMEOUT=120
+    APT_LOCK_ELAPSED=0
+    APT_LOCK_FILES="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
+    while lsof $APT_LOCK_FILES >/dev/null 2>&1; do
+        if [ "$APT_LOCK_ELAPSED" -ge "$APT_LOCK_TIMEOUT" ]; then
+            echo "APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
+            exit 1
+        fi
+        echo "   Locks held, waiting... (${APT_LOCK_ELAPSED}s)"
+        sleep 5
+        APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
+    done
     dpkg --configure -a
     echo "Installing: $missing"
     apt-get -qq update
@@ -83,6 +91,7 @@ if [ -n "$missing" ]; then
 else
     echo "Dependencies OK"
 fi
+
 # check ppa
 the_ppa=malcscott/ppa
 if ! grep -q "^deb .*$the_ppa" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then

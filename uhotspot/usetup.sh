@@ -25,7 +25,7 @@
 #    https://github.com/maravento/vault/tree/master/pydhcp before running this script.
 # ─────────────────────────────────────────────────────────────────────────────
 
-set -eu
+set -euo pipefail
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
 HOTSPOT_DIR="/etc/uhotspot"
@@ -35,6 +35,8 @@ LOG_FILE="/var/log/uhotspot.log"
 LOGROTATE_FILE="/etc/logrotate.d/uhotspot"
 LOGROTATE_ULEASES_FILE="/etc/logrotate.d/uleases"
 ULEASES_LOG_FILE="/var/log/uleases.log"
+LOGROTATE_UAUDIT_FILE="/etc/logrotate.d/uaudit"
+UAUDIT_LOG_FILE="/var/log/uaudit.log"
 UIPTABLES_STUB="${TOOLS_DIR}/uiptables.sh"
 
 # ─── Repo file expectations (relative to this script) ────────────────────────
@@ -162,7 +164,7 @@ ask_interface() {
             printf -v "$var" '%s' "$answer"
             break
         fi
-        err "Interface '$answer' not found. Available: $(ip -o link show | awk -F': ' '{print $2}' | grep -v lo | tr '\n' ' ')"
+        err "Interface '$answer' not found. Available: $(ip -o link show | awk -F': ' '{print $2}' | grep -v lo | tr '\n' ' ' || true)"
     done
 }
 
@@ -256,7 +258,7 @@ run_setup_wizard() {
 
     step "Network"
     local ifaces
-    ifaces=$(ip -o link show | awk -F': ' '{print $2}' | grep -v lo | tr '\n' ' ')
+    ifaces=$(ip -o link show | awk -F': ' '{print $2}' | grep -v lo | tr '\n' ' ' || true)
     echo "  Available interfaces: $ifaces"
     ask_interface "WAN interface" "eth0" CFG_WAN_IF
     ask_interface "LAN interface" "eth1" CFG_LAN_IF
@@ -419,6 +421,25 @@ EOF
         chmod 644 "$LOGROTATE_ULEASES_FILE"
         info "logrotate config installed at $LOGROTATE_ULEASES_FILE"
     fi
+
+    if [[ -f "$LOGROTATE_UAUDIT_FILE" ]]; then
+        info "logrotate config already present at $LOGROTATE_UAUDIT_FILE"
+    else
+        cat > "$LOGROTATE_UAUDIT_FILE" <<EOF
+${UAUDIT_LOG_FILE} {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF
+        chown root:root "$LOGROTATE_UAUDIT_FILE"
+        chmod 644 "$LOGROTATE_UAUDIT_FILE"
+        info "logrotate config installed at $LOGROTATE_UAUDIT_FILE"
+    fi
 }
 
 register_cron() {
@@ -533,7 +554,8 @@ do_update() {
     detect_dhcp_backend
 
     step "Backup"
-    local backup_dir="/etc/uhotspot.bak/$(date +%Y%m%d_%H%M%S)"
+    local backup_dir
+    backup_dir="/etc/uhotspot.bak/$(date +%Y%m%d_%H%M%S)"
     mkdir -p "$backup_dir"
     cp -p "${HOTSPOT_DIR}/uhotspot.sh" "$backup_dir/"
     cp -p "${TOOLS_DIR}/"*.sh "$backup_dir/" 2>/dev/null || true
@@ -586,9 +608,9 @@ do_remove() {
     step "Cron"
     local script_path="${HOTSPOT_DIR}/uhotspot.sh"
     local ureload_path="${HOTSPOT_DIR}/tools/ureload.sh"
-    if crontab -l 2>/dev/null | grep -qE "$(printf '%s|%s' "${script_path//\//\\/}" "${ureload_path//\//\\/}")"; then
+    if crontab -l 2>/dev/null | grep -qF -e "$script_path" -e "$ureload_path"; then
         if confirm "Remove cron entries for $script_path and $ureload_path?" "y"; then
-            crontab -l 2>/dev/null | grep -vF "$script_path" | grep -vF "$ureload_path" | crontab -
+            crontab -l 2>/dev/null | grep -vF "$script_path" | grep -vF "$ureload_path" | crontab - || true
             info "Cron entries removed"
         else
             warn "Cron entries preserved"

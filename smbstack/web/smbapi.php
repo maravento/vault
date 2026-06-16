@@ -27,6 +27,19 @@ if ($origin && $server_ip) {
 header('Access-Control-Allow-Methods: GET, POST');
 header('Access-Control-Allow-Headers: Content-Type');
 
+// Restrict access to requests originating from the configured server IP or localhost.
+// CORS headers alone do not protect against direct curl/wget requests.
+$allowed_ips = ['127.0.0.1', '::1'];
+if ($server_ip) {
+    $allowed_ips[] = $server_ip;
+}
+$remote_addr = $_SERVER['REMOTE_ADDR'] ?? '';
+if (!in_array($remote_addr, $allowed_ips, true)) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'Forbidden']);
+    exit;
+}
+
 // Configuration - READ MULTIPLE FILES
 define('LOG_FILES', [
     '/var/log/samba/log.audit',      // Current file

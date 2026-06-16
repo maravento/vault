@@ -35,6 +35,20 @@ echo.
 echo Stopping the print spooler service...
 net stop spooler >nul 2>&1
 
+sc query spooler | find "STOPPED" >nul 2>&1
+if errorlevel 1 (
+    echo Spooler did not stop. Retrying...
+    net stop spooler >nul 2>&1
+    timeout /t 2 >nul
+    sc query spooler | find "STOPPED" >nul 2>&1
+    if errorlevel 1 (
+        echo ERROR: Could not stop the print spooler service.
+        echo Aborting to avoid deleting files in use.
+        pause
+        exit /b 1
+    )
+)
+
 echo.
 echo Deleting print jobs...
 del /Q /F /S "%systemroot%\System32\Spool\Printers\*.*"

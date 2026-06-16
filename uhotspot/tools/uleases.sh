@@ -90,6 +90,9 @@ printf "\n"
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+set -euo pipefail
+
+
 LOG_FILE="/var/log/uleases.log"
 ulog() {
     local msg
@@ -311,7 +314,7 @@ _notify() {
 
 verify_dhcp_service() {
     if ! command -v python3 &>/dev/null; then
-        echo "ERROR: pydhcpd is not installed"
+        echo "ERROR: python3 is not installed (required by pydhcpd / uleases.sh)"
         exit 1
     fi
     if ! systemctl is-active --quiet pydhcpd; then
@@ -423,6 +426,7 @@ function guest_pending_fixed() {
 function clean_hotspot_list() {
     local removed=0 patterns
     patterns=$(mktemp)
+    TEMP_FILES_TO_CLEAN+=("${patterns}")
     awk -F';' 'NF>=2 && $2!="" {print ";"$2";"}' "$ACL_MAC_UNLIMITED" | sort -u > "$patterns"
 
     while IFS= read -r pat; do
@@ -445,7 +449,9 @@ function clean_grace_list() {
     [ ! -f "$ACL_GRACE_FILE" ] && return
     local file_temp patterns
     file_temp=$(mktemp)
+    TEMP_FILES_TO_CLEAN+=("${file_temp}")
     patterns=$(mktemp)
+    TEMP_FILES_TO_CLEAN+=("${patterns}")
 
     {
         grep -h '^a;' "$ACL_MAC_PATH"/mac-* 2>/dev/null
@@ -478,6 +484,7 @@ function expire_grace_entries() {
     [ ! -f "$ACL_GRACE_FILE" ] && return
     local file_temp now_epoch age
     file_temp=$(mktemp)
+    TEMP_FILES_TO_CLEAN+=("${file_temp}")
     now_epoch=$(date +%s)
     local grace_count
     grace_count=$(grep -c '^a;' "$ACL_GRACE_FILE" 2>/dev/null) || true
@@ -514,6 +521,8 @@ function is_pydhcp() {
         local temp_leases
         temp_leases=$(mktemp)
         TEMP_FILES_TO_CLEAN+=("$temp_leases")
+        local current_lease=""
+        local lease_content=""
 
         while IFS= read -r line; do
             if echo "$line" | grep -qE '^lease ((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?) \{$'; then
@@ -586,7 +595,14 @@ function is_pydhcp() {
         if [[ -s "$temp_leases" ]]; then
             mv -f "$temp_leases" "$dhcpd"
         else
-            echo "" > "$dhcpd"
+            local original_count
+            original_count=$(grep -c '^lease ' "$dhcpd" 2>/dev/null) || true
+            if (( ${original_count:-0} > 0 )); then
+                ulog "WARNING: read_leases: all $original_count lease(s) filtered out — preserving original $dhcpd"
+                rm -f "$temp_leases"
+            else
+                echo "" > "$dhcpd"
+            fi
         fi
         chown pydhcpd:pydhcpd "$dhcpd"
         chmod 640 "$dhcpd"
@@ -697,7 +713,9 @@ class "blockdhcp" {
     function clean_block_list {
         local removed=0 file_temp patterns
         file_temp=$(mktemp)
+        TEMP_FILES_TO_CLEAN+=("${file_temp}")
         patterns=$(mktemp)
+        TEMP_FILES_TO_CLEAN+=("${patterns}")
         grep -hE ';[0-9a-f:]+;' "$ACL_MAC_PATH"/mac-* 2>/dev/null | cut -d ";" -f2 | sort -u >"$file_temp"
 
         while read -r mac_actual; do
@@ -720,6 +738,7 @@ class "blockdhcp" {
     function clean_proxy_list {
         local removed=0 patterns
         patterns=$(mktemp)
+        TEMP_FILES_TO_CLEAN+=("${patterns}")
         awk -F';' 'NF>=2 && $2!="" {print ";"$2";"}' "$ACL_MAC_UNLIMITED" | sort -u > "$patterns"
 
         while IFS= read -r pat; do
@@ -733,6 +752,7 @@ class "blockdhcp" {
         if (( removed > 0 )); then
             local file_temp
             file_temp=$(mktemp)
+            TEMP_FILES_TO_CLEAN+=("${file_temp}")
             grep -vFf "$patterns" "$ACL_MAC_PROXY" > "$file_temp" \
                 && mv "$file_temp" "$ACL_MAC_PROXY"
             rm -f "$file_temp"
@@ -744,6 +764,7 @@ class "blockdhcp" {
     function clean_transparent_list {
         local removed=0 patterns
         patterns=$(mktemp)
+        TEMP_FILES_TO_CLEAN+=("${patterns}")
         awk -F';' 'NF>=2 && $2!="" {print ";"$2";"}' "$ACL_MAC_UNLIMITED" | sort -u > "$patterns"
 
         while IFS= read -r pat; do
@@ -757,6 +778,7 @@ class "blockdhcp" {
         if (( removed > 0 )); then
             local file_temp
             file_temp=$(mktemp)
+            TEMP_FILES_TO_CLEAN+=("${file_temp}")
             grep -vFf "$patterns" "$ACL_MAC_TRANSPARENT" > "$file_temp" \
                 && mv "$file_temp" "$ACL_MAC_TRANSPARENT"
             rm -f "$file_temp"
@@ -821,7 +843,26 @@ class "blockdhcp" {
     update_dhcp_conf
     ulog "Starting pydhcpd"
     systemctl start pydhcpd
-    trap - EXIT
+    sleep 1
+    if ! systemctl is-active --quiet pydhcpd; then
+        ulog "ERROR: pydhcpd failed to start after config rebuild — attempting backup config restore"
+        if [ -f "${dhcp_conf}.bak" ]; then
+            cp -f "${dhcp_conf}.bak" "$dhcp_conf"
+            ulog "Restored ${dhcp_conf}.bak — retrying pydhcpd start"
+            systemctl start pydhcpd
+            sleep 1
+            if ! systemctl is-active --quiet pydhcpd; then
+                ulog "ERROR: pydhcpd failed to start even with backup config — manual intervention required"
+                _notify "$local_user" "uhotspot Error" "pydhcpd failed to start (backup also failed). Check $LOG_FILE" -i error
+            else
+                ulog "pydhcpd recovered with backup config"
+            fi
+        else
+            ulog "ERROR: No backup config found — manual intervention required"
+            _notify "$local_user" "uhotspot Error" "pydhcpd failed to start. Check $LOG_FILE" -i error
+        fi
+    fi
+    trap cleanup_temp EXIT
 }
 
 drain_lease_queue() {
@@ -831,7 +872,7 @@ drain_lease_queue() {
 
     local tmp removed=0
     tmp=$(mktemp)
-    TEMP_FILES_TO_CLEAN+=("$tmp")
+    TEMP_FILES_TO_CLEAN+=("${tmp}")
     local queue_macs
     queue_macs=$(tr '[:upper:]' '[:lower:]' < "$LEASE_REMOVE_QUEUE" | sort -u)
 
@@ -862,7 +903,9 @@ drain_lease_queue() {
     mv "$tmp" "$dhcpd_leases"
     chown pydhcpd:pydhcpd "$dhcpd_leases"
     chmod 640 "$dhcpd_leases"
-    : > "$LEASE_REMOVE_QUEUE"
+    if ! : > "$LEASE_REMOVE_QUEUE" 2>/dev/null; then
+        ulog "WARNING: drain_lease_queue: cannot truncate $LEASE_REMOVE_QUEUE (permissions?) — queue will be reprocessed next run"
+    fi
 
     if (( removed > 0 )); then
         ulog "drain_lease_queue: removed $removed lease(s)"
@@ -870,29 +913,37 @@ drain_lease_queue() {
 }
 
 function duplicate() {
+    local has_error=0 sources=()
+    sources=("$ACL_MAC_PATH"/mac-*)
     if [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]]; then
-        aclall=$(for field in 2 3 4; do
-            awk -F';' '/^a;/' "$ACL_MAC_PATH"/mac-* "$ACL_MAC_HOTSPOT" 2>/dev/null \
-                | cut -d\; -f${field} | sort | uniq -d
-        done)
-    else
-        aclall=$(for field in 2 3 4; do
-            awk -F';' '/^a;/' "$ACL_MAC_PATH"/mac-* 2>/dev/null \
-                | cut -d\; -f${field} | sort | uniq -d
-        done)
+        sources+=("$ACL_MAC_HOTSPOT")
     fi
 
-    if [ "${aclall}" == "" ]; then
+    local field field_name dups dup locations
+    for field in 2 3 4; do
+        case $field in 2) field_name="MAC" ;; 3) field_name="IP" ;; 4) field_name="hostname" ;; esac
+        dups=$(awk -F';' '/^a;/' "${sources[@]}" 2>/dev/null | cut -d';' -f${field} | sort | uniq -d)
+        if [[ -n "$dups" ]]; then
+            while IFS= read -r dup; do
+                [[ -z "$dup" ]] && continue
+                locations=$(grep -lF ";${dup};" "${sources[@]}" 2>/dev/null | tr '\n' ' ')
+                ulog "ERROR: duplicate $field_name '$dup' in: $locations"
+            done <<< "$dups"
+            has_error=1
+        fi
+    done
+
+    if (( has_error == 0 )); then
         ulog "Duplicate check: OK"
         is_pydhcp
     else
-        ulog "ERROR: Duplicate data detected: $aclall"
-        echo "Duplicate Data: $(date) $aclall" | tee -a /var/log/syslog
-        _notify "$local_user" "Warning: Abort" "Duplicate: $aclall. $(date)" -i error
+        echo "Duplicate Data: $(date)" | tee -a /var/log/syslog 2>/dev/null || logger -t uleases "Duplicate Data detected — see uleases.log"
+        _notify "$local_user" "Warning: Abort" "Duplicate ACL data. Check $LOG_FILE" -i error
         exit 1
     fi
 }
 duplicate
+
 
 # Final summary
 _count() { local c; c=$(grep -c '^a;' "$1" 2>/dev/null) || true; echo "${c:-0}"; }

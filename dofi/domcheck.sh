@@ -42,14 +42,14 @@ cleanup_tmp() {
 trap cleanup_tmp EXIT
 
 echo "Starting Debugging..."
-sed '/^$/d; /#/d' "$infile" | sed 's/\r//g; s/^\.//g' >clean
+sed '/^$/d; /^[[:space:]]*$/d; /#/d' "$infile" | sed 's/\r//g; s/^\.//g' >clean
 rm -f dnslookup* step* fault.txt hit.txt >/dev/null 2>&1
 echo "Step 1..."
 if [ -s dnslookup ]; then
     awk 'FNR==NR {seen[$2]=1;next} seen[$1]!=1' dnslookup clean
 else
     cat clean
-fi | xargs -I {} -P "$PROCS" sh -c "if timeout 5 host {} >/dev/null 2>&1; then echo HIT {}; else echo FAULT {}; fi" >>dnslookup
+fi | xargs -I {} -P "$PROCS" sh -c 'd="$1"; if timeout 5 host "$d" >/dev/null 2>&1; then echo HIT "$d"; else echo FAULT "$d"; fi' _ {} >>dnslookup
 sed '/^FAULT/d' dnslookup | awk '{print $2}' | awk '{print "."$1}' | sort -u >hit.txt
 sed '/^HIT/d' dnslookup | awk '{print $2}' | awk '{print "."$1}' | sort -u >>fault.txt
 sort -o fault.txt -u fault.txt
@@ -60,7 +60,7 @@ if [ -s dnslookup2 ]; then
     awk 'FNR==NR {seen[$2]=1;next} seen[$1]!=1' dnslookup2 step2
 else
     cat step2
-fi | xargs -I {} -P "$PROCS" sh -c "if timeout 5 host {} >/dev/null 2>&1; then echo HIT {}; else echo FAULT {}; fi" >>dnslookup2
+fi | xargs -I {} -P "$PROCS" sh -c 'd="$1"; if timeout 5 host "$d" >/dev/null 2>&1; then echo HIT "$d"; else echo FAULT "$d"; fi' _ {} >>dnslookup2
 sed '/^FAULT/d' dnslookup2 | awk '{print $2}' | awk '{print "."$1}' | sort -u >>hit.txt
 sed '/^HIT/d' dnslookup2 | awk '{print $2}' | awk '{print "."$1}' | sort -u >fault.txt
 comm -23 <(sed '/^$/d; /#/d; s/\r//g; s/^\.//' "$infile" | sort -u) <(sed 's/^\.//' hit.txt | sort -u) >outdiff.txt

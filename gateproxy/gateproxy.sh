@@ -99,30 +99,34 @@ file="/etc/apt/sources.list.d/ubuntu.sources"
 required_components=("main" "restricted" "universe" "multiverse")
 changed=0
 
-while IFS= read -r line; do
-    if [[ "$line" =~ ^Components: ]]; then
-        read -ra found <<< "${line#Components: }"
+if [ -f "$file" ]; then
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^Components: ]]; then
+            read -ra found <<< "${line#Components: }"
 
-        for required in "${required_components[@]}"; do
-            if ! printf '%s\n' "${found[@]}" | grep -qx "$required"; then
-                echo "Missing '$required' in: $line"
-                sed -i "s|^$line|Components: ${required_components[*]}|" "$file"
-                changed=1
-                break
+            for required in "${required_components[@]}"; do
+                if ! printf '%s\n' "${found[@]}" | grep -qx "$required"; then
+                    echo "Missing '$required' in: $line"
+                    sed -i "s|^$line|Components: ${required_components[*]}|" "$file"
+                    changed=1
+                    break
+                fi
+            done
+
+            if [[ $changed -eq 0 ]]; then
+                echo "All components present in: $line"
             fi
-        done
-
-        if [[ $changed -eq 0 ]]; then
-            echo "All components present in: $line"
         fi
-    fi
-done < <(grep "^Components:" "$file")
+    done < <(grep "^Components:" "$file")
 
-if [[ $changed -eq 1 ]]; then
-    echo "Updating package list. Wait..."
-    apt update > /dev/null 2>&1
+    if [[ $changed -eq 1 ]]; then
+        echo "Updating package list. Wait..."
+        apt update > /dev/null 2>&1
+    else
+        echo "No changes made. No update needed."
+    fi
 else
-    echo "No changes made. No update needed."
+    echo "NOTE: $file not found, skipping component check"
 fi
 
 # DEPENDENCIES
@@ -181,7 +185,6 @@ ifconfig lo 127.0.0.1
 #systemctl disable avahi-daemon cups-browser &> /dev/null # optional
 # cron
 cp /etc/crontab{,.bak} &>/dev/null
-crontab /etc/crontab &>/dev/null
 cp /etc/apt/sources.list{,.bak} &>/dev/null
 # Disable NFS (Network File System) / NIS (Network Information Service)
 if systemctl list-unit-files | grep -q '^rpcbind'; then
@@ -234,12 +237,14 @@ function public_interface() {
 
 # local interface
 function local_interface() {
-    read -p "${lang_16[$lang]} ${lang_11[$lang]} (${lang_22[$lang]} enpXsX): " ETH1
-    if [[ "$ETH1" =~ ^[a-z][a-z0-9]*[0-9]+$ ]]; then
-        find $gp_path/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
-        export LAN_INTERFACE="$ETH1"
-    fi
-}
+     read -p "${lang_16[$lang]} ${lang_11[$lang]} (${lang_22[$lang]} enpXsX): " ETH1
+     if [[ "$ETH1" =~ ^[a-z][a-z0-9]*[0-9]+$ ]]; then
+         find $gp_path/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
+         export LAN_INTERFACE="$ETH1"
+    else
+        export LAN_INTERFACE="eth1"
+     fi
+ }
 
 function is_interfaces() {
     is_interfaces=$(ifconfig | grep eth0)
@@ -349,12 +354,17 @@ is_ask() {
 }
 
 # netmask
+MASKNEW1="255.255.255.0"
+
+# netmask
 function is_mask1() {
     read -p "${lang_16[$lang]} Netmask (${lang_22[$lang]} 255.255.255.0): " MASK1
     MASKNEW1=$(echo "$MASK1" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$MASKNEW1" ]; then
         find $gp_path/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:255.255.255.0:$MASKNEW1:g" "{}"
         echo "${lang_17[$lang]} Netmask $MASK1 :OK"
+    else
+        MASKNEW1="255.255.255.0"
     fi
 }
 
@@ -410,7 +420,7 @@ function is_broadcast() {
 # squid port
 function is_port() {
     read -p "${lang_16[$lang]} Proxy Port (${lang_22[$lang]} 3128): " PORT
-    PORTNEW=$(echo "$PORT" | grep -E '[1-9]')
+    PORTNEW=$(echo "$PORT" | grep -E '^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$')
     if [ "$PORTNEW" ]; then
         find $gp_path/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:3128:$PORTNEW:g" "{}"
         echo "${lang_17[$lang]} Proxy Port $PORT :OK"
@@ -630,7 +640,7 @@ while pgrep squid > /dev/null; do
     sleep 5
 done
 nala purge -y squid* &>/dev/null
-rm -rf /var/spool/squid* /var/log/squid* /etc/squid* /dev/shm/* &>/dev/null
+rm -rf /var/spool/squid* /var/log/squid* /etc/squid* &>/dev/null
 rm -f /run/squid.pid &>/dev/null
 #DEBIAN_FRONTEND=noninteractive nala install -y --no-install-recommends squid-openssl
 nala install -y squid-openssl squid-langpack squid-common squidclient squid-purge
@@ -888,16 +898,37 @@ echo -e "\n"
 echo "Downloading ACLs..."
 # Allow IP
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O $acl_path/acl_squid/allowip.txt
+if [ ! -s "$acl_path/acl_squid/allowip.txt" ]; then
+    echo "WARNING: allowip.txt download failed"
+fi
+
 # Block Patterns
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/squid/blockpatterns.txt -O $acl_path/acl_squid/blockpatterns.txt
+if [ ! -s "$acl_path/acl_squid/blockpatterns.txt" ]; then
+    echo "WARNING: blockpatterns.txt download failed"
+fi
+
 # Veto Files
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/smb/vetofiles.txt -O $acl_path/acl_squid/vetofiles.txt
+if [ ! -s "$acl_path/acl_squid/vetofiles.txt" ]; then
+    echo "WARNING: vetofiles.txt download failed"
+fi
+
 # Block TLDs
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O $acl_path/acl_squid/blocktlds.txt
+if [ ! -s "$acl_path/acl_squid/blocktlds.txt" ]; then
+    echo "WARNING: blocktlds.txt download failed, disabling ACL in squid.conf"
+    sed -i '/^acl blocktlds /s/^/#/; /^http_access deny workdays blocktlds/s/^/#/' "$squid_conf_path/squid.conf"
+fi
+
 # Blackweb
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/blackweb.tar.gz
-ls blackweb.tar.gz* &>/dev/null && cat blackweb.tar.gz* | tar xzf -
-cp blackweb.txt $acl_path/acl_squid/blackweb.txt
+if ls blackweb.tar.gz* &>/dev/null; then
+    cat blackweb.tar.gz* | tar xzf -
+    cp blackweb.txt $acl_path/acl_squid/blackweb.txt
+else
+    echo "WARNING: blackweb.tar.gz download failed"
+fi
 rm -f blackweb.*
 echo OK
 sleep 1

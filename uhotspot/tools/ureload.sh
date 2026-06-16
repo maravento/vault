@@ -4,6 +4,9 @@
 
 LOG_FILE="/var/log/uhotspot.log"
 TS=$(date '+%Y-%m-%d %H:%M:%S')
+
+set -uo pipefail
+
 export UHOTSPOT_RELOAD_ACTIVE=1
 
 echo "$TS INFO: ureload: running uleases.sh..." >> "$LOG_FILE"

@@ -3,6 +3,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
+// shared.php
 // smbstack - Shared Folder Browser
 // https://github.com/maravento/vault/tree/master/smbstack
 //
@@ -24,10 +25,43 @@ if (!$base_path || !is_dir($base_path)) {
 }
 
 // Audit log writer
+function get_client_ip() {
+    // Only honor client-supplied IP headers if the direct connection
+    // comes from a known/trusted source (e.g. a local Cloudflare Tunnel
+    // via cloudflared, whose requests arrive from 127.0.0.1). Configure
+    // trusted IPs in smbstack.env as TRUSTED_PROXIES="127.0.0.1,..."
+    $remote_addr = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+
+    $trusted_proxies = array();
+    $env_file = '/var/www/smbstack/smbstack.env';
+    if (file_exists($env_file)) {
+        foreach (file($env_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+            if (strpos($line, 'TRUSTED_PROXIES=') === 0) {
+                $value = str_replace(array('"', "'"), "", trim(substr($line, strlen('TRUSTED_PROXIES='))));
+                $trusted_proxies = array_filter(array_map('trim', explode(',', $value)));
+                break;
+            }
+        }
+    }
+
+    if (in_array($remote_addr, $trusted_proxies, true)) {
+        $forwarded = $_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? null;
+        if ($forwarded !== null) {
+            // X-Forwarded-For may contain a comma-separated chain; take the first entry
+            $first = trim(explode(',', $forwarded)[0]);
+            if (filter_var($first, FILTER_VALIDATE_IP)) {
+                return $first;
+            }
+        }
+    }
+
+    return $remote_addr;
+}
+
 function write_audit($action, $file_path) {
     $log_file  = '/var/log/samba/log.audit';
     $timestamp = date('Y-m-d\TH:i:s.000000P');
-    $ip        = $_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $ip        = get_client_ip();
     $user      = 'www-data';
     $share     = 'compartida';
     $env_file  = '/var/www/smbstack/smbstack.env';
@@ -44,7 +78,7 @@ function write_audit($action, $file_path) {
 }
 
 $request   = isset($_GET['path']) ? $_GET['path'] : '';
-$request   = ltrim(preg_replace('/[\x00\x08\x0B\x0C\x0E-\x1F]/', '', $request), '/');
+$request   = ltrim(preg_replace('/[\x00-\x1F]/', '', $request), '/');
 $full_path = realpath($base_path . '/' . $request);
 
 if (!$full_path || strpos($full_path, realpath($base_path)) !== 0 || !is_dir($full_path)) {
@@ -71,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['upload'])) {
         if ($error !== UPLOAD_ERR_OK) { $failed++; continue; }
         $orig_name = basename($orig_name);
         $safe_name = preg_replace('/[^a-zA-Z0-9._\- ]/', '_', $orig_name);
-        $safe_name = preg_replace('/\.php[\d]?$/i', '.txt', $safe_name);
+        $safe_name = preg_replace('/\.(php[0-9]?|phtml|pht|phar|cgi|pl|asp|aspx|jsp|sh|htaccess)$/i', '.txt', $safe_name);
         $safe_name = trim($safe_name, '. ');
         if ($safe_name === '') $safe_name = 'upload_' . time() . '_' . $i;
         $target = $full_path . '/' . $safe_name;
@@ -124,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mkdir'])) {
 
 // Recycle handler
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recycle'])) {
-    $item_rel  = ltrim(preg_replace('/[\x00\x08\x0B\x0C\x0E-\x1F]/', '', $_POST['recycle']), '/');
+    $item_rel  = ltrim(preg_replace('/[\x00-\x1F]/', '', $_POST['recycle']), '/');
     $item_full = realpath($base_path . '/' . $item_rel);
     $recycle   = $base_path . '/.recycle/www-data';
 
@@ -137,9 +171,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recycle'])) {
             if (!is_dir($recycle)) mkdir($recycle, 0775, true);
             $dest = $recycle . '/' . basename($item_full);
             if (file_exists($dest)) $dest .= '_' . time();
-            rename($item_full, $dest);
-            write_audit('unlinkat', $item_full);
-            $recycle_msg = 'recycled';
+            if (!rename($item_full, $dest)) {
+                $recycle_msg = 'error';
+            } else {
+                write_audit('unlinkat', $item_full);
+                $recycle_msg = 'recycled';
+            }
         }
     } else {
         $recycle_msg = 'error';

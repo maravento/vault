@@ -45,7 +45,7 @@ if "%var%"=="4" goto :RestoreApacheUZero
 if "%var%"=="5" goto :Permanent
 if "%var%"=="6" goto :Portable
 if "%var%"=="7" shutdown /r /t 0
-if "%var%"=="8" exit /0
+if "%var%"=="8" exit /b
 echo Invalid option. Please select a valid number from 1 to 8
 pause
 goto :Menu
@@ -113,6 +113,14 @@ exit /B 0
 :StartServices
 start /w %uzero%\UniController.exe start_both
 exit /B 0
+
+:ErrorHandler
+echo.
+echo An error occurred while running fnr.exe.
+echo Please verify that fnr.exe is installed at %winfnr%
+echo.
+pause
+goto :Menu
 
 :Port
 set /p port=Enter the new port: 

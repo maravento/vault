@@ -47,31 +47,36 @@ echo "Using local user: $local_user"
 
 # check dependencies
 pkgs='dselect dpkg rsync'
-missing=()
-for p in $pkgs; do
-    dpkg -s "$p" &>/dev/null || missing+=("$p")
+missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done | xargs)
+unavailable=""
+for p in $missing; do
+    apt-cache show "$p" &>/dev/null || unavailable+=" $p"
 done
-unavailable=()
-for p in "${missing[@]}"; do
-    apt-cache show "$p" &>/dev/null || unavailable+=("$p")
-done
-if [ ${#unavailable[@]} -gt 0 ]; then
+if [ -n "$unavailable" ]; then
     echo "Missing dependencies not found in APT:"
-    for u in "${unavailable[@]}"; do echo "   - $u"; done
+    for u in $unavailable; do echo "   - $u"; done
     echo "Please install them manually or enable the required repositories."
     exit 1
 fi
-if [ ${#missing[@]} -gt 0 ]; then
-    echo "🔧 Releasing APT/DPKG locks..."
-    rm -f /var/lib/apt/lists/lock
-    rm -f /var/cache/apt/archives/lock
-    rm -f /var/lib/dpkg/lock
-    rm -f /var/lib/dpkg/lock-frontend
+if [ -n "$missing" ]; then
+    echo "Waiting for APT/DPKG locks to be released..."
+    APT_LOCK_TIMEOUT=120
+    APT_LOCK_ELAPSED=0
+    APT_LOCK_FILES="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
+    while lsof $APT_LOCK_FILES >/dev/null 2>&1; do
+        if [ "$APT_LOCK_ELAPSED" -ge "$APT_LOCK_TIMEOUT" ]; then
+            echo "APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
+            exit 1
+        fi
+        echo "   Locks held, waiting... (${APT_LOCK_ELAPSED}s)"
+        sleep 5
+        APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
+    done
     dpkg --configure -a
-    echo "Installing: ${missing[*]}"
+    echo "Installing: $missing"
     apt-get -qq update
-    if ! apt-get -y install "${missing[@]}"; then
-        echo "Error installing: ${missing[*]}"
+    if ! apt-get -y install $missing; then
+        echo "Error installing: $missing"
         exit 1
     fi
 else

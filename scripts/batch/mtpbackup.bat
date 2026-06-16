@@ -4,6 +4,8 @@
 :: Thunderbird Email Profiles Backup
 :: for win 10/11
 
+setlocal
+
 REM Checking privileges
 net session >nul 2>&1
 if %errorlevel% neq 0 (

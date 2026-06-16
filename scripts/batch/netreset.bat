@@ -101,6 +101,7 @@ for /F "skip=3 tokens=3*" %%a in ('netsh interface show interface') do (
         echo GPU update
         gpupdate /force
         echo.
+        endlocal
     )
 )
 

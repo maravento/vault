@@ -102,8 +102,8 @@ rw 'https://raw.githubusercontent.com/giacomoarru/ransomware-extensions-2024/ref
 rw 'https://raw.githubusercontent.com/nspoab/malicious_extensions/refs/heads/main/list1' && sleep 1 || true
 
 # Normalize raw entries: keep only ASCII, trim whitespace, drop empty lines
-grep -P '^[\x00-\x7F]*$' source_lst.txt | sed -E 's/[[:space:]]+$//; s/^[[:space:]]+//' | sed '/^$/d' | sort -u > acl/normalized_lst.txt
-#rm -f source_lst.txt
+LC_ALL=C grep -v '[^[:print:][:space:]]' source_lst.txt | sed -E 's/[[:space:]]+$//; s/^[[:space:]]+//' | sed '/^$/d' | sort -u > acl/normalized_lst.txt
+rm -f source_lst.txt
 
 # Treat "ext", ".ext", "_ext", "-ext" and "*.ext" as the same idea:
 # normalize all to "*.ext"
@@ -137,7 +137,7 @@ grep -E '^\*\.[^*[:space:]]+$' acl/normalized_lst.txt | grep -E -v "${UNSAFE_RE}
 grep -E -v '^\*\.[^*[:space:]]+$' acl/normalized_lst.txt > acl/discarded_lst.txt
 grep -E '^\*\.[^*[:space:]]+$' acl/normalized_lst.txt | grep -E "${UNSAFE_RE}" >> acl/discarded_lst.txt
 sort -u -o acl/discarded_lst.txt acl/discarded_lst.txt
-#rm -f acl/normalized_lst.txt
+rm -f acl/normalized_lst.txt
 
 # Discarded lst
 if [ -s acl/discarded_lst.txt ]; then
@@ -145,7 +145,11 @@ if [ -s acl/discarded_lst.txt ]; then
 fi
 
 # Apply administrator-defined whitelist (exact match exclusions)
-grep -Fivx -f acl/rw/wl.txt acl/output_lst.txt > acl/output_lst.tmp
+if [ -s acl/rw/wl.txt ]; then
+    grep -Fivx -f acl/rw/wl.txt acl/output_lst.txt > acl/output_lst.tmp
+else
+    cp acl/output_lst.txt acl/output_lst.tmp
+fi
 mv acl/output_lst.tmp acl/output_lst.txt
 
 # Discard entries that look like ransom-note filenames rather than real
@@ -190,6 +194,6 @@ merge_veto() {
 merge_veto
 echo "Merged Samba ACL: vetofiles.txt"
 
-#rm -f acl/output_lst.txt
+rm -f acl/output_lst.txt
 
 echo "Done"

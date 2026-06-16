@@ -532,9 +532,9 @@ class LeaseManager:
 
     def allocate(self, mac, hostname, requested_ip=None, src_mac=None):
         mac = mac.lower()
-        # Use the frame's source MAC (src_mac) as the rate-limit key when
-        # available: an attacker rotating chaddr still uses the same NIC MAC.
-        rate_key = (src_mac.lower() if src_mac else mac)
+        # Rate-limit per client MAC (chaddr) so that multiple clients behind
+        # the same relay do not share a single rate-limit bucket.
+        rate_key = mac
         # Captured inside the lock, written to disk after the lock is released
         # so fsync does not block concurrent allocations.
         snapshot_to_save = None

@@ -49,8 +49,8 @@ goto reboot
 
 :reboot
 shutdown -r -f -t 4
-exit
+exit /b
 
 :exit
 echo Done
-exit
+exit /b
