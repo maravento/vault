@@ -46,14 +46,13 @@ chmod +x blackshield.sh
 
 | File | Description | Descripción |
 |------|-------------|-------------|
-| `acl/rw/rw.txt` | Administrator-defined blacklist. Entries are always included in the final ransomware extension list. | Lista negra definida por el administrador. Las entradas siempre se incluyen en la lista final de extensiones de ransomware. |
-| `acl/rw/wl.txt` | Administrator-defined whitelist. Entries override external feeds and `rw.txt`. | Lista blanca definida por el administrador. Sus entradas tienen prioridad sobre las fuentes externas y sobre `rw.txt`. |
-| `acl/squid/rwext.txt` | Generated Squid ACL for ransomware file extensions. | ACL generada para Squid con extensiones asociadas a ransomware. |
-| `acl/squid/blockua.txt` | Generated Squid ACL for malicious User-Agent strings. | ACL generada para Squid con cadenas User-Agent maliciosas o sospechosas. |
-| `acl/smb/ransom_veto.txt` | Generated Samba veto list based on ransomware extensions. | Lista veto generada para Samba basada en extensiones asociadas a ransomware. |
-| `acl/smb/common_veto.txt` | Static Samba veto list for common unwanted file types. | Lista veto estática para Samba con tipos de archivo comunes no deseados. |
-| `acl/smb/vetofiles.txt` | Generated merged Samba veto list (`ransom_veto.txt` + `common_veto.txt`). | Lista veto consolidada para Samba generada a partir de `ransom_veto.txt` y `common_veto.txt`. |
-| `acl/discarded_lst.txt` | Entries rejected during normalization and filtering for manual review. | Entradas descartadas durante la normalización y el filtrado para revisión manual. |
+| `acl/source/rw/rw.txt` | Administrator-defined blacklist. Entries are always included in the final ransomware extension list. | Lista negra definida por el administrador. Las entradas siempre se incluyen en la lista final de extensiones de ransomware. |
+| `acl/source/rw/wl.txt` | Administrator-defined whitelist. Entries override external feeds and `rw.txt`. | Lista blanca definida por el administrador. Sus entradas tienen prioridad sobre las fuentes externas y sobre `rw.txt`. |
+| `acl/output/squid/rwext.txt` | Generated Squid ACL for ransomware file extensions. | ACL generada para Squid con extensiones asociadas a ransomware. |
+| `acl/output/squid/blockua.txt` | Generated Squid ACL for malicious User-Agent strings. | ACL generada para Squid con cadenas User-Agent maliciosas o sospechosas. |
+| `acl/output/smb/smbveto.txt` | Generated Samba veto list based on ransomware extensions. | Lista veto generada para Samba basada en extensiones asociadas a ransomware. |
+| `acl/source/smb/commonveto.txt` | Static Samba veto list for common unwanted file types. | Lista veto estática para Samba con tipos de archivo comunes no deseados. |
+| `acl/tmplst/` | Temporary working directory. Created automatically when the script starts and deleted automatically, along with everything inside it, when the script finishes — whether it succeeds or fails partway through. Nothing here persists between runs. | Directorio de trabajo temporal. El script lo crea automáticamente al iniciar y lo elimina por completo, junto con todo su contenido, al finalizar — sea que termine bien o falle a mitad de camino. Nada de esto persiste entre corridas. |
 
 ## ⚠️ WARNING: BEFORE YOU CONTINUE
 
@@ -68,6 +67,29 @@ chmod +x blackshield.sh
     </td>
     <td style="width: 50%; vertical-align: top;">
      Este proyecto contiene archivos que pueden generar falsos positivos.
+    </td>
+  </tr>
+</table>
+
+## ⚠️ WARNING: LIST SIZE & PERFORMANCE
+
+---
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+     The generated lists (<code>rwext.txt</code> for Squid, <code>smbveto.txt</code> for Samba) grow every time the script runs, since they aggregate several external sources plus your own <code>rw.txt</code>. As of this writing, <code>rwext.txt</code> holds over 5,600 patterns, and <code>smbveto.txt</code> packs all of them into a single <code>veto files</code> line.
+     <br><br>
+     Neither Squid nor Samba document an official maximum size for <code>url_regex</code>/<code>urlpath_regex</code> ACLs or for the <code>veto files</code> directive — we looked and didn't find one either. What <i>is</i> documented is the matching mechanism: Squid's regex ACLs are checked sequentially against every pattern in the list on every request, and Squid's own wiki/mailing list describe this ACL type as "slow", with CPU cost growing with both list size and traffic; faster ACL types (<code>dstdomain</code>, <code>dst</code>) are recommended wherever possible. Samba's <code>veto files</code> works the same way: every pattern is checked against every file/directory entry.
+     <br><br>
+     In practice, on a busy proxy or file server this can measurably increase CPU usage and latency. Test the generated lists in your own environment before relying on them in production — watch <code>squid -k parse</code> time and CPU under peak load, and directory-listing speed on Samba shares with many files — and prune <code>rw.txt</code>/<code>wl.txt</code> if the list grows past what your hardware handles comfortably.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+     Las listas generadas (<code>rwext.txt</code> para Squid, <code>smbveto.txt</code> para Samba) crecen cada vez que corre el script, porque agregan varias fuentes externas más tu propio <code>rw.txt</code>. Al momento de escribir esto, <code>rwext.txt</code> tiene más de 5.600 patrones, y <code>smbveto.txt</code> los empaqueta todos en una sola línea <code>veto files</code>.
+     <br><br>
+     Ni Squid ni Samba documentan un tamaño máximo oficial para las ACL <code>url_regex</code>/<code>urlpath_regex</code> ni para la directiva <code>veto files</code> — lo buscamos y tampoco lo encontramos. Lo que <i>sí</i> está documentado es el mecanismo de coincidencia: las ACL regex de Squid se revisan secuencialmente contra cada patrón de la lista en cada solicitud, y la propia wiki/lista de correo de Squid describe este tipo de ACL como "lenta", con un costo de CPU que crece tanto con el tamaño de la lista como con el tráfico; se recomienda usar tipos de ACL más rápidos (<code>dstdomain</code>, <code>dst</code>) cuando sea posible. El <code>veto files</code> de Samba funciona igual: cada patrón se revisa contra cada archivo/directorio.
+     <br><br>
+     En la práctica, en un proxy o servidor de archivos con tráfico alto esto puede aumentar de forma medible el uso de CPU y la latencia. Prueba las listas generadas en tu propio entorno antes de confiar en ellas en producción — vigila el tiempo de <code>squid -k parse</code> y el uso de CPU en horas pico, y la velocidad de listado de directorios en recursos Samba con muchos archivos — y poda <code>rw.txt</code>/<code>wl.txt</code> si la lista crece más de lo que tu hardware soporta cómodamente.
     </td>
   </tr>
 </table>
@@ -164,10 +186,10 @@ http_access deny all
 </table>
 
 ```bash
-   include = /etc/acl/ransom_veto.txt
-   
-   # Optional (includes ransomware and common extensions):
-   include = /etc/acl/vetofiles.txt
+   include = /etc/acl/smbveto.txt
+   # or
+   # Optional (includes common extensions):
+   include = /etc/acl/commonveto.txt
 ```
 
 <table width="100%">
@@ -217,7 +239,7 @@ lan=enp2s1
 
 ```bash
 # Block: Hex-String
-hstring=$(curl -s https://raw.githubusercontent.com/maravento/vault/master/blackshield/acl/ipt/hexstring.txt)
+hstring=$(curl -s https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/source/ipt/hexstring.txt)
 for string in $(echo -e "$hstring" | sed -e '/^#/d' -e 's:#.*::g'); do
     iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j NFLOG --nflog-prefix 'Illegal-HexString'
     iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j DROP
@@ -237,7 +259,7 @@ Jul  8 18:42:36 user Illegal-HexString IN=enp2s1 OUT=enp2s0 MAC=94:18:82:XX:XX:X
 
 ```bash
 # Lock: BitTorrent Protocol
-bt=$(curl -s https://raw.githubusercontent.com/maravento/vault/master/blackshield/acl/ipt/torrent.txt)
+bt=$(curl -s https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/source/ipt/torrent.txt)
 for string in $(echo -e "$bt" | sed -e '/^#/d' -e 's:#.*::g'); do
     iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j NFLOG --nflog-prefix 'BitTorrent'
     iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j DROP
@@ -257,7 +279,7 @@ Jul  9 09:36:12 user BitTorrent IN=enp2s1 OUT=enp2s0 MAC=94:18:82:XX:XX:XX:08:00
 
 ```bash
 # Lock: Tor
-tor=$(curl -s https://raw.githubusercontent.com/maravento/vault/master/blackshield/acl/ipt/tor.txt)
+tor=$(curl -s https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/source/ipt/tor.txt)
 for string in `echo -e "$tor" | sed -e '/^#/d' -e 's:#.*::g'`; do
     iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j NFLOG --nflog-prefix 'Tor'
     iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo kmp -j DROP

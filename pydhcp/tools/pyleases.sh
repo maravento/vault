@@ -120,16 +120,18 @@ setup_env() {
         validate_mask "$SERV_MASK" && break || echo "Invalid netmask, try again"
     done
 
-    SERV_SUBNET=$(python3 -c "
+    SERV_SUBNET=$(SERV_DHCP="$SERV_DHCP" SERV_MASK="$SERV_MASK" python3 -c '
 import ipaddress
-net = ipaddress.IPv4Network('$SERV_DHCP/$SERV_MASK', strict=False)
+import os
+net = ipaddress.IPv4Network(os.environ["SERV_DHCP"] + "/" + os.environ["SERV_MASK"], strict=False)
 print(net.network_address)
-")
-    SERV_BROADCAST=$(python3 -c "
+')
+    SERV_BROADCAST=$(SERV_DHCP="$SERV_DHCP" SERV_MASK="$SERV_MASK" python3 -c '
 import ipaddress
-net = ipaddress.IPv4Network('$SERV_DHCP/$SERV_MASK', strict=False)
+import os
+net = ipaddress.IPv4Network(os.environ["SERV_DHCP"] + "/" + os.environ["SERV_MASK"], strict=False)
 print(net.broadcast_address)
-")
+')
     echo "Subnet: $SERV_SUBNET"
     echo "Broadcast: $SERV_BROADCAST"
 
@@ -205,7 +207,28 @@ if [ ! -f "$ENV_FILE" ]; then
     echo "Configuration file not found. Running setup..."
     setup_env "$ENV_FILE"
 fi
-source "$ENV_FILE"
+
+# Load only known KEY=VALUE pairs from ENV_FILE instead of sourcing it,
+# so a tampered or maliciously replaced env file cannot execute code.
+load_env_file() {
+    local file="$1" line key value
+    while IFS= read -r line || [ -n "$line" ]; do
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+        key="${line%%=*}"
+        value="${line#*=}"
+        case "$key" in
+            SERV_DHCP|SERV_SUBNET|SERV_BROADCAST|SERV_MASK|SERV_INI_RANGE_BLOCK|SERV_END_RANGE_BLOCK|SERV_DNS|\
+            ACL_PATH|ACL_MAC_PATH|ACL_DHCP_PATH|ACL_MAC_PROXY|ACL_MAC_TRANSPARENT|ACL_MAC_UNLIMITED|ACL_BLOCK_FILE|\
+            CLEANUP_INTERVAL|AUTHORIZED_LEASE_TIME|WPAD_ENABLED|PING_CHECK_ENABLED)
+                printf -v "$key" '%s' "$value"
+                ;;
+            *)
+                ;;
+        esac
+    done < "$file"
+}
+load_env_file "$ENV_FILE"
 
 if [[ "${WPAD_ENABLED:-false}" == "true" ]]; then
     wpad_header="option wpad code 252 = text;"
@@ -436,7 +459,7 @@ class "blockdhcp" {
         while IFS= read -r line; do
             macs=$(echo "$line" | cut -d ';' -f 2)
             if echo "$macs" | grep -qE '^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$'; then
-                echo '    subclass "blockdhcp" 1:'$macs';' >>"$dhcp_conf_temp"
+                printf '    subclass "blockdhcp" 1:%s;\n' "$macs" >>"$dhcp_conf_temp"
             fi
         done < "$ACL_BLOCK_FILE"
 
@@ -486,7 +509,9 @@ class "blockdhcp" {
                 ulog "clean_block_list: removing $mac_actual from blockdhcp (found in acl_mac)"
                 (( removed++ )) || true
             fi
-            grep -vF ";${mac_actual};" "$ACL_BLOCK_FILE" > "$ACL_BLOCK_FILE".tmp && mv "$ACL_BLOCK_FILE".tmp "$ACL_BLOCK_FILE"
+            grep -vF ";${mac_actual};" "$ACL_BLOCK_FILE" > "$ACL_BLOCK_FILE".tmp
+            chmod 600 "$ACL_BLOCK_FILE".tmp
+            mv "$ACL_BLOCK_FILE".tmp "$ACL_BLOCK_FILE"
         done <"$file_temp"
         rm -f "$file_temp"
         ulog "clean_block_list: done (removed=$removed)"

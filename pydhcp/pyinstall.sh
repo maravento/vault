@@ -207,15 +207,15 @@ info "Netmask: $NETMASK"
 
 # Calculate network values from SERVER_IP and NETMASK using python3
 SUBNET=$(python3 -c "
-import ipaddress
-net = ipaddress.IPv4Network('$SERVER_IP/$NETMASK', strict=False)
+import ipaddress, sys
+net = ipaddress.IPv4Network(f'{sys.argv[1]}/{sys.argv[2]}', strict=False)
 print(net.network_address)
-")
+" "$SERVER_IP" "$NETMASK")
 BROADCAST=$(python3 -c "
-import ipaddress
-net = ipaddress.IPv4Network('$SERVER_IP/$NETMASK', strict=False)
+import ipaddress, sys
+net = ipaddress.IPv4Network(f'{sys.argv[1]}/{sys.argv[2]}', strict=False)
 print(net.broadcast_address)
-")
+" "$SERVER_IP" "$NETMASK")
 NET_BASE=$(echo "$SUBNET" | cut -d. -f1-3)
 info "Subnet: $SUBNET"
 info "Network base: $NET_BASE"
@@ -321,14 +321,17 @@ chmod 640 "$INSTALL_DIR/default/pydhcpd"
 info "Interface set in default/pydhcpd: $IFACE"
 
 # Apply network parameters to pydhcpd.conf
-sed -i "s|^server-identifier .*|server-identifier ${SERVER_IP};|" "$INSTALL_DIR/pydhcpd.conf"
-sed -i "s|subnet [0-9.]* netmask|subnet ${SUBNET} netmask|" "$INSTALL_DIR/pydhcpd.conf"
-sed -i "s|option routers .*;|option routers ${SERVER_IP};|" "$INSTALL_DIR/pydhcpd.conf"
-sed -i "s|option subnet-mask .*;|option subnet-mask ${NETMASK};|" "$INSTALL_DIR/pydhcpd.conf"
-sed -i "s|option broadcast-address .*;|option broadcast-address ${BROADCAST};|" "$INSTALL_DIR/pydhcpd.conf"
-sed -i "s|range [0-9.]* [0-9.]*;|range ${NET_BASE}.${POOL_START} ${NET_BASE}.${POOL_END};|" "$INSTALL_DIR/pydhcpd.conf"
+CONF_TMP=$(mktemp "$INSTALL_DIR/.pydhcpd.conf.XXXXXX")
+cp -f "$INSTALL_DIR/pydhcpd.conf" "$CONF_TMP"
+sed -i "s|^server-identifier .*|server-identifier ${SERVER_IP};|" "$CONF_TMP"
+sed -i "s|subnet [0-9.]* netmask|subnet ${SUBNET} netmask|" "$CONF_TMP"
+sed -i "s|option routers .*;|option routers ${SERVER_IP};|" "$CONF_TMP"
+sed -i "s|option subnet-mask .*;|option subnet-mask ${NETMASK};|" "$CONF_TMP"
+sed -i "s|option broadcast-address .*;|option broadcast-address ${BROADCAST};|" "$CONF_TMP"
+sed -i "s|range [0-9.]* [0-9.]*;|range ${NET_BASE}.${POOL_START} ${NET_BASE}.${POOL_END};|" "$CONF_TMP"
 # Greedy sed fix: only replace SERVER_IP placeholder, not entire line
-sed -i "s|#\(.*\)SERVER_IP\(.*\)|#\1${SERVER_IP}\2|g" "$INSTALL_DIR/pydhcpd.conf"
+sed -i "s|#\(.*\)SERVER_IP\(.*\)|#\1${SERVER_IP}\2|g" "$CONF_TMP"
+mv -f "$CONF_TMP" "$INSTALL_DIR/pydhcpd.conf"
 info "Network parameters set in pydhcpd.conf"
 
 # Re-apply permissions after sed edits

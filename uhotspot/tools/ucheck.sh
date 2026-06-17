@@ -63,12 +63,13 @@ if [ -f "$ULEASES_ENV" ]; then
 fi
 BLOCKDHCP_GRACE_SECONDS=${BLOCKDHCP_GRACE_SECONDS:-86400}
 
-# Paths
-GUEST_PENDING="${ACL_GUEST_PENDING}"
-MAC_HOTSPOT="${ACL_MAC_HOTSPOT}"
-GRACE_DHCP="${ACL_GRACE_FILE}"
-BLOCK_DHCP="${ACL_BLOCK_FILE}"
-ACL_MAC_DIR="${ACL_MAC_PATH}"
+# Paths (defaults match the values written by uleases.sh's setup_env() to
+# uleases.env; used as fallback since this script does not source that file)
+GUEST_PENDING="${ACL_GUEST_PENDING:-/etc/uhotspot/guest-pending.txt}"
+MAC_HOTSPOT="${ACL_MAC_HOTSPOT:-/etc/uhotspot/mac-hotspot.txt}"
+GRACE_DHCP="${ACL_GRACE_FILE:-/etc/acl/acl_dhcp/gracedhcp.txt}"
+BLOCK_DHCP="${ACL_BLOCK_FILE:-/etc/acl/acl_dhcp/blockdhcp.txt}"
+ACL_MAC_DIR="${ACL_MAC_PATH:-/etc/acl/acl_mac}"
 LEASES_FILE="/etc/pydhcp/pydhcpd.leases"
 
 # Colors

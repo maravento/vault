@@ -544,7 +544,7 @@ dedup_mac_lists() {
             done
         } | awk -F';' '{print tolower($2)}' \
           | grep -E '^([0-9a-f]{2}:){5}[0-9a-f]{2}$' \
-          | sort -u
+          | sort -u || true
     )
 
     # all_macs: all managed MACs across all lists.
@@ -556,7 +556,7 @@ dedup_mac_lists() {
             awk -F';' '/^a;/{print tolower($2)}' "$MAC_LIST"     2>/dev/null || true
             echo "$MANAGED_MACS"
         } | grep -E '^([0-9a-f]{2}:){5}[0-9a-f]{2}$' \
-          | sort -u
+          | sort -u || true
     )
 
     local removed_block=0 sanitized_block=0
@@ -665,6 +665,12 @@ sort_acl_files() {
 
 add_mac_to_acl() {
     local mac="$1" ip="$2" hostname="$3" end_time="$4"
+
+    if [[ "$mac" == *';'* || "$ip" == *';'* || "$hostname" == *';'* || "$end_time" == *';'* ]]; then
+        log "ERROR: Refusing to add ACL entry — field contains ';' (mac=$mac ip=$ip hostname=$hostname end_time=$end_time)"
+        return 1
+    fi
+
     local new_line="a;${mac};${ip};${hostname};${end_time};"
 
     if grep -qi "^a;${mac};" "$PENDING_LIST" 2>/dev/null; then
@@ -946,7 +952,9 @@ process_sessions() {
             fi
         fi
 
-        add_mac_to_acl "$mac" "$assigned_ip" "$assigned_hostname" "$end_time"
+        if ! add_mac_to_acl "$mac" "$assigned_ip" "$assigned_hostname" "$end_time"; then
+            continue
+        fi
         (( added++ )) || true
 
     done < <(echo "$sessions_data" | jq -r '
@@ -1090,7 +1098,7 @@ check_and_reload_if_changed() {
     if [[ -n "${SERVER_RELOAD_SCRIPT:-}" && -x "$SERVER_RELOAD_SCRIPT" ]]; then
         log "INFO: ACL changed — invoking $SERVER_RELOAD_SCRIPT"
         export UHOTSPOT_RELOAD_ACTIVE=1
-        timeout 60 bash "$SERVER_RELOAD_SCRIPT" >> "$LOG_FILE" 2>&1 \
+        timeout 60 "$SERVER_RELOAD_SCRIPT" >> "$LOG_FILE" 2>&1 \
             || { rc=$?; [[ $rc -eq 124 ]] \
                 && log "WARNING: $SERVER_RELOAD_SCRIPT timed out after 60s" \
                 || log "WARNING: $SERVER_RELOAD_SCRIPT exited with error (code $rc)"; }

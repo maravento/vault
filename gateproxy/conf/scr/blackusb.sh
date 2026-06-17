@@ -82,7 +82,11 @@ trigger_cmd_remove="$PROGRAM_ABS trigger"
 ##############
 if [[ $custom_editor = 'yes' ]]; then
     [[ -n $DISPLAY ]] && INX=yes
-    [[ -n $INX ]] && export EDITOR="$editor_x" || export EDITOR="$editor_console"
+    if [[ -n $INX ]]; then
+        export EDITOR="$editor_x"
+    else
+        export EDITOR="$editor_console"
+    fi
 fi
 
 die() {
@@ -91,10 +95,6 @@ die() {
 }
 
 message() { [[ $colors = 'yes' ]] && echo -e "\033[1;37m$@\033[0m" || echo -e "$@"; }
-
-if [[ $(/usr/bin/id -u) -ne 0 ]]; then
-    die "Not running as root"
-fi
 
 if [[ ! -d $(dirname "$rule_file") ]]; then
     die "No udev rules folder found"
@@ -131,25 +131,13 @@ rule_end="SUBSYSTEM==\"usb\", ENV{ACTION}==\"add\", ENV{DEVTYPE}==\"usb_device\"
 LABEL=\"end\""
 
 read_values() {
-    if ! command -v lsusb &>/dev/null; then
-        die "lsusb not found. Install the usbutils package (e.g. apt install usbutils)"
-    fi
-    while read key value; do
-        case "$key" in
-        "idVendor")
-            vendors+=("${value:2:4}")
-            ;;
-        "idProduct")
-            products+=("${value:2:4}")
-            ;;
-        "iSerial")
-            serials+=("${value:2}")
-            ;;
-        "iProduct")
-            products_name+=("${value:2}")
-            ;;
-        esac
-    done < <(lsusb -v 2>/dev/null)
+    for devdir in /sys/bus/usb/devices/*/; do
+        [[ -f "${devdir}idVendor" ]] || continue
+        vendors+=("$(<"${devdir}idVendor")")
+        products+=("$(<"${devdir}idProduct")")
+        serials+=("$(cat "${devdir}serial" 2>/dev/null || true)")
+        products_name+=("$(cat "${devdir}product" 2>/dev/null || true)")
+    done
 }
 
 show_values() {
@@ -174,7 +162,8 @@ eject_product() {
 choose_remove() {
     message "\nChoose number to add"
     read -e number
-    [[ -z "${vendors[$number]}" || ! "$number" =~ ^[0-9]+$ ]] && die "wrong number"
+    [[ "$number" =~ ^[0-9]+$ ]] || die "wrong number"
+    [[ -z "${vendors[$number]}" ]] && die "wrong number"
 
     string_eject="SUBSYSTEM==\"usb\", ENV{ID_VENDOR_ID}==\"${vendors[$number]}\", ENV{ID_MODEL_ID}==\"${products[$number]}\""
     [[ -z ${serials[$number]} ]] || string_eject="${string_eject}, ENV{ID_SERIAL_SHORT}==\"${serials[$number]}\""
@@ -188,7 +177,7 @@ choose_remove() {
     else
         rulevar="$(<"$rule_file")"
         if [[ "$rulevar" =~ .*"$rule_end".* ]]; then
-            rulevar="${rulevar%%$rule_end}"
+            rulevar="${rulevar%%"$rule_end"}"
             rulevar="${rulevar/%$'\n'/}"
             eject_product
             rulevar+="\n$rule_end"
@@ -210,7 +199,7 @@ gen_whitelist() {
         rulevar='# blackusb rules file\n'
     else
         rulevar="$(<"$rule_file")"
-        rulevar="${rulevar%%$rule_end}"
+        rulevar="${rulevar%%"$rule_end"}"
         rulevar="${rulevar/%$'\n'/}"
     fi
 
@@ -279,6 +268,7 @@ trigger() {
     [[ ! -f "$rule_file" ]] && die "Rules file not found. Run: $(basename "$0") on"
     read_values
     rulevar="$(<"$rule_file")"
+    newdevice=""
 
     for ((i = 0; i < "${#vendors[@]}"; i++)); do
         string="SUBSYSTEM==\"usb\", ATTR{idVendor}==\"${vendors[$i]}\", ATTR{idProduct}==\"${products[$i]}\""
@@ -321,6 +311,11 @@ o | on)
     ;;
 
 t | trigger)
+    setsid "$0" trigger_async </dev/null >/dev/null 2>&1 &
+    disown
+    ;;
+
+trigger_async)
     trigger
     ;;
 

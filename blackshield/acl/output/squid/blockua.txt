@@ -593,7 +593,6 @@ TwengaBot
 Twice
 Typhoeus
 ubermetrics-technologies.com
-ultrasurf
 UnisterBot
 Upflow
 URLy Warning

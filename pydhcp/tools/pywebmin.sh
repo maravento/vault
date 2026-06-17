@@ -28,7 +28,7 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-exec 200>>"$SCRIPT_LOCK"
+exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
     exit 1
@@ -338,7 +338,11 @@ if (!-f $DAEMON_BIN) {
     exit 0;
 }
 
-my $status_raw = `systemctl is-active $SERVICE 2>/dev/null`;
+my $status_raw = '';
+if (open(my $sfh, '-|', 'systemctl', 'is-active', $SERVICE)) {
+    $status_raw = <$sfh> // '';
+    close $sfh;
+}
 chomp $status_raw;
 my ($status_label, $status_class);
 if ($status_raw eq 'active') {
@@ -548,9 +552,17 @@ if ($in{'action'} eq 'save' && defined $in{'conf_content'}) {
             if ($rc != 0) {
                 unlink($tmpfile);
                 $message = "<div style='margin:10px 0;padding:10px 14px;background:#f8d7da;color:#721c24;border-radius:4px;border:1px solid #f5c6cb;font-size:13px;'>$text{'config_syntax_error'}</div>\n";
+            } elsif (-l $CONF_FILE) {
+                unlink($tmpfile);
+                $message = "<div style='margin:10px 0;padding:10px 14px;background:#f8d7da;color:#721c24;border-radius:4px;border:1px solid #f5c6cb;font-size:13px;'>$text{'config_error'}: refusing to write through symlink</div>\n";
             } else {
                 if (-f $CONF_FILE) {
-                    copy($CONF_FILE, $BACKUP_FILE);
+                    my $ts = time();
+                    copy($CONF_FILE, "$BACKUP_FILE.$ts");
+                    my @backups = sort glob("$BACKUP_FILE.*");
+                    if (@backups > 5) {
+                        unlink(@backups[0 .. (@backups - 6)]);
+                    }
                 }
                 if (rename($tmpfile, $CONF_FILE)) {
                     $message = "<div style='margin:10px 0;padding:10px 14px;background:#d4edda;color:#155724;border-radius:4px;border:1px solid #c3e6cb;font-size:13px;'>$text{'config_saved'}</div>\n";

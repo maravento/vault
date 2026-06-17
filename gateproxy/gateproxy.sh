@@ -903,15 +903,9 @@ if [ ! -s "$acl_path/acl_squid/allowip.txt" ]; then
 fi
 
 # Block Patterns
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/squid/blockpatterns.txt -O $acl_path/acl_squid/blockpatterns.txt
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/source/squid/blockpatterns.txt -O $acl_path/acl_squid/blockpatterns.txt
 if [ ! -s "$acl_path/acl_squid/blockpatterns.txt" ]; then
     echo "WARNING: blockpatterns.txt download failed"
-fi
-
-# Veto Files
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/smb/vetofiles.txt -O $acl_path/acl_squid/vetofiles.txt
-if [ ! -s "$acl_path/acl_squid/vetofiles.txt" ]; then
-    echo "WARNING: vetofiles.txt download failed"
 fi
 
 # Block TLDs

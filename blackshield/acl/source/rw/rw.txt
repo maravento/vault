@@ -50,7 +50,6 @@
 *.Globeimposter
 *.HA3
 *.HELLO
-*.HELP
 *.JLQUF
 *.JUST
 *.KEYH0LES
@@ -113,10 +112,6 @@
 *._nemty_
 *.a19
 *.a5zfn
-*.aaa
-*.aaa 
-*.abc
-*.abc 
 *.adair
 *.adk
 *.adr
@@ -181,8 +176,6 @@
 *.clop
 *.cnc
 *.cobain
-*.code
-*.coded
 *.comrade
 *.conti
 *.coverton
@@ -245,7 +238,6 @@
 *.disappeared
 *.dispf
 *.divine
-*.dll
 *.domino
 *.doomed
 *.doubleoffset
@@ -295,7 +287,6 @@
 *.globe
 *.glutton
 *.goforhelp
-*.good
 *.grinch
 *.gryphon
 *.hakunamatata
@@ -306,7 +297,6 @@
 *.haron
 *.haters
 *.hb15
-*.help
 *.helpmeencedfiles
 *.hendrix
 *.herbst
@@ -324,7 +314,6 @@
 *.ifuckedyou
 *.iloveworld
 *.infected
-*.info
 *.install_tor
 *.invaded
 *.ipYgh
@@ -332,7 +321,6 @@
 *.itlock
 *.iwanthelpuuu
 *.jaff
-*.java
 *.jnec
 *.justbtcwillhelpyou
 *.k1ng
@@ -430,7 +418,6 @@
 *.pays
 *.paytounlock
 *.pdcr
-*.perl
 *.pethya
 *.phobos
 *.picocode
@@ -525,7 +512,6 @@
 *.wowreadfordecryp
 *.wowwhereismyfiles
 *.wuciwug
-*.www
 *.xam
 *.xcri
 *.xdata

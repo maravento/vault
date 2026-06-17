@@ -609,8 +609,8 @@ iptables -A INPUT -i $lan -p udp -m multiport --dports 2007,2008 -j DROP
 #    fi
 #    echo "$content"
 #}
-#bt=$(_fetch_hexlist "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/ipt/torrent.txt" "torrent")
-#tor=$(_fetch_hexlist "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/ipt/tor.txt" "tor")
+#bt=$(_fetch_hexlist "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/source/ipt/torrent.txt" "torrent")
+#tor=$(_fetch_hexlist "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/source/ipt/tor.txt" "tor")
 #for string in $(echo -e "$bt\n$tor" | sed '/^#/d'); do
 #    iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo bm -j NFLOG --nflog-prefix "BLOCK STRINGS: "
 #    iptables -A FORWARD -i $lan -m string --hex-string "|$string|" --algo bm -j DROP

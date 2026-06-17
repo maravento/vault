@@ -597,7 +597,7 @@ class LeaseManager:
             return None
         sorted_free = sorted(free, key=self._ip_key)
         idx = self._alloc_counter % len(sorted_free)
-        self._alloc_counter = (idx + 1) % (2**16)
+        self._alloc_counter = (self._alloc_counter + 1) % (2**16)
         return sorted_free[idx]
 
     def _create_lease_locked(self, ip, mac, hostname, duration):
