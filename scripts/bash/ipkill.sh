@@ -49,11 +49,15 @@ fi
 read -r -p "Enter IP to close: " target_ip
 
 target_ip_validated=$(echo "$target_ip" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
-
 if [ -z "$target_ip_validated" ]; then
     echo "❌ Invalid IP address: '$target_ip'"
     exit 1
 fi
+case "$target_ip_validated" in
+    0.0.0.0|255.255.255.255|127.*|224.*|225.*|226.*|227.*|228.*|229.*|230.*|231.*|232.*|233.*|234.*|235.*|236.*|237.*|238.*|239.*)
+        echo "⚠️  Warning: '$target_ip_validated' is a special/reserved address. Continuing anyway."
+        ;;
+esac
 
 tcpkill -i "$eth" host "$target_ip_validated" &
 tcpkill_pid=$!

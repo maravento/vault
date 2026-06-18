@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# index.cgi
+# squidmon.cgi
 use strict;
 use warnings;
 use Time::HiRes qw(gettimeofday);
@@ -16,6 +16,23 @@ sub h {
     return $str;
 }
 our ($module_name, %text, %config, %in);
+
+# Match $text against a user-supplied regex pattern with a hard time limit,
+# so a catastrophic-backtracking ACL pattern (e.g. "(a+)+$") cannot hang
+# this CGI process indefinitely.
+sub safe_regex_match {
+    my ($text, $pattern) = @_;
+    my $matched = 0;
+    local $@;
+    local $SIG{ALRM} = sub { die "regex_timeout\n" };
+    eval {
+        alarm(2);
+        $matched = ($text =~ /$pattern/i) ? 1 : 0;
+    };
+    alarm(0);
+    return 0 if $@;  # timeout or invalid pattern — treat as no match
+    return $matched;
+}
 
 do '/var/www/proxymon/squidmon/squidmon-standalone.pl';
 &init_config();
@@ -37,6 +54,7 @@ my $acl_list = $config{'acl_list'} || '';
 my $auto_refresh = $config{'auto_refresh'} || '0';
 my $refresh_interval = $config{'refresh_interval'} || '60';
 my $time_range = $config{'time_range'} || '24';
+$time_range = int($time_range) || 24;
 
 # Validate refresh interval
 $refresh_interval = 60 if $refresh_interval !~ /^\d+$/ || $refresh_interval < 30;
@@ -379,7 +397,7 @@ if ($action_code =~ /^TCP_DENIED/) {
 
     # Check regex ACLs
     foreach my $acl (@regex_acls) {
-        if ($url =~ /$acl->{value}/i) {
+        if (safe_regex_match($url, $acl->{value})) {
             push @matched_acls, $acl->{label};
         }
     }
@@ -592,7 +610,7 @@ if (scalar(keys %blocked_domains) > 0) {
     foreach my $domain (sort { ($blocked_domains{$b} || 0) <=> ($blocked_domains{$a} || 0) } keys %blocked_domains) {
         last if ++$count > 10;
         print "<tr>";
-        print "<td>$domain</td>";
+        print "<td>" . h($domain) . "</td>";
         print "<td><span class='badge badge-blocked'>" . format_number($blocked_domains{$domain}) . "</span></td>";
         print "</tr>";
     }
@@ -629,7 +647,7 @@ if (scalar(keys %clients_data) > 0) {
         my $percent = $total > 0 ? sprintf("%.1f", ($blocked / $total) * 100) : 0;
         
         print "<tr>";
-        print "<td style='text-align: left;'><strong>$client</strong></td>";
+        print "<td style='text-align: left;'><strong>" . h($client) . "</strong></td>";
         print "<td style='text-align: center;'><span class='badge badge-blocked'>" . format_number($blocked) . "</span></td>";
         print "<td style='text-align: center;'>$percent%</td>";
         print "<td style='text-align: center;'>" . format_number($total) . "</td>";
@@ -662,7 +680,7 @@ print "<option value='24'>Last 24 Hours</option>";
 print "<option value='168'>Last 7 Days</option>";
 print "<option value='720'>Last 30 Days</option>";
 print "</select>";
-print "<input type='hidden' name='max_lines' value='$max_lines'>";
+print "<input type='hidden' name='max_lines' value='" . int($max_lines) . "'>";
 print "<input type='submit' value='📄 Generate PDF Report' style='background-color: #1f2937; color: #ffffff !important; border: 1px solid #ffffff !important; padding: 8px 15px; white-space: nowrap; cursor: pointer;'>";
 
 print "</div>";
@@ -706,8 +724,8 @@ print "</div>";
 print "<div>";
 print "<input type='submit' name='filter_blocked' value='Show Blocked Only' style='background-color: #1f2937; color: #ffffff !important; border: 1px solid #ffffff !important; padding: 5px 10px; margin-right: 10px;'>";
 print "<input type='submit' name='filter_allowed' value='Show Allowed Only' style='background-color: #1f2937; color: #ffffff !important; border: 1px solid #ffffff !important; padding: 5px 10px; margin-right: 10px;'>";
-my $script_url = $ENV{SCRIPT_NAME} || 'index.cgi';
-print "<a href='$script_url' style='color: #ffffff !important; text-decoration: underline; padding: 5px 10px; display: inline-block;'>Clear Filters</a>";
+my $script_url = $ENV{SCRIPT_NAME} || 'squidmon.cgi';
+print "<a href='" . h($script_url) . "' style='color: #ffffff !important; text-decoration: underline; padding: 5px 10px; display: inline-block;'>Clear Filters</a>";
 print "</div>";
 print "</form>";
 
@@ -775,7 +793,7 @@ foreach my $line (@log_lines) {
         # 3. Search in ACLs regex if not found in files
         if (!$found_acl) {
             foreach my $acl (@regex_acls) {
-                if ($url =~ /$acl->{value}/i) {
+                if (safe_regex_match($url, $acl->{value})) {
                     $found_acl = $acl->{label};
                     #$debug_info{regex_matches}++;
                     last;
@@ -784,7 +802,6 @@ foreach my $line (@log_lines) {
         }
         
         $matched_acl = $found_acl || 'Unknown ACL';
-        $acl_hits{$matched_acl}++;
         
     } else {
         # For allowed requests - DO NOT count as an ACL hit
@@ -955,15 +972,15 @@ foreach my $client (sort @clients_to_show) {
 
     print "<details style='margin-bottom: 15px; border: 1px solid #ddd; border-radius: 5px;'>";
     print "<summary style='padding: 10px; background: #f8f9fa; cursor: pointer; color: #212529 !important;'>";
-    print "<strong>$client</strong> — Total: <strong>$total_requests</strong> | ";
+    print "<strong>" . h($client) . "</strong> — Total: <strong>$total_requests</strong> | ";
     print "Blocked: <span style='color: #dc3545 !important;'><strong>$total_blocked</strong></span> | ";
     print "Allowed: <span style='color: #28a745 !important;'><strong>$total_allowed</strong></span>";
     
     # PDF Button by IP
     print "<form method='post' action='pdf_report.cgi' target='_blank' style='display: inline; float: right;'>";
-    print "<input type='hidden' name='client_ip' value='$client'>";
+    print "<input type='hidden' name='client_ip' value='" . h($client) . "'>";
     print "<input type='hidden' name='time_range' value='$time_range'>";
-    print "<input type='hidden' name='max_lines' value='$max_lines'>";
+    print "<input type='hidden' name='max_lines' value='" . int($max_lines) . "'>";
     print "<input type='submit' value='📄 PDF Report' style='background: #dc2626; color: #000000 !important; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-weight: bold; font-family: Arial, sans-serif !important; font-size: 12px !important; margin-left: 10px;'>";
     print "</form>";
     
@@ -1002,7 +1019,7 @@ foreach my $client (sort @clients_to_show) {
         $has_visible_rows = 1;
 
         print "<tr>";
-        print "<td style='padding: 8px;'><strong>$acl</strong></td>";
+        print "<td style='padding: 8px;'><strong>" . h($acl) . "</strong></td>";
         print "<td style='padding: 8px; text-align: center; color: #dc3545;'><strong>$b</strong></td>";
         print "<td style='padding: 8px; text-align: center; color: #28a745;'><strong>$a</strong></td>";
         print "<td style='padding: 8px; text-align: center;'><strong>$t</strong></td>";
@@ -1027,7 +1044,7 @@ foreach my $client (sort @clients_to_show) {
                     $url_count{$url}++;
                 }
                 foreach my $url (sort { ($url_count{$b} || 0) <=> ($url_count{$a} || 0) } keys %url_count) {
-                    print "• $url (" . $url_count{$url} . "x)<br>";
+                    print "• " . h($url) . " (" . $url_count{$url} . "x)<br>";
                 }
                 print "</td>";
                 print "</tr>";
@@ -1053,7 +1070,7 @@ foreach my $client (sort @clients_to_show) {
                     $url_count{$url}++;
                 }
                 foreach my $url (sort { ($url_count{$b} || 0) <=> ($url_count{$a} || 0) } keys %url_count) {
-                    print "• $url (" . $url_count{$url} . "x)<br>";
+                    print "• " . h($url) . " (" . $url_count{$url} . "x)<br>";
                 }
                 print "</td>";
                 print "</tr>";

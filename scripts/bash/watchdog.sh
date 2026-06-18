@@ -83,13 +83,15 @@ start() {
         while true; do
             timestamp=$(date '+%F %T')
             result=$(ping -c 3 -W 2 "$TARGET")
+            ping_status=$?
 
-            if echo "$result" | grep -q "0 received"; then
+            if echo "$result" | grep -q "0 received" || [ "$ping_status" -ge 2 ]; then
                 echo "[$timestamp] Internet DOWN" >> "$LOGFILE"
                 _notify -i network-error -u critical "Watchdog" "Internet DOWN"
             else
                 loss=$(echo "$result" | grep -oP '\d+(?=% packet loss)')
-                latency=$(echo "$result" | grep "rtt" | awk -F '/' '{print $5}')
+                latency=$(echo "$result" | grep -E "rtt|round-trip" | sed 's/.*=\s*//' | awk -F '/' '{print $2}')
+                latency="${latency:-N/A}"
                 echo "[$timestamp] Internet OK | Loss: ${loss}% | Avg latency: ${latency} ms" >> "$LOGFILE"
             fi
 
@@ -98,7 +100,13 @@ start() {
     ) > /dev/null 2>&1 &
 
     echo $! > "$PIDFILE"
-    echo "[✓] Watchdog started (PID $!)"
+    sleep 0.2
+    if ! kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "[!] Watchdog failed to start"
+        rm -f "$PIDFILE"
+        exit 1
+    fi
+    echo "[✓] Watchdog started (PID $(cat "$PIDFILE"))"
 }
 
 stop() {

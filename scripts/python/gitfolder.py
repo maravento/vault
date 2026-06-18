@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # maravento.com
 """
 gitfolder.py
@@ -16,12 +16,25 @@ import sys
 
 GITHUB_TOKEN = ""
 REQUEST_TIMEOUT = 15
-
 HEADERS = {
     "User-Agent": "gitfolder/1.0",
 }
 if GITHUB_TOKEN:
     HEADERS["Authorization"] = f"token {GITHUB_TOKEN}"
+
+
+def sanitize_path_component(name):
+    """Sanitize a path component to prevent path traversal attacks."""
+    name = os.path.normpath(name).lstrip(os.sep)
+    if name.startswith(".."):
+        return ""
+    return name
+
+
+def sanitize_output_dir(path):
+    """Sanitize an output directory path to prevent path traversal attacks."""
+    parts = [sanitize_path_component(p) for p in path.split("/") if p and p != ".."]
+    return os.path.join(*parts) if parts else "."
 
 
 def download_folder_from_github(repo_owner, repo_name, folder_path, output_dir, branch=""):
@@ -42,8 +55,12 @@ def download_folder_from_github(repo_owner, repo_name, folder_path, output_dir, 
             if item["type"] == "file":
                 download_item(item, output_dir)
             elif item["type"] == "dir":
+                safe_name = sanitize_path_component(item["name"])
+                if not safe_name:
+                    print(f"Skipped unsafe directory name: {item['name']!r}")
+                    continue
                 subfolder_path = folder_path + '/' + item["name"]
-                subfolder_output_dir = os.path.join(output_dir, item["name"])
+                subfolder_output_dir = os.path.join(output_dir, safe_name)
                 download_folder_from_github(repo_owner, repo_name, subfolder_path, subfolder_output_dir, branch)
     else:
         print(f"Failed to retrieve folder contents [{response.status_code}]: {url}")
@@ -54,8 +71,12 @@ def download_item(item, output_dir):
     if not file_url:
         print(f"Skipped (no download_url): {item.get('name', '?')}")
         return
+    safe_name = sanitize_path_component(item["name"])
+    if not safe_name:
+        print(f"Skipped unsafe filename: {item.get('name', '?')!r}")
+        return
     os.makedirs(output_dir, exist_ok=True)
-    file_path = os.path.join(output_dir, item["name"])
+    file_path = os.path.join(output_dir, safe_name)
     try:
         response = requests.get(file_url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
     except requests.exceptions.RequestException as e:
@@ -73,18 +94,14 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python gitfolder.py <github_url>")
         sys.exit(1)
-
     url = sys.argv[1]
     parsed_url = urlparse(url)
     path_parts = parsed_url.path.strip("/").split("/")
-
     if len(path_parts) < 2:
         print("Error: URL must include at least owner and repository name.")
         sys.exit(1)
-
     repo_owner = path_parts[0]
     repo_name = path_parts[1]
-
     branch = ""
     if len(path_parts) < 3:
         folder_path = ""
@@ -100,11 +117,10 @@ if __name__ == "__main__":
         else:
             branch = path_parts[3]
             folder_path = "/".join(path_parts[4:])
-            output_dir = folder_path
+            output_dir = sanitize_output_dir(folder_path)
     else:
         folder_path = "/".join(path_parts[2:])
-        output_dir = folder_path
-
+        output_dir = sanitize_output_dir(folder_path)
     print(f"""
           Owner: {repo_owner}
           Repository: {repo_name}

@@ -353,7 +353,19 @@ install_proxymon() {
 
     echo -e "${YELLOW}Configuring ACL directories and files...${NC}"
     # Load env to get ACL paths defined by create_proxymon_env()
-    source /etc/proxymon/proxymon.env
+    # Verify ownership/permissions before sourcing — this file is executed
+    # as root, so it must not be writable by anyone other than root.
+    _env_file="/etc/proxymon/proxymon.env"
+    _env_owner=$(stat -c '%U' "$_env_file" 2>/dev/null)
+    _env_perms=$(stat -c '%a' "$_env_file" 2>/dev/null)
+    _env_group_digit="${_env_perms: -2:1}"
+    _env_other_digit="${_env_perms: -1}"
+    if [ "$_env_owner" != "root" ] || [[ "$_env_group_digit" =~ [2367] ]] || [[ "$_env_other_digit" =~ [2367] ]]; then
+        echo -e "${RED}ERROR: $_env_file has unsafe owner/permissions (owner=$_env_owner perms=$_env_perms).${NC}"
+        echo -e "${RED}Expected owner root with no group/other write access. Refusing to source it.${NC}"
+        exit 1
+    fi
+    source "$_env_file"
 
     # Create ACL directories
     mkdir -p "$ACL_PATH" "$ACL_MAC_PATH" "$ACL_SQUID_PATH" "$ACL_BANDATA_PATH"
@@ -585,6 +597,7 @@ EOF
     echo -e "${YELLOW} Setting Permissions...${NC}"
     find /var/www/proxymon -type d -exec chmod 755 {} +
     find /var/www/proxymon -type f -exec chmod 644 {} +
+    find /var/www/proxymon -type f -name "*.cgi" -exec chmod +x {} +
     chmod +x /var/www/proxymon/tools/bandata.sh
     chmod +x /var/www/proxymon/lightsquid/lightparser.pl
     chown -R www-data:www-data /var/www/proxymon

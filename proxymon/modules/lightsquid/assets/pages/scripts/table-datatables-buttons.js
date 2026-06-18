@@ -2,6 +2,7 @@ var TableDatatablesButtons = function () {
 
     var initTable1 = function () {
         var table = $('#sample_1');
+        if (!table.length) return;
 
         var oTable = table.dataTable({
 
@@ -67,6 +68,7 @@ var TableDatatablesButtons = function () {
 
     var initTable2 = function () {
         var table = $('#sample_2');
+        if (!table.length) return;
 
         var oTable = table.dataTable({
 
@@ -118,7 +120,7 @@ var TableDatatablesButtons = function () {
                     text: 'Reload',
                     className: 'btn default',
                     action: function ( e, dt, node, config ) {
-                        alert('Custom Button');
+                        oTable.DataTable().draw(false);
                     }
                 }
             ],
@@ -149,7 +151,7 @@ var TableDatatablesButtons = function () {
                 "emptyTable": "No data available in table",
                 "info": "Showing _START_ to _END_ of _TOTAL_ entries",
                 "infoEmpty": "No entries found",
-                "infoFiltered": "(filtered1 from _MAX_ total entries)",
+                "infoFiltered": "(filtered from _MAX_ total entries)",
                 "lengthMenu": "_MENU_ entries",
                 "search": "Search:",
                 "zeroRecords": "No matching records found"
@@ -218,7 +220,7 @@ var TableDatatablesButtons = function () {
                 "emptyTable": "No data available in table",
                 "info": "Showing _START_ to _END_ of _TOTAL_ entries",
                 "infoEmpty": "No entries found",
-                "infoFiltered": "(filtered1 from _MAX_ total entries)",
+                "infoFiltered": "(filtered from _MAX_ total entries)",
                 "lengthMenu": "_MENU_ entries",
                 "search": "Search:",
                 "zeroRecords": "No matching records found"
@@ -287,7 +289,7 @@ var TableDatatablesButtons = function () {
                 "emptyTable": "No data available in table",
                 "info": "Showing _START_ to _END_ of _TOTAL_ entries",
                 "infoEmpty": "No entries found",
-                "infoFiltered": "(filtered1 from _MAX_ total entries)",
+                "infoFiltered": "(filtered from _MAX_ total entries)",
                 "lengthMenu": "_MENU_ entries",
                 "search": "Search:",
                 "zeroRecords": "No matching records found"
@@ -339,6 +341,7 @@ var TableDatatablesButtons = function () {
     }
 
     var initAjaxDatatables = function () {
+        if (!$('#datatable_ajax').length) return;
 
         $('.date-picker').datepicker({
             rtl: App.isRTL(),
@@ -407,7 +410,6 @@ var TableDatatablesButtons = function () {
                         className: 'btn default',
                         action: function ( e, dt, node, config ) {
                             dt.ajax.reload();
-                            alert('Datatable reloaded!');
                         }
                     }
                 ],

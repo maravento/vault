@@ -36,7 +36,7 @@ if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
 fi
 echo "Using local user: $local_user"
 
-USER_LANG=$(locale | grep LANG= | cut -d= -f2 | cut -d_ -f1)
+USER_LANG=$(locale | grep LANG= | cut -d= -f2 | cut -d_ -f1) || true
 
 export LANG=${LANG:-C.UTF-8}
 export LC_ALL=${LC_ALL:-C.UTF-8}
@@ -54,21 +54,24 @@ check_dependencies() {
     fi
 
     pkgs='libclang-dev ninja-build libayatana-appindicator3-1 libgstreamer1.0-dev libayatana-appindicator3-dev'
-    missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
-    unavailable=""
-    for p in $missing; do
-        apt-cache show "$p" &>/dev/null || unavailable+=" $p"
+    missing=()
+    for p in $pkgs; do
+        dpkg -s "$p" &>/dev/null || missing+=("$p")
+    done
+    unavailable=()
+    for p in "${missing[@]}"; do
+        apt-cache show "$p" &>/dev/null || unavailable+=("$p")
     done
 
-    if [ -n "$unavailable" ]; then
+    if [ ${#unavailable[@]} -gt 0 ]; then
         echo "❌ Missing dependencies not found in APT:"
-        for u in $unavailable; do echo "   - $u"; done
+        for u in "${unavailable[@]}"; do echo "   - $u"; done
         echo "💡 Please install them manually or enable the required repositories."
         exit 1
     fi
 
-    if [ -n "$missing" ]; then
-        echo "🔧 Installing missing dependencies: $missing"
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo "🔧 Installing missing dependencies: ${missing[*]}"
         APT_LOCK_TIMEOUT=120
         APT_LOCK_ELAPSED=0
         APT_LOCK_FILES="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
@@ -85,7 +88,7 @@ check_dependencies() {
             echo "❌ Failed to update package lists"
             exit 1
         fi
-        if ! apt-get install -y $missing; then
+        if ! apt-get install -y "${missing[@]}"; then
             echo "❌ Failed to install dependencies"
             exit 1
         fi
@@ -98,12 +101,13 @@ setup_keyboard() {
         return
     fi
 
-    user_home=$(eval echo ~$local_user)
+    user_home=$(getent passwd "$local_user" | cut -d: -f6)
     XPROFILE="$user_home/.xprofile"
+    local_group=$(id -gn "$local_user")
 
     if [ ! -f "$XPROFILE" ]; then
         touch "$XPROFILE"
-        chown $local_user:$local_user "$XPROFILE" 2>/dev/null || true
+        chown "$local_user:$local_group" "$XPROFILE" 2>/dev/null || true
     fi
 
     case "$USER_LANG" in
@@ -137,7 +141,7 @@ setup_keyboard() {
 
     if ! grep -q "setxkbmap $KB_LAYOUT" "$XPROFILE"; then
         echo "setxkbmap $KB_LAYOUT" >> "$XPROFILE"
-        chown $local_user:$local_user "$XPROFILE" 2>/dev/null || true
+        chown "$local_user:$local_group" "$XPROFILE" 2>/dev/null || true
     fi
 }
 
@@ -234,7 +238,7 @@ show_menu() {
 }
 
 show_menu
-read option
+read -r option
 
 case $option in
     1)

@@ -56,7 +56,7 @@ echo "Using local user: $local_user"
 
 # check dependencies
 pkgs='inxi smartmontools'
-missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done | xargs)
+missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
 unavailable=""
 for p in $missing; do
     apt-cache show "$p" &>/dev/null || unavailable+=" $p"
@@ -95,9 +95,14 @@ fi
 # check ppa
 the_ppa=malcscott/ppa
 if ! grep -q "^deb .*$the_ppa" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
-    add-apt-repository -y ppa:$the_ppa >/dev/null 2>&1
-    apt-get update -qq
-    apt-get install -y hddtemp >/dev/null 2>&1
+    if ! add-apt-repository -y ppa:$the_ppa >/dev/null 2>&1; then
+        echo "WARNING: Failed to add PPA $the_ppa. hddtemp may not be available."
+    else
+        apt-get update -qq
+        if ! apt-get install -y hddtemp >/dev/null 2>&1; then
+            echo "WARNING: Failed to install hddtemp from PPA $the_ppa."
+        fi
+    fi
 fi
 
 # ---------------------------------------------------------------------

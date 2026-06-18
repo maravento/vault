@@ -69,7 +69,13 @@ start_limit() {
     ps -eo pid,comm --no-headers | grep -v kworker | sort -k2 | awk '{printf "  PID: %-8s %s\n", $1, $2}'
     echo ""
     # program name:
-    read -p "Enter the program name: " program_name
+    read -r -p "Enter the program name: " program_name
+
+    # Sanitize program name to prevent regex abuse
+    if [[ "$program_name" =~ [^a-zA-Z0-9_\-\.] ]]; then
+        echo "❌ Invalid program name: only alphanumeric characters, hyphens, underscores and dots are allowed."
+        exit 1
+    fi
 
     # Verify process exists
     if ! pgrep -f "$program_name" &>/dev/null; then
@@ -81,7 +87,7 @@ start_limit() {
     echo "✅ Found $pid_count process(es) matching '$program_name'."
 
     # CPU %
-    read -p "Enter the CPU % number for '$program_name' (0-100): " cpu_limit
+    read -r -p "Enter the CPU % number for '$program_name' (0-100): " cpu_limit
 
     # Check CPU %
     if ! [[ "$cpu_limit" =~ ^[0-9]+$ ]] || [ "$cpu_limit" -lt 0 ] || [ "$cpu_limit" -gt 100 ]; then
@@ -117,10 +123,11 @@ status_limit() {
 
 stop_limit() {
     if [ -f /var/run/cpulimit_managed.pid ]; then
-        saved_pid=$(cat /var/run/cpulimit_managed.pid)
-        if kill -0 "$saved_pid" 2>/dev/null; then
-            kill "$saved_pid"
-        fi
+        while IFS= read -r saved_pid; do
+            if kill -0 "$saved_pid" 2>/dev/null; then
+                kill "$saved_pid"
+            fi
+        done < /var/run/cpulimit_managed.pid
         rm -f /var/run/cpulimit_managed.pid
     else
         pkill -x "cpulimit" 2>/dev/null || true

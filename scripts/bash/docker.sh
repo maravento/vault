@@ -48,8 +48,19 @@ install_docker() {
     # GPG
     rm -f /etc/apt/keyrings/docker.gpg > /dev/null
     mkdir -p /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-        gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+    # Download the key to a temp file and verify its fingerprint before trusting it
+    DOCKER_GPG_EXPECTED_FPR="9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
+    DOCKER_GPG_TMP=$(mktemp)
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$DOCKER_GPG_TMP"
+    DOCKER_GPG_ACTUAL_FPR=$(gpg --with-colons --import-options show-only --import --fingerprint "$DOCKER_GPG_TMP" 2>/dev/null | awk -F: '/^fpr:/{print $10; exit}')
+    if [ "$DOCKER_GPG_ACTUAL_FPR" != "$DOCKER_GPG_EXPECTED_FPR" ]; then
+        echo "ERROR: Docker GPG key fingerprint mismatch (got: ${DOCKER_GPG_ACTUAL_FPR:-none}, expected: $DOCKER_GPG_EXPECTED_FPR)"
+        rm -f "$DOCKER_GPG_TMP"
+        exit 1
+    fi
+    gpg --dearmor -o /etc/apt/keyrings/docker.gpg "$DOCKER_GPG_TMP"
+    rm -f "$DOCKER_GPG_TMP"
 
     # Add Repo
     echo \
@@ -108,7 +119,7 @@ uninstall_docker() {
     NETWORKS=$(docker network ls -q)
     PREDEFINED_NETWORKS="bridge host none"
     for NETWORK in $NETWORKS; do
-      NETWORK_NAME=$(docker network inspect --format '{{.Name}}' $NETWORK)
+      NETWORK_NAME=$(docker network inspect --format '{{.Name}}' "$NETWORK")
       if ! echo "$PREDEFINED_NETWORKS" | grep -wq "$NETWORK_NAME"; then
         docker network rm $NETWORK
       fi
@@ -152,7 +163,7 @@ if [ $# -eq 0 ]; then
     echo "1) Install Docker + Portainer"
     echo "2) Uninstall Docker"
     echo "3) Exit"
-    read -p "Select an option (1, 2 or 3): " option
+    read -rp "Select an option (1, 2 or 3): " option
 
     case $option in
       1)

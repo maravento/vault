@@ -14,7 +14,7 @@ SLEEP_TIME=5
 if pgrep -x smbd > /dev/null; then
     echo "smbd: ONLINE"
 else
-    pkill -x smbd &>/dev/null; sleep $SLEEP_TIME
+    systemctl stop smbd.service &>/dev/null
     if systemctl start smbd.service; then
         echo "smbd start: $(date)" | tee -a /var/log/syslog
     else
@@ -26,7 +26,7 @@ fi
 if pgrep -x winbindd > /dev/null; then
     echo "winbind: ONLINE"
 else
-    pkill -x winbindd &>/dev/null; sleep $SLEEP_TIME
+    systemctl stop winbind.service &>/dev/null
     if systemctl start winbind.service; then
         echo "winbind start: $(date)" | tee -a /var/log/syslog
     else

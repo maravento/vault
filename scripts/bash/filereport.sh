@@ -45,7 +45,6 @@ if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
     echo "ERROR: Cannot determine a valid local user"
     exit 1
 fi
-echo "Using local user: $local_user"
 
 ### VARIABLES
 # replace "myfolder" and "filereport.log" with yours
@@ -58,7 +57,7 @@ logreport=/var/log/filereport.log
 
 ### REPORT
 # Add file extensions you want to find
-find "$targetfolder" -type f | grep -E "\.webm$|\.flv$|\.vob$|\.ogg$|\.ogv$|\.drc$|\.gifv$|\.mng$|\.avi$|\.mov$|\.qt$|\.wmv$|\.yuv$|\.rm$|\.rmvb$|\.asf$|\.amv$|\.mp4$|\.m4v$|\.mp[34]$|\.svi$|\.3gp$|\.f4v$|\.iso$|\.exe$" >"$logreport"
+find "$targetfolder" -type f | grep -E "\.webm$|\.flv$|\.vob$|\.ogg$|\.ogv$|\.drc$|\.gifv$|\.mng$|\.avi$|\.mov$|\.qt$|\.wmv$|\.yuv$|\.rm$|\.rmvb$|\.asf$|\.amv$|\.m4v$|\.mp[34]$|\.svi$|\.3gp$|\.f4v$|\.iso$|\.exe$" >"$logreport"
 # alternate command (slow) (for media files)
 #find $pathfind -type f -exec file -N -i -- {} + | sed -n 's!: video/[^:]*$!!p' > $logreport
 echo "Done"

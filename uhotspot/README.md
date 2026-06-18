@@ -454,8 +454,9 @@ wan_ip=192.168.1.200
 hotspot_path="/etc/uhotspot"
 
 unifi_tcp="8080,6789"
-unifi_udp="53,3478,123,10001"
+unifi_udp="3478,123,10001"
 portal_tcp="8880,8881,8882,8843"
+dns="8.8.8.8 8.8.4.4 1.1.1.1 1.0.0.1"
 
 # --- ipsets (idempotent create + flush) ---
 for set in macpending machotspot; do
@@ -481,6 +482,10 @@ iptables -C OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT 2>/dev/null \
     || iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
 
 # UniFi infrastructure (AP→controller, STUN, device discovery, etc.)
+# Note: 53 was removed from unifi_udp on purpose — leaving it here would grant
+# DNS resolution to every device on the LAN regardless of authorization state,
+# bypassing the macpending/machotspot access model entirely. DNS is handled
+# below, scoped to those two ipsets only.
 for chain in INPUT FORWARD; do
     iptables -C $chain -i $lan -p tcp -m multiport --dports $unifi_tcp -j ACCEPT 2>/dev/null \
         || iptables -A $chain -i $lan -p tcp -m multiport --dports $unifi_tcp -j ACCEPT
@@ -488,19 +493,50 @@ for chain in INPUT FORWARD; do
         || iptables -A $chain -i $lan -p udp -m multiport --dports $unifi_udp -j ACCEPT
 done
 
+# DNS: only pending or authorized guests may resolve, and only against approved resolvers
+for dnsip in $dns; do
+    iptables -C FORWARD -i $lan -o $wan -m set --match-set macpending src -d $dnsip -p udp --dport 53 -j ACCEPT 2>/dev/null \
+        || iptables -A FORWARD -i $lan -o $wan -m set --match-set macpending src -d $dnsip -p udp --dport 53 -j ACCEPT
+    iptables -C FORWARD -i $lan -o $wan -m set --match-set machotspot src -d $dnsip -p udp --dport 53 -j ACCEPT 2>/dev/null \
+        || iptables -A FORWARD -i $lan -o $wan -m set --match-set machotspot src -d $dnsip -p udp --dport 53 -j ACCEPT
+done
+
+# Captive portal detection: redirect pending clients' HTTP probes to the portal.
+# The mangle ACCEPT must come first — without it, any default-deny the
+# administrator already has in mangle PREROUTING will drop this packet before
+# it ever reaches the nat REDIRECT below.
+iptables -t mangle -C PREROUTING -i $lan -m set --match-set macpending src -p tcp --dport 80 -j ACCEPT 2>/dev/null \
+    || iptables -t mangle -A PREROUTING -i $lan -m set --match-set macpending src -p tcp --dport 80 -j ACCEPT
+iptables -t nat -C PREROUTING -i $lan -p tcp --dport 80 -m set --match-set macpending src -j REDIRECT --to-port 8880 2>/dev/null \
+    || iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m set --match-set macpending src -j REDIRECT --to-port 8880
+
 # Portal access restricted to pending or authorized MACs
 iptables -t mangle -C PREROUTING -i $lan -m set --match-set macpending src -p tcp -m multiport --dports $portal_tcp -j ACCEPT 2>/dev/null \
     || iptables -t mangle -A PREROUTING -i $lan -m set --match-set macpending src -p tcp -m multiport --dports $portal_tcp -j ACCEPT
 iptables -t mangle -C PREROUTING -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports $portal_tcp -j ACCEPT 2>/dev/null \
     || iptables -t mangle -A PREROUTING -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports $portal_tcp -j ACCEPT
+iptables -C INPUT -i $lan -m set --match-set macpending src -p tcp -m multiport --dports $portal_tcp -j ACCEPT 2>/dev/null \
+    || iptables -A INPUT -i $lan -m set --match-set macpending src -p tcp -m multiport --dports $portal_tcp -j ACCEPT
+iptables -C INPUT -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports $portal_tcp -j ACCEPT 2>/dev/null \
+    || iptables -A INPUT -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports $portal_tcp -j ACCEPT
 
-# Deny portal access to anyone else on LAN
-iptables -C FORWARD -i $lan -p tcp -m multiport --dports $portal_tcp -j DROP 2>/dev/null \
-    || iptables -A FORWARD -i $lan -p tcp -m multiport --dports $portal_tcp -j DROP
+# Deny portal access to anyone else on LAN.
+# If the controller is self-hosted on this same box (the default assumption
+# for uhotspot), traffic to the portal ports is INPUT-bound after routing, not
+# FORWARD-bound — a FORWARD-only DROP here would never match it. Block on
+# mangle and INPUT instead.
+iptables -t mangle -C PREROUTING -i $lan -p tcp -m multiport --dports $portal_tcp -j DROP 2>/dev/null \
+    || iptables -t mangle -A PREROUTING -i $lan -p tcp -m multiport --dports $portal_tcp -j DROP
+iptables -C INPUT -i $lan -p tcp -m multiport --dports $portal_tcp -j DROP 2>/dev/null \
+    || iptables -A INPUT -i $lan -p tcp -m multiport --dports $portal_tcp -j DROP
 
 # Authorized clients: redirect HTTP through Squid (optional)
+iptables -t mangle -C PREROUTING -i $lan -m set --match-set machotspot src -p tcp --dport 80 -j ACCEPT 2>/dev/null \
+    || iptables -t mangle -A PREROUTING -i $lan -m set --match-set machotspot src -p tcp --dport 80 -j ACCEPT
 iptables -t nat -C PREROUTING -i $lan -p tcp --dport 80 -m set --match-set machotspot src -j REDIRECT --to-port 3128 2>/dev/null \
     || iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m set --match-set machotspot src -j REDIRECT --to-port 3128
+iptables -C INPUT -i $lan -p tcp --dport 3128 -m set --match-set machotspot src -j ACCEPT 2>/dev/null \
+    || iptables -A INPUT -i $lan -p tcp --dport 3128 -m set --match-set machotspot src -j ACCEPT
 ```
 
 > The `-C ... || -A ...` pattern keeps the script idempotent so it can safely run on every ACL change without duplicating rules. Alternatively, use `iptables-restore` with a templated table.

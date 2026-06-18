@@ -223,35 +223,34 @@ python gitfolder.py https://github.com/maravento/vault/gateproxy
 ### CONFIG
 echo -e "\n"
 hostnamectl set-hostname "$HOSTNAME"
-find $gp_path/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:gateproxy:$HOSTNAME:g" "{}"
+find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:gateproxy:$HOSTNAME:g" "{}"
 # changing name user account in config files
-find $gp_path/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:your_user:$local_user:g" "{}"
+find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_user:$local_user:g" "{}"
 
 # public interface
 function public_interface() {
-    read -p "${lang_16[$lang]} ${lang_10[$lang]} (${lang_22[$lang]} enpXsX): " ETH0
-    if [[ "$ETH0" =~ ^[a-z][a-z0-9]*[0-9]+$ ]]; then
-        find $gp_path/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$ETH0:g" "{}"
+    read -r -p "${lang_16[$lang]} ${lang_10[$lang]} (${lang_22[$lang]} enpXsX): " ETH0
+    if [[ "$ETH0" =~ ^[a-z][a-z0-9]{1,13}[0-9]+$ ]]; then
+        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$ETH0:g" "{}"
     fi
 }
 
 # local interface
 function local_interface() {
-     read -p "${lang_16[$lang]} ${lang_11[$lang]} (${lang_22[$lang]} enpXsX): " ETH1
-     if [[ "$ETH1" =~ ^[a-z][a-z0-9]*[0-9]+$ ]]; then
-         find $gp_path/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
-         export LAN_INTERFACE="$ETH1"
+    read -r -p "${lang_16[$lang]} ${lang_11[$lang]} (${lang_22[$lang]} enpXsX): " ETH1
+    if [[ "$ETH1" =~ ^[a-z][a-z0-9]{1,13}[0-9]+$ ]]; then
+        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
+        export LAN_INTERFACE="$ETH1"
     else
         export LAN_INTERFACE="eth1"
-     fi
- }
+    fi
+}
 
 function is_interfaces() {
-    is_interfaces=$(ifconfig | grep eth0)
-    if [ "$is_interfaces" ]; then
+    if ip link show eth0 &>/dev/null; then
         echo "${lang_08[$lang]}"
         echo "${lang_02[$lang]}"
-        rm -rf $gp_path &>/dev/null
+        rm -rf "$gp_path" &>/dev/null
         exit
     else
         echo "Check Net Interfaces: OK"
@@ -278,16 +277,16 @@ echo "    Storage:  100 GB SSD for cache_dir rock"
 echo -e "\n"
 echo "    ${lang_14[$lang]}"
 echo -e "\n"
-read RES
+read -r RES
 clear
 
 echo -e "\n"
 while true; do
-    read -p "${lang_18[$lang]} Server IP 192.168.0.10? (y/n): " change_ip
+    read -r -p "${lang_18[$lang]} Server IP 192.168.0.10? (y/n): " change_ip
     case "$change_ip" in
         [Yy]*)
             while true; do
-                read -p "${lang_16[$lang]} IP (${lang_22[$lang]} 192.168.0.10): " input_ip
+                read -r -p "${lang_16[$lang]} IP (${lang_22[$lang]} 192.168.0.10): " input_ip
                 serveripNEW=$(echo "$input_ip" | grep -E '^(([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])$')
                 if [ "$serveripNEW" ]; then
                     serverip="$serveripNEW"
@@ -325,7 +324,7 @@ is_ask() {
     iresponse="$2"
     funcion="$3"
     while true; do
-        read -p "$inquiry: " answer
+        read -r -p "$inquiry: " answer
         case "$answer" in
         [Yy]*)
             # execute command yes
@@ -358,10 +357,10 @@ MASKNEW1="255.255.255.0"
 
 # netmask
 function is_mask1() {
-    read -p "${lang_16[$lang]} Netmask (${lang_22[$lang]} 255.255.255.0): " MASK1
+    read -r -p "${lang_16[$lang]} Netmask (${lang_22[$lang]} 255.255.255.0): " MASK1
     MASKNEW1=$(echo "$MASK1" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$MASKNEW1" ]; then
-        find $gp_path/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:255.255.255.0:$MASKNEW1:g" "{}"
+        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:255.255.255.0:$MASKNEW1:g" "{}"
         echo "${lang_17[$lang]} Netmask $MASK1 :OK"
     else
         MASKNEW1="255.255.255.0"
@@ -369,71 +368,71 @@ function is_mask1() {
 }
 
 function is_mask2() {
-    read -p "${lang_16[$lang]} Subnet-Mask (${lang_22[$lang]} 24): " MASK2
+    read -r -p "${lang_16[$lang]} Subnet-Mask (${lang_22[$lang]} 24): " MASK2
     MASKNEW2=$(echo "$MASK2" | grep -E '[0-9]')
     if [ "$MASKNEW2" ]; then
-        find $gp_path/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:/24:/$MASKNEW2:g" "{}"
+        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:/24:/$MASKNEW2:g" "{}"
         echo "${lang_17[$lang]} Subnet-Mask $MASK2 :OK"
     fi
 }
 
 # dns primary
 function is_dns1() {
-    read -p "${lang_16[$lang]} DNS1 (${lang_22[$lang]} 8.8.8.8): " DNS1
+    read -r -p "${lang_16[$lang]} DNS1 (${lang_22[$lang]} 8.8.8.8): " DNS1
     DNSNEW1=$(echo "$DNS1" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$DNSNEW1" ]; then
-        find $gp_path/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.8.8:$DNSNEW1:g" "{}"
+        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.8.8:$DNSNEW1:g" "{}"
         echo "${lang_17[$lang]} DNS1 $DNS1 :OK"
     fi
 }
 
 # dns secondary
 function is_dns2() {
-    read -p "${lang_16[$lang]} DNS2 (${lang_22[$lang]} 8.8.4.4): " DNS2
+    read -r -p "${lang_16[$lang]} DNS2 (${lang_22[$lang]} 8.8.4.4): " DNS2
     DNSNEW2=$(echo "$DNS2" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$DNSNEW2" ]; then
-        find $gp_path/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.4.4:$DNSNEW2:g" "{}"
+        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.4.4:$DNSNEW2:g" "{}"
         echo "${lang_17[$lang]} DNS2 $DNS2 :OK"
     fi
 }
 
 # localnet
 function is_localnet() {
-    read -p "${lang_16[$lang]} Localnet (${lang_22[$lang]} 192.168.0.0): " LOCALNET
+    read -r -p "${lang_16[$lang]} Localnet (${lang_22[$lang]} 192.168.0.0): " LOCALNET
     LOCALNETNEW=$(echo "$LOCALNET" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$LOCALNETNEW" ]; then
-        find $gp_path/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$LOCALNETNEW:g" "{}"
+        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$LOCALNETNEW:g" "{}"
         echo "${lang_17[$lang]} Localnet $LOCALNET :OK"
     fi
 }
 
 # broadcast
 function is_broadcast() {
-    read -p "${lang_16[$lang]} Broadcast (${lang_22[$lang]} 192.168.0.255): " BROADCAST
+    read -r -p "${lang_16[$lang]} Broadcast (${lang_22[$lang]} 192.168.0.255): " BROADCAST
     BROADCASTNEW=$(echo "$BROADCAST" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$BROADCASTNEW" ]; then
-        find $gp_path/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.255:$BROADCASTNEW:g" "{}"
+        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.255:$BROADCASTNEW:g" "{}"
         echo "${lang_17[$lang]} Broadcast $BROADCAST :OK"
     fi
 }
 
 # squid port
 function is_port() {
-    read -p "${lang_16[$lang]} Proxy Port (${lang_22[$lang]} 3128): " PORT
+    read -r -p "${lang_16[$lang]} Proxy Port (${lang_22[$lang]} 3128): " PORT
     PORTNEW=$(echo "$PORT" | grep -E '^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$')
     if [ "$PORTNEW" ]; then
-        find $gp_path/conf -type f -print0 | xargs -0 -I "{}" sed -i "s:3128:$PORTNEW:g" "{}"
+        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:3128:$PORTNEW:g" "{}"
         echo "${lang_17[$lang]} Proxy Port $PORT :OK"
     fi
 }
 
 echo -e "\n"
 while true; do
-    read -p "${lang_15[$lang]}
+    read -r -p "${lang_15[$lang]}
 Mask 255.255.255.0, Network /24, DNS 8.8.8.8 8.8.4.4,
 Broadcast 192.168.0.255, Localnet 192.168.0.0, Proxy Port 3128
     ${lang_18[$lang]} (y/n)" answer
-    case $answer in
+    case "$answer" in
     [Yy]*)
         # execute command yes
         is_ask "${lang_18[$lang]} Mask 255.255.255.0? (y/n)" "${lang_17[$lang]} Mask incorrect" is_mask1
@@ -558,7 +557,7 @@ acl_mac_path="$acl_path/acl_mac"
 acl_dhcp_path="$acl_path/acl_dhcp"
 acl_squid_path="$acl_path/acl_squid"
 acl_ipt_path="$acl_path/acl_ipt"
-cp -rf $gp_path/acl/* "$acl_path"
+cp -rf "$gp_path/acl/." "$acl_path/"
 # DHCP ACL files
 chmod 600 "$acl_mac_path"/mac-*.txt "$acl_dhcp_path/blockdhcp.txt"
 chown root:root "$acl_mac_path"/mac-*.txt "$acl_dhcp_path/blockdhcp.txt"
@@ -661,7 +660,7 @@ cp -f /etc/logrotate.d/squid{,.bak} &>/dev/null
 sed -i '/sharedscripts/a \    create 0644 proxy proxy' /etc/logrotate.d/squid
 sed -i 's/rotate 2/rotate 7/' /etc/logrotate.d/squid
 sed -i 's/^	daily$/	monthly/' /etc/logrotate.d/squid
-# Let’s Encrypt certificate for client to Squid proxy encryption (Optional)
+# Let's Encrypt certificate for client to Squid proxy encryption (Optional)
 #nala install -y certbot python3-certbot-apache
     
 # ADMIN SECTION
@@ -680,8 +679,8 @@ rm -f setup-repos.sh
 # webmin modules
 # Text Editor | Service Monitor | Netplan Manager
 systemctl stop webmin.service 2>/dev/null || true
-/usr/share/webmin/install-module.pl $gp_path/conf/webmin/text-editor.wbm
-find $acl_mac_path -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/dev/null
+/usr/share/webmin/install-module.pl "$gp_path/conf/webmin/text-editor.wbm"
+find "$acl_mac_path" -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/dev/null
 # List of modules to install
 for module in servicemon netplanmgr; do
     echo "Installing $module module..."
@@ -707,7 +706,12 @@ rm -f proxymon.sh
 # pydhcp
 echo "Installing pydhcp..."
 python gitfolder.py https://github.com/maravento/vault/pydhcp
-cd pydhcp
+pydhcp_path="$(pwd)/pydhcp"
+if [ ! -d "$pydhcp_path" ]; then
+    echo "ERROR: pydhcp directory not found"
+    exit 1
+fi
+cd "$pydhcp_path" || { echo "ERROR: cannot cd to $pydhcp_path"; exit 1; }
 expect -c "
     spawn bash pyinstall.sh
     expect \"Select interface\"
@@ -722,7 +726,7 @@ expect -c "
     send \"\r\"
     expect eof
 "
-cd ..
+cd "$(dirname "$pydhcp_path")" || exit 1
 echo "DHCP pool range: 220-235 (default). To modify edit /etc/pydhcp/pydhcpd.env"
 
 # LOGS SECTION 
@@ -749,8 +753,8 @@ nala install -y timeshift
 # FreeFileSync
 nala install -y libatk-adaptor libgail-common
 # https://www.maravento.com/2014/06/sincronizacion-espejo.html
-chmod +x $gp_path/conf/scr/ffsupdate.sh
-$gp_path/conf/scr/ffsupdate.sh
+chmod +x "$gp_path/conf/scr/ffsupdate.sh"
+"$gp_path/conf/scr/ffsupdate.sh"
 crontab -l | {
     cat
     echo "@weekly /etc/scr/ffsupdate.sh"
@@ -760,9 +764,9 @@ sleep 1
 
 echo -e "\n"
 while true; do
-read -p "${lang_19[$lang]} Optional Pack?
+read -r -p "${lang_19[$lang]} Optional Pack?
 Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
-    case $answer in
+    case "$answer" in
     [Yy]*)
         # execute command yes
         # Net Tools (Replace NIC and IP/CIDR)
@@ -785,7 +789,7 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         nala install -y mtr-tiny           # mtr google.com
         # fail2ban
         nala install -y fail2ban
-        cp $gp_path/conf/pack/jail.local /etc/fail2ban/jail.local
+        cp "$gp_path/conf/pack/jail.local" /etc/fail2ban/jail.local
         sed -i 's/^#\?allowipv6 *= *.*/allowipv6 = 0/' /etc/fail2ban/fail2ban.conf
         systemctl enable fail2ban.service
         echo "Check: sudo fail2ban-client status <jail_name>"
@@ -806,7 +810,7 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
             echo "✓ Community-ID enabled"
         fi
         # suricata disable and drop
-        cp -f $gp_path/conf/pack/{disable,drop}.conf /etc/suricata/
+        cp -f "$gp_path/conf/pack/"{disable,drop}.conf /etc/suricata/
         chown root:root /etc/suricata/{disable,drop}.conf
         chmod 644 /etc/suricata/{disable,drop}.conf
         # suricata update & clean
@@ -815,7 +819,7 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
             chown root:root /var/log/suricata/suricata-cron.log
             chmod 640 /var/log/suricata/suricata-cron.log
         fi        
-        cp -f $gp_path/conf/pack/{suricata-update,suricata-clean}.sh /etc/suricata/
+        cp -f "$gp_path/conf/pack/"{suricata-update,suricata-clean}.sh /etc/suricata/
         chmod +x /etc/suricata/{suricata-update,suricata-clean}.sh
         timeout 300 /etc/suricata/suricata-update.sh || echo "⚠ Warning: suricata-update timed out"
         # suricata ratio
@@ -841,8 +845,8 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         upgrade
         nala install -y evebox
         # Configure
-        cp -f $gp_path/conf/pack/evebox.yaml /etc/evebox/evebox.yaml
-        cp -f $gp_path/conf/pack/evebox.service /etc/systemd/system/evebox.service
+        cp -f "$gp_path/conf/pack/evebox.yaml" /etc/evebox/evebox.yaml
+        cp -f "$gp_path/conf/pack/evebox.service" /etc/systemd/system/evebox.service
         systemctl daemon-reload
         systemctl enable suricata evebox
         systemctl restart suricata
@@ -868,14 +872,19 @@ upgrade
 # Samba with Shared folder, Recycle Bin and Audit
 echo -e "\n"
 while true; do
-read -p "${lang_19[$lang]} Samba?
+read -r -p "${lang_19[$lang]} Samba?
 ${lang_20[$lang]} (y/n)" answer
-    case $answer in
+    case "$answer" in
     [Yy]*)
         python gitfolder.py https://github.com/maravento/vault/smbstack
-        cd smbstack
+        smbstack_path="$(pwd)/smbstack"
+        if [ ! -d "$smbstack_path" ]; then
+            echo "ERROR: smbstack directory not found"
+            exit 1
+        fi
+        cd "$smbstack_path" || { echo "ERROR: cannot cd to $smbstack_path"; exit 1; }
         bash smbinstall.sh --install
-        cd ..
+        cd "$(dirname "$smbstack_path")" || exit 1
         break
         ;;
     [Nn]*)
@@ -897,19 +906,19 @@ upgrade
 echo -e "\n"
 echo "Downloading ACLs..."
 # Allow IP
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O $acl_path/acl_squid/allowip.txt
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O "$acl_path/acl_squid/allowip.txt"
 if [ ! -s "$acl_path/acl_squid/allowip.txt" ]; then
     echo "WARNING: allowip.txt download failed"
 fi
 
 # Block Patterns
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/source/squid/blockpatterns.txt -O $acl_path/acl_squid/blockpatterns.txt
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/source/squid/blockpatterns.txt -O "$acl_path/acl_squid/blockpatterns.txt"
 if [ ! -s "$acl_path/acl_squid/blockpatterns.txt" ]; then
     echo "WARNING: blockpatterns.txt download failed"
 fi
 
 # Block TLDs
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O $acl_path/acl_squid/blocktlds.txt
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O "$acl_path/acl_squid/blocktlds.txt"
 if [ ! -s "$acl_path/acl_squid/blocktlds.txt" ]; then
     echo "WARNING: blocktlds.txt download failed, disabling ACL in squid.conf"
     sed -i '/^acl blocktlds /s/^/#/; /^http_access deny workdays blocktlds/s/^/#/' "$squid_conf_path/squid.conf"
@@ -917,9 +926,10 @@ fi
 
 # Blackweb
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/blackweb.tar.gz
-if ls blackweb.tar.gz* &>/dev/null; then
+wget_exit=$?
+if [ $wget_exit -eq 0 ] && [ -f blackweb.tar.gz ]; then
     cat blackweb.tar.gz* | tar xzf -
-    cp blackweb.txt $acl_path/acl_squid/blackweb.txt
+    cp blackweb.txt "$acl_path/acl_squid/blackweb.txt"
 else
     echo "WARNING: blackweb.tar.gz download failed"
 fi
@@ -932,19 +942,39 @@ echo -e "\n"
 echo "Applying Config..."
 # squid
 cp -f /etc/squid/squid.conf{,.bak} &>/dev/null
-cp -f $gp_path/conf/server/squid.conf /etc/squid/squid.conf
+cp -f "$gp_path/conf/server/squid.conf" /etc/squid/squid.conf
 chown root:root /etc/squid/squid.conf
 chmod 644 /etc/squid/squid.conf
 # netplan
 mv -f /etc/netplan/01-network-manager-all.yaml{,.bak} &>/dev/null
 mv -f /etc/netplan/90-NM-*.yaml{,.bak} &>/dev/null
-cp -f $gp_path/conf/server/00-networkd.yaml /etc/netplan/00-networkd.yaml
+cp -f "$gp_path/conf/server/00-networkd.yaml" /etc/netplan/00-networkd.yaml
 chown root:root /etc/netplan/00-networkd.yaml
 chmod 644 /etc/netplan/00-networkd.yaml
 # scripts
-cp -fr $gp_path/conf/scr/* $scr_path
-chown -R root:root $scr_path/*
-chmod -R +x $scr_path/*
+# Download external scripts to project scr folder
+scripts=(
+    "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackusb/linux/blackusb.sh"
+    "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/cleaner.sh"
+    "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh"
+    "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/filereport.sh"
+    "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/hwclock.sh"
+    "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/lock.sh"
+)
+for url in "${scripts[@]}"; do
+    fname=$(basename "$url")
+    if wget -q -O "$gp_path/conf/scr/$fname" "$url"; then
+        echo "Downloaded: $fname"
+    else
+        echo "ERROR: Failed to download $fname"
+        exit 1
+    fi
+done
+
+# scripts
+cp -fr "$gp_path/conf/scr/"* "$scr_path"
+chown -R root:root "$scr_path"/*
+find "$scr_path" -name "*.sh" -exec chmod +x {} \;
 # Choose your security level: "Secure Share Memory" (optional)
 #echo 'none /run/shm tmpfs defaults,ro 0 0' | tee -a /etc/fstab &> /dev/null
 #echo 'tmpfs /tmp tmpfs defaults,size=30%,nofail,noatime,mode=1777 0 0' | tee -a /etc/fstab &> /dev/null
@@ -1000,7 +1030,7 @@ sysctl -p
 echo "Apache Config..."
 cp -f /etc/apache2/apache2.conf{,.bak} &>/dev/null
 #echo 'RequestReadTimeout header=10-20,MinRate=500 body=20,MinRate=500' | tee -a /etc/apache2/apache2.conf # optional
-cp -f $gp_path/conf/server/servername.conf /etc/apache2/conf-available/servername.conf
+cp -f "$gp_path/conf/server/servername.conf" /etc/apache2/conf-available/servername.conf
 a2enconf servername
 
 # Hardening
@@ -1073,9 +1103,9 @@ systemctl daemon-reexec &>/dev/null
 # Update initramfs (optional)
 #update-initramfs -u -k all
 # create alias "upgrade"
-sudo -u "$local_user" bash -c "echo alias upgrade=\"'sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo updatedb && sudo update-desktop-database && sudo snap refresh'\"" >>/home/"$local_user"/.bashrc
-sudo -u "$local_user" bash -c "echo alias server=\"'sudo /etc/scr/serverload.sh'\"" >>/home/"$local_user"/.bashrc
-sudo -u "$local_user" bash -c "echo alias cleaner=\"'sudo /etc/scr/cleaner.sh'\"" >>/home/"$local_user"/.bashrc
+sudo -u "$local_user" bash -c "printf '%s\n' 'alias upgrade=\"sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo updatedb && sudo update-desktop-database && sudo snap refresh\"' >> /home/${local_user}/.bashrc"
+sudo -u "$local_user" bash -c "printf '%s\n' 'alias server=\"sudo /etc/scr/serverload.sh\"' >> /home/${local_user}/.bashrc"
+sudo -u "$local_user" bash -c "printf '%s\n' 'alias cleaner=\"sudo /etc/scr/cleaner.sh\"' >> /home/${local_user}/.bashrc"
 # IPv4 priority
 sed -i 's/^#\s*precedence ::ffff:0:0\/96\s\+100/precedence ::ffff:0:0\/96  100/' /etc/gai.conf
 # snap
@@ -1094,7 +1124,7 @@ clear
 echo -e "\n"
 echo "${lang_21[$lang]}"
 echo "after reboot, run: systemctl list-units --type service --state running,failed"
-read RES
+read -r RES
 systemctl daemon-reexec
 systemctl daemon-reload
 update-ca-certificates -f

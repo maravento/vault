@@ -25,6 +25,8 @@ if ! flock -n 200; then
     exit 1
 fi
 
+CA_CERT_D=/usr/local/share/ca-certificates
+
 # Function: Remove regular squid and install squid-openssl
 remove_and_install_squid_openssl() {
     echo "Backing up /etc/squid/squid.conf..."
@@ -33,7 +35,8 @@ remove_and_install_squid_openssl() {
 
     echo "Removing old squid..."
     apt purge -y squid* &>/dev/null
-    rm -rf /var/spool/squid* /var/log/squid* /etc/squid*rm -rf "$CA_CERT_D"/*
+    rm -rf /var/spool/squid* /var/log/squid* /etc/squid*
+    rm -rf "$CA_CERT_D"/*
 
     echo "Installing squid-openssl..."
     apt update || { echo "ERROR: apt update failed"; exit 1; }
@@ -64,6 +67,7 @@ ssl_bump_setup() {
     mkdir -p "$CERT_D"
 
     echo "Generating SSL certificate..."
+    umask 077
     openssl req -new -newkey rsa:4096 -sha256 -days 365 -nodes -x509 \
         -keyout "$CERT" -out "$CERT"
 

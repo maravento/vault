@@ -77,7 +77,8 @@ class SambaLogReader {
             }
             
             try {
-                $fileLogs = $this->readSingleFile($logFile);
+                $remaining = $limit - count($allLogs);
+                $fileLogs = $this->readSingleFile($logFile, $remaining);
                 $allLogs = array_merge($allLogs, $fileLogs);
                 
                 // Stop if we have enough logs
@@ -100,7 +101,7 @@ class SambaLogReader {
     /**
      * Read a single file (normal or compressed)
      */
-    private function readSingleFile($filename) {
+    private function readSingleFile($filename, $limit = 50000) {
         $logs = [];
         
         if (substr($filename, -3) === '.gz') {
@@ -109,8 +110,8 @@ class SambaLogReader {
             if ($gz === false) {
                 throw new Exception("Cannot read gzip file: $filename");
             }
-            while (!gzeof($gz)) {
-                $line = gzgets($gz, 4096);
+            while (!gzeof($gz) && count($logs) < $limit) {
+                $line = gzgets($gz, 16384);
                 if ($line === false) break;
                 $parsed = $this->parseLine(trim($line));
                 if ($parsed) {
@@ -127,7 +128,7 @@ class SambaLogReader {
             $startLine = max(0, $totalLines - 10000);
             $file->seek($startLine);
             
-            while (!$file->eof()) {
+            while (!$file->eof() && count($logs) < $limit) {
                 $line = trim($file->current());
                 if (!empty($line)) {
                     $parsed = $this->parseLine($line);

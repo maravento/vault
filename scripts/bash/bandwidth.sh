@@ -110,15 +110,14 @@ normalize_to_mbit() {
 dlvalue_mbit=$(normalize_to_mbit "$dlvalue" "$dlmb")
 ulvalue_mbit=$(normalize_to_mbit "$ulvalue" "$ulmb")
 
-function download() {
+download() {
     if (($(echo "$dlvalue_mbit $dlmin" | awk '{print ($1 < $2)}'))); then
         echo "WARNING! Bandwidth Download Slow: $dlvalue $dlmb < $dlmin Mbit/s (min value)"
     else
         echo "Bandwidth Download OK: $dlvalue $dlmb (min: $dlmin Mbit/s)"
     fi
 }
-
-function upload() {
+upload() {
     if (($(echo "$ulvalue_mbit $ulmin" | awk '{print ($1 < $2)}'))); then
         echo "WARNING! Bandwidth Upload Slow: $ulvalue $ulmb < $ulmin Mbit/s (min value)"
     else

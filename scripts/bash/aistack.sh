@@ -50,7 +50,6 @@ if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
     echo "ERROR: Cannot determine a valid local user"
     exit 1
 fi
-echo "Using local user: $local_user"
 
 set -euo pipefail
 
@@ -333,14 +332,14 @@ install_docker() {
     fi
     
     # Install Portainer
-    if docker ps --format '{{.Names}}' | grep -q "^portainer$"; then
+    if command -v docker &>/dev/null && docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^portainer$"; then
         ok "Portainer already running"
     else
         info "Installing Portainer..."
         docker volume create portainer_data 2>/dev/null || true
         docker run -d -p ${PORTAINER_PORT}:9000 --name portainer --restart=always \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            -v portainer_data:/data portainer/portainer-ce
+            -v portainer_data:/data portainer/portainer-ce:lts
         
         ok "Portainer installed"
         info "Access: http://localhost:${PORTAINER_PORT}"
@@ -460,8 +459,8 @@ EOF
 deploy_stack() {
     step "Deploying AI Stack with Docker Compose"
     
-    cd "${AI_BASE_DIR}"
-    
+    cd "${AI_BASE_DIR}" || { err "Cannot cd to ${AI_BASE_DIR}"; return 1; }
+
     # Pull images with retry logic (large images can fail on unstable connections)
     info "Pulling Docker images (may take several minutes)..."
     local max_attempts=5
@@ -755,7 +754,7 @@ install_opencode() {
     # pnpm is required (preferred over npm for security: avoids supply-chain attacks via hoisting)
     # Minimum version: 11
     local pnpm_home="/home/$local_user/.local/share/pnpm"
-    local pnpm_env="source '$nvm_sh'; export PNPM_HOME='$pnpm_home'; export PATH=\"\$PNPM_HOME/bin:\$PATH\""
+    local pnpm_env="source $(printf '%q' "$nvm_sh"); export PNPM_HOME=$(printf '%q' "$pnpm_home"); export PATH=\"\$PNPM_HOME/bin:\$PATH\""
     if [ ! -f "$pnpm_home/bin/pnpm" ]; then
         info "Installing pnpm..."
         local pnpm_tmp
@@ -881,7 +880,7 @@ uninstall_opencode() {
     local pnpm_home="/home/$local_user/.local/share/pnpm"
     local pnpm_bin="$pnpm_home/bin/pnpm"
     local nvm_sh="/home/$local_user/.nvm/nvm.sh"
-    local pnpm_env="source '$nvm_sh' 2>/dev/null; export PNPM_HOME='$pnpm_home'; export PATH=\"$pnpm_home/bin:\$PATH\""
+    local pnpm_env="source $(printf '%q' "$nvm_sh") 2>/dev/null; export PNPM_HOME=$(printf '%q' "$pnpm_home"); export PATH=\"\$PNPM_HOME/bin:\$PATH\""
 
     # Check if opencode is actually installed anywhere
     local found=false
@@ -987,7 +986,7 @@ update_opencode() {
 
     local pnpm_home="/home/$local_user/.local/share/pnpm"
     local nvm_sh="/home/$local_user/.nvm/nvm.sh"
-    local pnpm_env="source '$nvm_sh' 2>/dev/null; export PNPM_HOME='$pnpm_home'; export PATH=\"$pnpm_home/bin:\$PATH\""
+    local pnpm_env="source $(printf '%q' "$nvm_sh") 2>/dev/null; export PNPM_HOME=$(printf '%q' "$pnpm_home"); export PATH=\"\$PNPM_HOME/bin:\$PATH\""
     local pnpm_bin="$pnpm_home/bin/pnpm"
 
     if [ -f "$pnpm_bin" ] && sudo -u "$local_user" bash -c "$pnpm_env; pnpm list -g opencode-ai" &>/dev/null 2>&1; then
@@ -1255,7 +1254,7 @@ uninstall_all() {
 
     # ── Docker ─────────────────────────────────────────────────────────────
     step "Docker..."
-    if command -v docker &>/dev/null; then
+    if docker --version >/dev/null 2>&1; then
         read -rp "  Remove Docker completely? [y/N]: " remove_docker
         if [[ "$remove_docker" =~ ^[yY]$ ]]; then
             local purge_failed=()
@@ -1319,7 +1318,7 @@ status_all() {
     echo -e "  ${DIM}$(date)${RESET}"
     
     echo -e "\n  ${BOLD}--- Docker ---------------------------------------${RESET}"
-    if command -v docker &>/dev/null; then
+    if docker --version >/dev/null 2>&1; then
         ok "Docker installed: $(docker --version)"
         info "Docker Compose: $(docker compose version 2>/dev/null || echo 'N/A')"
     else
@@ -1327,16 +1326,16 @@ status_all() {
     fi
     
     echo -e "\n  ${BOLD}--- Portainer ------------------------------------${RESET}"
-    if docker ps --format '{{.Names}}' | grep -q "^portainer$"; then
+    if command -v docker &>/dev/null && docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^portainer$"; then
         ok "Portainer running: http://localhost:${PORTAINER_PORT}"
-    elif docker ps -a --format '{{.Names}}' | grep -q "^portainer$"; then
+    elif command -v docker &>/dev/null && docker ps -a --format '{{.Names}}' | grep -q "^portainer$"; then
         warn "Portainer stopped (container exists but is not running)"
     else
         warn "Portainer not running"
     fi
     
     echo -e "\n  ${BOLD}--- Ollama ---------------------------------------${RESET}"
-    if docker ps --format '{{.Names}}' | grep -q "^ollama$"; then
+    if command -v docker &>/dev/null && docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^ollama$"; then
         ok "Ollama container running"
         if curl -s --connect-timeout 2 "http://localhost:${OLLAMA_PORT}/api/tags" &>/dev/null; then
             ok "Ollama API responding"
@@ -1344,16 +1343,16 @@ status_all() {
             models=$(docker exec ollama ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' | tr '\n' '  ' || echo "none")
             info "Models: ${models:-none}"
         fi
-    elif docker ps -a --format '{{.Names}}' | grep -q "^ollama$"; then
+    elif command -v docker &>/dev/null && docker ps -a --format '{{.Names}}' | grep -q "^ollama$"; then
         warn "Ollama container stopped (exists but is not running)"
     else
         err "Ollama container NOT running"
     fi
     
     echo -e "\n  ${BOLD}--- Open WebUI -----------------------------------${RESET}"
-    if docker ps --format '{{.Names}}' | grep -q "^open-webui$"; then
+    if command -v docker &>/dev/null && docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^open-webui$"; then
         ok "Open WebUI running: http://localhost:${OPEN_WEBUI_PORT}"
-    elif docker ps -a --format '{{.Names}}' | grep -q "^open-webui$"; then
+    elif command -v docker &>/dev/null && docker ps -a --format '{{.Names}}' | grep -q "^open-webui$"; then
         warn "Open WebUI stopped (container exists but is not running)"
     else
         err "Open WebUI NOT running"
@@ -1412,10 +1411,10 @@ update_components() {
             info "Updating Portainer..."
             docker stop portainer >/dev/null 2>&1 || true
             docker rm portainer >/dev/null 2>&1 || true
-            docker pull portainer/portainer-ce:latest
+            docker pull portainer/portainer-ce:lts
             docker run -d -p ${PORTAINER_PORT}:9000 --name portainer --restart=always \
                 -v /var/run/docker.sock:/var/run/docker.sock \
-                -v portainer_data:/data portainer/portainer-ce:latest >/dev/null
+                -v portainer_data:/data portainer/portainer-ce:lts >/dev/null
 
             docker image prune -f >/dev/null
             ok "Full stack updated"
@@ -1435,10 +1434,10 @@ update_components() {
 
             docker stop portainer >/dev/null 2>&1 || true
             docker rm portainer >/dev/null 2>&1 || true
-            docker pull portainer/portainer-ce:latest
+            docker pull portainer/portainer-ce:lts
             docker run -d -p ${PORTAINER_PORT}:9000 --name portainer --restart=always \
                 -v /var/run/docker.sock:/var/run/docker.sock \
-                -v portainer_data:/data portainer/portainer-ce:latest >/dev/null
+                -v portainer_data:/data portainer/portainer-ce:lts >/dev/null
 
             docker image prune -f >/dev/null
             ok "Docker and Portainer updated"
@@ -1723,7 +1722,7 @@ menu_main() {
             4)  menu_uninstall; pause ;;
             5)  menu_opencode; pause ;;
             6)  menu_lmstudio; pause ;;
-            7)  detect_gpu; status_all; pause ;;
+            7)  status_all; pause ;;
             8)  if [ -f "${AI_BASE_DIR}/docker-compose.yml" ]; then
                     cd "${AI_BASE_DIR}" && docker compose logs | less -R
                 fi

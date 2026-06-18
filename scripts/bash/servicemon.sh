@@ -83,16 +83,26 @@ do '../ui-lib.pl';
 &ReadParse();
 
 our $module_name;
-
+our %text;
 our %in;
+my %known_services = map { $_ => 1 } get_all_services();
+
 foreach my $key (keys %in) {
     if ($key =~ /^(start|stop|restart)_(.+)$/) {
         my $action = $1;
         my $service = $2;
-        
-        system("logger -t servicemon -p daemon.info 'User action: $action on service $service'");
-        
-        system("systemctl $action $service 2>&1");
+
+        unless (exists $known_services{$service}) {
+            &ui_print_header(undef, "Error", "");
+            print "<p>Invalid service: " . &html_escape($service) . "</p>";
+            &ui_print_footer("/", $text{'index'});
+            exit 1;
+        }
+
+        system("logger", "-t", "servicemon", "-p", "daemon.info",
+               "User action: $action on service $service");
+
+        system("systemctl", $action, $service);
         
         sleep 2;
         
@@ -501,7 +511,7 @@ sub get_all_services {
 
 sub check_service_status {
     my ($service) = @_;
-    my $active_output = `systemctl is-active $service 2>/dev/null`;
+    my $active_output = `systemctl is-active \Q$service\E 2>/dev/null`;
     chomp($active_output);
     return 'active' if $active_output eq 'active';
     return 'stopped';

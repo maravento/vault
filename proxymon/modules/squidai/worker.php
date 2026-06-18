@@ -29,7 +29,13 @@ if (!function_exists('str_ends_with')) {
 }
 
 // Use the time zone configured in the system
-$sysTz = trim(shell_exec('cat /etc/timezone 2>/dev/null || timedatectl show --property=Timezone --value 2>/dev/null') ?? '');
+$sysTz = '';
+if (is_readable('/etc/timezone')) {
+    $sysTz = trim(file_get_contents('/etc/timezone'));
+}
+if (!$sysTz) {
+    $sysTz = trim(shell_exec('timedatectl show --property=Timezone --value 2>/dev/null') ?? '');
+}
 if ($sysTz && @timezone_open($sysTz)) {
     date_default_timezone_set($sysTz);
 }
@@ -224,6 +230,13 @@ try {
             //   gemini  → passthrough (no transformation needed)
             // ─────────────────────────────────────────────────────────────────
 
+            $declaredLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+            if ($declaredLength > 32768) {
+                http_response_code(413);
+                echo json_encode(['error' => 'Request body too large']);
+                break;
+            }
+
             $inputStream = fopen('php://input', 'r');
             $rawInput = $inputStream ? stream_get_contents($inputStream, 32768) : false;
             if ($inputStream) fclose($inputStream);
@@ -307,7 +320,7 @@ try {
 
             if ($httpCode < 200 || $httpCode >= 300) {
                 http_response_code(502);
-                error_log("SquidAI LLM HTTP $httpCode: $resp");
+                error_log("SquidAI LLM HTTP $httpCode: " . substr($resp, 0, 512));
                 echo json_encode(['error' => "LLM provider returned HTTP $httpCode"]);
                 break;
             }
@@ -340,7 +353,7 @@ try {
                     ?? null;
                 if ($responseText === '') {
                     http_response_code(502);
-                    error_log('SquidAI LLM unrecognized response shape: ' . $resp);
+                    error_log('SquidAI LLM unrecognized response shape: ' . substr($resp, 0, 512));
                     echo json_encode(['error' => $providerError ?? 'Unrecognized response from LLM provider']);
                     break;
                 }

@@ -7,6 +7,11 @@
  */
 
 // Configuration
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    die("This diagnostic script is for command-line use only.\n");
+}
+
 $LOG_FILE = '/var/log/samba/log.audit';
 
 echo "=== SAMBA AUDIT LOG DIAGNOSTIC ===\n\n";
@@ -30,9 +35,15 @@ echo "📊 File size: " . number_format($fileSize) . " bytes (" . round($fileSiz
 
 // Count total lines
 $totalLines = 0;
+$handle = fopen($LOG_FILE, 'r');
+while (!feof($handle)) {
+    $chunk = fread($handle, 8192);
+    if ($chunk === false) break;
+    $totalLines += substr_count($chunk, "\n");
+}
+fclose($handle);
+
 $file = new SplFileObject($LOG_FILE);
-$file->seek(PHP_INT_MAX);
-$totalLines = $file->key() + 1;
 
 echo "📝 Total lines in file: " . number_format($totalLines) . "\n\n";
 

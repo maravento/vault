@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # maravento.com
 """
 ------------
@@ -234,31 +234,35 @@ def scan():
             print()
 
         filename = f"broken_links_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write("Broken Link Report\n")
-            f.write("==================\n")
-            f.write(f"Site scanned : {url}\n")
-            f.write(f"Date         : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"Pages scanned: {count}\n")
-            f.write(f"Broken links : {len(broken)}\n\n")
+        # LC-03 fix: capture OSError when writing results file
+        try:
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write("Broken Link Report\n")
+                f.write("==================\n")
+                f.write(f"Site scanned : {url}\n")
+                f.write(f"Date         : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Pages scanned: {count}\n")
+                f.write(f"Broken links : {len(broken)}\n\n")
 
-            f.write("Breakdown by error type:\n")
-            for key, urls in sorted(by_type.items()):
-                label = ERROR_LABELS.get(key, key)
-                f.write(f"  {len(urls):>3}x  {label}\n")
-            f.write("\n")
-
-            f.write("Broken links grouped by error type:\n")
-            f.write("-"*60 + "\n\n")
-            for key, urls in sorted(by_type.items()):
-                label = ERROR_LABELS.get(key, key)
-                f.write(f"── {label} ({len(urls)}) ──\n")
-                for url, status in urls:
-                    code = str(status) if status else "—"
-                    f.write(f"   [{code}] {url}\n")
+                f.write("Breakdown by error type:\n")
+                for key, urls in sorted(by_type.items()):
+                    label = ERROR_LABELS.get(key, key)
+                    f.write(f"  {len(urls):>3}x  {label}\n")
                 f.write("\n")
 
-        print(f"💾 Results saved to: {filename}")
+                f.write("Broken links grouped by error type:\n")
+                f.write("-"*60 + "\n\n")
+                for key, urls in sorted(by_type.items()):
+                    label = ERROR_LABELS.get(key, key)
+                    f.write(f"── {label} ({len(urls)}) ──\n")
+                    for url, status in urls:
+                        code = str(status) if status else "—"
+                        f.write(f"   [{code}] {url}\n")
+                    f.write("\n")
+
+            print(f"💾 Results saved to: {filename}")
+        except OSError as e:
+            print(f"⚠️  Could not save results to file: {e}")
     else:
         print("\n✅ No broken links found.")
 

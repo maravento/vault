@@ -326,7 +326,7 @@ do_install() {
         "$SMBSTACK_WEB/smbaudit-diagnostic.php" \
         "$SMBSTACK_WEB/shared.php"; do
         [ -f "$f" ] || continue
-        escaped_user=$(printf '%s' "$local_user" | sed 's/[&/\\]/\\&/g')
+        escaped_user=$(printf '%s' "$local_user" | sed 's/[&/\\|]/\\&/g')
         sed -i "s|your_user|$escaped_user|g" "$f"
         sed -i "s|compartida|$SHARED_NAME|g" "$f"
     done
@@ -454,7 +454,7 @@ EOF
     # cron: recycle bin weekly cleanup
     crontab -l 2>/dev/null > "/var/www/smbstack/crontab-$(date +%Y%m%d%H%M%S).bak" || true
     if ! crontab -l 2>/dev/null | grep -qF ".recycle"; then
-        (crontab -l 2>/dev/null; echo "@weekly find $SHARED_PATH/.recycle/ -depth -mindepth 1 -mtime +7 -delete >/dev/null 2>&1") | crontab -
+        (crontab -l 2>/dev/null; echo "@weekly find \"$SHARED_PATH/.recycle/\" -depth -mindepth 1 -mtime +7 -delete >/dev/null 2>&1") | crontab -
     fi
 
     # service watchdog
@@ -491,7 +491,8 @@ EOF
     notifempty
 }
 NMBD
-            cat >> "$SMBSTACK_TOOLS/smbload.sh" <<'NMBD'
+            cp -f "$SMBSTACK_TOOLS/smbload.sh" "$SMBSTACK_TOOLS/smbload.sh.tmp"
+            cat >> "$SMBSTACK_TOOLS/smbload.sh.tmp" <<'NMBD'
 
 # Samba Service (nmbd)
 if [[ $(ps -A | grep nmbd) != "" ]]; then
@@ -503,6 +504,8 @@ else
     echo "nmbd start: $(date)" | tee -a /var/log/syslog
 fi
 NMBD
+            mv -f "$SMBSTACK_TOOLS/smbload.sh.tmp" "$SMBSTACK_TOOLS/smbload.sh"
+            chmod +x "$SMBSTACK_TOOLS/smbload.sh"
             systemctl enable --now nmbd.service
             echo "NetBIOS enabled"
             echo ""
@@ -594,12 +597,16 @@ do_update() {
     fi
 
     # load saved config
+    local allowed_env_keys=" LOCAL_USER SHARED_NAME SHARED_PATH SMB_NET SMB_IFACE SERVER_IP SMBNAME NETBIOS TRUSTED_PROXIES WATCH_LIMIT_GB WATCH_EXCLUDE "
     while IFS= read -r line; do
         [[ "$line" =~ ^[A-Z_]+=.* ]] && {
             key="${line%%=*}"
             val="${line#*=}"
             val=$(echo "$val" | tr -d '"')
-            export "$key=$val"
+            case "$allowed_env_keys" in
+                *" $key "*) export "$key=$val" ;;
+                *) echo "WARNING: ignoring unknown key in $SMBSTACK_ENV: $key" ;;
+            esac
         }
     done < "$SMBSTACK_ENV"
     echo "Updating with config: user=$LOCAL_USER shared=$SHARED_PATH net=$SMB_NET iface=$SMB_IFACE"

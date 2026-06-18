@@ -13,7 +13,7 @@
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
 
-$LOG_FILE = '/var/log/squid/access.log';
+define('LOG_FILE', '/var/log/squid/access.log');
 define('MIN_LOG_LINES_REQUEST', 50);
 define('MAX_LOG_LINES_REQUEST', 5000);
 
@@ -52,7 +52,7 @@ function parse_line($line) {
     }
 
     // Format timestamp
-    $dt = date('Y-m-d H:i:s', (int)$ts);
+    $dt = gmdate('Y-m-d H:i:s', (int)$ts);
 
     return [
         'ts'         => $dt,
@@ -77,16 +77,16 @@ function fmt_bytes($bytes) {
 
 // ── Check file ───────────────────────────────────────────────────────────────
 
-if (!file_exists($LOG_FILE)) {
-    error_log('Logview: log file not found: ' . $LOG_FILE);
+if (!file_exists(LOG_FILE)) {
+    error_log('Logview: log file not found: ' . LOG_FILE);
     err("Log file not found.", 404);
 }
-if (!is_readable($LOG_FILE)) {
-    error_log('Logview: log file not readable: ' . $LOG_FILE);
+if (!is_readable(LOG_FILE)) {
+    error_log('Logview: log file not readable: ' . LOG_FILE);
     err("Log file not readable. Check server permissions.");
 }
 
-$file_size = filesize($LOG_FILE);
+$file_size = filesize(LOG_FILE);
 
 // ── Mode: info only (polling size check) ─────────────────────────────────────
 
@@ -106,7 +106,7 @@ if (isset($_GET['grep']) && $_GET['grep'] !== '') {
     }
 
     $escaped = escapeshellarg($term);
-    $log     = escapeshellarg($LOG_FILE);
+    $log     = escapeshellarg(LOG_FILE);
     $max_matches = 5000;
     $output  = shell_exec("timeout 20 grep -Fa $escaped $log 2>/dev/null | tail -n $max_matches");
 
@@ -114,7 +114,7 @@ if (isset($_GET['grep']) && $_GET['grep'] !== '') {
         echo json_encode([
             'rows'       => [],
             'offset'     => $file_size,
-            'log_file'   => $LOG_FILE,
+            'log_file'   => LOG_FILE,
             'total_rows' => 0,
             'grep'       => true,
         ]);
@@ -133,7 +133,7 @@ if (isset($_GET['grep']) && $_GET['grep'] !== '') {
     echo json_encode([
         'rows'       => $rows,
         'offset'     => $file_size,
-        'log_file'   => $LOG_FILE,
+        'log_file'   => LOG_FILE,
         'total_rows' => count($rows),
         'grep'       => true,
     ]);
@@ -148,7 +148,10 @@ if (isset($_GET['since'])) {
         echo json_encode(['rows' => [], 'offset' => $file_size]);
         exit;
     }
-    $fh = fopen($LOG_FILE, 'rb');
+    $fh = fopen(LOG_FILE, 'rb');
+    if ($fh === false) {
+        err('Log file became unreadable.', 500);
+    }
     fseek($fh, $since);
     $new_data = fread($fh, $file_size - $since);
     fclose($fh);
@@ -168,7 +171,10 @@ $lines_req = isset($_GET['lines']) ? (int)$_GET['lines'] : 500;
 $lines_req = max(MIN_LOG_LINES_REQUEST, min(MAX_LOG_LINES_REQUEST, $lines_req));
 
 // Read last N lines efficiently using tail-like seek
-$fh = fopen($LOG_FILE, 'rb');
+$fh = fopen(LOG_FILE, 'rb');
+if ($fh === false) {
+    err('Log file became unreadable.', 500);
+}
 $chunk    = 65536; // 64KB chunks
 $pos      = $file_size;
 $buf      = '';
@@ -200,6 +206,6 @@ $rows = array_reverse($rows);
 echo json_encode([
     'rows'      => $rows,
     'offset'    => $file_size,
-    'log_file'  => $LOG_FILE,
+    'log_file'  => LOG_FILE,
     'total_rows'=> count($rows),
 ]);

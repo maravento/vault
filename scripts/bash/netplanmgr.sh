@@ -52,6 +52,10 @@ fi
 set -e
 
 MODNAME="netplanmgr"
+if ! [[ "$MODNAME" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo "ERROR: MODNAME contains invalid characters"
+    exit 1
+fi
 MODDIR="/usr/share/webmin/$MODNAME"
 ETCDIR="/etc/webmin/$MODNAME"
 
@@ -89,6 +93,7 @@ install_module() {
 # Netplan Manager - Main interface
 use strict;
 use warnings;
+use Cwd qw(realpath);
 
 # Load webmin libraries
 do '../web-lib.pl';
@@ -134,6 +139,28 @@ sub write_file_content {
     return 0;
 }
 
+# Restrict all file operations to .yaml/.yml files that resolve inside the
+# configured Netplan directory, preventing path traversal / arbitrary file
+# read or write through the 'file' parameter.
+sub is_safe_netplan_file {
+    my ($f) = @_;
+    return 0 unless $f;
+    my $allowed_dir = $config{'netplan_path'} || "/etc/netplan";
+    my $real_allowed = realpath($allowed_dir);
+    return 0 unless $real_allowed;
+
+    my ($base) = $f =~ m{([^/]+)$};
+    return 0 unless $base && $base =~ /^[A-Za-z0-9._-]+\.ya?ml$/i;
+
+    my $dir = $f;
+    $dir =~ s{/[^/]*$}{};
+    $dir = '.' if $dir eq '';
+    my $real_dir = realpath($dir);
+    return 0 unless $real_dir;
+
+    return $real_dir eq $real_allowed;
+}
+
 # ============================================================
 # PROCESS ACTIONS (antes del header para manejar redirects)
 # ============================================================
@@ -141,7 +168,7 @@ sub write_file_content {
 # Handle AJAX request for file content
 if (defined $in{'ajax'} && $in{'ajax'} eq '1') {
     my $file = $in{'file'} || '';
-    if ($file && -f $file) {
+    if ($file && is_safe_netplan_file($file) && -f $file) {
         my $content = read_file_content($file);
         print "Content-type: text/plain; charset=utf-8\r\n\r\n";
         print $content || '';
@@ -156,7 +183,7 @@ if (defined $in{'ajax'} && $in{'ajax'} eq '1') {
 if (defined $in{'save'}) {
     my $file = $in{'file'} || '';
     my $content = $in{'content'} || '';
-    if ($file && write_file_content($file, $content)) {
+    if ($file && is_safe_netplan_file($file) && write_file_content($file, $content)) {
         &redirect("index.cgi?saved=1&file=" . &urlize($file));
     } else {
         &redirect("index.cgi?error=save");
@@ -167,13 +194,13 @@ if (defined $in{'save'}) {
 # Handle VALIDATE action
 if (defined $in{'validate'}) {
     my $file = $in{'file'} || '';
-    if ($file && -f $file) {
+    if ($file && is_safe_netplan_file($file) && -f $file) {
         my $tmpdir  = "/tmp/netplan-test-$$";
         my $tmpyaml = "$tmpdir/etc/netplan/validate-$$.yaml";
         system("mkdir -p \"$tmpdir/etc/netplan\"");
         my $content = read_file_content($file);
         if ($content && write_file_content($tmpyaml, $content)) {
-            my $out  = `netplan generate --root-dir=$tmpdir 2>&1`;
+            my $out  = `netplan generate --root-dir="$tmpdir" 2>&1`;
             my $exit = $? >> 8;
             system("rm -rf \"$tmpdir\" 2>/dev/null");
             if ($exit == 0) {
@@ -194,7 +221,7 @@ if (defined $in{'validate'}) {
 # Handle APPLY action
 if (defined $in{'apply'}) {
     my $file = $in{'file'} || '';
-    if ($file) {
+    if ($file && is_safe_netplan_file($file)) {
         # Save first if content present
         if (defined $in{'content'}) {
             if (!write_file_content($file, $in{'content'})) {
@@ -752,7 +779,7 @@ if (defined $in{'edit'}) {
 
 print "</div>";
 
-print <<'MODAL';
+print <<"MODAL";
 <div id="modalOverlay" class="modal-overlay" onclick="closeEditModal()"></div>
 
 <div id="editModal" class="modal-container">

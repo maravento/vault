@@ -42,7 +42,8 @@ install_wireguard_server() {
     mkdir -p /etc/wireguard
     cd /etc/wireguard || exit
 
-    # umask for file permissions
+    # restrict permissions while generating key material, restore afterward
+    PREV_UMASK=$(umask)
     umask 077
 
     # Generate private and public keys
@@ -68,7 +69,7 @@ install_wireguard_server() {
     printf "%s\n" "$interfaces" | nl -s '. '
 
     # Prompt the user to choose an interface by number
-    read -p "Enter the public network interface number: " num
+    read -rp "Enter the public network interface number: " num
     if ! [[ "$num" =~ ^[0-9]+$ ]]; then
         echo "Error: Please enter a valid number."
         exit 1
@@ -105,6 +106,9 @@ EOL
     # Permissions for files and keys
     chmod 600 /etc/wireguard/{private.key,wg0.conf}
     chmod 644 /etc/wireguard/public.key
+
+    # restore the umask that was active before key generation
+    umask "$PREV_UMASK"
 
     # Enable IPv4 persistent redirection
     if [ ! -f /etc/sysctl.conf ]; then
@@ -145,6 +149,8 @@ install_wireguard_client() {
     CLIENT_PUBLIC_KEY=$(echo "$CLIENT_PRIVATE_KEY" | wg pubkey)
 
     # Configure the WireGuard configuration file with the generated keys
+    PREV_UMASK=$(umask)
+    umask 077
     echo "[Interface]
 PrivateKey = $CLIENT_PRIVATE_KEY
 Address = <Client IP>/32
@@ -155,6 +161,7 @@ PublicKey = <Server's Public Key>
 Endpoint = <Server's Public IP>:51820 # Real IP
 AllowedIPs = 0.0.0.0/0, ::/0
 PersistentKeepalive = 25 # Optional" > /etc/wireguard/wg0.conf
+    umask "$PREV_UMASK"
 
     # Permissions for files and keys
     chmod 600 /etc/wireguard/wg0.conf
@@ -211,7 +218,7 @@ echo "What action do you want to perform?"
 echo "1) Install WireGuard Server"
 echo "2) Install WireGuard Client"
 echo "3) Uninstall WireGuard"
-read -p "Select an option (1, 2 or 3): " option
+read -rp "Select an option (1, 2 or 3): " option
 
 case $option in
   1)

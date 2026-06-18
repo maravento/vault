@@ -47,19 +47,22 @@ fi
 echo "Using local user: $local_user"
 
 # check dependencies
-pkgs='bindfs'
-missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
-unavailable=""
-for p in $missing; do
-    apt-cache show "$p" &>/dev/null || unavailable+=" $p"
+pkgs=(bindfs)
+missing=()
+for p in "${pkgs[@]}"; do
+    dpkg -s "$p" &>/dev/null || missing+=("$p")
 done
-if [ -n "$unavailable" ]; then
+unavailable=()
+for p in "${missing[@]}"; do
+    apt-cache show "$p" &>/dev/null || unavailable+=("$p")
+done
+if [ "${#unavailable[@]}" -gt 0 ]; then
     echo "Missing dependencies not found in APT:"
-    for u in $unavailable; do echo "   - $u"; done
+    for u in "${unavailable[@]}"; do echo "   - $u"; done
     echo "Please install them manually or enable the required repositories."
     exit 1
 fi
-if [ -n "$missing" ]; then
+if [ "${#missing[@]}" -gt 0 ]; then
     echo "Waiting for APT/DPKG locks to be released..."
     APT_LOCK_TIMEOUT=120
     APT_LOCK_ELAPSED=0
@@ -74,10 +77,10 @@ if [ -n "$missing" ]; then
         APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
     done
     dpkg --configure -a
-    echo "Installing: $missing"
+    echo "Installing: ${missing[*]}"
     apt-get -qq update
-    if ! apt-get -y install $missing; then
-        echo "Error installing: $missing"
+    if ! apt-get -y install "${missing[@]}"; then
+        echo "Error installing: ${missing[*]}"
         exit 1
     fi
 else
@@ -107,12 +110,16 @@ case "$1" in
         exit 1
     fi
     sudo -u "$local_user" bindfs -n "$originpath" "$dstpath"
-    echo "DriveCrypt Mount: $(date)" | tee -a /var/log/syslog
+    msg="DriveCrypt Mount: $(date)"
+    echo "$msg"
+    logger -t drivecrypt "$msg"
     ;;
 'stop')
     echo "Umounting DriveCrypt..."
     sudo -u "$local_user" fusermount -u "$dstpath"
-    echo "DriveCrypt Umount: $(date)" | tee -a /var/log/syslog
+    msg="DriveCrypt Umount: $(date)"
+    echo "$msg"
+    logger -t drivecrypt "$msg"
     ;;
 *)
     echo "Usage: $0 { start | stop }"

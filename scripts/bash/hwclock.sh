@@ -29,6 +29,6 @@ if ! flock -n 200; then
     exit 1
 fi
 
-hwclock -w
+hwclock -w || echo "WARNING: hwclock -w failed (VM or container?)"
 echo "HWClock Update: $(date)" | tee -a /var/log/syslog
 echo "Done"

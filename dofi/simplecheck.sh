@@ -13,9 +13,12 @@
 # - `exists.txt`: Domains that successfully resolved
 # - `not_exists.txt`: Domains that did not resolve
 #
+# Usage:
+# ./simplecheck.sh [list_file]
+# Defaults to 'mylist.txt' if no argument is given.
+#
 # Configuration:
-# - Set the input list by editing the `list` variable inside the script.
-# - Parallel execution is based on available CPU cores × 4 for performance.
+# - Parallel execution is based on available CPU cores x 4, capped at 200.
 #
 # Notes:
 # - Unlike more advanced scripts, this version does not retry failed domains
@@ -26,17 +29,30 @@
 
 trap "echo -e '\nProcess interrupted by user'; exit 1" INT
 
-list="mylist.txt"
+list="${1:-mylist.txt}"
 
 if [ ! -f "$list" ]; then
     echo "The file '$list' does not exist."
     exit 1
 fi
 
+if ! command -v host >/dev/null 2>&1; then
+    echo "Error: 'host' command not found. Please install it (e.g., dnsutils/bind-tools)."
+    exit 1
+fi
+
+if [ -s exists.txt ] || [ -s not_exists.txt ]; then
+    echo "Warning: exists.txt and/or not_exists.txt already contain data and will be overwritten."
+fi
+
 > exists.txt
 > not_exists.txt
 
 PROCS=$(($(nproc) * 4))
+MAX_PROCS=200
+if [ "$PROCS" -gt "$MAX_PROCS" ]; then
+    PROCS="$MAX_PROCS"
+fi
 
 check_domain() {
     original="$1"

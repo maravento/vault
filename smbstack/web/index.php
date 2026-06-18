@@ -9,6 +9,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+// $tab must always be validated against $allowed_tabs before being echoed into
+// the href/class attributes below; any new tab value added here must also be
+// added to $allowed_tabs.
 $tab = isset($_GET['tab']) ? $_GET['tab'] : 'shared';
 $allowed_tabs = ['shared', 'audit'];
 if (!in_array($tab, $allowed_tabs)) $tab = 'shared';

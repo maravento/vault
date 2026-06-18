@@ -90,7 +90,7 @@ if [[ $custom_editor = 'yes' ]]; then
 fi
 
 die() {
-    [[ $colors = 'yes' ]] && echo -e "\n\033[1;31m$@\033[0m" >&2 || echo -e "\n$@" >&2
+    [[ $colors = 'yes' ]] && echo -e "\n\033[1;31m$*\033[0m" >&2 || echo -e "\n$*" >&2
     exit 1
 }
 
@@ -161,7 +161,7 @@ eject_product() {
 
 choose_remove() {
     message "\nChoose number to add"
-    read -e number
+    read -r -e number
     [[ "$number" =~ ^[0-9]+$ ]] || die "wrong number"
     [[ -z "${vendors[$number]}" ]] && die "wrong number"
 

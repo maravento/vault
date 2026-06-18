@@ -18,6 +18,8 @@ printf "\n"
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+set -euo pipefail
+
 # cleanup temporary files on exit or error
 WORK_DIR="$(pwd)"
 cleanup() {
@@ -40,8 +42,6 @@ if ! flock -n 200; then
     exit 1
 fi
 
-set -euo pipefail
-
 # LOCAL USER (multi-strategy detection with validation)
 local_user=""
 local_user=$(who | awk '/\(:0\)/{print $1; exit}')
@@ -56,24 +56,27 @@ fi
 echo "Using local user: $local_user"
 
 # check dependencies
-pkgs='bsdutils lsof unzip apache2 libapache2-mod-php php php-soap php-xml'
-missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
-unavailable=""
-for p in $missing; do
-    apt-cache show "$p" &>/dev/null || unavailable+=" $p"
+pkgs=(bsdutils lsof unzip apache2 libapache2-mod-php php php-soap php-xml)
+missing=()
+for p in "${pkgs[@]}"; do
+    dpkg -s "$p" &>/dev/null || missing+=("$p")
 done
-if [ -n "$unavailable" ]; then
+unavailable=()
+for p in "${missing[@]}"; do
+    apt-cache show "$p" &>/dev/null || unavailable+=("$p")
+done
+if [ "${#unavailable[@]}" -gt 0 ]; then
     echo "Missing dependencies not found in APT:"
-    for u in $unavailable; do echo "   - $u"; done
+    for u in "${unavailable[@]}"; do echo "   - $u"; done
     echo "Please install them manually or enable the required repositories."
     exit 1
 fi
-if [ -n "$missing" ]; then
+if [ "${#missing[@]}" -gt 0 ]; then
     echo "🔧 Waiting for APT/DPKG locks to be released..."
     APT_LOCK_TIMEOUT=120
     APT_LOCK_ELAPSED=0
-    APT_LOCK_FILES="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
-    while lsof $APT_LOCK_FILES >/dev/null 2>&1; do
+    APT_LOCK_FILES=(/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend)
+    while lsof "${APT_LOCK_FILES[@]}" >/dev/null 2>&1; do
         if [ "$APT_LOCK_ELAPSED" -ge "$APT_LOCK_TIMEOUT" ]; then
             echo "APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
             exit 1
@@ -82,10 +85,10 @@ if [ -n "$missing" ]; then
         sleep 5
         APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
     done
-    echo "Installing: $missing"
+    echo "Installing: ${missing[*]}"
     apt-get -qq update
-    if ! apt-get -y install $missing; then
-        echo "Error installing: $missing"
+    if ! apt-get -y install "${missing[@]}"; then
+        echo "Error installing: ${missing[*]}"
         exit 1
     fi
 else
@@ -109,8 +112,10 @@ unzip -q main.zip
 mv phpvirtualbox-main/config.php-example phpvirtualbox-main/config.php
 #mv phpvirtualbox-main/recovery.php-disabled phpvirtualbox-main/recovery.php
 # change user
-sed -i "0,/var \\\$username/{/var \\\$username/s:'vbox':'$local_user':}" phpvirtualbox-main/config.php
-# move folder to final path
+safe_local_user=$(printf '%s' "$local_user" | sed -e 's/[\&:]/\\&/g')
+sed -i "0,/var \\\$username/{/var \\\$username/s:'vbox':'$safe_local_user':}" phpvirtualbox-main/config.php
+# move folder to final path (remove previous install to avoid nesting on reinstall)
+rm -rf /var/www/html/phpvirtualbox
 mv phpvirtualbox-main/ /var/www/html/phpvirtualbox
 # set chown
 chown -R www-data:www-data /var/www/html/phpvirtualbox

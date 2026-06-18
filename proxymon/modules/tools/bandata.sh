@@ -43,10 +43,38 @@ echo "----------------------------------------------------------------"
 echo "$(date '+%Y-%m-%d %H:%M:%S') — Bandata start"
 echo "----------------------------------------------------------------"
 
+# Verify logrotate config exists for this log; create it if missing (self-contained)
+logrotate_conf="/etc/logrotate.d/bandata"
+if [ ! -f "$logrotate_conf" ]; then
+    cat > "$logrotate_conf" <<'EOF'
+/var/log/bandata.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 root adm
+}
+EOF
+    chmod 644 "$logrotate_conf"
+    chown root:root "$logrotate_conf"
+    echo "Created logrotate config: $logrotate_conf"
+fi
+
 ### CONFIGURATION
 PROXYMON_ENV="/etc/proxymon/proxymon.env"
 if [ ! -f "$PROXYMON_ENV" ]; then
     echo "ERROR: $PROXYMON_ENV not found. Run proxymon.sh install to generate it."
+    exit 1
+fi
+_env_owner=$(stat -c '%U' "$PROXYMON_ENV" 2>/dev/null)
+_env_perms=$(stat -c '%a' "$PROXYMON_ENV" 2>/dev/null)
+_env_group_digit="${_env_perms: -2:1}"
+_env_other_digit="${_env_perms: -1}"
+if [ "$_env_owner" != "root" ] || [[ "$_env_group_digit" =~ [2367] ]] || [[ "$_env_other_digit" =~ [2367] ]]; then
+    echo "ERROR: $PROXYMON_ENV has unsafe owner/permissions (owner=$_env_owner perms=$_env_perms)."
+    echo "Expected owner root with no group/other write access. Refusing to source it."
     exit 1
 fi
 # shellcheck source=/etc/proxymon/proxymon.env
@@ -141,7 +169,7 @@ else
         ) | grep -wvf "$allow_list" | $reorganize | uniq > "$block_list_day"
     fi
     
-    day_count=$(wc -l < "$block_list_day")
+    day_count=$(wc -l < "$block_list_day" 2>/dev/null || echo 0)
     if [ "$day_count" -gt 0 ]; then
         echo "Daily Blocked:"
         sed 's/^/    /' "$block_list_day"
@@ -174,7 +202,7 @@ if [ "$today" -eq 1 ]; then
         echo "$ips" | awk -v max="$max_bw_week" '$1 > max {print $2}' | grep -wvf "$allow_list" | $reorganize | uniq > "$block_list_week"
     fi
 
-    week_count=$(wc -l < "$block_list_week")
+    week_count=$(wc -l < "$block_list_week" 2>/dev/null || echo 0)
     if [ "$week_count" -gt 0 ]; then
         echo "Weekly Blocked:"
         sed 's/^/    /' "$block_list_week"
@@ -211,7 +239,7 @@ else
     echo "$ips" | awk -v max="$max_bw_month" '$1 > max {print $2}' | grep -wvf "$allow_list" | $reorganize | uniq > "$block_list_month"
 fi
 
-month_count=$(wc -l < "$block_list_month")
+month_count=$(wc -l < "$block_list_month" 2>/dev/null || echo 0)
 if [ "$month_count" -gt 0 ]; then
     echo "Monthly Blocked:"
     sed 's/^/    /' "$block_list_month"
@@ -242,7 +270,7 @@ if [ -n "$all_bans" ]; then
 
     echo ""
     echo "FINAL BAN SUMMARY:"
-    ipset list bandata 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | $reorganize | while read ip; do
+    ipset list bandata 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | $reorganize | while IFS= read -r ip; do
         # Check which category this IP belongs to
         if grep -qxF "$ip" "$block_list_day" 2>/dev/null; then
             cat_type="DAILY"
@@ -279,9 +307,6 @@ iptables -A BANDATA_FWD -m set --match-set bandata src -p udp --dport 53 -j ACCE
 
 iptables -C BANDATA_FWD -m set --match-set bandata src -p tcp --dport 80 -j ACCEPT 2>/dev/null || \
 iptables -A BANDATA_FWD -m set --match-set bandata src -p tcp --dport 80 -j ACCEPT
-
-iptables -C BANDATA_FWD -m set --match-set bandata src -p tcp --dport 18081 -j ACCEPT 2>/dev/null || \
-iptables -A BANDATA_FWD -m set --match-set bandata src -p tcp --dport 18081 -j ACCEPT
 
 iptables -C BANDATA_FWD -m set --match-set bandata src -j DROP 2>/dev/null || \
 iptables -A BANDATA_FWD -m set --match-set bandata src -j DROP

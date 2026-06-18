@@ -98,7 +98,7 @@ detect_tunnels() {
         done
         eval "$old_nullglob"
     fi
-    echo "${tunnels[@]}"
+    printf '%s\n' "${tunnels[@]}"
 }
 
 get_tunnel_id() {
@@ -140,6 +140,10 @@ start_tunnel() {
             fi
             kill "$old_pid" 2>/dev/null
             sleep 1
+            if kill -0 "$old_pid" 2>/dev/null; then
+                kill -9 "$old_pid" 2>/dev/null
+                sleep 1
+            fi
             rm -f "$pid_file"
         else
             rm -f "$pid_file"
@@ -207,7 +211,7 @@ stop_tunnel() {
 
 stop_all_tunnels() {
     local tunnels=()
-    mapfile -t tunnels < <(detect_tunnels | tr ' ' '\n' | grep -v '^$')
+    mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
 
     if [[ ${#tunnels[@]} -eq 0 ]]; then
         echo "[ERROR] No tunnel configuration files found in $CONFIG_DIR/"
@@ -288,7 +292,7 @@ start_multiple_tunnels() {
     fi
 
     local tunnels=()
-    mapfile -t tunnels < <(detect_tunnels | tr ' ' '\n' | grep -v '^$')
+    mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
     local tunnel_count=${#tunnels[@]}
 
     if [[ $tunnel_count -eq 0 ]]; then
@@ -323,7 +327,7 @@ startall_tunnels() {
         return 1
     fi
     local tunnels=()
-    mapfile -t tunnels < <(detect_tunnels | tr ' ' '\n' | grep -v '^$')
+    mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
 
     if [[ ${#tunnels[@]} -eq 0 ]]; then
         echo "[ERROR] No tunnel configuration files found in $CONFIG_DIR/"
@@ -348,7 +352,7 @@ startall_tunnels() {
 
 status_all_tunnels() {
     local tunnels=()
-    mapfile -t tunnels < <(detect_tunnels | tr ' ' '\n' | grep -v '^$')
+    mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
 
     if [[ ${#tunnels[@]} -eq 0 ]]; then
         echo "[ERROR] No tunnel configuration files found in $CONFIG_DIR/"

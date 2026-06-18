@@ -69,6 +69,7 @@ load_env
 set_env_var() {
     local key="$1" val="$2"
     local esc_val
+    val=$(printf '%s' "$val" | tr -d '\r\n')
     esc_val=$(printf '%s' "$val" | sed -e 's/[\&|]/\\&/g')
     if grep -q "^${key}=" "$SMBSTACK_ENV"; then
         sed -i "s|^${key}=.*|${key}=\"${esc_val}\"|" "$SMBSTACK_ENV"

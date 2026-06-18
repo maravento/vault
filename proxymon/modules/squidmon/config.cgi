@@ -32,9 +32,35 @@ my $message_type = '';
 if (defined $in{'action'} && $in{'action'} eq 'save') {
     my $acl_list_value = $in{'acl_list'} || '';
     $acl_list_value =~ s/\r\n/\n/g;
-    
+
+    my $squid_log_value = $in{'squid_log'} || '/var/log/squid/access.log';
+
+    # Validate inputs before writing them to disk — squidmon.cgi opens these
+    # paths directly, so an unrestricted path here is an arbitrary file read.
+    my @validation_errors = ();
+
+    if ($squid_log_value !~ m{^/var/log/squid/[a-zA-Z0-9._-]+\.log$}) {
+        push @validation_errors, 'Squid Log File Path must be under /var/log/squid/ and end in .log';
+    }
+
+    foreach my $acl_entry (split(/\n/, $acl_list_value)) {
+        my $trimmed = $acl_entry;
+        $trimmed =~ s/^\s+|\s+$//g;
+        next if $trimmed eq '' || $trimmed =~ /^regex:/;
+        if ($trimmed =~ /^([^=]+)=(.+)$/) {
+            my $path = $1;
+            if ($path !~ m{^/etc/acl/}) {
+                push @validation_errors, "ACL path '$path' must be under /etc/acl/";
+            }
+        }
+    }
+
+    if (@validation_errors) {
+        $message = 'Configuration not saved: ' . join('; ', @validation_errors);
+        $message_type = 'error';
+    } else {
     %config = (
-        'squid_log' => $in{'squid_log'} || '/var/log/squid/access.log',
+        'squid_log' => $squid_log_value,
         'max_lines' => int($in{'max_lines'}) || 50000,
         'time_range' => int($in{'time_range'}) || 24,
         'acl_list' => $acl_list_value,
@@ -59,6 +85,7 @@ if (defined $in{'action'} && $in{'action'} eq 'save') {
     } else {
         $message = 'Error saving configuration. Check file permissions.';
         $message_type = 'error';
+    }
     }
 }
 
@@ -124,7 +151,7 @@ print <<'HTML_START';
         <div class="header">
             <h1>⚙️ Squidmon - Configuration</h1>
             <div class="nav">
-                <a href="index.cgi">← Back to Dashboard</a>
+                <a href="squidmon.cgi">← Back to Dashboard</a>
             </div>
         </div>
 HTML_START
@@ -132,7 +159,7 @@ HTML_START
 # Show message if exists
 if ($message) {
     print "<div class='alert alert-$message_type'>\n";
-    print "$message\n";
+    print escape_html($message) . "\n";
     print "</div>\n";
 }
 

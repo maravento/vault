@@ -73,16 +73,18 @@ function write_audit($action, $file_path) {
             }
         }
     }
+    $file_path = str_replace(["\r", "\n"], '', $file_path);
     $entry = "$timestamp $user smbd_audit: $ip|$user|$share|$action|ok|$file_path\n";
     file_put_contents($log_file, $entry, FILE_APPEND | LOCK_EX);
 }
 
 $request   = isset($_GET['path']) ? $_GET['path'] : '';
 $request   = ltrim(preg_replace('/[\x00-\x1F]/', '', $request), '/');
+$base_real = realpath($base_path);
 $full_path = realpath($base_path . '/' . $request);
 
-if (!$full_path || strpos($full_path, realpath($base_path)) !== 0 || !is_dir($full_path)) {
-    $full_path = realpath($base_path);
+if (!$full_path || ($full_path !== $base_real && strpos($full_path, $base_real . DIRECTORY_SEPARATOR) !== 0) || !is_dir($full_path)) {
+    $full_path = $base_real;
     $request   = '';
 }
 
@@ -105,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['upload'])) {
         if ($error !== UPLOAD_ERR_OK) { $failed++; continue; }
         $orig_name = basename($orig_name);
         $safe_name = preg_replace('/[^a-zA-Z0-9._\- ]/', '_', $orig_name);
-        $safe_name = preg_replace('/\.(php[0-9]?|phtml|pht|phar|cgi|pl|asp|aspx|jsp|sh|htaccess)$/i', '.txt', $safe_name);
+        $safe_name = preg_replace('/\.(php[0-9]?|phtml|pht|phar|cgi|pl|asp|aspx|jsp|sh|htaccess|html?|shtml|svg|xml)$/i', '.txt', $safe_name);
         $safe_name = trim($safe_name, '. ');
         if ($safe_name === '') $safe_name = 'upload_' . time() . '_' . $i;
         $target = $full_path . '/' . $safe_name;
@@ -162,9 +164,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recycle'])) {
     $item_full = realpath($base_path . '/' . $item_rel);
     $recycle   = $base_path . '/.recycle/www-data';
 
-    if ($item_full && strpos($item_full, realpath($base_path)) === 0 && $item_full !== realpath($base_path)) {
+    if ($item_full && strpos($item_full, $base_real . DIRECTORY_SEPARATOR) === 0) {
         // Protect root-level items (files and directories)
-        $depth = substr_count(str_replace(realpath($base_path), '', $item_full), DIRECTORY_SEPARATOR);
+        $depth = substr_count(str_replace($base_real, '', $item_full), DIRECTORY_SEPARATOR);
         if ($depth <= 1) {
             $recycle_msg = 'protected';
         } else {
@@ -187,6 +189,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recycle'])) {
 }
 
 $msg = isset($_GET['msg']) ? $_GET['msg'] : '';
+$allowed_msgs = ['success', 'partial', 'recycled', 'protected', 'mkdir_success', 'mkdir_error', 'exists', 'error'];
+if (!in_array($msg, $allowed_msgs, true)) $msg = '';
 
 $parts = $request ? explode('/', trim($request, '/')) : [];
 
