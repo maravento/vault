@@ -69,9 +69,11 @@ mkdir -p "$report_dir"
 chown "$local_user:$local_user" "$report_dir"
 chmod 0755 "$report_dir"
 
-# Log file for debugging
-log_file="/tmp/netreport_debug.log"
-> "$log_file"  # Clear previous log
+# Private temp directory — isolated from /tmp symlink attacks
+SCRIPT_TMPDIR=$(mktemp -d)
+trap 'rm -rf "$SCRIPT_TMPDIR"' EXIT
+log_file="$SCRIPT_TMPDIR/netreport_debug.log"
+> "$log_file"
 
 # === Check dependencies once at start ===
 required=(nmap xsltproc)
@@ -372,8 +374,8 @@ show_spinner_for_pid() {
 xml_to_html() {
   local xml="$1" 
   local html="$2" 
-  local xsl="/tmp/netreport-custom.xsl"
-  local xsl_error="/tmp/xsltproc_error.log"
+  local xsl="$SCRIPT_TMPDIR/netreport-custom.xsl"
+  local xsl_error="$SCRIPT_TMPDIR/xsltproc_error.log"
   
   log "Converting XML to HTML: $xml -> $html"
   
@@ -541,7 +543,7 @@ case "$opt" in
     log "Starting LAN Scan on $net"
     
     # Run nmap in background
-    nmap -sS -T4 -F -sV "$net" -oX "$xml_file" > /tmp/netreport_nmap_out 2>&1 &
+    nmap -sS -T4 -F -sV "$net" -oX "$xml_file" > "$SCRIPT_TMPDIR/nmap_out" 2>&1 &
     pid=$!
     show_spinner_for_pid "$pid"
     
@@ -612,7 +614,7 @@ case "$opt" in
          --script vuln --traceroute \
          -oA "$base" \
          --max-retries 3 --host-timeout 10m \
-         "$target" 2>&1 | tee /tmp/netreport_nmap_out &
+         "$target" 2>&1 | tee "$SCRIPT_TMPDIR/nmap_out" &
     pid=$!
     show_spinner_for_pid "$pid"
     

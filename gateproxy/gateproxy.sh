@@ -130,7 +130,7 @@ else
 fi
 
 # DEPENDENCIES
-pkgs='nala curl software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 p7zip-full p7zip-rar rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar python-is-python3 coreutils dconf-editor'
+pkgs='nala curl software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 p7zip-full p7zip-rar rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3'
 missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
 unavailable=""
 for p in $missing; do
@@ -143,10 +143,17 @@ if [ -n "$unavailable" ]; then
     exit 1
 fi
 if [ -n "$missing" ]; then
-    echo "🔧 Waiting for apt/dpkg to finish..."
+    echo "Waiting for apt/dpkg to finish..."
+    apt_wait=0
+    apt_wait_limit=60
     while pgrep -x apt > /dev/null 2>&1 || pgrep -x apt-get > /dev/null 2>&1 || pgrep -x dpkg > /dev/null 2>&1; do
-        echo "Waiting for apt/dpkg to finish..."
+        if [ "$apt_wait" -ge "$apt_wait_limit" ]; then
+            echo "ERROR: apt/dpkg did not release after $((apt_wait_limit * 5)) seconds"
+            exit 1
+        fi
+        echo "Waiting for apt/dpkg to finish... ($apt_wait/$apt_wait_limit)"
         sleep 5
+        (( apt_wait++ ))
     done
     rm -f /var/lib/apt/lists/lock
     rm -f /var/cache/apt/archives/lock
@@ -218,7 +225,7 @@ echo -e "\n"
 [ -d "$gp_path" ] && rm -rf "$gp_path"
 wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
 chmod +x gitfolder.py
-python gitfolder.py https://github.com/maravento/vault/gateproxy
+python3 gitfolder.py https://github.com/maravento/vault/gateproxy
 
 ### CONFIG
 echo -e "\n"
@@ -369,7 +376,7 @@ function is_mask1() {
 
 function is_mask2() {
     read -r -p "${lang_16[$lang]} Subnet-Mask (${lang_22[$lang]} 24): " MASK2
-    MASKNEW2=$(echo "$MASK2" | grep -E '[0-9]')
+    MASKNEW2=$(echo "$MASK2" | grep -E '^([1-9]|[12][0-9]|3[0-2])$')
     if [ "$MASKNEW2" ]; then
         find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:/24:/$MASKNEW2:g" "{}"
         echo "${lang_17[$lang]} Subnet-Mask $MASK2 :OK"
@@ -705,7 +712,7 @@ rm -f proxymon.sh
 # DHCP SECTION
 # pydhcp
 echo "Installing pydhcp..."
-python gitfolder.py https://github.com/maravento/vault/pydhcp
+python3 gitfolder.py https://github.com/maravento/vault/pydhcp
 pydhcp_path="$(pwd)/pydhcp"
 if [ ! -d "$pydhcp_path" ]; then
     echo "ERROR: pydhcp directory not found"
@@ -876,7 +883,7 @@ read -r -p "${lang_19[$lang]} Samba?
 ${lang_20[$lang]} (y/n)" answer
     case "$answer" in
     [Yy]*)
-        python gitfolder.py https://github.com/maravento/vault/smbstack
+        python3 gitfolder.py https://github.com/maravento/vault/smbstack
         smbstack_path="$(pwd)/smbstack"
         if [ ! -d "$smbstack_path" ]; then
             echo "ERROR: smbstack directory not found"

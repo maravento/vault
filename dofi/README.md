@@ -21,10 +21,9 @@
 
 ```bash
 # Download
-sudo apt install -y python-is-python3
 wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
 chmod +x gitfolder.py
-python gitfolder.py https://github.com/maravento/vault/dofi
+python3 gitfolder.py https://github.com/maravento/vault/dofi
 
 # Install
 cd dofi
@@ -248,7 +247,7 @@ chmod +x simplecheck.sh
 - [tlds-alpha-by-domain](https://data.iana.org/TLD/tlds-alpha-by-domain.txt)
 - [tldsappx](https://github.com/maravento/blackweb/blob/master/bwupdate/lst/tldsappx.txt)
 - [public_suffix_list](https://github.com/publicsuffix/list/blob/master/public_suffix_list.dat)
-- [supported_gtlds](https://www.whoisxmlapi.com/support/supported_gtlds.php)
+- [supported_gtlds](https://www.whoisxmlapi.com/support/supported_tlds.php?ts=gp)
 
 ## DISCLAIMER
 

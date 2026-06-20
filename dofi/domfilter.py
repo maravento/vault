@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # maravento.com
 
 ## Domain Filter Script
@@ -52,8 +52,9 @@ MIN_TLD_COUNT = 500
 
 # TLD
 def download_public_suffix(url: str, output_file: Path, verify_ssl: bool) -> None:
+    headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'}
     try:
-        response = requests.get(url, timeout=10, verify=verify_ssl)
+        response = requests.get(url, timeout=10, verify=verify_ssl, headers=headers)
         response.raise_for_status()
         with open(output_file, 'a', encoding='utf-8') as f:
             f.write(response.text)
@@ -94,7 +95,7 @@ def generate_tlds(verify_ssl: bool = True):
         'https://data.iana.org/TLD/tlds-alpha-by-domain.txt',
         'https://raw.githubusercontent.com/maravento/blackweb/refs/heads/master/bwupdate/lst/tldsappx.txt',
         'https://raw.githubusercontent.com/publicsuffix/list/master/public_suffix_list.dat',
-        'https://www.whoisxmlapi.com/support/supported_gtlds.php'
+        'https://www.whoisxmlapi.com/support/supported_tlds.php?ts=gp',
     ]
     count = 0
     try:

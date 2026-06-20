@@ -32,10 +32,9 @@
 
 ```bash
 # Download
-sudo apt install -y python-is-python3
 wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
 chmod +x gitfolder.py
-python gitfolder.py https://github.com/maravento/vault/blackusb
+python3 gitfolder.py https://github.com/maravento/vault/blackusb
 
 # Install
 cd blackusb/linux

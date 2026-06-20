@@ -45,10 +45,9 @@ check_repo() {
         echo ""
         echo "ERROR: Repository files not found. Run:"
         echo ""
-        echo "  sudo apt install -y python-is-python3"
         echo "  wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py"
         echo "  chmod +x gitfolder.py"
-        echo "  python gitfolder.py https://github.com/maravento/vault/smbstack"
+        echo "  python3 gitfolder.py https://github.com/maravento/vault/smbstack"
         echo ""
         exit 1
     fi
@@ -495,13 +494,15 @@ NMBD
             cat >> "$SMBSTACK_TOOLS/smbload.sh.tmp" <<'NMBD'
 
 # Samba Service (nmbd)
-if [[ $(ps -A | grep nmbd) != "" ]]; then
+if pgrep -x nmbd > /dev/null; then
     echo "nmbd: ONLINE"
 else
-    for pid in $(ps -ef | grep "nmbd" | awk '{print $2}'); do kill -9 $pid &>/dev/null; done
-    sleep $SLEEP_TIME
-    systemctl start nmbd.service
-    echo "nmbd start: $(date)" | tee -a /var/log/syslog
+    systemctl stop nmbd.service &>/dev/null
+    if systemctl start nmbd.service; then
+        echo "nmbd start: $(date)" | tee -a /var/log/syslog
+    else
+        echo "nmbd start FAILED: $(date)" | tee -a /var/log/syslog
+    fi
 fi
 NMBD
             mv -f "$SMBSTACK_TOOLS/smbload.sh.tmp" "$SMBSTACK_TOOLS/smbload.sh"

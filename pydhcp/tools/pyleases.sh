@@ -496,6 +496,7 @@ class "blockdhcp" {
         local removed=0
         file_temp=$(mktemp)
         TEMP_FILES_TO_CLEAN+=("$file_temp")
+        TEMP_FILES_TO_CLEAN+=("${ACL_BLOCK_FILE}.tmp")
         shopt -s nullglob
         acl_mac_files=("$ACL_MAC_PATH"/mac-*)
         shopt -u nullglob
@@ -527,7 +528,8 @@ class "blockdhcp" {
                 ulog "clean_proxy_list: removing $mac_actual from mac-proxy (found in mac-unlimited)"
                 (( removed++ )) || true
             fi
-            grep -vF ";${mac_actual};" "$ACL_MAC_PROXY" > "$file_temp" && mv "$file_temp" "$ACL_MAC_PROXY"
+            grep -vF ";${mac_actual};" "$ACL_MAC_PROXY" > "$file_temp"
+            mv "$file_temp" "$ACL_MAC_PROXY"
         done <"$ACL_MAC_UNLIMITED"
         rm -f "$file_temp"
         ulog "clean_proxy_list: done (removed=$removed)"
@@ -543,7 +545,8 @@ class "blockdhcp" {
                 ulog "clean_transparent_list: removing $mac_actual from mac-transparent (found in mac-unlimited)"
                 (( removed++ )) || true
             fi
-            grep -vF ";${mac_actual};" "$ACL_MAC_TRANSPARENT" > "$file_temp" && mv "$file_temp" "$ACL_MAC_TRANSPARENT"
+            grep -vF ";${mac_actual};" "$ACL_MAC_TRANSPARENT" > "$file_temp"
+            mv "$file_temp" "$ACL_MAC_TRANSPARENT"
         done <"$ACL_MAC_UNLIMITED"
         rm -f "$file_temp"
         ulog "clean_transparent_list: done (removed=$removed)"

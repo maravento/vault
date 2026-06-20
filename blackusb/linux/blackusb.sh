@@ -4,12 +4,11 @@
 ################################################################################
 #
 # BlackUSB
+# USB device access control via udev rules
 #
-# Fork:
-# [usbkill](https://github.com/hephaest0s/usbkill)
-# [usbdeath](https://github.com/trpt/usbdeath)
-# Modified by:
-# maravento.com and novatoz.com
+# Monitors USB connections and blocks unauthorized devices not in the whitelist.
+# Executes configurable commands (e.g. sync, poweroff) on unknown device events.
+# Manages udev rules for whitelisting, activation/deactivation and demo mode.
 #
 ################################################################################
 
@@ -311,7 +310,7 @@ o | on)
     ;;
 
 t | trigger)
-    setsid "$0" trigger_async </dev/null >/dev/null 2>&1 &
+    setsid "$PROGRAM_ABS" trigger_async </dev/null >/dev/null 2>&1 &
     disown
     ;;
 

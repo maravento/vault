@@ -42,7 +42,7 @@ check_dependencies() {
         [apache2]="apache2 apache2-bin apache2-data apache2-doc apache2-utils"
     )
 
-    pkgs='wget git ipset nbtscan libcgi-session-perl libgd-perl python-is-python3 coreutils sarg php libapache2-mod-php php-cli php-curl fonts-lato fonts-liberation fonts-dejavu'
+    pkgs='wget git ipset nbtscan libcgi-session-perl libgd-perl coreutils sarg php libapache2-mod-php php-cli php-curl fonts-lato fonts-liberation fonts-dejavu'
     for p in "${!pkgs_alts[@]}"; do
         pkgs+=" $p"
     done
@@ -164,10 +164,9 @@ check_repo() {
         echo ""
         echo "ERROR: Repository files not found. Run:"
         echo ""
-        echo "  sudo apt install -y python-is-python3"
         echo "  wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py"
         echo "  chmod +x gitfolder.py"
-        echo "  python gitfolder.py https://github.com/maravento/vault/proxymon"
+        echo "  python3 gitfolder.py https://github.com/maravento/vault/proxymon"
         echo ""
         exit 1
     fi

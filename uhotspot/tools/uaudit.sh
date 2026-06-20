@@ -77,7 +77,14 @@ if [ ! -f "$CONFIG" ]; then
     echo "ERROR: Config file not found: $CONFIG"
     exit 1
 fi
-
+_owner=$(stat -c '%U' "$CONFIG" 2>/dev/null)
+_perms=$(stat -c '%a' "$CONFIG" 2>/dev/null)
+_gdigit="${_perms: -2:1}"
+_odigit="${_perms: -1}"
+if [[ "$_owner" != "root" ]] || [[ "$_gdigit" =~ [2367] ]] || [[ "$_odigit" =~ [2367] ]]; then
+    echo "ERROR: $CONFIG has unsafe owner/permissions (owner=$_owner perms=$_perms). Refusing to source it."
+    exit 1
+fi
 source "$CONFIG"
 
 if [ -z "$UNIFI_CONTROLLER_URL" ] || [ -z "$UNIFI_USERNAME" ] || [ -z "$UNIFI_PASSWORD" ] || [ -z "$HOTSPOT_ESSID" ]; then

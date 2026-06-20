@@ -6,7 +6,8 @@
 #  AI STACK MANAGER - Dockerized Version
 #
 #  Stack:      Docker + Portainer + Ollama + Open WebUI
-#  Optional:   OpenCode (AI CLI tool, runs natively)
+#  Optional:   OpenCode CLI (AI CLI tool, runs natively)
+#              OpenCode Desktop (AI GUI app, native .deb package)
 #              LM Studio (desktop app for local LLMs, requires GUI)
 #
 #  LLM models are managed independently from the stack installation.
@@ -14,7 +15,8 @@
 #
 #  Usage: ./aistack.sh [COMMAND]
 #  Commands:
-#  install | status | model | install-opencode | update-opencode | uninstall-opencode | uninstall
+#  install | status | model | install-opencode | update-opencode | uninstall-opencode |
+#  install-opencode-desktop | update-opencode-desktop | uninstall-opencode-desktop | uninstall
 #  Without arguments, runs interactive menu
 #
 ################################################################################
@@ -678,7 +680,7 @@ menu_models() {
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  OPENCODE (Optional CLI tool - runs natively, NOT in Docker)
+#  OPENCODE (CLI tool, runs natively, NOT in Docker)
 # ══════════════════════════════════════════════════════════════════════════════
 
 # ── Install opencode (optional CLI tool) ──────────────────────────────────────
@@ -1060,24 +1062,22 @@ WRAPPER
     fi
 }
 
-# ── OpenCode Submenu ──────────────────────────────────────────────────────────
+# ── OpenCode Submenu (top-level chooser) ────────────────────────────────────────
 menu_opencode() {
     while true; do
         clear
         echo -e "${MAGENTA}"
         echo "  +------------------------------------------------------+"
-        echo "  |              OPENCODE (Optional CLI Tool)            |"
+        echo "  |                      OPENCODE                        |"
         echo "  +------------------------------------------------------+"
         echo -e "${RESET}"
         echo ""
-        echo -e "  ${DIM}OpenCode is an optional CLI tool that runs natively on your system${RESET}"
-        echo -e "  ${DIM}It is NOT installed inside Docker and is NOT required for the AI Stack${RESET}"
+        echo -e "  ${DIM}Runs natively on your system, NOT installed inside Docker${RESET}"
         echo ""
         echo -e "  ${BOLD}Select an option:${RESET}"
         echo ""
-        echo -e "  ${WHITE}1)${RESET}  Install OpenCode"
-        echo -e "  ${WHITE}2)${RESET}  Update OpenCode"
-        echo -e "  ${WHITE}3)${RESET}  Uninstall OpenCode"
+        echo -e "  ${WHITE}1)${RESET}  OpenCode CLI       ${DIM}(terminal AI assistant)${RESET}"
+        echo -e "  ${WHITE}2)${RESET}  OpenCode Desktop   ${DIM}(GUI app, AppImage/.deb)${RESET}"
         echo -e "  ${WHITE}0)${RESET}  Back to main menu"
         echo ""
         line
@@ -1085,14 +1085,631 @@ menu_opencode() {
         read -r opt
 
         case "$opt" in
-            1)  install_opencode; return ;;
-            2)  update_opencode; return ;;
-            3)  uninstall_opencode; return ;;
+            1)  menu_opencode_cli ;;
+            2)  menu_opencode_desktop ;;
             0)  return ;;
             *)  warn "Invalid option" ;;
         esac
     done
 }
+
+# ── OpenCode CLI Submenu ─────────────────────────────────────────────────────────
+# After an action, pauses so the result is visible, then redisplays this same
+# submenu (matches the menu_models convention). "0) Back" returns immediately
+# to the OpenCode chooser above.
+menu_opencode_cli() {
+    while true; do
+        clear
+        echo -e "${MAGENTA}"
+        echo "  +------------------------------------------------------+"
+        echo "  |                   OPENCODE CLI                       |"
+        echo "  +------------------------------------------------------+"
+        echo -e "${RESET}"
+        echo ""
+        echo -e "  ${DIM}Runs natively on your system, NOT installed inside Docker${RESET}"
+        echo ""
+        echo -e "  ${BOLD}Select an option:${RESET}"
+        echo ""
+        echo -e "  ${WHITE}1)${RESET}  Install"
+        echo -e "  ${WHITE}2)${RESET}  Update"
+        echo -e "  ${WHITE}3)${RESET}  Uninstall"
+        echo -e "  ${WHITE}0)${RESET}  Back"
+        echo ""
+        line
+        echo -n "  → Option: "
+        read -r opt
+
+        case "$opt" in
+            1)  install_opencode; pause ;;
+            2)  update_opencode; pause ;;
+            3)  uninstall_opencode; pause ;;
+            0)  return ;;
+            *)  warn "Invalid option" ;;
+        esac
+    done
+}
+
+# ── OpenCode Desktop Submenu ──────────────────────────────────────────────────────
+# Same navigation convention as menu_opencode_cli above.
+menu_opencode_desktop() {
+    while true; do
+        clear
+        echo -e "${MAGENTA}"
+        echo "  +------------------------------------------------------+"
+        echo "  |                 OPENCODE DESKTOP                     |"
+        echo "  +------------------------------------------------------+"
+        echo -e "${RESET}"
+        echo ""
+        echo -e "  ${DIM}GUI app (AppImage or .deb), runs natively, NOT installed inside Docker${RESET}"
+        echo ""
+        echo -e "  ${BOLD}Select an option:${RESET}"
+        echo ""
+        echo -e "  ${WHITE}1)${RESET}  Install"
+        echo -e "  ${WHITE}2)${RESET}  Update"
+        echo -e "  ${WHITE}3)${RESET}  Uninstall"
+        echo -e "  ${WHITE}0)${RESET}  Back"
+        echo ""
+        line
+        echo -n "  → Option: "
+        read -r opt
+
+        case "$opt" in
+            1)  install_opencode_desktop; pause ;;
+            2)  update_opencode_desktop; pause ;;
+            3)  uninstall_opencode_desktop; pause ;;
+            0)  return ;;
+            *)  warn "Invalid option" ;;
+        esac
+    done
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  OPENCODE DESKTOP (Optional GUI app - downloaded from GitHub Releases, NOT in Docker)
+# ══════════════════════════════════════════════════════════════════════════════
+
+OPENCODE_DESKTOP_REPO="anomalyco/opencode"
+OPENCODE_DESKTOP_STATE_FILE="${AI_BASE_DIR}/.opencode-desktop-state"
+OPENCODE_DESKTOP_APPIMAGE_DIR="${AI_BASE_DIR}/opencode-desktop"
+OPENCODE_DESKTOP_APPIMAGE_PATH="${OPENCODE_DESKTOP_APPIMAGE_DIR}/OpenCodeDesktop.AppImage"
+# The .deb's dpkg package name isn't predictable (observed in the wild as
+# plain "opencode", not "opencode-desktop"), but the Electron binary it
+# installs is a stable marker we can reverse-lookup the real package from.
+OPENCODE_DESKTOP_BIN_MARKER="/opt/OpenCode/@opencode-aidesktop"
+
+# Read a single key (FORMAT, VERSION, PKG) from the OpenCode Desktop state file
+_opencode_desktop_state_get() {
+    local key="$1"
+    [ -f "$OPENCODE_DESKTOP_STATE_FILE" ] || return 0
+    # The trailing || true matters: under `set -e -o pipefail`, grep finding
+    # no match (a normal, expected outcome here) would otherwise be treated
+    # as a failure and silently kill the whole script.
+    grep "^${key}=" "$OPENCODE_DESKTOP_STATE_FILE" 2>/dev/null | tail -1 | cut -d= -f2- || true
+}
+
+# Persist which format is installed (appimage or deb), its version, and —
+# for the .deb format — the real package name, so update/uninstall/status
+# never have to guess.
+_opencode_desktop_state_write() {
+    local format="$1" version="$2" pkg="${3:-}"
+    {
+        echo "FORMAT=$format"
+        echo "VERSION=$version"
+        [ -n "$pkg" ] && echo "PKG=$pkg"
+    } > "$OPENCODE_DESKTOP_STATE_FILE"
+    chown "$local_user" "$OPENCODE_DESKTOP_STATE_FILE"
+}
+
+# Detect the installed format ("deb" or "appimage"), if any.
+# Trusts the state file first, then falls back to checking the filesystem
+# directly in case it was installed before this state tracking existed
+# (or installed manually, outside this script).
+_opencode_desktop_detect() {
+    local format
+    format=$(_opencode_desktop_state_get FORMAT)
+    case "$format" in
+        deb)
+            local pkg
+            pkg=$(_opencode_desktop_state_get PKG)
+            [ -n "$pkg" ] && dpkg -s "$pkg" &>/dev/null 2>&1 && { echo "deb"; return 0; }
+            ;;
+        appimage)
+            [ -f "$OPENCODE_DESKTOP_APPIMAGE_PATH" ] && { echo "appimage"; return 0; }
+            ;;
+    esac
+    # Fallback detection (state file missing, stale, or installed outside this script)
+    if [ -f "$OPENCODE_DESKTOP_APPIMAGE_PATH" ]; then
+        echo "appimage"
+        return 0
+    fi
+    local fallback_pkg
+    fallback_pkg=$(_opencode_desktop_deb_pkg)
+    [ -n "$fallback_pkg" ] && echo "deb"
+    return 0
+}
+
+# Resolve the installed .deb package name. Tries, in order:
+#   1) the name recorded in the state file (trusted if it still resolves)
+#   2) reverse-looking-up whatever package actually owns the known Electron
+#      binary — robust regardless of naming, since this has been observed
+#      shipping as the literal package name "opencode", not "opencode-desktop"
+#   3) a couple of common-name guesses, as a last resort
+_opencode_desktop_deb_pkg() {
+    local pkg
+    pkg=$(_opencode_desktop_state_get PKG)
+    if [ -n "$pkg" ] && dpkg -s "$pkg" &>/dev/null 2>&1; then
+        echo "$pkg"
+        return 0
+    fi
+
+    if [ -e "$OPENCODE_DESKTOP_BIN_MARKER" ]; then
+        pkg=$(dpkg -S "$OPENCODE_DESKTOP_BIN_MARKER" 2>/dev/null | cut -d: -f1 | head -1 || true)
+        if [ -n "$pkg" ] && dpkg -s "$pkg" &>/dev/null 2>&1; then
+            echo "$pkg"
+            return 0
+        fi
+    fi
+
+    for candidate in opencode-desktop opencode; do
+        if dpkg -s "$candidate" &>/dev/null 2>&1; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 0
+}
+
+# Fetch the full "latest release" JSON from GitHub once. This is the
+# equivalent of scraping a directory listing for the newest matching file
+# (like the mintstick/bleachbit pattern), but using GitHub's structured API
+# instead of HTML — it gives us the real, published asset filenames instead
+# of having to guess a naming convention.
+_opencode_desktop_release_json() {
+    # || true: a failed/rate-limited request must not kill the script — the
+    # caller checks for an empty result and falls back accordingly.
+    curl -fsSL "https://api.github.com/repos/${OPENCODE_DESKTOP_REPO}/releases/latest" 2>/dev/null || true
+}
+
+_opencode_desktop_version_from_json() {
+    echo "$1" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/' || true
+}
+
+# Find the exact download URL for the given arch/ext among the assets that
+# were actually published in the release — never constructs/guesses it.
+_opencode_desktop_asset_url_from_json() {
+    local json="$1" arch="$2" ext="$3"
+    echo "$json" \
+        | grep -o '"browser_download_url": *"[^"]*"' \
+        | cut -d'"' -f4 \
+        | grep -iE "linux-${arch}\.${ext}\$" \
+        | head -1 || true
+}
+
+# List the Linux asset filenames found in a release JSON (for diagnostics
+# when no exact match is found for the requested arch/ext).
+_opencode_desktop_list_linux_assets() {
+    echo "$1" | grep -o '"name": *"[^"]*"' | cut -d'"' -f4 | grep -i linux || true
+}
+
+# Detect the latest version + download URL for a given arch/ext. Echoes two
+# lines: the version tag, then the URL (URL may be empty if it had to be
+# guessed and that guess could not be confirmed against real assets).
+_opencode_desktop_resolve_release() {
+    local arch="$1" ext="$2"
+    local json="" version="" url=""
+    json=$(_opencode_desktop_release_json)
+
+    if [ -n "$json" ]; then
+        version=$(_opencode_desktop_version_from_json "$json")
+        # Try every known arch spelling against the REAL published assets —
+        # observed in the wild: .deb uses Debian's amd64/arm64 while
+        # .AppImage uses x86_64/arm64 for the very same release, so a single
+        # fixed arch string isn't reliable across formats.
+        local alias
+        for alias in $(_opencode_desktop_arch_aliases); do
+            url=$(_opencode_desktop_asset_url_from_json "$json" "$alias" "$ext")
+            [ -n "$url" ] && break
+        done
+    fi
+
+    if [ -z "$version" ]; then
+        # GitHub API unreachable/rate-limited — fall back to the redirect
+        # trick: /releases/latest redirects to /releases/tag/<version>
+        version=$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+            "https://github.com/${OPENCODE_DESKTOP_REPO}/releases/latest" 2>/dev/null | sed -E 's#.*/tag/##' || true)
+    fi
+
+    if [ -z "$url" ] && [ -n "$version" ]; then
+        if [ -n "$json" ]; then
+            warn "No exact asset match for linux-${arch}.${ext} (tried: $(_opencode_desktop_arch_aliases)) in the published release" >&2
+            local linux_assets
+            linux_assets=$(_opencode_desktop_list_linux_assets "$json")
+            if [ -n "$linux_assets" ]; then
+                info "Linux assets found in this release:" >&2
+                echo "$linux_assets" | sed 's/^/    /' >&2 || true
+            fi
+        fi
+        # Last-resort fallback: construct the URL from the known naming
+        # convention, picking the arch spelling this format is known to use.
+        # Unverified — may 404 if the convention changed again.
+        local guess_arch
+        guess_arch=$(_opencode_desktop_guess_arch_for_ext "$ext")
+        url="https://github.com/${OPENCODE_DESKTOP_REPO}/releases/download/${version}/opencode-desktop-linux-${guess_arch}.${ext}"
+        warn "Falling back to a constructed (unverified) URL: $url" >&2
+    fi
+
+    echo "$version"
+    echo "$url"
+}
+
+
+# Map uname -m to the canonical architecture name (used for display and the
+# "unsupported architecture" check).
+_opencode_desktop_arch() {
+    case "$(uname -m)" in
+        x86_64|amd64)   echo "x86_64" ;;
+        aarch64|arm64)  echo "arm64" ;;
+        *)              echo "" ;;
+    esac
+}
+
+# All arch spellings worth trying against real release assets for the
+# detected CPU. OpenCode's own release assets are NOT consistent about this
+# across formats within the very same release (e.g. v1.17.8 ships
+# opencode-desktop-linux-x86_64.AppImage right alongside
+# opencode-desktop-linux-amd64.deb), so we try several rather than assume one.
+_opencode_desktop_arch_aliases() {
+    case "$(uname -m)" in
+        x86_64|amd64)   echo "x86_64 amd64 x64" ;;
+        aarch64|arm64)  echo "arm64 aarch64" ;;
+        *)              echo "" ;;
+    esac
+}
+
+# Best single-guess arch spelling for a given extension, used only for the
+# last-resort constructed URL when the GitHub API is unreachable and we
+# can't verify against real assets. Based on the naming observed for the
+# .deb (Debian arch names) vs .AppImage (x86_64) release assets.
+_opencode_desktop_guess_arch_for_ext() {
+    local ext="$1"
+    case "$(uname -m)" in
+        x86_64|amd64)
+            case "$ext" in
+                deb) echo "amd64" ;;
+                *)   echo "x86_64" ;;
+            esac
+            ;;
+        aarch64|arm64)
+            echo "arm64"
+            ;;
+        *)
+            echo ""
+            ;;
+    esac
+}
+
+# Ask the user to choose between AppImage and .deb. Echoes "appimage" or "deb".
+_opencode_desktop_choose_format() {
+    echo "" >&2
+    echo -e "  ${BOLD}Choose a format for OpenCode Desktop:${RESET}" >&2
+    echo -e "  ${WHITE}1)${RESET}  AppImage  ${DIM}(portable, no apt involved, easy to remove)${RESET}" >&2
+    echo -e "  ${WHITE}2)${RESET}  .deb      ${DIM}(installed as a native package via apt/dpkg)${RESET}" >&2
+    read -rp "  → Format [1-2]: " choice
+    case "$choice" in
+        1) echo "appimage" ;;
+        2) echo "deb" ;;
+        *) echo "" ;;
+    esac
+}
+
+# ── Install OpenCode Desktop ────────────────────────────────────────────────────
+# Optional first argument: "appimage" or "deb" to skip the interactive prompt
+install_opencode_desktop() {
+    step "Installing OpenCode Desktop (optional GUI app)"
+
+    echo -e "  ${DIM}   OpenCode Desktop is a separate GUI app, distinct from the OpenCode CLI${RESET}"
+    echo -e "  ${DIM}   Downloaded directly from GitHub Releases (not inside Docker)${RESET}"
+    echo ""
+
+    local existing_format
+    existing_format=$(_opencode_desktop_detect)
+    if [ -n "$existing_format" ]; then
+        ok "OpenCode Desktop is already installed (format: $existing_format)"
+        info "Use Update to get the latest version"
+        return 0
+    fi
+
+    # Require a graphical environment
+    if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+        err "No graphical environment detected (DISPLAY and WAYLAND_DISPLAY are unset)"
+        info "OpenCode Desktop requires a desktop environment to run"
+        return 1
+    fi
+
+    local arch
+    arch=$(_opencode_desktop_arch)
+    if [ -z "$arch" ]; then
+        err "Unsupported architecture: $(uname -m)"
+        info "OpenCode Desktop only ships x86_64 and arm64 builds for Linux"
+        return 1
+    fi
+
+    local format="${1:-}"
+    if [ -z "$format" ]; then
+        format=$(_opencode_desktop_choose_format)
+    fi
+    if [ "$format" != "appimage" ] && [ "$format" != "deb" ]; then
+        err "Invalid format selection"
+        return 1
+    fi
+
+    local ext
+    [ "$format" = "appimage" ] && ext="AppImage" || ext="deb"
+
+    info "Checking the latest OpenCode Desktop release..."
+    local version url
+    { read -r version; read -r url; } < <(_opencode_desktop_resolve_release "$arch" "$ext")
+    if [ -z "$version" ] || [ -z "$url" ]; then
+        err "Could not detect the latest OpenCode Desktop version (GitHub unreachable or rate-limited)"
+        return 1
+    fi
+    ok "Latest version: $version"
+
+    local asset_tmp
+    asset_tmp=$(mktemp "/tmp/opencode_desktop_XXXXXX.${ext}")
+
+    info "Downloading: $(basename "$url")"
+    if ! curl -fL --progress-bar "$url" -o "$asset_tmp"; then
+        err "Failed to download OpenCode Desktop ($url)"
+        rm -f "$asset_tmp"
+        return 1
+    fi
+
+    if [ "$format" = "deb" ]; then
+        # Verify the downloaded file is actually a valid .deb package before installing
+        if ! dpkg-deb -I "$asset_tmp" &>/dev/null; then
+            err "Downloaded file does not look like a valid .deb package — aborting"
+            rm -f "$asset_tmp"
+            return 1
+        fi
+
+        local pkg_name
+        pkg_name=$(dpkg-deb -f "$asset_tmp" Package 2>/dev/null || true)
+        if [ -z "$pkg_name" ]; then
+            err "Could not read package name from the .deb — aborting"
+            rm -f "$asset_tmp"
+            return 1
+        fi
+
+        info "Installing package: $pkg_name"
+        if ! apt-get install -y "$asset_tmp"; then
+            err "Failed to install OpenCode Desktop"
+            rm -f "$asset_tmp"
+            return 1
+        fi
+        rm -f "$asset_tmp"
+
+        _opencode_desktop_state_write "deb" "$version" "$pkg_name"
+        ok "OpenCode Desktop installed via .deb ($pkg_name, $version)"
+    else
+        # Sanity-check the download: a valid AppImage is always several MB and an
+        # ELF executable; an HTML error page (e.g. 404) would be tiny and is not.
+        local valid=false
+        if command -v file &>/dev/null; then
+            file "$asset_tmp" 2>/dev/null | grep -qi "ELF\|executable" && valid=true
+        else
+            local size
+            size=$(stat -c%s "$asset_tmp" 2>/dev/null || echo 0)
+            [ "$size" -gt 1000000 ] && valid=true
+        fi
+        if [ "$valid" != true ]; then
+            err "Downloaded file does not look like a valid AppImage — aborting"
+            rm -f "$asset_tmp"
+            return 1
+        fi
+
+        if ! dpkg -s libfuse2 &>/dev/null 2>&1; then
+            info "Installing libfuse2 (required by AppImage)..."
+            apt-get install -y libfuse2 &>/dev/null
+            ok "libfuse2 installed"
+        fi
+
+        sudo -u "$local_user" bash -c "mkdir -p '$OPENCODE_DESKTOP_APPIMAGE_DIR'"
+        mv "$asset_tmp" "$OPENCODE_DESKTOP_APPIMAGE_PATH"
+        chown "$local_user" "$OPENCODE_DESKTOP_APPIMAGE_PATH"
+        chmod +x "$OPENCODE_DESKTOP_APPIMAGE_PATH"
+
+        local desktop_dir="/home/$local_user/.local/share/applications"
+        mkdir -p "$desktop_dir"
+        cat > "$desktop_dir/opencode-desktop.desktop" << EOF
+[Desktop Entry]
+Name=OpenCode Desktop
+Comment=AI coding agent (desktop app)
+Exec=${OPENCODE_DESKTOP_APPIMAGE_PATH} --no-sandbox
+Icon=opencode-desktop
+Terminal=false
+Type=Application
+Categories=Development;
+EOF
+        chown "$local_user" "$desktop_dir/opencode-desktop.desktop"
+
+        cat > /usr/local/bin/opencode-desktop << EOF
+#!/bin/bash
+exec ${OPENCODE_DESKTOP_APPIMAGE_PATH} --no-sandbox "\$@"
+EOF
+        chmod +x /usr/local/bin/opencode-desktop
+
+        _opencode_desktop_state_write "appimage" "$version"
+        ok "OpenCode Desktop installed via AppImage ($version)"
+        info "Launch with: opencode-desktop  or from your application menu"
+    fi
+}
+
+# ── Update OpenCode Desktop ──────────────────────────────────────────────────────
+update_opencode_desktop() {
+    step "Updating OpenCode Desktop to latest version"
+
+    local format
+    format=$(_opencode_desktop_detect)
+    if [ -z "$format" ]; then
+        warn "OpenCode Desktop is not installed — use Install instead"
+        return 1
+    fi
+
+    local current_ver
+    current_ver=$(_opencode_desktop_state_get VERSION)
+    info "Currently installed: ${current_ver:-unknown} (format: $format)"
+
+    local arch
+    arch=$(_opencode_desktop_arch)
+    if [ -z "$arch" ]; then
+        err "Unsupported architecture: $(uname -m)"
+        return 1
+    fi
+
+    local ext
+    [ "$format" = "appimage" ] && ext="AppImage" || ext="deb"
+
+    info "Checking the latest OpenCode Desktop release..."
+    local version url
+    { read -r version; read -r url; } < <(_opencode_desktop_resolve_release "$arch" "$ext")
+    if [ -z "$version" ] || [ -z "$url" ]; then
+        err "Could not detect the latest OpenCode Desktop version (GitHub unreachable or rate-limited)"
+        return 1
+    fi
+
+    if [ "$version" = "$current_ver" ]; then
+        ok "Already at the latest version ($version)"
+        return 0
+    fi
+    ok "Latest version: $version"
+
+    local asset_tmp
+    asset_tmp=$(mktemp "/tmp/opencode_desktop_update_XXXXXX.${ext}")
+
+    info "Downloading: $(basename "$url")"
+    if ! curl -fL --progress-bar "$url" -o "$asset_tmp"; then
+        err "Failed to download OpenCode Desktop ($url)"
+        rm -f "$asset_tmp"
+        return 1
+    fi
+
+    if [ "$format" = "deb" ]; then
+        if ! dpkg-deb -I "$asset_tmp" &>/dev/null; then
+            err "Downloaded file does not look like a valid .deb package — aborting"
+            rm -f "$asset_tmp"
+            return 1
+        fi
+
+        local pkg_name
+        pkg_name=$(dpkg-deb -f "$asset_tmp" Package 2>/dev/null || true)
+        if [ -z "$pkg_name" ]; then
+            err "Could not read package name from the .deb — aborting"
+            rm -f "$asset_tmp"
+            return 1
+        fi
+
+        if ! apt-get install -y "$asset_tmp"; then
+            err "Failed to update OpenCode Desktop"
+            rm -f "$asset_tmp"
+            return 1
+        fi
+        rm -f "$asset_tmp"
+
+        _opencode_desktop_state_write "deb" "$version" "$pkg_name"
+        local dpkg_ver
+        dpkg_ver=$(dpkg-query -W -f='${Version}' "$pkg_name" 2>/dev/null || echo "unknown")
+        ok "OpenCode Desktop updated to $version (dpkg version: $dpkg_ver)"
+    else
+        local valid=false
+        if command -v file &>/dev/null; then
+            file "$asset_tmp" 2>/dev/null | grep -qi "ELF\|executable" && valid=true
+        else
+            local size
+            size=$(stat -c%s "$asset_tmp" 2>/dev/null || echo 0)
+            [ "$size" -gt 1000000 ] && valid=true
+        fi
+        if [ "$valid" != true ]; then
+            err "Downloaded file does not look like a valid AppImage — aborting"
+            rm -f "$asset_tmp"
+            return 1
+        fi
+
+        sudo -u "$local_user" bash -c "mkdir -p '$OPENCODE_DESKTOP_APPIMAGE_DIR'"
+        mv "$asset_tmp" "$OPENCODE_DESKTOP_APPIMAGE_PATH"
+        chown "$local_user" "$OPENCODE_DESKTOP_APPIMAGE_PATH"
+        chmod +x "$OPENCODE_DESKTOP_APPIMAGE_PATH"
+
+        _opencode_desktop_state_write "appimage" "$version"
+        ok "OpenCode Desktop updated to $version"
+    fi
+}
+
+# Find likely leftover config/cache directories for OpenCode Desktop.
+# We don't know the Electron app's exact productName (it doesn't have to
+# match the dpkg package name — confirmed in the wild: package "opencode"
+# but binary "@opencode-aidesktop"), so we search by a loose case-insensitive
+# match instead of guessing one exact path, and let the operator confirm.
+_opencode_desktop_find_config_dirs() {
+    local home="/home/$local_user"
+    find "$home/.config" "$home/.cache" "$home/.local/share" \
+        -mindepth 1 -maxdepth 1 -iname '*opencode*' 2>/dev/null || true
+}
+
+# ── Uninstall OpenCode Desktop ───────────────────────────────────────────────────
+uninstall_opencode_desktop() {
+    step "Uninstalling OpenCode Desktop"
+
+    local format
+    format=$(_opencode_desktop_detect)
+    if [ -z "$format" ]; then
+        info "OpenCode Desktop is not installed — nothing to do"
+        return 0
+    fi
+
+    if [ "$format" = "deb" ]; then
+        local pkg_name
+        pkg_name=$(_opencode_desktop_deb_pkg)
+        if [ -z "$pkg_name" ]; then
+            warn "Could not determine the installed package name"
+            return 1
+        fi
+        if ! apt-get purge -y "$pkg_name"; then
+            err "Failed to remove package: $pkg_name"
+            info "Try manually: apt-get purge -y $pkg_name"
+            return 1
+        fi
+        apt-get autoremove -y || true
+        ok "OpenCode Desktop package removed ($pkg_name)"
+    else
+        rm -f "$OPENCODE_DESKTOP_APPIMAGE_PATH"
+        rmdir "$OPENCODE_DESKTOP_APPIMAGE_DIR" 2>/dev/null || true
+        rm -f /usr/local/bin/opencode-desktop
+        rm -f "/home/$local_user/.local/share/applications/opencode-desktop.desktop"
+        ok "OpenCode Desktop (AppImage) removed"
+    fi
+
+    # Look for leftover config/cache dirs rather than guessing one exact path —
+    # the app's internal product name doesn't have to match the package name
+    # or the binary name (we've seen all three differ for this app).
+    local leftover_dirs
+    leftover_dirs=$(_opencode_desktop_find_config_dirs)
+    if [ -n "$leftover_dirs" ]; then
+        echo ""
+        info "Found possible leftover config/cache directories:"
+        echo "$leftover_dirs" | sed 's/^/    /'
+        read -rp "  Remove all of the above? [y/N]: " confirm
+        if [[ "$confirm" =~ ^[yY]$ ]]; then
+            while IFS= read -r dir; do
+                [ -n "$dir" ] || continue
+                sudo -u "$local_user" rm -rf "$dir"
+                ok "Removed $dir"
+            done <<< "$leftover_dirs"
+        fi
+    fi
+
+    rm -f "$OPENCODE_DESKTOP_STATE_FILE"
+}
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  UNINSTALL FUNCTIONS (Individual components)
@@ -1360,9 +1977,18 @@ status_all() {
     
     echo -e "\n  ${BOLD}--- OpenCode (optional) -------------------------${RESET}"
     if command -v opencode &>/dev/null; then
-        ok "opencode installed: $(which opencode)"
+        ok "opencode CLI installed: $(which opencode)"
     else
-        info "OpenCode NOT installed (optional, runs natively)"
+        info "OpenCode CLI NOT installed (optional, runs natively)"
+    fi
+    local opencode_desktop_format
+    opencode_desktop_format=$(_opencode_desktop_detect)
+    if [ -n "$opencode_desktop_format" ]; then
+        local opencode_desktop_ver
+        opencode_desktop_ver=$(_opencode_desktop_state_get VERSION)
+        ok "OpenCode Desktop installed (format: $opencode_desktop_format, version: ${opencode_desktop_ver:-unknown})"
+    else
+        info "OpenCode Desktop NOT installed (optional, GUI app)"
     fi
     
     echo -e "\n  ${BOLD}--- GPU -----------------------------------------${RESET}"
@@ -1705,7 +2331,7 @@ menu_main() {
         echo -e "  ${WHITE}2)${RESET}  Manage LLM Models (download/remove/change)"
         echo -e "  ${WHITE}3)${RESET}  Update Components"
         echo -e "  ${WHITE}4)${RESET}  Uninstall Stack Components"
-        echo -e "  ${WHITE}5)${RESET}  Install/Uninstall OpenCode (optional CLI tool)"
+        echo -e "  ${WHITE}5)${RESET}  Install/Uninstall OpenCode"
         echo -e "  ${WHITE}6)${RESET}  Install/Uninstall LM Studio (optional desktop app)"
         echo -e "  ${WHITE}7)${RESET}  Status"
         echo -e "  ${WHITE}8)${RESET}  View logs"
@@ -1752,6 +2378,15 @@ cli_mode() {
         uninstall-opencode)
             uninstall_opencode
             ;;
+        install-opencode-desktop)
+            install_opencode_desktop "${2:-}"
+            ;;
+        update-opencode-desktop)
+            update_opencode_desktop
+            ;;
+        uninstall-opencode-desktop)
+            uninstall_opencode_desktop
+            ;;
         uninstall)
             uninstall_all
             ;;
@@ -1774,6 +2409,10 @@ cli_mode() {
             echo "  install-opencode    - Install OpenCode (optional CLI tool)"
             echo "  update-opencode     - Update OpenCode to latest version"
             echo "  uninstall-opencode  - Uninstall OpenCode"
+            echo "  install-opencode-desktop    - Install OpenCode Desktop (optional GUI app)"
+            echo "                                Optional 2nd arg: appimage | deb (skips the prompt)"
+            echo "  update-opencode-desktop     - Update OpenCode Desktop to latest version"
+            echo "  uninstall-opencode-desktop  - Uninstall OpenCode Desktop"
             echo "  uninstall           - Remove everything"
             echo "  status              - Show current status"
             echo "  model               - Download a model"

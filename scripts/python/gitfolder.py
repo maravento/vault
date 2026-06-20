@@ -6,8 +6,8 @@ gitfolder.py
 Downloads a specific folder or file from a public GitHub repository
 using the GitHub API. Supports recursive download of subfolders and
 preserves the original directory structure locally.
-Usage: python gitfolder.py <github_url>
-Example: python gitfolder.py https://github.com/maravento/vault/project_name
+Usage: python3 gitfolder.py <github_url>
+Example: python3 gitfolder.py https://github.com/maravento/vault/project_name
 """
 import requests
 import os
@@ -92,7 +92,7 @@ def download_item(item, output_dir):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python gitfolder.py <github_url>")
+        print("Usage: python3 gitfolder.py <github_url>")
         sys.exit(1)
     url = sys.argv[1]
     parsed_url = urlparse(url)

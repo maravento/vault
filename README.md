@@ -66,12 +66,11 @@ git clone --depth=1 https://github.com/maravento/vault.git
 ### To download a specific project / Para descargar un proyecto específico
 
 ```bash
-sudo apt install -y python-is-python3
 wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
 chmod +x gitfolder.py
 
 # Now Replace "project_name" with the name of project
-python gitfolder.py https://github.com/maravento/vault/project_name
+python3 gitfolder.py https://github.com/maravento/vault/project_name
 ```
 
 ## DATA SHEET

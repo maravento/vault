@@ -261,6 +261,15 @@ load_config() {
         echo "ERROR: $CONFIG_FILE not found. Run usetup.sh first." >&2
         exit 1
     fi
+    local _owner _perms _gdigit _odigit
+    _owner=$(stat -c '%U' "$CONFIG_FILE" 2>/dev/null)
+    _perms=$(stat -c '%a' "$CONFIG_FILE" 2>/dev/null)
+    _gdigit="${_perms: -2:1}"
+    _odigit="${_perms: -1}"
+    if [[ "$_owner" != "root" ]] || [[ "$_gdigit" =~ [2367] ]] || [[ "$_odigit" =~ [2367] ]]; then
+        echo "ERROR: $CONFIG_FILE has unsafe owner/permissions (owner=$_owner perms=$_perms). Refusing to source it." >&2
+        exit 1
+    fi
     # shellcheck source=/dev/null
     source "$CONFIG_FILE"
 
@@ -475,10 +484,13 @@ load_all_vouchers() {
 
 # ─── IP / hostname assignment ─────────────────────────────────────────────────
 get_next_guest_number() {
-    local used n=1
+    local used n=1 max_n
+    max_n=$(( HOTSPOT_RANGE_END - HOTSPOT_RANGE_START + 2 ))
     used=$(grep -oh 'guest[0-9]*' "$MAC_LIST" "$PENDING_LIST" 2>/dev/null \
         | sed 's/guest//' | sort -n | uniq || true)
-    while echo "$used" | grep -q "^${n}$"; do (( n++ )); done
+    while echo "$used" | grep -q "^${n}$" && (( n <= max_n )); do
+        (( n++ ))
+    done
     echo "$n"
 }
 

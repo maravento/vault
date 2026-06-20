@@ -4,12 +4,11 @@
 ################################################################################
 #
 # Domains Check with Host
-# Requirements:
-# - Bash 5.2.21
-# - Ensure the input list has no 'http://', 'https://', or 'www.' prefixes.
+# Important:
+# Ensure the input list has no 'http://', 'https://', or 'www.' prefixes.
 # How to use:
 # ./domcheck.sh my_domain_list.txt
-# Optional (with parallel processes. By default 100)
+# Optional (with parallel processes. By default: nproc x 4, max 200)
 # ./domcheck.sh my_domain_list.txt 50
 #
 ################################################################################
@@ -52,7 +51,7 @@ trap cleanup_tmp EXIT
 
 echo "Starting Debugging..."
 sed '/^$/d; /^[[:space:]]*$/d; /#/d' "$infile" | sed 's/\r//g; s/^\.//g' >clean
-rm -f dnslookup* step* fault.txt hit.txt >/dev/null 2>&1
+rm -f dnslookup dnslookup2 step2 fault.txt hit.txt
 echo "Step 1..."
 if [ -s dnslookup ]; then
     awk 'FNR==NR {seen[$2]=1;next} seen[$1]!=1' dnslookup clean

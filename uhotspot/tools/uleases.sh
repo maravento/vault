@@ -462,9 +462,11 @@ function clean_hotspot_list() {
         fi
     done < "$patterns"
 
+    TEMP_FILES_TO_CLEAN+=("${ACL_MAC_HOTSPOT}.tmp")
     if (( removed > 0 )); then
-        grep -vFf "$patterns" "$ACL_MAC_HOTSPOT" > "$ACL_MAC_HOTSPOT".tmp \
-            && mv "$ACL_MAC_HOTSPOT".tmp "$ACL_MAC_HOTSPOT"
+        grep -vFf "$patterns" "$ACL_MAC_HOTSPOT" > "$ACL_MAC_HOTSPOT".tmp || true
+        chmod 600 "$ACL_MAC_HOTSPOT".tmp
+        mv "$ACL_MAC_HOTSPOT".tmp "$ACL_MAC_HOTSPOT"
     fi
     rm -f "$patterns"
     ulog "clean_hotspot_list: done (removed=$removed)"
@@ -498,8 +500,9 @@ function clean_grace_list() {
         fi
     done < "$file_temp"
 
+    TEMP_FILES_TO_CLEAN+=("${ACL_GRACE_FILE}.tmp")
     if (( removed > 0 )); then
-        grep -vif "$patterns" "$ACL_GRACE_FILE" > "$ACL_GRACE_FILE.tmp"
+        grep -vif "$patterns" "$ACL_GRACE_FILE" > "$ACL_GRACE_FILE.tmp" || true
         chmod 600 "$ACL_GRACE_FILE.tmp"
         mv "$ACL_GRACE_FILE.tmp" "$ACL_GRACE_FILE"
     fi
@@ -766,8 +769,9 @@ class "blockdhcp" {
             fi
         done <"$file_temp"
 
+        TEMP_FILES_TO_CLEAN+=("${ACL_BLOCK_FILE}.tmp")
         if (( removed > 0 )); then
-            grep -vFf "$patterns" "$ACL_BLOCK_FILE" > "$ACL_BLOCK_FILE".tmp
+            grep -vFf "$patterns" "$ACL_BLOCK_FILE" > "$ACL_BLOCK_FILE".tmp || true
             chmod 600 "$ACL_BLOCK_FILE".tmp
             mv "$ACL_BLOCK_FILE".tmp "$ACL_BLOCK_FILE"
         fi
@@ -793,8 +797,8 @@ class "blockdhcp" {
             local file_temp
             file_temp=$(mktemp)
             TEMP_FILES_TO_CLEAN+=("${file_temp}")
-            grep -vFf "$patterns" "$ACL_MAC_PROXY" > "$file_temp" \
-                && mv "$file_temp" "$ACL_MAC_PROXY"
+            grep -vFf "$patterns" "$ACL_MAC_PROXY" > "$file_temp" || true
+            mv "$file_temp" "$ACL_MAC_PROXY"
             rm -f "$file_temp"
         fi
         rm -f "$patterns"
@@ -819,8 +823,8 @@ class "blockdhcp" {
             local file_temp
             file_temp=$(mktemp)
             TEMP_FILES_TO_CLEAN+=("${file_temp}")
-            grep -vFf "$patterns" "$ACL_MAC_TRANSPARENT" > "$file_temp" \
-                && mv "$file_temp" "$ACL_MAC_TRANSPARENT"
+            grep -vFf "$patterns" "$ACL_MAC_TRANSPARENT" > "$file_temp" || true
+            mv "$file_temp" "$ACL_MAC_TRANSPARENT"
             rm -f "$file_temp"
         fi
         rm -f "$patterns"

@@ -250,8 +250,7 @@ echo "OK"
 
 ### IPSET/IPTABLES FOR BANDATA
 echo "Running Ipset/Iptables Rules..."
-ipset -L bandata >/dev/null 2>&1
-if [ $? -ne 0 ]; then
+if ! ipset -L bandata >/dev/null 2>&1; then
     ipset -! create bandata hash:net family inet hashsize 1024 maxelem 65536
 else
     ipset -! flush bandata
