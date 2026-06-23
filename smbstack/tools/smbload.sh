@@ -8,8 +8,6 @@
 #
 ################################################################################
 
-SLEEP_TIME=5
-
 # Samba Service (smbd)
 if pgrep -x smbd > /dev/null; then
     echo "smbd: ONLINE"

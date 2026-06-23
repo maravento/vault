@@ -813,18 +813,10 @@ process_pending_guests() {
     fi
 
     # ── Evict oldest pending if range is exhausted ────────────────────────────
-    local available_count=0 i
-    for (( i=HOTSPOT_RANGE_START; i<=HOTSPOT_RANGE_END; i++ )); do
-        local candidate="${HOTSPOT_IP_RANGE}.${i}"
-        grep -q ";${candidate};" "$MAC_LIST"     2>/dev/null && continue
-        grep -q ";${candidate};" "$PENDING_LIST" 2>/dev/null && continue
-        (( available_count++ )) || true
-    done
-
     clean_disconnected_pending "$guests_data"
 
-    # Recount available IPs after cleaning disconnected clients
-    available_count=0
+    # Count available IPs after cleaning disconnected clients
+    local available_count=0 i
     for (( i=HOTSPOT_RANGE_START; i<=HOTSPOT_RANGE_END; i++ )); do
         local candidate="${HOTSPOT_IP_RANGE}.${i}"
         grep -q ";${candidate};" "$MAC_LIST"     2>/dev/null && continue

@@ -153,6 +153,8 @@ select_shared_folder() {
         mkdir -p "$SHARED_PATH/.recycle"
         chown www-data:www-data "$SHARED_PATH/.recycle"
         chmod 755 "$SHARED_PATH/.recycle"
+        setfacl -m g:sambashare:rwx "$SHARED_PATH/.recycle"
+        setfacl -d -m g:sambashare:rwx "$SHARED_PATH/.recycle"
 
         if [ "$perms_ok" -eq 1 ]; then
             echo "  Permissions OK"
@@ -176,6 +178,8 @@ select_shared_folder() {
         mkdir -p "$SHARED_PATH/.recycle"
         chown www-data:www-data "$SHARED_PATH/.recycle"
         chmod 755 "$SHARED_PATH/.recycle"
+        setfacl -m g:sambashare:rwx "$SHARED_PATH/.recycle"
+        setfacl -d -m g:sambashare:rwx "$SHARED_PATH/.recycle"
     fi
 
     echo "Shared folder: $SHARED_PATH"
@@ -318,7 +322,6 @@ do_install() {
     # replace placeholders in deployed files (not in repo)
     for f in \
         /etc/apache2/sites-available/smbweb.conf \
-        /etc/samba/smb.conf \
         /etc/rsyslog.d/fullaudit.conf \
         "$SMBSTACK_WEB/smbaudit.html" \
         "$SMBSTACK_WEB/smbapi.php" \
@@ -397,9 +400,18 @@ EOF
         done
     }
 
+    apply_smb_conf_placeholders() {
+        local escaped_user
+        escaped_user=$(printf '%s' "$local_user" | sed 's/[&/\\|]/\\&/g')
+        sed -i "s|your_user|$escaped_user|g" /etc/samba/smb.conf
+        sed -i "s|compartida|$SHARED_NAME|g" /etc/samba/smb.conf
+    }
+
     apply_smb_conf_interfaces() {
         sed -i "s|interfaces = .*|interfaces = 127.0.0.0/8 $SMB_NET $SMB_IFACE|" /etc/samba/smb.conf
+        sed -i "s|hosts allow = .*|hosts allow = 127.0.0.1, $SMB_NET|" /etc/samba/smb.conf
         echo "interfaces set to: 127.0.0.0/8 $SMB_NET $SMB_IFACE"
+        echo "hosts allow set to: 127.0.0.1, $SMB_NET"
     }
 
     if [ -f /etc/samba/smb.conf ]; then
@@ -410,6 +422,7 @@ EOF
                     cp -f /etc/samba/smb.conf{,.bak}
                     echo "Backup saved: /etc/samba/smb.conf.bak"
                     cp -f "$CONF_DIR/smb.conf" /etc/samba/smb.conf
+                    apply_smb_conf_placeholders
                     prompt_smb_net_iface
                     apply_smb_conf_interfaces
                     break
@@ -426,6 +439,7 @@ EOF
         done
     else
         cp -f "$CONF_DIR/smb.conf" /etc/samba/smb.conf
+        apply_smb_conf_placeholders
         prompt_smb_net_iface
         apply_smb_conf_interfaces
     fi
@@ -660,6 +674,7 @@ do_uninstall() {
             echo "Samba user removed: $SMBNAME"
         fi
     fi
+    userdel smbguest 2>/dev/null || true
 
     # apache sites
     a2dissite -q smbweb.conf &>/dev/null

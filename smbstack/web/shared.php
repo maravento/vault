@@ -158,11 +158,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mkdir'])) {
     exit;
 }
 
+// New file handler (create an empty or text-seeded file directly, no local upload needed)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['newfile'])) {
+    $newfile_depth = $request === '' ? 0 : substr_count(trim($request, '/'), '/') + 1;
+    if ($newfile_depth < 1) {
+        header('Location: ?path=' . urlencode($request) . '&msg=protected');
+        exit;
+    }
+    $file_name = basename(trim($_POST['newfile']));
+    $file_name = preg_replace('/[^a-zA-Z0-9._\- ]/', '_', $file_name);
+    // Same dangerous-extension guard as the upload handler, so a "new file"
+    // can't be used to plant executable/script content either.
+    $file_name = preg_replace('/\.(php[0-9]?|phtml|pht|phar|cgi|pl|asp|aspx|jsp|sh|htaccess|html?|shtml|svg|xml)$/i', '.txt', $file_name);
+    $file_name = trim($file_name, '. ');
+    if ($file_name === '') {
+        header('Location: ?path=' . urlencode($request) . '&msg=error');
+        exit;
+    }
+    $target = $full_path . '/' . $file_name;
+    if (file_exists($target)) {
+        header('Location: ?path=' . urlencode($request) . '&msg=exists');
+        exit;
+    }
+    $content = isset($_POST['newfile_content']) ? (string) $_POST['newfile_content'] : '';
+    if (file_put_contents($target, $content) !== false) {
+        chmod($target, 0664);
+        @chgrp($target, 'sambashare');
+        write_audit('pwrite', $target);
+        $newfile_msg = 'success';
+    } else {
+        $newfile_msg = 'error';
+    }
+    header('Location: ?path=' . urlencode($request) . '&msg=newfile_' . $newfile_msg);
+    exit;
+}
+
+
 // Recycle handler
+//
+// Layout: .recycle/www-data/<YYYYMMDD>/<original relative path>
+// The date subfolder matches the date-based organization already used by
+// this server's other recycle bin (.recycle/20260622/... etc.), and the
+// original relative path is preserved underneath it (same idea as Samba's
+// recycle:keeptree) so a file from LOCALSEND/foto.jpg ends up at
+// .recycle/www-data/20260622/LOCALSEND/foto.jpg instead of losing its
+// folder context.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recycle'])) {
     $item_rel  = ltrim(preg_replace('/[\x00-\x1F]/', '', $_POST['recycle']), '/');
     $item_full = realpath($base_path . '/' . $item_rel);
-    $recycle   = $base_path . '/.recycle/www-data';
+    $recycle_root = $base_path . '/.recycle/www-data/' . date('Ymd');
 
     if ($item_full && strpos($item_full, $base_real . DIRECTORY_SEPARATOR) === 0) {
         // Protect root-level items (files and directories)
@@ -170,12 +214,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recycle'])) {
         if ($depth <= 1) {
             $recycle_msg = 'protected';
         } else {
-            if (!is_dir($recycle)) mkdir($recycle, 0775, true);
-            $dest = $recycle . '/' . basename($item_full);
+            // keeptree: mirror the item's original subfolder path under
+            // today's date folder, e.g. "LOCALSEND/foto.jpg" ->
+            // .recycle/www-data/20260622/LOCALSEND/foto.jpg
+            $item_parent = dirname($item_rel);
+            $dest_dir    = $item_parent === '.' ? $recycle_root : $recycle_root . '/' . $item_parent;
+            if (!is_dir($dest_dir)) mkdir($dest_dir, 0775, true);
+
+            $dest = $dest_dir . '/' . basename($item_full);
             if (file_exists($dest)) $dest .= '_' . time();
+
             if (!rename($item_full, $dest)) {
                 $recycle_msg = 'error';
             } else {
+                @chgrp($dest, 'www-data');
+                @chmod($dest, is_dir($dest) ? 0775 : 0664);
                 write_audit('unlinkat', $item_full);
                 $recycle_msg = 'recycled';
             }
@@ -189,7 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recycle'])) {
 }
 
 $msg = isset($_GET['msg']) ? $_GET['msg'] : '';
-$allowed_msgs = ['success', 'partial', 'recycled', 'protected', 'mkdir_success', 'mkdir_error', 'exists', 'error'];
+$allowed_msgs = ['success', 'partial', 'recycled', 'protected', 'mkdir_success', 'mkdir_error', 'newfile_success', 'newfile_error', 'exists', 'error'];
 if (!in_array($msg, $allowed_msgs, true)) $msg = '';
 
 $parts = $request ? explode('/', trim($request, '/')) : [];
@@ -232,7 +285,13 @@ function get_icon($name) {
 $total_files = count($files);
 $total_dirs  = count($dirs);
 $total_size  = 0;
-foreach ($files as $f) $total_size += filesize($full_path . '/' . $f);
+$rit = new RecursiveIteratorIterator(
+    new RecursiveDirectoryIterator($full_path, RecursiveDirectoryIterator::SKIP_DOTS),
+    RecursiveIteratorIterator::LEAVES_ONLY
+);
+foreach ($rit as $item) {
+    if ($item->isFile()) $total_size += $item->getSize();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -422,6 +481,10 @@ foreach ($files as $f) $total_size += filesize($full_path . '/' . $f);
 <div class="alert alert-success">✅ Folder created successfully.</div>
 <?php elseif ($msg === 'mkdir_error'): ?>
 <div class="alert alert-error">❌ Could not create folder. Check permissions.</div>
+<?php elseif ($msg === 'newfile_success'): ?>
+<div class="alert alert-success">✅ File created successfully.</div>
+<?php elseif ($msg === 'newfile_error'): ?>
+<div class="alert alert-error">❌ Could not create file. Check permissions.</div>
 <?php elseif ($msg === 'exists'): ?>
 <div class="alert alert-error">⚠️ A folder with that name already exists.</div>
 <?php elseif ($msg === 'error'): ?>
@@ -436,8 +499,9 @@ foreach ($files as $f) $total_size += filesize($full_path . '/' . $f);
     </div>
     <div class="toolbar">
         <button class="btn btn-primary" onclick="location.reload()">🔄 Reload</button>
-        <button class="btn btn-success" onclick="document.getElementById('upload-area').classList.toggle('open');document.getElementById('mkdir-area').classList.remove('open')">⬆️ Upload</button>
-        <button class="btn btn-secondary" onclick="document.getElementById('mkdir-area').classList.toggle('open');document.getElementById('upload-area').classList.remove('open')">📁 New Folder</button>
+        <button class="btn btn-success" onclick="document.getElementById('upload-area').classList.toggle('open');document.getElementById('mkdir-area').classList.remove('open');document.getElementById('newfile-area').classList.remove('open')">⬆️ Upload</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('mkdir-area').classList.toggle('open');document.getElementById('upload-area').classList.remove('open');document.getElementById('newfile-area').classList.remove('open')">📁 New Folder</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('newfile-area').classList.toggle('open');document.getElementById('upload-area').classList.remove('open');document.getElementById('mkdir-area').classList.remove('open')">📄 New File</button>
         <a class="btn btn-secondary" href="/audit/">📊 Audit</a>
     </div>
 </div>
@@ -464,6 +528,15 @@ foreach ($files as $f) $total_size += filesize($full_path . '/' . $f);
         <input type="text" name="mkdir" placeholder="Folder name" required style="flex:1;padding:0.4rem 0.7rem;border-radius:6px;border:1px solid #ced4da;font-size:0.85rem">
         <button type="submit" class="btn btn-secondary">✔️ Create</button>
         <button type="button" class="btn btn-secondary" onclick="document.getElementById('mkdir-area').classList.remove('open')">✖️ Cancel</button>
+    </form>
+</div>
+
+<div class="mkdir-area" id="newfile-area">
+    <form method="POST" style="align-items:flex-start">
+        <input type="text" name="newfile" placeholder="File name (e.g. notes.txt)" required style="flex:1;min-width:160px;padding:0.4rem 0.7rem;border-radius:6px;border:1px solid #ced4da;font-size:0.85rem">
+        <textarea name="newfile_content" placeholder="Optional content..." rows="2" style="flex:2;min-width:200px;padding:0.4rem 0.7rem;border-radius:6px;border:1px solid #ced4da;font-size:0.85rem;font-family:inherit;resize:vertical"></textarea>
+        <button type="submit" class="btn btn-secondary">✔️ Create</button>
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('newfile-area').classList.remove('open')">✖️ Cancel</button>
     </form>
 </div>
 

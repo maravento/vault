@@ -193,6 +193,7 @@ AVAILABLE_MODELS=(
     "qwen2.5-coder:1.5b"     # Fast coding model, 2-3GB RAM, ideal for CPU
     "gemma4:e2b"             # Ultralight multimodal, ~4GB RAM
     "llama3.2:1b"            # Very fast, ~1-2GB RAM
+    "glm-5.2:cloud"          # Z.ai flagship, 756B params, needs high-end GPU cluster
 )
 
 DEFAULT_MODEL="qwen2.5-coder:7b"

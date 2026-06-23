@@ -7,12 +7,14 @@
 header('Content-Type: application/json');
 
 $server_ip = '';
+$smb_net   = '';
 $env_file  = '/var/www/smbstack/smbstack.env';
 if (file_exists($env_file)) {
     foreach (file($env_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
         if (strpos($line, 'SERVER_IP=') === 0) {
             $server_ip = str_replace(array('"', "'"), '', trim(substr($line, strlen('SERVER_IP='))));
-            break;
+        } elseif (strpos($line, 'SMB_NET=') === 0) {
+            $smb_net = str_replace(array('"', "'"), '', trim(substr($line, strlen('SMB_NET='))));
         }
     }
 }
@@ -27,14 +29,27 @@ if ($origin && $server_ip) {
 header('Access-Control-Allow-Methods: GET, POST');
 header('Access-Control-Allow-Headers: Content-Type');
 
-// Restrict access to requests originating from the configured server IP or localhost.
+// Restrict access to requests from the configured server IP, localhost, or the LAN subnet.
 // CORS headers alone do not protect against direct curl/wget requests.
+function ip_in_cidr($ip, $cidr) {
+    if (empty($cidr) || strpos($cidr, '/') === false) return false;
+    list($subnet, $bits) = explode('/', $cidr, 2);
+    $bits        = (int)$bits;
+    $ip_long     = ip2long($ip);
+    $subnet_long = ip2long($subnet);
+    if ($ip_long === false || $subnet_long === false) return false;
+    $mask = $bits === 0 ? 0 : (~0 << (32 - $bits));
+    return ($ip_long & $mask) === ($subnet_long & $mask);
+}
+
 $allowed_ips = ['127.0.0.1', '::1'];
 if ($server_ip) {
     $allowed_ips[] = $server_ip;
 }
 $remote_addr = $_SERVER['REMOTE_ADDR'] ?? '';
-if (!in_array($remote_addr, $allowed_ips, true)) {
+$allowed = in_array($remote_addr, $allowed_ips, true)
+        || ($smb_net && ip_in_cidr($remote_addr, $smb_net));
+if (!$allowed) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Forbidden']);
     exit;

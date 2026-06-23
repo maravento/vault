@@ -463,6 +463,7 @@
                             <option value="mkdirat">Mkdirat</option>
                             <option value="renameat">Renameat</option>
                             <option value="unlinkat">Unlinkat</option>
+                            <option value="pwrite">Pwrite</option>
                         </select>
                     </div>
                 </div>
@@ -773,7 +774,8 @@
             const classes = {
                 'mkdirat': 'badge-blue',
                 'renameat': 'badge-yellow', 
-                'unlinkat': 'badge-red'
+                'unlinkat': 'badge-red',
+                'pwrite': 'badge-green'
             };
             return classes[action] || 'badge-gray';
         }

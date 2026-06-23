@@ -1002,6 +1002,20 @@ sed -i "/DocumentRoot/{
     r $add_txt
 }" /etc/apache2/sites-available/000-default.conf
 
+mkdir -p /var/www/wpad
+chown www-data:www-data /var/www/wpad
+cp -f "$gp_path/conf/server/wpad.pac" /var/www/wpad/wpad.pac
+chown www-data:www-data /var/www/wpad/wpad.pac
+chmod 644 /var/www/wpad/wpad.pac
+cp -f "$gp_path/conf/server/wpad.conf" /etc/apache2/sites-available/wpad.conf
+chmod 644 /etc/apache2/sites-available/wpad.conf
+a2ensite -q wpad.conf
+grep -qxF 'Listen 0.0.0.0:18100' /etc/apache2/ports.conf || grep -qxF 'Listen 18100' /etc/apache2/ports.conf || echo 'Listen 0.0.0.0:18100' >> /etc/apache2/ports.conf
+apachectl -t -D DUMP_INCLUDES -S
+echo "WPAD-PAC Proxy Auto Access: http://SERVER_IP:18100/wpad.pac"
+echo OK
+sleep 1
+
 echo -e "\n"
 echo "Adding Parameters..."
 grep -qxF '*.none    /var/log/ulog/syslogemu.log' /etc/rsyslog.conf || \
@@ -1097,10 +1111,31 @@ echo "Add Crontab Tasks..."
 @reboot /etc/scr/hwclock.sh
 @reboot /etc/scr/lock.sh
 @reboot /etc/scr/blackusb.sh off
-@reboot /etc/scr/serverload.sh
-@hourly /etc/scr/servicesload.sh
-#*/30 * * * * /etc/scr/serverload.sh
+*/5 * * * * /etc/scr/servicesload.sh
 @weekly /etc/scr/cleaner.sh") | sort -u | crontab -
+echo OK
+sleep 1
+
+# SERVERLOAD SERVICE
+echo -e "\n"
+echo "Creating serverload.service..."
+cat > /etc/systemd/system/serverload.service <<EOF
+[Unit]
+Description=Server network/firewall/services load
+After=network-online.target
+# Unifi Optional
+#After=uosserver.service
+Wants=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/etc/scr/serverload.sh
+RemainAfterExit=true
+TimeoutStartSec=120
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable serverload.service
 echo OK
 sleep 1
 

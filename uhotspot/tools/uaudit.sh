@@ -114,10 +114,15 @@ do_login() {
         "$UNIFI_CONTROLLER_URL$login_path")
 
     CSRF_TOKEN=$(echo "$LOGIN" | grep -iE "^x-(updated-)?csrf-token:" | tail -1 | awk '{print $2}' | tr -d "\r")
-    SESSION_COOKIE=$(echo "$LOGIN" | grep -i "^set-cookie:" | grep -i "TOKEN=" | head -1 \
-        | sed -E "s/.*TOKEN=([^;]+).*/TOKEN=\1/" | tr -d "\r")
+    if [[ "$TYPE" == "classic" ]]; then
+        SESSION_COOKIE=$(echo "$LOGIN" | grep -i "^set-cookie:" | grep -i "unifises=" | head -1 \
+            | sed -E "s/.*unifises=([^;]+).*/unifises=\1/" | tr -d "\r")
+    else
+        SESSION_COOKIE=$(echo "$LOGIN" | grep -i "^set-cookie:" | grep -i "TOKEN=" | head -1 \
+            | sed -E "s/.*TOKEN=([^;]+).*/TOKEN=\1/" | tr -d "\r")
+    fi
 
-    if [ -z "$CSRF_TOKEN" ] || [ -z "$SESSION_COOKIE" ]; then
+    if [ -z "$SESSION_COOKIE" ]; then
         echo "ERROR: Authentication failed. Check credentials in $CONFIG"
         exit 1
     fi

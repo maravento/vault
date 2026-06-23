@@ -462,10 +462,10 @@ function clean_hotspot_list() {
         fi
     done < "$patterns"
 
-    TEMP_FILES_TO_CLEAN+=("${ACL_MAC_HOTSPOT}.tmp")
     if (( removed > 0 )); then
         grep -vFf "$patterns" "$ACL_MAC_HOTSPOT" > "$ACL_MAC_HOTSPOT".tmp || true
         chmod 600 "$ACL_MAC_HOTSPOT".tmp
+        TEMP_FILES_TO_CLEAN+=("${ACL_MAC_HOTSPOT}.tmp")
         mv "$ACL_MAC_HOTSPOT".tmp "$ACL_MAC_HOTSPOT"
     fi
     rm -f "$patterns"
@@ -758,7 +758,7 @@ class "blockdhcp" {
         TEMP_FILES_TO_CLEAN+=("${file_temp}")
         patterns=$(mktemp)
         TEMP_FILES_TO_CLEAN+=("${patterns}")
-        grep -hE ';[0-9a-f:]+;' "$ACL_MAC_PATH"/mac-* 2>/dev/null | cut -d ";" -f2 | sort -u >"$file_temp" || true
+        grep -hiE ';[0-9a-fA-F:]+;' "$ACL_MAC_PATH"/mac-* 2>/dev/null | cut -d ";" -f2 | tr '[:upper:]' '[:lower:]' | sort -u >"$file_temp" || true
 
         while read -r mac_actual; do
             [ -z "$mac_actual" ] && continue
@@ -769,10 +769,10 @@ class "blockdhcp" {
             fi
         done <"$file_temp"
 
-        TEMP_FILES_TO_CLEAN+=("${ACL_BLOCK_FILE}.tmp")
         if (( removed > 0 )); then
             grep -vFf "$patterns" "$ACL_BLOCK_FILE" > "$ACL_BLOCK_FILE".tmp || true
             chmod 600 "$ACL_BLOCK_FILE".tmp
+            TEMP_FILES_TO_CLEAN+=("${ACL_BLOCK_FILE}.tmp")
             mv "$ACL_BLOCK_FILE".tmp "$ACL_BLOCK_FILE"
         fi
         rm -f "$file_temp" "$patterns"

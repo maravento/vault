@@ -29,7 +29,29 @@ private $fp;
 	    '<head>'."\n".
 	    '<meta charset="UTF-8">'."\n".
 	    '<link href="sqstat-dark.css" rel="stylesheet" type="text/css">'."\n";
-	    if($refresh) $text.='<meta http-equiv="refresh" content="'.$refresh.'; url='.htmlspecialchars($_SERVER["PHP_SELF"], ENT_QUOTES, 'UTF-8').'?refresh='.$refresh.'&config='.$GLOBALS["config"].'">'."\n";
+        if ($refresh) {
+            $text .= '<script>
+                var sqMs = '.($refresh * 1000).';
+                var sqTimer = setInterval(function() {
+                    fetch(window.location.href)
+                        .then(function(r) { return r.text(); })
+                        .then(function(html) {
+                            var p = new DOMParser();
+                            var d = p.parseFromString(html, "text/html");
+
+                            var oldTbl = document.querySelector("table.result");
+                            var newTbl = d.querySelector("table.result");
+                            if (oldTbl && newTbl) oldTbl.outerHTML = newTbl.outerHTML;
+
+                            var oldHdr = document.querySelector("div.header");
+                            var newHdr = d.querySelector("div.header");
+                            if (oldHdr && newHdr) oldHdr.outerHTML = newHdr.outerHTML;
+
+                            if (typeof jsInit === "function") jsInit();
+                        });
+                }, sqMs);
+            </script>' . "\n";
+        }
 	    $text.='<title>SqStat '.SQSTAT_VERSION.'</title>'."\n";
 	    if($use_js) $text.='<script src="zhabascript.js" type="text/javascript"></script>'."\n";
 	    $text.='</head>'."\n".
@@ -335,9 +357,8 @@ $user_curr, $user_avg);
 		else {
 			$text.=$stat_row.$table.$stat_row;
 		}
-		$text .= '</table>'.
-		'<p class="copyleft">&copy; <a href="mailto:samm@os2.kiev.ua?subject=SqStat '.SQSTAT_VERSION.'">Alex Samorukov</a>, 2006</p>';
-		return $this->formatXHTML($text,$refresh,$use_js);
+		$text .= '</table>';
+        return $this->formatXHTML($text,$refresh,$use_js);
 	}
 }
 ?>

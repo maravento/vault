@@ -5,7 +5,7 @@
 LOG_FILE="/var/log/uhotspot.log"
 TS=$(date '+%Y-%m-%d %H:%M:%S')
 
-set -uo pipefail
+set -euo pipefail
 
 export UHOTSPOT_RELOAD_ACTIVE=1
 

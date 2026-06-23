@@ -107,7 +107,7 @@
       <ul>
         <li>Active Directory / domain controller</li>
         <li>Multiple shared folders</li>
-        <li>Custom paths outside <code>/home/$user/</code> (must be edited manually)</li>
+        <li>Custom paths outside <code>/home/$local_user/</code> (must be edited manually)</li>
         <li>IPv6</li>
         <li>LDAP</li>
       </ul>
@@ -117,7 +117,7 @@
       <ul>
         <li>Active Directory / controlador de dominio</li>
         <li>Múltiples carpetas compartidas</li>
-        <li>Rutas personalizadas fuera de <code>/home/$user/</code> (debe editarse manualmente)</li>
+        <li>Rutas personalizadas fuera de <code>/home/$local_user/</code> (debe editarse manualmente)</li>
         <li>IPv6</li>
         <li>LDAP</li>
       </ul>
@@ -167,7 +167,7 @@ smbstack/
 │       └── watchdir.log        # smbwatch.sh runtime log
 └── smbstack.env                # Saved install config (user, paths, network, trusted proxies, watch limit)
 
-/home/$USER/shared/             # Shared folder (independent of the installer)
+/home/$local_user/shared/       # Shared folder (independent of the installer)
 ├── recycle/                    # Recycle Bin
 └── DEMO/                       # Demo folder
 
@@ -191,9 +191,24 @@ apt-get install -y apache2 apache2-utils libapache2-mod-php
 apt-get install -y --reinstall apache2-doc
 ```
 
-> **Important**
-> - nginx must not be running.
-> - SMBstack uses Apache2 exclusively on port 3092, because it is listed as **Unassigned** by IANA. For more information visit [https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt](https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt)
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Important</strong>
+      <ul>
+        <li>nginx must not be running.</li>
+        <li>SMBstack uses Apache2 exclusively on port 3092, because it is listed as <strong>Unassigned</strong> by IANA. For more information visit <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt</a></li>
+      </ul>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Importante</strong>
+      <ul>
+        <li>nginx no debe estar en ejecución.</li>
+        <li>SMBstack usa Apache2 exclusivamente en el puerto 3092, ya que está listado como <strong>Sin asignar</strong> por IANA. Para más información visita <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt</a></li>
+      </ul>
+    </td>
+  </tr>
+</table>
 
 ## HOW TO USE
 
@@ -227,12 +242,23 @@ The installer will prompt for:
 
 | Prompt | Description |
 |--------|-------------|
-| Shared folder name | Name for the shared folder (created under `/home/$USER/`) |
+| Shared folder name | Name for the shared folder (created under `/home/$local_user/`) |
 | Samba server network | IP/network in CIDR format (e.g. `192.168.1.0/24`) |
 | Network interface | Selected from available interfaces listed |
 | Samba username | Samba account to create |
 | NetBIOS support | Optional, disabled by default |
 | Overwrite smb.conf | Only asked if `/etc/samba/smb.conf` already exists |
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <code>$local_user</code> is the local Linux user detected automatically by the installer: the user logged into the console session, or <code>SUDO_USER</code>, or the first user found under <code>/home/</code>. It becomes the owner of the shared folder and the base name for the Samba account.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <code>$local_user</code> es el usuario local de Linux detectado automáticamente por el instalador: el usuario con sesión en consola, o <code>SUDO_USER</code>, o el primer usuario encontrado en <code>/home/</code>. Se convierte en el propietario de la carpeta compartida y el nombre base de la cuenta Samba.
+    </td>
+  </tr>
+</table>
 
 ### Update & Uninstall
 
@@ -266,11 +292,29 @@ sudo bash smbinstall.sh --uninstall
 | `tools/smbload.sh` | ✅ overwritten | ✅ removed |
 | `tools/smbwatch.sh` | ✅ overwritten | ✅ removed |
 | `/var/www/smbstack/smbstack.env` | ⛔ preserved | ✅ removed |
-| Shared folder (`/home/$USER/shared/`) | ⛔ never touched | ⛔ never touched |
+| Shared folder (`/home/$local_user/shared/`) | ⛔ never touched | ⛔ never touched |
 
-> `--update` only refreshes application code (web PHP/HTML viewers and `tools/*.sh`). Configuration files deployed at install time (`smb.conf`, `fullaudit.conf`, `smbweb.conf`) are never overwritten by `--update`, since they may contain manual edits (custom shares, `hosts allow`, interfaces, etc.). To pick up changes to these files after an update, compare them manually against `conf/` and `web/smbweb.conf` in the repository and apply changes by hand.
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <code>--update</code> only refreshes application code (web PHP/HTML viewers and <code>tools/*.sh</code>). Configuration files deployed at install time (<code>smb.conf</code>, <code>fullaudit.conf</code>, <code>smbweb.conf</code>) are never overwritten by <code>--update</code>, since they may contain manual edits (custom shares, <code>hosts allow</code>, interfaces, etc.). To pick up changes to these files after an update, compare them manually against <code>conf/</code> and <code>web/smbweb.conf</code> in the repository and apply changes by hand.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <code>--update</code> solo actualiza el código de la aplicación (visores web PHP/HTML y <code>tools/*.sh</code>). Los archivos de configuración desplegados en la instalación (<code>smb.conf</code>, <code>fullaudit.conf</code>, <code>smbweb.conf</code>) nunca son sobreescritos por <code>--update</code>, ya que pueden contener ediciones manuales (shares personalizados, <code>hosts allow</code>, interfaces, etc.). Para incorporar cambios en estos archivos tras una actualización, compáralos manualmente contra <code>conf/</code> y <code>web/smbweb.conf</code> en el repositorio y aplica los cambios a mano.
+    </td>
+  </tr>
+</table>
 
-> The shared folder is independent of the installer. To remove it, do so manually: `rm -rf /home/$USER/shared`
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      The shared folder is independent of the installer. To remove it, do so manually: <code>rm -rf /home/$local_user/shared</code>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      La carpeta compartida es independiente del instalador. Para eliminarla, hazlo manualmente: <code>rm -rf /home/$local_user/shared</code>
+    </td>
+  </tr>
+</table>
 
 ### Status
 
@@ -301,7 +345,16 @@ Shows: smbd and winbind service status, Apache port 3092, last 5 audit log entri
 | Log rotation | `/etc/logrotate.d/samba` |
 | Install config | `/var/www/smbstack/smbstack.env` |
 
-> `smbstack.env` sets `TRUSTED_PROXIES="127.0.0.1"` by default. It tells `web/shared.php` to use the `CF-Connecting-IP` / `X-Forwarded-For` header (if present) instead of `REMOTE_ADDR` when logging the client IP for requests arriving from localhost — so a local tunnel's loopback connection isn't recorded as the "client" in the audit log. No effect on direct LAN access.
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <code>smbstack.env</code> sets <code>TRUSTED_PROXIES="127.0.0.1"</code> by default. It tells <code>web/shared.php</code> to use the <code>CF-Connecting-IP</code> / <code>X-Forwarded-For</code> header (if present) instead of <code>REMOTE_ADDR</code> when logging the client IP for requests arriving from localhost — so a local tunnel's loopback connection isn't recorded as the "client" in the audit log. No effect on direct LAN access.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <code>smbstack.env</code> establece <code>TRUSTED_PROXIES="127.0.0.1"</code> por defecto. Le indica a <code>web/shared.php</code> que use el encabezado <code>CF-Connecting-IP</code> / <code>X-Forwarded-For</code> (si está presente) en lugar de <code>REMOTE_ADDR</code> al registrar la IP del cliente para solicitudes que lleguen desde localhost — así la conexión loopback de un túnel local no se registra como el "cliente" en el log de auditoría. Sin efecto en acceso LAN directo.
+    </td>
+  </tr>
+</table>
 
 ```bash
 # Verify Samba config | Verificar configuración de Samba
@@ -317,7 +370,213 @@ tail -f /var/log/samba/log.audit
 sudo pdbedit -L
 ```
 
-> To use a custom shared folder path outside `/home/$USER/`, edit `/etc/samba/smb.conf` and `/etc/apache2/sites-available/smbweb.conf` manually after installation.
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      To use a custom shared folder path outside <code>/home/$local_user/</code>, edit <code>/etc/samba/smb.conf</code> and <code>/etc/apache2/sites-available/smbweb.conf</code> manually after installation.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Para usar una ruta de carpeta compartida personalizada fuera de <code>/home/$local_user/</code>, edita <code>/etc/samba/smb.conf</code> y <code>/etc/apache2/sites-available/smbweb.conf</code> manualmente tras la instalación.
+    </td>
+  </tr>
+</table>
+
+### Recycle Bin
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      SMBstack uses the Samba <code>vfs_recycle</code> module to redirect file deletions to a hidden recycle bin instead of permanently removing them. The bin is stored inside the shared folder under <code>.recycle/</code> and organized by the system user who performed the deletion.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      SMBstack usa el módulo <code>vfs_recycle</code> de Samba para redirigir las eliminaciones a una papelera de reciclaje oculta en lugar de borrar permanentemente los archivos. La papelera se almacena dentro de la carpeta compartida en <code>.recycle/</code> y se organiza por el usuario del sistema que realizó la eliminación.
+    </td>
+  </tr>
+</table>
+
+#### Dual-access layout / Estructura de doble acceso
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      SMBstack exposes the shared folder through two independent channels, each operating under a different system user:
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      SMBstack expone la carpeta compartida a través de dos canales independientes, cada uno operando bajo un usuario del sistema diferente:
+    </td>
+  </tr>
+</table>
+
+| Channel | System user | Recycle path |
+|---------|-------------|--------------|
+| SMB (LAN clients) | `smbguest` (set by `force user` in `smb.conf`) | `.recycle/smbguest/` |
+| Web interface (Apache) | `www-data` | `.recycle/www-data/` |
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      This is why the recycle bin directory contains one subdirectory per access channel:
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Por eso el directorio de la papelera contiene un subdirectorio por canal de acceso:
+    </td>
+  </tr>
+</table>
+
+```
+.recycle/
+├── smbguest/               # Files deleted by Windows/Linux SMB clients on the LAN
+│   └── DOCUMENTS/
+│       ├── report.docx
+│       └── Copy #1 of report.docx
+└── www-data/               # Files deleted via the web browser interface
+    └── 20260623/
+        └── invoice.pdf
+```
+
+#### File versioning / Versionado de archivos
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      When <code>recycle:versions = yes</code> is active, deleting a file that already exists in the recycle bin does not overwrite it — the new copy is saved alongside the original with a <code>Copy #N of</code> prefix:
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Cuando <code>recycle:versions = yes</code> está activo, eliminar un archivo que ya existe en la papelera no lo sobreescribe — la nueva copia se guarda junto a la original con el prefijo <code>Copy #N of</code>:
+    </td>
+  </tr>
+</table>
+
+```
+.recycle/smbguest/DOCUMENTS/
+├── report.docx             ← first deletion
+└── Copy #1 of report.docx  ← second deletion of the same file
+```
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      To exclude specific file types from versioning, use <code>recycle:noversions</code>. These types are still recycled, but repeated deletions <strong>overwrite</strong> the previous copy in the bin rather than creating a numbered duplicate:
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Para excluir tipos de archivo del versionado, usa <code>recycle:noversions</code>. Estos archivos siguen yendo a la papelera, pero eliminaciones repetidas <strong>sobreescriben</strong> la copia anterior en lugar de crear una nueva numerada:
+    </td>
+  </tr>
+</table>
+
+```ini
+# All files keep multiple versions:
+recycle:versions = yes
+
+# These types are recycled but NOT versioned — second delete overwrites the first:
+recycle:noversions = *.dat,*.ini
+```
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Use <code>noversions</code> for files where accumulating copies adds no value: runtime data files, config dumps, ini snapshots, and similar.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Usa <code>noversions</code> para archivos donde acumular copias no aporta valor: archivos de datos en tiempo de ejecución, volcados de configuración, snapshots de ini y similares.
+    </td>
+  </tr>
+</table>
+
+#### Configuration reference / Referencia de configuración
+
+| Parameter | Value | Description | Descripción |
+|-----------|-------|-------------|-------------|
+| `recycle:repository` | `.recycle/%U` | Path of the recycle bin inside the share. `%U` is replaced at runtime by the effective system user: `smbguest` for SMB clients, `www-data` for the web interface. Creates one subdirectory per access channel. | Ruta de la papelera dentro del share. `%U` se reemplaza en tiempo de ejecución por el usuario del sistema efectivo: `smbguest` para clientes SMB, `www-data` para la interfaz web. Crea un subdirectorio por canal de acceso. |
+| `recycle:directory_mode` | `0775` | Permissions for each per-user recycle subdirectory that Samba creates automatically. `0775` allows the `sambashare` group (which includes both `smbguest` and `www-data`) to read and write. The Samba default is `0700` (owner only), which would block group access. | Permisos del subdirectorio de papelera por usuario que Samba crea automáticamente. `0775` permite al grupo `sambashare` (que incluye tanto `smbguest` como `www-data`) leer y escribir. El valor por defecto de Samba es `0700` (solo propietario), lo que bloquearía el acceso de grupo. |
+| `recycle:keeptree` | `yes` | Preserves the original directory path inside the recycle bin. A file deleted from `DOCUMENTS/Q1/report.docx` is stored as `.recycle/smbguest/DOCUMENTS/Q1/report.docx`, making it easy to trace its origin. | Preserva la ruta original del directorio dentro de la papelera. Un archivo eliminado de `DOCUMENTS/Q1/report.docx` se almacena como `.recycle/smbguest/DOCUMENTS/Q1/report.docx`, facilitando rastrear su origen. |
+| `recycle:versions` | `yes` | Keeps multiple copies when the same file is deleted more than once. Each new copy is named `Copy #N of filename`. Set to `no` to keep only the most recent deleted copy. | Conserva múltiples copias cuando el mismo archivo se elimina más de una vez. Cada nueva copia se nombra `Copy #N of nombre`. Establécelo en `no` para conservar solo la copia eliminada más reciente. |
+| `recycle:noversions` | `*.dat,*.ini` | File patterns excluded from versioning. These files are still sent to the recycle bin, but repeated deletions overwrite the existing copy instead of creating a numbered duplicate. Useful for config snapshots, runtime data, and similar low-value files. Only applies when `recycle:versions = yes`. | Patrones de archivos excluidos del versionado. Estos archivos igualmente van a la papelera, pero eliminaciones repetidas sobreescriben la copia existente en lugar de crear una nueva numerada. Útil para snapshots de configuración, datos de runtime y similares. Solo aplica cuando `recycle:versions = yes`. |
+| `recycle:touch` | `yes` | Updates the file's access time (`atime`) when it is moved to the bin. Useful for knowing when a file was recycled independently of its original modification date. | Actualiza el tiempo de acceso (`atime`) del archivo al moverlo a la papelera. Útil para saber cuándo fue reciclado independientemente de su fecha de modificación original. |
+| `recycle:exclude` | `*.tmp,*.temp,*.o,~$*,*.~??,*.log,*.trace,*.TMP,*.asv` | File patterns that are permanently deleted instead of recycled. Covers temporary files, Office lock files (`~$*`), Matlab autosave files (`*.asv`), and compiled object files (`*.o`). | Patrones de archivos que se eliminan permanentemente en lugar de reciclarse. Cubre archivos temporales, archivos de bloqueo de Office (`~$*`), autoguardados de Matlab (`*.asv`) y archivos objeto compilados (`*.o`). |
+| `recycle:exclude_dir` | `/temp,/tmp,/cache,/.Trash-1000` | Directories whose files bypass the recycle bin and are permanently deleted. Paths are relative to the share root. `/.Trash-1000` is the trash directory that some Linux desktop clients create directly on the share. | Directorios cuyos archivos omiten la papelera y se eliminan permanentemente. Las rutas son relativas a la raíz del share. `/.Trash-1000` es el directorio de papelera que algunos clientes Linux de escritorio crean directamente en el share. |
+| `recycle:maxsize` | `1073741824` | Maximum file size in bytes (1 GB) that will be recycled. Files larger than this are permanently deleted to prevent a single file from filling up the bin. | Tamaño máximo de archivo en bytes (1 GB) que será reciclado. Los archivos mayores se eliminan permanentemente para evitar que un solo archivo llene la papelera. |
+| `hide files` | `/.recycle/` | Hides the `.recycle` directory from Windows Explorer and mapped drive views. The directory remains accessible from the server filesystem. | Oculta el directorio `.recycle/` de la vista del Explorador de Windows y las unidades de red mapeadas. El directorio sigue siendo accesible desde el sistema de archivos del servidor. |
+
+#### Automatic cleanup / Limpieza automática
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      The installer registers a weekly cron job (under <code>root</code>) that removes recycled files older than 7 days:
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      El instalador registra una tarea cron semanal (bajo <code>root</code>) que elimina los archivos reciclados con más de 7 días de antigüedad:
+    </td>
+  </tr>
+</table>
+
+```bash
+@weekly find "/home/$local_user/shared/.recycle/" -depth -mindepth 1 -mtime +7 -delete
+```
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      To adjust the retention period or inspect the entry:
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Para ajustar el período de retención o inspeccionar la entrada:
+    </td>
+  </tr>
+</table>
+
+```bash
+sudo crontab -e
+```
+
+---
+
+### Full Audit
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      SMBstack uses the Samba <code>vfs_full_audit</code> module to log file operations to <code>/var/log/samba/log.audit</code> via rsyslog. Only successful operations are recorded; failures are suppressed to keep the log clean.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      SMBstack usa el módulo <code>vfs_full_audit</code> de Samba para registrar operaciones de archivos en <code>/var/log/samba/log.audit</code> vía rsyslog. Solo se registran operaciones exitosas; los fallos se suprimen para mantener el log limpio.
+    </td>
+  </tr>
+</table>
+
+#### Configuration reference / Referencia de configuración
+
+| Parameter | Value | Description | Descripción |
+|-----------|-------|-------------|-------------|
+| `full_audit:logfile` | `/var/log/samba/log.audit` | Destination log file, written via the rsyslog rule in `/etc/rsyslog.d/fullaudit.conf`. | Archivo de log de destino, escrito mediante la regla rsyslog en `/etc/rsyslog.d/fullaudit.conf`. |
+| `full_audit:prefix` | `%I\|%m\|%S` | Fields prepended to each log entry: `%I` = client IP address, `%m` = client machine name, `%S` = share name. | Campos que se anteponen a cada entrada del log: `%I` = IP del cliente, `%m` = nombre del equipo cliente, `%S` = nombre del share. |
+| `full_audit:success` | `mkdirat renameat unlinkat` | VFS operations logged when they succeed. See table below. | Operaciones VFS que se registran cuando tienen éxito. Ver tabla a continuación. |
+| `full_audit:failure` | `none` | No failed operations are logged. | No se registran operaciones fallidas. |
+| `full_audit:facility` | `LOCAL5` | rsyslog facility used to route audit entries to the dedicated log file, keeping them separate from general system logs. | Facility de rsyslog usada para enrutar las entradas de auditoría al archivo dedicado, manteniéndolas separadas de los logs generales del sistema. |
+| `full_audit:priority` | `notice` | Syslog priority level assigned to audit entries. | Nivel de prioridad syslog asignado a las entradas de auditoría. |
+
+#### Logged operations / Operaciones registradas
+
+| Samba syscall | Triggered by | Desencadenado por |
+|---------------|--------------|-------------------|
+| `mkdirat` | Creating a directory via SMB or the web interface | Creación de un directorio vía SMB o la interfaz web |
+| `renameat` | Renaming or moving a file or folder. Also triggered by Windows clients when saving a new file — Windows creates a temporary file first, then renames it to the final name. Log format: `source_path\|destination_path`. Does **not** appear for recycle bin operations. | Renombrado o movimiento de archivo o carpeta. También lo disparan los clientes Windows al guardar un archivo nuevo — Windows crea primero un archivo temporal y luego lo renombra al nombre final. Formato en el log: `ruta_origen\|ruta_destino`. **No** aparece para operaciones de papelera de reciclaje. |
+| `unlinkat` | File deletion. This entry appears for **both** permanent deletions and files moved to the recycle bin — `vfs_full_audit` intercepts the original `unlink` call before `vfs_recycle` redirects it, so the audit log cannot distinguish between the two. | Borrado de archivo. Esta entrada aparece tanto para borrados permanentes como para archivos movidos a la papelera — `vfs_full_audit` intercepta la llamada `unlink` original antes de que `vfs_recycle` la redirija, por lo que el log no puede distinguir entre ambos casos. |
+| `pwrite` | File write (data written to an open file). Useful for tracking uploads and in-place edits. | Escritura de archivo (datos escritos en un archivo abierto). Útil para rastrear subidas y ediciones en sitio. |
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Note:</strong> There is no way to distinguish a recycled file from a permanently deleted one in the audit log — both appear as <code>unlinkat</code>. To determine whether a deleted file was recycled, check the <code>.recycle/</code> directory on the filesystem. <code>renameat</code> entries are logged with a <code>source|destination</code> format and indicate an explicit rename or move, including the Windows pattern of creating a temp file and renaming it on save.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Nota:</strong> No es posible distinguir en el log de auditoría un archivo reciclado de uno eliminado permanentemente — ambos aparecen como <code>unlinkat</code>. Para determinar si un archivo fue reciclado, verifica el directorio <code>.recycle/</code> en el sistema de archivos. Las entradas <code>renameat</code> se registran con el formato <code>origen|destino</code> e indican un renombrado o movimiento explícito, incluyendo el patrón de Windows de crear un archivo temporal y renombrarlo al guardar.
+    </td>
+  </tr>
+</table>
+
+---
 
 ### smbload
 
@@ -361,7 +620,16 @@ sudo /var/www/smbstack/tools/smbwatch.sh stop
 sudo /var/www/smbstack/tools/smbwatch.sh status
 ```
 
-> `inotify-tools` is required: `apt-get install -y inotify-tools`
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <code>inotify-tools</code> is required: <code>apt-get install -y inotify-tools</code>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Se requiere <code>inotify-tools</code>: <code>apt-get install -y inotify-tools</code>
+    </td>
+  </tr>
+</table>
 
 ### NetBIOS
 
