@@ -3,8 +3,8 @@ Description=pydhcpd - Python DHCP Daemon
 Documentation=https://github.com/maravento/vault/tree/master/pydhcp
 After=network-online.target
 Wants=network-online.target
-StartLimitIntervalSec=60
-StartLimitBurst=3
+StartLimitIntervalSec=120
+StartLimitBurst=10
 
 [Service]
 Type=simple

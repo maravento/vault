@@ -7,15 +7,15 @@
 <table>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <b>uhotspot</b> is a Bash script that turns a self-hosted UniFi Network controller into a fully managed captive-portal hotspot under Linux. Instead of inspecting traffic with <code>iptables string</code> rules (the old approach), it queries the UniFi API every 30 seconds and synchronizes three ACL files (<code>guest-pending.txt</code>, <code>mac-hotspot.txt</code>, <code>guest-wellknow.txt</code>) with the real state reported by the controller. Firewall enforcement is delegated to user-maintained <code>ipset</code>/<code>iptables</code> rules that are reloaded whenever the ACLs change. It is the cheap-but-serious alternative for sysadmins who could only afford a UniFi AP and still need to enforce vouchers, proxy, and per-MAC restrictions.
+      <b>uhotspot</b> is a systemd daemon that turns a self-hosted UniFi Network controller into a fully managed captive-portal hotspot under Linux. Instead of inspecting traffic with <code>iptables string</code> rules (the old approach), it queries the UniFi API every POLL_INTERVAL seconds (default 10, configured in <code>uhotspot.conf</code>) and synchronizes ACL files (<code>guest-pending.txt</code>, <code>mac-hotspot.txt</code>, <code>guest-wellknow.txt</code>) with the real state reported by the controller. Firewall enforcement is delegated to user-maintained <code>ipset</code>/<code>iptables</code> rules that are reloaded whenever the ACLs change. It is the cheap-but-serious alternative for sysadmins who could only afford a UniFi AP and still need to enforce vouchers, proxy, and per-MAC restrictions.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <b>uhotspot</b> es un script Bash que convierte un controlador UniFi Network self-hosted en un hotspot con portal cautivo completamente administrado bajo Linux. En vez de inspeccionar tráfico con reglas <code>iptables string</code> (el enfoque anterior), consulta la API de UniFi cada 30 segundos y sincroniza tres archivos ACL (<code>guest-pending.txt</code>, <code>mac-hotspot.txt</code>, <code>guest-wellknow.txt</code>) con el estado real reportado por el controlador. El bloqueo se delega a reglas <code>ipset</code>/<code>iptables</code> mantenidas por el usuario, que se recargan cuando las ACLs cambian. Es la alternativa barata pero seria para sysadmins que apenas alcanzaron a comprar un AP UniFi y aun así necesitan aplicar vouchers, proxy y restricciones por MAC.
+      <b>uhotspot</b> es un daemon systemd que convierte un controlador UniFi Network self-hosted en un hotspot con portal cautivo completamente administrado bajo Linux. En vez de inspeccionar tráfico con reglas <code>iptables string</code> (el enfoque anterior), consulta la API de UniFi cada POLL_INTERVAL segundos (default 10, configurado en <code>uhotspot.conf</code>) y sincroniza archivos ACL (<code>guest-pending.txt</code>, <code>mac-hotspot.txt</code>, <code>guest-wellknow.txt</code>) con el estado real reportado por el controlador. El bloqueo se delega a reglas <code>ipset</code>/<code>iptables</code> mantenidas por el usuario, que se recargan cuando las ACLs cambian. Es la alternativa barata pero seria para sysadmins que apenas alcanzaron a comprar un AP UniFi y aun así necesitan aplicar vouchers, proxy y restricciones por MAC.
     </td>
   </tr>
 </table>
 
-## Scope
+## SCOPE
 
 ---
 
@@ -30,8 +30,9 @@
         <li>Checks that <code>pydhcpd</code> is active on startup and aborts if not running</li>
         <li>Queues <code>dhcpd.leases</code> removals for MACs it manages (consumed by <code>uleases.sh</code> during its safe DHCP stop→modify→start cycle)</li>
         <li>Calls a user-defined <code>SERVER_RELOAD_SCRIPT</code> only when ACLs actually changed (md5 diff)</li>
-        <li>Cron entries registered by <code>usetup.sh</code> via <code>register_cron()</code>: 30-second loop for <code>uhotspot.sh</code>, and a <code>@hourly</code> safety-net invocation of <code>ureload.sh</code> (under <code>UHOTSPOT_RELOAD_ACTIVE=1 flock</code>) that guarantees grace→block promotion on idle networks</li>
-        <li>Logrotate config <code>/etc/logrotate.d/uhotspot</code> created by <code>usetup.sh</code> via <code> install_logrotate()</code>  (daily, 7 rotations, compressed). Must include <code>/var/log/uleases.log</code></li>
+        <li>Runs as a <b>systemd service</b> (<code>uhotspotd.service</code>) installed by <code>usetup.sh</code>; a separate <code>@hourly</code> cron entry for <code>ureload.sh</code> (under <code>UHOTSPOT_RELOAD_ACTIVE=1 flock</code>) guarantees grace→block promotion on idle networks</li>
+        <li>Optional managed MAC lists (<code>mac-*.txt</code>): when <code>MANAGED_MACS_ENABLED=true</code> in <code>uhotspot.conf</code>, keeps corporate/infrastructure devices authorized in UniFi each cycle so they bypass the captive portal without a voucher</li>
+        <li>Logrotate config <code>/etc/logrotate.d/uhotspot</code> created by <code>usetup.sh</code> via <code>install_logrotate()</code> (daily, 7 rotations, compressed). All output unified in <code>/var/log/uhotspot.log</code></li>
         <li>Reads configuration from <code>/etc/uhotspot/uhotspot.conf</code> (generated by <code>usetup.sh</code>, root-only, mode 0600)</li>
         <li>Validates installation integrity before each run <code>verify_installation()</code></li>
         <li>IPv4 only</li>
@@ -46,8 +47,9 @@
         <li>Verifica que <code>pydhcpd</code> esté activo en el arranque y aborta si no está corriendo</li>
         <li>Encola remociones de <code>dhcpd.leases</code> para los MACs que gestiona (consumidas por <code>uleases.sh</code> durante su ciclo seguro de detener→modificar→arrancar DHCP)</li>
         <li>Invoca un <code>SERVER_RELOAD_SCRIPT</code> definido por el usuario, solo cuando las ACLs realmente cambiaron (md5 diff)</li>
-        <li>Entradas en cron registradas por <code>usetup.sh</code> vía <code>register_cron()</code>: ciclo de 30 segundos para <code>uhotspot.sh</code>, y una invocación <code>@hourly</code> de <code>ureload.sh</code> (bajo <code>UHOTSPOT_RELOAD_ACTIVE=1 flock</code>) como red de seguridad que garantiza la promoción gracia→bloqueo en redes inactivas</li>
-        <li>Configuración de logrotate <code>/etc/logrotate.d/uhotspot</code> creada por <code>usetup.sh</code> vía <code>install_logrotate()</code> (diario, 7 rotaciones, comprimido). Debe incluir <code>/var/log/uleases.log</code></li>
+        <li>Corre como <b>servicio systemd</b> (<code>uhotspotd.service</code>) instalado por <code>usetup.sh</code>; una entrada <code>@hourly</code> de cron para <code>ureload.sh</code> (bajo <code>UHOTSPOT_RELOAD_ACTIVE=1 flock</code>) garantiza la promoción gracia→bloqueo en redes inactivas</li>
+        <li>Listas opcionales de MACs gestionadas (<code>mac-*.txt</code>): cuando <code>MANAGED_MACS_ENABLED=true</code> en <code>uhotspot.conf</code>, mantiene dispositivos corporativos/infraestructura autorizados en UniFi cada ciclo para que bypaseen el portal sin voucher</li>
+        <li>Configuración de logrotate <code>/etc/logrotate.d/uhotspot</code> creada por <code>usetup.sh</code> vía <code>install_logrotate()</code> (diario, 7 rotaciones, comprimido). Toda la salida unificada en <code>/var/log/uhotspot.log</code></li>
         <li>Lee su configuración de <code>/etc/uhotspot/uhotspot.conf</code> (generado por <code>usetup.sh</code>, solo root, modo 0600)</li>
         <li>Valida la integridad de la instalación antes de cada ejecución mediante <code>verify_installation()</code></li>
         <li>Solo IPv4</li>
@@ -82,24 +84,25 @@
   </tr>
 </table>
 
-## Repository Structure
+## REPOSITORY STRUCTURE
 
 ---
 
 ```
 uhotspot/
-├── uhotspot.sh        # main script -- UniFi API poller + ACL manager
+├── uhotspotd.sh       # main daemon -- UniFi API poller + ACL manager (systemd)
+├── uhotspotd.service  # systemd service unit
 ├── usetup.sh          # installer / updater / uninstaller (interactive)
 └── tools/
     ├── ucheck.sh      # interactive MAC diagnostic / consistency checker (menu-driven)
     ├── uaudit.sh      # UniFi clients/vouchers audit tool
     ├── uleases.sh     # reimplementation of pydhcp's pyleases.sh,
     │                  # with built-in UniFi Hotspot integration
-    └── ureload.sh     # wrapper invoked by uhotspot.sh after ACL changes;
+    └── ureload.sh     # wrapper invoked by uhotspotd after ACL changes;
                        # calls uleases.sh and triggers reload of services
 ```
 
-## Architecture
+## ARCHITECTURE
 
 ---
 
@@ -115,7 +118,7 @@ uhotspot/
 </table>
 
 ```
-uhotspot.sh
+uhotspotd.sh  (systemd daemon — every POLL_INTERVAL seconds, default 10)
     │
     ▼
 SERVER_RELOAD_SCRIPT
@@ -127,7 +130,7 @@ SERVER_RELOAD_SCRIPT
         └── administrator-defined
 ```
 
-## Dependencies
+## DEPENDENCIES
 
 ---
 
@@ -142,19 +145,28 @@ SERVER_RELOAD_SCRIPT
   </tr>
 </table>
 
+### Hardware
+
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| CPU | 2 cores @ 1 GHz | 2 cores @ 1.5 GHz |
+| RAM | 256 MB | 512 MB |
+| Disk | 100 MB | 500 MB |
+| OS | Ubuntu 22.04 LTS | Ubuntu 24.04 LTS |
+
 ### Required
 
-| Component | Used by | Purpose | Reference |
-|-----------|---------|---------|-----------|
-| **UniFi OS Server** or **UniFi Network self-hosted** | `uhotspot.sh`, `uaudit.sh` | Captive portal SSID, vouchers, and the API Site must be **Third-Party Gateway**. Local admin account (no 2FA) | [ui.com/download](https://www.ui.com/download/software) |
-| **pydhcp** | `uhotspot.sh` (autodetect) | DHCP backend. Exactly one must be active | [maravento/vault/pydhcp](https://github.com/maravento/vault/tree/master/pydhcp) / distro package |
-| **iptables** + **ipset** | system administrator | Firewall enforcement of ACL files (must be configured manually) | distro packages |
-| **bash**, **curl**, **jq**, **cron** | `uhotspot.sh`, `uaudit.sh`, `uleases.sh` | Script runtime, UniFi API, JSON parsing, scheduling | distro packages |
+| Component | Used by | Purpose |
+|-----------|---------|---------|
+| **UniFi Network (self-hosted)** | `uhotspotd`, `uaudit.sh` | Captive portal SSID, vouchers, and the API Site must be **Third-Party Gateway**. Local admin account (no 2FA) |
+| **pydhcp** | `uhotspotd` (verified at startup) | DHCP backend. Exactly one must be active |
+| **iptables** + **ipset** | system administrator | Firewall enforcement of ACL files (must be configured manually) |
+| **bash**, **curl**, **jq**, **cron** | `uhotspotd`, `uaudit.sh`, `uleases.sh` | Script runtime, UniFi API, JSON parsing, scheduling |
 
 ### Optional
 
-| Component / Componente | Purpose / Propósito |
-|---|---|
+| Component | Purpose |
+|-----------|---------|
 | **squid** | Transparent or authenticated proxy for authorized clients (port 3128 in the reference rules). |
 | **apache2** | Hosts a local WPAD/PAC file on port 18100 for clients that honor DHCP option 252. |
 | **wpad** (DHCP option 252) | Automatic proxy discovery. Honored by most desktops, ignored by Android/iOS — see [Mobile device limitations](#mobile-device-limitations--limitaciones-en-dispositivos-móviles). |
@@ -175,31 +187,31 @@ sudo apt install -y squid apache2
 >
 > Sin UniFi alcanzable, sin exactamente uno de los dos backends DHCP corriendo, o sin un `uiptables.sh` funcional, `uhotspot` se negará a arrancar o no producirá efecto útil. Son dependencias duras.
 
-## UniFi Pre-configuration
+## UNIFI PRE-CONFIGURATION
 
 ---
 
 <table>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Before running <code>uhotspot.sh</code>, in the UniFi Network controller:
+      Before running <code>uhotspotd</code>, in the UniFi Network controller:
       <ol>
         <li><b>Guest SSID</b>: enable Hotspot / Captive Portal.</li>
         <li><b>Landing Page</b>: select <i>Success Message</i> instead of a custom redirect URL. Do <b>not</b> enable <i>HTTPS Redirection Support</i>, <i>Encrypted URL</i>, or <i>Secure Portal</i> — the portal must be served over HTTP (e.g. <code>http://&lt;controller-ip&gt;:8880/guest/s/default/</code>).</li>
-        <li><b>Pre-Authorization Allowances</b>: add the LAN range used by your hotspot clients (e.g. <code>192.168.10.0/24</code>). Do NOT add the controller IP itself — it triggers conflicts.</li>
-        <li><b>Post-Authorization Restrictions</b>: review default blocked ranges. If you use <code>192.168.10.0/24</code>, remove the broader <code>192.168.0.0/16</code> entry (or replace it with explicit blocks for every other Class C except your LAN and WAN).</li>
+        <li><b>Pre-Authorization Allowances</b>: add the LAN range used by your hotspot clients (e.g. <code>192.168.20.0/24</code>). Do NOT add the controller IP itself — it triggers conflicts.</li>
+        <li><b>Post-Authorization Restrictions</b>: review default blocked ranges. If you use <code>192.168.20.0/24</code>, remove the broader <code>192.168.0.0/16</code> entry (or replace it with explicit blocks for every other Class C except your LAN and WAN).</li>
         <li><b>Wi-Fi → guest SSID</b>: uncheck <i>Multicast and Broadcast Control</i>, leave <i>UAPSD</i> checked. Uncheck <i>Client Device Isolation</i> only if you intend to share printers or Samba folders.</li>
         <li><b>Site name</b>: if your admin renamed the UniFi site from <code>default</code>, you must update <code>UNIFI_SITE</code> in <code>/etc/uhotspot/uhotspot.conf</code> accordingly.</li>
         <li><b>If the controller host has two NICs</b> (WAN + LAN), set <code>system_ip</code> in <code>/var/lib/unifi/system.properties</code> to the LAN IP and restart UniFi.</li>
       </ol>
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Antes de ejecutar <code>uhotspot.sh</code>, en el controlador UniFi Network:
+      Antes de ejecutar <code>uhotspotd</code>, en el controlador UniFi Network:
       <ol>
         <li><b>SSID de invitados</b>: habilitar Hotspot / Portal Cautivo.</li>
         <li><b>Landing Page</b>: seleccionar <i>Success Message</i> en lugar de una URL de redirección personalizada. <b>No</b> habilitar <i>HTTPS Redirection Support</i>, <i>Encrypted URL</i> ni <i>Secure Portal</i> — el portal debe servirse por HTTP (ej. <code>http://&lt;ip-controlador&gt;:8880/guest/s/default/</code>).</li>
-        <li><b>Pre-Authorization Allowances</b>: agregar el rango LAN que usarán los clientes del hotspot (ej. <code>192.168.10.0/24</code>). NO agregar la IP del controlador — genera conflictos.</li>
-        <li><b>Post-Authorization Restrictions</b>: revisar los rangos bloqueados por defecto. Si usa <code>192.168.10.0/24</code>, elimine la entrada amplia <code>192.168.0.0/16</code> (o reemplácela con bloqueos explícitos de las demás Clase C excepto su LAN y WAN).</li>
+        <li><b>Pre-Authorization Allowances</b>: agregar el rango LAN que usarán los clientes del hotspot (ej. <code>192.168.20.0/24</code>). NO agregar la IP del controlador — genera conflictos.</li>
+        <li><b>Post-Authorization Restrictions</b>: revisar los rangos bloqueados por defecto. Si usa <code>192.168.20.0/24</code>, elimine la entrada amplia <code>192.168.0.0/16</code> (o reemplácela con bloqueos explícitos de las demás Clase C excepto su LAN y WAN).</li>
         <li><b>Wi-Fi → SSID de invitados</b>: desmarcar <i>Multicast and Broadcast Control</i>, dejar <i>UAPSD</i> marcado. Desmarcar <i>Client Device Isolation</i> solo si va a compartir impresoras o carpetas Samba.</li>
         <li><b>Nombre del sitio</b>: si el admin renombró el sitio UniFi desde <code>default</code>, debe actualizar <code>UNIFI_SITE</code> en <code>/etc/uhotspot/uhotspot.conf</code>.</li>
         <li><b>Si el host del controlador tiene dos NICs</b> (WAN + LAN), defina <code>system_ip</code> en <code>/var/lib/unifi/system.properties</code> con la IP LAN y reinicie UniFi.</li>
@@ -208,7 +220,7 @@ sudo apt install -y squid apache2
   </tr>
 </table>
 
-## Setup
+## SETUP
 
 ---
 
@@ -217,10 +229,10 @@ sudo apt install -y squid apache2
 <table>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Clone the repository with <code>gitfolder.py</code> and run the installer. <code>usetup.sh</code> handles dependency installation, DHCP backend detection, file deployment, interactive setup wizard (interfaces, IPs, range, SSID, UniFi credentials, controller auto-discovery), logrotate config, and cron registration. Make sure every item in <a href="#dependencies">Dependencies</a> that is NOT auto-installable (UniFi controller reachable, <code>pydhcp</code> running) is in place <b>before</b> running the installer.
+      Clone the repository with <code>gitfolder.py</code> and run the installer. <code>usetup.sh</code> handles dependency installation, DHCP backend detection, file deployment, interactive setup wizard (interfaces, IPs, range, SSID, UniFi credentials, controller auto-discovery, optional managed MAC lists), logrotate config, systemd service registration, and the <code>@hourly</code> cron safety net. Make sure every item in <a href="#dependencies">Dependencies</a> that is NOT auto-installable (UniFi controller reachable, <code>pydhcp</code> running) is in place <b>before</b> running the installer.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Clone el repositorio con <code>gitfolder.py</code> y ejecute el instalador. <code>usetup.sh</code> se encarga de instalar dependencias, detectar el backend DHCP, desplegar archivos, correr el wizard interactivo (interfaces, IPs, rango, SSID, credenciales UniFi, autodescubrimiento del controlador), configurar logrotate y registrar el cron. Asegúrese de tener los elementos de <a href="#dependencies">Dependencies</a> que NO son auto-instalables (controlador UniFi alcanzable, <code>pydhcp</code> corriendo) listos <b>antes</b> de ejecutar el instalador.
+      Clone el repositorio con <code>gitfolder.py</code> y ejecute el instalador. <code>usetup.sh</code> se encarga de instalar dependencias, detectar el backend DHCP, desplegar archivos, correr el wizard interactivo (interfaces, IPs, rango, SSID, credenciales UniFi, autodescubrimiento del controlador, listas opcionales de MACs gestionadas), configurar logrotate, registrar el servicio systemd y el cron <code>@hourly</code> de seguridad. Asegúrese de tener los elementos de <a href="#dependencies">Dependencies</a> que NO son auto-instalables (controlador UniFi alcanzable, <code>pydhcp</code> corriendo) listos <b>antes</b> de ejecutar el instalador.
     </td>
   </tr>
 </table>
@@ -239,22 +251,28 @@ sudo bash usetup.sh
 <table>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      The installer auto-installs apt dependencies (<code>curl</code>, <code>jq</code>, <code>iptables</code>, <code>ipset</code>, <code>cron</code>) but aborts if <code>pydhcp</code> is not active. It deploys <code>uleases.sh</code> to <code>/etc/uhotspot/tools/</code> when the backend is <code>pydhcpd</code>; no files are copied to <code>/etc/pydhcp</code>.
+      The installer auto-installs apt dependencies (<code>curl</code>, <code>jq</code>, <code>iptables</code>, <code>ipset</code>, <code>cron</code>) but aborts if <code>pydhcp</code> is not active. It deploys <code>uhotspotd.sh</code> and <code>uleases.sh</code> to <code>/etc/uhotspot/</code> and <code>/etc/uhotspot/tools/</code> respectively, installs <code>uhotspotd.service</code> to <code>/etc/systemd/system/</code>, and enables the daemon via <code>systemctl enable --now uhotspotd</code>. No files are copied to <code>/etc/pydhcp</code>.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      El instalador auto-instala las dependencias apt (<code>curl</code>, <code>jq</code>, <code>iptables</code>, <code>ipset</code>, <code>cron</code>) pero aborta si <code>pydhcp</code> no está activo. Despliega <code>uleases.sh</code> en <code>/etc/uhotspot/tools/</code> cuando el backend es <code>pydhcpd</code>; no se copian archivos a <code>/etc/pydhcp</code>.
+      El instalador auto-instala las dependencias apt (<code>curl</code>, <code>jq</code>, <code>iptables</code>, <code>ipset</code>, <code>cron</code>) pero aborta si <code>pydhcp</code> no está activo. Despliega <code>uhotspotd.sh</code> y <code>uleases.sh</code> en <code>/etc/uhotspot/</code> y <code>/etc/uhotspot/tools/</code> respectivamente, instala <code>uhotspotd.service</code> en <code>/etc/systemd/system/</code> y habilita el daemon con <code>systemctl enable --now uhotspotd</code>. No se copian archivos a <code>/etc/pydhcp</code>.
     </td>
   </tr>
 </table>
 
-The registered crontab entries:
+The systemd service drives the main hotspot loop (every <code>POLL_INTERVAL</code> seconds, default 10, set in <code>uhotspot.conf</code>). The only crontab entry registered is:
 
 ```bash
-* * * * * /etc/uhotspot/uhotspot.sh >/dev/null 2>&1; sleep 30 && /etc/uhotspot/uhotspot.sh >/dev/null 2>&1
 @hourly UHOTSPOT_RELOAD_ACTIVE=1 flock -w 60 /var/lock/uhotspot.lock -c '/etc/uhotspot/tools/ureload.sh'
 ```
 
-The 30-second entry drives the main hotspot loop. The `@hourly` entry is a safety net that guarantees promotion of expired grace entries to `blockdhcp.txt` even when hotspot activity alone would not trigger a reload. `UHOTSPOT_RELOAD_ACTIVE=1` signals `ureload.sh` that it is running under the safety-net cron rather than being invoked directly by `uhotspot.sh`. The `flock` against `/var/lock/uhotspot.lock` serializes the hourly run against the 30-second loop.
+This `@hourly` safety net guarantees promotion of expired grace entries to `blockdhcp.txt` even on idle networks where no new client would otherwise trigger a reload. `UHOTSPOT_RELOAD_ACTIVE=1` signals `ureload.sh` that it is running under the safety-net cron rather than being invoked by the daemon. The `flock` serializes the hourly run against any concurrent daemon-triggered reload.
+
+Verify the daemon status with:
+
+```bash
+systemctl status uhotspotd
+journalctl -u uhotspotd -f
+```
 
 ### Update
 
@@ -263,20 +281,22 @@ The 30-second entry drives the main hotspot loop. The `@hourly` entry is a safet
     <td style="width: 50%; vertical-align: top;">
       To update scripts while preserving configuration and ACL data:
       <ul>
-        <li>Updates: uhotspot.sh, uaudit.sh, ureload.sh, uleases.sh</li>
+        <li>Updates: uhotspotd.sh, uhotspotd.service, uaudit.sh, ureload.sh, uleases.sh</li>
         <li>Preserves: uhotspot.conf, guest-pending.txt, mac-hotspot.txt, guest-wellknow.txt</li>
-        <li>Preserves: logrotate config</li>
-        <li>Reconciles cron: missing entries are added (e.g. the <code>@hourly</code> safety net introduced in this version); existing entries are left untouched</li>
+        <li>Preserves: logrotate config, uiptables.sh</li>
+        <li>Restarts <code>uhotspotd</code> service after deploying updated scripts</li>
+        <li>Reconciles <code>@hourly</code> cron: adds entry if missing; existing entries untouched</li>
         <li>Creates a timestamped backup of current scripts before overwriting</li>
       </ul>
      </td>
     <td style="width: 50%; vertical-align: top;">
       Para actualizar los scripts preservando la configuración y los datos ACL:
       <ul>
-        <li>Actualiza: uhotspot.sh, uaudit.sh, ureload.sh, uleases.sh</li>
+        <li>Actualiza: uhotspotd.sh, uhotspotd.service, uaudit.sh, ureload.sh, uleases.sh</li>
         <li>Preserva: uhotspot.conf, guest-pending.txt, mac-hotspot.txt, guest-wellknow.txt</li>
-        <li>Preserva: configuración de logrotate</li>
-        <li>Reconcilia cron: las entradas faltantes se agregan (por ejemplo la red de seguridad <code>@hourly</code> introducida en esta versión); las entradas existentes se respetan</li>
+        <li>Preserva: configuración de logrotate, uiptables.sh</li>
+        <li>Reinicia el servicio <code>uhotspotd</code> tras desplegar los scripts actualizados</li>
+        <li>Reconcilia cron <code>@hourly</code>: agrega la entrada si falta; las existentes no se tocan</li>
         <li>Crea un backup con timestamp de los scripts actuales antes de sobrescribir</li>
       </ul>
      </td>
@@ -308,17 +328,18 @@ sudo bash usetup.sh --remove
 
 The uninstaller offers (each with individual y/N confirmation):
 
-- Remove the cron entries pointing to `/etc/uhotspot/uhotspot.sh` and `/etc/uhotspot/tools/ureload.sh`
+- Stop and disable `uhotspotd.service` and remove `/etc/systemd/system/uhotspotd.service`
+- Remove the `@hourly` cron entry for `/etc/uhotspot/tools/ureload.sh`
 - Remove `/etc/logrotate.d/uhotspot`
 - Remove `/etc/uhotspot/` and **all its contents** including `uhotspot.conf`, ACL files, and your `uiptables.sh`
 - Remove `/var/log/uhotspot.log` and rotated archives
-- Remove `/var/log/uleases.log` and rotated archives
 
 ### Files
 
 | Description / Descripción | Path |
 |---|---|
-| Main script / Script principal | `/etc/uhotspot/uhotspot.sh` |
+| Main daemon / Daemon principal | `/etc/uhotspot/uhotspotd.sh` |
+| Systemd service unit / Unidad de servicio systemd | `/etc/systemd/system/uhotspotd.service` |
 | Audit tool / Herramienta de auditoría | `/etc/uhotspot/tools/uaudit.sh` |
 | Reload wrapper / Wrapper de reload | `/etc/uhotspot/tools/ureload.sh` |
 | Hotspot-aware DHCP leases manager / Gestor de leases DHCP con hotspot | `/etc/uhotspot/tools/uleases.sh` |
@@ -327,8 +348,7 @@ The uninstaller offers (each with individual y/N confirmation):
 | Authorized clients (active voucher) / Autorizados | `/etc/uhotspot/mac-hotspot.txt` |
 | Cumulative MAC backup (one MAC per line) / Backup acumulativo de MACs | `/etc/uhotspot/guest-wellknow.txt` |
 | Lease removal queue (consumed by uleases.sh) / Cola de remociones de leases | `/etc/uhotspot/leases-remove-queue.txt` |
-| Log file / Archivo de log | `/var/log/uhotspot.log` |
-| Log file (uleases) / Archivo de log (uleases) | `/var/log/uleases.log` |
+| Log file (unified) / Archivo de log (unificado) | `/var/log/uhotspot.log` |
 | Logrotate config / Config de logrotate | `/etc/logrotate.d/uhotspot` |
 
 ### Config Reference (uhotspot.conf)
@@ -345,9 +365,19 @@ The uninstaller offers (each with individual y/N confirmation):
 | `UNIFI_USERNAME`, `UNIFI_PASSWORD` | Local UniFi admin (no 2FA) |
 | `UNIFI_SITE` | Defaults to `default`; update if the site was renamed |
 | `UNIFI_TYPE` | `unifi-os` or `classic`; sets the API path (`/proxy/network/api/s/...` vs `/api/s/...`) |
-| `PORTAL_PORTS` | Default `53,67,68,8880,8881,8882,8843` — consumed by the firewall script |
-| `LOCAL_PORTS` | Default `137:139,445,162,631,8000,3128,853` — consumed by the firewall script |
 | `SERVER_RELOAD_SCRIPT` | Path to `ureload.sh` |
+| `MANAGED_MACS_ENABLED` | `true` to enable managed MAC lists (`mac-*.txt`); `false` disables steps 3 and 11 |
+| `SERV_DHCP` | DHCP server IP (same as `SERVER_IP`; used by `uleases.sh` and `uiptables.sh`) |
+| `SERV_MASK`, `SERV_SUBNET`, `SERV_BROADCAST` | Network mask and derived values |
+| `SERV_DNS` | DNS servers for clients (comma-separated, e.g. `8.8.8.8,1.1.1.1`) |
+| `SERV_INI_RANGE_BLOCK`, `SERV_END_RANGE_BLOCK` | DHCP pool range for new/unknown clients |
+| `POLL_INTERVAL` | Daemon cycle interval in seconds (default `10`) |
+| `CLEANUP_INTERVAL` | DHCP pool lease time in seconds (default `20`) |
+| `AUTHORIZED_LEASE_TIME` | DHCP lease time for authorized clients in seconds (default `2592000` = 30 days) |
+| `BLOCKDHCP_GRACE_SECONDS` | Grace period before unknown MACs are blocked (default `86400` = 24h) |
+| `UNIFI_HOTSPOT_ENABLED` | Set `false` only for testing without a UniFi controller |
+| `WPAD_ENABLED` | `true` to enable WPAD/PAC via DHCP option 252 (requires Apache2 on port 18100) |
+| `PING_CHECK_ENABLED` | `false` to disable pydhcpd ping-check before OFFER (set if ICMP is blocked) |
 
 ### Reconfigure
 
@@ -373,14 +403,14 @@ cd uhotspot && sudo bash usetup.sh
 
 (For full uninstall, see the [Remove](#remove) section above.)
 
-## How it works
+## HOW IT WORKS
 
 ---
 
 <table>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Each cron tick runs <code>uhotspot.sh</code> twice (once immediately, once after 30s) under <code>flock</code> protection. A single run executes eleven steps:
+      The daemon executes a full cycle every <code>POLL_INTERVAL</code> seconds (default 10, configured in <code>uhotspot.conf</code>). Each cycle executes thirteen steps:
       <ol>
         <li><b>dedup</b> — builds <code>MANAGED_MACS</code> (from <code>/etc/acl/acl_mac/mac-*.txt</code>) and a global <code>all_macs</code> set. Removes any MAC from <code>blockdhcp.txt</code> that also appears in a managed list. Queues lease removals for managed MACs (consumed by <code>uleases.sh</code>).</li>
         <li><b>sort</b> — sorts and deduplicates <code>mac-hotspot.txt</code> and <code>guest-pending.txt</code> by IP.</li>
@@ -392,16 +422,17 @@ cd uhotspot && sudo bash usetup.sh
         <li><b>unauthorize</b> — for each MAC in <code>guest-pending.txt</code> that UniFi still reports as <code>authorized=true</code>, POST <code>cmd/stamgr</code> with <code>unauthorize-guest</code>.</li>
         <li><b>backup</b> — append (add-only, never remove) every MAC in <code>mac-hotspot.txt</code> to <code>guest-wellknow.txt</code>; remove from <code>blockdhcp.txt</code> any MAC also in <code>guest-wellknow.txt</code>.</li>
         <li><b>hotspot clients</b> — connect to the Hotspot SSID, receive a fixed IP, and appear in <code>guest-pending.txt</code> (or <code>mac-hotspot.txt</code> if a voucher is used). When disconnected, they are removed completely with no further tracking.</li>
-        <li><b>non-hotspot clients</b> — connect to other SSIDs on the same LAN. They are treated as unknown, enter a 24h grace period (<code>gracedhcp.txt</code>), and then are permanently blocked (<code>blockdhcp.txt</code>). Promotion from grace to block is driven by <code>uleases.sh</code>; under normal hotspot activity it runs often enough, and the <code>@hourly</code> cron entry guarantees promotion even on idle networks.</li>
+        <li><b>authorize managed MACs</b> — for each MAC in <code>mac-*.txt</code> (when <code>MANAGED_MACS_ENABLED=true</code>) currently connected to <code>HOTSPOT_ESSID</code> and reported as unauthorized by UniFi, POST <code>authorize-guest</code> with a long duration so they bypass the captive portal automatically.</li>
+        <li><b>reload</b> — compare md5 against baseline. If anything changed, invoke <code>SERVER_RELOAD_SCRIPT</code> with a 60s timeout. If unchanged, log <i>ACLs unchanged — skipping reload</i>.</li>
+        <li><b>grace→block</b> — driven by <code>uleases.sh</code> (invoked by <code>SERVER_RELOAD_SCRIPT</code>): after disconnection a client's lease remains in <code>gracedhcp.txt</code> for up to 24h; after expiry it moves to <code>blockdhcp.txt</code>. The <code>@hourly</code> cron safety net guarantees promotion even on idle networks.</li>
       </ol>
-      Finally: compare md5 against baseline. If anything changed, invoke <code>SERVER_RELOAD_SCRIPT</code> with a 60s timeout. If unchanged, log <i>ACLs unchanged — skipping reload</i>.
-      <br><br>
+      <br>
       <b>Record format</b>: <code>a;MAC;IP;HOSTNAME;</code> in <code>guest-pending.txt</code>. <code>a;MAC;IP;HOSTNAME;END_TIME_EPOCH;</code> in <code>mac-hotspot.txt</code>. <code>guest-wellknow.txt</code> stores only MAC addresses (one per line) — it is a cumulative whitelist, not an ACL.
       <br><br>
-      <b>Auth resilience</b>: on HTTP 401 from any UniFi call, the script re-authenticates once automatically. UniFi OS login uses a partitioned JWT cookie that curl's Netscape jar drops, so the token is extracted from <code>set-cookie</code> headers and injected manually.
+      <b>Auth resilience</b>: the CSRF token is extracted from the UniFi OS JWT payload (<code>csrfToken</code> field) after login, and persisted to <code>/run/uhotspotd_session</code> so it survives across <code>$(...)</code> subshell boundaries. On HTTP 401 from any API call, the daemon re-authenticates once and retries automatically.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Cada tick de cron ejecuta <code>uhotspot.sh</code> dos veces (inmediato y a los 30s) bajo proteccion de <code>flock</code>. Una corrida ejecuta once pasos:
+      El daemon ejecuta un ciclo completo cada <code>POLL_INTERVAL</code> segundos (default 10, configurado en <code>uhotspot.conf</code>). Cada ciclo ejecuta trece pasos:
       <ol>
         <li><b>dedup</b> — construye <code>MANAGED_MACS</code> (desde <code>/etc/acl/acl_mac/mac-*.txt</code>) y el set global <code>all_macs</code>. Elimina de <code>blockdhcp.txt</code> cualquier MAC presente en una lista gestionada. Encola remociones de leases para MACs gestionados (consumidos por <code>uleases.sh</code>).</li>
         <li><b>sort</b> — ordena y deduplica <code>mac-hotspot.txt</code> y <code>guest-pending.txt</code> por IP.</li>
@@ -413,136 +444,141 @@ cd uhotspot && sudo bash usetup.sh
         <li><b>unauthorize</b> — para cada MAC en <code>guest-pending.txt</code> que UniFi aún reporta como <code>authorized=true</code>, hace POST a <code>cmd/stamgr</code> con <code>unauthorize-guest</code>.</li>
         <li><b>backup</b> — añade (solo agregar, nunca remover) cada MAC de <code>mac-hotspot.txt</code> a <code>guest-wellknow.txt</code>; elimina de <code>blockdhcp.txt</code> cualquier MAC también en <code>guest-wellknow.txt</code>.</li>
         <li><b>clientes hotspot</b> — se conectan al SSID Hotspot, reciben una IP fija y aparecen en <code>guest-pending.txt</code> (o <code>mac-hotspot.txt</code> si usan un voucher). Al desconectarse, se eliminan completamente sin seguimiento posterior.</li>
-        <li><b>clientes no hotspot</b> — se conectan a otros SSID en la misma LAN. Son tratados como desconocidos, entran en un período de gracia de 24h (<code>gracedhcp.txt</code>) y luego son bloqueados permanentemente (<code>blockdhcp.txt</code>). La promoción de gracia a bloqueo la dispara <code>uleases.sh</code>; bajo actividad normal del hotspot se ejecuta con frecuencia suficiente, y la entrada <code>@hourly</code> en cron garantiza la promoción incluso en redes inactivas.</li>
+        <li><b>autorizar MACs gestionadas</b> — para cada MAC en <code>mac-*.txt</code> (cuando <code>MANAGED_MACS_ENABLED=true</code>) actualmente conectada a <code>HOTSPOT_ESSID</code> y reportada como no autorizada por UniFi, hace POST <code>authorize-guest</code> con duración extendida para que bypaseen el portal automáticamente.</li>
+        <li><b>reload</b> — compara md5 contra baseline. Si algo cambió, invoca <code>SERVER_RELOAD_SCRIPT</code> con timeout de 60s. Si no, registra <i>ACLs unchanged — skipping reload</i>.</li>
+        <li><b>gracia→bloqueo</b> — gestionado por <code>uleases.sh</code> (invocado por <code>SERVER_RELOAD_SCRIPT</code>): tras la desconexión el lease de un cliente permanece en <code>gracedhcp.txt</code> hasta 24h; al expirar pasa a <code>blockdhcp.txt</code>. La entrada <code>@hourly</code> de cron garantiza la promoción incluso en redes inactivas.</li>
       </ol>
-      Al final: compara md5 contra baseline. Si algo cambió, invoca <code>SERVER_RELOAD_SCRIPT</code> con timeout de 60s. Si no, registra <i>ACLs unchanged — skipping reload</i>.
-      <br><br>
+      <br>
       <b>Formato de registro</b>: <code>a;MAC;IP;HOSTNAME;</code> en <code>guest-pending.txt</code>. <code>a;MAC;IP;HOSTNAME;END_TIME_EPOCH;</code> en <code>mac-hotspot.txt</code>. <code>guest-wellknow.txt</code> guarda solo MACs (uno por línea) — es una whitelist acumulativa, no una ACL.
       <br><br>
-      <b>Resiliencia de auth</b>: ante HTTP 401 de cualquier llamada UniFi, el script re-autentica una vez automáticamente. El login UniFi OS usa una cookie JWT particionada que el jar Netscape de curl descarta, por lo que el token se extrae del header <code>set-cookie</code> y se inyecta manualmente.
+      <b>Resiliencia de auth</b>: el token CSRF se extrae del payload JWT de UniFi OS (campo <code>csrfToken</code>) tras el login, y se persiste en <code>/run/uhotspotd_session</code> para que sobreviva el límite de subshells <code>$(...)</code>. Ante HTTP 401 de cualquier llamada API, el daemon re-autentica una vez y reintenta automáticamente.
     </td>
   </tr>
 </table>
 
-## Firewall Rules (user-provided)
-
----
+### Firewall Rules (user-provided)
 
 <table>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <code>uhotspot.sh</code> does not touch the firewall. Firewall enforcement must be configured by the system administrator independently. The script only writes ACL files. The following <code>iptables</code> rules are the minimum required for UniFi hotspot to work. The administrator must integrate them with their existing firewall policy (MASQUERADE, NAT, state tracking, default policies). The file <code>/etc/uhotspot/tools/uiptables.sh</code> must be created manually by the administrator.
+      <code>uhotspotd</code> does not touch the firewall. The firewall is managed independently by the administrator via <code>/etc/uhotspot/tools/uiptables.sh</code>, which is invoked by <code>ureload.sh</code> after every ACL change. The script flushes and rebuilds all ipsets and iptables rules from scratch on each run. The following rules are the minimum required for the hotspot to function. Variables are loaded exclusively from <code>uhotspot.conf</code> — no hardcoded values.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <code>uhotspot.sh</code> no toca el firewall. El administrador del sistema debe configurar el firewall de forma independiente. El script solo escribe archivos ACL. Las siguientes reglas <code>iptables</code> son las mínimas necesarias para que el hotspot UniFi funcione. El administrador debe integrarlas con su política de firewall existente (MASQUERADE, NAT, seguimiento de estados, políticas por defecto). El archivo <code>/etc/uhotspot/tools/uiptables.sh</code> debe ser creado manualmente por el administrador.
+      <code>uhotspotd</code> no toca el firewall. El firewall es gestionado independientemente por el administrador vía <code>/etc/uhotspot/tools/uiptables.sh</code>, invocado por <code>ureload.sh</code> tras cada cambio de ACL. El script vacía y reconstruye todos los ipsets y reglas iptables desde cero en cada ejecución. Las siguientes reglas son las mínimas para que el hotspot funcione. Las variables se cargan exclusivamente desde <code>uhotspot.conf</code> — sin valores hardcodeados.
     </td>
   </tr>
 </table>
 
+The script uses six ipsets:
+
+| ipset | Type | Source | Role |
+|---|---|---|---|
+| `macunlimited` | `hash:mac` | `mac-unlimited.txt` | APs, switches, infrastructure — full bypass |
+| `macpending` | `hash:mac` | `guest-pending.txt` | Portal clients — DNS + HTTP redirect to 8880 only |
+| `macip` | `hash:ip,mac` | `pydhcpd.conf` (fixed-address) | All known MAC+IP pairs — master gate in mangle |
+| `macproxy` | `hash:mac` | `mac-proxy.txt` | Clients forced through Squid (port 3128) |
+| `machotspot` | `hash:mac` | `mac-hotspot.txt` | Authorized voucher clients — Squid + portal ports |
+| `macports` | `hash:mac` | all `mac-*.txt` + `mac-hotspot.txt` | DNS, printing, STUN, email, etc. |
+| `blockports` | `bitmap:port` | `blockports.txt` | Blocked destination ports (dropped in mangle) |
+
+**mangle PREROUTING order (enforced via ipset priority):**
+
+| Priority | Match | Action |
+|---|---|---|
+| 1 | `macunlimited` | ACCEPT — full bypass |
+| 2 | UniFi ports (8080, 6789, 10001, 3478, 123) | ACCEPT |
+| 3 | `macpending` + udp/53 | ACCEPT |
+| 4 | `macpending` + tcp/80 | ACCEPT |
+| 5 | `macpending` + tcp/8880,8881,8882 | ACCEPT |
+| 6 | `blockports` | DROP |
+| 7 | `macports` + DNS to known resolvers | ACCEPT |
+| 8 | `macip` (MAC+IP pair) | ACCEPT — master gate |
+| 9 | everything else | DROP |
+
+**nat PREROUTING redirects:**
+
+| Match | Redirect |
+|---|---|
+| `macpending` + tcp/80 | → port 8880 (captive portal) |
+| `macproxy` + tcp/80 | → port 3128 (Squid) |
+| `machotspot` + tcp/80 | → port 3128 (Squid) |
+
 ```bash
-#!/bin/bash
-# /etc/uhotspot/tools/uiptables.sh
-# Reference firewall rules for uhotspot. Adapt interface names and IPs.
+# Minimum required ipset/iptables blocks for uhotspot (excerpt)
+# Full reference: /etc/uhotspot/tools/uiptables.sh
 
-set -e
+# ── macunlimited: infrastructure bypass ──────────────────────────────────────
+ipset create macunlimited hash:mac -exist
+# populate from mac-unlimited.txt ...
+iptables -t nat    -A PREROUTING -i $lan -m set --match-set macunlimited src -j ACCEPT
+iptables -t mangle -A PREROUTING -i $lan -m set --match-set macunlimited src -j ACCEPT
+iptables -A INPUT   -i $lan -m set --match-set macunlimited src -j ACCEPT
+iptables -A FORWARD -i $lan -m set --match-set macunlimited src -j ACCEPT
 
-# --- Variables ---
-wan=eth0
-lan=eth1
-wan_ip=192.168.1.200
-hotspot_path="/etc/uhotspot"
+# ── macpending: portal-only access ───────────────────────────────────────────
+ipset create macpending hash:mac -exist
+# populate from guest-pending.txt ...
+iptables -t mangle -A PREROUTING -i $lan -m set --match-set macpending src -p udp --dport 53 -j ACCEPT
+iptables -t mangle -A PREROUTING -i $lan -m set --match-set macpending src -p tcp --dport 80 -j ACCEPT
+iptables -t mangle -A PREROUTING -i $lan -m set --match-set macpending src -p tcp -m multiport --dports 8880,8881,8882 -j ACCEPT
+iptables -t nat    -A PREROUTING -i $lan -m set --match-set macpending src -p tcp --dport 80 -j REDIRECT --to-port 8880
+iptables -A INPUT   -i $lan -m set --match-set macpending src -p tcp --dport 80 -j ACCEPT
+iptables -A INPUT   -i $lan -m set --match-set macpending src -p tcp -m multiport --dports 8880,8881,8882 -j ACCEPT
+iptables -A FORWARD -i $lan -m set --match-set macpending src -p udp --dport 53 -j ACCEPT
+iptables -A FORWARD -i $lan -m set --match-set macpending src -p tcp --dport 80 -j ACCEPT
+iptables -A FORWARD -i $lan -m set --match-set macpending src -p tcp -m multiport --dports 8880,8881,8882 -j ACCEPT
 
-unifi_tcp="8080,6789"
-unifi_udp="3478,123,10001"
-portal_tcp="8880,8881,8882,8843"
-dns="8.8.8.8 8.8.4.4 1.1.1.1 1.0.0.1"
+# ── macip: master gate in mangle ─────────────────────────────────────────────
+ipset create macip hash:ip,mac -exist
+# populate from pydhcpd.conf fixed-address entries ...
+iptables -t mangle -A PREROUTING -i $lan -m set --match-set macip src,src -j ACCEPT
+iptables -t mangle -A PREROUTING -i $lan -j DROP   # drop everything not in macip
 
-# --- ipsets (idempotent create + flush) ---
-for set in macpending machotspot; do
-    ipset list "$set" &>/dev/null || ipset create "$set" hash:mac
-    ipset flush "$set"
-done
+# ── macproxy: Squid redirect (OPTIONAL — requires Squid on port 3128) ──────────
+# Remove this block if you use a different proxy or no proxy at all.
+# machotspot clients will still get internet via macip ACCEPT in mangle.
+ipset create macproxy hash:mac -exist
+# populate from mac-proxy.txt ...
+iptables -t mangle -A PREROUTING -i $lan -m set --match-set macproxy src -p tcp -m multiport --dports 18100,80 -j ACCEPT
+iptables -t nat    -A PREROUTING -i $lan -m set --match-set macproxy src -p tcp --dport 80 -j REDIRECT --to-port 3128
+iptables -A INPUT   -i $lan -m set --match-set macproxy src -p tcp -m multiport --dports 18100,3128 -j ACCEPT
+iptables -A FORWARD -i $lan -m set --match-set macproxy src -p tcp -m multiport --dports 18100,3128 -j ACCEPT
 
-# Populate from ACL files
-awk -F";" '$2 != "" {print $2}' "$hotspot_path/guest-pending.txt" 2>/dev/null \
-    | xargs -r -I{} ipset add macpending {} -exist
-awk -F";" '$2 != "" {print $2}' "$hotspot_path/mac-hotspot.txt" 2>/dev/null \
-    | xargs -r -I{} ipset add machotspot {} -exist
-
-# --- Static rules (only re-apply if missing — use -C to check) ---
-# DHCP
-iptables -C OUTPUT -o $wan -p udp --sport 68 --dport 67 -j ACCEPT 2>/dev/null \
-    || iptables -A OUTPUT -o $wan -p udp --sport 68 --dport 67 -j ACCEPT
-iptables -C INPUT  -i $wan -p udp --sport 67 --dport 68 -j ACCEPT 2>/dev/null \
-    || iptables -A INPUT  -i $wan -p udp --sport 67 --dport 68 -j ACCEPT
-iptables -C INPUT  -i $lan -p udp --sport 68 --dport 67 -j ACCEPT 2>/dev/null \
-    || iptables -A INPUT  -i $lan -p udp --sport 68 --dport 67 -j ACCEPT
-iptables -C OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT 2>/dev/null \
-    || iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
-
-# UniFi infrastructure (AP→controller, STUN, device discovery, etc.)
-# Note: 53 was removed from unifi_udp on purpose — leaving it here would grant
-# DNS resolution to every device on the LAN regardless of authorization state,
-# bypassing the macpending/machotspot access model entirely. DNS is handled
-# below, scoped to those two ipsets only.
-for chain in INPUT FORWARD; do
-    iptables -C $chain -i $lan -p tcp -m multiport --dports $unifi_tcp -j ACCEPT 2>/dev/null \
-        || iptables -A $chain -i $lan -p tcp -m multiport --dports $unifi_tcp -j ACCEPT
-    iptables -C $chain -i $lan -p udp -m multiport --dports $unifi_udp -j ACCEPT 2>/dev/null \
-        || iptables -A $chain -i $lan -p udp -m multiport --dports $unifi_udp -j ACCEPT
-done
-
-# DNS: only pending or authorized guests may resolve, and only against approved resolvers
-for dnsip in $dns; do
-    iptables -C FORWARD -i $lan -o $wan -m set --match-set macpending src -d $dnsip -p udp --dport 53 -j ACCEPT 2>/dev/null \
-        || iptables -A FORWARD -i $lan -o $wan -m set --match-set macpending src -d $dnsip -p udp --dport 53 -j ACCEPT
-    iptables -C FORWARD -i $lan -o $wan -m set --match-set machotspot src -d $dnsip -p udp --dport 53 -j ACCEPT 2>/dev/null \
-        || iptables -A FORWARD -i $lan -o $wan -m set --match-set machotspot src -d $dnsip -p udp --dport 53 -j ACCEPT
-done
-
-# Captive portal detection: redirect pending clients' HTTP probes to the portal.
-# The mangle ACCEPT must come first — without it, any default-deny the
-# administrator already has in mangle PREROUTING will drop this packet before
-# it ever reaches the nat REDIRECT below.
-iptables -t mangle -C PREROUTING -i $lan -m set --match-set macpending src -p tcp --dport 80 -j ACCEPT 2>/dev/null \
-    || iptables -t mangle -A PREROUTING -i $lan -m set --match-set macpending src -p tcp --dport 80 -j ACCEPT
-iptables -t nat -C PREROUTING -i $lan -p tcp --dport 80 -m set --match-set macpending src -j REDIRECT --to-port 8880 2>/dev/null \
-    || iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m set --match-set macpending src -j REDIRECT --to-port 8880
-
-# Portal access restricted to pending or authorized MACs
-iptables -t mangle -C PREROUTING -i $lan -m set --match-set macpending src -p tcp -m multiport --dports $portal_tcp -j ACCEPT 2>/dev/null \
-    || iptables -t mangle -A PREROUTING -i $lan -m set --match-set macpending src -p tcp -m multiport --dports $portal_tcp -j ACCEPT
-iptables -t mangle -C PREROUTING -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports $portal_tcp -j ACCEPT 2>/dev/null \
-    || iptables -t mangle -A PREROUTING -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports $portal_tcp -j ACCEPT
-iptables -C INPUT -i $lan -m set --match-set macpending src -p tcp -m multiport --dports $portal_tcp -j ACCEPT 2>/dev/null \
-    || iptables -A INPUT -i $lan -m set --match-set macpending src -p tcp -m multiport --dports $portal_tcp -j ACCEPT
-iptables -C INPUT -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports $portal_tcp -j ACCEPT 2>/dev/null \
-    || iptables -A INPUT -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports $portal_tcp -j ACCEPT
-
-# Deny portal access to anyone else on LAN.
-# If the controller is self-hosted on this same box (the default assumption
-# for uhotspot), traffic to the portal ports is INPUT-bound after routing, not
-# FORWARD-bound — a FORWARD-only DROP here would never match it. Block on
-# mangle and INPUT instead.
-iptables -t mangle -C PREROUTING -i $lan -p tcp -m multiport --dports $portal_tcp -j DROP 2>/dev/null \
-    || iptables -t mangle -A PREROUTING -i $lan -p tcp -m multiport --dports $portal_tcp -j DROP
-iptables -C INPUT -i $lan -p tcp -m multiport --dports $portal_tcp -j DROP 2>/dev/null \
-    || iptables -A INPUT -i $lan -p tcp -m multiport --dports $portal_tcp -j DROP
-
-# Authorized clients: redirect HTTP through Squid (optional)
-iptables -t mangle -C PREROUTING -i $lan -m set --match-set machotspot src -p tcp --dport 80 -j ACCEPT 2>/dev/null \
-    || iptables -t mangle -A PREROUTING -i $lan -m set --match-set machotspot src -p tcp --dport 80 -j ACCEPT
-iptables -t nat -C PREROUTING -i $lan -p tcp --dport 80 -m set --match-set machotspot src -j REDIRECT --to-port 3128 2>/dev/null \
-    || iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m set --match-set machotspot src -j REDIRECT --to-port 3128
-iptables -C INPUT -i $lan -p tcp --dport 3128 -m set --match-set machotspot src -j ACCEPT 2>/dev/null \
-    || iptables -A INPUT -i $lan -p tcp --dport 3128 -m set --match-set machotspot src -j ACCEPT
+# ── machotspot: authorized voucher clients ────────────────────────────────────
+ipset create machotspot hash:mac -exist
+# populate from mac-hotspot.txt ...
+iptables -t mangle -A PREROUTING -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports 8880,8881,8882,18100,80 -j ACCEPT
+iptables -A INPUT   -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports 8880,8881,8882,18100 -j ACCEPT
+iptables -A FORWARD -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports 8880,8881,8882,18100 -j ACCEPT
+# OPTIONAL — Squid redirect for authorized hotspot clients:
+# iptables -t nat -A PREROUTING -i $lan -m set --match-set machotspot src -p tcp --dport 80 -j REDIRECT --to-port 3128
+# iptables -A INPUT   -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports 18100,3128 -j ACCEPT
+# iptables -A FORWARD -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports 18100,3128 -j ACCEPT
 ```
 
-> The `-C ... || -A ...` pattern keeps the script idempotent so it can safely run on every ACL change without duplicating rules. Alternatively, use `iptables-restore` with a templated table.
+> `uiptables.sh` is invoked automatically by `ureload.sh` — never run it manually during normal operation. The script flushes ALL iptables rules and ipsets on every run. Variables (`$lan`, `$wan`, `$localnet`, `$netmask`, `$serverip`, `$cpd_tcp`, `$dns`) are loaded at runtime exclusively from `uhotspot.conf`.
 >
-> El patrón `-C ... || -A ...` mantiene el script idempotente para que pueda correr seguro en cada cambio de ACL sin duplicar reglas. Alternativamente, use `iptables-restore` con una tabla plantilla.
+> `uiptables.sh` es invocado automáticamente por `ureload.sh` — nunca ejecutarlo manualmente durante operación normal. El script vacía TODAS las reglas iptables e ipsets en cada ejecución. Las variables (`$lan`, `$wan`, `$localnet`, `$netmask`, `$serverip`, `$cpd_tcp`, `$dns`) se cargan en tiempo de ejecución exclusivamente desde `uhotspot.conf`.
 
-## Tools
+**Required UniFi ports (hardcoded in `uiptables.sh`) / Puertos UniFi requeridos (hardcodeados en `uiptables.sh`):**
+
+| Port / Puerto | Proto | Direction / Dirección | Purpose / Propósito |
+|---|---|---|---|
+| 8080 | TCP | LAN → controller | AP-to-controller communication / Comunicación AP→controlador |
+| 8880 | TCP | LAN → controller | Captive portal HTTP / Portal cautivo HTTP |
+| 8881 | TCP | LAN → controller | Captive portal HTTP alternate / Portal cautivo HTTP alternativo |
+| 8882 | TCP | LAN → controller | Captive portal HTTP alternate / Portal cautivo HTTP alternativo |
+| 8843 | TCP | LAN → controller | Captive portal HTTPS / Portal cautivo HTTPS |
+| 6789 | TCP | LAN → controller | UniFi speed test / throughput measurement |
+| 10001 | UDP | LAN ↔ APs | Device discovery / Descubrimiento de dispositivos |
+| 3478 | UDP | LAN → WAN | STUN for APs behind NAT / STUN para APs detrás de NAT |
+| 123 | UDP | LAN → WAN | NTP time sync / Sincronización NTP |
+
+> For the full list of UniFi required ports see: [help.ui.com/hc/en-us/articles/218506997](https://help.ui.com/hc/en-us/articles/218506997-Required-Ports-Reference)
+>
+> Para la lista completa de puertos requeridos por UniFi, consulte: [help.ui.com/hc/en-us/articles/218506997](https://help.ui.com/hc/en-us/articles/218506997-Required-Ports-Reference)
+
+## TOOLS
 
 ---
 
@@ -553,12 +589,12 @@ iptables -C INPUT -i $lan -p tcp --dport 3128 -m set --match-set machotspot src 
     <td style="width: 50%; vertical-align: top;">
       <b>uleases.sh</b> is a <b>reimplementation</b> of the <code>pyleases.sh</code> shipped by default with <a href="https://github.com/maravento/vault/tree/master/pydhcp">pydhcp</a>, with built-in UniFi Hotspot integration. The original version manages DHCP leases and ACLs but has no awareness of the UniFi captive portal. This version adds the <i>UniFi Hotspot Integration</i> module: when <code>UNIFI_HOTSPOT_ENABLED=true</code>, uleases reads <code>/etc/uhotspot/mac-hotspot.txt</code> and <code>/etc/uhotspot/guest-pending.txt</code> as authoritative exclusion lists during lease classification, applies a grace period for unseen MACs (<code>BLOCKDHCP_GRACE_SECONDS</code>, default 24h), and synchronizes hotspot-related ACL entries.
       <br><br>
-      The script runs from <code>/etc/uhotspot/tools/uleases.sh</code> and detects the existence of <code>/etc/pydhcp</code> (required). Configuration lives in <code>/etc/uhotspot/tools/uleases.env</code> and is auto-generated on first run (asks for DHCP server IP, netmask, pool range, DNS, and whether to enable hotspot integration). Delete the env file to re-run setup.
+      The script runs from <code>/etc/uhotspot/tools/uleases.sh</code> and detects the existence of <code>/etc/pydhcp</code> (required). Configuration is read exclusively from <code>/etc/uhotspot/uhotspot.conf</code> (generated and managed by <code>usetup.sh</code>). To reconfigure, edit <code>uhotspot.conf</code> directly or re-run <code>usetup.sh</code>.
     </td>
     <td style="width: 50%; vertical-align: top;">
       <b>uleases.sh</b> es una <b>reimplementación</b> del <code>pyleases.sh</code> que viene por defecto con <a href="https://github.com/maravento/vault/tree/master/pydhcp">pydhcp</a>, con integración UniFi Hotspot incorporada. La versión original gestiona leases DHCP y ACLs pero no sabe nada del portal cautivo de UniFi. Esta versión añade el módulo <i>UniFi Hotspot Integration</i>: cuando <code>UNIFI_HOTSPOT_ENABLED=true</code>, uleases lee <code>/etc/uhotspot/mac-hotspot.txt</code> y <code>/etc/uhotspot/guest-pending.txt</code> como listas autoritativas de exclusión durante la clasificación de leases, aplica un período de gracia para MACs nuevas (<code>BLOCKDHCP_GRACE_SECONDS</code>, default 24h), y sincroniza entradas ACL relacionadas con el hotspot.
       <br><br>
-      El script se ejecuta desde <code>/etc/uhotspot/tools/uleases.sh</code> y detecta la existencia de <code>/etc/pydhcp</code> (requerido). La configuración vive en <code>/etc/uhotspot/tools/uleases.env</code> y se autogenera en la primera corrida (pregunta IP del servidor DHCP, máscara, rango del pool, DNS, y si activar la integración hotspot). Elimine el archivo env para volver a ejecutar el setup.
+      El script se ejecuta desde <code>/etc/uhotspot/tools/uleases.sh</code> y detecta la existencia de <code>/etc/pydhcp</code> (requerido). La configuración se lee exclusivamente desde <code>/etc/uhotspot/uhotspot.conf</code> (generado y gestionado por <code>usetup.sh</code>). Para reconfigurar, edite <code>uhotspot.conf</code> directamente o vuelva a correr <code>usetup.sh</code>.
     </td>
   </tr>
 </table>
@@ -587,12 +623,11 @@ Grace         : a;MAC;IP;HOSTNAME;FIRST_SEEN_EPOCH;
 
 ```bash
 # uleases.sh is deployed automatically by usetup.sh to /etc/uhotspot/tools/
-# No manual copy is needed. First run triggers interactive setup:
-sudo /etc/uhotspot/tools/uleases.sh
-# This creates /etc/uhotspot/tools/uleases.env
+# Configuration is read from /etc/uhotspot/uhotspot.conf (managed by usetup.sh)
+# No manual setup required — run usetup.sh to configure everything
 ```
 
-**Configuration variables in uleases.env:**
+**Configuration variables (in `uhotspot.conf`):**
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -616,7 +651,7 @@ sudo /etc/uhotspot/tools/uleases.sh
 | `ACL_GRACE_FILE` | /etc/acl/acl_dhcp/gracedhcp.txt | Grace period clients |
 | `BLOCKDHCP_GRACE_SECONDS` | 86400 | Grace period duration (seconds, 24h) |
 | `UNIFI_HOTSPOT_ENABLED` | true | Enable/disable UniFi Hotspot integration |
-| `CLEANUP_INTERVAL` | 40 | Cleanup frequency and pool lease time (seconds) |
+| `CLEANUP_INTERVAL` | 20 | Cleanup frequency and pool lease time (seconds) |
 | `AUTHORIZED_LEASE_TIME` | 2592000 | Lease duration for authorized clients (30 days) |
 | `WPAD_ENABLED` | false | Enable WPAD/PAC via DHCP option 252 |
 | `PING_CHECK_ENABLED` | true | Ping IP before OFFER to detect conflicts. Set to `false` in environments with strict ICMP firewall rules |
@@ -627,15 +662,15 @@ sudo /etc/uhotspot/tools/uleases.sh
 | Directive | Description | Descripción |
 |-----------|-------------|-------------|
 | `authoritative;` | Server sends NAK to clients with foreign leases | El servidor envía NAK a clientes con leases ajenos |
-| `cleanup-interval N;` | How often (seconds) expired leases are removed from memory (controlled via `CLEANUP_INTERVAL` in `uleases.env`) | Frecuencia (segundos) con que se eliminan leases expirados de memoria (controlado via `CLEANUP_INTERVAL` en `uleases.env`) |
+| `cleanup-interval N;` | How often (seconds) expired leases are removed from memory (controlled via `CLEANUP_INTERVAL` in `uhotspot.conf`) | Frecuencia (segundos) con que se eliminan leases expirados de memoria (controlado via `CLEANUP_INTERVAL` en `uhotspot.conf`) |
 | `server-identifier IP;` | IP the server uses to identify itself in DHCP replies | IP con la que el servidor se identifica en las respuestas DHCP |
 | `deny duplicates;` | Reject requests from a MAC that already holds a lease | Rechaza solicitudes de una MAC que ya tiene un lease |
 | `one-lease-per-client true;` | Release old lease before assigning a new one to the same MAC | Libera el lease anterior antes de asignar uno nuevo a la misma MAC |
 | `deny declines;` | Ignore DHCPDECLINE messages | Ignora mensajes DHCPDECLINE |
 | `deny client-updates;` | Ignore client-requested hostname updates | Ignora actualizaciones de hostname solicitadas por el cliente |
-| `ping-check true\|false;` | Ping IP before OFFER to detect conflicts (controlled via `PING_CHECK_ENABLED` in `uleases.env`) | Ping a la IP antes del OFFER para detectar conflictos (controlado via `PING_CHECK_ENABLED` en `uleases.env`) |
+| `ping-check true\|false;` | Ping IP before OFFER to detect conflicts (controlled via `PING_CHECK_ENABLED` in `uhotspot.conf`) | Ping a la IP antes del OFFER para detectar conflictos (controlado via `PING_CHECK_ENABLED` en `uhotspot.conf`) |
 | `ddns-update-style none;` | Disable dynamic DNS updates | Deshabilita actualizaciones DNS dinámicas |
-| `option wpad ...;` | WPAD/PAC proxy auto-configuration (controlled via `WPAD_ENABLED` in `uleases.env`) | Autoconfiguración de proxy WPAD/PAC (controlado via `WPAD_ENABLED` en `uleases.env`) |
+| `option wpad ...;` | WPAD/PAC proxy auto-configuration (controlled via `WPAD_ENABLED` in `uhotspot.conf`) | Autoconfiguración de proxy WPAD/PAC (controlado via `WPAD_ENABLED` en `uhotspot.conf`) |
 | `subnet ... { pool { ... } }` | Subnet declaration with dynamic block pool | Declaración de subred con pool de bloqueo dinámico |
 | `host NAME { hardware ethernet MAC; fixed-address IP; }` | Static host reservation from ACL files | Reserva estática de host desde archivos ACL |
 | `class "blockdhcp" { ... }` / `subclass "blockdhcp" ...` | MAC-based DHCP block list | Lista de bloqueo DHCP por MAC |
@@ -647,16 +682,15 @@ sudo /etc/uhotspot/tools/uleases.sh
 <table>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <code>uleases.sh</code> fully rebuilds <code>/etc/pydhcp/pydhcpd.conf</code> on every run from its ACL files and <code>uleases.env</code>. Any manual edits to <code>pydhcpd.conf</code> — including custom lease times, pools, or directives — will be lost. If you manage <code>pydhcpd.conf</code> manually, do not use <code>uleases.sh</code>.
+      <code>uleases.sh</code> fully rebuilds <code>/etc/pydhcp/pydhcpd.conf</code> on every run from its ACL files and <code>uhotspot.conf</code>. Any manual edits to <code>pydhcpd.conf</code> — including custom lease times, pools, or directives — will be lost. If you manage <code>pydhcpd.conf</code> manually, do not use <code>uleases.sh</code>.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <code>uleases.sh</code> reconstruye completamente <code>/etc/pydhcp/pydhcpd.conf</code> en cada ejecución a partir de sus archivos ACL y <code>uleases.env</code>. Cualquier edición manual a <code>pydhcpd.conf</code> — incluyendo lease times, pools o directivas personalizadas — se perderá. Si gestiona <code>pydhcpd.conf</code> manualmente, no utilice <code>uleases.sh</code>.
+      <code>uleases.sh</code> reconstruye completamente <code>/etc/pydhcp/pydhcpd.conf</code> en cada ejecución a partir de sus archivos ACL y <code>uhotspot.conf</code>. Cualquier edición manual a <code>pydhcpd.conf</code> — incluyendo lease times, pools o directivas personalizadas — se perderá. Si gestiona <code>pydhcpd.conf</code> manualmente, no utilice <code>uleases.sh</code>.
     </td>
   </tr>
 </table>
 
-> **Note / Nota:** Variables marked as (auto) are calculated automatically from SERV_DHCP and SERV_MASK. Variables marked as (required) are prompted during first-run setup. All other variables have sensible defaults but can be modified manually in uleases.env. / Las variables marcadas como (auto) se calculan automáticamente desde SERV_DHCP y SERV_MASK. Las variables marcadas como (required) se solicitan durante la configuración inicial. El resto de variables tienen valores predeterminados sensatos pero pueden modificarse manualmente en uleases.env.
-
+> **Note:** Variables marked as (auto) are calculated automatically from `SERV_DHCP` and `SERV_MASK`. Variables marked as (required) are prompted during `usetup.sh` installation. All other variables have sensible defaults and can be modified directly in `uhotspot.conf`. / **Nota:** Las variables marcadas como (auto) se calculan automáticamente desde `SERV_DHCP` y `SERV_MASK`. Las marcadas como (required) se solicitan durante la instalación con `usetup.sh`. El resto tienen valores predeterminados sensatos y pueden modificarse directamente en `uhotspot.conf`.
 
 ### uaudit
 
@@ -727,15 +761,15 @@ UniFi Clients Audit - starting, please wait...
  AUTHORIZED — mac-hotspot.txt
 =======================================================================
 MAC                IP              VOUCHER     EXPIRES      CONNECTED
-02:00:00:aa:bb:01  192.168.10.101  0000000001  08-02 15:04  NO
-02:00:00:aa:bb:02  192.168.10.102  0000000001  08-02 15:04  NO
-02:00:00:aa:bb:03  192.168.10.103  0000000002  08-02 16:20  YES
+02:00:00:aa:bb:01  192.168.20.101  0000000001  08-02 15:04  NO
+02:00:00:aa:bb:02  192.168.20.102  0000000001  08-02 15:04  NO
+02:00:00:aa:bb:03  192.168.20.103  0000000002  08-02 16:20  YES
 =======================================================================
  PENDING — guest-pending.txt
 =======================================================================
 MAC                IP              HOSTNAME  CONNECTED  AUTH
-02:00:00:aa:bb:04  192.168.10.104  guest8    YES        NO
-02:00:00:aa:bb:05  192.168.10.105  guest15   YES        NO
+02:00:00:aa:bb:04  192.168.20.104  guest8    YES        NO
+02:00:00:aa:bb:05  192.168.20.105  guest15   YES        NO
 =======================================================================
  VOUCHERS — stat/voucher
 =======================================================================
@@ -824,11 +858,11 @@ Select option [1-5]: 1
 Select option [1-5]: 2
   MAC                  IP                 NAME                      EXPIRES IN
   ---------------------------------------------------------------------------
-  02:00:00:aa:bb:01    192.168.10.236     laptop-example-01         6h 40m
-  02:00:00:aa:bb:02    192.168.10.231     desktop-example-02        5h 55m
-  02:00:00:aa:bb:03    192.168.10.235     pc-example-03             9h 40m
-  02:00:00:aa:bb:04    192.168.10.234     no_name_example04         7h 40m
-  02:00:00:aa:bb:05    192.168.10.238     phone-example-05          23h 33m
+  02:00:00:aa:bb:01    192.168.20.236     laptop-example-01         6h 40m
+  02:00:00:aa:bb:02    192.168.20.231     desktop-example-02        5h 55m
+  02:00:00:aa:bb:03    192.168.20.235     pc-example-03             9h 40m
+  02:00:00:aa:bb:04    192.168.20.234     no_name_example04         7h 40m
+  02:00:00:aa:bb:05    192.168.20.238     phone-example-05          23h 33m
   Total: 5  |  Expired: 0  |  Active: 5
 ```
 
@@ -852,8 +886,8 @@ Select option [1-5]: 3
 
 ```text
 Select option [1-5]: 4
-  Enter IP address or hostname: 192.168.10.55
-  Searching for: 192.168.10.55
+  Enter IP address or hostname: 192.168.20.55
+  Searching for: 192.168.20.55
   Found 1 MAC(s):
 === 02:00:00:aa:bb:99 ===
   guest-pending.txt: N
@@ -890,55 +924,54 @@ Select option [1-5]: 4
   </tr>
 </table>
 
-## Logs
+## LOGS
 
 ---
 
 <table>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <b>uhotspot.log</b> — All output is written to <code>/var/log/uhotspot.log</code> and rotated via <code>/etc/logrotate.d/uhotspot</code> (daily, 7 rotations, compressed). Each cycle prints a one-line summary with vouchers, authorized/pending counts, and deltas since the previous run. When no list changed, the script logs <i>ACLs unchanged — skipping reload</i> and skips invoking <code>SERVER_RELOAD_SCRIPT</code>.
+      <b>uhotspot.log</b> — All output is written to <code>/var/log/uhotspot.log</code> and rotated via <code>/etc/logrotate.d/uhotspot</code> (daily, 7 rotations, compressed). Each cycle prints a one-line summary with vouchers, authorized/pending counts, deltas, and <code>managed_authorized</code> (number of managed MAC list entries re-authorized in UniFi this cycle). When no list changed, the daemon logs <i>ACLs unchanged — skipping reload</i> and skips invoking <code>SERVER_RELOAD_SCRIPT</code>.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <b>uhotspot.log</b> — Toda la salida se escribe en <code>/var/log/uhotspot.log</code> y se rota vía <code>/etc/logrotate.d/uhotspot</code> (diario, 7 rotaciones, comprimido). Cada ciclo imprime un resumen de una línea con vouchers, conteos de autorizados/pendientes y deltas desde la corrida anterior. Cuando ninguna lista cambió, el script registra <i>ACLs unchanged — skipping reload</i> y omite la invocación del <code>SERVER_RELOAD_SCRIPT</code>.
+      <b>uhotspot.log</b> — Toda la salida se escribe en <code>/var/log/uhotspot.log</code> y se rota vía <code>/etc/logrotate.d/uhotspot</code> (diario, 7 rotaciones, comprimido). Cada ciclo imprime un resumen de una línea con vouchers, conteos de autorizados/pendientes, deltas y <code>managed_authorized</code> (cantidad de MACs gestionadas re-autorizadas en UniFi en ese ciclo). Cuando ninguna lista cambió, el daemon registra <i>ACLs unchanged — skipping reload</i> y omite la invocación del <code>SERVER_RELOAD_SCRIPT</code>.
     </td>
   </tr>
 </table>
 
 ```text
 ────────────────────────────────────────────────────────────────────────────────
-2026-06-02 08:13:32 INFO: DHCP server detected — pydhcpd
-2026-06-02 08:13:32 INFO: uhotspot Start. Wait...
-2026-06-02 08:13:32 INFO: UniFi login OK
-2026-06-02 08:13:33 INFO: ACLs unchanged — skipping reload
-2026-06-02 08:13:33 INFO: vouchers=2 | authorized=14 | pending=1 | new_pending=0 | new_auth=0 | revoked=0
-2026-06-02 08:13:33 INFO: Done
+2026-06-02 08:13:31 INFO: uhotspotd start
+2026-06-02 08:13:31 INFO: Installation verified
+2026-06-02 08:13:32 INFO: UniFi login OK (csrf=cb7a60d1...)
+2026-06-02 08:13:32 INFO: ACLs unchanged — skipping reload
+2026-06-02 08:13:32 INFO: vouchers=2 | authorized=14 | pending=1 | new_pending=0 | new_auth=0 | revoked=0 | managed_authorized=0
 ```
 
 <table>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <b>uleases.log</b> — Written to <code>/var/log/uleases.log</code>. Tracks all <code>gracedhcp.txt</code> operations: entries added on first contact, entries preserved during grace period, entries expired to <code>blockdhcp.txt</code> after 24 h, and entries removed by <code>clean_grace_list()</code> when a MAC is found in another ACL list. Each run logs a full snapshot of <code>gracedhcp.txt</code> before and after processing. Include this log file in the logrotate configuration at <code>/etc/logrotate.d/uhotspot</code>.
+      <b>uleases output</b> — Written to <code>/var/log/uhotspot.log</code> (unified log). Tracks all <code>gracedhcp.txt</code> operations: entries added on first contact, entries preserved during grace period, entries expired to <code>blockdhcp.txt</code> after 24 h, and entries removed by <code>clean_grace_list()</code> when a MAC is found in another ACL list. Each run logs a full snapshot of <code>gracedhcp.txt</code> before and after processing.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <b>uleases.log</b> — Se escribe en <code>/var/log/uleases.log</code>. Registra todas las operaciones sobre <code>gracedhcp.txt</code>: entradas agregadas al primer contacto, entradas preservadas durante el período de gracia, entradas expiradas a <code>blockdhcp.txt</code> después de 24 h, y entradas eliminadas por <code>clean_grace_list()</code> cuando un MAC se encuentra en otra lista ACL. Cada ejecución registra un snapshot completo de <code>gracedhcp.txt</code> antes y después del procesamiento. Incluya este archivo de log en la configuración de logrotate en <code>/etc/logrotate.d/uhotspot</code>.
+      <b>Salida de uleases</b> — Se escribe en <code>/var/log/uhotspot.log</code> (log unificado). Registra todas las operaciones sobre <code>gracedhcp.txt</code>: entradas agregadas al primer contacto, entradas preservadas durante el período de gracia, entradas expiradas a <code>blockdhcp.txt</code> después de 24 h, y entradas eliminadas por <code>clean_grace_list()</code> cuando un MAC se encuentra en otra lista ACL. Cada ejecución registra un snapshot completo de <code>gracedhcp.txt</code> antes y después del procesamiento.
     </td>
   </tr>
 </table>
 
 ```text
 2026-06-08 14:30:01 --- gracedhcp state BEFORE processing ---
-2026-06-08 14:30:01   a;02:00:00:aa:bb:01;192.168.10.235;no_name_example01;1749395771;
-2026-06-08 14:30:01   a;02:00:00:aa:bb:02;192.168.10.231;no_name_example02;1749398200;
+2026-06-08 14:30:01   a;02:00:00:aa:bb:01;192.168.20.235;no_name_example01;1749395771;
+2026-06-08 14:30:01   a;02:00:00:aa:bb:02;192.168.20.231;no_name_example02;1749398200;
 2026-06-08 14:30:01 expire_grace_entries: processing 2 entries (now=1749400201, grace=86400s)
 2026-06-08 14:30:01 expire_grace_entries: keeping 02:00:00:aa:bb:01 (age=4430s, remaining=81970s)
 2026-06-08 14:30:01 expire_grace_entries: keeping 02:00:00:aa:bb:02 (age=2001s, remaining=84399s)
 2026-06-08 14:30:01 --- gracedhcp state AFTER clean+expire ---
-2026-06-08 14:30:01   a;02:00:00:aa:bb:01;192.168.10.235;no_name_example01;1749395771;
-2026-06-08 14:30:01   a;02:00:00:aa:bb:02;192.168.10.231;no_name_example02;1749398200;
+2026-06-08 14:30:01   a;02:00:00:aa:bb:01;192.168.20.235;no_name_example01;1749395771;
+2026-06-08 14:30:01   a;02:00:00:aa:bb:02;192.168.20.231;no_name_example02;1749398200;
 ```
 
-## Important
+## IMPORTANT
 
 ---
 
@@ -949,27 +982,21 @@ Select option [1-5]: 4
 | **Firewall scope** | Both `guest-pending.txt` and `mac-hotspot.txt` clients must be reachable via your DHCP server. Only `mac-hotspot.txt` clients should be granted full Internet by your firewall; pending clients should only reach the captive portal ports. | Los clientes de `guest-pending.txt` y `mac-hotspot.txt` deben ser alcanzables por su servidor DHCP. Solo `mac-hotspot.txt` debe tener Internet completo vía firewall; los pendientes solo deben llegar a los puertos del portal cautivo. |
 | **Script header** | Read the script header before deploying — it documents the full flow and any newly added behavior. | Lea el header del script antes de desplegarlo — documenta el flujo completo y cualquier comportamiento recién añadido. |
 | **Testing** | Always test in a non-production environment first. | Pruebe siempre en un entorno no productivo primero. |
-| **WPAD/PAC** | `uleases.sh` generates `/etc/pydhcp/pydhcpd.conf` dynamically on every run. Set `WPAD_ENABLED=true` in `uleases.env` to enable WPAD/PAC via DHCP option 252. Prerequisites: Apache2 with a VirtualHost on port 18100 serving a valid `wpad.pac` file. Set `WPAD_ENABLED=false` (default) to disable. The `option wpad` lines are written automatically on the next `uleases.sh` run. | `uleases.sh` genera `/etc/pydhcp/pydhcpd.conf` dinámicamente en cada ejecución. Establezca `WPAD_ENABLED=true` en `uleases.env` para activar WPAD/PAC vía DHCP option 252. Requisitos: Apache2 con un VirtualHost en el puerto 18100 sirviendo un archivo `wpad.pac` válido. Establezca `WPAD_ENABLED=false` (por defecto) para desactivar. Las líneas `option wpad` se escriben automáticamente en la próxima ejecución de `uleases.sh`. |
-| **ping-check** | `ping-check true` is enabled by default in the `pydhcpd.conf` generated by `uleases.sh`. The daemon pings each IP before an OFFER to detect conflicts. In environments with strict ICMP firewall rules the ping will always time out silently and have no effect. Set `PING_CHECK_ENABLED=false` in `uleases.env` to disable it. | `ping-check true` está activado por defecto en el `pydhcpd.conf` generado por `uleases.sh`. El demonio hace ping a cada IP antes del OFFER para detectar conflictos. En entornos con reglas de firewall estrictas que bloquean ICMP el ping siempre expirará sin efecto. Establezca `PING_CHECK_ENABLED=false` en `uleases.env` para desactivarlo. |
+| **WPAD/PAC** | `uleases.sh` generates `/etc/pydhcp/pydhcpd.conf` dynamically on every run. Set `WPAD_ENABLED=true` in `uhotspot.conf` to enable WPAD/PAC via DHCP option 252. Prerequisites: Apache2 with a VirtualHost on port 18100 serving a valid `wpad.pac` file. Set `WPAD_ENABLED=false` (default) to disable. The `option wpad` lines are written automatically on the next `uleases.sh` run. | `uleases.sh` genera `/etc/pydhcp/pydhcpd.conf` dinámicamente en cada ejecución. Establezca `WPAD_ENABLED=true` en `uhotspot.conf` para activar WPAD/PAC vía DHCP option 252. Requisitos: Apache2 con un VirtualHost en el puerto 18100 sirviendo un archivo `wpad.pac` válido. Establezca `WPAD_ENABLED=false` (por defecto) para desactivar. Las líneas `option wpad` se escriben automáticamente en la próxima ejecución de `uleases.sh`. |
+| **ping-check** | `ping-check true` is enabled by default in the `pydhcpd.conf` generated by `uleases.sh`. The daemon pings each IP before an OFFER to detect conflicts. In environments with strict ICMP firewall rules the ping will always time out silently and have no effect. Set `PING_CHECK_ENABLED=false` in `uhotspot.conf` to disable it. | `ping-check true` está activado por defecto en el `pydhcpd.conf` generado por `uleases.sh`. El demonio hace ping a cada IP antes del OFFER para detectar conflictos. En entornos con reglas de firewall estrictas que bloquean ICMP el ping siempre expirará sin efecto. Establezca `PING_CHECK_ENABLED=false` en `uhotspot.conf` para desactivarlo. |
 
-## Limitations
+## LIMITATIONS
 
 ---
 
-### UniFi UI inconsistencies
+### UI
 
-<table>
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      The UniFi Network UI may display inconsistent or inaccurate information about guest clients. This does not affect the operation of this project. <code>uhotspot</code> and its tools work exclusively from data obtained directly from the UniFi API — <code>stat/sta</code>, <code>stat/guest</code>, and <code>stat/voucher</code> — and are not influenced by what the UI chooses to display.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      La UI de UniFi Network puede mostrar información inconsistente o incorrecta sobre los clientes invitados. Esto no afecta el funcionamiento de este proyecto. <code>uhotspot</code> y sus herramientas operan exclusivamente sobre datos obtenidos directamente de la API de UniFi — <code>stat/sta</code>, <code>stat/guest</code> y <code>stat/voucher</code> — y no se ven influenciados por lo que la UI decida mostrar.
-    </td>
-  </tr>
-</table>
+| Limitation | ENG | ESP |
+|---|---|---|
+| **UniFi UI inconsistencies** | The UniFi Network UI may display inconsistent or inaccurate information about guest clients. This does not affect operation. `uhotspotd` works exclusively from data obtained directly from the UniFi API — `stat/sta`, `stat/guest`, and `stat/voucher` — and is not influenced by what the UI chooses to display. | La UI de UniFi Network puede mostrar información inconsistente o incorrecta sobre los clientes invitados. Esto no afecta el funcionamiento. `uhotspotd` opera exclusivamente sobre datos obtenidos directamente de la API de UniFi — `stat/sta`, `stat/guest` y `stat/voucher` — y no se ve influenciado por lo que la UI decida mostrar. |
+| **Portal detection latency** | A new client connecting to the SSID may wait up to 30–40 seconds before the captive portal appears. The daemon polls `stat/sta` every 10 seconds; each cycle takes ~24 seconds to complete (API calls to `stat/voucher`, `stat/sta`, `stat/guest`). The client is invisible to `iptables` until the daemon detects it, adds it to `guest-pending.txt`, and triggers a reload. | Un cliente nuevo que se conecta al SSID puede esperar entre 30 y 40 segundos antes de que aparezca el portal cautivo. El daemon consulta `stat/sta` cada 10 segundos; cada ciclo tarda ~24 segundos en completarse (llamadas API a `stat/voucher`, `stat/sta`, `stat/guest`). El cliente es invisible para `iptables` hasta que el daemon lo detecta, lo agrega a `guest-pending.txt` y dispara un reload. |
 
-### Mobile device limitations
+### Mobile Device
 
 > These are platform and device limitations, not defects in this project. / Estas son limitaciones de plataforma y dispositivo, no defectos de este proyecto.
 

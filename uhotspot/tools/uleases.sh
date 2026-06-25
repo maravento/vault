@@ -14,7 +14,7 @@
 #   data located in /etc/pydhcp (which must exist).
 #
 #   This script:
-#   - Drains the lease removal queue written by uhotspot.sh
+#   - Drains the lease removal queue written by uhotspotd
 #   - Parses and cleans /etc/pydhcp/pydhcpd.leases
 #   - Detects unauthorized clients and adds them to block lists
 #   - Dynamically rebuilds /etc/pydhcp/pydhcpd.conf based on ACL sources
@@ -24,26 +24,26 @@
 #
 # FEATURES:
 #   - Locking mechanism to prevent concurrent executions (flock)
-#   - Concurrency guard: aborts if uhotspot.sh is running (standalone mode only)
+#   - Concurrency guard: aborts if uhotspotd is running (standalone mode only)
 #   - Lease filtering and selective persistence
 #   - Automatic cleanup and normalization of ACL files
 #   - Duplicate detection with fail-safe abort
-#   - First-run configuration via uleases.env (auto-generated)
-#   - All paths, ACL files and network settings read from uleases.env
+#   - Configuration read from /etc/uhotspot/uhotspot.conf (managed by usetup.sh)
+#   - All paths, ACL files and network settings read from uhotspot.conf
 #   - Optional WPAD/PAC support (see WPAD/PAC OPTION below)
-#   - UniFi Hotspot integration (default: true; set false in uleases.env for test)
+#   - UniFi Hotspot integration (default: true; set false in uhotspot.conf for test)
 #   - Grace period for unknown MACs before blocking (hotspot mode only)
 #   - Lease removal queue: drains /etc/uhotspot/leases-remove-queue.txt
-#     (written by uhotspot.sh) during the safe stop→modify→start cycle
+#     (written by uhotspotd) during the safe stop→modify→start cycle
 #
 # LOCATION:
 #   Installed at /etc/uhotspot/tools/uleases.sh
 #   Requires /etc/pydhcp to exist (pydhcpd backend)
-#   Configuration stored in /etc/uhotspot/tools/uleases.env
+#   Configuration stored in /etc/uhotspot/uhotspot.conf
 #
 # REQUIREMENTS:
 #   - pydhcpd installed and running (/etc/pydhcp must exist)
-#   - ACL directories and files as defined in uleases.env
+#   - ACL directories and files as defined in uhotspot.conf
 #   - Root privileges
 #   - python3 (for network calculations on first run)
 #
@@ -60,8 +60,7 @@
 # NOTES:
 #   - Designed for environments enforcing DHCP-based access control
 #   - Incorrect ACL data may disrupt IP assignments
-#   - On first run, uleases.env is created with network/path configuration
-#   - Delete uleases.env to re-run setup
+#   - Configuration managed by usetup.sh — run usetup.sh to reconfigure
 #
 # UNIFI HOTSPOT MODULE:
 #   Integration layer that:
@@ -73,7 +72,7 @@
 #     unseen MAC receives leases but is NOT yet listed in blockdhcp.txt
 #
 # USAGE:
-#   - Controlled via UNIFI_HOTSPOT_ENABLED in uleases.env
+#   - Controlled via UNIFI_HOTSPOT_ENABLED in uhotspot.conf
 #   - Can be safely disabled without affecting core DHCP logic
 #
 # WPAD/PAC OPTION (option 252)
@@ -81,7 +80,7 @@
 # 1. Install and configure Apache2
 # 2. Create virtual host on port 18100
 # 3. Create wpad.pac file in Apache document root
-# 4. Set WPAD_ENABLED=true in /etc/uhotspot/tools/uleases.env
+# 4. Set WPAD_ENABLED=true in /etc/uhotspot/uhotspot.conf
 #
 ################################################################################
 
@@ -93,15 +92,16 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 set -euo pipefail
 
 
-LOG_FILE="/var/log/uleases.log"
+LOG_FILE="/var/log/uhotspot.log"
 ulog() {
     local msg
     msg="$(date '+%Y-%m-%d %H:%M:%S') $*"
     echo "$msg"
-    echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
+    # When invoked by ureload.sh, stdout is already captured to LOG_FILE.
+    # Write directly only when running standalone (not under ureload.sh).
+    [[ -z "${UHOTSPOT_RELOAD_ACTIVE:-}" ]] && echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
 }
 
-echo "────────────────────────────────────────────────────────────────────────────────" >> "$LOG_FILE" 2>/dev/null || true
 ulog "uleases Start"
 
 if [ "$(id -u)" != "0" ]; then
@@ -111,14 +111,14 @@ fi
 
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
-if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
+if ! flock -w 60 200; then
+    echo "Script $(basename "$0") is already running — waited 60s, giving up"
     exit 1
 fi
 
 if [[ -z "${UHOTSPOT_RELOAD_ACTIVE:-}" ]] && [ -f /var/lock/uhotspot.lock ]; then
     if fuser /var/lock/uhotspot.lock &>/dev/null; then
-        echo "ERROR: uhotspot.sh is currently running. Try again later."
+        echo "ERROR: uhotspotd is currently running. Try again later."
         exit 1
     fi
 fi
@@ -134,139 +134,11 @@ cleanup_temp() {
 trap cleanup_temp EXIT
 
 local_user=""
-local_user=$(who | awk '/\(:0\)/{print $1; exit}')
-[ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
-[ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
-if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
-    echo "ERROR: Cannot determine a valid local user"
-    exit 1
-fi
 
-setup_env() {
-    local env_file="$1"
-
-    validate_ip() {
-        echo "$1" | grep -qE '^(([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])$'
-    }
-
-    validate_mask() {
-        echo "$1" | grep -qE '^(255|254|252|248|240|224|192|128|0)(\.(255|254|252|248|240|224|192|128|0)){3}$'
-    }
-
-    validate_dns() {
-        echo "$1" | grep -qE '^(([0-9]{1,3}\.){3}[0-9]{1,3})(,(([0-9]{1,3}\.){3}[0-9]{1,3}))*$'
-    }
-
-    while true; do
-        read -rp "DHCP server IP (e.g. 192.168.0.10): " SERV_DHCP
-        validate_ip "$SERV_DHCP" && break || echo "Invalid IP, try again"
-    done
-
-    while true; do
-        read -rp "Netmask [255.255.255.0]: " SERV_MASK
-        SERV_MASK="${SERV_MASK:-255.255.255.0}"
-        validate_mask "$SERV_MASK" && break || echo "Invalid netmask, try again"
-    done
-
-    SERV_SUBNET=$(SERV_DHCP="$SERV_DHCP" SERV_MASK="$SERV_MASK" python3 -c '
-import ipaddress
-import os
-net = ipaddress.IPv4Network(os.environ["SERV_DHCP"] + "/" + os.environ["SERV_MASK"], strict=False)
-print(net.network_address)
-')
-    SERV_BROADCAST=$(SERV_DHCP="$SERV_DHCP" SERV_MASK="$SERV_MASK" python3 -c '
-import ipaddress
-import os
-net = ipaddress.IPv4Network(os.environ["SERV_DHCP"] + "/" + os.environ["SERV_MASK"], strict=False)
-print(net.broadcast_address)
-')
-    echo "Subnet: $SERV_SUBNET"
-    echo "Broadcast: $SERV_BROADCAST"
-
-    NET_BASE="${SERV_DHCP%.*}"
-    while true; do
-        read -rp "Block pool start (last octet, e.g. 230): " POOL_START_OCT
-        if [[ "$POOL_START_OCT" =~ ^[0-9]+$ ]] && (( POOL_START_OCT >= 1 && POOL_START_OCT <= 254 )); then
-            SERV_INI_RANGE_BLOCK="${NET_BASE}.${POOL_START_OCT}"
-            break
-        fi
-        echo "Invalid value, enter a number between 1 and 254"
-    done
-
-    while true; do
-        read -rp "Block pool end (last octet, e.g. 235): " POOL_END_OCT
-        if [[ "$POOL_END_OCT" =~ ^[0-9]+$ ]] && (( POOL_END_OCT > POOL_START_OCT && POOL_END_OCT <= 254 )); then
-            SERV_END_RANGE_BLOCK="${NET_BASE}.${POOL_END_OCT}"
-            break
-        fi
-        echo "Pool end must be greater than pool start ($POOL_START_OCT) and <= 254"
-    done
-
-    while true; do
-        read -rp "DNS servers (e.g. 8.8.8.8,1.1.1.1): " SERV_DNS
-        validate_dns "$SERV_DNS" && break || echo "Invalid DNS format, try again"
-    done
-
-    cat > "$env_file" <<EOF
-# uleases environment configuration
-# Generated by uleases.sh on $(date)
-# Edit this file to change configuration. Delete it to re-run setup.
-
-# Network
-SERV_DHCP=$SERV_DHCP
-SERV_SUBNET=$SERV_SUBNET
-SERV_BROADCAST=$SERV_BROADCAST
-SERV_MASK=$SERV_MASK
-SERV_INI_RANGE_BLOCK=$SERV_INI_RANGE_BLOCK
-SERV_END_RANGE_BLOCK=$SERV_END_RANGE_BLOCK
-SERV_DNS=$SERV_DNS
-
-# Paths
-ACL_PATH=/etc/acl
-ACL_MAC_PATH=/etc/acl/acl_mac
-ACL_DHCP_PATH=/etc/acl/acl_dhcp
-HOTSPOT_PATH=/etc/uhotspot
-
-# ACL files
-ACL_MAC_PROXY=/etc/acl/acl_mac/mac-proxy.txt
-ACL_MAC_TRANSPARENT=/etc/acl/acl_mac/mac-transparent.txt
-ACL_MAC_UNLIMITED=/etc/acl/acl_mac/mac-unlimited.txt
-ACL_MAC_HOTSPOT=/etc/uhotspot/mac-hotspot.txt
-ACL_GUEST_PENDING=/etc/uhotspot/guest-pending.txt
-ACL_BLOCK_FILE=/etc/acl/acl_dhcp/blockdhcp.txt
-
-# Hotspot grace file
-ACL_GRACE_FILE=/etc/acl/acl_dhcp/gracedhcp.txt
-# Grace period in seconds (24h default = 86400)
-BLOCKDHCP_GRACE_SECONDS=86400
-
-# UniFi Hotspot integration. 
-# Set to false only for testing/debugging without a UniFi controller.
-UNIFI_HOTSPOT_ENABLED=true
-
-# Lease cleanup interval in seconds (should be <= pool min-lease-time)
-CLEANUP_INTERVAL=40
-
-# DHCP timing (seconds) (min-lease|default-lease|max-lease -time)
-AUTHORIZED_LEASE_TIME=2592000
-
-# WPAD/PAC support (requires Apache2 on port 18100 with wpad.pac)
-WPAD_ENABLED=false
-
-# Ping check: pydhcpd pings each IP before OFFER to detect conflicts.
-# Set to false in environments with strict ICMP firewall rules.
-PING_CHECK_ENABLED=true
-EOF
-    chmod 640 "$env_file"
-    chown root:root "$env_file"
-    echo "Configuration saved to $env_file"
-}
-
-ENV_FILE="$(dirname "$(readlink -f "$0")")/uleases.env"
+ENV_FILE="/etc/uhotspot/uhotspot.conf"
 if [ ! -f "$ENV_FILE" ]; then
-    echo "Configuration file not found. Running setup..."
-    setup_env "$ENV_FILE"
+    echo "ERROR: $ENV_FILE not found. Run usetup.sh first."
+    exit 1
 fi
 
 # Load only known KEY=VALUE pairs from ENV_FILE instead of sourcing it,
@@ -283,7 +155,8 @@ load_env_file() {
             ACL_PATH|ACL_MAC_PATH|ACL_DHCP_PATH|HOTSPOT_PATH|\
             ACL_MAC_PROXY|ACL_MAC_TRANSPARENT|ACL_MAC_UNLIMITED|ACL_MAC_HOTSPOT|ACL_GUEST_PENDING|ACL_BLOCK_FILE|\
             ACL_GRACE_FILE|BLOCKDHCP_GRACE_SECONDS|UNIFI_HOTSPOT_ENABLED|\
-            CLEANUP_INTERVAL|AUTHORIZED_LEASE_TIME|WPAD_ENABLED|PING_CHECK_ENABLED)
+            CLEANUP_INTERVAL|AUTHORIZED_LEASE_TIME|WPAD_ENABLED|PING_CHECK_ENABLED|\
+            LOCAL_USER|SERVER_IP|HOTSPOT_IP_RANGE|HOTSPOT_RANGE_START|HOTSPOT_RANGE_END|POLL_INTERVAL)
                 printf -v "$key" '%s' "$value"
                 ;;
             *)
@@ -292,6 +165,44 @@ load_env_file() {
     done < "$file"
 }
 load_env_file "$ENV_FILE"
+
+# Determine local user: prefer LOCAL_USER from uhotspot.conf (the only reliable
+# source when running from systemd without a TTY), then fall back to session detection.
+local_user="${LOCAL_USER:-}"
+if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null 2>/dev/null; then
+    local_user=$(who | awk '/\(:0\)/{print $1; exit}')
+    [ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
+    [ -z "$local_user" ] && local_user="${SUDO_USER:-}"
+    [ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
+fi
+if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
+    echo "ERROR: Cannot determine a valid local user. Set LOCAL_USER in $ENV_FILE."
+    exit 1
+fi
+
+# Compatibility: uhotspot.conf uses SERVER_IP; uleases.sh uses SERV_DHCP
+: "${SERV_DHCP:=${SERVER_IP:-}}"
+
+# Defaults for variables that may not exist in older uhotspot.conf installations.
+# These match the values previously generated by uleases.env setup.
+: "${SERV_MASK:=255.255.255.0}"
+: "${SERV_DNS:=8.8.8.8,1.1.1.1}"
+: "${ACL_PATH:=/etc/acl}"
+: "${ACL_MAC_PATH:=/etc/acl/acl_mac}"
+: "${ACL_DHCP_PATH:=/etc/acl/acl_dhcp}"
+: "${HOTSPOT_PATH:=/etc/uhotspot}"
+: "${ACL_MAC_PROXY:=/etc/acl/acl_mac/mac-proxy.txt}"
+: "${ACL_MAC_TRANSPARENT:=/etc/acl/acl_mac/mac-transparent.txt}"
+: "${ACL_MAC_UNLIMITED:=/etc/acl/acl_mac/mac-unlimited.txt}"
+: "${ACL_MAC_HOTSPOT:=/etc/uhotspot/mac-hotspot.txt}"
+: "${ACL_GUEST_PENDING:=/etc/uhotspot/guest-pending.txt}"
+: "${ACL_BLOCK_FILE:=/etc/acl/acl_dhcp/blockdhcp.txt}"
+: "${BLOCKDHCP_GRACE_SECONDS:=86400}"
+: "${UNIFI_HOTSPOT_ENABLED:=true}"
+: "${CLEANUP_INTERVAL:=20}"
+: "${AUTHORIZED_LEASE_TIME:=2592000}"
+: "${WPAD_ENABLED:=false}"
+: "${PING_CHECK_ENABLED:=true}"
 
 ACL_GRACE_FILE="${ACL_GRACE_FILE:-/etc/acl/acl_dhcp/gracedhcp.txt}"
 LEASE_REMOVE_QUEUE="/etc/uhotspot/leases-remove-queue.txt"
@@ -877,7 +788,7 @@ class "blockdhcp" {
     clean_transparent_list
     ulog "Stopping pydhcpd"
     systemctl stop pydhcpd
-    trap 'rm -f "${TEMP_FILES_TO_CLEAN[@]}" 2>/dev/null; systemctl is-active --quiet pydhcpd || systemctl start pydhcpd' EXIT
+    trap 'rm -f "${TEMP_FILES_TO_CLEAN[@]}" 2>/dev/null; systemctl reset-failed pydhcpd 2>/dev/null; systemctl is-active --quiet pydhcpd || systemctl start pydhcpd' EXIT
     drain_lease_queue
     ulog "Processing leases"
     read_leases
@@ -886,14 +797,16 @@ class "blockdhcp" {
     ulog "Rebuilding pydhcpd.conf"
     update_dhcp_conf
     ulog "Starting pydhcpd"
-    systemctl start pydhcpd
+    systemctl reset-failed pydhcpd 2>/dev/null || true
+    systemctl start pydhcpd || true
     sleep 1
     if ! systemctl is-active --quiet pydhcpd; then
         ulog "ERROR: pydhcpd failed to start after config rebuild — attempting backup config restore"
         if [ -f "${dhcp_conf}.bak" ]; then
             cp -f "${dhcp_conf}.bak" "$dhcp_conf"
             ulog "Restored ${dhcp_conf}.bak — retrying pydhcpd start"
-            systemctl start pydhcpd
+            systemctl reset-failed pydhcpd 2>/dev/null || true
+            systemctl start pydhcpd || true
             sleep 1
             if ! systemctl is-active --quiet pydhcpd; then
                 ulog "ERROR: pydhcpd failed to start even with backup config — manual intervention required"

@@ -138,21 +138,53 @@ else
 fi
 
 api_get() {
-    curl -sk -X GET \
+    local raw code body
+    raw=$(curl -sk -X GET \
         --connect-timeout 10 --max-time 30 \
+        -w "\n__CODE__:%{http_code}" \
         -H "X-CSRF-Token: $CSRF_TOKEN" \
         -H "Cookie: $SESSION_COOKIE" \
-        "$BASE/$1"
+        "$BASE/$1")
+    code=$(echo "$raw" | grep '__CODE__:' | cut -d: -f2 | tr -d '\r\n')
+    body=$(echo "$raw" | grep -v '__CODE__:')
+    if [[ "$code" == "401" ]]; then
+        echo "  INFO: Session expired — re-authenticating" >&2
+        do_login
+        raw=$(curl -sk -X GET \
+            --connect-timeout 10 --max-time 30 \
+            -w "\n__CODE__:%{http_code}" \
+            -H "X-CSRF-Token: $CSRF_TOKEN" \
+            -H "Cookie: $SESSION_COOKIE" \
+            "$BASE/$1")
+        body=$(echo "$raw" | grep -v '__CODE__:')
+    fi
+    echo "$body"
 }
 
 api_post() {
-    curl -sk -X POST \
+    local raw code
+    raw=$(curl -sk -X POST \
         --connect-timeout 10 --max-time 30 \
+        -w "\n__CODE__:%{http_code}" \
         -H "X-CSRF-Token: $CSRF_TOKEN" \
         -H "Cookie: $SESSION_COOKIE" \
         -H "Content-Type: application/json" \
         -d "$2" \
-        "$BASE/$1"
+        "$BASE/$1")
+    code=$(echo "$raw" | grep '__CODE__:' | cut -d: -f2 | tr -d '\r\n')
+    if [[ "$code" == "401" ]]; then
+        echo "  INFO: Session expired — re-authenticating" >&2
+        do_login
+        raw=$(curl -sk -X POST \
+            --connect-timeout 10 --max-time 30 \
+            -w "\n__CODE__:%{http_code}" \
+            -H "X-CSRF-Token: $CSRF_TOKEN" \
+            -H "Cookie: $SESSION_COOKIE" \
+            -H "Content-Type: application/json" \
+            -d "$2" \
+            "$BASE/$1")
+    fi
+    echo "$raw" | grep -v '__CODE__:'
 }
 
 # ── Fetch data from UniFi API ─────────────────────────────────────────────────

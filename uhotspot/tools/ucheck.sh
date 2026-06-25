@@ -54,13 +54,14 @@
 
 set -uo pipefail
 
-ULEASES_ENV="$(dirname "$(readlink -f "$0")")/uleases.env"
-if [ -f "$ULEASES_ENV" ]; then
-    _grace=$(grep -E '^BLOCKDHCP_GRACE_SECONDS=' "$ULEASES_ENV" \
-        | cut -d'=' -f2 | tr -d '[:space:]' | head -1)
-    [[ "$_grace" =~ ^[0-9]+$ ]] && BLOCKDHCP_GRACE_SECONDS="$_grace"
-    unset _grace
+_UHOTSPOT_CONF="/etc/uhotspot/uhotspot.conf"
+_grace=""
+if [ -f "$_UHOTSPOT_CONF" ]; then
+    _grace=$(grep -E '^BLOCKDHCP_GRACE_SECONDS=' "$_UHOTSPOT_CONF" \
+        | cut -d'=' -f2- | tr -d '[:space:]' | head -1)
 fi
+[[ "$_grace" =~ ^[0-9]+$ ]] && BLOCKDHCP_GRACE_SECONDS="$_grace"
+unset _grace _UHOTSPOT_CONF
 BLOCKDHCP_GRACE_SECONDS=${BLOCKDHCP_GRACE_SECONDS:-86400}
 
 # Paths (defaults match the values written by uleases.sh's setup_env() to

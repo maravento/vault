@@ -1111,31 +1111,8 @@ echo "Add Crontab Tasks..."
 @reboot /etc/scr/hwclock.sh
 @reboot /etc/scr/lock.sh
 @reboot /etc/scr/blackusb.sh off
-*/5 * * * * /etc/scr/servicesload.sh
+*/5 * * * * /etc/scr/serviceswatch.sh
 @weekly /etc/scr/cleaner.sh") | sort -u | crontab -
-echo OK
-sleep 1
-
-# SERVERLOAD SERVICE
-echo -e "\n"
-echo "Creating serverload.service..."
-cat > /etc/systemd/system/serverload.service <<EOF
-[Unit]
-Description=Server network/firewall/services load
-After=network-online.target
-# Unifi Optional
-#After=uosserver.service
-Wants=network-online.target
-[Service]
-Type=oneshot
-ExecStart=/etc/scr/serverload.sh
-RemainAfterExit=true
-TimeoutStartSec=120
-[Install]
-WantedBy=multi-user.target
-EOF
-systemctl daemon-reload
-systemctl enable serverload.service
 echo OK
 sleep 1
 
@@ -1146,7 +1123,7 @@ systemctl daemon-reexec &>/dev/null
 #update-initramfs -u -k all
 # create alias "upgrade"
 sudo -u "$local_user" bash -c "printf '%s\n' 'alias upgrade=\"sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo updatedb && sudo update-desktop-database && sudo snap refresh\"' >> /home/${local_user}/.bashrc"
-sudo -u "$local_user" bash -c "printf '%s\n' 'alias server=\"sudo /etc/scr/serverload.sh\"' >> /home/${local_user}/.bashrc"
+sudo -u "$local_user" bash -c "printf '%s\n' 'alias server=\"sudo /etc/scr/serverboot.sh\"' >> /home/${local_user}/.bashrc"
 sudo -u "$local_user" bash -c "printf '%s\n' 'alias cleaner=\"sudo /etc/scr/cleaner.sh\"' >> /home/${local_user}/.bashrc"
 # IPv4 priority
 sed -i 's/^#\s*precedence ::ffff:0:0\/96\s\+100/precedence ::ffff:0:0\/96  100/' /etc/gai.conf

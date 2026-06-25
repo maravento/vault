@@ -10,7 +10,8 @@
 #    sudo bash usetup.sh --help      Usage
 #
 #  Run from inside the cloned repo. The script expects to find:
-#    ./uhotspot.sh
+#    ./uhotspotd.sh
+#    ./uhotspotd.service
 #    ./tools/uaudit.sh
 #    ./tools/ucheck.sh
 #    ./tools/ureload.sh
@@ -34,15 +35,16 @@ CONFIG_FILE="${HOTSPOT_DIR}/uhotspot.conf"
 LOG_FILE="/var/log/uhotspot.log"
 LOGROTATE_FILE="/etc/logrotate.d/uhotspot"
 LOGROTATE_ULEASES_FILE="/etc/logrotate.d/uleases"
-ULEASES_LOG_FILE="/var/log/uleases.log"
 LOGROTATE_UAUDIT_FILE="/etc/logrotate.d/uaudit"
 UAUDIT_LOG_FILE="/var/log/uaudit.log"
 UIPTABLES_STUB="${TOOLS_DIR}/uiptables.sh"
+SERVICE_DEST="/etc/systemd/system/uhotspotd.service"
 
 # ─── Repo file expectations (relative to this script) ────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_UHOTSPOT="${SCRIPT_DIR}/uhotspot.sh"
 REPO_TOOLS="${SCRIPT_DIR}/tools"
+REPO_UHOTSPOTD="${SCRIPT_DIR}/uhotspotd.sh"
+REPO_SERVICE="${SCRIPT_DIR}/uhotspotd.service"
 
 # ─── Required apt packages (auto-installed when missing) ─────────────────────
 APT_DEPS=(curl jq iptables ipset cron)
@@ -103,8 +105,9 @@ detect_local_user() {
 }
 
 check_repo_files() {
-    [[ -r "$REPO_UHOTSPOT" ]] || abort "Missing $(basename "$REPO_UHOTSPOT"). Run usetup.sh from inside the cloned uhotspot repository."
-    [[ -d "$REPO_TOOLS" ]]    || abort "Missing tools/ directory. Run usetup.sh from inside the cloned uhotspot repository."
+    [[ -r "$REPO_UHOTSPOTD" ]] || abort "Missing $(basename "$REPO_UHOTSPOTD"). Run usetup.sh from inside the cloned uhotspot repository."
+    [[ -r "$REPO_SERVICE"   ]] || abort "Missing $(basename "$REPO_SERVICE"). Run usetup.sh from inside the cloned uhotspot repository."
+    [[ -d "$REPO_TOOLS"     ]] || abort "Missing tools/ directory. Run usetup.sh from inside the cloned uhotspot repository."
     info "Repo files located"
 }
 
@@ -300,6 +303,59 @@ run_setup_wizard() {
     echo "  Script invoked after every ACL change (must exist and be executable)."
     ask "Path to reload script" "${TOOLS_DIR}/ureload.sh" CFG_RELOAD_SCRIPT
 
+    step "DHCP network"
+    ask_mask() {
+        local var="$1" default="${2:-255.255.255.0}" answer
+        while true; do
+            read -rp "  Subnet mask [$default]: " answer
+            answer="${answer:-$default}"
+            if echo "$answer" | grep -qE '^(255|254|252|248|240|224|192|128|0)(\.(255|254|252|248|240|224|192|128|0)){3}$'; then
+                printf -v "$var" '%s' "$answer"; break
+            fi
+            err "Invalid mask, try again"
+        done
+    }
+    ask_mask CFG_SERV_MASK "255.255.255.0"
+    CFG_SERV_SUBNET=$(python3 -c "import ipaddress; net=ipaddress.IPv4Network('${CFG_SERVER_IP}/${CFG_SERV_MASK}', strict=False); print(net.network_address)")
+    CFG_SERV_BROADCAST=$(python3 -c "import ipaddress; net=ipaddress.IPv4Network('${CFG_SERVER_IP}/${CFG_SERV_MASK}', strict=False); print(net.broadcast_address)")
+    info "Subnet: $CFG_SERV_SUBNET  Broadcast: $CFG_SERV_BROADCAST"
+
+    step "DNS servers"
+    ask "DNS servers (comma-separated)" "8.8.8.8,1.1.1.1" CFG_SERV_DNS
+
+    step "DHCP pool (for new/unknown clients)"
+    local NET_BASE
+    NET_BASE="${CFG_SERVER_IP%.*}"
+    echo "  These IPs are assigned temporarily to clients not yet in any ACL list."
+    ask_octet "Pool start (last octet)" "230" CFG_POOL_START
+    ask_octet "Pool end   (last octet)" "239" CFG_POOL_END "$CFG_POOL_START"
+    CFG_SERV_INI_RANGE_BLOCK="${NET_BASE}.${CFG_POOL_START}"
+    CFG_SERV_END_RANGE_BLOCK="${NET_BASE}.${CFG_POOL_END}"
+
+    step "Timers"
+    ask "Daemon poll interval in seconds (POLL_INTERVAL)" "10" CFG_POLL_INTERVAL
+    ask "DHCP pool lease cleanup interval in seconds (CLEANUP_INTERVAL)" "20" CFG_CLEANUP_INTERVAL
+    ask "Grace period before blocking unknown MACs in seconds (BLOCKDHCP_GRACE_SECONDS)" "86400" CFG_GRACE_SECONDS
+
+    step "Optional features"
+    local CFG_WPAD_ENABLED="false"
+    confirm "Enable WPAD/PAC proxy auto-configuration? (requires Apache2 on port 18100)" "n" && CFG_WPAD_ENABLED="true"
+    local CFG_PING_CHECK="true"
+    confirm "Enable pydhcpd ping-check before OFFER? (disable if strict ICMP rules)" "y" && CFG_PING_CHECK="true" || CFG_PING_CHECK="false"
+
+    step "Managed MAC lists (optional)"
+    echo "  mac-*.txt files allow specific devices to bypass the captive portal"
+    echo "  automatically (corporate laptops, APs, printers, switches, etc.)."
+    echo "  If enabled, the daemon authorizes those MACs in UniFi each cycle."
+    echo "  Files are stored in /etc/acl/acl_mac/ and managed manually."
+    local CFG_USE_MANAGED_MACS="false"
+    if confirm "Enable managed MAC lists (mac-proxy, mac-unlimited, etc.)?" "n"; then
+        CFG_USE_MANAGED_MACS="true"
+        mkdir -p /etc/acl/acl_mac /etc/acl/acl_dhcp /etc/acl/acl_ipt
+        chmod 700 /etc/acl/acl_mac /etc/acl/acl_dhcp /etc/acl/acl_ipt
+        info "Directory /etc/acl/acl_mac created — add your mac-*.txt files there"
+    fi
+
     step "Writing $CONFIG_FILE"
     cat > "$CONFIG_FILE" <<EOF
 # uhotspot — auto-generated by usetup.sh on $(date '+%Y-%m-%d %H:%M:%S')
@@ -328,12 +384,48 @@ UNIFI_PASSWORD="${CFG_UNIFI_PASS}"
 UNIFI_SITE="default"
 UNIFI_TYPE="${found_type}"
 
-# ── Fixed ports (edit only if your setup differs) ────────────────────────────
-PORTAL_PORTS="53,67,68,8880,8881,8882,8843"
-LOCAL_PORTS="137:139,445,162,631,8000,3128,853"
 
 # ── Reload script (required) ─────────────────────────────────────────────────
 SERVER_RELOAD_SCRIPT="${CFG_RELOAD_SCRIPT}"
+
+# ── Managed MAC lists (optional) ─────────────────────────────────────────────
+# Set to true if you use mac-*.txt files in /etc/acl/acl_mac/ to allow
+# specific devices to bypass the captive portal without a voucher.
+MANAGED_MACS_ENABLED="${CFG_USE_MANAGED_MACS}"
+
+# ── DHCP network (read by uleases.sh and uiptables.sh) ───────────────────────
+SERV_DHCP="${CFG_SERVER_IP}"
+SERV_MASK="${CFG_SERV_MASK}"
+SERV_SUBNET="${CFG_SERV_SUBNET}"
+SERV_BROADCAST="${CFG_SERV_BROADCAST}"
+SERV_DNS="${CFG_SERV_DNS}"
+
+# ── DHCP pool (temporary IPs for new/unknown clients) ────────────────────────
+SERV_INI_RANGE_BLOCK="${CFG_SERV_INI_RANGE_BLOCK}"
+SERV_END_RANGE_BLOCK="${CFG_SERV_END_RANGE_BLOCK}"
+
+# ── Paths (read by uleases.sh) ───────────────────────────────────────────────
+ACL_PATH=/etc/acl
+ACL_MAC_PATH=/etc/acl/acl_mac
+ACL_DHCP_PATH=/etc/acl/acl_dhcp
+ACL_MAC_PROXY=/etc/acl/acl_mac/mac-proxy.txt
+ACL_MAC_TRANSPARENT=/etc/acl/acl_mac/mac-transparent.txt
+ACL_MAC_UNLIMITED=/etc/acl/acl_mac/mac-unlimited.txt
+ACL_MAC_HOTSPOT=/etc/uhotspot/mac-hotspot.txt
+ACL_GUEST_PENDING=/etc/uhotspot/guest-pending.txt
+ACL_BLOCK_FILE=/etc/acl/acl_dhcp/blockdhcp.txt
+ACL_GRACE_FILE=/etc/acl/acl_dhcp/gracedhcp.txt
+
+# ── Daemon & DHCP timers ─────────────────────────────────────────────────────
+POLL_INTERVAL=${CFG_POLL_INTERVAL}
+CLEANUP_INTERVAL=${CFG_CLEANUP_INTERVAL}
+AUTHORIZED_LEASE_TIME=2592000
+BLOCKDHCP_GRACE_SECONDS=${CFG_GRACE_SECONDS}
+
+# ── Optional features ─────────────────────────────────────────────────────────
+UNIFI_HOTSPOT_ENABLED=true
+WPAD_ENABLED="${CFG_WPAD_ENABLED}"
+PING_CHECK_ENABLED="${CFG_PING_CHECK}"
 EOF
     chown root:root "$CONFIG_FILE"
     chmod 600 "$CONFIG_FILE"
@@ -349,7 +441,7 @@ deploy_directories() {
 }
 
 deploy_scripts() {
-    install -m 755 -o root -g root "$REPO_UHOTSPOT" "${HOTSPOT_DIR}/uhotspot.sh"
+    install -m 755 -o root -g root "$REPO_UHOTSPOTD" "${HOTSPOT_DIR}/uhotspotd.sh"
     install -m 755 -o root -g root "${REPO_TOOLS}/"*.sh "${TOOLS_DIR}/"
     info "Scripts deployed to ${HOTSPOT_DIR}"
 }
@@ -403,24 +495,6 @@ EOF
         info "logrotate config installed at $LOGROTATE_FILE"
     fi
 
-    if [[ -f "$LOGROTATE_ULEASES_FILE" ]]; then
-        info "logrotate config already present at $LOGROTATE_ULEASES_FILE"
-    else
-        cat > "$LOGROTATE_ULEASES_FILE" <<EOF
-${ULEASES_LOG_FILE} {
-    daily
-    rotate 7
-    compress
-    delaycompress
-    missingok
-    notifempty
-    copytruncate
-}
-EOF
-        chown root:root "$LOGROTATE_ULEASES_FILE"
-        chmod 644 "$LOGROTATE_ULEASES_FILE"
-        info "logrotate config installed at $LOGROTATE_ULEASES_FILE"
-    fi
 
     if [[ -f "$LOGROTATE_UAUDIT_FILE" ]]; then
         info "logrotate config already present at $LOGROTATE_UAUDIT_FILE"
@@ -443,23 +517,13 @@ EOF
 }
 
 register_cron() {
-    local script_path="${HOTSPOT_DIR}/uhotspot.sh"
+    # uhotspotd runs as a systemd service — no cron entry needed for it.
+    # Only the hourly ureload.sh trigger is registered here.
     local ureload_path="${HOTSPOT_DIR}/tools/ureload.sh"
-    local expected="* * * * * ${script_path} >/dev/null 2>&1; sleep 30 && ${script_path} >/dev/null 2>&1"
     local expected_hourly="@hourly UHOTSPOT_RELOAD_ACTIVE=1 flock -w 60 /var/lock/uhotspot.lock -c '${ureload_path}'"
     local current
     current=$(crontab -l 2>/dev/null || true)
     local changed=0
-
-    if echo "$current" | grep -qF "$expected"; then
-        info "Cron entry (uhotspot) already present"
-    elif echo "$current" | grep -qF "$script_path"; then
-        warn "Crontab contains entries for $script_path in a different format — review manually"
-    else
-        current=$(printf '%s\n%s\n' "$current" "$expected")
-        info "Cron entry registered: $expected"
-        changed=1
-    fi
 
     if echo "$current" | grep -qF "$expected_hourly"; then
         info "Cron entry (ureload @hourly) already present"
@@ -517,6 +581,9 @@ do_install() {
     step "Logrotate"
     install_logrotate
 
+    step "Systemd service"
+    install_systemd_service
+
     step "Cron"
     register_cron
 
@@ -528,7 +595,7 @@ do_install() {
     echo ""
     echo "  Next steps:"
     echo "    1. Edit ${UIPTABLES_STUB} with the firewall rules from the README."
-    echo "    2. Run ${HOTSPOT_DIR}/uhotspot.sh once manually to verify."
+    echo "    2. Check service: systemctl status uhotspotd"
     echo "    3. Check logs: tail -f ${LOG_FILE}"
     echo "══════════════════════════════════════════════════════"
     echo ""
@@ -546,7 +613,7 @@ do_update() {
     check_distro
     check_repo_files
 
-    if [[ ! -d "$HOTSPOT_DIR" || ! -f "${HOTSPOT_DIR}/uhotspot.sh" ]]; then
+    if [[ ! -d "$HOTSPOT_DIR" || ! -f "${HOTSPOT_DIR}/uhotspotd.sh" ]]; then
         abort "uhotspot not installed. Run without --update first."
     fi
 
@@ -557,12 +624,17 @@ do_update() {
     local backup_dir
     backup_dir="/etc/uhotspot.bak/$(date +%Y%m%d_%H%M%S)"
     mkdir -p "$backup_dir"
-    cp -p "${HOTSPOT_DIR}/uhotspot.sh" "$backup_dir/"
+    cp -p "${HOTSPOT_DIR}/uhotspotd.sh" "$backup_dir/" 2>/dev/null || true
     cp -p "${TOOLS_DIR}/"*.sh "$backup_dir/" 2>/dev/null || true
     info "Current scripts backed up to $backup_dir"
 
     step "Deploy updated scripts"
     deploy_scripts
+
+    step "Systemd service"
+    install -m 644 -o root -g root "$REPO_SERVICE" "$SERVICE_DEST"
+    systemctl daemon-reload
+    systemctl restart uhotspotd && info "uhotspotd restarted" || warn "Could not restart uhotspotd — check: systemctl status uhotspotd"
 
     step "Cron"
     register_cron
@@ -579,9 +651,7 @@ do_update() {
     echo ""
     echo "  Cron entries reconciled (missing entries added; existing ones untouched)"
     echo ""
-    echo "  NOTE: If you had uncommented the WPAD/option 252 lines in uleases.sh,"
-    echo "        they have been overwritten. Re-enable them manually if needed."
-    echo ""
+
     echo "  Backup: $backup_dir"
     echo "══════════════════════════════════════════════════════"
     echo ""
@@ -604,13 +674,32 @@ do_remove() {
     echo ""
     confirm "Proceed with uninstall?" "n" || { info "Aborted by user."; exit 0; }
 
+    # Systemd service
+    step "Systemd service"
+    if systemctl is-active --quiet uhotspotd 2>/dev/null || systemctl is-enabled --quiet uhotspotd 2>/dev/null; then
+        if confirm "Stop and disable uhotspotd.service?" "y"; then
+            systemctl disable --now uhotspotd 2>/dev/null || true
+            info "uhotspotd.service disabled and stopped"
+        else
+            warn "uhotspotd.service preserved"
+        fi
+    fi
+    if [[ -f "$SERVICE_DEST" ]]; then
+        if confirm "Remove $SERVICE_DEST?" "y"; then
+            rm -f "$SERVICE_DEST"
+            systemctl daemon-reload
+            info "Service file removed"
+        else
+            warn "Service file preserved"
+        fi
+    fi
+
     # Cron entries
     step "Cron"
-    local script_path="${HOTSPOT_DIR}/uhotspot.sh"
     local ureload_path="${HOTSPOT_DIR}/tools/ureload.sh"
-    if crontab -l 2>/dev/null | grep -qF -e "$script_path" -e "$ureload_path"; then
-        if confirm "Remove cron entries for $script_path and $ureload_path?" "y"; then
-            crontab -l 2>/dev/null | grep -vF "$script_path" | grep -vF "$ureload_path" | crontab - || true
+    if crontab -l 2>/dev/null | grep -qF "$ureload_path"; then
+        if confirm "Remove cron entries for $ureload_path?" "y"; then
+            crontab -l 2>/dev/null | grep -vF "$ureload_path" | crontab - || true
             info "Cron entries removed"
         else
             warn "Cron entries preserved"
@@ -621,16 +710,10 @@ do_remove() {
 
     # Logrotate
     step "Logrotate"
-    if [[ -f "$LOGROTATE_FILE" ]]; then
-        if confirm "Remove $LOGROTATE_FILE?" "y"; then
-            rm -f "$LOGROTATE_FILE"
-            info "Removed $LOGROTATE_FILE"
-        else
-            warn "Logrotate config preserved"
-        fi
-    else
-        info "No logrotate config found"
-    fi
+    for lf in "$LOGROTATE_FILE" "$LOGROTATE_ULEASES_FILE" "$LOGROTATE_UAUDIT_FILE"; do
+        [[ -f "$lf" ]] && rm -f "$lf" && info "Removed $lf" || true
+    done
+    info "Logrotate configs removed"
 
     # /etc/uhotspot
     step "$HOTSPOT_DIR"

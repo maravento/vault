@@ -42,10 +42,10 @@ wget -qO gateproxy.sh https://raw.githubusercontent.com/maravento/vault/master/g
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     Gateproxy is a script under development and may contain bugs, which will be fixed as soon as possible. It may also contain some programs for testing purposes. Therefore, its use in high-volume networks or environments is not recommended.
+     Gateproxy is a script designed for very specific network environments and is only compatible with Ubuntu 24.04.x LTS. It is not intended for general or production use. Using it outside the environment for which it was designed may cause unexpected behavior or system misconfiguration. Use at your own risk.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Gateproxy es un script en desarrollo y puede contener fallos, los cuales serán corregidos a la brevedad posible y contener algunos programas para propósitos de pruebas. Por tanto, no se recomienda su uso en redes o entornos de alta productividad.
+     Gateproxy es un script diseñado para entornos de red muy específicos y solo es compatible con Ubuntu 24.04.x LTS. No está destinado para uso general ni en producción. Usarlo fuera del entorno para el que fue diseñado puede causar comportamientos inesperados o una mala configuración del sistema. Úselo bajo su propio riesgo.
     </td>
   </tr>
 </table>

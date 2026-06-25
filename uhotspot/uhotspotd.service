@@ -1,0 +1,13 @@
+[Unit]
+Description=UniFi Hotspot Manager Daemon
+After=network.target pydhcpd.service
+Wants=pydhcpd.service
+
+[Service]
+Type=simple
+ExecStart=/etc/uhotspot/uhotspotd.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
