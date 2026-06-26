@@ -8,7 +8,7 @@
 # Sends desktop alert and logs to syslog if any issue is detected.
 # Requires: inxi, smartmontools
 # Usage: sudo ./diskcheck.sh
-# Cron Root: @daily /etc/scr/diskcheck.sh >> /var/log/diskcheck.log 2>&1
+# Cron Root: @daily /etc/scr/diskcheck.sh
 # Log rotate: /etc/logrotate.d/diskcheck
 #
 ################################################################################
@@ -34,6 +34,15 @@ if ! flock -n 200; then
 fi
 
 set -uo pipefail
+
+### LOG
+DISKCHECK_LOG="/var/log/diskcheck.log"
+touch "$DISKCHECK_LOG" 2>/dev/null || true
+exec >> "$DISKCHECK_LOG" 2>&1
+
+echo "----------------------------------------------------------------"
+echo "$(date '+%Y-%m-%d %H:%M:%S') — Diskcheck start"
+echo "----------------------------------------------------------------"
 
 # LOCAL USER (multi-strategy detection with validation)
 local_user=""
@@ -115,10 +124,14 @@ if [ ! -f "$LOGROTATE_CONF" ]; then
     weekly
     rotate 4
     compress
+    delaycompress
     missingok
     notifempty
+    create 640 root adm
 }
 EOF
+    chmod 644 "$LOGROTATE_CONF"
+    chown root:root "$LOGROTATE_CONF"
     echo "Logrotate config created: $LOGROTATE_CONF"
 else
     echo "Logrotate config: OK"
@@ -167,7 +180,17 @@ notify_alert() {
 degrees=50
 
 # option 1 (ssd sata and nvme)
-TEMP_OUTPUT=$(inxi -xD | awk "/temp/ {if (\$2>$degrees) print \"ALERT: hard drive temperature is above: \" \$2}")
+TEMP_OUTPUT=$(inxi -xD | awk -v max="$degrees" '
+    /temp:/ {
+        for (i=1; i<=NF; i++) {
+            if ($i == "temp:") {
+                temp = $(i+1)+0
+                if (temp > max)
+                    print "ALERT: hard drive temperature is above: " temp "C"
+            }
+        }
+    }
+')
 if [ -n "$TEMP_OUTPUT" ]; then
     notify_alert "$TEMP_OUTPUT" "checkbox"
 fi

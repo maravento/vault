@@ -98,8 +98,10 @@ uhotspot/
     ├── uaudit.sh      # UniFi clients/vouchers audit tool
     ├── uleases.sh     # reimplementation of pydhcp's pyleases.sh,
     │                  # with built-in UniFi Hotspot integration
-    └── ureload.sh     # wrapper invoked by uhotspotd after ACL changes;
-                       # calls uleases.sh and triggers reload of services
+    ├── ureload.sh     # wrapper invoked by uhotspotd after ACL changes;
+    │                  # calls uleases.sh and triggers reload of services
+    └── uhotspotmon.sh # Webmin module installer/uninstaller — real-time log viewer
+                       # for uhotspotd (AJAX polling, dark mode, level badges, grep)
 ```
 
 ## ARCHITECTURE
@@ -350,6 +352,7 @@ The uninstaller offers (each with individual y/N confirmation):
 | Lease removal queue (consumed by uleases.sh) / Cola de remociones de leases | `/etc/uhotspot/leases-remove-queue.txt` |
 | Log file (unified) / Archivo de log (unificado) | `/var/log/uhotspot.log` |
 | Logrotate config / Config de logrotate | `/etc/logrotate.d/uhotspot` |
+| Webmin log viewer module / Módulo visor de log para Webmin | `/etc/uhotspot/tools/uhotspotmon.sh` |
 
 ### Config Reference (uhotspot.conf)
 
@@ -378,6 +381,56 @@ The uninstaller offers (each with individual y/N confirmation):
 | `UNIFI_HOTSPOT_ENABLED` | Set `false` only for testing without a UniFi controller |
 | `WPAD_ENABLED` | `true` to enable WPAD/PAC via DHCP option 252 (requires Apache2 on port 18100) |
 | `PING_CHECK_ENABLED` | `false` to disable pydhcpd ping-check before OFFER (set if ICMP is blocked) |
+
+### Webmin Module
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <code>uhotspotmon.sh</code> installs a native Webmin module (<b>Networking → UniFi Hotspot Log Viewer</b>) that replaces <code>tail -f</code> for monitoring <code>/var/log/uhotspot.log</code>. It uses AJAX byte-offset polling — reading only new bytes since the last position — so it never stalls on log rotation. The module is written as a self-contained bash installer following the same pattern as <code>servicemon.sh</code> and <code>squidmon.sh</code>.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <code>uhotspotmon.sh</code> instala un módulo nativo de Webmin (<b>Networking → UniFi Hotspot Log Viewer</b>) que reemplaza a <code>tail -f</code> para monitorear <code>/var/log/uhotspot.log</code>. Usa polling AJAX por byte offset — leyendo solo los bytes nuevos desde la última posición — así nunca se atasca con la rotación de logs. El módulo está escrito como un instalador bash autocontenido siguiendo el mismo patrón que <code>servicemon.sh</code> y <code>squidmon.sh</code>.
+    </td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td align="center"><b>Light</b></td>
+    <td align="center"><b>Dark</b></td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/maravento/vault"><img src="https://raw.githubusercontent.com/maravento/vault/master/uhotspot/img/uhotspotview1.png" width="100%"></a></td>
+    <td><a href="https://github.com/maravento/vault"><img src="https://raw.githubusercontent.com/maravento/vault/master/uhotspot/img/uhotspotview2.png" width="100%"></a></td>
+  </tr>
+</table>
+
+**Features / Características:**
+
+| Feature | ENG | ESP |
+|---------|-----|-----|
+| **Live polling** | AJAX polling by byte offset (1s–30s configurable). Never stalls on log rotation. | Polling AJAX por byte offset (1s–30s configurable). No se atasca con la rotación de logs. |
+| **Dark / Light mode** | Toggle with moon/sun button. Preference saved in `localStorage`. | Alternancia con botón luna/sol. Preferencia guardada en `localStorage`. |
+| **Level badges** | Color-coded badges: INFO (blue), WARNING (amber), ERROR (red), RELOAD (grey). | Badges con color: INFO (azul), WARNING (ámbar), ERROR (rojo), RELOAD (gris). |
+| **Full-log grep** | Searches the entire log file via `grep -Fia`. Results highlighted inline. | Busca en el archivo completo vía `grep -Fia`. Resultados resaltados inline. |
+| **Cycle stats bar** | Parses the last stats line and shows Vouchers, Authorized, Pending, Revoked, Managed as pills. | Parsea la última línea de stats y muestra Vouchers, Authorized, Pending, Revoked, Managed como pills. |
+| **Service status** | Shows PID, uptime, and memory from `systemctl status uhotspotd`. | Muestra PID, uptime y memoria desde `systemctl status uhotspotd`. |
+| **Text filter** | Live filter on visible rows (regex-compatible). | Filtro en vivo sobre filas visibles (compatible con regex). |
+| **Level filter** | Dropdown to show only INFO / WARNING / ERROR / RELOAD. | Dropdown para mostrar solo INFO / WARNING / ERROR / RELOAD. |
+| **Configurable** | Log file path editable from Webmin module config (gear icon). | Ruta del log editable desde la configuración del módulo Webmin (icono engranaje). |
+
+```bash
+# Install
+sudo bash tools/uhotspotmon.sh install
+
+# Uninstall
+sudo bash tools/uhotspotmon.sh uninstall
+```
+
+> Requires Webmin installed (`/usr/share/webmin`). After install, log out and back into Webmin. The module appears under **Networking**.
+>
+> Requiere Webmin instalado (`/usr/share/webmin`). Tras instalar, hacer logout y login en Webmin. El módulo aparece bajo **Networking**.
 
 ### Reconfigure
 
@@ -1006,6 +1059,26 @@ Select option [1-5]: 4
 | **Captive portal probes / Sondas del portal cautivo** | Android probes `connectivitycheck.gstatic.com`; iOS probes `captive.apple.com`. If blocked or intercepted, the device reports *"connected without internet"* even when the proxy works. Whitelist these in Squid without auth. | Android sondea `connectivitycheck.gstatic.com`; iOS sondea `captive.apple.com`. Si están bloqueados o interceptados, el dispositivo reporta *"conectado sin internet"* aunque el proxy funcione. Agréguelos a la whitelist de Squid sin autenticación. |
 | **App proxy bypass / Apps que bypasean el proxy** | Most apps on Android and iOS bypass the system proxy and connect directly. Only browsers reliably honor a manual proxy. Without SSL bump, direct HTTPS traffic cannot be redirected. | La mayoría de las apps en Android e iOS bypasean el proxy del sistema y se conectan directamente. Solo los navegadores respetan de forma confiable un proxy manual. Sin SSL bump, el tráfico HTTPS directo no puede ser redirigido. |
 | **MAC randomization / Aleatorización de MAC** | Android 10+ and iOS 14+ randomize the MAC per network by default. A randomized MAC will never match an ACL entry and will appear as unauthorized on every connection. Users must disable MAC randomization for the SSID before connecting. | Android 10+ e iOS 14+ aleatorizan la MAC por red por defecto. Una MAC aleatorizada nunca coincidirá con una entrada ACL y aparecerá como no autorizada en cada conexión. El usuario debe deshabilitar la aleatorización de MAC para el SSID antes de conectarse. |
+
+## ⚠️ WARNING: Network Access
+
+---
+
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      This project is designed to run locally and be accessed over a LAN. It is not recommended to expose it to the internet, as it lacks the hardening required for public-facing deployments.
+      If you choose to publish it despite this warning, it is strongly recommended to do so through an on-demand tunnel rather than opening ports directly. This approach lets you start and stop public access at will, without permanently exposing your server.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Este proyecto está diseñado para ejecutarse localmente y ser accedido en red LAN. No se recomienda exponerlo a internet, ya que no cuenta con el endurecimiento necesario para despliegues públicos.
+      Si decide publicarlo a pesar de esta advertencia, se recomienda hacerlo a través de un túnel bajo demanda en lugar de abrir puertos directamente. Este enfoque le permite iniciar y detener el acceso público a voluntad, sin exponer el servidor de forma permanente.
+    </td>
+  </tr>
+</table>
+
+**Optional tunnel:**
+- [Cloudflare Tunnel (start|stop|status) - Zero Trust Activation Recommended](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cftunnel.sh)
 
 ## DISCLAIMER
 
