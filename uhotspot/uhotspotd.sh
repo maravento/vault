@@ -18,28 +18,31 @@
 #   MANAGED MACS (optional):
 #   If /etc/acl/acl_mac/mac-*.txt files exist, MACs listed there are treated
 #   as managed corporate devices. They are silently excluded from the guest
-#   portal flow (steps 3, 7, 8) and are kept authorized in UniFi (step 11)
+#   portal flow (steps 5, 7, 8) and are kept authorized in UniFi (step 11)
 #   so they bypass the captive portal on HOTSPOT_ESSID without needing a
-#   voucher. If no mac-*.txt files exist, steps 3 and 11 are no-ops.
+#   voucher. If no mac-*.txt files exist, steps 5 and 9 are no-ops.
 #
 # CYCLE (every POLL_INTERVAL seconds, default 10, set in uhotspot.conf):
 #   1. VOUCHERS    — load voucher cache from UniFi (stat/voucher)
 #   2. DEDUP       — cross-list consistency check, blockdhcp cleanup
-#   3. CLEAN MACS  — remove mac-*.txt entries from guest-pending / mac-hotspot
-#   4. SORT        — sort ACL files by IP
-#   5. SNAPSHOT    — md5sum baseline of ACL files before processing
-#   6. EXPIRED     — move expired mac-hotspot entries to guest-pending
-#   7. PENDING     — detect new portal clients via stat/sta
-#   8. SESSIONS    — promote voucher-authenticated clients to mac-hotspot
-#   9. REVOKE      — move UniFi-unauthorized clients back to guest-pending
-#  10. UNAUTHORIZE — send unauthorize-guest to pending MACs still authorized
-#  11. AUTHORIZE   — re-authorize managed MACs (mac-*.txt) seen on HOTSPOT_ESSID
+#   3. SORT        — sort mac-hotspot.txt by IP
+#   4. SNAPSHOT    — md5sum baseline of ACL files before processing
+#   5. CLEAN MACS  — remove mac-*.txt entries from mac-hotspot
+#   6. EXPIRED     — remove expired mac-hotspot entries (hotspot IPs freed)
+#   7. SESSIONS    — promote voucher-authenticated clients to mac-hotspot
+#   8. REVOKE      — remove UniFi-unauthorized clients from mac-hotspot
+#   9. AUTHORIZE   — re-authorize managed MACs (mac-*.txt) seen on HOTSPOT_ESSID
 #                    that UniFi reports as unauthorized; checked every cycle so
 #                    reconnecting devices are covered automatically
-#  12. BACKUP      — update guest-wellknow.txt, clean blockdhcp conflicts
-#  13. RELOAD      — invoke SERVER_RELOAD_SCRIPT if ACLs changed
+#  10. BACKUP      — update guest-wellknow.txt, clean blockdhcp conflicts
+#  11. RELOAD      — invoke SERVER_RELOAD_SCRIPT if ACLs changed
 #
-# stat/sta is queried once per cycle and shared across steps 7, 9, 10, 11.
+# New clients are detected by uleases.sh (invoked via RELOAD): any MAC in
+# pydhcpd.leases not in mac-hotspot/mac-*/blockdhcp is added to gracedhcp.txt
+# with a timestamp. No guest-pending.txt — clients stay on their pool DHCP
+# lease until they enter a voucher or their grace timer expires.
+#
+# stat/sta is queried once per cycle and shared across steps 8, 9.
 #
 # CONFIG:  /etc/uhotspot/uhotspot.conf
 # LOG:     /var/log/uhotspot.log
@@ -79,7 +82,6 @@ HOTSPOT_PATH="/etc/uhotspot"
 CONFIG_FILE="$HOTSPOT_PATH/uhotspot.conf"
 ACL_MAC_PATH="/etc/acl/acl_mac"
 MAC_LIST="$HOTSPOT_PATH/mac-hotspot.txt"
-PENDING_LIST="$HOTSPOT_PATH/guest-pending.txt"
 BLOCK_DHCP="/etc/acl/acl_dhcp/blockdhcp.txt"
 LEASE_REMOVE_QUEUE="$HOTSPOT_PATH/leases-remove-queue.txt"
 
@@ -95,12 +97,11 @@ CSRF_TOKEN=""
 MANAGED_MACS=""
 VOUCHER_CACHE=""
 VOUCHER_COUNT=0
-PENDING_NEW=0
 SESSIONS_AUTHORIZED=0
 REVOKED=0
 MANAGED_AUTHORIZED=0
 _ACL_SNAPSHOT_HOTSPOT=""
-_ACL_SNAPSHOT_PENDING=""
+_ACL_SNAPSHOT_BLOCK=""
 _ACL_SNAPSHOT_QUEUE=""
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -165,8 +166,8 @@ verify_installation() {
 # ── ACL file init ─────────────────────────────────────────────────────────────
 init_acl_files() {
     mkdir -p "$(dirname "$MAC_LIST")" "$(dirname "$LOG_FILE")" "$(dirname "$BLOCK_DHCP")"
-    touch "$MAC_LIST" "$PENDING_LIST" "$BLOCK_DHCP"
-    chmod 600 "$MAC_LIST" "$PENDING_LIST" "$BLOCK_DHCP"
+    touch "$MAC_LIST" "$BLOCK_DHCP"
+    chmod 600 "$MAC_LIST" "$BLOCK_DHCP"
 }
 
 # ── UniFi API ─────────────────────────────────────────────────────────────────
@@ -186,7 +187,8 @@ api_path() {
 }
 
 _save_session() {
-    printf '%s\n%s\n' "$SESSION_TOKEN" "$CSRF_TOKEN" > "$TOKEN_STATE_FILE" 2>/dev/null || true
+    ( umask 077; printf '%s\n%s\n' "$SESSION_TOKEN" "$CSRF_TOKEN" > "$TOKEN_STATE_FILE" ) 2>/dev/null || true
+    chmod 600 "$TOKEN_STATE_FILE" 2>/dev/null || true
 }
 
 _load_session() {
@@ -201,8 +203,10 @@ _update_session_from_headers() {
     local hfile="$1"
     [[ ! -f "$hfile" ]] && return
     local new_tok new_csrf changed=0
-    new_tok=$(grep -i '^set-cookie:' "$hfile" | grep -i 'TOKEN=' | head -1 \
-        | sed -E 's/.*TOKEN=([^;]+).*/\1/' | tr -d '\r\n' || true)
+    new_tok=$(grep -iE '^set-cookie:[[:space:]]*TOKEN=' "$hfile" \
+        | head -1 \
+        | sed -E 's/^[^:]+:[[:space:]]*TOKEN=([^;]+).*/\1/' \
+        | tr -d '\r\n' || true)
     new_csrf=$(grep -iE '^(x-updated-csrf-token|x-csrf-token):' "$hfile" | tail -1 \
         | sed -E 's/^[^:]+:[[:space:]]*//' | tr -d '\r\n' || true)
     if [[ -n "$new_tok"  && "$new_tok"  != "$SESSION_TOKEN" ]]; then SESSION_TOKEN="$new_tok";  changed=1; fi
@@ -240,10 +244,9 @@ unifi_login() {
     fi
 
     local new_csrf new_tok
-    new_tok=$(grep -i '^set-cookie:' "$header_file" \
-        | grep -i 'TOKEN=' \
+    new_tok=$(grep -iE '^set-cookie:[[:space:]]*TOKEN=' "$header_file" \
         | head -1 \
-        | sed -E 's/.*TOKEN=([^;]+).*/\1/' \
+        | sed -E 's/^[^:]+:[[:space:]]*TOKEN=([^;]+).*/\1/' \
         | tr -d '\r\n' || true)
 
     if [[ -z "$new_tok" ]]; then
@@ -389,7 +392,7 @@ load_all_vouchers() {
 get_next_guest_number() {
     local used n=1 max_n
     max_n=$(( HOTSPOT_RANGE_END - HOTSPOT_RANGE_START + 2 ))
-    used=$(grep -oh 'guest[0-9]*' "$MAC_LIST" "$PENDING_LIST" 2>/dev/null \
+    used=$(grep -oh 'guest[0-9]*' "$MAC_LIST" 2>/dev/null \
         | sed 's/guest//' | sort -n | uniq || true)
     while echo "$used" | grep -q "^${n}$" && (( n <= max_n )); do
         (( n++ ))
@@ -404,8 +407,7 @@ assign_ip_and_hostname() {
     local i
     for (( i=HOTSPOT_RANGE_START; i<=HOTSPOT_RANGE_END; i++ )); do
         local candidate="${HOTSPOT_IP_RANGE}.${i}"
-        grep -q ";${candidate};" "$MAC_LIST"     2>/dev/null && continue
-        grep -q ";${candidate};" "$PENDING_LIST" 2>/dev/null && continue
+        grep -q ";${candidate};" "$MAC_LIST" 2>/dev/null && continue
         available+=("$candidate")
     done
     if [[ ${#available[@]} -eq 0 ]]; then
@@ -460,8 +462,7 @@ dedup_mac_lists() {
     local all_macs
     all_macs=$(
         {
-            awk -F';' '/^a;/{print tolower($2)}' "$PENDING_LIST" 2>/dev/null || true
-            awk -F';' '/^a;/{print tolower($2)}' "$MAC_LIST"     2>/dev/null || true
+            awk -F';' '/^a;/{print tolower($2)}' "$MAC_LIST" 2>/dev/null || true
             echo "$MANAGED_MACS"
         } | grep -E '^([0-9a-f]{2}:){5}[0-9a-f]{2}$' \
           | sort -u || true
@@ -491,7 +492,14 @@ dedup_mac_lists() {
                 echo "$line" >> "$tmp_block"
             fi
         done < "$BLOCK_DHCP"
-        mv "$tmp_block" "$BLOCK_DHCP" && chmod 600 "$BLOCK_DHCP"
+        local after_lines
+        after_lines=$(wc -l < "$tmp_block" 2>/dev/null || echo -1)
+        if (( after_lines < 0 )); then
+            log "ERROR: dedup_mac_lists: failed to validate temp file — skipping blockdhcp update"
+            rm -f "$tmp_block"
+        else
+            mv "$tmp_block" "$BLOCK_DHCP" && chmod 600 "$BLOCK_DHCP"
+        fi
     fi
 
     if (( sanitized_block > 0 )); then
@@ -500,29 +508,42 @@ dedup_mac_lists() {
 }
 
 # ── Step 3: clean managed MACs from hotspot lists ─────────────────────────────
-# Removes any MAC present in mac-*.txt from guest-pending and mac-hotspot.
-# Handles the race where a client was added to a hotspot list before its MAC
-# was moved to a managed ACL file, or entered the portal from a corporate device.
+# Removes any MAC present in mac-*.txt from mac-hotspot.
 clean_managed_macs() {
     [[ -z "$MANAGED_MACS" ]] && return
     local removed=0 tmp
 
-    for list in "$PENDING_LIST" "$MAC_LIST"; do
+    for list in "$MAC_LIST"; do
         [[ ! -f "$list" ]] && continue
+        local before_count=0
+        before_count=$(grep -c '^a;' "$list" 2>/dev/null || echo 0)
+        local iter_removed=0
         tmp=$(mktemp)
         TEMP_FILES_TO_CLEAN+=("${tmp}")
-        while IFS=';' read -r status mac rest; do
-            [[ "$status" != "a" || -z "$mac" ]] && continue
+        while IFS= read -r _line; do
+            IFS=';' read -r status mac rest <<< "$_line"
+            if [[ "$status" != "a" || -z "$mac" ]]; then
+                echo "$_line" >> "$tmp"
+                continue
+            fi
             local lc_mac
             lc_mac=$(echo "$mac" | tr '[:upper:]' '[:lower:]')
             if echo "$MANAGED_MACS" | grep -q "^${lc_mac}$"; then
                 log "INFO: clean_managed_macs → removed $mac from $(basename "$list")"
                 queue_lease_removal "$mac"
+                (( iter_removed++ )) || true
                 (( removed++ )) || true
             else
                 echo "${status};${mac};${rest}" >> "$tmp"
             fi
         done < "$list"
+        local after_count
+        after_count=$(grep -c '^a;' "$tmp" 2>/dev/null || echo 0)
+        if (( before_count - after_count != iter_removed )); then
+            log "ERROR: clean_managed_macs: count mismatch on $(basename "$list") (before=$before_count after=$after_count removed=$iter_removed) — skipping"
+            rm -f "$tmp"
+            continue
+        fi
         mv "$tmp" "$list" && chmod 600 "$list"
     done
 
@@ -541,13 +562,6 @@ sort_acl_files() {
         sort -t';' -k3,3V "$MAC_LIST" | uniq > "$tmp"
         mv "$tmp" "$MAC_LIST" && chmod 600 "$MAC_LIST"
     fi
-
-    if [[ -s "$PENDING_LIST" ]]; then
-        tmp=$(mktemp)
-        TEMP_FILES_TO_CLEAN+=("${tmp}")
-        sort -t';' -k3,3V "$PENDING_LIST" | uniq > "$tmp"
-        mv "$tmp" "$PENDING_LIST" && chmod 600 "$PENDING_LIST"
-    fi
 }
 
 add_mac_to_acl() {
@@ -559,10 +573,6 @@ add_mac_to_acl() {
     fi
 
     local new_line="a;${mac};${ip};${hostname};${end_time};"
-
-    if grep -qi "^a;${mac};" "$PENDING_LIST" 2>/dev/null; then
-        sed -i "/^a;${mac};/Id" "$PENDING_LIST"
-    fi
 
     if grep -qi "^a;${mac};" "$MAC_LIST" 2>/dev/null; then
         local existing_end
@@ -582,27 +592,14 @@ add_mac_to_acl() {
     fi
 }
 
-expire_to_pending() {
+expire_from_hotspot() {
     local mac="$1"
-    grep -qi "^a;${mac};" "$PENDING_LIST" 2>/dev/null && return 0
-
-    local entry ip hostname
-    entry=$(grep -i "^a;${mac};" "$MAC_LIST" 2>/dev/null | head -1 || true)
-    ip=$(echo "$entry"       | awk -F';' '{print $3}')
-    hostname=$(echo "$entry" | awk -F';' '{print $4}')
-
-    if [[ -z "$ip" || -z "$hostname" ]]; then
-        local iph
-        if ! iph=$(assign_ip_and_hostname); then
-            log "WARNING: expire_to_pending: pool exhausted for $mac"
-            return 1
-        fi
-        ip=$(echo "$iph"       | cut -d';' -f1)
-        hostname=$(echo "$iph" | cut -d';' -f2)
-    fi
-
-    echo "a;${mac};${ip};${hostname};" >> "$PENDING_LIST"
-    log "INFO: Expired $mac → guest-pending.txt ip=$ip hostname=$hostname"
+    # Release the hotspot-range IP. On reconnect, uleases.sh detects the client
+    # via pydhcpd.leases; if the MAC is in guest-wellknow.txt the lease is kept
+    # without a new grace timer, otherwise the client enters gracedhcp.txt.
+    queue_lease_removal "$mac"
+    log "INFO: Expired $mac — released from mac-hotspot.txt"
+    return 0
 }
 
 # ── Step 6: clean expired MACs ────────────────────────────────────────────────
@@ -611,6 +608,10 @@ clean_expired_macs() {
     now=$(date +%s)
     tmp=$(mktemp)
     TEMP_FILES_TO_CLEAN+=("${tmp}")
+
+    local before_count=0
+    before_count=$(grep -c '^a;' "$MAC_LIST" 2>/dev/null || echo 0)
+    local moved=0
 
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
@@ -621,117 +622,28 @@ clean_expired_macs() {
             echo "$line" >> "$tmp"
         else
             log "INFO: Expired $mac at $(date -d "@$end_time" 2>/dev/null || echo "$end_time")"
-            if ! expire_to_pending "$mac"; then
-                log "WARNING: clean_expired_macs: keeping $mac (pool unavailable — will retry)"
+            if ! expire_from_hotspot "$mac"; then
+                log "WARNING: clean_expired_macs: keeping $mac — will retry"
                 echo "$line" >> "$tmp"
+            else
+                (( moved++ )) || true
             fi
         fi
     done < "$MAC_LIST"
 
+    local after_count
+    after_count=$(grep -c '^a;' "$tmp" 2>/dev/null || echo 0)
+    if (( before_count - after_count != moved )); then
+        log "ERROR: clean_expired_macs: count mismatch (before=$before_count after=$after_count moved=$moved) — skipping"
+        rm -f "$tmp"
+        return
+    fi
     mv "$tmp" "$MAC_LIST" && chmod 600 "$MAC_LIST"
 }
 
-# ── Clean disconnected pending ────────────────────────────────────────────────
-clean_disconnected_pending() {
-    local sta_data="$1"
-    [[ ! -s "$PENDING_LIST" ]] && return
-
-    local active_macs
-    active_macs=$(echo "$sta_data" | jq -r \
-        --arg essid "$HOTSPOT_ESSID" '
-        .data[]
-        | select(.mac != null and .mac != "")
-        | select(.essid == $essid)
-        | (.mac | ascii_downcase)
-    ' 2>/dev/null || true)
-
-    if [[ -z "$active_macs" ]]; then
-        log "INFO: clean_disconnected_pending: no active MACs — skipping"
-        return
-    fi
-
-    local tmp removed=0
-    tmp=$(mktemp)
-    TEMP_FILES_TO_CLEAN+=("${tmp}")
-    while IFS=';' read -r status mac ip hostname _; do
-        [[ "$status" != "a" ]] && continue
-        [[ -z "$mac" ]] && continue
-        if echo "$active_macs" | grep -qi "^${mac}$"; then
-            echo "${status};${mac};${ip};${hostname};" >> "$tmp"
-        else
-            log "INFO: Removed disconnected pending $mac"
-            (( removed++ )) || true
-        fi
-    done < "$PENDING_LIST"
-    mv "$tmp" "$PENDING_LIST" && chmod 600 "$PENDING_LIST"
-}
-
-# ── Step 7: process pending guests ───────────────────────────────────────────
-# Detects clients connected to HOTSPOT_ESSID that are not yet in any ACL list
-# and adds them to guest-pending.txt with a fixed IP from the hotspot range.
-# MACs present in mac-*.txt (MANAGED_MACS) are silently skipped.
-process_pending_guests() {
-    local sta_data="$1"
-    local rc
-    rc=$(echo "$sta_data" | jq -r '.meta.rc // empty' 2>/dev/null || true)
-    [[ "$rc" != "ok" ]] && { log "INFO: stat/sta unavailable — skipping pending"; return; }
-
-    clean_disconnected_pending "$sta_data"
-
-    local available_count=0 i
-    for (( i=HOTSPOT_RANGE_START; i<=HOTSPOT_RANGE_END; i++ )); do
-        local candidate="${HOTSPOT_IP_RANGE}.${i}"
-        grep -q ";${candidate};" "$MAC_LIST"     2>/dev/null && continue
-        grep -q ";${candidate};" "$PENDING_LIST" 2>/dev/null && continue
-        (( available_count++ )) || true
-    done
-
-    if [[ $available_count -eq 0 ]]; then
-        local oldest_line oldest_mac oldest_ip
-        oldest_line=$(grep '^a;' "$PENDING_LIST" 2>/dev/null | sort -t';' -k3,3V | head -1 || true)
-        oldest_mac=$(echo "$oldest_line" | awk -F';' '{print $2}')
-        oldest_ip=$(echo "$oldest_line"  | awk -F';' '{print $3}')
-        if [[ -n "$oldest_mac" && -n "$oldest_ip" ]]; then
-            log "INFO: Range exhausted — evicting oldest pending $oldest_mac (ip=$oldest_ip)"
-            sed -i "/^a;${oldest_mac};/Id" "$PENDING_LIST"
-            queue_lease_removal "$oldest_mac"
-        else
-            log "WARNING: Range exhausted and no pending guest to evict — skipping"
-            return
-        fi
-    fi
-
-    local count=0
-    while IFS=$'\t' read -r mac ip; do
-        [[ -z "$mac" || "$mac" == "null" ]] && continue
-        grep -qi "^a;${mac};" "$MAC_LIST"     2>/dev/null && continue
-        grep -qi "^a;${mac};" "$PENDING_LIST" 2>/dev/null && continue
-        if echo "$MANAGED_MACS" | grep -qi "^${mac}$"; then
-            continue
-        fi
-        local iph assigned_ip assigned_hostname
-        iph=$(assign_ip_and_hostname) || continue
-        assigned_ip=$(echo "$iph" | cut -d';' -f1)
-        assigned_hostname=$(echo "$iph" | cut -d';' -f2)
-        echo "a;${mac};${assigned_ip};${assigned_hostname};" >> "$PENDING_LIST"
-        log "INFO: Pending guest $mac → ip=$assigned_ip hostname=$assigned_hostname (ssid=$HOTSPOT_ESSID)"
-        queue_lease_removal "$mac"
-        (( count++ )) || true
-    done < <(echo "$sta_data" | jq -r \
-        --arg essid "$HOTSPOT_ESSID" '
-        .data[]
-        | select(.mac != null and .mac != "")
-        | select(.essid == $essid)
-        | [(.mac | ascii_downcase), (.ip // "")]
-        | join("\t")
-    ' 2>/dev/null || true)
-
-    PENDING_NEW=$count
-}
-
 # ── Step 8: process sessions ──────────────────────────────────────────────────
-# Queries stat/guest. Promotes voucher-authenticated clients from guest-pending
-# to mac-hotspot.txt. MACs in mac-*.txt are skipped even if they entered a voucher.
+# Queries stat/guest. Promotes voucher-authenticated clients to mac-hotspot.txt.
+# MACs in mac-*.txt are skipped even if they entered a voucher.
 process_sessions() {
     local endpoint sessions_data rc added=0
     local now
@@ -757,21 +669,14 @@ process_sessions() {
             [[ "$end_time" == "$existing_end" ]] && continue
         fi
 
-        local assigned_ip="" assigned_hostname="" entry=""
-        entry=$(grep -i "^a;${mac};" "$PENDING_LIST" 2>/dev/null | head -1 || true)
-        assigned_hostname=$(echo "$entry" | awk -F';' '{print $4}')
-        assigned_ip=$(echo "$entry"       | awk -F';' '{print $3}')
-
-        if [[ -z "$assigned_ip" ]]; then
-            local iph
-            if ! iph=$(assign_ip_and_hostname); then
-                log "WARNING: Range exhausted for $mac — will retry next cycle"
-                continue
-            fi
-            assigned_ip=$(echo "$iph" | cut -d';' -f1)
-            [[ -z "$assigned_hostname" ]] && assigned_hostname=$(echo "$iph" | cut -d';' -f2)
+        local assigned_ip="" assigned_hostname=""
+        local iph
+        if ! iph=$(assign_ip_and_hostname); then
+            log "WARNING: Range exhausted for $mac — will retry next cycle"
+            continue
         fi
-        [[ -z "$assigned_hostname" ]] && assigned_hostname="guest$(get_next_guest_number)"
+        assigned_ip=$(echo "$iph" | cut -d';' -f1)
+        assigned_hostname=$(echo "$iph" | cut -d';' -f2)
 
         local voucher_code
         if [[ -n "$api_voucher_code" && "$api_voucher_code" != "null" ]]; then
@@ -822,7 +727,7 @@ revoke_unauthorized() {
             .data[]
             | select((.mac | ascii_downcase) == $mac)
             | .authorized
-        ' 2>/dev/null | tail -1 || true)
+        ' 2>/dev/null | head -1 || true)
         if [[ "$authorized" == "false" ]]; then
             macs_to_revoke+=("$mac")
         fi
@@ -831,47 +736,13 @@ revoke_unauthorized() {
     local mac
     for mac in "${macs_to_revoke[@]+"${macs_to_revoke[@]}"}"; do
         [[ -z "$mac" ]] && continue
-        log "INFO: Revoking $mac — authorized=false in UniFi"
-        if expire_to_pending "$mac"; then
-            sed -i "/^a;${mac};/Id" "$MAC_LIST" 2>/dev/null || true
-            (( revoked++ )) || true
-        else
-            log "WARNING: revoke_unauthorized: keeping $mac in mac-hotspot.txt (pending slot unavailable — will retry)"
-        fi
+        log "INFO: Revoking $mac — authorized=false in UniFi; releasing from mac-hotspot"
+        queue_lease_removal "$mac"
+        sed -i "/^a;${mac};/Id" "$MAC_LIST" 2>/dev/null || true
+        (( revoked++ )) || true
     done
 
     REVOKED=$revoked
-}
-
-# ── Step 10: unauthorize pending ──────────────────────────────────────────────
-unauthorize_pending() {
-    local sta_data="$1"
-    [[ ! -s "$PENDING_LIST" ]] && return
-    local rc
-    rc=$(echo "$sta_data" | jq -r '.meta.rc // empty' 2>/dev/null || true)
-    [[ "$rc" != "ok" ]] && { log "WARNING: unauthorize_pending: stat/sta unavailable"; return; }
-
-    while IFS=';' read -r status mac ip hostname _; do
-        [[ "$status" != "a" ]] && continue
-        [[ -z "$mac" ]] && continue
-        local authorized
-        authorized=$(echo "$sta_data" | jq -r \
-            --arg mac "$mac" '
-            .data[]
-            | select((.mac | ascii_downcase) == $mac)
-            | .authorized // false
-        ' 2>/dev/null | head -1 || true)
-        [[ "$authorized" != "true" ]] && continue
-        local unauth_url http_code
-        unauth_url=$(api_path "cmd/stamgr")
-        http_code=$(api_post "$unauth_url" \
-            "{\"cmd\":\"unauthorize-guest\",\"mac\":\"${mac}\"}")
-        if [[ "$http_code" == "200" ]]; then
-            log "INFO: Unauthorized $mac"
-        else
-            log "WARNING: Failed to unauthorize $mac (HTTP $http_code)"
-        fi
-    done < "$PENDING_LIST"
 }
 
 # ── Step 11: authorize managed MACs ──────────────────────────────────────────
@@ -965,28 +836,28 @@ mac_hotspot_backup() {
 
 # ── ACL snapshot & reload ─────────────────────────────────────────────────────
 snapshot_acls() {
-    _ACL_SNAPSHOT_HOTSPOT=$(md5sum "$MAC_LIST"         2>/dev/null | awk '{print $1}' || echo "absent")
-    _ACL_SNAPSHOT_PENDING=$(md5sum "$PENDING_LIST"     2>/dev/null | awk '{print $1}' || echo "absent")
-    _ACL_SNAPSHOT_QUEUE=$(md5sum "$LEASE_REMOVE_QUEUE" 2>/dev/null | awk '{print $1}' || echo "absent")
+    _ACL_SNAPSHOT_HOTSPOT=$(md5sum "$MAC_LIST"          2>/dev/null | awk '{print $1}' || echo "absent")
+    _ACL_SNAPSHOT_BLOCK=$(md5sum   "$BLOCK_DHCP"        2>/dev/null | awk '{print $1}' || echo "absent")
+    _ACL_SNAPSHOT_QUEUE=$(md5sum   "$LEASE_REMOVE_QUEUE" 2>/dev/null | awk '{print $1}' || echo "absent")
 }
 
 # ── Step 13: reload if ACLs changed ──────────────────────────────────────────
 check_and_reload_if_changed() {
-    local cur_hotspot cur_pending cur_queue rc
-    cur_hotspot=$(md5sum "$MAC_LIST"         2>/dev/null | awk '{print $1}' || echo "absent")
-    cur_pending=$(md5sum "$PENDING_LIST"     2>/dev/null | awk '{print $1}' || echo "absent")
-    cur_queue=$(md5sum "$LEASE_REMOVE_QUEUE" 2>/dev/null | awk '{print $1}' || echo "absent")
+    local cur_hotspot cur_block cur_queue rc
+    cur_hotspot=$(md5sum "$MAC_LIST"          2>/dev/null | awk '{print $1}' || echo "absent")
+    cur_block=$(md5sum   "$BLOCK_DHCP"        2>/dev/null | awk '{print $1}' || echo "absent")
+    cur_queue=$(md5sum   "$LEASE_REMOVE_QUEUE" 2>/dev/null | awk '{print $1}' || echo "absent")
 
     if [[ "$cur_hotspot" == "$_ACL_SNAPSHOT_HOTSPOT" && \
-          "$cur_pending" == "$_ACL_SNAPSHOT_PENDING"  && \
+          "$cur_block"   == "$_ACL_SNAPSHOT_BLOCK"   && \
           "$cur_queue"   == "$_ACL_SNAPSHOT_QUEUE" ]]; then
         log "INFO: ACLs unchanged — skipping reload"
         return
     fi
 
     [[ "$cur_hotspot" != "$_ACL_SNAPSHOT_HOTSPOT" ]] && log "INFO: mac-hotspot.txt changed"
-    [[ "$cur_pending"  != "$_ACL_SNAPSHOT_PENDING"  ]] && log "INFO: guest-pending.txt changed"
-    [[ "$cur_queue"    != "$_ACL_SNAPSHOT_QUEUE"    ]] && log "INFO: lease removal queue changed"
+    [[ "$cur_block"   != "$_ACL_SNAPSHOT_BLOCK"   ]] && log "INFO: blockdhcp.txt changed"
+    [[ "$cur_queue"   != "$_ACL_SNAPSHOT_QUEUE"   ]] && log "INFO: lease removal queue changed"
 
     if [[ -n "${SERVER_RELOAD_SCRIPT:-}" && -x "$SERVER_RELOAD_SCRIPT" ]]; then
         log "INFO: ACL changed — invoking $SERVER_RELOAD_SCRIPT"
@@ -1005,7 +876,6 @@ check_and_reload_if_changed() {
 
 # ── Full hotspot cycle ────────────────────────────────────────────────────────
 run_cycle() {
-    PENDING_NEW=0
     SESSIONS_AUTHORIZED=0
     REVOKED=0
     MANAGED_AUTHORIZED=0
@@ -1021,20 +891,18 @@ run_cycle() {
     sta_endpoint=$(api_path "stat/sta")
     sta_data=$(api_get "$sta_endpoint")
 
-    process_pending_guests "$sta_data"
     process_sessions
-    revoke_unauthorized      "$sta_data"
-    unauthorize_pending      "$sta_data"
-    authorize_managed_macs   "$sta_data"
+    revoke_unauthorized    "$sta_data"
+    authorize_managed_macs "$sta_data"
     mac_hotspot_backup
     check_and_reload_if_changed
 
-    local pending_total authorized_total
-    pending_total=$(grep -c "^a;" "$PENDING_LIST" 2>/dev/null || true)
-    pending_total=$(( ${pending_total:-0} + 0 ))
+    local authorized_total grace_total
     authorized_total=$(grep -c "^a;" "$MAC_LIST" 2>/dev/null || true)
     authorized_total=$(( ${authorized_total:-0} + 0 ))
-    log "INFO: vouchers=$VOUCHER_COUNT | authorized=$authorized_total | pending=$pending_total | new_pending=$PENDING_NEW | new_auth=$SESSIONS_AUTHORIZED | revoked=$REVOKED | managed_authorized=$MANAGED_AUTHORIZED"
+    grace_total=$(grep -c "^a;" "${ACL_GRACE_FILE:-/etc/acl/acl_dhcp/gracedhcp.txt}" 2>/dev/null || true)
+    grace_total=$(( ${grace_total:-0} + 0 ))
+    log "INFO: vouchers=$VOUCHER_COUNT | authorized=$authorized_total | grace=$grace_total | new_auth=$SESSIONS_AUTHORIZED | revoked=$REVOKED | managed_authorized=$MANAGED_AUTHORIZED"
 }
 
 # ── Main daemon loop ──────────────────────────────────────────────────────────

@@ -36,7 +36,7 @@ remove_and_install_squid_openssl() {
     echo "Removing old squid..."
     apt purge -y squid* &>/dev/null
     rm -rf /var/spool/squid* /var/log/squid* /etc/squid*
-    rm -rf "$CA_CERT_D"/*
+    rm -f "$CA_CERT_D/squid_proxyCA.crt"
 
     echo "Installing squid-openssl..."
     apt update || { echo "ERROR: apt update failed"; exit 1; }

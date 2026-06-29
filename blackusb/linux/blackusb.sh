@@ -318,7 +318,7 @@ trigger_async)
     trigger
     ;;
 
-e | editor)
+e | edit | editor)
     edit_rules
     ;;
 

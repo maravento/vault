@@ -44,12 +44,12 @@ if not exist "%DEST%" (
     echo Using existing directory %DEST%...
 )
 
-for /F "tokens=2-4 delims=/ " %%i in ('date /t') do set yyyymmdd=%%k%%j%%i
+for /f "usebackq" %%a in (`powershell -NoProfile -Command "Get-Date -Format yyyyMMdd"`) do set yyyymmdd=%%a
 set filebk=RegBk_%yyyymmdd%.reg
 
 echo.
 echo Exporting Windows Registry to %DEST%\%filebk%
-start /wait %windir%\regedit.exe /s /e "%DEST%\%filebk%"
+start /wait %windir%\regedit.exe /e "%DEST%\%filebk%"
 
 if exist "%DEST%\*" (
     attrib /d /s -r -h -s "%DEST%\*"

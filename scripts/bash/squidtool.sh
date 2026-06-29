@@ -218,7 +218,7 @@ squid_traffic() {
     >> "$LOG_FILE"
 
     # Check for alerts
-    ALERT_IPS=$(awk -v th="$ALERT_THRESHOLD" '$1 >= th {print $0}' "$LOG_FILE")
+    ALERT_IPS=$(awk -v th="$ALERT_THRESHOLD" '$1 ~ /^[0-9]+$/ && $1+0 >= th {print $0}' "$LOG_FILE")
     if [[ -n "$ALERT_IPS" ]]; then
         ALERT_COUNT=$(echo "$ALERT_IPS" | wc -l)
         ALERT_MSG="ALERT: $ALERT_COUNT IP(s) exceed threshold of $ALERT_THRESHOLD hits"

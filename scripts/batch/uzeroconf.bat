@@ -124,6 +124,10 @@ goto :Menu
 
 :Port
 set /p port=Enter the new port: 
+if "%port%"=="" (
+    echo Port cannot be empty
+    exit /B 1
+)
 for /f "delims=0123456789" %%a in ("%port%") do (
     echo Is not a port number
     exit /B 1

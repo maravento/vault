@@ -142,7 +142,11 @@ backup_if_missing "$user_crontab" "$user_crontab_bak" || exit 1
 backup_if_missing "$root_crontab" "$root_crontab_bak" || exit 1
 
 # Now safe to enable tee+logger redirect (output goes to tty AND syslog)
-exec > >(tee /dev/tty | logger -p user.alert -t crontab-check) 2>&1
+if [ -t 1 ]; then
+    exec > >(tee /dev/tty | logger -p user.alert -t crontab-check) 2>&1
+else
+    exec > >(logger -p user.alert -t crontab-check) 2>&1
+fi
 
 # Perform comparison for user and root crontabs
 compare_crontabs "$user_crontab" "$user_crontab_bak" "$local_user"

@@ -212,6 +212,13 @@ class DHCPConfig:
                     net = ipaddress.IPv4Network(f"{self.subnet}/{self.netmask}", strict=False)
                     if s not in net or e not in net:
                         raise ConfigError(f"Pool range {s}\u2013{e} is outside subnet {net}")
+                for h_mac, h_ip in self.static_hosts.items():
+                    try:
+                        if s <= ipaddress.IPv4Address(h_ip) <= e:
+                            raise ConfigError(
+                                f"Static host {h_mac} IP {h_ip} overlaps pool range {s}\u2013{e}")
+                    except ValueError:
+                        pass
             except ValueError as err:
                 raise ConfigError(f"Invalid pool range address: {err}") from err
 
@@ -530,7 +537,7 @@ class LeaseManager:
         with self.lock:
             self._quarantine[ip] = time.time() + duration
 
-    def allocate(self, mac, hostname, requested_ip=None, src_mac=None):
+    def allocate(self, mac, hostname, requested_ip=None, src_mac=None, persist=True):
         mac = mac.lower()
         # Rate-limit per client MAC (chaddr) so that multiple clients behind
         # the same relay do not share a single rate-limit bucket.
@@ -561,6 +568,9 @@ class LeaseManager:
 
                 if requested_ip and requested_ip != "0.0.0.0":
                     if requested_ip in self.pool:
+                        static_ips = set(self.config.static_hosts.values())
+                        if requested_ip in static_ips and self.config.static_hosts.get(mac) != requested_ip:
+                            return None, None, "IP reserved for static host"
                         existing_lease = self.leases.get(requested_ip)
                         if not existing_lease or existing_lease.is_expired():
                             bucket.append(now)
@@ -574,13 +584,18 @@ class LeaseManager:
 
                 ip = self._get_pool_ip(mac)
                 if ip:
-                    bucket.append(now)
+                    existing_pool_lease = self.leases.get(ip)
+                    is_renewal = (existing_pool_lease
+                                  and existing_pool_lease.mac == mac
+                                  and not existing_pool_lease.is_expired())
+                    if not is_renewal:
+                        bucket.append(now)
                     snapshot_to_save = self._create_lease_locked(ip, mac, hostname, self.config.pool_def_lease)
                     return ip, self.config.pool_def_lease, None
 
             return None, None, "pool exhausted"
         finally:
-            if snapshot_to_save is not None:
+            if persist and snapshot_to_save is not None:
                 self._save_snapshot(snapshot_to_save)
 
     def _get_pool_ip(self, mac):
@@ -1164,9 +1179,9 @@ class DHCPServer:
                 lease_time  = config_default_lease
                 alloc_reason = None
             else:
-                offered_ip, lease_time, alloc_reason = self.leases.allocate(mac, hostname, src_mac=src_mac)
+                offered_ip, lease_time, alloc_reason = self.leases.allocate(mac, hostname, src_mac=src_mac, persist=False)
         else:
-            offered_ip, lease_time, alloc_reason = self.leases.allocate(mac, hostname, src_mac=src_mac)
+            offered_ip, lease_time, alloc_reason = self.leases.allocate(mac, hostname, src_mac=src_mac, persist=False)
 
         if not offered_ip:
             if alloc_reason and "blockdhcp" in alloc_reason:
@@ -1253,13 +1268,13 @@ class DHCPServer:
                 self._send_nak(pkt, mac, "Not authorized for this IP")
                 return
 
-        with self.leases.lock:
-            if config_one_per_client and target_ip:
+        if config_one_per_client and target_ip:
+            with self.leases.lock:
                 existing = self.leases.get_by_mac(mac)
                 if existing and existing.ip != target_ip and not self.leases.is_blocked(mac):
                     self.leases.release(mac)
 
-            offered_ip, lease_time, alloc_reason = self.leases.allocate(mac, hostname, requested_ip=target_ip, src_mac=src_mac)
+        offered_ip, lease_time, alloc_reason = self.leases.allocate(mac, hostname, requested_ip=target_ip, src_mac=src_mac)
 
         if not offered_ip:
             self._send_nak(pkt, mac, alloc_reason or "No address available")
@@ -1279,6 +1294,8 @@ class DHCPServer:
     def _send_nak(self, pkt, mac, reason=None):
         nak = bytearray(236)
         nak[0]   = 2
+        nak[1]   = 1
+        nak[2]   = 6
         nak[4:8] = pkt["xid"]
         nak[10:12] = struct.pack("!H", 0x8000)
         try:

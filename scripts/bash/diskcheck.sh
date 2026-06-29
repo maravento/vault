@@ -236,12 +236,12 @@ else
 
         # NVMe: uses its own attributes
         if echo "$DISK" | grep -q "nvme"; then
-            CRITICAL=$(smartctl -A "$DISK" 2>/dev/null | grep -i "critical_warning" | awk '{print $2}')
+            CRITICAL=$(smartctl -A "$DISK" 2>/dev/null | awk -F: '/Critical Warning/{gsub(/ /,"",$2);print $2}')
             if [ -n "$CRITICAL" ] && [ "$CRITICAL" != "0x00" ] && [ "$CRITICAL" != "0" ]; then
                 notify_alert "$DISK (NVMe): Critical warning detected ($CRITICAL). Check disk immediately." "drive-harddisk"
                 DISK_ALERTS=$((DISK_ALERTS + 1))
             fi
-            WEAR=$(smartctl -A "$DISK" 2>/dev/null | grep -i "percentage_used" | awk '{print $2}' | tr -d '%')
+            WEAR=$(smartctl -A "$DISK" 2>/dev/null | awk -F: '/Percentage Used/{gsub(/[ %]/,"",$2);print $2}')
             if [ -n "$WEAR" ] && [ "$WEAR" -ge 90 ] 2>/dev/null; then
                 notify_alert "$DISK (NVMe): Wear level at ${WEAR}%. Plan replacement soon." "drive-harddisk"
                 DISK_ALERTS=$((DISK_ALERTS + 1))

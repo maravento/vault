@@ -37,10 +37,6 @@ fi
 
 ### LOCK
 randa=$(($RANDOM % 3 + 1))
-pid_execute=$(ps -eo pid,args | grep "$0" | grep -v grep | grep -Eo '^[0-9]+')
-if [[ "${pid_execute:-NO_VALUE}" != "NO_VALUE" ]]; then
-    echo "Lock Start: $(date)" | tee -a /var/log/syslog
-    echo "$0 $@" | at now + "$randa" min
-    exit 0
-fi
-echo "Done"
+echo "Lock Start: $(date)" | tee -a /var/log/syslog
+echo "$0 $@" | at now + "$randa" min
+exit 0

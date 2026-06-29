@@ -38,22 +38,35 @@ if ! flock -n 200; then
     exit 1
 fi
 
+set -euo pipefail
+
 # logging
 log_file="/var/log/iptables.log"
 log() {
     local msg="$1"
-    echo "$msg"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> "$log_file"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg"
 }
 
 log "Iptables Start..."
 printf "\n"
 
 ## VARIABLES ##
+# paths
 acl_path="/etc/acl"
 acl_mac_path="$acl_path/acl_mac"
 acl_ipt_path="$acl_path/acl_ipt"
-hotspot_path="/etc/uhotspot"
+# interfaces
+wan=eth0
+lan=eth1
+# LAN localnet/netmask
+localnet=192.168.0.0
+netmask=24
+# server IP
+# Command to get active interfaces (except lo) (Name/IPv4/MAC) (Replace with your server IPv4/MAC):
+# join <(ip -o -br link | sort) <(ip -o -br addr | sort) | awk '$2=="UP" {print $1,$6,$3}' | sed -Ee 's./[0-9]+..'
+serverip=192.168.0.10
+
+log "Config: wan=$wan lan=$lan localnet=$localnet/$netmask serverip=$serverip"
 
 # ACL/config files used by this script (existence verified below)
 mac_proxy_file="$acl_mac_path/mac-proxy.txt"
@@ -62,12 +75,16 @@ blockports_file="$acl_ipt_path/blockports.txt"
 dhcp_conf="/etc/pydhcp/pydhcpd.conf"
 path_ips="$acl_ipt_path/dhcp_ip.txt"
 path_macs="$acl_ipt_path/dhcp_mac.txt"
-
+ 
 for f in "$mac_proxy_file" "$mac_unlimited_file" "$blockports_file" "$dhcp_conf"; do
-    [ -f "$f" ] || log "WARNING: required file not found: $f"
+    if [ ! -f "$f" ]; then
+        log "ERROR: required file not found: $f"
+        exit 1
+    fi
 done
 if [ ! -d "$acl_mac_path" ] || [ -z "$(ls -A "$acl_mac_path" 2>/dev/null)" ]; then
-    log "WARNING: acl_mac_path missing or empty: $acl_mac_path"
+    log "ERROR: acl_mac_path missing or empty: $acl_mac_path"
+    exit 1
 fi
 
 logrotate_conf="/etc/logrotate.d/iptables"
@@ -87,13 +104,6 @@ EOF
     chown root:root "$logrotate_conf"
     log "Created logrotate config: $logrotate_conf"
 fi
-
-wan=eno1
-#lan=eno2
-lan=bond0
-localnet=192.168.10.0
-netmask=24
-serverip=192.168.10.2
 
 ## KERNEL RULES ##
 log "Kernel Rules..."
@@ -277,6 +287,21 @@ ip6tables -A INPUT -i lo -j ACCEPT
 ip6tables -A OUTPUT -o lo -j ACCEPT
 iptables -A INPUT -s 127.0.0.0/8 ! -i lo -j DROP
 
+# MACUNLIMITED (MAC + IP for Access Points, Switch, etc.)
+if ! ipset list macunlimited &>/dev/null; then
+    ipset create macunlimited hash:mac -exist
+else
+    ipset flush macunlimited
+fi
+for mac in $(awk -F";" '$2 != "" {print $2}' "$mac_unlimited_file" 2>/dev/null); do
+    ipset add macunlimited $mac -exist
+done
+iptables -t nat -A PREROUTING -i $lan -m set --match-set macunlimited src -j ACCEPT
+iptables -t mangle -A PREROUTING -i $lan -m set --match-set macunlimited src -j ACCEPT
+for chain in INPUT FORWARD; do
+    iptables -A $chain -i $lan -m set --match-set macunlimited src -j ACCEPT
+done
+
 # WAN DROP: CIDR
 iptables -A INPUT -i $wan -s 10.0.0.0/8 -j DROP
 iptables -A INPUT -i $wan -s 172.16.0.0/12 -j DROP
@@ -321,15 +346,6 @@ iptables -A OUTPUT -m conntrack --ctstate NEW,ESTABLISHED,RELATED -j ACCEPT
 # Squid proxy outbound traffic
 iptables -A OUTPUT -o $wan -m owner --uid-owner proxy -j ACCEPT
 
-# iperf3
-#iptables -A INPUT -p tcp --dport 5201 -j ACCEPT
-#iptables -A INPUT -p udp --dport 5201 -j ACCEPT
-
-# CAMERAS (tcp 37777)
-#for chain in INPUT FORWARD; do
-#    iptables -A $chain -i $lan -p tcp --dport 3777 -j ACCEPT
-#done
-
 # DHCP
 iptables -t mangle -A PREROUTING -i $lan -p udp --dport 67 -j ACCEPT
 iptables -A OUTPUT -o $wan -p udp --sport 68 --dport 67 -j ACCEPT
@@ -337,84 +353,9 @@ iptables -A INPUT -i $wan -p udp --sport 67 --dport 68 -j ACCEPT
 iptables -A INPUT -i $lan -p udp --sport 68 --dport 67 -j ACCEPT
 iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
 
-## UNIFI PORTS
-# https://help.ui.com/hc/en-us/articles/218506997-Required-Ports-Reference
-## UNIFI WAN
-# STUN responses from Ubiquiti (3478) and Google (19302) — needed for APs behind NAT
-#iptables -A INPUT -i $wan -p udp -m multiport --sports 3478,19302 -j ACCEPT
-# Device discovery from management LAN via WAN interface
-#iptables -A INPUT -i $wan -p udp --dport 10001 -j ACCEPT
-## UNIFI LAN
-# Uncomment if using Ubiquiti remote access cloud service
-# iptables -A INPUT -i $wan -p tcp -s 66.203.125.0/24 --sport 443 -d $wan -j ACCEPT
-# LAN Unifi — ports required for LAN clients and APs to communicate with self-hosted controller
-# 8080  TCP - AP to controller communication
-# 8880  TCP - captive portal HTTP
-# 8881  TCP - captive portal HTTP alternate
-# 8882  TCP - captive portal HTTP alternate
-# 8843  TCP - captive portal HTTPS
-# 6789  TCP - UniFi speed test / throughput measurement (Podman/pasta userspace network)
-# 3478  UDP - STUN for APs
-# 53    UDP - DNS (local on gateway)
-# 123   UDP - NTP
-# 10001 UDP - device discovery
-# Removed (administrative/internal only):
-# 8443  TCP - GUI/API admin access
-# 8444  TCP - UniFi OS HTTPS GUI admin
-# 11443 TCP - UniFi OS self-hosted GUI admin
-# 27117 TCP - MongoDB internal database
-# 1900  UDP - UPnP optional discovery
-#unifi_tcp="8080,6789"
-#unifi_udp_local="10001"
-#unifi_udp_wan="3478,123"
-#iptables -t mangle -A PREROUTING -i $lan -p tcp -m multiport --dports $unifi_tcp -j ACCEPT
-#iptables -t mangle -A PREROUTING -i $lan -p udp -m multiport --dports $unifi_udp_local,$unifi_udp_wan -j ACCEPT
-#iptables -A INPUT -i $lan -p tcp -m multiport --dports $unifi_tcp -j ACCEPT
-#iptables -A INPUT -i $lan -p udp --dport $unifi_udp_local -j ACCEPT
-#iptables -A FORWARD -i $lan -o $wan -p udp -m multiport --dports $unifi_udp_wan -j ACCEPT
-
-# Unifi Portal Acess
-# Optional https: 8843
-#cpd_tcp="8880,8881,8882"
-
-# MAC pending rules
-# Create ipsets
-#if ! ipset list macpending &>/dev/null; then
-#    ipset create macpending hash:mac -exist
-#else
-#    ipset flush macpending
-#fi
-
-# Populate ipsets
-#if [ -f "$hotspot_path/guest-pending.txt" ]; then
-#    for mac in $(awk -F";" '$2 != "" {print $2}' $hotspot_path/guest-pending.txt); do
-#        ipset add macpending $mac -exist
-#    done
-#fi
-# DNS
-#iptables -t mangle -A PREROUTING -i $lan -m set --match-set macpending src -p udp --dport 53 -j ACCEPT
-#iptables -A FORWARD -i $lan -m set --match-set macpending src -p udp --dport 53 -j ACCEPT
-# HTTP
-#iptables -t mangle -A PREROUTING -i $lan -m set --match-set macpending src -p tcp --dport 80 -j ACCEPT
-#iptables -A INPUT -i $lan -m set --match-set macpending src -p tcp --dport 80 -j ACCEPT
-#iptables -A FORWARD -i $lan -m set --match-set macpending src -p tcp --dport 80 -j ACCEPT
-#iptables -t nat -A PREROUTING -i $lan -m set --match-set macpending src -p tcp --dport 80 -j REDIRECT --to-port 8880
-# CDP
-#iptables -t mangle -A PREROUTING -i $lan -m set --match-set macpending src -p tcp -m multiport --dports $cpd_tcp -j ACCEPT
-#iptables -A INPUT -i $lan -m set --match-set macpending src -p tcp -m multiport --dports $cpd_tcp -j ACCEPT
-#iptables -A FORWARD -i $lan -m set --match-set macpending src -p tcp -m multiport --dports $cpd_tcp -j ACCEPT
-# BLOCK GUESTPENDING
-#iptables -t mangle -A PREROUTING -i $lan -m set --match-set macpending src -j DROP
-#iptables -A INPUT -i $lan -m set --match-set macpending src -j DROP
-#iptables -A FORWARD -i $lan -m set --match-set macpending src -j DROP
-
 # NTP
-#iptables -A INPUT -i $lan -p udp --dport 123 -s $localnet/$netmask -j ACCEPT
-#iptables -A FORWARD -i $lan -p udp --dport 123 -s $localnet/$netmask -j ACCEPT
-
-# SSH
-iptables -A INPUT -i $lan -p tcp --dport 22 -m mac --mac-source 48:5f:99:26:b1:8f -j ACCEPT
-iptables -A FORWARD -i $lan -p tcp --dport 22 -m mac --mac-source 48:5f:99:26:b1:8f -j ACCEPT
+iptables -A INPUT -i $lan -p udp --dport 123 -s $localnet/$netmask -j ACCEPT
+iptables -A FORWARD -i $lan -p udp --dport 123 -s $localnet/$netmask -j ACCEPT
 
 # WARNING PAGE HTTP FOR BANDATA (TCP 18081)
 # https://github.com/maravento/vault/tree/master/proxymon
@@ -433,29 +374,16 @@ iptables -A FORWARD -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
 iptables -A INPUT -p tcp --tcp-flags SYN,ACK SYN,ACK -m conntrack --ctstate NEW -j DROP
 iptables -A FORWARD -p tcp --tcp-flags SYN,ACK SYN,ACK -m conntrack --ctstate NEW -j DROP
 
-log "OK"
-
-## MAC2IP RULES ##
-log "MAC2IP Rules..."
-
-# MACUNLIMITED (MAC + IP for Access Points, Switch, etc.)
-if ! ipset list macunlimited &>/dev/null; then
-    ipset create macunlimited hash:mac -exist
-else
-    ipset flush macunlimited
-fi
-for mac in $(awk -F";" '$2 != "" {print $2}' "$mac_unlimited_file" 2>/dev/null); do
-    ipset add macunlimited $mac -exist
-done
-iptables -t mangle -A PREROUTING -i $lan -m set --match-set macunlimited src -j ACCEPT
-for chain in INPUT FORWARD; do
-    iptables -A $chain -i $lan -m set --match-set macunlimited src -j ACCEPT
-done
-
-# MAC2IP
-# (dhcp_conf, path_ips, path_macs declarados y verificados en la cabecera ## VARIABLES ##)
 # mac2ip
-mac2ip=$(sed -n '/^\s\+hardware\|^\s\+fixed/ s:hardware ethernet \|fixed-address ::p' "$dhcp_conf" | sed 's/;//')
+mac2ip=$(awk '
+    /host [^{]+ \{/ { in_block=1; mac=""; ip="" }
+    in_block && /hardware ethernet/ { mac=$3; gsub(/;/, "", mac) }
+    in_block && /fixed-address/ { ip=$2; gsub(/;/, "", ip) }
+    in_block && /\}/ {
+        if (mac != "" && ip != "") print mac, ip
+        in_block=0
+    }
+' "$dhcp_conf")
 # rule mac2ip
 if ! ipset list macip &>/dev/null; then
     ipset create macip hash:ip,mac -exist
@@ -465,7 +393,7 @@ fi
 create_acl() {
     ips="# ips"
     macs="# macs"
-    while [ "$1" ]; do
+    while (( $# >= 2 )); do
         mac="$1"
         shift
         ip="$1"
@@ -478,9 +406,13 @@ create_acl() {
     echo -e "$ips" > "$path_ips"
     echo -e "$macs" > "$path_macs"
 }
-create_acl $mac2ip
-iptables -t mangle -A PREROUTING -i $lan -m set --match-set macip src,src -j ACCEPT
-iptables -t mangle -A PREROUTING -i $lan -j DROP
+if [ -n "$mac2ip" ]; then
+    create_acl $mac2ip
+    iptables -t mangle -A PREROUTING -i $lan -m set --match-set macip src,src -j ACCEPT
+    iptables -t mangle -A PREROUTING -i $lan -j DROP
+else
+    echo "WARNING: No static DHCP entries found in $dhcp_conf; macip binding skipped"
+fi
 
 log "OK"
 
@@ -545,14 +477,9 @@ fi
 for mac in $(awk -F";" '$2 != "" {print $2}' $acl_mac_path/mac-* 2>/dev/null); do
     ipset add macports $mac -exist
 done
-if [ -f "$hotspot_path/mac-hotspot.txt" ]; then
-    for mac in $(awk -F";" '$2 != "" {print $2}' $hotspot_path/mac-hotspot.txt); do
-        ipset add macports $mac -exist
-    done
-fi
 
 # DNS
-dns="8.8.8.8 8.8.4.4 1.1.1.1 1.0.0.1"
+dns="8.8.8.8 1.1.1.1"
 for dnsip in $dns; do
     iptables -A FORWARD -i $lan -o $wan -m set --match-set macports src -d $dnsip -p udp --dport 53 -j ACCEPT
     iptables -A FORWARD -i $lan -o $wan -m set --match-set macports src -d $dnsip -p tcp --dport 53 -j ACCEPT
@@ -651,7 +578,7 @@ done
 for chain in INPUT FORWARD; do
     iptables -A $chain -i $lan -p 47 -j DROP
 done
-# Block Windows Mobile Hotspot sharing
+# Block Windows ICS (Internet Connection Sharing) network range
 iptables -A FORWARD -i $lan -d 192.168.137.0/24 -j DROP
 # Block WS-Discovery unicast to server (Windows clients noise)
 iptables -A INPUT -i $lan -p udp --sport 3702 -d $serverip -j DROP
@@ -707,44 +634,31 @@ for chain in INPUT FORWARD; do
     iptables -A $chain -i $lan -p tcp -m multiport --dports 18100,3128 -m set --match-set macproxy src -j ACCEPT
 done
 
-# MACHOTSPOT (PAC 18100 - Opcion 252 DHCP, HTTP 80 to 3128)
-#if ! ipset list machotspot &>/dev/null; then
-#    ipset create machotspot hash:mac -exist
-#else
-#    ipset flush machotspot
-#fi
-#if [ -f "$hotspot_path/mac-hotspot.txt" ]; then
-#    for mac in $(awk -F";" '$2 != "" {print $2}' $hotspot_path/mac-hotspot.txt); do
-#        ipset add machotspot $mac -exist
-#    done
-#fi
-# UNIFI PORTAL ACCESS + PAC (18100)
-#iptables -t mangle -A PREROUTING -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports $cpd_tcp,18100,80 -j ACCEPT
-#iptables -A INPUT   -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports $cpd_tcp,18100 -j ACCEPT
-#iptables -A FORWARD -i $lan -m set --match-set machotspot src -p tcp -m multiport --dports $cpd_tcp,18100 -j ACCEPT
-# NAT
-#iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m set --match-set machotspot src -j REDIRECT --to-port 3128
-#for chain in INPUT FORWARD; do
-#    iptables -A $chain -i $lan -p tcp -m multiport --dports 18100,3128 -m set --match-set machotspot src -j ACCEPT
-#done
-
-# MACTRANSPARENT (WARNING: Not recommended) (check blockports.txt)
-#if ! ipset list mactransparent &>/dev/null; then
-#    ipset create mactransparent hash:mac -exist
-#else
-#    ipset flush mactransparent
-#fi
-#for mac in $(awk -F";" '$2 != "" {print $2}' $acl_mac_path/mac-transparent.txt); do
-#   ipset add mactransparent $mac -exist
-#done
-#for chain in INPUT FORWARD; do
-#    iptables -A $chain -i $lan -p tcp -m multiport --dports 80,443,853 -m set --match-set mactransparent src -j ACCEPT
-#done
-
 log "OK"
 
 ## END ## 
 log "Drop All..."
+# Restore bandata rules if the ipset exists and is non-empty.
+# uiptables.sh flushes all chains on every run; bandata.sh only runs every
+# 5 minutes via cron. Without this block, blocked IPs are freed on every
+# ACL reload until the next bandata cron cycle.
+if ipset list bandata &>/dev/null && \
+   ipset list bandata | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+'; then
+    log "Restoring bandata rules..."
+    iptables -N BANDATA_FWD 2>/dev/null || true
+    iptables -N BANDATA_IN  2>/dev/null || true
+    iptables -I FORWARD 1 -i "$lan" -j BANDATA_FWD
+    iptables -I INPUT   1 -i "$lan" -j BANDATA_IN
+    iptables -A BANDATA_FWD -m set --match-set bandata src -p udp --dport 53  -j ACCEPT
+    iptables -A BANDATA_FWD -m set --match-set bandata src -p tcp --dport 80  -j ACCEPT
+    iptables -A BANDATA_FWD -m set --match-set bandata src -j DROP
+    iptables -A BANDATA_IN  -m set --match-set bandata src -p tcp --dport 18081 -j ACCEPT
+    iptables -A BANDATA_IN  -m set --match-set bandata src -j DROP
+    iptables -t nat -I PREROUTING 1 -i "$lan" -m set --match-set bandata src \
+        -p tcp --dport 80 -j REDIRECT --to-port 18081
+    log "bandata rules restored ($(ipset list bandata | grep -cE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+') IPs)"
+fi
+
 iptables -A INPUT -m hashlimit --hashlimit-name input-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip,dstport -j NFLOG --nflog-prefix "FINAL-INPUT DROP: "
 iptables -A INPUT -j DROP
 iptables -A FORWARD -m hashlimit --hashlimit-name forward-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip,dstport -j NFLOG --nflog-prefix "FINAL-FORWARD DROP: "

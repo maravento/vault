@@ -65,7 +65,7 @@ ETCDIR="/etc/webmin/$MODNAME"
 install_module() {
     echo ""
     echo "=========================================="
-    echo "Installing Proxy Monitor Module"
+    echo "Installing Squid Monitor Module"
     echo "=========================================="
     echo ""
     
@@ -82,7 +82,7 @@ install_module() {
         fi
     fi
     
-    echo "Creating Proxy Monitor module structure..."
+    echo "Creating Squid Monitor module structure..."
     
     # Create directories
     mkdir -p "$MODDIR/images"
@@ -95,7 +95,7 @@ install_module() {
     # ============================================================
     cat > "$MODDIR/index.cgi" <<'INDEXCGI'
 #!/usr/bin/perl
-# Proxy Monitor - Main Dashboard
+# Squid Monitor - Main Dashboard
 use strict;
 use warnings;
 use CGI qw(escapeHTML);
@@ -431,7 +431,8 @@ if ($action_code =~ /^TCP_DENIED/) {
 
     # Check regex ACLs
     foreach my $acl (@regex_acls) {
-        if ($url =~ /$acl->{value}/i) {
+        my $matched = eval { $url =~ /$acl->{value}/i };
+        if ($matched) {
             push @matched_acls, $acl->{label};
         }
     }
@@ -820,7 +821,8 @@ foreach my $line (@log_lines) {
         # 3. Search in ACLs regex if not found in files
         if (!$found_acl) {
             foreach my $acl (@regex_acls) {
-                if ($url =~ /$acl->{value}/i) {
+                my $matched = eval { $url =~ /$acl->{value}/i };
+                if ($matched) {
                     $found_acl = $acl->{label};
                     $debug_info{regex_matches}++;
                     last;
@@ -1184,7 +1186,7 @@ INDEXCGI
     
     cat > "$MODDIR/pdf_report.cgi" <<'PDFCGI'
 #!/usr/bin/perl
-# PDF Report Generator for Proxy Monitor - Traffic Report Version
+# PDF Report Generator for Squid Monitor - Traffic Report Version
 use strict;
 use warnings;
 
@@ -1299,7 +1301,7 @@ print << 'HTMLHEAD';
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Proxy Monitor - Traffic Report</title>
+    <title>Squid Monitor - Traffic Report</title>
     <style>
         body { 
             font-family: Arial, sans-serif; 
@@ -1361,7 +1363,7 @@ print << 'HTMLHEAD';
 HTMLHEAD
 
 if ($specific_client) {
-    print "<h1>Proxy Monitor - Client Traffic Report: $specific_client</h1>";
+    print "<h1>Squid Monitor - Client Traffic Report: $specific_client</h1>";
     print "<p>Generated on: " . scalar(localtime) . "</p>";
     print "<p>Time Period: Last 24 hours</p>";
 } else {
@@ -1373,7 +1375,7 @@ if ($specific_client) {
     } elsif ($time_range == 720) {
         $time_label = "Last 30 Days";
     }
-    print "<h1>Proxy Monitor - Historical Traffic Report</h1>";
+    print "<h1>Squid Monitor - Historical Traffic Report</h1>";
     print "<p>Generated on: " . scalar(localtime) . "</p>";
     print "<p>Time Period: $time_label</p>";
 }
@@ -1511,7 +1513,7 @@ PDFCGI
     # 3. module.info (English)
     # ============================================================
     cat > "$MODDIR/module.info" <<'EOF'
-desc=Proxy Monitor
+desc=Squid Monitor
 longdesc=Monitor Proxy Logs and ACL Blocks
 category=servers
 os_support=*-linux
@@ -1537,7 +1539,7 @@ EOF
     # 5. lang/en (English strings)
     # ============================================================
     cat > "$MODDIR/lang/en" <<'EOF'
-index_title=Proxy Monitor
+index_title=Squid Monitor
 index=Webmin Index
 stat_total_requests=Total Requests
 stat_blocked=Blocked
@@ -1752,7 +1754,7 @@ EOF
 <header>Squid Monitor</header>
 
 <h3>Introduction</h3>
-<p>The Proxy Monitor module provides a dashboard for monitoring your Squid proxy server. It focuses on blocked requests (TCP_DENIED) and provides detailed statistics about ACL activity.</p>
+<p>The Squid Monitor module provides a dashboard for monitoring your Squid proxy server. It focuses on blocked requests (TCP_DENIED) and provides detailed statistics about ACL activity.</p>
 
 <h3>Features</h3>
 <ul>
@@ -2032,7 +2034,7 @@ uninstall_module() {
     
     echo ""
     echo "=========================================="
-    echo "✓ Proxy Monitor module uninstalled successfully!"
+    echo "✓ Squid Monitor module uninstalled successfully!"
     echo "=========================================="
     echo ""
 }
@@ -2061,8 +2063,8 @@ show_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  install      Install the Proxy Monitor module"
-    echo "  uninstall    Uninstall the Proxy Monitor module"
+    echo "  install      Install the Squid Monitor module"
+    echo "  uninstall    Uninstall the Squid Monitor module"
     echo "  -h, --help   Show this help message"
     echo ""
     echo "If no option is provided, interactive menu will be shown."

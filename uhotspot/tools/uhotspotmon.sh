@@ -16,7 +16,7 @@
 #   - Full-log grep search
 #   - Filter by level (INFO/WARNING/ERROR)
 #   - Text filter with highlighting
-#   - Cycle stats dashboard (vouchers, authorized, pending, etc.)
+#   - Cycle stats dashboard (vouchers, authorized, grace, etc.)
 #   - Service status indicator
 #   - Multi-language support (English and Spanish)
 #
@@ -88,7 +88,8 @@ declare -A params
 IFS='&' read -ra pairs <<< "$QUERY_STRING"
 for pair in "${pairs[@]}"; do
     IFS='=' read -r key val <<< "$pair"
-    val=$(printf '%b' "${val//%/\\x}" 2>/dev/null || echo "$val")
+    val="${val//+/ }"
+    val=$(printf '%b' "$(printf '%s' "$val" | sed -E 's/%([0-9A-Fa-f]{2})/\\x\1/g')" 2>/dev/null || printf '%s' "$val")
     params["$key"]="$val"
 done
 
@@ -145,7 +146,7 @@ if [[ "$action" == "grep" ]]; then
         exit 0
     fi
 
-    output=$(timeout 20 grep -Fia "$term" "$LOG_FILE" 2>/dev/null | tail -n "$MAX_GREP" || true)
+    output=$(timeout 20 grep -Fia -e "$term" -- "$LOG_FILE" 2>/dev/null | tail -n "$MAX_GREP" || true)
 
     printf '{"rows":['
     first=1
@@ -507,8 +508,8 @@ function rt(q,an){
 function ucs(){
   var bar=document.getElementById('uhCB');
   for(var i=0;i<ALL.length;i++){
-    var m=ALL[i].msg.match(/vouchers=(\d+)\s*\|\s*authorized=(\d+)\s*\|\s*pending=(\d+)\s*\|\s*new_pending=(\d+)\s*\|\s*new_auth=(\d+)\s*\|\s*revoked=(\d+)\s*\|\s*managed_authorized=(\d+)/);
-    if(m){bar.innerHTML='<span class="uh-cp uh-cp-i">Vouchers '+m[1]+'</span><span class="uh-cp uh-cp-ok">Authorized '+m[2]+'</span><span class="uh-cp uh-cp-w">Pending '+m[3]+'</span><span class="uh-cp uh-cp-d">New Pending '+m[4]+'</span><span class="uh-cp uh-cp-ok">New Auth '+m[5]+'</span><span class="uh-cp '+(parseInt(m[6])>0?'uh-cp-w':'uh-cp-d')+'">Revoked '+m[6]+'</span><span class="uh-cp uh-cp-d">Managed '+m[7]+'</span>';return}
+    var m=ALL[i].msg.match(/vouchers=(\d+)\s*\|\s*authorized=(\d+)\s*\|\s*grace=(\d+)\s*\|\s*new_auth=(\d+)\s*\|\s*revoked=(\d+)\s*\|\s*managed_authorized=(\d+)/);
+    if(m){bar.innerHTML='<span class="uh-cp uh-cp-i">Vouchers '+m[1]+'</span><span class="uh-cp uh-cp-ok">Authorized '+m[2]+'</span><span class="uh-cp uh-cp-w">Grace '+m[3]+'</span><span class="uh-cp uh-cp-ok">New Auth '+m[4]+'</span><span class="uh-cp '+(parseInt(m[5])>0?'uh-cp-w':'uh-cp-d')+'">Revoked '+m[5]+'</span><span class="uh-cp uh-cp-d">Managed '+m[6]+'</span>';return}
   }
 }
 

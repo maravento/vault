@@ -40,7 +40,7 @@ if suricata-update --disable-conf=/etc/suricata/disable.conf \
             echo "$NOW - ✗ Suricata not active after reload" | tee -a "$LOG"
             exit 1
         fi
-        ACTIVE_RULES=$(grep -c '^alert' "$RULES_FILE" 2>/dev/null || echo "N/A")
+        ACTIVE_RULES=$(grep -c '^alert' "$RULES_FILE" 2>/dev/null); [ -z "$ACTIVE_RULES" ] && ACTIVE_RULES="N/A"
         echo "$NOW - ✓ Suricata reloaded - Active rules: $ACTIVE_RULES" | tee -a "$LOG"
         if systemctl restart evebox; then
             echo "$NOW - ✓ EveBox restarted" | tee -a "$LOG"

@@ -657,6 +657,25 @@ do_update() {
         echo "  Updated: $fname"
     done
 
+    # restore nmbd watchdog block if NetBIOS was enabled during install
+    if [[ "$NETBIOS" =~ ^[Yy]$ ]]; then
+        cat >> "$SMBSTACK_TOOLS/smbload.sh" <<'NMBD'
+
+# Samba Service (nmbd)
+if pgrep -x nmbd > /dev/null; then
+    echo "nmbd: ONLINE"
+else
+    systemctl stop nmbd.service &>/dev/null
+    if systemctl start nmbd.service; then
+        echo "nmbd start: $(date)" | tee -a /var/log/syslog
+    else
+        echo "nmbd start FAILED: $(date)" | tee -a /var/log/syslog
+    fi
+fi
+NMBD
+        echo "  Restored: nmbd watchdog block in smbload.sh"
+    fi
+
     systemctl daemon-reload
     systemctl restart smbd winbind rsyslog apache2
 

@@ -45,7 +45,6 @@
 #   - pydhcpd installed and running (/etc/pydhcp must exist)
 #   - ACL directories and files as defined in uhotspot.conf
 #   - Root privileges
-#   - python3 (for network calculations on first run)
 #
 # ACL FORMATS:
 #   Standard (mac-*.txt, blockdhcp.txt):
@@ -64,12 +63,16 @@
 #
 # UNIFI HOTSPOT MODULE:
 #   Integration layer that:
-#   - Imports hotspot client data (mac-hotspot, guest-pending) as authoritative
-#     exclusion lists during lease classification
-#   - Extends DHCP reservations for hotspot users
-#   - Synchronizes hotspot-related ACL entries
-#   - Provides a grace period (BLOCKDHCP_GRACE_SECONDS) during which a previously
-#     unseen MAC receives leases but is NOT yet listed in blockdhcp.txt
+#   - Classifies pydhcpd.leases entries: managed (mac-proxy.txt, mac-unlimited.txt),
+#     voucher-authorized (mac-hotspot), blocked (blockdhcp), grace-period
+#     (gracedhcp), or new
+#   - New and gracedhcp clients keep their pydhcpd pool lease (no fixed-address
+#     injection). Only mac-hotspot clients receive a fixed hotspot-range IP.
+#   - Grace period (BLOCKDHCP_GRACE_SECONDS): any MAC detected in pydhcpd.leases
+#     that is not in an authoritative ACL is added to gracedhcp.txt with a
+#     timestamp. Regardless of reconnections, once the timer expires the MAC
+#     moves permanently to blockdhcp.txt. The only exit is manual removal or
+#     addition to mac-*.
 #
 # USAGE:
 #   - Controlled via UNIFI_HOTSPOT_ENABLED in uhotspot.conf
@@ -84,8 +87,6 @@
 #
 ################################################################################
 
-echo "Leases Start. Wait..."
-printf "\n"
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -102,6 +103,32 @@ ulog() {
     [[ -z "${UHOTSPOT_RELOAD_ACTIVE:-}" ]] && echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
 }
 
+# Ensure log file exists with correct permissions.
+if [ ! -f "$LOG_FILE" ]; then
+    touch "$LOG_FILE"
+    chmod 640 "$LOG_FILE"
+    chown root:adm "$LOG_FILE" 2>/dev/null || chown root:root "$LOG_FILE"
+fi
+
+# Ensure logrotate config exists so the log does not grow unbounded.
+_logrotate_conf="/etc/logrotate.d/uhotspot"
+if [ ! -f "$_logrotate_conf" ]; then
+    cat > "$_logrotate_conf" <<'EOF'
+/var/log/uhotspot.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 root adm
+}
+EOF
+    chmod 644 "$_logrotate_conf"
+    chown root:root "$_logrotate_conf"
+fi
+unset _logrotate_conf
+
 ulog "uleases Start"
 
 if [ "$(id -u)" != "0" ]; then
@@ -116,8 +143,8 @@ if ! flock -w 60 200; then
     exit 1
 fi
 
-if [[ -z "${UHOTSPOT_RELOAD_ACTIVE:-}" ]] && [ -f /var/lock/uhotspot.lock ]; then
-    if fuser /var/lock/uhotspot.lock &>/dev/null; then
+if [[ -z "${UHOTSPOT_RELOAD_ACTIVE:-}" ]] && [ -f /var/lock/uhotspotd.lock ]; then
+    if fuser /var/lock/uhotspotd.lock &>/dev/null; then
         echo "ERROR: uhotspotd is currently running. Try again later."
         exit 1
     fi
@@ -125,7 +152,8 @@ fi
 
 TEMP_FILES_TO_CLEAN=()
 cleanup_temp() {
-    for f in "${TEMP_FILES_TO_CLEAN[@]}"; do
+    local f
+    for f in "${TEMP_FILES_TO_CLEAN[@]+"${TEMP_FILES_TO_CLEAN[@]}"}"; do
         rm -f "$f" 2>/dev/null
     done
     # Lockfile is NOT removed: deleting it creates a TOCTOU race
@@ -150,10 +178,11 @@ load_env_file() {
         [[ "$line" =~ ^[[:space:]]*$ ]] && continue
         key="${line%%=*}"
         value="${line#*=}"
+        value="${value%\"}"; value="${value#\"}"
         case "$key" in
             SERV_DHCP|SERV_SUBNET|SERV_BROADCAST|SERV_MASK|SERV_INI_RANGE_BLOCK|SERV_END_RANGE_BLOCK|SERV_DNS|\
             ACL_PATH|ACL_MAC_PATH|ACL_DHCP_PATH|HOTSPOT_PATH|\
-            ACL_MAC_PROXY|ACL_MAC_TRANSPARENT|ACL_MAC_UNLIMITED|ACL_MAC_HOTSPOT|ACL_GUEST_PENDING|ACL_BLOCK_FILE|\
+            ACL_MAC_PROXY|ACL_MAC_UNLIMITED|ACL_MAC_HOTSPOT|ACL_BLOCK_FILE|\
             ACL_GRACE_FILE|BLOCKDHCP_GRACE_SECONDS|UNIFI_HOTSPOT_ENABLED|\
             CLEANUP_INTERVAL|AUTHORIZED_LEASE_TIME|WPAD_ENABLED|PING_CHECK_ENABLED|\
             LOCAL_USER|SERVER_IP|HOTSPOT_IP_RANGE|HOTSPOT_RANGE_START|HOTSPOT_RANGE_END|POLL_INTERVAL)
@@ -192,10 +221,8 @@ fi
 : "${ACL_DHCP_PATH:=/etc/acl/acl_dhcp}"
 : "${HOTSPOT_PATH:=/etc/uhotspot}"
 : "${ACL_MAC_PROXY:=/etc/acl/acl_mac/mac-proxy.txt}"
-: "${ACL_MAC_TRANSPARENT:=/etc/acl/acl_mac/mac-transparent.txt}"
 : "${ACL_MAC_UNLIMITED:=/etc/acl/acl_mac/mac-unlimited.txt}"
 : "${ACL_MAC_HOTSPOT:=/etc/uhotspot/mac-hotspot.txt}"
-: "${ACL_GUEST_PENDING:=/etc/uhotspot/guest-pending.txt}"
 : "${ACL_BLOCK_FILE:=/etc/acl/acl_dhcp/blockdhcp.txt}"
 : "${BLOCKDHCP_GRACE_SECONDS:=86400}"
 : "${UNIFI_HOTSPOT_ENABLED:=true}"
@@ -301,7 +328,7 @@ initialize_empty_files() {
         chmod 600 "$ACL_BLOCK_FILE"
         chown root:root "$ACL_BLOCK_FILE"
     fi
-    for file in "$ACL_MAC_PROXY" "$ACL_MAC_TRANSPARENT" "$ACL_MAC_UNLIMITED"; do
+    for file in "$ACL_MAC_PROXY" "$ACL_MAC_UNLIMITED"; do
         if [ ! -f "$file" ]; then
             touch "$file"
             chmod 600 "$file"
@@ -313,11 +340,6 @@ initialize_empty_files() {
             touch "$ACL_MAC_HOTSPOT"
             chmod 600 "$ACL_MAC_HOTSPOT"
             chown root:root "$ACL_MAC_HOTSPOT"
-        fi
-        if [ ! -f "$ACL_GUEST_PENDING" ]; then
-            touch "$ACL_GUEST_PENDING"
-            chmod 600 "$ACL_GUEST_PENDING"
-            chown root:root "$ACL_GUEST_PENDING"
         fi
         if [ ! -f "$ACL_GRACE_FILE" ]; then
             touch "$ACL_GRACE_FILE"
@@ -334,31 +356,6 @@ verify_directories
 initialize_empty_files
 ulog "Verification OK — pydhcpd active, paths valid, HOTSPOT_ENABLED=${UNIFI_HOTSPOT_ENABLED:-true}"
 
-function guest_pending_fixed() {
-    while IFS= read -r line; do
-        macsource=$(echo "$line" | cut -d ';' -f 2)
-        ipsource=$(echo "$line" | cut -d ';' -f 3)
-        usersource=$(echo "$line" | cut -d ';' -f 4)
-        if ! [[ $macsource =~ ^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$ ]]; then
-            ulog "guest_pending_fixed: skipping entry, invalid MAC: $macsource"
-            continue
-        fi
-        if ! [[ $ipsource =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-            ulog "guest_pending_fixed: skipping entry, invalid IP: $ipsource"
-            continue
-        fi
-        if ! [[ $usersource =~ ^[A-Za-z0-9._-]{1,63}$ ]]; then
-            ulog "guest_pending_fixed: skipping entry, invalid hostname: $usersource"
-            continue
-        fi
-        echo "
-    host pending_${usersource} {
-    hardware ethernet ${macsource};
-    fixed-address ${ipsource};
-                }" >>"$dhcp_conf_temp"
-    done < "$ACL_GUEST_PENDING" 2>/dev/null || true
-}
-
 function clean_hotspot_list() {
     local removed=0 patterns
     patterns=$(mktemp)
@@ -374,10 +371,16 @@ function clean_hotspot_list() {
     done < "$patterns"
 
     if (( removed > 0 )); then
-        grep -vFf "$patterns" "$ACL_MAC_HOTSPOT" > "$ACL_MAC_HOTSPOT".tmp || true
-        chmod 600 "$ACL_MAC_HOTSPOT".tmp
-        TEMP_FILES_TO_CLEAN+=("${ACL_MAC_HOTSPOT}.tmp")
-        mv "$ACL_MAC_HOTSPOT".tmp "$ACL_MAC_HOTSPOT"
+        local _grep_rc=0
+        grep -vFf "$patterns" "$ACL_MAC_HOTSPOT" > "$ACL_MAC_HOTSPOT".tmp || _grep_rc=$?
+        if (( _grep_rc > 1 )); then
+            ulog "ERROR: clean_hotspot_list: grep failed (rc=$_grep_rc) — skipping update of mac-hotspot"
+            rm -f "$ACL_MAC_HOTSPOT".tmp
+        else
+            chmod 600 "$ACL_MAC_HOTSPOT".tmp
+            TEMP_FILES_TO_CLEAN+=("${ACL_MAC_HOTSPOT}.tmp")
+            mv "$ACL_MAC_HOTSPOT".tmp "$ACL_MAC_HOTSPOT"
+        fi
     fi
     rm -f "$patterns"
     ulog "clean_hotspot_list: done (removed=$removed)"
@@ -391,10 +394,11 @@ function clean_grace_list() {
     patterns=$(mktemp)
     TEMP_FILES_TO_CLEAN+=("${patterns}")
 
+    # Only remove from gracedhcp when MAC was promoted to an authoritative ACL
+    # (mac-* or mac-hotspot).
     {
         grep -h '^a;' "$ACL_MAC_PATH"/mac-* 2>/dev/null || true
         grep -h '^a;' "$ACL_MAC_HOTSPOT" 2>/dev/null || true
-        grep -h '^a;' "$ACL_GUEST_PENDING" 2>/dev/null || true
     } | awk -F';' '{print tolower($2)}' | sort -u > "$file_temp"
 
     local removed=0
@@ -404,7 +408,6 @@ function clean_grace_list() {
             local found_in=""
             grep -qhi "^a;${mac_actual};" "$ACL_MAC_PATH"/mac-* 2>/dev/null && found_in="acl_mac" || true
             grep -qi "^a;${mac_actual};" "$ACL_MAC_HOTSPOT" 2>/dev/null && found_in="${found_in:+$found_in/}hotspot" || true
-            grep -qi "^a;${mac_actual};" "$ACL_GUEST_PENDING" 2>/dev/null && found_in="${found_in:+$found_in/}pending" || true
             ulog "clean_grace_list: removing $mac_actual from gracedhcp (found in ${found_in:-unknown}, date=$(date))"
             printf '^a;%s;\n' "$mac_actual" >> "$patterns"
             (( removed++ )) || true
@@ -413,9 +416,15 @@ function clean_grace_list() {
 
     TEMP_FILES_TO_CLEAN+=("${ACL_GRACE_FILE}.tmp")
     if (( removed > 0 )); then
-        grep -vif "$patterns" "$ACL_GRACE_FILE" > "$ACL_GRACE_FILE.tmp" || true
-        chmod 600 "$ACL_GRACE_FILE.tmp"
-        mv "$ACL_GRACE_FILE.tmp" "$ACL_GRACE_FILE"
+        local _grep_rc=0
+        grep -vif "$patterns" "$ACL_GRACE_FILE" > "$ACL_GRACE_FILE.tmp" || _grep_rc=$?
+        if (( _grep_rc > 1 )); then
+            ulog "ERROR: clean_grace_list: grep failed (rc=$_grep_rc) — skipping update of gracedhcp"
+            rm -f "$ACL_GRACE_FILE.tmp"
+        else
+            chmod 600 "$ACL_GRACE_FILE.tmp"
+            mv "$ACL_GRACE_FILE.tmp" "$ACL_GRACE_FILE"
+        fi
     fi
     rm -f "$file_temp" "$patterns"
 }
@@ -430,7 +439,8 @@ function expire_grace_entries() {
     grace_count=$(grep -c '^a;' "$ACL_GRACE_FILE" 2>/dev/null) || grace_count=0
     ulog "expire_grace_entries: processing $grace_count entries (now=$now_epoch, grace=${BLOCKDHCP_GRACE_SECONDS}s)"
 
-    while IFS=';' read -r status mac ip hostname epoch _; do
+    while IFS= read -r _line; do
+        IFS=';' read -r status mac ip hostname epoch _ <<< "$_line"
         if [[ "$status" != "a" || -z "$mac" || -z "$epoch" || ! "$epoch" =~ ^[0-9]+$ ]]; then
             ulog "expire_grace_entries: skipping malformed line (status=$status mac=$mac epoch=$epoch)"
             continue
@@ -439,6 +449,11 @@ function expire_grace_entries() {
         if (( age >= BLOCKDHCP_GRACE_SECONDS )); then
             ulog "expire_grace_entries: expired $mac (age=${age}s) → blockdhcp"
             echo "a;${mac};${ip};${hostname};" >> "$ACL_BLOCK_FILE"
+            # Queue lease removal so pydhcpd stops serving this MAC from the pool.
+            if ! grep -qxF "$mac" "$LEASE_REMOVE_QUEUE" 2>/dev/null; then
+                echo "$mac" >> "$LEASE_REMOVE_QUEUE"
+                ulog "expire_grace_entries: queued lease removal for $mac"
+            fi
         else
             ulog "expire_grace_entries: keeping $mac (age=${age}s, remaining=$(( BLOCKDHCP_GRACE_SECONDS - age ))s)"
             echo "a;${mac};${ip};${hostname};${epoch};" >> "$file_temp"
@@ -455,6 +470,7 @@ function is_pydhcp() {
     dhcp_conf="/etc/pydhcp/pydhcpd.conf"
     dhcp_conf_temp="/etc/pydhcp/pydhcpd.conf.temp"
     echo "" >"$dhcp_conf_temp"
+    TEMP_FILES_TO_CLEAN+=("$dhcp_conf_temp")
 
     function read_leases() {
         # grep returns exit 1 on no-match, which is legitimate here and must
@@ -492,17 +508,12 @@ function is_pydhcp() {
                         line_lease="a;$mac_address;$ip_address;$host;"
 
                         if [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]]; then
-                            # Check each ACL source independently with explicit || true
-                            # so a no-match (exit 1) never aborts the script.
+                            # Authoritative: managed MAC (mac-*) or voucher-authenticated (mac-hotspot).
                             mac_authoritative=""
                             grep -qi "^a;${mac_address};" "$ACL_MAC_PATH"/mac-* 2>/dev/null \
                                 && mac_authoritative="yes" || true
                             if [[ -z "$mac_authoritative" ]]; then
                                 grep -qi "^a;${mac_address};" "$ACL_MAC_HOTSPOT" 2>/dev/null \
-                                    && mac_authoritative="yes" || true
-                            fi
-                            if [[ -z "$mac_authoritative" ]]; then
-                                grep -qi "^a;${mac_address};" "$ACL_GUEST_PENDING" 2>/dev/null \
                                     && mac_authoritative="yes" || true
                             fi
 
@@ -512,10 +523,18 @@ function is_pydhcp() {
                             elif grep -qi "^a;${mac_address};" "$ACL_BLOCK_FILE" 2>/dev/null; then
                                 ulog "read_leases: $mac_address → blocked (lease discarded)"
                             elif grep -qi "^a;${mac_address};" "$ACL_GRACE_FILE" 2>/dev/null; then
-                                ulog "read_leases: $mac_address → already in gracedhcp (lease managed by daemon)"
+                                ulog "read_leases: $mac_address → gracedhcp (active, lease kept)"
+                                echo "$lease_content" >> "$temp_leases"
                             else
-                                ulog "read_leases: $mac_address → new unknown → gracedhcp (ip=$ip_address host=$host epoch=$(date +%s) date=$(date))"
-                                echo "a;${mac_address};${ip_address};${host};$(date +%s);" >> "$ACL_GRACE_FILE"
+                                local wellknow_file="${HOTSPOT_PATH}/guest-wellknow.txt"
+                                if grep -qxiF "${mac_address}" "${wellknow_file}" 2>/dev/null; then
+                                    ulog "read_leases: $mac_address → previously authenticated (wellknow) — lease kept, no grace timer"
+                                    echo "$lease_content" >> "$temp_leases"
+                                else
+                                    ulog "read_leases: $mac_address → new → gracedhcp (ip=$ip_address host=$host epoch=$(date +%s))"
+                                    echo "a;${mac_address};${ip_address};${host};$(date +%s);" >> "$ACL_GRACE_FILE"
+                                    echo "$lease_content" >> "$temp_leases"
+                                fi
                             fi
                         else
                             if ! grep -qi "^a;${mac_address};" "$ACL_MAC_PATH"/mac-* 2>/dev/null; then
@@ -618,9 +637,8 @@ ddns-update-style none;
             fi
         done <<< "$all_sources"
 
-        if [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]]; then
-            guest_pending_fixed
-        fi
+        # gracedhcp clients retain
+        # their pydhcpd pool lease and need no fixed-address entry here.
 
         echo '
 class "blockdhcp" {
@@ -681,10 +699,16 @@ class "blockdhcp" {
         done <"$file_temp"
 
         if (( removed > 0 )); then
-            grep -vFf "$patterns" "$ACL_BLOCK_FILE" > "$ACL_BLOCK_FILE".tmp || true
-            chmod 600 "$ACL_BLOCK_FILE".tmp
-            TEMP_FILES_TO_CLEAN+=("${ACL_BLOCK_FILE}.tmp")
-            mv "$ACL_BLOCK_FILE".tmp "$ACL_BLOCK_FILE"
+            local _grep_rc=0
+            grep -vFf "$patterns" "$ACL_BLOCK_FILE" > "$ACL_BLOCK_FILE".tmp || _grep_rc=$?
+            if (( _grep_rc > 1 )); then
+                ulog "ERROR: clean_block_list: grep failed (rc=$_grep_rc) — skipping update of blockdhcp"
+                rm -f "$ACL_BLOCK_FILE".tmp
+            else
+                chmod 600 "$ACL_BLOCK_FILE".tmp
+                TEMP_FILES_TO_CLEAN+=("${ACL_BLOCK_FILE}.tmp")
+                mv "$ACL_BLOCK_FILE".tmp "$ACL_BLOCK_FILE"
+            fi
         fi
         rm -f "$file_temp" "$patterns"
         ulog "clean_block_list: done (removed=$removed)"
@@ -708,45 +732,24 @@ class "blockdhcp" {
             local file_temp
             file_temp=$(mktemp)
             TEMP_FILES_TO_CLEAN+=("${file_temp}")
-            grep -vFf "$patterns" "$ACL_MAC_PROXY" > "$file_temp" || true
-            mv "$file_temp" "$ACL_MAC_PROXY"
-            rm -f "$file_temp"
+            local _grep_rc=0
+            grep -vFf "$patterns" "$ACL_MAC_PROXY" > "$file_temp" || _grep_rc=$?
+            if (( _grep_rc > 1 )); then
+                ulog "ERROR: clean_proxy_list: grep failed (rc=$_grep_rc) — skipping update of mac-proxy"
+                rm -f "$file_temp"
+            else
+                mv "$file_temp" "$ACL_MAC_PROXY"
+            fi
         fi
         rm -f "$patterns"
         ulog "clean_proxy_list: done (removed=$removed)"
     }
 
-    function clean_transparent_list {
-        local removed=0 patterns
-        patterns=$(mktemp)
-        TEMP_FILES_TO_CLEAN+=("${patterns}")
-        awk -F';' 'NF>=2 && $2!="" {print ";"$2";"}' "$ACL_MAC_UNLIMITED" | sort -u > "$patterns"
-
-        while IFS= read -r pat; do
-            local mac_actual="${pat//;/}"
-            if grep -qF "$pat" "$ACL_MAC_TRANSPARENT" 2>/dev/null; then
-                ulog "clean_transparent_list: removing $mac_actual from mac-transparent (found in mac-unlimited)"
-                (( removed++ )) || true
-            fi
-        done < "$patterns"
-
-        if (( removed > 0 )); then
-            local file_temp
-            file_temp=$(mktemp)
-            TEMP_FILES_TO_CLEAN+=("${file_temp}")
-            grep -vFf "$patterns" "$ACL_MAC_TRANSPARENT" > "$file_temp" || true
-            mv "$file_temp" "$ACL_MAC_TRANSPARENT"
-            rm -f "$file_temp"
-        fi
-        rm -f "$patterns"
-        ulog "clean_transparent_list: done (removed=$removed)"
-    }
 
     function clean_acl {
         ulog "clean_acl: removing empty lines from ACL files"
         sed '/^$/d' -i "$ACL_BLOCK_FILE"
         sed '/^$/d' -i "$ACL_MAC_PROXY"
-        sed '/^$/d' -i "$ACL_MAC_TRANSPARENT"
         sed '/^$/d' -i "$ACL_MAC_UNLIMITED"
         if [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]]; then
             sed '/^$/d' -i "$ACL_MAC_HOTSPOT"
@@ -785,7 +788,6 @@ class "blockdhcp" {
     if [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]]; then
         clean_hotspot_list
     fi
-    clean_transparent_list
     ulog "Stopping pydhcpd"
     systemctl stop pydhcpd
     trap 'rm -f "${TEMP_FILES_TO_CLEAN[@]}" 2>/dev/null; systemctl reset-failed pydhcpd 2>/dev/null; systemctl is-active --quiet pydhcpd || systemctl start pydhcpd' EXIT
@@ -871,9 +873,16 @@ drain_lease_queue() {
 
 function duplicate() {
     local has_error=0 sources=()
+    shopt -s nullglob
     sources=("$ACL_MAC_PATH"/mac-*)
+    shopt -u nullglob
     if [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]]; then
         sources+=("$ACL_MAC_HOTSPOT")
+    fi
+    if [[ ${#sources[@]} -eq 0 ]]; then
+        ulog "duplicate: no ACL source files found — skipping duplicate check"
+        is_pydhcp
+        return
     fi
 
     local field field_name dups dup locations
@@ -904,7 +913,7 @@ duplicate
 
 # Final summary
 _count() { local c=0; c=$(grep -c '^a;' "$1" 2>/dev/null) || c=0; echo "$c"; }
-ulog "Summary: blockdhcp=$(_count "$ACL_BLOCK_FILE") | proxy=$(_count "$ACL_MAC_PROXY") | transparent=$(_count "$ACL_MAC_TRANSPARENT") | unlimited=$(_count "$ACL_MAC_UNLIMITED")$(
-    [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]] && echo " | hotspot=$(_count "$ACL_MAC_HOTSPOT") | gracedhcp=$(_count "$ACL_GRACE_FILE") | pending=$(_count "$ACL_GUEST_PENDING")"
+ulog "Summary: blockdhcp=$(_count "$ACL_BLOCK_FILE") | proxy=$(_count "$ACL_MAC_PROXY") | unlimited=$(_count "$ACL_MAC_UNLIMITED")$(
+    [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]] && echo " | hotspot=$(_count "$ACL_MAC_HOTSPOT") | gracedhcp=$(_count "$ACL_GRACE_FILE")"
 )"
 ulog "Done"

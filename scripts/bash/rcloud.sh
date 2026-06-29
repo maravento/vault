@@ -81,13 +81,6 @@ if ! command -v rclone &>/dev/null; then
         rm -f "$RCLONE_INSTALLER"
         exit 1
     fi
-    EXPECTED_INSTALLER_SHA256="$(curl -fsSL https://rclone.org/install.sh | sha256sum | awk '{print $1}')"
-    ACTUAL_INSTALLER_SHA256="$(sha256sum "$RCLONE_INSTALLER" | awk '{print $1}')"
-    if [ "$ACTUAL_INSTALLER_SHA256" != "$EXPECTED_INSTALLER_SHA256" ]; then
-        echo "ERROR: Rclone installer integrity check failed. Aborting."
-        rm -f "$RCLONE_INSTALLER"
-        exit 1
-    fi
     bash "$RCLONE_INSTALLER"
     rm -f "$RCLONE_INSTALLER"
     if ! command -v rclone &>/dev/null; then

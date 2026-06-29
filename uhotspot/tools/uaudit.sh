@@ -13,9 +13,7 @@
 #                    STATUS values: MULTI (USED_MULTIPLE), VALID (VALID_ONE),
 #                    CONSUMED (quota exhausted, auto-purged by UniFi).
 #                    ON column: YES if client is currently connected to the AP.
-#   2. Pending     - guest-pending.txt enriched with live connection status
-#                    and authorization flag (stat/sta)
-#   3. Vouchers    - full voucher list from stat/voucher with usage stats
+#   2. Vouchers    - full voucher list from stat/voucher with usage stats
 #
 # INTERACTIVE ACTIONS (after report)
 #   [1] Delete unused vouchers   - delete vouchers never activated (used=0)
@@ -87,7 +85,7 @@ if [[ "$_owner" != "root" ]] || [[ "$_gdigit" =~ [2367] ]] || [[ "$_odigit" =~ [
 fi
 source "$CONFIG"
 
-if [ -z "$UNIFI_CONTROLLER_URL" ] || [ -z "$UNIFI_USERNAME" ] || [ -z "$UNIFI_PASSWORD" ] || [ -z "$HOTSPOT_ESSID" ]; then
+if [ -z "${UNIFI_CONTROLLER_URL:-}" ] || [ -z "${UNIFI_USERNAME:-}" ] || [ -z "${UNIFI_PASSWORD:-}" ] || [ -z "${HOTSPOT_ESSID:-}" ]; then
     echo "ERROR: Missing required variables (UNIFI_CONTROLLER_URL, UNIFI_USERNAME, UNIFI_PASSWORD, HOTSPOT_ESSID) in $CONFIG"
     exit 1
 fi
@@ -279,46 +277,7 @@ print_authorized() {
     echo ""
 }
 
-# ── Section 2: Pending clients (guest-pending.txt + stat/sta) ────────────────
-print_pending() {
-    local ACL_PENDING="/etc/uhotspot/guest-pending.txt"
-    [ ! -f "$ACL_PENDING" ] && return
-
-    echo ""
-    echo "============================================================================"
-    echo " PENDING — guest-pending.txt"
-    echo "============================================================================"
-
-    local sta_map
-    sta_map=$(echo "$STA" | jq -r --arg essid "$HOTSPOT_ESSID" '
-        .data[]
-        | select(.essid == $essid)
-        | [(.mac | ascii_downcase), (if .authorized == true then "YES" else "NO" end)]
-        | @tsv
-    ' 2>/dev/null)
-
-    {
-        printf "MAC|IP|HOSTNAME|CONNECTED|AUTH\n"
-        while IFS=';' read -r status mac ip hostname _; do
-            [ "$status" != "a" ] && continue
-            [ -z "$mac" ] && continue
-
-            sta_row=$(echo "$sta_map" | awk -v mac="${mac}" 'tolower($1) == tolower(mac)' FS='\t' | head -1)
-            if [ -n "$sta_row" ]; then
-                connected="YES"
-                auth=$(echo "$sta_row" | awk -F'\t' '{print $2}')
-            else
-                connected="NO"
-                auth="NO"
-            fi
-
-            echo "$mac|$ip|$hostname|$connected|$auth"
-        done < "$ACL_PENDING"
-    } | column -t -s '|'
-    echo ""
-}
-
-# ── Section 3: Vouchers (stat/voucher) ───────────────────────────────────────
+# ── Section 2: Vouchers (stat/voucher) ───────────────────────────────────────
 print_voucher() {
     echo ""
     echo "============================================================================"
@@ -582,7 +541,7 @@ interactive_delete_expired() {
     echo "  Done."
 }
 
-# ── Interactive [4]: purge all vouchers and client history ────────────────────
+# ── Interactive [5]: purge all vouchers and client history ────────────────────
 interactive_purge_all() {
     if [[ "$VCH_RC" != "ok" ]]; then
         echo "  ERROR: stat/voucher data unavailable (rc=$VCH_RC) — aborting purge."
@@ -674,7 +633,6 @@ interactive_purge_all() {
 # ── Run report ────────────────────────────────────────────────────────────────
 OUTPUT=""
 OUTPUT+=$(print_authorized)
-OUTPUT+=$(print_pending)
 OUTPUT+=$(print_voucher)
 
 echo "$OUTPUT"
@@ -687,7 +645,7 @@ echo "$OUTPUT"
 
 printf "\nAudit complete. Log saved to: %s\n" "$LOG"
 
-# ── Interactive [5]: revoke voucher by code (workaround for UniFi bug) ────────
+# ── Interactive [4]: revoke voucher by code (workaround for UniFi bug) ────────
 interactive_revoke_by_code() {
     echo ""
     echo "============================================================================"

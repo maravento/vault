@@ -164,8 +164,8 @@ mv "${TMP_DIR}/normalized_lst2.txt" "${TMP_DIR}/normalized_lst.txt"
 # both, and '@'/'{'/'}'/'('/')' combined with brackets produce malformed
 # or unintended ACL rules, e.g. "*.[attacker@tuta.io].kix" or "*.CROWN!?".
 UNSAFE_RE='\[[A-Za-z]*ID[A-Za-z_-]*\]|\[KEY\]|[][@{}()?^]'
-grep -E '^\*\.[^*[:space:]]+$' "${TMP_DIR}/normalized_lst.txt" | grep -E -v "${UNSAFE_RE}" > "${TMP_DIR}/output_lst.txt"
-grep -E -v '^\*\.[^*[:space:]]+$' "${TMP_DIR}/normalized_lst.txt" > "${TMP_DIR}/discarded_lst.txt"
+grep -E '^\*\.[^*[:space:]]+$' "${TMP_DIR}/normalized_lst.txt" | grep -E -v "${UNSAFE_RE}" > "${TMP_DIR}/output_lst.txt" || true
+grep -E -v '^\*\.[^*[:space:]]+$' "${TMP_DIR}/normalized_lst.txt" > "${TMP_DIR}/discarded_lst.txt" || true
 grep -E '^\*\.[^*[:space:]]+$' "${TMP_DIR}/normalized_lst.txt" | grep -E "${UNSAFE_RE}" >> "${TMP_DIR}/discarded_lst.txt" || true
 sort -u -o "${TMP_DIR}/discarded_lst.txt" "${TMP_DIR}/discarded_lst.txt"
 

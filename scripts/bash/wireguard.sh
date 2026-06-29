@@ -166,9 +166,6 @@ PersistentKeepalive = 25 # Optional" > /etc/wireguard/wg0.conf
     # Permissions for files and keys
     chmod 600 /etc/wireguard/wg0.conf
 
-    # Enable WireGuard service
-    systemctl enable wg-quick@wg0
-
     # Show completion message
     echo "WireGuard client installation complete."
     echo
@@ -177,10 +174,10 @@ PersistentKeepalive = 25 # Optional" > /etc/wireguard/wg0.conf
     echo "Please edit the following file and replace the placeholders:"
     echo "/etc/wireguard/wg0.conf"
     echo "  - Replace <Client IP>/32 with your assigned client IP (e.g., 10.0.0.2/32)."
-    echo "  - Replace <Client's Private Key> with the client's private key."
     echo "  - Replace <Server's Public Key> with the server's public key."
-    echo "  - Replace <Server's Public IP:Port> with the server's IP address (e.g., 192.168.1.1:51820)."
-    echo "Once you have made the changes, start WireGuard with:"
+    echo "  - Replace <Server's Public IP>:51820 with the server's IP address (e.g., 192.168.1.1:51820)."
+    echo "Once you have made the changes, enable and start WireGuard with:"
+    echo "  sudo systemctl enable wg-quick@wg0"
     echo "  sudo wg-quick up wg0"
   else
     echo "WireGuard is already installed"

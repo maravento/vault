@@ -49,10 +49,9 @@ fi
 > not_exists.txt
 
 PROCS=$(($(nproc) * 4))
-MAX_PROCS=200
-if [ "$PROCS" -gt "$MAX_PROCS" ]; then
-    PROCS="$MAX_PROCS"
-fi
+
+dnslookup="dnslookup.txt"
+: > "$dnslookup"
 
 check_domain() {
     original="$1"
@@ -62,12 +61,17 @@ check_domain() {
     done
     if timeout 5 host "$clean" > /dev/null 2>&1; then
         echo "$original exists"
-        echo "$original" >> exists.txt
+        echo "EXISTS $original" >> "$dnslookup"
     else
         echo "$original does NOT exist"
-        echo "$original" >> not_exists.txt
+        echo "NOT_EXISTS $original" >> "$dnslookup"
     fi
 }
 export -f check_domain
+export dnslookup
 
 cat "$list" | xargs -n 1 -P "$PROCS" -I {} bash -c 'check_domain "$@"' -- {}
+
+sed '/^NOT_EXISTS/d' "$dnslookup" | awk '{print $2}' > exists.txt
+sed '/^EXISTS/d' "$dnslookup" | awk '{print $2}' > not_exists.txt
+rm -f "$dnslookup"

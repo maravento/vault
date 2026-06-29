@@ -212,6 +212,9 @@ stop() {
             rm -f "$TAIL_PID"
         fi
 
+        # Kill any tail processes watching arpwatch log files that may have outlived their subshell
+        pkill -f "tail -n0 -F ${LOGDIR}/" 2>/dev/null || true
+
         # Stop arpwatch instances
         if [[ -f "$ARPWATCH_PIDS" ]]; then
             while read -r pid; do

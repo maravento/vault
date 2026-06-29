@@ -53,8 +53,6 @@ if "%choice%"=="4" goto :4
 if "%choice%"=="5" goto :5
 if "%choice%"=="6" goto end
 goto :invalid
-echo %choice% | findstr /r "^[1-6]$" >nul
-if %errorlevel% neq 0 goto :invalid
 
 :1
 REM Activate SMB signing

@@ -20,10 +20,6 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-cleanup() {
-    rm -f "$SCRIPT_LOCK"
-}
-trap cleanup EXIT
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"

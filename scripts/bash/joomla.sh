@@ -37,6 +37,10 @@ install_joomla() {
     read -r -sp "Set the password for the MySQL joomla user: " DBPASS
     echo
 
+    # Escape single quotes for safe embedding in SQL string literals (SQL standard: ' → '')
+    SQL_ROOTPASS="${ROOTPASS//\'/\'\'}"
+    SQL_DBPASS="${DBPASS//\'/\'\'}"
+
     apt update && apt upgrade -y
 
     apt install -y apache2 apache2-doc apache2-utils apache2-dev apache2-suexec-pristine libaprutil1t64 libaprutil1-dev libtest-fatal-perl
@@ -63,7 +67,7 @@ install_joomla() {
     apt install -f
 
     mysql -u root <<EOF
-ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${ROOTPASS}';
+ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${SQL_ROOTPASS}';
 DELETE FROM mysql.user WHERE User='';
 DROP DATABASE IF EXISTS test;
 DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
@@ -85,7 +89,7 @@ EOF
     if [ "${USER_EXISTS:-1}" -eq 0 ]; then
         echo "Creating joomla_user user..."
         mysql -u root -p"${ROOTPASS}" <<EOF
-CREATE USER 'joomla_user'@'localhost' IDENTIFIED BY '${DBPASS}';
+CREATE USER 'joomla_user'@'localhost' IDENTIFIED BY '${SQL_DBPASS}';
 GRANT ALL PRIVILEGES ON joomla_db.* TO 'joomla_user'@'localhost';
 FLUSH PRIVILEGES;
 EOF

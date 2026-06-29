@@ -228,9 +228,9 @@ def scan():
         for key, urls in sorted(by_type.items()):
             label = ERROR_LABELS.get(key, key)
             print(f"  ── {label} ({len(urls)}) ──")
-            for url, status in urls:
+            for u, status in urls:
                 code = str(status) if status else "—"
-                print(f"     [{code}] {url}")
+                print(f"     [{code}] {u}")
             print()
 
         filename = f"broken_links_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
@@ -255,9 +255,9 @@ def scan():
                 for key, urls in sorted(by_type.items()):
                     label = ERROR_LABELS.get(key, key)
                     f.write(f"── {label} ({len(urls)}) ──\n")
-                    for url, status in urls:
+                    for u, status in urls:
                         code = str(status) if status else "—"
-                        f.write(f"   [{code}] {url}\n")
+                        f.write(f"   [{code}] {u}\n")
                     f.write("\n")
 
             print(f"💾 Results saved to: {filename}")

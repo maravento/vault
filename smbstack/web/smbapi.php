@@ -140,7 +140,7 @@ class SambaLogReader {
             $file->seek(PHP_INT_MAX);
             $totalLines = $file->key();
             
-            $startLine = max(0, $totalLines - 10000);
+            $startLine = max(0, $totalLines - $limit);
             $file->seek($startLine);
             
             while (!$file->eof() && count($logs) < $limit) {

@@ -414,8 +414,8 @@ switch_to_networkd() {
     analysis=$(detect_and_classify_interfaces)
     echo ""
     
-    get_renderer_recommendation "$analysis"
-    rec_result=$?
+    rec_result=0
+    get_renderer_recommendation "$analysis" || rec_result=$?
     echo ""
     
     if [ $rec_result -eq 1 ]; then
@@ -548,7 +548,7 @@ switch_to_nm() {
     analysis=$(detect_and_classify_interfaces)
     echo ""
     
-    get_renderer_recommendation "$analysis"
+    get_renderer_recommendation "$analysis" || true
     echo ""
     
     echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -681,7 +681,7 @@ show_status() {
     analysis=$(detect_and_classify_interfaces)
     echo ""
     
-    get_renderer_recommendation "$analysis"
+    get_renderer_recommendation "$analysis" || true
     echo ""
     
     echo -e "${BLUE}Service status:${NC}"

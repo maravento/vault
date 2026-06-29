@@ -12,9 +12,6 @@
 # Download:
 # https://www.salicru.com/us-en/winpower.html
 #
-# Serial: 511C1-01220-0100-478DF2A
-# Admin password: Administrator
-#
 # Docs:
 # Quick Setup: https://d7rh5s3nxmpy4.cloudfront.net/CMP1313/files/2/WinPower_Quick_Installation_and_Setup.pdf
 # User Manual: https://d7rh5s3nxmpy4.cloudfront.net/CMP1313/files/1/UserManual_Winpower_ENG.pdf

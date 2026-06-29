@@ -75,7 +75,7 @@ WATCH_DIR="/home/$local_user/dir1 /home/$local_user/dir2"
 DELETE_DIR="/home/$local_user/delete"
 
 # Folder size limit
-# Example: 30 GB = LIMIT=$((30*1024*1024*1024)) or 1 GB = LIMIT=$((1024*1024*1024))
+# Default: 1 GB. To increase, change LIMIT (e.g. 30 GB = LIMIT=$((30*1024*1024*1024)))
 LIMIT=$((1024*1024*1024))
 
 #####################
@@ -305,6 +305,7 @@ stop() {
             exit 1
         fi
         kill "$PID" 2>/dev/null && echo "Watcher stopped (PID $PID)" || echo "Could not stop watcher"
+        pkill -f "inotifywait.*-e create" 2>/dev/null || true
         rm -f "$PIDFILE"
     else
         echo "Watcher is not running"

@@ -96,7 +96,7 @@ start_limit() {
     fi
 
     # Apply cpulimit to each matching PID
-    > /var/run/cpulimit_managed.pid
+    >> /var/run/cpulimit_managed.pid
     while IFS= read -r pid; do
         cpulimit -l "$cpu_limit" -p "$pid" >/dev/null &
         cpulimit_pid=$!
@@ -132,6 +132,7 @@ stop_limit() {
     else
         pkill -x "cpulimit" 2>/dev/null || true
     fi
+    pkill -x "cpulimit" 2>/dev/null || true
     echo "All CPU Limit have been stopped"
 }
 

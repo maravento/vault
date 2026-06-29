@@ -265,12 +265,12 @@ sudo tail -f /var/log/pydhcpd.log
   <tr>
     <td style="width: 50%; vertical-align: top;">
       <b>pyleases.sh</b> — Advanced DHCP lease and ACL manager for pydhcpd. Parses <code>pydhcpd.leases</code>, detects unauthorized clients, rebuilds <code>pydhcpd.conf</code> from ACL files, and restarts the daemon. Designed for environments enforcing DHCP-based access control.<br><br>
-      ACL directories: <code>/etc/acl/acl_mac/</code> (authorized: <code>mac-proxy.txt</code>, <code>mac-transparent.txt</code>, <code>mac-unlimited.txt</code>) and <code>/etc/acl/acl_dhcp/</code> (blocked: <code>blockdhcp.txt</code>).<br>
+      ACL directories: <code>/etc/acl/acl_mac/</code> (authorized: <code>mac-proxy.txt</code>, <code>mac-unlimited.txt</code>) and <code>/etc/acl/acl_dhcp/</code> (blocked: <code>blockdhcp.txt</code>).<br>
       Entry format: <code>a;MAC;IP;HOSTNAME;</code>
     </td>
     <td style="width: 50%; vertical-align: top;">
       <b>pyleases.sh</b> — Gestor avanzado de concesiones y ACLs DHCP para pydhcpd. Parsea <code>pydhcpd.leases</code>, detecta clientes no autorizados, reconstruye <code>pydhcpd.conf</code> a partir de archivos ACL y reinicia el demonio. Diseñado para entornos que aplican control de acceso basado en DHCP.<br><br>
-      Directorios ACL: <code>/etc/acl/acl_mac/</code> (autorizados: <code>mac-proxy.txt</code>, <code>mac-transparent.txt</code>, <code>mac-unlimited.txt</code>) y <code>/etc/acl/acl_dhcp/</code> (bloqueados: <code>blockdhcp.txt</code>).<br>
+      Directorios ACL: <code>/etc/acl/acl_mac/</code> (autorizados: <code>mac-proxy.txt</code>, <code>mac-unlimited.txt</code>) y <code>/etc/acl/acl_dhcp/</code> (bloqueados: <code>blockdhcp.txt</code>).<br>
       Formato: <code>a;MAC;IP;HOSTNAME;</code>
     </td>
   </tr>

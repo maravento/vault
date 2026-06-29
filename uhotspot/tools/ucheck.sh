@@ -22,11 +22,10 @@
 #   5. Exit
 #
 # DATA SOURCES CHECKED:
-#   guest-pending.txt  - Clients awaiting captive-portal authentication
-#   mac-hotspot.txt    - Clients authorized through the hotspot portal
-#   gracedhcp.txt      - Clients in the 24-hour grace period after hotspot auth
-#   blockdhcp.txt      - Blocked/unknown MACs (quarantine pool, short lease)
-#   acl_mac/*.txt      - Permanent ACL lists (proxy, transparent, unlimited)
+#   mac-hotspot.txt    - Clients with an active voucher (hotspot authorized)
+#   gracedhcp.txt      - Clients in the grace period (no voucher yet)
+#   blockdhcp.txt      - Blocked MACs (grace expired without voucher)
+#   acl_mac/*.txt      - Permanent ACL lists (proxy, unlimited)
 #   pydhcpd.leases     - Active DHCP lease file
 #
 # CONSISTENCY RULES:
@@ -39,8 +38,7 @@
 #   Grace period     | gracedhcp Y, leases Y (may be absent briefly
 #                    | due to short 60s pool lease and limited range)
 #   ACL permanent    | acl_mac Y, NOT in blockdhcp
-#   Pending portal   | guest-pending only
-#   Hotspot auth     | mac-hotspot Y, gracedhcp Y
+#   Hotspot auth     | mac-hotspot Y, gracedhcp N (removed by clean_grace_list)
 #
 # EXIT CODES:
 #   0 - Normal exit
@@ -66,7 +64,6 @@ BLOCKDHCP_GRACE_SECONDS=${BLOCKDHCP_GRACE_SECONDS:-86400}
 
 # Paths (defaults match the values written by uleases.sh's setup_env() to
 # uleases.env; used as fallback since this script does not source that file)
-GUEST_PENDING="${ACL_GUEST_PENDING:-/etc/uhotspot/guest-pending.txt}"
 MAC_HOTSPOT="${ACL_MAC_HOTSPOT:-/etc/uhotspot/mac-hotspot.txt}"
 GRACE_DHCP="${ACL_GRACE_FILE:-/etc/acl/acl_dhcp/gracedhcp.txt}"
 BLOCK_DHCP="${ACL_BLOCK_FILE:-/etc/acl/acl_dhcp/blockdhcp.txt}"
@@ -127,10 +124,7 @@ check_mac() {
 
     printf "${WHITE}=== %s ===${NC}\n" "$mac"
 
-    local in_pending=0 in_hotspot=0 in_grace=0 in_block=0 in_acl=0 in_leases=0
-
-    printf "  guest-pending.txt: "
-    if found_in "$mac" "$GUEST_PENDING"; then in_pending=1; printf "$OK\n"; else printf "$NO\n"; fi
+    local in_hotspot=0 in_grace=0 in_block=0 in_acl=0 in_leases=0
 
     printf "  mac-hotspot.txt:   "
     if found_in "$mac" "$MAC_HOTSPOT"; then in_hotspot=1; printf "$OK\n"; else printf "$NO\n"; fi
@@ -180,15 +174,16 @@ check_mac() {
     fi
 
     if [ $in_grace -eq 1 ] && [ $in_leases -eq 0 ]; then
-        info "In gracedhcp without active lease (normal -- short pool lease / limited range)"
+        info "In gracedhcp without active lease"
+        info "(normal: short pool lease / limited range)"
     fi
 
-    if [ $in_pending -eq 1 ] && [ $in_hotspot -eq 1 ]; then
-        warn "In guest-pending AND mac-hotspot -- should move from pending to hotspot, not both"
+    if [ $in_hotspot -eq 1 ] && [ $in_grace -eq 1 ]; then
+        warn "In mac-hotspot AND gracedhcp -- clean_grace_list should have removed it from gracedhcp"
         warnings=$((warnings+1))
     fi
 
-    local total=$((in_pending + in_hotspot + in_grace + in_block + in_acl + in_leases))
+    local total=$((in_hotspot + in_grace + in_block + in_acl + in_leases))
     if [ $total -eq 0 ]; then
         printf "  ${YELLOW}[!] MAC not found in any data source${NC}\n"
     fi
@@ -266,7 +261,7 @@ menu_consistency() {
     tmpfile=$(mktemp)
 
     # From semicolon-delimited files (field 2)
-    for f in "$GUEST_PENDING" "$MAC_HOTSPOT" "$GRACE_DHCP" "$BLOCK_DHCP"; do
+    for f in "$MAC_HOTSPOT" "$GRACE_DHCP" "$BLOCK_DHCP"; do
         [ -f "$f" ] && awk -F';' '{print tolower($2)}' "$f" >> "$tmpfile" 2>/dev/null
     done
 
@@ -283,11 +278,10 @@ menu_consistency() {
     rm -f "$tmpfile"
 
     local total_warnings=0
-    local cnt_grace=0 cnt_block=0 cnt_acl=0 cnt_pending=0 cnt_hotspot=0 cnt_leases=0
+    local cnt_grace=0 cnt_block=0 cnt_acl=0 cnt_hotspot=0 cnt_leases=0
 
     for mac in "${all_macs[@]}"; do
         # Count per state for summary
-        found_in "$mac" "$GUEST_PENDING" && cnt_pending=$((cnt_pending+1))
         found_in "$mac" "$MAC_HOTSPOT"   && cnt_hotspot=$((cnt_hotspot+1))
         found_in "$mac" "$GRACE_DHCP"    && cnt_grace=$((cnt_grace+1))
         found_in "$mac" "$BLOCK_DHCP"    && cnt_block=$((cnt_block+1))
@@ -296,8 +290,7 @@ menu_consistency() {
 
         # Run consistency check (only print if warnings)
         local w=0
-        local in_pending=0 in_hotspot=0 in_grace=0 in_block=0 in_acl=0 in_leases=0
-        found_in "$mac" "$GUEST_PENDING" && in_pending=1
+        local in_hotspot=0 in_grace=0 in_block=0 in_acl=0 in_leases=0
         found_in "$mac" "$MAC_HOTSPOT"   && in_hotspot=1
         found_in "$mac" "$GRACE_DHCP"    && in_grace=1
         found_in "$mac" "$BLOCK_DHCP"    && in_block=1
@@ -326,9 +319,9 @@ menu_consistency() {
             warn "In acl_mac AND blockdhcp -- pyleases should have removed it from blockdhcp"
             w=$((w+1))
         fi
-        if [ $in_pending -eq 1 ] && [ $in_hotspot -eq 1 ]; then
+        if [ $in_hotspot -eq 1 ] && [ $in_grace -eq 1 ]; then
             [ $w -eq 0 ] && printf "${WHITE}--- %s ---${NC}\n" "$mac"
-            warn "In guest-pending AND mac-hotspot -- should not be in both"
+            warn "In mac-hotspot AND gracedhcp -- clean_grace_list should have removed it from gracedhcp"
             w=$((w+1))
         fi
         [ $w -gt 0 ] && echo ""
@@ -341,7 +334,6 @@ menu_consistency() {
     printf "  Grace period      : %d\n" "$cnt_grace"
     printf "  Blocked           : %d\n" "$cnt_block"
     printf "  ACL permanent     : %d\n" "$cnt_acl"
-    printf "  Pending portal    : %d\n" "$cnt_pending"
     printf "  Hotspot auth      : %d\n" "$cnt_hotspot"
     printf "  Active leases     : %d\n" "$cnt_leases"
     if [ $total_warnings -eq 0 ]; then
@@ -373,7 +365,7 @@ menu_search() {
     tmpfile=$(mktemp)
 
     # Search in semicolon-delimited files (all fields)
-    for f in "$GUEST_PENDING" "$MAC_HOTSPOT" "$GRACE_DHCP" "$BLOCK_DHCP"; do
+    for f in "$MAC_HOTSPOT" "$GRACE_DHCP" "$BLOCK_DHCP"; do
         if [ -f "$f" ]; then
             grep -iF "$query" "$f" 2>/dev/null \
                 | awk -F';' '{print tolower($2)}' >> "$tmpfile"

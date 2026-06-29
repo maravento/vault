@@ -12,7 +12,6 @@ Environment="PYTHONUNBUFFERED=1"
 Environment="PYTHONDONTWRITEBYTECODE=1"
 ExecStart=/usr/bin/python3 /etc/pydhcp/pydhcpd.py
 ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/etc/pydhcp/pydhcpd.pid
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal

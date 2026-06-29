@@ -117,11 +117,6 @@ fi
 
 # format ntfs
 function pntfs() {
-    parted $myimg \
-        mklabel $vptable \
-        mkpart $ptype ntfs 2048s 100% \
-        set 1 lba on \
-        align-check optimal 1
     mkntfs -Q -v -F -L "$vlabel" $myimg
     ntfsresize -i -f -v $myimg
     ntfsresize --force --force --no-action $myimg
@@ -131,23 +126,14 @@ function pntfs() {
 
 # format fat32
 function pfat32() {
-    parted $myimg \
-        mklabel $vptable \
-        mkpart $ptype fat32 2048s 100% \
-        set 1 lba on \
-        align-check optimal 1
-    mkfs.fat -F32 -v -I -n "$vlabel " $myimg
+    mkfs.fat -F32 -v -I -n "$vlabel" $myimg
     fsck.fat -a -w -v $myimg
     fdisk -lu $myimg
 }
 
 # format ext4
 function pext4() {
-    parted $myimg \
-        mklabel $vptable \
-        mkpart $ptype 2048s 100%
     mkfs.ext4 -F -L "$vlabel" $myimg
-    parted -s $myimg align-check optimal 1
     e2fsck -f -y -v -C 0 $myimg
     resize2fs -p $myimg
     fdisk -lu $myimg
@@ -195,7 +181,8 @@ function mount_img() {
             # mount .img
             echo "Mount VHD-IMG..."
             mount -o loop,rw,sync "$myimg" "$mountpoint"
-            chmod a+rwx -R $mountpoint
+            chown -R "$local_user": "$mountpoint"
+            chmod 750 "$mountpoint"
             echo "VHD-IMG Mount: $(date)" | tee -a /var/log/syslog
             ;;
         2)
@@ -229,7 +216,8 @@ function mount_img_kpartx() {
                 exit 1
             fi
             for f in $(losetup --list | grep "$myvhd" | awk '{print $1}'); do mount $f $mountpoint; done
-            chmod a+rwx -R $mountpoint
+            chown -R "$local_user": "$mountpoint"
+            chmod 750 "$mountpoint"
             echo "VHD-IMG Mount: $(date)" | tee -a /var/log/syslog
             ;;
         2)

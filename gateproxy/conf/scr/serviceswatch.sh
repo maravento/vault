@@ -85,62 +85,26 @@ else
     echo "Rsyslog start: $(date)" | tee -a /var/log/syslog
 fi
 # Samba Service (smbd)
-if [[ `ps -A | grep smbd` != "" ]];then
+if pgrep -x smbd > /dev/null; then
     echo -e "\nONLINE"
 else
     echo -e "\n"
-    for pid in $(ps -ef | grep "smbd" | awk '{print $2}'); do kill -9 $pid &> /dev/null; done
-    sleep ${sleep_time}
+    for pid in $(pgrep smbd); do kill -9 "$pid" &>/dev/null; done
+    sleep "${sleep_time}"
     systemctl start smbd.service
     # alternative:
     #/etc/init.d/smbd start
     echo "Samba (smbd) start: $(date)" | tee -a /var/log/syslog
 fi
 # Samba Service (winbind)
-if [[ `ps -A | grep winbindd` != "" ]];then
+if pgrep -x winbindd > /dev/null; then
     echo -e "\nONLINE"
 else
     echo -e "\n"
-    for pid in $(ps -ef | grep "winbindd" | awk '{print $2}'); do kill -9 $pid &> /dev/null; done
-    sleep ${sleep_time}
+    for pid in $(pgrep winbindd); do kill -9 "$pid" &>/dev/null; done
+    sleep "${sleep_time}"
     systemctl start winbind.service
     # alternative:
     #/etc/init.d/winbind start
     echo "Samba (winbind) start: $(date)" | tee -a /var/log/syslog
-fi
-
-# UOS Server Watchdog
-if systemctl is-active --quiet uosserver.service; then
-
-    pid=$(pgrep -f "uosserver-service")
-
-    if [ -z "$pid" ]; then
-        echo -e "\nBROKEN_NO_PROCESS"
-        systemctl restart uosserver.service
-        echo "UOS FIX (no process): $(date)" | tee -a /var/log/syslog
-        exit
-    fi
-
-    if ! ps -p "$pid" > /dev/null 2>&1; then
-        echo -e "\nBROKEN_DEAD_PID"
-        systemctl restart uosserver.service
-        echo "UOS FIX (dead pid): $(date)" | tee -a /var/log/syslog
-        exit
-    fi
-
-    # 3. check Mongo (dependencia real)
-    if ! ss -lnt | grep -q ":27017"; then
-        echo -e "\nBROKEN_MONGO"
-        systemctl restart mongod.service 2>/dev/null
-        systemctl restart uosserver.service
-        echo "UOS FIX (mongo): $(date)" | tee -a /var/log/syslog
-        exit
-    fi
-
-    echo -e "\nONLINE"
-
-else
-    echo -e "\nOFFLINE"
-    systemctl start uosserver.service
-    echo "UOS START: $(date)" | tee -a /var/log/syslog
 fi

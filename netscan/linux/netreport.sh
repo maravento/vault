@@ -568,7 +568,7 @@ case "$opt" in
     log "This may take several minutes..."
     
     # Run nmap in background
-    nmap -sS -T4 -p- -sV -sC --max-retries 3 --host-timeout 5m "$net" -oX "$xml_file" > /tmp/netreport_nmap_out 2>&1 &
+    nmap -sS -T4 -p- -sV -sC --max-retries 3 --host-timeout 5m "$net" -oX "$xml_file" > "$SCRIPT_TMPDIR/nmap_out" 2>&1 &
     pid=$!
     show_spinner_for_pid "$pid"
     
@@ -614,7 +614,7 @@ case "$opt" in
          --script vuln --traceroute \
          -oA "$base" \
          --max-retries 3 --host-timeout 10m \
-         "$target" 2>&1 | tee "$SCRIPT_TMPDIR/nmap_out" &
+         "$target" > "$SCRIPT_TMPDIR/nmap_out" 2>&1 &
     pid=$!
     show_spinner_for_pid "$pid"
     
@@ -641,7 +641,7 @@ case "$opt" in
         prune_report_dir_keep_html
         exit 0
       else
-        die "No nmap output files found. Check /tmp/netreport_nmap_out and $log_file"
+        die "No nmap output files found. Check $SCRIPT_TMPDIR/nmap_out and $log_file"
       fi
     fi
     

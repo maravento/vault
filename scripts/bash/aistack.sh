@@ -432,7 +432,7 @@ services:
     volumes:
       - ${AI_BASE_DIR}/ollama/models:/root/.ollama
     ports:
-      - "${OLLAMA_PORT}:11434"
+      - "127.0.0.1:${OLLAMA_PORT}:11434"
     environment:
       - OLLAMA_HOST=0.0.0.0
 ${OLLAMA_RUNTIME}${OLLAMA_GPU_DEVICES}
@@ -525,7 +525,7 @@ download_model() {
     done
     
     # Check if model already exists
-    if docker exec ollama ollama list 2>/dev/null | grep -q "${SELECTED_MODEL}"; then
+    if docker exec ollama ollama list 2>/dev/null | grep -Fq -- "${SELECTED_MODEL}"; then
         warn "Model ${SELECTED_MODEL} already downloaded"
         return 0
     fi
@@ -626,7 +626,7 @@ change_default_model() {
     
     # Remove current model if requested
     if [[ "$remove_current" =~ ^[yY]$ ]]; then
-        if docker exec ollama ollama list 2>/dev/null | grep -q "$current_model"; then
+        if docker exec ollama ollama list 2>/dev/null | grep -Fq -- "$current_model"; then
             info "Removing current model: $current_model"
             docker exec ollama ollama rm "$current_model"
             ok "Removed $current_model"

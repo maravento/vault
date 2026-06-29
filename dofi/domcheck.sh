@@ -51,7 +51,7 @@ trap cleanup_tmp EXIT
 
 echo "Starting Debugging..."
 sed '/^$/d; /^[[:space:]]*$/d; /#/d' "$infile" | sed 's/\r//g; s/^\.//g' >clean
-rm -f dnslookup dnslookup2 step2 fault.txt hit.txt
+rm -f step2 fault.txt hit.txt
 echo "Step 1..."
 if [ -s dnslookup ]; then
     awk 'FNR==NR {seen[$2]=1;next} seen[$1]!=1' dnslookup clean

@@ -7,7 +7,7 @@
 # A simple proxy/firewall server
 #
 ################################################################################
-set -u
+set -euo pipefail
 
 clear
 echo -e "\n"
@@ -76,7 +76,7 @@ lang=$([[ "${LANG,,}" =~ ^es ]] && echo 1 || echo 0)
 ### CHECK SO & DESKTOP
 echo "${lang_01[$lang]}"
 # Get the current desktop environment in lowercase
-DESKTOP_ENV=$(echo "$XDG_CURRENT_DESKTOP" | tr '[:upper:]' '[:lower:]')
+DESKTOP_ENV=$(echo "${XDG_CURRENT_DESKTOP:-}" | tr '[:upper:]' '[:lower:]')
 # Get the Ubuntu version number (e.g., 22.04, 24.04)
 UBUNTU_VERSION=$(lsb_release -rs)
 # Get the distribution ID (e.g., Ubuntu)
@@ -183,11 +183,11 @@ timedatectl status | grep -E "NTP|synchroniz"
 apt -qq install -y apt-file
 apt-file update
 apt -qq remove -y zsys &>/dev/null
-ubuntu-drivers autoinstall &>/dev/null
+ubuntu-drivers autoinstall &>/dev/null || true
 # configure
-pro config set apt_news=false
+pro config set apt_news=false || true
 DISK=$(lsblk -dno NAME,TYPE | awk '$2=="disk"{print "/dev/"$1; exit}')
-[ -n "$DISK" ] && hdparm -W "$DISK" &>/dev/null
+[ -n "$DISK" ] && hdparm -W "$DISK" &>/dev/null || true
 ifconfig lo 127.0.0.1
 #systemctl disable avahi-daemon cups-browser &> /dev/null # optional
 # cron
@@ -536,8 +536,8 @@ nala install -y mesa-utils libfontconfig1
 nala install -y libuser gir1.2-gtop-2.0
     
 # MAIL
-service sendmail stop &>/dev/null
-update-rc.d -f sendmail remove &>/dev/null
+service sendmail stop &>/dev/null || true
+update-rc.d -f sendmail remove &>/dev/null || true
 DEBIAN_FRONTEND=noninteractive nala install -y postfix
 nala install -y mailutils
 
@@ -806,9 +806,9 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         nala install -y lynis
         echo "Lynis Run: lynis -c -Q and log: /var/log/lynis.log"
         # fsearch
-        add-apt-repository -y ppa:christian-boxdoerfer/fsearch-stable
+        add-apt-repository -y ppa:christian-boxdoerfer/fsearch-stable || true
         upgrade
-        nala install -y fsearch
+        nala install -y fsearch || true
         # suricata install
         nala install -y suricata suricata-update jq
         sed -i "s/interface: eth[0-9]/interface: $LAN_INTERFACE/g" /etc/suricata/suricata.yaml
@@ -928,7 +928,7 @@ fi
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O "$acl_path/acl_squid/blocktlds.txt"
 if [ ! -s "$acl_path/acl_squid/blocktlds.txt" ]; then
     echo "WARNING: blocktlds.txt download failed, disabling ACL in squid.conf"
-    sed -i '/^acl blocktlds /s/^/#/; /^http_access deny workdays blocktlds/s/^/#/' "$squid_conf_path/squid.conf"
+    sed -i '/^acl blocktlds /s/^/#/; /^http_access deny workdays blocktlds/s/^/#/' "$gp_path/conf/server/squid.conf"
 fi
 
 # Blackweb

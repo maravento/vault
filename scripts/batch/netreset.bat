@@ -70,39 +70,37 @@ for %%k in (%keys%) do (
     reg add "HKLM\Software\Policies\Microsoft\Windows\CurrentVersion\Internet Settings" /v ProxySettingsPerUser /t REG_DWORD /d 1 /f >nul
 )
 
-for /F "skip=3 tokens=3*" %%a in ('netsh interface show interface') do (
-    if not "%%b"=="" (
-        set "interface=%%b"
-        setlocal disabledelayedexpansion
-        echo !TEXT4[%L%]! %interface%
-        endlocal
-        setlocal enabledelayedexpansion
-        echo Reset IP...
-        netsh interface ip set address name="!interface!" dhcp >nul
-        echo Reset DNS...
-        netsh interface ip set dnsservers name="!interface!" dhcp >nul
-        echo Reset Proxy...
-        netsh winhttp reset autoproxy >nul
-        netsh winhttp import proxy source=ie >nul
-        set http_proxy=
-        set https_proxy=
-        echo TCP Window Auto-Tuning Enable
-        netsh int tcp set global autotuninglevel=normal >nul
-        echo RSS Enable...
-        netsh int tcp set global rss=enabled >nul
-        echo Flush...
-        ipconfig /flushdns >nul
-        echo Reset winsock
-        netsh winsock reset >nul
-        echo Reset all...
-        netsh int ip reset all 2>nul >nul
-        echo Reset ie
-        RunDll32.exe InetCpl.cpl,ClearMyTracksByProcess 4351
-        echo GPU update
-        gpupdate /force
-        echo.
-        endlocal
-    )
+for /f "usebackq delims=" %%a in (`powershell -NoProfile -Command "Get-NetAdapter | Select-Object -ExpandProperty Name"`) do (
+    set "interface=%%a"
+    setlocal disabledelayedexpansion
+    echo !TEXT4[%L%]! %interface%
+    endlocal
+    setlocal enabledelayedexpansion
+    echo Reset IP...
+    netsh interface ip set address name="!interface!" dhcp >nul
+    echo Reset DNS...
+    netsh interface ip set dnsservers name="!interface!" dhcp >nul
+    echo Reset Proxy...
+    netsh winhttp reset autoproxy >nul
+    netsh winhttp import proxy source=ie >nul
+    set http_proxy=
+    set https_proxy=
+    echo TCP Window Auto-Tuning Enable
+    netsh int tcp set global autotuninglevel=normal >nul
+    echo RSS Enable...
+    netsh int tcp set global rss=enabled >nul
+    echo Flush...
+    ipconfig /flushdns >nul
+    echo Reset winsock
+    netsh winsock reset >nul
+    echo Reset all...
+    netsh int ip reset all 2>nul >nul
+    echo Reset ie
+    RunDll32.exe InetCpl.cpl,ClearMyTracksByProcess 4351
+    echo GPU update
+    gpupdate /force
+    echo.
+    endlocal
 )
 
 :: Restart

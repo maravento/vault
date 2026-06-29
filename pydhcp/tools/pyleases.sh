@@ -180,7 +180,6 @@ ACL_DHCP_PATH=/etc/acl/acl_dhcp
 
 # ACL files
 ACL_MAC_PROXY=/etc/acl/acl_mac/mac-proxy.txt
-ACL_MAC_TRANSPARENT=/etc/acl/acl_mac/mac-transparent.txt
 ACL_MAC_UNLIMITED=/etc/acl/acl_mac/mac-unlimited.txt
 ACL_BLOCK_FILE=/etc/acl/acl_dhcp/blockdhcp.txt
 
@@ -219,7 +218,7 @@ load_env_file() {
         value="${line#*=}"
         case "$key" in
             SERV_DHCP|SERV_SUBNET|SERV_BROADCAST|SERV_MASK|SERV_INI_RANGE_BLOCK|SERV_END_RANGE_BLOCK|SERV_DNS|\
-            ACL_PATH|ACL_MAC_PATH|ACL_DHCP_PATH|ACL_MAC_PROXY|ACL_MAC_TRANSPARENT|ACL_MAC_UNLIMITED|ACL_BLOCK_FILE|\
+            ACL_PATH|ACL_MAC_PATH|ACL_DHCP_PATH|ACL_MAC_PROXY|ACL_MAC_UNLIMITED|ACL_BLOCK_FILE|\
             CLEANUP_INTERVAL|AUTHORIZED_LEASE_TIME|WPAD_ENABLED|PING_CHECK_ENABLED)
                 printf -v "$key" '%s' "$value"
                 ;;
@@ -317,7 +316,7 @@ initialize_empty_files() {
         chmod 600 "$ACL_BLOCK_FILE"
         chown root:root "$ACL_BLOCK_FILE"
     fi
-    for file in "$ACL_MAC_PROXY" "$ACL_MAC_TRANSPARENT" "$ACL_MAC_UNLIMITED"; do
+    for file in "$ACL_MAC_PROXY" "$ACL_MAC_UNLIMITED"; do
         if [ ! -f "$file" ]; then
             touch "$file"
             chmod 600 "$file"
@@ -338,6 +337,7 @@ function is_pydhcp() {
     dhcp_conf="/etc/pydhcp/pydhcpd.conf"
     dhcp_conf_temp="/etc/pydhcp/pydhcpd.conf.temp"
     echo "" >"$dhcp_conf_temp"
+    TEMP_FILES_TO_CLEAN+=("$dhcp_conf_temp")
 
     function read_leases() {
         local temp_leases
@@ -535,28 +535,11 @@ class "blockdhcp" {
         ulog "clean_proxy_list: done (removed=$removed)"
     }
 
-    function clean_transparent_list {
-        local file_temp removed=0
-        file_temp=$(mktemp)
-        TEMP_FILES_TO_CLEAN+=("$file_temp")
-        while IFS= read -r line; do
-            mac_actual=$(echo "$line" | cut -d ';' -f 2)
-            if grep -qF ";${mac_actual};" "$ACL_MAC_TRANSPARENT" 2>/dev/null; then
-                ulog "clean_transparent_list: removing $mac_actual from mac-transparent (found in mac-unlimited)"
-                (( removed++ )) || true
-            fi
-            grep -vF ";${mac_actual};" "$ACL_MAC_TRANSPARENT" > "$file_temp"
-            mv "$file_temp" "$ACL_MAC_TRANSPARENT"
-        done <"$ACL_MAC_UNLIMITED"
-        rm -f "$file_temp"
-        ulog "clean_transparent_list: done (removed=$removed)"
-    }
 
     function clean_acl {
         ulog "clean_acl: removing empty lines from ACL files"
         sed '/^$/d' -i "$ACL_BLOCK_FILE"
         sed '/^$/d' -i "$ACL_MAC_PROXY"
-        sed '/^$/d' -i "$ACL_MAC_TRANSPARENT"
         sed '/^$/d' -i "$ACL_MAC_UNLIMITED"
     }
 
@@ -567,7 +550,6 @@ class "blockdhcp" {
     clean_acl
     clean_block_list
     clean_proxy_list
-    clean_transparent_list
 
     ulog "Stopping pydhcpd"
     systemctl stop pydhcpd
@@ -608,5 +590,5 @@ function duplicate() {
 duplicate
 
 _count() { local c; c=$(grep -c '^a;' "$1" 2>/dev/null) || true; echo "${c:-0}"; }
-ulog "Summary: blockdhcp=$(_count "$ACL_BLOCK_FILE") | proxy=$(_count "$ACL_MAC_PROXY") | transparent=$(_count "$ACL_MAC_TRANSPARENT") | unlimited=$(_count "$ACL_MAC_UNLIMITED")"
+ulog "Summary: blockdhcp=$(_count "$ACL_BLOCK_FILE") | proxy=$(_count "$ACL_MAC_PROXY") | unlimited=$(_count "$ACL_MAC_UNLIMITED")"
 ulog "Done"

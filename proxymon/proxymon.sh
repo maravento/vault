@@ -427,10 +427,9 @@ install_proxymon() {
     
     echo -e "${YELLOW}Configuring SquidAnalyzer...${NC}"
     chmod -R 755 /var/www/proxymon/squidanalyzer
-    chown -R www-data:www-data /var/www/proxymon/squidanalyzer
-    
     mkdir -p /var/www/proxymon/squidanalyzer/output
     rm -rf /var/www/proxymon/squidanalyzer/output/* 2>/dev/null
+    chown -R www-data:www-data /var/www/proxymon/squidanalyzer
 
     cd /var/www/proxymon/squidanalyzer || exit 1
     sudo -u www-data perl -I. ./squid-analyzer -c etc/squidanalyzer.conf -d &> /dev/null

@@ -155,6 +155,8 @@ else
         echo "Day report folder not found: $day_logs"
         : > "$block_list_day"
     else
+        _tmp_day=$(mktemp)
+        _subshell_ok=0
         (
             cd "$day_logs" || { echo "ERROR: cannot cd into $day_logs" >&2; exit 1; }
             shopt -s nullglob
@@ -166,7 +168,15 @@ else
                     echo "WARNING: non-numeric total '$total' in $day_logs/$file — skipping" >&2
                 fi
             done
-        ) | grep -wvf "$allow_list" | $reorganize | uniq > "$block_list_day"
+            exit 0
+        ) > "$_tmp_day" && _subshell_ok=1
+
+        if [ "$_subshell_ok" -eq 1 ]; then
+            grep -wvFf "$allow_list" "$_tmp_day" | $reorganize | uniq > "$block_list_day"
+        else
+            echo "ERROR: subshell failed for $day_logs — keeping existing block list"
+        fi
+        rm -f "$_tmp_day"
     fi
     
     day_count=$(wc -l < "$block_list_day" 2>/dev/null || echo 0)
@@ -199,7 +209,7 @@ if [ "$today" -eq 1 ]; then
         folders=$(find "${week_dirs[@]}" -maxdepth 1 -type f -name "$range")
         totals=$(echo "$folders" | xargs -r -I {} awk '/^total:/{sub(".*/", "", FILENAME); print FILENAME" "$NF}' {})
         ips=$(echo "$totals" | awk '{ arr[$1]+=$2 } END { for (key in arr) printf("%s\t%s\n", arr[key], key) }' | sort -k1,1)
-        echo "$ips" | awk -v max="$max_bw_week" '$1 > max {print $2}' | grep -wvf "$allow_list" | $reorganize | uniq > "$block_list_week"
+        echo "$ips" | awk -v max="$max_bw_week" '$1 > max {print $2}' | grep -wvFf "$allow_list" | $reorganize | uniq > "$block_list_week"
     fi
 
     week_count=$(wc -l < "$block_list_week" 2>/dev/null || echo 0)
@@ -236,7 +246,7 @@ else
     folders=$(find "${month_dirs[@]}" -maxdepth 1 -type f -name "$range")
     totals=$(echo "$folders" | xargs -r -I {} awk '/^total:/{sub(".*/", "", FILENAME); print FILENAME" "$NF}' {})
     ips=$(echo "$totals" | awk '{ arr[$1]+=$2 } END { for (key in arr) printf("%s\t%s\n", arr[key], key) }' | sort -k1,1)
-    echo "$ips" | awk -v max="$max_bw_month" '$1 > max {print $2}' | grep -wvf "$allow_list" | $reorganize | uniq > "$block_list_month"
+    echo "$ips" | awk -v max="$max_bw_month" '$1 > max {print $2}' | grep -wvFf "$allow_list" | $reorganize | uniq > "$block_list_month"
 fi
 
 month_count=$(wc -l < "$block_list_month" 2>/dev/null || echo 0)
@@ -250,23 +260,27 @@ echo "OK"
 
 ### IPSET/IPTABLES FOR BANDATA
 echo "Running Ipset/Iptables Rules..."
-if ! ipset -L bandata >/dev/null 2>&1; then
-    ipset -! create bandata hash:net family inet hashsize 1024 maxelem 65536
-else
-    ipset -! flush bandata
-fi
+ipset -! create bandata hash:net family inet hashsize 1024 maxelem 65536
+ipset -! create bandata_new hash:net family inet hashsize 1024 maxelem 65536
+ipset -! flush bandata_new
 
 # NAT
 sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1
 
-# Load IPs to bandata
+# Load IPs to bandata_new
 all_bans=$(cat "$block_list_day" "$block_list_week" "$block_list_month" | $reorganize | uniq)
 
 if [ -n "$all_bans" ]; then
     for ip in $all_bans; do
-        ipset -exist add bandata "$ip"
+        ipset -exist add bandata_new "$ip"
     done
+fi
 
+# Atomic swap: bandata_new replaces bandata with no window of empty set
+ipset swap bandata_new bandata
+ipset destroy bandata_new
+
+if [ -n "$all_bans" ]; then
     echo ""
     echo "FINAL BAN SUMMARY:"
     ipset list bandata 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | $reorganize | while IFS= read -r ip; do

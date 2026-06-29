@@ -107,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['upload'])) {
         if ($error !== UPLOAD_ERR_OK) { $failed++; continue; }
         $orig_name = basename($orig_name);
         $safe_name = preg_replace('/[^a-zA-Z0-9._\- ]/', '_', $orig_name);
-        $safe_name = preg_replace('/\.(php[0-9]?|phtml|pht|phar|cgi|pl|asp|aspx|jsp|sh|htaccess|html?|shtml|svg|xml)$/i', '.txt', $safe_name);
+        $safe_name = preg_replace('/\.(php[0-9]?|phtml|pht|phar|cgi|pl|asp|aspx|jsp|sh|htaccess|html?|shtml|svg|xml)(?=\.|$)/i', '.txt', $safe_name);
         $safe_name = trim($safe_name, '. ');
         if ($safe_name === '') $safe_name = 'upload_' . time() . '_' . $i;
         $target = $full_path . '/' . $safe_name;
@@ -169,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['newfile'])) {
     $file_name = preg_replace('/[^a-zA-Z0-9._\- ]/', '_', $file_name);
     // Same dangerous-extension guard as the upload handler, so a "new file"
     // can't be used to plant executable/script content either.
-    $file_name = preg_replace('/\.(php[0-9]?|phtml|pht|phar|cgi|pl|asp|aspx|jsp|sh|htaccess|html?|shtml|svg|xml)$/i', '.txt', $file_name);
+    $file_name = preg_replace('/\.(php[0-9]?|phtml|pht|phar|cgi|pl|asp|aspx|jsp|sh|htaccess|html?|shtml|svg|xml)(?=\.|$)/i', '.txt', $file_name);
     $file_name = trim($file_name, '. ');
     if ($file_name === '') {
         header('Location: ?path=' . urlencode($request) . '&msg=error');
