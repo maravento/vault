@@ -272,7 +272,7 @@ run_setup_wizard() {
     CFG_IP_RANGE=$(echo "$CFG_SERVER_IP" | cut -d'.' -f1-3)
     echo "  Hotspot IP range base (auto-detected): $CFG_IP_RANGE"
     ask_octet "Range start (last octet)" "160" CFG_RANGE_START
-    ask_octet "Range end   (last octet)" "170" CFG_RANGE_END "$CFG_RANGE_START"
+    ask_octet "Range end   (last octet)" "199" CFG_RANGE_END "$CFG_RANGE_START"
 
     step "Hotspot SSID"
     ask "Guest SSID name (must match exactly in UniFi)" "" CFG_ESSID
@@ -334,8 +334,8 @@ run_setup_wizard() {
     CFG_SERV_END_RANGE_BLOCK="${NET_BASE}.${CFG_POOL_END}"
 
     step "Timers"
-    ask "Daemon poll interval in seconds (POLL_INTERVAL)" "10" CFG_POLL_INTERVAL
-    ask "DHCP pool lease cleanup interval in seconds (CLEANUP_INTERVAL)" "20" CFG_CLEANUP_INTERVAL
+    ask "Daemon poll interval in seconds (POLL_INTERVAL)" "20" CFG_POLL_INTERVAL
+    ask "DHCP pool lease cleanup interval in seconds (CLEANUP_INTERVAL)" "60" CFG_CLEANUP_INTERVAL
     ask "Grace period before blocking unknown MACs in seconds (BLOCKDHCP_GRACE_SECONDS)" "86400" CFG_GRACE_SECONDS
 
     step "Optional features"
@@ -521,7 +521,7 @@ register_cron() {
     # uhotspotd runs as a systemd service — no cron entry needed for it.
     # Only the hourly ureload.sh trigger is registered here.
     local ureload_path="${HOTSPOT_DIR}/tools/ureload.sh"
-    local expected_hourly="@hourly UHOTSPOT_RELOAD_ACTIVE=1 flock -w 60 /var/lock/uhotspot.lock -c '${ureload_path}'"
+    local expected_hourly="@hourly flock -w 60 /var/lock/uhotspot.lock -c '${ureload_path}'"
     local current
     current=$(crontab -l 2>/dev/null || true)
     local changed=0

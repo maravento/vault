@@ -51,11 +51,10 @@ set -euo pipefail
 log_file="/var/log/uhotspot.log"
 log() {
     local msg="$1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> "$log_file" 2>/dev/null || true
 }
 
-log "Iptables Start..."
-printf "\n"
+log "uiptables start..."
 
 # VARIABLES ##
  
@@ -140,7 +139,6 @@ EOF
 fi
 
 ## KERNEL RULES ##
-log "Kernel Rules..."
 
 # Zero all packets and counters
 # Reset tables
@@ -300,10 +298,7 @@ ip6tables -A OUTPUT -o $wan -p udp --sport 546 --dport 547 -j ACCEPT
 # Established traffic
 ip6tables -A INPUT -i $wan -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
-log "OK"
-
 ## GLOBAL RULES ##
-log "Global Rules..."
 
 # Global Policies IPv4 (ACCEPT y luego drops explícitos)
 iptables -P INPUT ACCEPT
@@ -505,13 +500,10 @@ if [ -n "$mac2ip" ]; then
     iptables -t mangle -A PREROUTING -i $lan -m set --match-set macip src,src -j ACCEPT
     iptables -t mangle -A PREROUTING -i $lan -j DROP
 else
-    echo "WARNING: No static DHCP entries found in $dhcp_conf; macip binding skipped"
+    log "WARNING: No static DHCP entries found in $dhcp_conf; macip binding skipped"
 fi
 
-log "OK"
-
 ## PORT RULES ##
-log "Port Rules..."
 
 # BLOCKPORTS
 # path: /etc/acl/acl_ipt/blockports.txt
@@ -588,10 +580,7 @@ done
 iptables -A FORWARD -i $lan -o $wan -p udp --dport 53 -j DROP
 iptables -A FORWARD -i $lan -o $wan -p tcp --dport 53 -j DROP
 
-log "OK"
-
 ## SECURITY RULES ##
-log "Security Rules..."
 
 # Block 6to4 (IPv6-in-IPv4 tunneling) — prevents LAN clients from bypassing
 # IPv4-based firewall rules via IPv6 tunnel encapsulation
@@ -660,10 +649,7 @@ iptables -A INPUT -i $lan -p udp --dport 17500 -j DROP
 # Silence ICMP forward noise
 iptables -A FORWARD -i $lan -o $wan -p icmp -j DROP
 
-log "OK"
-
 ## MAC RULES ##
-log "MAC Rules"
 
 # MACPROXY (PAC 18100 - Opcion 252 DHCP, HTTP 80 to 3128)
 if ! ipset list macproxy &>/dev/null; then
@@ -701,10 +687,7 @@ for chain in INPUT FORWARD; do
     iptables -A $chain -i $lan -p tcp -m multiport --dports 18100,3128 -m set --match-set machotspot src -j ACCEPT
 done
 
-log "OK"
-
 ## END ## 
-log "Drop All..."
 
 iptables -A INPUT -m hashlimit --hashlimit-name input-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip,dstport -j NFLOG --nflog-prefix "FINAL-INPUT DROP: "
 iptables -A INPUT -j DROP
@@ -712,4 +695,4 @@ iptables -A FORWARD -m hashlimit --hashlimit-name forward-drop --hashlimit-above
 iptables -A FORWARD -j DROP
 
 log "iptables Load at: $(date)"
-log "Done"
+log "uiptables done"

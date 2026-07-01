@@ -18,9 +18,9 @@
 #   MANAGED MACS (optional):
 #   If /etc/acl/acl_mac/mac-*.txt files exist, MACs listed there are treated
 #   as managed corporate devices. They are silently excluded from the guest
-#   portal flow (steps 5, 7, 8) and are kept authorized in UniFi (step 11)
+#   portal flow (steps 5, 7, 8, 9) and are kept authorized in UniFi (step 10)
 #   so they bypass the captive portal on HOTSPOT_ESSID without needing a
-#   voucher. If no mac-*.txt files exist, steps 5 and 9 are no-ops.
+#   voucher. If no mac-*.txt files exist, steps 5 and 10 are no-ops.
 #
 # CYCLE (every POLL_INTERVAL seconds, default 10, set in uhotspot.conf):
 #   1. VOUCHERS    — load voucher cache from UniFi (stat/voucher)
@@ -29,20 +29,25 @@
 #   4. SNAPSHOT    — md5sum baseline of ACL files before processing
 #   5. CLEAN MACS  — remove mac-*.txt entries from mac-hotspot
 #   6. EXPIRED     — remove expired mac-hotspot entries (hotspot IPs freed)
-#   7. SESSIONS    — promote voucher-authenticated clients to mac-hotspot
-#   8. REVOKE      — remove UniFi-unauthorized clients from mac-hotspot
-#   9. AUTHORIZE   — re-authorize managed MACs (mac-*.txt) seen on HOTSPOT_ESSID
+#   7. NEW LEASES  — scan pydhcpd.leases; any MAC not yet in mac-hotspot/
+#                    mac-*/blockdhcp/gracedhcp/guest-wellknow is written
+#                    directly into gracedhcp.txt with a first-seen timestamp —
+#                    the same role guest-pending.txt played in the
+#                    pre-simplification design. Unlike guest-pending.txt, no
+#                    fixed hotspot-range IP is assigned and no lease removal
+#                    is queued: grace clients keep their existing pydhcpd
+#                    pool lease. Writing gracedhcp.txt is enough to trigger
+#                    RELOAD (step 12), which invokes uleases.sh to do the
+#                    actual classification/expiry/blocking of grace entries.
+#   8. SESSIONS    — promote voucher-authenticated clients to mac-hotspot
+#   9. REVOKE      — remove UniFi-unauthorized clients from mac-hotspot
+#  10. AUTHORIZE   — re-authorize managed MACs (mac-*.txt) seen on HOTSPOT_ESSID
 #                    that UniFi reports as unauthorized; checked every cycle so
 #                    reconnecting devices are covered automatically
-#  10. BACKUP      — update guest-wellknow.txt, clean blockdhcp conflicts
-#  11. RELOAD      — invoke SERVER_RELOAD_SCRIPT if ACLs changed
+#  11. BACKUP      — update guest-wellknow.txt, clean blockdhcp conflicts
+#  12. RELOAD      — invoke SERVER_RELOAD_SCRIPT if ACLs changed
 #
-# New clients are detected by uleases.sh (invoked via RELOAD): any MAC in
-# pydhcpd.leases not in mac-hotspot/mac-*/blockdhcp is added to gracedhcp.txt
-# with a timestamp. No guest-pending.txt — clients stay on their pool DHCP
-# lease until they enter a voucher or their grace timer expires.
-#
-# stat/sta is queried once per cycle and shared across steps 8, 9.
+# stat/sta is queried once per cycle and shared across steps 9, 10.
 #
 # CONFIG:  /etc/uhotspot/uhotspot.conf
 # LOG:     /var/log/uhotspot.log
@@ -67,12 +72,29 @@ if ! flock -n 200; then
     exit 1
 fi
 
+# CYCLE_LOCK is separate from SCRIPT_LOCK (the singleton instance guard, held
+# for the daemon's entire lifetime). CYCLE_LOCK is only held while run_cycle
+# is actively mutating ACL files (~1-3s), released during the sleep between
+# cycles. uleases.sh's cron-triggered guard checks THIS lock, not SCRIPT_LOCK,
+# so the cron reload isn't blocked for the daemon's entire uptime — only
+# during the narrow window where a real race on the ACL files could occur.
+CYCLE_LOCK="/var/lock/uhotspotd-cycle.lock"
+exec 201>"$CYCLE_LOCK"
+
 TEMP_FILES_TO_CLEAN=()
 cleanup_temp() {
+    local rc=$?
     local f
     for f in "${TEMP_FILES_TO_CLEAN[@]+"${TEMP_FILES_TO_CLEAN[@]}"}"; do
         rm -f "$f" 2>/dev/null || true
     done
+    # Only skip the "done" announcement on an explicit error exit (exit 1) —
+    # the ERROR line already logged is the signal that something happened.
+    # A normal stop (systemctl stop sends SIGTERM, rc=143) is not that case
+    # and must still log done.
+    if (( rc != 1 )) && declare -F log &>/dev/null; then
+        log "INFO: uhotspotd done"
+    fi
 }
 trap cleanup_temp EXIT
 
@@ -84,11 +106,12 @@ ACL_MAC_PATH="/etc/acl/acl_mac"
 MAC_LIST="$HOTSPOT_PATH/mac-hotspot.txt"
 BLOCK_DHCP="/etc/acl/acl_dhcp/blockdhcp.txt"
 LEASE_REMOVE_QUEUE="$HOTSPOT_PATH/leases-remove-queue.txt"
+PYDHCPD_LEASES="/etc/pydhcp/pydhcpd.leases"
 
 TOKEN_STATE_FILE="/run/uhotspotd_session"
 
 # Minutes UniFi keeps a managed MAC (mac-*.txt) authorized on the guest portal.
-# Re-sent periodically by authorize_managed_macs (step 11) well before expiry.
+# Re-sent periodically by authorize_managed_macs (step 10) well before expiry.
 MANAGED_AUTHORIZE_MINUTES=527040   # 366 days
 
 # ── Runtime state ─────────────────────────────────────────────────────────────
@@ -103,6 +126,7 @@ MANAGED_AUTHORIZED=0
 _ACL_SNAPSHOT_HOTSPOT=""
 _ACL_SNAPSHOT_BLOCK=""
 _ACL_SNAPSHOT_QUEUE=""
+_ACL_SNAPSHOT_GRACE=""
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 log() {
@@ -145,6 +169,11 @@ load_config() {
         log "ERROR: Missing variables in $CONFIG_FILE: ${missing[*]}"
         exit 1
     fi
+
+    if [[ "${UNIFI_TYPE:-}" == "classic" ]]; then
+        log "ERROR: UNIFI_TYPE=classic is not supported by this daemon (login uses TOKEN cookie, classic controllers use unifises). Set UNIFI_TYPE=unifi-os or use uaudit.sh for classic controllers."
+        exit 1
+    fi
 }
 
 # ── Installation check ────────────────────────────────────────────────────────
@@ -168,6 +197,11 @@ init_acl_files() {
     mkdir -p "$(dirname "$MAC_LIST")" "$(dirname "$LOG_FILE")" "$(dirname "$BLOCK_DHCP")"
     touch "$MAC_LIST" "$BLOCK_DHCP"
     chmod 600 "$MAC_LIST" "$BLOCK_DHCP"
+
+    local grace_file="${ACL_GRACE_FILE:-/etc/acl/acl_dhcp/gracedhcp.txt}"
+    mkdir -p "$(dirname "$grace_file")"
+    touch "$grace_file"
+    chmod 600 "$grace_file"
 }
 
 # ── UniFi API ─────────────────────────────────────────────────────────────────
@@ -382,6 +416,7 @@ load_all_vouchers() {
     if [[ "$rc" != "ok" ]]; then
         log "WARNING: Could not load vouchers (rc=${rc:-empty})"
         VOUCHER_CACHE=""
+        VOUCHER_COUNT=0
         return
     fi
     count=$(echo "$VOUCHER_CACHE" | jq '.data | length' 2>/dev/null || echo 0)
@@ -434,10 +469,15 @@ queue_lease_removal() {
     local mac="$1"
     local lc_mac
     lc_mac=$(echo "$mac" | tr '[:upper:]' '[:lower:]')
-    if ! grep -qxF "$lc_mac" "$LEASE_REMOVE_QUEUE" 2>/dev/null; then
-        echo "$lc_mac" >> "$LEASE_REMOVE_QUEUE"
-        log "INFO: Queued lease removal for $lc_mac"
+    if grep -qxF "$lc_mac" "$LEASE_REMOVE_QUEUE" 2>/dev/null; then
+        return 0
     fi
+    if echo "$lc_mac" >> "$LEASE_REMOVE_QUEUE" 2>/dev/null; then
+        log "INFO: Queued lease removal for $lc_mac"
+        return 0
+    fi
+    log "WARNING: queue_lease_removal: failed to write $lc_mac to $LEASE_REMOVE_QUEUE"
+    return 1
 }
 
 # ── Step 2: MAC list deduplication ───────────────────────────────────────────
@@ -507,7 +547,7 @@ dedup_mac_lists() {
     fi
 }
 
-# ── Step 3: clean managed MACs from hotspot lists ─────────────────────────────
+# ── Step 5: clean managed MACs from hotspot lists ─────────────────────────────
 # Removes any MAC present in mac-*.txt from mac-hotspot.
 clean_managed_macs() {
     [[ -z "$MANAGED_MACS" ]] && return
@@ -516,7 +556,7 @@ clean_managed_macs() {
     for list in "$MAC_LIST"; do
         [[ ! -f "$list" ]] && continue
         local before_count=0
-        before_count=$(grep -c '^a;' "$list" 2>/dev/null || echo 0)
+        before_count=$(grep -c '^a;' "$list" 2>/dev/null); before_count=$(( ${before_count:-0} + 0 ))
         local iter_removed=0
         tmp=$(mktemp)
         TEMP_FILES_TO_CLEAN+=("${tmp}")
@@ -538,7 +578,7 @@ clean_managed_macs() {
             fi
         done < "$list"
         local after_count
-        after_count=$(grep -c '^a;' "$tmp" 2>/dev/null || echo 0)
+        after_count=$(grep -c '^a;' "$tmp" 2>/dev/null); after_count=$(( ${after_count:-0} + 0 ))
         if (( before_count - after_count != iter_removed )); then
             log "ERROR: clean_managed_macs: count mismatch on $(basename "$list") (before=$before_count after=$after_count removed=$iter_removed) — skipping"
             rm -f "$tmp"
@@ -552,7 +592,7 @@ clean_managed_macs() {
     fi
 }
 
-# ── Step 4: sort ACL files by IP ─────────────────────────────────────────────
+# ── Step 3: sort ACL files by IP ─────────────────────────────────────────────
 sort_acl_files() {
     local tmp
 
@@ -580,7 +620,10 @@ add_mac_to_acl() {
         if [[ "$end_time" != "$existing_end" ]]; then
             local escaped_line
             escaped_line=$(printf '%s' "$new_line" | sed -e 's/[\&|/]/\\&/g')
-            sed -i "s|^a;${mac};.*|${escaped_line}|I" "$MAC_LIST"
+            if ! sed -i "s|^a;${mac};.*|${escaped_line}|I" "$MAC_LIST"; then
+                log "ERROR: Failed to update end_time for $mac in $MAC_LIST (sed -i failed)"
+                return 1
+            fi
             log "INFO: Updated end_time for $mac ($existing_end → $end_time)"
         fi
     else
@@ -597,7 +640,10 @@ expire_from_hotspot() {
     # Release the hotspot-range IP. On reconnect, uleases.sh detects the client
     # via pydhcpd.leases; if the MAC is in guest-wellknow.txt the lease is kept
     # without a new grace timer, otherwise the client enters gracedhcp.txt.
-    queue_lease_removal "$mac"
+    if ! queue_lease_removal "$mac"; then
+        log "WARNING: Expire $mac — failed to queue lease removal, will retry"
+        return 1
+    fi
     log "INFO: Expired $mac — released from mac-hotspot.txt"
     return 0
 }
@@ -610,7 +656,7 @@ clean_expired_macs() {
     TEMP_FILES_TO_CLEAN+=("${tmp}")
 
     local before_count=0
-    before_count=$(grep -c '^a;' "$MAC_LIST" 2>/dev/null || echo 0)
+    before_count=$(grep -c '^a;' "$MAC_LIST" 2>/dev/null); before_count=$(( ${before_count:-0} + 0 ))
     local moved=0
 
     while IFS= read -r line; do
@@ -632,13 +678,73 @@ clean_expired_macs() {
     done < "$MAC_LIST"
 
     local after_count
-    after_count=$(grep -c '^a;' "$tmp" 2>/dev/null || echo 0)
+    after_count=$(grep -c '^a;' "$tmp" 2>/dev/null); after_count=$(( ${after_count:-0} + 0 ))
     if (( before_count - after_count != moved )); then
         log "ERROR: clean_expired_macs: count mismatch (before=$before_count after=$after_count moved=$moved) — skipping"
         rm -f "$tmp"
         return
     fi
     mv "$tmp" "$MAC_LIST" && chmod 600 "$MAC_LIST"
+}
+
+# ── Step 7: detect new clients in pydhcpd.leases ──────────────────────────────
+# Plays the role guest-pending.txt used to play in the pre-simplification
+# design: scans pydhcpd.leases for MACs that aren't yet known to any ACL
+# source (mac-hotspot, mac-*, blockdhcp, gracedhcp, guest-wellknow) and writes
+# them straight into gracedhcp.txt with a first-seen timestamp.
+#
+# Unlike the old guest-pending.txt flow, no fixed hotspot-range IP is assigned
+# here and no lease removal is queued — gracedhcp clients keep their existing
+# pydhcpd pool lease until they enter a voucher or their grace timer expires
+# (handled by uleases.sh). Writing gracedhcp.txt is enough to be picked up by
+# the snapshot taken in step 4, so check_and_reload_if_changed (step 12)
+# detects the change and triggers SERVER_RELOAD_SCRIPT, which runs uleases.sh
+# to do the actual classification/expiry/blocking of grace entries.
+process_new_leases() {
+    [[ ! -f "$PYDHCPD_LEASES" ]] && return
+
+    local grace_file wellknow_file
+    grace_file="${ACL_GRACE_FILE:-/etc/acl/acl_dhcp/gracedhcp.txt}"
+    wellknow_file="$(dirname "$MAC_LIST")/guest-wellknow.txt"
+
+    local added=0
+    local current_lease="" lease_content=""
+
+    while IFS= read -r line; do
+        if echo "$line" | grep -qE '^lease ((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?) \{$'; then
+            current_lease="$line"
+            lease_content="$line"$'\n'
+            continue
+        fi
+        [[ -n "$current_lease" ]] && lease_content+="$line"$'\n'
+
+        if [[ "$line" == "}" && -n "$current_lease" ]]; then
+            local mac ip host
+            mac=$(echo "$lease_content" | grep -oiE '([0-9a-f]{2}:){5}[0-9a-f]{2}' | head -1 | tr '[:upper:]' '[:lower:]')
+            ip=$(echo "$lease_content" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
+            host=$(echo "$lease_content" | grep -oE 'client-hostname "[^"]+"' | cut -d'"' -f2 | tr ' ' '_')
+            host=$(echo "$host" | tr -cd 'A-Za-z0-9._-' | cut -c1-64)
+            [[ -z "$host" ]] && host="no_name_$(head -c100 /dev/urandom | sha1sum | head -c10)"
+
+            if [[ -n "$mac" && -n "$ip" ]] \
+               && ! grep -qi "^a;${mac};" "$MAC_LIST"   2>/dev/null \
+               && ! grep -qi "^a;${mac};" "$BLOCK_DHCP" 2>/dev/null \
+               && ! grep -qi "^a;${mac};" "$grace_file" 2>/dev/null \
+               && ! grep -qxiF "$mac" "$wellknow_file"  2>/dev/null \
+               && ! echo "$MANAGED_MACS" | grep -qi "^${mac}$"; then
+                echo "a;${mac};${ip};${host};$(date +%s);" >> "$grace_file"
+                log "INFO: New client $mac ip=$ip hostname=$host → gracedhcp.txt"
+                (( added++ )) || true
+            fi
+            current_lease=""
+            lease_content=""
+        fi
+    done < "$PYDHCPD_LEASES"
+
+    if (( added > 0 )); then
+        chmod 600 "$grace_file" 2>/dev/null || true
+        log "INFO: process_new_leases → added $added new client(s) to gracedhcp.txt"
+    fi
 }
 
 # ── Step 8: process sessions ──────────────────────────────────────────────────
@@ -736,16 +842,23 @@ revoke_unauthorized() {
     local mac
     for mac in "${macs_to_revoke[@]+"${macs_to_revoke[@]}"}"; do
         [[ -z "$mac" ]] && continue
+        if [[ ! "$mac" =~ ^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$ ]]; then
+            log "ERROR: revoke_unauthorized: refusing malformed MAC '$mac' — skipping"
+            continue
+        fi
         log "INFO: Revoking $mac — authorized=false in UniFi; releasing from mac-hotspot"
         queue_lease_removal "$mac"
-        sed -i "/^a;${mac};/Id" "$MAC_LIST" 2>/dev/null || true
-        (( revoked++ )) || true
+        if sed -i "/^a;${mac};/Id" "$MAC_LIST" 2>/dev/null; then
+            (( revoked++ )) || true
+        else
+            log "WARNING: revoke_unauthorized: sed failed to remove $mac from $MAC_LIST — will retry next cycle"
+        fi
     done
 
     REVOKED=$revoked
 }
 
-# ── Step 11: authorize managed MACs ──────────────────────────────────────────
+# ── Step 10: authorize managed MACs ──────────────────────────────────────────
 # mac-*.txt (mac-unlimited, mac-proxy, etc.) clients now share HOTSPOT_ESSID
 # with portal guests. UniFi's guest portal requires authorize-guest for ANY
 # client on that SSID, regardless of iptables/ACL bypass rules — those only
@@ -801,7 +914,7 @@ authorize_managed_macs() {
     MANAGED_AUTHORIZED=$authorized_count
 }
 
-# ── Step 12: backup ───────────────────────────────────────────────────────────
+# ── Step 11: backup ───────────────────────────────────────────────────────────
 mac_hotspot_backup() {
     local wellknow_file current_macs new_macs merged_macs
     wellknow_file="$(dirname "$MAC_LIST")/guest-wellknow.txt"
@@ -836,28 +949,36 @@ mac_hotspot_backup() {
 
 # ── ACL snapshot & reload ─────────────────────────────────────────────────────
 snapshot_acls() {
+    local grace_file="${ACL_GRACE_FILE:-/etc/acl/acl_dhcp/gracedhcp.txt}"
     _ACL_SNAPSHOT_HOTSPOT=$(md5sum "$MAC_LIST"          2>/dev/null | awk '{print $1}' || echo "absent")
     _ACL_SNAPSHOT_BLOCK=$(md5sum   "$BLOCK_DHCP"        2>/dev/null | awk '{print $1}' || echo "absent")
     _ACL_SNAPSHOT_QUEUE=$(md5sum   "$LEASE_REMOVE_QUEUE" 2>/dev/null | awk '{print $1}' || echo "absent")
+    _ACL_SNAPSHOT_GRACE=$(md5sum   "$grace_file"         2>/dev/null | awk '{print $1}' || echo "absent")
 }
 
-# ── Step 13: reload if ACLs changed ──────────────────────────────────────────
+# ── Step 12: reload if ACLs changed ──────────────────────────────────────────
+# Returns 0 if ACLs changed (reload attempted), 1 if unchanged (silent — no
+# log noise on the common no-change path). Callers use the return code to
+# decide whether the per-cycle summary line is worth logging.
 check_and_reload_if_changed() {
-    local cur_hotspot cur_block cur_queue rc
+    local grace_file="${ACL_GRACE_FILE:-/etc/acl/acl_dhcp/gracedhcp.txt}"
+    local cur_hotspot cur_block cur_queue cur_grace rc
     cur_hotspot=$(md5sum "$MAC_LIST"          2>/dev/null | awk '{print $1}' || echo "absent")
     cur_block=$(md5sum   "$BLOCK_DHCP"        2>/dev/null | awk '{print $1}' || echo "absent")
     cur_queue=$(md5sum   "$LEASE_REMOVE_QUEUE" 2>/dev/null | awk '{print $1}' || echo "absent")
+    cur_grace=$(md5sum   "$grace_file"         2>/dev/null | awk '{print $1}' || echo "absent")
 
     if [[ "$cur_hotspot" == "$_ACL_SNAPSHOT_HOTSPOT" && \
           "$cur_block"   == "$_ACL_SNAPSHOT_BLOCK"   && \
-          "$cur_queue"   == "$_ACL_SNAPSHOT_QUEUE" ]]; then
-        log "INFO: ACLs unchanged — skipping reload"
-        return
+          "$cur_queue"   == "$_ACL_SNAPSHOT_QUEUE"   && \
+          "$cur_grace"   == "$_ACL_SNAPSHOT_GRACE" ]]; then
+        return 1
     fi
 
     [[ "$cur_hotspot" != "$_ACL_SNAPSHOT_HOTSPOT" ]] && log "INFO: mac-hotspot.txt changed"
     [[ "$cur_block"   != "$_ACL_SNAPSHOT_BLOCK"   ]] && log "INFO: blockdhcp.txt changed"
     [[ "$cur_queue"   != "$_ACL_SNAPSHOT_QUEUE"   ]] && log "INFO: lease removal queue changed"
+    [[ "$cur_grace"   != "$_ACL_SNAPSHOT_GRACE"   ]] && log "INFO: gracedhcp.txt changed"
 
     if [[ -n "${SERVER_RELOAD_SCRIPT:-}" && -x "$SERVER_RELOAD_SCRIPT" ]]; then
         log "INFO: ACL changed — invoking $SERVER_RELOAD_SCRIPT"
@@ -870,12 +991,18 @@ check_and_reload_if_changed() {
     else
         log "WARNING: ACLs changed but SERVER_RELOAD_SCRIPT is not set or not executable"
     fi
+    return 0
 }
 
 
 
 # ── Full hotspot cycle ────────────────────────────────────────────────────────
 run_cycle() {
+    if ! flock -n 201; then
+        log "WARNING: cycle lock held unexpectedly — skipping this cycle"
+        return
+    fi
+
     SESSIONS_AUTHORIZED=0
     REVOKED=0
     MANAGED_AUTHORIZED=0
@@ -886,6 +1013,7 @@ run_cycle() {
     snapshot_acls
     clean_managed_macs
     clean_expired_macs
+    process_new_leases
 
     local sta_endpoint sta_data
     sta_endpoint=$(api_path "stat/sta")
@@ -895,14 +1023,20 @@ run_cycle() {
     revoke_unauthorized    "$sta_data"
     authorize_managed_macs "$sta_data"
     mac_hotspot_backup
-    check_and_reload_if_changed
 
-    local authorized_total grace_total
-    authorized_total=$(grep -c "^a;" "$MAC_LIST" 2>/dev/null || true)
-    authorized_total=$(( ${authorized_total:-0} + 0 ))
-    grace_total=$(grep -c "^a;" "${ACL_GRACE_FILE:-/etc/acl/acl_dhcp/gracedhcp.txt}" 2>/dev/null || true)
-    grace_total=$(( ${grace_total:-0} + 0 ))
-    log "INFO: vouchers=$VOUCHER_COUNT | authorized=$authorized_total | grace=$grace_total | new_auth=$SESSIONS_AUTHORIZED | revoked=$REVOKED | managed_authorized=$MANAGED_AUTHORIZED"
+    # Summary line is only useful when something actually changed this cycle —
+    # logging it unconditionally at POLL_INTERVAL cadence (default 10s) drowns
+    # the log in identical lines during idle periods.
+    if check_and_reload_if_changed; then
+        local authorized_total grace_total
+        authorized_total=$(grep -c "^a;" "$MAC_LIST" 2>/dev/null || true)
+        authorized_total=$(( ${authorized_total:-0} + 0 ))
+        grace_total=$(grep -c "^a;" "${ACL_GRACE_FILE:-/etc/acl/acl_dhcp/gracedhcp.txt}" 2>/dev/null || true)
+        grace_total=$(( ${grace_total:-0} + 0 ))
+        log "INFO: vouchers=$VOUCHER_COUNT | authorized=$authorized_total | grace=$grace_total | new_auth=$SESSIONS_AUTHORIZED | revoked=$REVOKED | managed_authorized=$MANAGED_AUTHORIZED"
+    fi
+
+    flock -u 201
 }
 
 # ── Main daemon loop ──────────────────────────────────────────────────────────
@@ -913,7 +1047,7 @@ main() {
     init_acl_files
 
     echo "────────────────────────────────────────────────────────────────────────────────" >> "$LOG_FILE" 2>/dev/null || true
-    log "INFO: uhotspotd start"
+    log "INFO: uhotspotd start..."
 
     if ! unifi_login; then
         log "ERROR: Initial login failed — retrying in 30s"

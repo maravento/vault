@@ -75,12 +75,16 @@ if ! flock -n 200; then
 fi
 
 TEMP_FILES_TO_CLEAN=()
+PYDHCPD_NEEDS_RESTART=0
 cleanup_temp() {
     for f in "${TEMP_FILES_TO_CLEAN[@]}"; do
         rm -f "$f" 2>/dev/null
     done
     # Lockfile is NOT removed: deleting it creates a TOCTOU race
     # where two processes could flock different inodes of the same path.
+    if [ "$PYDHCPD_NEEDS_RESTART" = "1" ]; then
+        systemctl is-active --quiet pydhcpd || systemctl start pydhcpd
+    fi
 }
 trap cleanup_temp EXIT
 
@@ -553,7 +557,13 @@ class "blockdhcp" {
 
     ulog "Stopping pydhcpd"
     systemctl stop pydhcpd
-    trap 'systemctl is-active --quiet pydhcpd || systemctl start pydhcpd' EXIT
+    if systemctl is-active --quiet pydhcpd; then
+        ulog "ERROR: Stopping pydhcpd FAILED — still active, aborting before touching config/ACLs"
+        _notify "$local_user" "Warning: Abort" "pydhcpd did not stop, aborting. $(date)" -i error
+        exit 1
+    fi
+    ulog "Stopping pydhcpd: done"
+    PYDHCPD_NEEDS_RESTART=1
     ulog "Processing leases"
     read_leases
     ulog "Sorting ACL files"
@@ -562,7 +572,13 @@ class "blockdhcp" {
     update_dhcp_conf
     ulog "Starting pydhcpd"
     systemctl start pydhcpd
-    trap - EXIT
+    if ! systemctl is-active --quiet pydhcpd; then
+        ulog "ERROR: Starting pydhcpd FAILED — check 'systemctl status pydhcpd'"
+        _notify "$local_user" "Warning: Abort" "pydhcpd did not start after reload. $(date)" -i error
+        exit 1
+    fi
+    ulog "Starting pydhcpd: done"
+    PYDHCPD_NEEDS_RESTART=0
 }
 
 function duplicate() {

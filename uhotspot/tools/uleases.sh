@@ -98,9 +98,7 @@ ulog() {
     local msg
     msg="$(date '+%Y-%m-%d %H:%M:%S') $*"
     echo "$msg"
-    # When invoked by ureload.sh, stdout is already captured to LOG_FILE.
-    # Write directly only when running standalone (not under ureload.sh).
-    [[ -z "${UHOTSPOT_RELOAD_ACTIVE:-}" ]] && echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
+    echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
 }
 
 # Ensure log file exists with correct permissions.
@@ -129,7 +127,7 @@ EOF
 fi
 unset _logrotate_conf
 
-ulog "uleases Start"
+ulog "uleases start..."
 
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
@@ -143,10 +141,28 @@ if ! flock -w 60 200; then
     exit 1
 fi
 
-if [[ -z "${UHOTSPOT_RELOAD_ACTIVE:-}" ]] && [ -f /var/lock/uhotspotd.lock ]; then
-    if fuser /var/lock/uhotspotd.lock &>/dev/null; then
-        echo "ERROR: uhotspotd is currently running. Try again later."
-        exit 1
+# When triggered by the daemon (UHOTSPOT_RELOAD_ACTIVE set), the daemon
+# already holds CYCLE_LOCK for the duration of its run_cycle — this script
+# runs synchronously as its child, so no additional check is needed here
+# (and attempting to flock the same lock from a child of the lock holder
+# would deadlock).
+#
+# When triggered by the @hourly cron (UHOTSPOT_RELOAD_ACTIVE unset), acquire
+# CYCLE_LOCK before doing any real work, waiting briefly for the daemon to
+# finish its current cycle if one is in progress. The daemon only holds this
+# lock for the ~1-3s of active ACL mutation within run_cycle, not its entire
+# process lifetime, so this wait is short in practice — unlike a check against
+# the daemon's singleton lock (held for as long as the service is up), which
+# would skip almost every time. The lock is held for the rest of this
+# script's execution (through the stop→modify→start pydhcpd cycle) and is
+# released automatically when the process exits.
+if [[ -z "${UHOTSPOT_RELOAD_ACTIVE:-}" ]]; then
+    CYCLE_LOCK="/var/lock/uhotspotd-cycle.lock"
+    exec 201>"$CYCLE_LOCK"
+    if ! flock -w 10 201; then
+        ulog "INFO: uhotspotd cycle in progress — skipping cron-triggered reload (will retry next run)"
+        ulog "uleases done (skipped)"
+        exit 0
     fi
 fi
 
@@ -178,7 +194,9 @@ load_env_file() {
         [[ "$line" =~ ^[[:space:]]*$ ]] && continue
         key="${line%%=*}"
         value="${line#*=}"
-        value="${value%\"}"; value="${value#\"}"
+        if [[ "$value" == \"*\" && "$value" == *\" && ${#value} -ge 2 ]]; then
+            value="${value:1:$((${#value}-2))}"
+        fi
         case "$key" in
             SERV_DHCP|SERV_SUBNET|SERV_BROADCAST|SERV_MASK|SERV_INI_RANGE_BLOCK|SERV_END_RANGE_BLOCK|SERV_DNS|\
             ACL_PATH|ACL_MAC_PATH|ACL_DHCP_PATH|HOTSPOT_PATH|\
@@ -354,7 +372,6 @@ verify_dhcp_files
 verify_dhcp_config
 verify_directories
 initialize_empty_files
-ulog "Verification OK — pydhcpd active, paths valid, HOTSPOT_ENABLED=${UNIFI_HOTSPOT_ENABLED:-true}"
 
 function clean_hotspot_list() {
     local removed=0 patterns
@@ -383,7 +400,9 @@ function clean_hotspot_list() {
         fi
     fi
     rm -f "$patterns"
-    ulog "clean_hotspot_list: done (removed=$removed)"
+    if (( removed > 0 )); then
+        ulog "clean_hotspot_list: done (removed=$removed)"
+    fi
 }
 
 function clean_grace_list() {
@@ -435,14 +454,10 @@ function expire_grace_entries() {
     file_temp=$(mktemp)
     TEMP_FILES_TO_CLEAN+=("${file_temp}")
     now_epoch=$(date +%s)
-    local grace_count=0
-    grace_count=$(grep -c '^a;' "$ACL_GRACE_FILE" 2>/dev/null) || grace_count=0
-    ulog "expire_grace_entries: processing $grace_count entries (now=$now_epoch, grace=${BLOCKDHCP_GRACE_SECONDS}s)"
-
     while IFS= read -r _line; do
         IFS=';' read -r status mac ip hostname epoch _ <<< "$_line"
         if [[ "$status" != "a" || -z "$mac" || -z "$epoch" || ! "$epoch" =~ ^[0-9]+$ ]]; then
-            ulog "expire_grace_entries: skipping malformed line (status=$status mac=$mac epoch=$epoch)"
+            ulog "WARNING: expire_grace_entries: skipping malformed line (status=$status mac=$mac epoch=$epoch)"
             continue
         fi
         age=$(( now_epoch - epoch ))
@@ -455,7 +470,6 @@ function expire_grace_entries() {
                 ulog "expire_grace_entries: queued lease removal for $mac"
             fi
         else
-            ulog "expire_grace_entries: keeping $mac (age=${age}s, remaining=$(( BLOCKDHCP_GRACE_SECONDS - age ))s)"
             echo "a;${mac};${ip};${hostname};${epoch};" >> "$file_temp"
         fi
     done < "$ACL_GRACE_FILE"
@@ -502,6 +516,7 @@ function is_pydhcp() {
                     mac_address=$(echo "$lease_content" | grep -oE '([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}' | head -1)
                     ip_address=$(echo "$lease_content" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
                     host_candidate=$(echo "$lease_content" | grep -oE 'client-hostname "[^"]+"' | cut -d'"' -f2 | tr " " "_")
+                    host_candidate=$(echo "$host_candidate" | tr -cd 'A-Za-z0-9._-' | cut -c1-64)
                     host="${host_candidate:-no_name_$(head -c100 /dev/urandom | sha1sum | head -c10)}"
 
                     if [[ -n "$mac_address" && -n "$ip_address" ]]; then
@@ -518,17 +533,14 @@ function is_pydhcp() {
                             fi
 
                             if [[ -n "$mac_authoritative" ]]; then
-                                ulog "read_leases: $mac_address → authoritative (ip=$ip_address)"
                                 echo "$lease_content" >> "$temp_leases"
                             elif grep -qi "^a;${mac_address};" "$ACL_BLOCK_FILE" 2>/dev/null; then
-                                ulog "read_leases: $mac_address → blocked (lease discarded)"
+                                :
                             elif grep -qi "^a;${mac_address};" "$ACL_GRACE_FILE" 2>/dev/null; then
-                                ulog "read_leases: $mac_address → gracedhcp (active, lease kept)"
                                 echo "$lease_content" >> "$temp_leases"
                             else
                                 local wellknow_file="${HOTSPOT_PATH}/guest-wellknow.txt"
                                 if grep -qxiF "${mac_address}" "${wellknow_file}" 2>/dev/null; then
-                                    ulog "read_leases: $mac_address → previously authenticated (wellknow) — lease kept, no grace timer"
                                     echo "$lease_content" >> "$temp_leases"
                                 else
                                     ulog "read_leases: $mac_address → new → gracedhcp (ip=$ip_address host=$host epoch=$(date +%s))"
@@ -544,7 +556,6 @@ function is_pydhcp() {
                                     echo "$lease_content" >> "$temp_leases"
                                 fi
                             else
-                                ulog "read_leases: $mac_address → authoritative (ip=$ip_address)"
                                 echo "$lease_content" >> "$temp_leases"
                             fi
                         fi
@@ -554,12 +565,6 @@ function is_pydhcp() {
                 fi
             fi
         done < "$dhcpd"
-
-        local leases_kept=0
-        if [[ -s "$temp_leases" ]]; then
-            leases_kept=$(grep -c '^lease ' "$temp_leases" 2>/dev/null) || leases_kept=0
-        fi
-        ulog "read_leases: done (leases_kept=$leases_kept)"
 
         if [[ -s "$temp_leases" ]]; then
             mv -f "$temp_leases" "$dhcpd"
@@ -711,7 +716,9 @@ class "blockdhcp" {
             fi
         fi
         rm -f "$file_temp" "$patterns"
-        ulog "clean_block_list: done (removed=$removed)"
+        if (( removed > 0 )); then
+            ulog "clean_block_list: done (removed=$removed)"
+        fi
     }
 
     function clean_proxy_list {
@@ -742,7 +749,9 @@ class "blockdhcp" {
             fi
         fi
         rm -f "$patterns"
-        ulog "clean_proxy_list: done (removed=$removed)"
+        if (( removed > 0 )); then
+            ulog "clean_proxy_list: done (removed=$removed)"
+        fi
     }
 
 
@@ -766,20 +775,8 @@ class "blockdhcp" {
     }
 
     if [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]]; then
-        ulog "--- gracedhcp state BEFORE processing ---"
-        if [[ -s "$ACL_GRACE_FILE" ]]; then
-            while IFS= read -r _line; do ulog "  $_line"; done < "$ACL_GRACE_FILE"
-        else
-            ulog "  (empty)"
-        fi
         clean_grace_list
         expire_grace_entries
-        ulog "--- gracedhcp state AFTER clean+expire ---"
-        if [[ -s "$ACL_GRACE_FILE" ]]; then
-            while IFS= read -r _line; do ulog "  $_line"; done < "$ACL_GRACE_FILE"
-        else
-            ulog "  (empty)"
-        fi
     fi
 
     clean_acl
@@ -789,8 +786,8 @@ class "blockdhcp" {
         clean_hotspot_list
     fi
     ulog "Stopping pydhcpd"
-    systemctl stop pydhcpd
     trap 'rm -f "${TEMP_FILES_TO_CLEAN[@]}" 2>/dev/null; systemctl reset-failed pydhcpd 2>/dev/null; systemctl is-active --quiet pydhcpd || systemctl start pydhcpd' EXIT
+    systemctl stop pydhcpd
     drain_lease_queue
     ulog "Processing leases"
     read_leases
@@ -900,7 +897,6 @@ function duplicate() {
     done
 
     if (( has_error == 0 )); then
-        ulog "Duplicate check: OK"
         is_pydhcp
     else
         echo "Duplicate Data: $(date)" | tee -a /var/log/syslog 2>/dev/null || logger -t uleases "Duplicate Data detected — see uleases.log"
@@ -916,4 +912,4 @@ _count() { local c=0; c=$(grep -c '^a;' "$1" 2>/dev/null) || c=0; echo "$c"; }
 ulog "Summary: blockdhcp=$(_count "$ACL_BLOCK_FILE") | proxy=$(_count "$ACL_MAC_PROXY") | unlimited=$(_count "$ACL_MAC_UNLIMITED")$(
     [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]] && echo " | hotspot=$(_count "$ACL_MAC_HOTSPOT") | gracedhcp=$(_count "$ACL_GRACE_FILE")"
 )"
-ulog "Done"
+ulog "uleases done"

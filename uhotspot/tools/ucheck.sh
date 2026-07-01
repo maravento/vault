@@ -19,7 +19,11 @@
 #   2. Grace period       - list all MACs in grace period with time remaining
 #   3. Consistency check  - check all MACs from all sources + system summary
 #   4. Search by IP/name  - find MAC by IP or hostname and run consistency check
-#   5. Exit
+#   5. UniFi unauthorized - clients connected to the hotspot ESSID that
+#                            UniFi reports as NOT authorized (direct query
+#                            to the UniFi API via stat/sta, not the local
+#                            ACL files)
+#   6. Exit
 #
 # DATA SOURCES CHECKED:
 #   mac-hotspot.txt    - Clients with an active voucher (hotspot authorized)
@@ -27,6 +31,9 @@
 #   blockdhcp.txt      - Blocked MACs (grace expired without voucher)
 #   acl_mac/*.txt      - Permanent ACL lists (proxy, unlimited)
 #   pydhcpd.leases     - Active DHCP lease file
+#   UniFi stat/sta     - Live state of the UniFi controller (option 5 only;
+#                        requires UNIFI_* credentials in uhotspot.conf, not
+#                        used elsewhere in the script)
 #
 # CONSISTENCY RULES:
 #   A MAC should appear in only one logical state at a time. The checker
@@ -69,6 +76,10 @@ GRACE_DHCP="${ACL_GRACE_FILE:-/etc/acl/acl_dhcp/gracedhcp.txt}"
 BLOCK_DHCP="${ACL_BLOCK_FILE:-/etc/acl/acl_dhcp/blockdhcp.txt}"
 ACL_MAC_DIR="${ACL_MAC_PATH:-/etc/acl/acl_mac}"
 LEASES_FILE="/etc/pydhcp/pydhcpd.leases"
+
+# Path to the full configuration file (contains UniFi credentials).
+# Only used in option 5 — the rest of the script does not need it.
+HOTSPOT_CONF="/etc/uhotspot/uhotspot.conf"
 
 # Colors
 if [ -t 1 ]; then
@@ -399,6 +410,115 @@ menu_search() {
     press_enter
 }
 
+# ─── Option 5: unauthorized clients in UniFi ─────────────────────────────────
+
+# Loads the UNIFI_* variables from uhotspot.conf, but only if the file is
+# owned by root and has no write permission for group/other (the same
+# validation performed by uhotspotd.sh before its own "source"). Returns 1
+# without loading anything if the validation fails, instead of continuing
+# with potentially compromised credentials.
+load_unifi_config() {
+    if [ ! -f "$HOTSPOT_CONF" ]; then
+        printf "  ${RED}%s not found${NC}\n" "$HOTSPOT_CONF"
+        return 1
+    fi
+
+    local owner perms gdigit odigit
+    owner=$(stat -c '%U' "$HOTSPOT_CONF" 2>/dev/null)
+    perms=$(stat -c '%a' "$HOTSPOT_CONF" 2>/dev/null)
+    gdigit="${perms: -2:1}"
+    odigit="${perms: -1}"
+    if [[ "$owner" != "root" ]] || [[ "$gdigit" =~ [2367] ]] || [[ "$odigit" =~ [2367] ]]; then
+        printf "  ${RED}%s has unsafe owner/permissions (owner=%s perms=%s) -- not loaded${NC}\n" \
+            "$HOTSPOT_CONF" "$owner" "$perms"
+        return 1
+    fi
+
+    # shellcheck source=/dev/null
+    source "$HOTSPOT_CONF"
+
+    local missing=()
+    [[ -z "${UNIFI_CONTROLLER_URL:-}" ]] && missing+=("UNIFI_CONTROLLER_URL")
+    [[ -z "${UNIFI_USERNAME:-}"       ]] && missing+=("UNIFI_USERNAME")
+    [[ -z "${UNIFI_PASSWORD:-}"       ]] && missing+=("UNIFI_PASSWORD")
+    [[ -z "${UNIFI_TYPE:-}"           ]] && missing+=("UNIFI_TYPE")
+    [[ -z "${UNIFI_SITE:-}"           ]] && missing+=("UNIFI_SITE")
+    [[ -z "${HOTSPOT_ESSID:-}"        ]] && missing+=("HOTSPOT_ESSID")
+    if (( ${#missing[@]} > 0 )); then
+        printf "  ${RED}Missing variables in %s: %s${NC}\n" "$HOTSPOT_CONF" "${missing[*]}"
+        return 1
+    fi
+    return 0
+}
+
+# Logs in against UniFi and queries stat/sta, just like unifi_login()/api_get()
+# in uhotspotd.sh, but self-contained (no session persisted to disk, since
+# this is a one-off query from the menu, not a daemon).
+menu_unifi_unauthorized() {
+    echo ""
+    if ! load_unifi_config; then
+        press_enter
+        return
+    fi
+
+    local login_url sta_url
+    if [[ "$UNIFI_TYPE" == "unifi-os" ]]; then
+        login_url="${UNIFI_CONTROLLER_URL}/api/auth/login"
+        sta_url="${UNIFI_CONTROLLER_URL}/proxy/network/api/s/${UNIFI_SITE}/stat/sta"
+    else
+        login_url="${UNIFI_CONTROLLER_URL}/api/login"
+        sta_url="${UNIFI_CONTROLLER_URL}/api/s/${UNIFI_SITE}/stat/sta"
+    fi
+
+    printf "  ${CYAN}Connecting to %s...${NC}\n" "$UNIFI_CONTROLLER_URL"
+
+    local hdr token
+    hdr=$(mktemp)
+    curl -sk --connect-timeout 10 --max-time 30 \
+        -D "$hdr" -o /dev/null \
+        -X POST "$login_url" \
+        -H "Content-Type: application/json" \
+        -d "{\"username\":\"${UNIFI_USERNAME}\",\"password\":\"${UNIFI_PASSWORD}\"}" 2>/dev/null
+    token=$(grep -i '^set-cookie: TOKEN=' "$hdr" 2>/dev/null | sed -E 's/.*TOKEN=([^;]+).*/\1/' | tr -d '\r\n')
+    rm -f "$hdr"
+
+    if [[ -z "$token" ]]; then
+        printf "  ${RED}Login failed -- check UNIFI_USERNAME/UNIFI_PASSWORD/UNIFI_CONTROLLER_URL in %s${NC}\n" "$HOTSPOT_CONF"
+        press_enter
+        return
+    fi
+
+    local sta_json
+    sta_json=$(mktemp)
+    curl -sk --connect-timeout 10 --max-time 30 \
+        -b "TOKEN=${token}" "$sta_url" -o "$sta_json" 2>/dev/null
+
+    echo ""
+    printf "  ${WHITE}=== Clients on %s NOT authorized by UniFi ===${NC}\n\n" "$HOTSPOT_ESSID"
+
+    local rows
+    rows=$(jq -r --arg essid "$HOTSPOT_ESSID" '
+        .data[]
+        | select(.essid == $essid)
+        | select(.authorized == false)
+        | "\(.mac)\t\(.hostname // "no-hostname")\t\(.ip // "no-ip")\t\(.last_seen // "n/a")"
+    ' "$sta_json" 2>/dev/null)
+    rm -f "$sta_json"
+
+    if [[ -z "$rows" ]]; then
+        printf "  ${GREEN}None -- all clients on %s are authorized${NC}\n" "$HOTSPOT_ESSID"
+    else
+        printf "  ${WHITE}%-20s %-25s %-18s %s${NC}\n" "MAC" "HOSTNAME" "IP" "LAST_SEEN"
+        printf "  %s\n" "$(printf -- '-%.0s' {1..80})"
+        while IFS=$'\t' read -r mac hostname ip last_seen; do
+            [[ -z "$mac" ]] && continue
+            printf "  %-20s %-25s %-18s %s\n" "$mac" "$hostname" "$ip" "$last_seen"
+        done <<< "$rows"
+    fi
+
+    press_enter
+}
+
 # ─── Main menu ───────────────────────────────────────────────────────────────
 main_menu() {
     while true; do
@@ -411,15 +531,17 @@ main_menu() {
         printf "  2. Grace period status\n"
         printf "  3. Consistency check + system summary\n"
         printf "  4. Search by IP or hostname\n"
-        printf "  5. Exit\n"
+        printf "  5. UniFi: unauthorized clients on the ESSID\n"
+        printf "  6. Exit\n"
         echo ""
-        read -rp "  Select option [1-5]: " opt
+        read -rp "  Select option [1-6]: " opt
         case "$opt" in
             1) menu_check_mac ;;
             2) menu_grace_period ;;
             3) menu_consistency ;;
             4) menu_search ;;
-            5) echo ""; exit 0 ;;
+            5) menu_unifi_unauthorized ;;
+            6) echo ""; exit 0 ;;
             *) printf "  ${RED}Invalid option${NC}\n"; sleep 1 ;;
         esac
     done

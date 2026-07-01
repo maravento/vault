@@ -38,6 +38,7 @@ from datetime import datetime, timezone
 import pwd
 import grp
 import atexit
+import tempfile
 
 # =============================================================================
 # PATHS
@@ -412,6 +413,7 @@ class LeaseManager:
         self.path   = path
         self.config = config
         self.lock   = threading.RLock()
+        self._write_lock = threading.Lock()
         self.leases = {}
         self._alloc_counter = 0
         self._quarantine = {}
@@ -537,7 +539,7 @@ class LeaseManager:
         with self.lock:
             self._quarantine[ip] = time.time() + duration
 
-    def allocate(self, mac, hostname, requested_ip=None, src_mac=None, persist=True):
+    def allocate(self, mac, hostname, requested_ip=None, hint_ip=None, src_mac=None, persist=True):
         mac = mac.lower()
         # Rate-limit per client MAC (chaddr) so that multiple clients behind
         # the same relay do not share a single rate-limit bucket.
@@ -566,21 +568,40 @@ class LeaseManager:
                                 rate_key, self._RATE_LIMIT_MAX, self._RATE_LIMIT_WINDOW)
                     return None, None, "rate limited"
 
-                if requested_ip and requested_ip != "0.0.0.0":
-                    if requested_ip in self.pool:
-                        static_ips = set(self.config.static_hosts.values())
-                        if requested_ip in static_ips and self.config.static_hosts.get(mac) != requested_ip:
+                # requested_ip (REQUEST, option 50) is a hard requirement:
+                # if it cannot be honored, the caller must NAK. hint_ip
+                # (DISCOVER, option 50) is only a preference: if it cannot
+                # be honored, fall through to normal pool selection instead
+                # of failing the DISCOVER outright.
+                is_hard = bool(requested_ip and requested_ip != "0.0.0.0")
+                if is_hard:
+                    candidate = requested_ip
+                elif hint_ip and hint_ip != "0.0.0.0":
+                    candidate = hint_ip
+                else:
+                    candidate = None
+
+                if candidate and candidate in self.pool:
+                    static_ips = set(self.config.static_hosts.values())
+                    reserved_for_other = (candidate in static_ips
+                                          and self.config.static_hosts.get(mac) != candidate)
+                    if reserved_for_other:
+                        if is_hard:
                             return None, None, "IP reserved for static host"
-                        existing_lease = self.leases.get(requested_ip)
+                        # soft hint pointing at someone else's static IP: ignore
+                        # it and fall through to normal pool selection below.
+                    else:
+                        existing_lease = self.leases.get(candidate)
                         if not existing_lease or existing_lease.is_expired():
                             bucket.append(now)
-                            snapshot_to_save = self._create_lease_locked(requested_ip, mac, hostname, self.config.pool_def_lease)
-                            return requested_ip, self.config.pool_def_lease, None
+                            snapshot_to_save = self._create_lease_locked(candidate, mac, hostname, self.config.pool_def_lease)
+                            return candidate, self.config.pool_def_lease, None
                         elif existing_lease.mac == mac:
-                            snapshot_to_save = self._create_lease_locked(requested_ip, mac, hostname, self.config.pool_def_lease)
-                            return requested_ip, self.config.pool_def_lease, None
-                        else:
-                            return None, None, "pool exhausted"
+                            snapshot_to_save = self._create_lease_locked(candidate, mac, hostname, self.config.pool_def_lease)
+                            return candidate, self.config.pool_def_lease, None
+                        elif is_hard:
+                            return None, None, "requested IP in use"
+                        # else: soft hint already leased to someone else, fall through.
 
                 ip = self._get_pool_ip(mac)
                 if ip:
@@ -630,21 +651,42 @@ class LeaseManager:
         self._save_snapshot(snapshot)
 
     def _save_snapshot(self, snapshot):
-        tmp_path = self.path + ".tmp"
-        with open(tmp_path, "w") as f:
-            for lease in snapshot.values():
-                f.write(lease.to_conf())
-                f.write("\n")
-            f.flush()
-            os.fsync(f.fileno())
-        if self._uid is not None and self._gid is not None:
+        if snapshot is None:
+            return
+        # Multiple worker threads can reach this point concurrently (allocate/
+        # release/cleanup_expired/apply_config all persist outside self.lock
+        # so disk I/O doesn't serialize allocations). _write_lock ensures only
+        # one thread writes at a time, and re-reading self.leases fresh here
+        # (instead of trusting the possibly-stale snapshot the caller captured
+        # earlier) guarantees whichever write actually lands is never a
+        # revert to older data.
+        with self._write_lock:
+            with self.lock:
+                current = dict(self.leases)
+            directory = os.path.dirname(self.path) or "."
+            fd, tmp_path = tempfile.mkstemp(
+                prefix=os.path.basename(self.path) + ".", dir=directory)
             try:
-                os.chown(tmp_path, self._uid, self._gid)
-            except OSError as e:
-                log.warning("Cannot chown %s to %d:%d: %s",
-                            tmp_path, self._uid, self._gid, e)
-        os.chmod(tmp_path, 0o640)
-        os.replace(tmp_path, self.path)
+                with os.fdopen(fd, "w") as f:
+                    for lease in current.values():
+                        f.write(lease.to_conf())
+                        f.write("\n")
+                    f.flush()
+                    os.fsync(f.fileno())
+                if self._uid is not None and self._gid is not None:
+                    try:
+                        os.chown(tmp_path, self._uid, self._gid)
+                    except OSError as e:
+                        log.warning("Cannot chown %s to %d:%d: %s",
+                                    tmp_path, self._uid, self._gid, e)
+                os.chmod(tmp_path, 0o640)
+                os.replace(tmp_path, self.path)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
 
     def release(self, mac):
         mac = mac.lower()
@@ -782,7 +824,7 @@ def parse_packet(data):
 
 
 def build_packet(msg_type, xid, mac_str, offered_ip, server_ip, config, lease_time,
-                 broadcast=True):
+                 broadcast=True, giaddr="0.0.0.0"):
     if not config.netmask:
         log.error("Cannot build packet: netmask not configured")
         return b""
@@ -804,6 +846,7 @@ def build_packet(msg_type, xid, mac_str, offered_ip, server_ip, config, lease_ti
     pkt[10:12] = struct.pack("!H", 0x8000 if broadcast else 0)
     pkt[16:20] = ip_to_bytes(offered_ip)
     pkt[20:24] = ip_to_bytes(server_ip)
+    pkt[24:28] = ip_to_bytes(giaddr)
     pkt[28:34] = mac_bytes
 
     options = bytearray()
@@ -939,6 +982,12 @@ class DHCPServer:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        try:
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE,
+                                 self.interface.encode() + b"\0")
+        except (OSError, AttributeError) as e:
+            log.warning("Cannot bind UDP socket to interface %s (SO_BINDTODEVICE): %s "
+                        "— replies rely on the kernel routing table", self.interface, e)
         self.sock.bind(("", DHCP_SERVER_PORT))
 
         self.running = True
@@ -1005,7 +1054,11 @@ class DHCPServer:
 
     def stop(self):
         self.running = False
-        self._thread_pool.shutdown(wait=False)
+        # Wait for in-flight worker tasks to finish before closing the
+        # sockets they may still be using to send responses and persist
+        # leases. This guarantees main()'s remove_pid() only runs once no
+        # worker can still be writing to the leases file.
+        self._thread_pool.shutdown(wait=True)
         if hasattr(self, 'raw_sock') and self.raw_sock:
             self.raw_sock.close()
         if self.sock:
@@ -1127,6 +1180,7 @@ class DHCPServer:
         pkt_buf[10:12] = struct.pack("!H", 0x8000 if use_broadcast else 0)
         pkt_buf[16:20] = ip_to_bytes(pkt.get("ciaddr", "0.0.0.0"))
         pkt_buf[20:24] = ip_to_bytes(self.server_ip)
+        pkt_buf[24:28] = ip_to_bytes(pkt.get("giaddr", "0.0.0.0"))
         pkt_buf[28:34] = mac_bytes
 
         options = bytearray()
@@ -1179,9 +1233,11 @@ class DHCPServer:
                 lease_time  = config_default_lease
                 alloc_reason = None
             else:
-                offered_ip, lease_time, alloc_reason = self.leases.allocate(mac, hostname, src_mac=src_mac, persist=False)
+                offered_ip, lease_time, alloc_reason = self.leases.allocate(
+                    mac, hostname, hint_ip=pkt.get("requested_ip"), src_mac=src_mac, persist=False)
         else:
-            offered_ip, lease_time, alloc_reason = self.leases.allocate(mac, hostname, src_mac=src_mac, persist=False)
+            offered_ip, lease_time, alloc_reason = self.leases.allocate(
+                mac, hostname, hint_ip=pkt.get("requested_ip"), src_mac=src_mac, persist=False)
 
         if not offered_ip:
             if alloc_reason and "blockdhcp" in alloc_reason:
@@ -1215,7 +1271,7 @@ class DHCPServer:
         use_broadcast = self._should_broadcast(pkt)
         reply = build_packet(MSG_OFFER, pkt["xid"], mac, offered_ip,
                              server_ip_snapshot, config_snapshot, lease_time,
-                             broadcast=use_broadcast)
+                             broadcast=use_broadcast, giaddr=pkt.get("giaddr", "0.0.0.0"))
         if reply:
             self._send(reply, giaddr=pkt.get("giaddr", "0.0.0.0"), ciaddr=pkt.get("ciaddr", "0.0.0.0"))
             log.info("OFFER %s → %s", mac, offered_ip)
@@ -1234,6 +1290,17 @@ class DHCPServer:
         else:
             existing = self.leases.get_by_mac(mac)
             target_ip = existing.ip if existing else None
+
+        if target_ip is None:
+            # RFC 2131 §4.3.2: a REQUEST is only valid in SELECTING
+            # (requested-ip set), INIT-REBOOT (requested-ip set) or
+            # RENEWING/REBINDING (ciaddr set). One with neither and no
+            # lease on record for this MAC is not a real client state —
+            # honoring it would hand out a full, persisted lease with no
+            # DISCOVER/ping-check and no proof of possession.
+            log.debug("REQUEST from %s has no requested-ip/ciaddr and no "
+                      "existing lease — dropped", mac)
+            return
 
         server_id_opt = pkt["options"].get(OPT_SERVER_ID, b"")
         if len(server_id_opt) == 4:
@@ -1286,7 +1353,7 @@ class DHCPServer:
         use_broadcast = self._should_broadcast(pkt)
         reply = build_packet(MSG_ACK, pkt["xid"], mac, offered_ip,
                              server_ip_snapshot, config_snapshot, lease_time,
-                             broadcast=use_broadcast)
+                             broadcast=use_broadcast, giaddr=pkt.get("giaddr", "0.0.0.0"))
         if reply:
             self._send(reply, giaddr=pkt.get("giaddr", "0.0.0.0"), ciaddr=pkt.get("ciaddr", "0.0.0.0"))
             log.info("ACK %s → %s (lease %ds)", mac, offered_ip, lease_time)
@@ -1298,6 +1365,7 @@ class DHCPServer:
         nak[2]   = 6
         nak[4:8] = pkt["xid"]
         nak[10:12] = struct.pack("!H", 0x8000)
+        nak[24:28] = ip_to_bytes(pkt.get("giaddr", "0.0.0.0"))
         try:
             nak[28:34] = bytes(int(x, 16) for x in mac.split(":"))
         except (ValueError, IndexError):

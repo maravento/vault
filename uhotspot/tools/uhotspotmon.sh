@@ -518,7 +518,7 @@ window.uhRL=function(){
   document.getElementById('uhTB').innerHTML='<tr><td colspan="3" style="text-align:center;padding:40px;color:#90a4ae">Loading…</td></tr>';
   var ln=document.getElementById('uhLn').value;
   fetch('api.cgi?action=tail&pos=0&lines='+ln).then(function(r){return r.json()}).then(function(d){
-    if(d.error){loading=false;return}ALL=bi(d.rows||[]);fOff=d.pos||0;uhAF();ucs();loading=false;if(live)sP();
+    if(d.error){loading=false;return}ALL=bi(d.rows||[]).reverse();fOff=d.pos||0;uhAF();ucs();loading=false;if(live)sP();
   }).catch(function(){loading=false});
 };
 
@@ -527,7 +527,7 @@ function poll(){
   var tw=document.getElementById('uhTW'),sp=tw.scrollTop;
   fetch('api.cgi?action=tail&pos='+fOff+'&lines=200').then(function(r){return r.json()}).then(function(d){
     if(!d.rows||!d.rows.length)return;
-    var nr=bi(d.rows);fOff=d.pos;
+    var nr=bi(d.rows.reverse());fOff=d.pos;
     if(!nr.length)return;
     ALL=nr.concat(ALL);if(ALL.length>MR)ALL=ALL.slice(0,MR);nrc+=nr.length;
     uhAF(nr.length);ucs();if(sp>50){document.getElementById('uhNC').textContent=nrc;document.getElementById('uhNB').style.display='block'}
@@ -550,7 +550,7 @@ window.uhGS=function(){
   var btn=document.getElementById('uhBG');btn.innerHTML='<span class="uh-sp"></span> Searching…';
   document.getElementById('uhTB').innerHTML='<tr><td colspan="3" style="text-align:center;padding:40px;color:#90a4ae">Searching entire log…</td></tr>';
   fetch('api.cgi?action=grep&q='+encodeURIComponent(q)).then(function(r){return r.json()}).then(function(d){
-    if(d.error){loading=false;rgB();return}ALL=bi(d.rows||[]);fOff=d.offset||0;
+    if(d.error){loading=false;rgB();return}ALL=bi(d.rows||[]).reverse();fOff=d.offset||0;
     document.getElementById('uhGT').textContent=q;document.getElementById('uhGC').textContent=ALL.length;
     document.getElementById('uhGB').style.display='flex';uhAF();ucs();loading=false;sgB();
   }).catch(function(){loading=false;rgB();grep=false});
