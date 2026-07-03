@@ -215,16 +215,22 @@ discover_unifi_controller() {
     local test_url http_code payload
 
     info "Probing ${server_ip} on ports ${ports[*]} ..."
-    payload=$(jq -n --arg u "$user" --arg p "$pass" '{username: $u, password: $p}')
+    # Pass username/password to jq via environment, not --arg, so the
+    # plaintext password never appears in jq's own argv (readable by any
+    # local user via /proc/<pid>/cmdline).
+    payload=$(UH_JQ_USER="$user" UH_JQ_PASS="$pass" jq -n \
+        '{username: env.UH_JQ_USER, password: env.UH_JQ_PASS}')
 
     for port in "${ports[@]}"; do
         test_url="https://${server_ip}:${port}"
 
+        # Body goes to curl via stdin (--data-binary @-), not -d, for the
+        # same reason: -d "$payload" would put the password in curl's argv.
         http_code=$(curl -sk -o /dev/null -w "%{http_code}" \
             -X POST "${test_url}/api/auth/login" \
             -H "Content-Type: application/json" \
-            -d "$payload" \
-            --connect-timeout 3 || echo "000")
+            --data-binary @- \
+            --connect-timeout 3 <<< "$payload" || echo "000")
         if [[ "$http_code" == "200" ]]; then
             info "Found UniFi OS controller at ${test_url}"
             DISCOVERED_URL="$test_url"
@@ -235,8 +241,8 @@ discover_unifi_controller() {
         http_code=$(curl -sk -o /dev/null -w "%{http_code}" \
             -X POST "${test_url}/api/login" \
             -H "Content-Type: application/json" \
-            -d "$payload" \
-            --connect-timeout 3 || echo "000")
+            --data-binary @- \
+            --connect-timeout 3 <<< "$payload" || echo "000")
         if [[ "$http_code" == "200" ]]; then
             info "Found classic UniFi controller at ${test_url}"
             DISCOVERED_URL="$test_url"

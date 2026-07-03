@@ -7,9 +7,9 @@
 #
 # DESCRIPTION:
 #   Persistent systemd service for UniFi hotspot ACL management.
-#   Runs a full management cycle every POLL_INTERVAL seconds (configured in
-#   uhotspot.conf, default 10) with a persistent UniFi API
-#   session and CSRF token shared across all calls within a cycle.
+#   Runs a full management cycle every POLL_INTERVAL seconds (set in
+#   uhotspot.conf, default 20) with a persistent UniFi API session and CSRF
+#   token shared across all calls within a cycle.
 #
 #   Session tokens are persisted to TOKEN_STATE_FILE (/run/uhotspotd_session)
 #   so that re-authentication inside $(...) subshells propagates correctly to
@@ -22,11 +22,13 @@
 #   so they bypass the captive portal on HOTSPOT_ESSID without needing a
 #   voucher. If no mac-*.txt files exist, steps 5 and 10 are no-ops.
 #
-# CYCLE (every POLL_INTERVAL seconds, default 10, set in uhotspot.conf):
+# CYCLE (every POLL_INTERVAL seconds, default 20, set in uhotspot.conf):
 #   1. VOUCHERS    — load voucher cache from UniFi (stat/voucher)
-#   2. DEDUP       — cross-list consistency check, blockdhcp cleanup
-#   3. SORT        — sort mac-hotspot.txt by IP
-#   4. SNAPSHOT    — md5sum baseline of ACL files before processing
+#   2. SNAPSHOT    — md5sum baseline of ACL files before processing (taken
+#                    before DEDUP so its blockdhcp.txt changes are detected
+#                    by RELOAD, step 12)
+#   3. DEDUP       — cross-list consistency check, blockdhcp cleanup
+#   4. SORT        — sort mac-hotspot.txt by IP
 #   5. CLEAN MACS  — remove mac-*.txt entries from mac-hotspot
 #   6. EXPIRED     — remove expired mac-hotspot entries (hotspot IPs freed)
 #   7. NEW LEASES  — scan pydhcpd.leases; any MAC not yet in mac-hotspot/
@@ -91,9 +93,11 @@ cleanup_temp() {
     # Only skip the "done" announcement on an explicit error exit (exit 1) —
     # the ERROR line already logged is the signal that something happened.
     # A normal stop (systemctl stop sends SIGTERM, rc=143) is not that case
-    # and must still log done.
-    if (( rc != 1 )) && declare -F log &>/dev/null; then
-        log "INFO: uhotspotd done"
+    # and must still log done. Uses log_raw, not log, so this line closes out
+    # whatever was last logged instead of opening a delimiter block of its
+    # own — a raya must mark the start of a cycle/session, never a shutdown.
+    if (( rc != 1 )) && declare -F log_raw &>/dev/null; then
+        log_raw "INFO: uhotspotd done"
     fi
 }
 trap cleanup_temp EXIT
@@ -129,7 +133,30 @@ _ACL_SNAPSHOT_QUEUE=""
 _ACL_SNAPSHOT_GRACE=""
 
 # ── Logging ───────────────────────────────────────────────────────────────────
+# _CYCLE_MARKED tracks whether the delimiter line has already been printed
+# for the current cycle. It starts at 0 (unset), so the very first log() call
+# of the whole process (verify_installation's "Installation verified") prints
+# it too — covering daemon startup with the same mechanism, no special case
+# needed. run_cycle() resets it to 0 at the start of every loop iteration, so
+# a cycle with no activity produces no delimiter and no lines at all; a cycle
+# with any activity gets exactly one delimiter, right before its first line.
+_CYCLE_MARKED=0
 log() {
+    if [[ "$_CYCLE_MARKED" != "1" ]]; then
+        echo "────────────────────────────────────────────────────────────────────────────────" >> "$LOG_FILE" 2>/dev/null || true
+        _CYCLE_MARKED=1
+    fi
+    local msg
+    msg="$(date '+%Y-%m-%d %H:%M:%S') $*"
+    echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
+}
+
+# Same output format as log(), but never opens a delimiter block of its own.
+# Used only for the shutdown notice (see cleanup_temp): that line closes out
+# whatever was last logged in this process rather than starting a new one.
+# The next process (a fresh uhotspotd start) still gets its own delimiter as
+# usual, since _CYCLE_MARKED is a fresh variable in that new process.
+log_raw() {
     local msg
     msg="$(date '+%Y-%m-%d %H:%M:%S') $*"
     echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
@@ -146,8 +173,8 @@ load_config() {
     _perms=$(stat -c '%a' "$CONFIG_FILE" 2>/dev/null)
     _gdigit="${_perms: -2:1}"
     _odigit="${_perms: -1}"
-    if [[ "$_owner" != "root" ]] || [[ "$_gdigit" =~ [2367] ]] || [[ "$_odigit" =~ [2367] ]]; then
-        echo "ERROR: $CONFIG_FILE has unsafe owner/permissions (owner=$_owner perms=$_perms)" >&2
+    if [[ "$_owner" != "root" ]] || [[ "$_gdigit" != "0" ]] || [[ "$_odigit" != "0" ]]; then
+        echo "ERROR: $CONFIG_FILE has unsafe owner/permissions (owner=$_owner perms=$_perms) — must be owned by root with no group/other access (600)" >&2
         exit 1
     fi
     # shellcheck source=/dev/null
@@ -259,17 +286,23 @@ unifi_login() {
 
     header_file=$(mktemp)
     TEMP_FILES_TO_CLEAN+=("${header_file}")
-    payload=$(jq -n --arg u "$UNIFI_USERNAME" --arg p "$UNIFI_PASSWORD" \
-        '{username: $u, password: $p}')
+    # Pass username/password to jq via environment, not --arg, so the
+    # plaintext password never appears in jq's own argv (readable by any
+    # local user via /proc/<pid>/cmdline). Environment is only readable by
+    # the same user or root (/proc/<pid>/environ).
+    payload=$(UH_JQ_USER="$UNIFI_USERNAME" UH_JQ_PASS="$UNIFI_PASSWORD" jq -n \
+        '{username: env.UH_JQ_USER, password: env.UH_JQ_PASS}')
 
+    # Body goes to curl via stdin (--data-binary @-), not -d, for the same
+    # reason: -d "$payload" would put the password in curl's argv too.
     http_code=$(curl -sk \
         -D "$header_file" \
         -o /dev/null \
         -w "%{http_code}" \
         -X POST "$login_url" \
         -H "Content-Type: application/json" \
-        -d "$payload" \
-        --connect-timeout 10 --max-time 40 || echo "000")
+        --data-binary @- \
+        --connect-timeout 10 --max-time 40 <<< "$payload" || echo "000")
 
     if [[ "$http_code" != "200" ]]; then
         log "ERROR: UniFi login failed (HTTP $http_code)"
@@ -480,7 +513,7 @@ queue_lease_removal() {
     return 1
 }
 
-# ── Step 2: MAC list deduplication ───────────────────────────────────────────
+# ── Step 3: MAC list deduplication ───────────────────────────────────────────
 dedup_mac_lists() {
     # MANAGED_MACS is only populated when MANAGED_MACS_ENABLED=true in uhotspot.conf.
     # When disabled, clean_managed_macs and authorize_managed_macs become no-ops
@@ -592,7 +625,7 @@ clean_managed_macs() {
     fi
 }
 
-# ── Step 3: sort ACL files by IP ─────────────────────────────────────────────
+# ── Step 4: sort ACL files by IP ─────────────────────────────────────────────
 sort_acl_files() {
     local tmp
 
@@ -607,7 +640,12 @@ sort_acl_files() {
 add_mac_to_acl() {
     local mac="$1" ip="$2" hostname="$3" end_time="$4"
 
-    if [[ "$mac" == *';'* || "$ip" == *';'* || "$hostname" == *';'* || "$end_time" == *';'* ]]; then
+    if [[ ! "$mac" =~ ^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$ ]]; then
+        log "ERROR: add_mac_to_acl: refusing malformed MAC '$mac' — not added"
+        return 1
+    fi
+
+    if [[ "$ip" == *';'* || "$hostname" == *';'* || "$end_time" == *';'* ]]; then
         log "ERROR: Refusing ACL entry — field contains ';' (mac=$mac)"
         return 1
     fi
@@ -697,7 +735,7 @@ clean_expired_macs() {
 # here and no lease removal is queued — gracedhcp clients keep their existing
 # pydhcpd pool lease until they enter a voucher or their grace timer expires
 # (handled by uleases.sh). Writing gracedhcp.txt is enough to be picked up by
-# the snapshot taken in step 4, so check_and_reload_if_changed (step 12)
+# the snapshot taken in step 2, so check_and_reload_if_changed (step 12)
 # detects the change and triggers SERVER_RELOAD_SCRIPT, which runs uleases.sh
 # to do the actual classification/expiry/blocking of grace entries.
 process_new_leases() {
@@ -723,7 +761,7 @@ process_new_leases() {
             mac=$(echo "$lease_content" | grep -oiE '([0-9a-f]{2}:){5}[0-9a-f]{2}' | head -1 | tr '[:upper:]' '[:lower:]')
             ip=$(echo "$lease_content" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
             host=$(echo "$lease_content" | grep -oE 'client-hostname "[^"]+"' | cut -d'"' -f2 | tr ' ' '_')
-            host=$(echo "$host" | tr -cd 'A-Za-z0-9._-' | cut -c1-64)
+            host=$(echo "$host" | tr -cd 'A-Za-z0-9._-' | cut -c1-63)
             [[ -z "$host" ]] && host="no_name_$(head -c100 /dev/urandom | sha1sum | head -c10)"
 
             if [[ -n "$mac" && -n "$ip" ]] \
@@ -770,9 +808,26 @@ process_sessions() {
         fi
 
         if grep -qi "^a;${mac};" "$MAC_LIST" 2>/dev/null; then
-            local existing_end
-            existing_end=$(grep -i "^a;${mac};" "$MAC_LIST" | head -1 | awk -F';' '{print $5}')
+            local existing_line existing_ip existing_hostname existing_end
+            existing_line=$(grep -i "^a;${mac};" "$MAC_LIST" | head -1)
+            existing_ip=$(echo "$existing_line" | awk -F';' '{print $3}')
+            existing_hostname=$(echo "$existing_line" | awk -F';' '{print $4}')
+            existing_end=$(echo "$existing_line" | awk -F';' '{print $5}')
             [[ "$end_time" == "$existing_end" ]] && continue
+
+            # Renewal of an already-authorized MAC (e.g. an admin manually
+            # extended the voucher's end time from the UniFi UI, or any
+            # other integration that updates an existing guest session).
+            # The IP and hostname it was assigned when the voucher was
+            # first redeemed must not change for as long as it stays
+            # authorized — only the expiration time is updated.
+            # assign_ip_and_hostname() is never called here since no new
+            # IP is needed.
+            log "INFO: process_sessions: renewal detected for $mac (end_time $existing_end -> $end_time) — keeping ip=$existing_ip hostname=$existing_hostname"
+            if add_mac_to_acl "$mac" "$existing_ip" "$existing_hostname" "$end_time"; then
+                (( added++ )) || true
+            fi
+            continue
         fi
 
         local assigned_ip="" assigned_hostname=""
@@ -947,7 +1002,7 @@ mac_hotspot_backup() {
     fi
 }
 
-# ── ACL snapshot & reload ─────────────────────────────────────────────────────
+# ── Step 2: ACL snapshot (baseline for reload detection) ─────────────────────
 snapshot_acls() {
     local grace_file="${ACL_GRACE_FILE:-/etc/acl/acl_dhcp/gracedhcp.txt}"
     _ACL_SNAPSHOT_HOTSPOT=$(md5sum "$MAC_LIST"          2>/dev/null | awk '{print $1}' || echo "absent")
@@ -998,6 +1053,8 @@ check_and_reload_if_changed() {
 
 # ── Full hotspot cycle ────────────────────────────────────────────────────────
 run_cycle() {
+    _CYCLE_MARKED=0
+
     if ! flock -n 201; then
         log "WARNING: cycle lock held unexpectedly — skipping this cycle"
         return
@@ -1008,9 +1065,9 @@ run_cycle() {
     MANAGED_AUTHORIZED=0
 
     load_all_vouchers
+    snapshot_acls
     dedup_mac_lists
     sort_acl_files
-    snapshot_acls
     clean_managed_macs
     clean_expired_macs
     process_new_leases
@@ -1025,7 +1082,7 @@ run_cycle() {
     mac_hotspot_backup
 
     # Summary line is only useful when something actually changed this cycle —
-    # logging it unconditionally at POLL_INTERVAL cadence (default 10s) drowns
+    # logging it unconditionally at POLL_INTERVAL cadence (default 20s) drowns
     # the log in identical lines during idle periods.
     if check_and_reload_if_changed; then
         local authorized_total grace_total
@@ -1042,11 +1099,10 @@ run_cycle() {
 # ── Main daemon loop ──────────────────────────────────────────────────────────
 main() {
     load_config
-    POLL_INTERVAL="${POLL_INTERVAL:-10}"
+    POLL_INTERVAL="${POLL_INTERVAL:-20}"
     verify_installation
     init_acl_files
 
-    echo "────────────────────────────────────────────────────────────────────────────────" >> "$LOG_FILE" 2>/dev/null || true
     log "INFO: uhotspotd start..."
 
     if ! unifi_login; then

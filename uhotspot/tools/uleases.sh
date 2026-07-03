@@ -87,11 +87,9 @@
 #
 ################################################################################
 
-
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 set -euo pipefail
-
 
 LOG_FILE="/var/log/uhotspot.log"
 ulog() {
@@ -244,7 +242,7 @@ fi
 : "${ACL_BLOCK_FILE:=/etc/acl/acl_dhcp/blockdhcp.txt}"
 : "${BLOCKDHCP_GRACE_SECONDS:=86400}"
 : "${UNIFI_HOTSPOT_ENABLED:=true}"
-: "${CLEANUP_INTERVAL:=20}"
+: "${CLEANUP_INTERVAL:=60}"
 : "${AUTHORIZED_LEASE_TIME:=2592000}"
 : "${WPAD_ENABLED:=false}"
 : "${PING_CHECK_ENABLED:=true}"
@@ -499,6 +497,8 @@ function is_pydhcp() {
         TEMP_FILES_TO_CLEAN+=("$temp_leases")
         local current_lease=""
         local lease_content=""
+        local total_seen=0
+        local dropped_blocked=0
 
         while IFS= read -r line; do
             if echo "$line" | grep -qE '^lease ((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?) \{$'; then
@@ -516,10 +516,11 @@ function is_pydhcp() {
                     mac_address=$(echo "$lease_content" | grep -oE '([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}' | head -1)
                     ip_address=$(echo "$lease_content" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
                     host_candidate=$(echo "$lease_content" | grep -oE 'client-hostname "[^"]+"' | cut -d'"' -f2 | tr " " "_")
-                    host_candidate=$(echo "$host_candidate" | tr -cd 'A-Za-z0-9._-' | cut -c1-64)
+                    host_candidate=$(echo "$host_candidate" | tr -cd 'A-Za-z0-9._-' | cut -c1-63)
                     host="${host_candidate:-no_name_$(head -c100 /dev/urandom | sha1sum | head -c10)}"
 
                     if [[ -n "$mac_address" && -n "$ip_address" ]]; then
+                        (( total_seen++ )) || true
                         line_lease="a;$mac_address;$ip_address;$host;"
 
                         if [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]]; then
@@ -535,7 +536,7 @@ function is_pydhcp() {
                             if [[ -n "$mac_authoritative" ]]; then
                                 echo "$lease_content" >> "$temp_leases"
                             elif grep -qi "^a;${mac_address};" "$ACL_BLOCK_FILE" 2>/dev/null; then
-                                :
+                                (( dropped_blocked++ )) || true
                             elif grep -qi "^a;${mac_address};" "$ACL_GRACE_FILE" 2>/dev/null; then
                                 echo "$lease_content" >> "$temp_leases"
                             else
@@ -571,7 +572,17 @@ function is_pydhcp() {
         else
             local original_count=0
             original_count=$(grep -c '^lease ' "$dhcpd" 2>/dev/null) || original_count=0
-            if (( original_count > 0 )); then
+            if (( total_seen > 0 )) && (( total_seen == dropped_blocked )); then
+                # Every lease block was successfully parsed and every single one
+                # belongs to a MAC that is now in blockdhcp.txt — a legitimately
+                # empty result, not a parsing failure. Safe to clear.
+                ulog "read_leases: all $total_seen lease(s) belong to blocked MACs — clearing $dhcpd"
+                echo "" > "$dhcpd"
+                rm -f "$temp_leases"
+            elif (( original_count > 0 )); then
+                # Empty result NOT fully explained by blocked MACs (parsing
+                # failure, unexpected code path, etc.) — preserve the original
+                # to avoid losing lease data on a transient/unknown failure.
                 ulog "WARNING: read_leases: all $original_count lease(s) filtered out — preserving original $dhcpd"
                 rm -f "$temp_leases"
             else

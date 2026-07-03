@@ -31,6 +31,11 @@ $month=$co->param('month');
 $day  =$co->param('day');
 $mode =$co->param('mode') || "day";
 
+# Validate: year=4 digits, month/day=2 digits
+MyDie("invalid year/month/day\n") if ($year ne "" && $year !~ /^\d{4}$/);
+MyDie("invalid year/month/day\n") if ($month ne "" && $month !~ /^\d{2}$/);
+MyDie("invalid year/month/day\n") if ($day ne "" && $day !~ /^\d{2}$/);
+
 InitTPL("group_detail", scalar $co->param('tpl'));
 
 if ($mode eq "month") {

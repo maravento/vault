@@ -22,10 +22,10 @@ $co=new CGI;
 
 $content=  "text/html";
 
-$css=$co->param('css');if ($css ne "") {$content=  "text/css"; $file="$css.css";       }  
-$png=$co->param('png');if ($png ne "") {$content= "image/png"; $file="images/$png.png";}  
-$gif=$co->param('gif');if ($gif ne "") {$content= "image/gif"; $file="images/$gif.gif";}  
-$jpg=$co->param('jpg');if ($jpg ne "") {$content="image/jpeg"; $file="images/$jpg.jpg";}  
+$css=basename($co->param('css')//'');if ($css ne "") {$content=  "text/css"; $file="$css.css";       }  
+$png=basename($co->param('png')//'');if ($png ne "") {$content= "image/png"; $file="images/$png.png";}  
+$gif=basename($co->param('gif')//'');if ($gif ne "") {$content= "image/gif"; $file="images/$gif.gif";}  
+$jpg=basename($co->param('jpg')//'');if ($jpg ne "") {$content="image/jpeg"; $file="images/$jpg.jpg";}  
 CheckNewTPL(scalar $co->param('tpl'));
 
 open F,"<","$tplpath/$templatename/$file" or MyDie("$!\n");

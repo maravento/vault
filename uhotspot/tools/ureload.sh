@@ -43,4 +43,3 @@ if [[ -x "$UIPTABLES" ]]; then
     fi
 fi
 RLOG "ureload done"
-echo "────────────────────────────────────────────────────────────────────────" >> "$LOG_FILE" 2>/dev/null

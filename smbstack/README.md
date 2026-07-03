@@ -551,7 +551,7 @@ sudo crontab -e
 |-----------|-------|-------------|-------------|
 | `full_audit:logfile` | `/var/log/samba/log.audit` | Destination log file, written via the rsyslog rule in `/etc/rsyslog.d/fullaudit.conf`. | Archivo de log de destino, escrito mediante la regla rsyslog en `/etc/rsyslog.d/fullaudit.conf`. |
 | `full_audit:prefix` | `%I\|%m\|%S` | Fields prepended to each log entry: `%I` = client IP address, `%m` = client machine name, `%S` = share name. | Campos que se anteponen a cada entrada del log: `%I` = IP del cliente, `%m` = nombre del equipo cliente, `%S` = nombre del share. |
-| `full_audit:success` | `mkdirat renameat unlinkat` | VFS operations logged when they succeed. See table below. | Operaciones VFS que se registran cuando tienen éxito. Ver tabla a continuación. |
+| `full_audit:success` | `mkdirat renameat unlinkat pwrite` | VFS operations logged when they succeed. See table below. | Operaciones VFS que se registran cuando tienen éxito. Ver tabla a continuación. |
 | `full_audit:failure` | `none` | No failed operations are logged. | No se registran operaciones fallidas. |
 | `full_audit:facility` | `LOCAL5` | rsyslog facility used to route audit entries to the dedicated log file, keeping them separate from general system logs. | Facility de rsyslog usada para enrutar las entradas de auditoría al archivo dedicado, manteniéndolas separadas de los logs generales del sistema. |
 | `full_audit:priority` | `notice` | Syslog priority level assigned to audit entries. | Nivel de prioridad syslog asignado a las entradas de auditoría. |
@@ -563,18 +563,23 @@ sudo crontab -e
 | `mkdirat` | Creating a directory via SMB or the web interface | Creación de un directorio vía SMB o la interfaz web |
 | `renameat` | Renaming or moving a file or folder. Also triggered by Windows clients when saving a new file — Windows creates a temporary file first, then renames it to the final name. Log format: `source_path\|destination_path`. Does **not** appear for recycle bin operations. | Renombrado o movimiento de archivo o carpeta. También lo disparan los clientes Windows al guardar un archivo nuevo — Windows crea primero un archivo temporal y luego lo renombra al nombre final. Formato en el log: `ruta_origen\|ruta_destino`. **No** aparece para operaciones de papelera de reciclaje. |
 | `unlinkat` | File deletion. This entry appears for **both** permanent deletions and files moved to the recycle bin — `vfs_full_audit` intercepts the original `unlink` call before `vfs_recycle` redirects it, so the audit log cannot distinguish between the two. | Borrado de archivo. Esta entrada aparece tanto para borrados permanentes como para archivos movidos a la papelera — `vfs_full_audit` intercepta la llamada `unlink` original antes de que `vfs_recycle` la redirija, por lo que el log no puede distinguir entre ambos casos. |
-| `pwrite` | File write (data written to an open file). Useful for tracking uploads and in-place edits. | Escritura de archivo (datos escritos en un archivo abierto). Útil para rastrear subidas y ediciones en sitio. |
+| `pwrite` | Data written to an open file **via SMB**. Two independent sources produce this same action name: Samba itself (for SMB clients) and, separately, `shared.php` (for uploads/new files created through the web interface, which never go through `smbd` and so `vfs_full_audit` can't see them on its own). To tell them apart in the raw log, check the syslog `$user` field before `smbd_audit:` — the web interface always logs it as `www-data`. | Datos escritos en un archivo abierto **vía SMB**. Dos fuentes independientes generan esta misma acción: Samba (para clientes SMB) y, por separado, `shared.php` (para subidas/archivos nuevos creados desde la interfaz web, que nunca pasan por `smbd` y por eso `vfs_full_audit` no puede verlas por sí solo). Para distinguirlas en el log crudo, revisa el campo `$user` del syslog antes de `smbd_audit:` — la interfaz web siempre lo registra como `www-data`. |
 
-<table>
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>Note:</strong> There is no way to distinguish a recycled file from a permanently deleted one in the audit log — both appear as <code>unlinkat</code>. To determine whether a deleted file was recycled, check the <code>.recycle/</code> directory on the filesystem. <code>renameat</code> entries are logged with a <code>source|destination</code> format and indicate an explicit rename or move, including the Windows pattern of creating a temp file and renaming it on save.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>Nota:</strong> No es posible distinguir en el log de auditoría un archivo reciclado de uno eliminado permanentemente — ambos aparecen como <code>unlinkat</code>. Para determinar si un archivo fue reciclado, verifica el directorio <code>.recycle/</code> en el sistema de archivos. Las entradas <code>renameat</code> se registran con el formato <code>origen|destino</code> e indican un renombrado o movimiento explícito, incluyendo el patrón de Windows de crear un archivo temporal y renombrarlo al guardar.
-    </td>
-  </tr>
-</table>
+> **Note:** There is no way to distinguish a recycled file from a permanently deleted one in the audit log — both appear as `unlinkat`. To determine whether a deleted file was recycled, check the `.recycle/` directory on the filesystem. `renameat` entries are logged with a `source|destination` format and indicate an explicit rename or move, including the Windows pattern of creating a temp file and renaming it on save.
+>
+> **Nota:** No es posible distinguir en el log de auditoría un archivo reciclado de uno eliminado permanentemente — ambos aparecen como `unlinkat`. Para determinar si un archivo fue reciclado, verifica el directorio `.recycle/` en el sistema de archivos. Las entradas `renameat` se registran con el formato `origen|destino` e indican un renombrado o movimiento explícito, incluyendo el patrón de Windows de crear un archivo temporal y renombrarlo al guardar.
+
+> **Why `openat` is not audited:** it was evaluated and deliberately left out of `full_audit:success` by default. Every file/directory open — including plain browsing, reads and downloads, not just writes — generates an entry, so a single Explorer window left open on a busy folder produces dozens of near-duplicate lines per second. That noise buries the events actually worth reviewing without adding meaningful traceability, since `pwrite` already covers the write itself. This is a project default, not a hard limitation — if your use case needs to audit opens/reads too, add it yourself in `/etc/samba/smb.conf`:
+> ```
+> full_audit:success = mkdirat renameat unlinkat pwrite openat
+> ```
+> then `testparm` and `systemctl restart smbd`. `--update` won't touch this — `smb.conf` is never overwritten after install, so the change persists.
+>
+> **Por qué `openat` no se audita:** se evaluó y se dejó fuera de `full_audit:success` por defecto, a propósito. Cada apertura de archivo o carpeta — incluyendo simple navegación, lecturas y descargas, no solo escrituras — genera una entrada, así que una sola ventana del Explorador abierta sobre una carpeta con actividad produce decenas de líneas casi idénticas por segundo. Ese ruido entierra los eventos que sí vale la pena revisar sin aportar trazabilidad real, ya que `pwrite` ya cubre la escritura en sí. Esto es un valor por defecto del proyecto, no una limitación forzosa — si tu caso de uso necesita auditar también aperturas/lecturas, agrégalo tú mismo en `/etc/samba/smb.conf`:
+> ```
+> full_audit:success = mkdirat renameat unlinkat pwrite openat
+> ```
+> luego `testparm` y `systemctl restart smbd`. `--update` no lo tocará — `smb.conf` nunca se sobreescribe tras la instalación, así que el cambio persiste.
 
 ---
 
@@ -666,6 +671,10 @@ sudo systemctl restart smbd
     </td>
   </tr>
 </table>
+
+> **CSRF protection:** `web/shared.php` has no login by design — guest access for the whole LAN (and the tunnel, if enabled) is intentional. What it does have is a per-session token on the four state-changing forms (upload, new folder, new file, recycle), so a POST is only accepted if it was actually loaded from the page first. This blocks a malicious site elsewhere from silently auto-submitting a form to your server through a visitor's browser (CSRF); it does **not** restrict who can use the browser itself — that's still governed purely by network reachability (LAN / tunnel), same as today.
+>
+> **Protección CSRF:** `web/shared.php` no tiene login por diseño — el acceso de invitado para toda la LAN (y el túnel, si está activo) es intencional. Lo que sí tiene es un token por sesión en los cuatro formularios que modifican estado (subir, nueva carpeta, nuevo archivo, papelera), de modo que un POST solo se acepta si realmente se cargó la página antes. Esto bloquea que un sitio malicioso ajeno autoenvíe un formulario a tu servidor a través del navegador de un visitante (CSRF); **no** restringe quién puede usar el explorador en sí — eso sigue gobernado únicamente por el alcance de red (LAN / túnel), igual que hoy.
 
 **Optional tunnel:**
 - [Cloudflare Tunnel (start|stop|status) - Zero Trust Activation Recommended](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cftunnel.sh)

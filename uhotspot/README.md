@@ -25,7 +25,7 @@
       <b>What uhotspot does:</b>
       <ul>
         <li>Polls the UniFi Controller API (local account)</li>
-        <li>Reads <code>UNIFI_TYPE</code> from <code>uhotspot.conf</code> (auto-detected at install time by <code>usetup.sh</code>): <code>unifi-os</code> (port 8443/11443 with <code>/api/auth/login</code>) or <code>classic</code> (<code>/api/login</code>)</li>
+        <li>Reads <code>UNIFI_TYPE</code> from <code>uhotspot.conf</code> (auto-detected at install time by <code>usetup.sh</code>). Only <code>unifi-os</code> controllers (UDM/UDM-Pro/UDR/Cloud Key Gen2+, port 8443/11443, <code>/api/auth/login</code>, <code>TOKEN</code> cookie) are supported by <code>uhotspotd.sh</code>. Classic standalone controllers (<code>/api/login</code>, <code>unifises</code> cookie) are rejected both by the installer and by the daemon at startup — use <code>tools/uaudit.sh</code> for those instead</li>
         <li>Classifies guest-SSID clients into three states: <i>grace</i> (timer running, no voucher yet), <i>authorized</i> (active voucher), and <i>blocked</i> (grace expired without a voucher)</li>
         <li>Checks that <code>pydhcpd</code> is active on startup and aborts if not running</li>
         <li>Queues <code>dhcpd.leases</code> removals for MACs it manages (consumed by <code>uleases.sh</code> during its safe DHCP stop→modify→start cycle)</li>
@@ -42,7 +42,7 @@
       <b>Lo que uhotspot hace:</b>
       <ul>
         <li>Consulta la API del controlador UniFi (cuenta local)</li>
-        <li>Lee <code>UNIFI_TYPE</code> de <code>uhotspot.conf</code> (auto-detectado durante la instalación por <code>usetup.sh</code>): <code>unifi-os</code> (puerto 8443/11443 con <code>/api/auth/login</code>) o <code>classic</code> (<code>/api/login</code>)</li>
+        <li>Lee <code>UNIFI_TYPE</code> de <code>uhotspot.conf</code> (auto-detectado durante la instalación por <code>usetup.sh</code>). Solo controladores <code>unifi-os</code> (UDM/UDM-Pro/UDR/Cloud Key Gen2+, puerto 8443/11443, <code>/api/auth/login</code>, cookie <code>TOKEN</code>) están soportados por <code>uhotspotd.sh</code>. Los controladores classic standalone (<code>/api/login</code>, cookie <code>unifises</code>) son rechazados tanto por el instalador como por el daemon al arrancar — use <code>tools/uaudit.sh</code> para esos casos</li>
         <li>Clasifica los clientes del SSID de invitados en tres estados: <i>gracia</i> (contador activo, sin voucher), <i>autorizados</i> (con voucher activo) y <i>bloqueados</i> (gracia expirada sin voucher)</li>
         <li>Verifica que <code>pydhcpd</code> esté activo en el arranque y aborta si no está corriendo</li>
         <li>Encola remociones de <code>dhcpd.leases</code> para los MACs que gestiona (consumidas por <code>uleases.sh</code> durante su ciclo seguro de detener→modificar→arrancar DHCP)</li>
@@ -371,7 +371,7 @@ The uninstaller offers (each with individual y/N confirmation):
 | `UNIFI_CONTROLLER_URL` | e.g. `https://192.168.1.1:8443` |
 | `UNIFI_USERNAME`, `UNIFI_PASSWORD` | Local UniFi admin (no 2FA) |
 | `UNIFI_SITE` | Defaults to `default`; update if the site was renamed |
-| `UNIFI_TYPE` | `unifi-os` or `classic`; sets the API path (`/proxy/network/api/s/...` vs `/api/s/...`) |
+| `UNIFI_TYPE` | Must be `unifi-os`; sets the API path (`/proxy/network/api/s/...`). `classic` is rejected by `usetup.sh` and by `uhotspotd.sh` at startup — not supported by this daemon |
 | `SERVER_RELOAD_SCRIPT` | Path to `ureload.sh` |
 | `MANAGED_MACS_ENABLED` | `true` to enable managed MAC lists (`mac-*.txt`); `false` disables steps 3 and 11 |
 | `SERV_DHCP` | DHCP server IP (same as `SERVER_IP`; used by `uleases.sh` and `uiptables.sh`) |
@@ -470,9 +470,9 @@ cd uhotspot && sudo bash usetup.sh
       The daemon executes a full cycle every <code>POLL_INTERVAL</code> seconds (default 20, configured in <code>uhotspot.conf</code>). Each cycle executes twelve steps:
       <ol>
         <li><b>vouchers</b> — loads the full voucher list from UniFi (<code>stat/voucher</code>) into an in-memory cache shared by the sessions step.</li>
+        <li><b>snapshot</b> — captures md5 baselines of the ACL files before any modification. Taken before <b>dedup</b> so that step's <code>blockdhcp.txt</code> changes are detected as a real ACL change by the reload step below.</li>
         <li><b>dedup</b> — builds <code>MANAGED_MACS</code> (from <code>/etc/acl/acl_mac/mac-*.txt</code>) and a global <code>all_macs</code> set. Removes any MAC from <code>blockdhcp.txt</code> that also appears in a managed list. Queues lease removals for managed MACs (consumed by <code>uleases.sh</code>).</li>
         <li><b>sort</b> — sorts and deduplicates <code>mac-hotspot.txt</code> by IP.</li>
-        <li><b>snapshot</b> — captures md5 baselines of the ACL files before any modification.</li>
         <li><b>clean managed MACs</b> — removes any MAC present in <code>mac-*.txt</code> from <code>mac-hotspot.txt</code>. Handles the race where a corporate device entered the hotspot list before its MAC was moved to a managed ACL file.</li>
         <li><b>expire</b> — for each entry in <code>mac-hotspot.txt</code> whose <code>END_TIME_EPOCH</code> is in the past, release it: queue a lease removal for <code>uleases.sh</code> and remove it from the file. The MAC is preserved in <code>guest-wellknow.txt</code> by the backup step.</li>
         <li><b>new leases</b> — scans <code>pydhcpd.leases</code> directly. Any MAC not yet present in <code>mac-hotspot.txt</code>, <code>mac-*.txt</code>, <code>blockdhcp.txt</code>, <code>gracedhcp.txt</code>, or <code>guest-wellknow.txt</code> is written straight into <code>gracedhcp.txt</code> with a first-seen timestamp. No fixed hotspot-range IP is assigned and no lease removal is queued — the client keeps its existing pool lease. This is the step that makes new clients visible; writing <code>gracedhcp.txt</code> is what triggers the reload step below.</li>
@@ -495,9 +495,9 @@ cd uhotspot && sudo bash usetup.sh
       El daemon ejecuta un ciclo completo cada <code>POLL_INTERVAL</code> segundos (default 20, configurado en <code>uhotspot.conf</code>). Cada ciclo ejecuta doce pasos:
       <ol>
         <li><b>vouchers</b> — carga la lista completa de vouchers desde UniFi (<code>stat/voucher</code>) en una caché en memoria compartida por el paso sessions.</li>
+        <li><b>snapshot</b> — captura md5 baseline de los archivos ACL antes de cualquier modificación. Se toma antes de <b>dedup</b> para que los cambios de ese paso en <code>blockdhcp.txt</code> sean detectados como un cambio real de ACL por el paso de reload.</li>
         <li><b>dedup</b> — construye <code>MANAGED_MACS</code> (desde <code>/etc/acl/acl_mac/mac-*.txt</code>) y el set global <code>all_macs</code>. Elimina de <code>blockdhcp.txt</code> cualquier MAC presente en una lista gestionada. Encola remociones de leases para MACs gestionados (consumidos por <code>uleases.sh</code>).</li>
         <li><b>sort</b> — ordena y deduplica <code>mac-hotspot.txt</code> por IP.</li>
-        <li><b>snapshot</b> — captura md5 baseline de los archivos ACL antes de cualquier modificación.</li>
         <li><b>limpiar MACs gestionadas</b> — elimina de <code>mac-hotspot.txt</code> cualquier MAC presente en <code>mac-*.txt</code>. Maneja la condición de carrera donde un dispositivo corporativo entró a la lista de hotspot antes de que su MAC fuera movida a un archivo ACL gestionado.</li>
         <li><b>expire</b> — para cada entrada en <code>mac-hotspot.txt</code> cuyo <code>END_TIME_EPOCH</code> ya pasó, la libera: encola una remoción de lease para <code>uleases.sh</code> y la elimina del archivo. La MAC queda preservada en <code>guest-wellknow.txt</code> por el paso backup.</li>
         <li><b>clientes nuevos</b> — escanea <code>pydhcpd.leases</code> directamente. Cualquier MAC que aún no esté en <code>mac-hotspot.txt</code>, <code>mac-*.txt</code>, <code>blockdhcp.txt</code>, <code>gracedhcp.txt</code> ni <code>guest-wellknow.txt</code> se escribe directo en <code>gracedhcp.txt</code> con un timestamp de primer contacto. No se asigna IP fija del rango hotspot ni se encola remoción de lease — el cliente conserva el lease de pool que ya tenía. Este es el paso que hace visibles a los clientes nuevos; escribir <code>gracedhcp.txt</code> es lo que dispara el paso de reload más abajo.</li>
@@ -680,6 +680,17 @@ Hotspot       : a;MAC;IP;HOSTNAME;END_TIME_EPOCH;
 Grace         : a;MAC;IP;HOSTNAME;FIRST_SEEN_EPOCH;
 ```
 
+<table>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <b>Why uleases.sh stops/starts pydhcpd instead of reloading it / </b> On every run that touches ACLs, <code>uleases.sh</code> does <code>systemctl stop pydhcpd</code> → rewrite <code>pydhcpd.leases</code> and <code>pydhcpd.conf</code> → <code>systemctl start pydhcpd</code>, rather than sending a hot-reload signal. This is intentional: it guarantees exclusive access to the leases file while it's being rewritten, avoiding any race between the script's write and a lease the daemon might be persisting at the same instant. A hot reload that left the daemon writing concurrently could corrupt the leases file. The brief DHCP downtime this causes on every ACL change is an accepted tradeoff for write safety.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <b>Por qué uleases.sh detiene/arranca pydhcpd en vez de recargarlo / </b> En cada corrida que toca ACLs, <code>uleases.sh</code> hace <code>systemctl stop pydhcpd</code> → reescribe <code>pydhcpd.leases</code> y <code>pydhcpd.conf</code> → <code>systemctl start pydhcpd</code>, en vez de enviar una señal de recarga en caliente. Esto es intencional: garantiza acceso exclusivo al archivo de leases mientras se reescribe, evitando cualquier carrera entre la escritura del script y un lease que el daemon pudiera estar persistiendo en ese mismo instante. Una recarga en caliente que dejara al daemon escribiendo en paralelo podría corromper el archivo de leases. El breve corte de DHCP que esto genera en cada cambio de ACL es un costo aceptado a cambio de seguridad en la escritura.
+    </td>
+  </tr>
+</table>
+
 **Install (already covered in the Install section above):**
 
 ```bash
@@ -710,7 +721,7 @@ Grace         : a;MAC;IP;HOSTNAME;FIRST_SEEN_EPOCH;
 | `ACL_GRACE_FILE` | /etc/acl/acl_dhcp/gracedhcp.txt | Grace period clients |
 | `BLOCKDHCP_GRACE_SECONDS` | 86400 | Grace period duration (seconds, 24h) |
 | `UNIFI_HOTSPOT_ENABLED` | true | Enable/disable UniFi Hotspot integration |
-| `CLEANUP_INTERVAL` | 20 | Cleanup frequency and pool lease time (seconds) |
+| `CLEANUP_INTERVAL` | 60 | Cleanup frequency and pool lease time (seconds) |
 | `AUTHORIZED_LEASE_TIME` | 2592000 | Lease duration for authorized clients (30 days) |
 | `WPAD_ENABLED` | false | Enable WPAD/PAC via DHCP option 252 |
 | `PING_CHECK_ENABLED` | true | Ping IP before OFFER to detect conflicts. Set to `false` in environments with strict ICMP firewall rules |
@@ -756,7 +767,7 @@ Grace         : a;MAC;IP;HOSTNAME;FIRST_SEEN_EPOCH;
 <table>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <b>uaudit.sh</b> — Authenticates against UniFi OS ( <code>/api/auth/login</code>) and pulls three datasets: <code>stat/sta</code> (live clients), <code>stat/guest</code> (voucher-redeemed guests), and <code>stat/voucher</code> (full voucher inventory). Cross-references them against <code>mac-hotspot.txt</code>, then prints a two-section report (Authorized, Vouchers) and offers five interactive cleanup actions. <br>
+      <b>uaudit.sh</b> — Authenticates against UniFi OS ( <code>/api/auth/login</code>) by default, or classic controllers ( <code>/api/login</code>) when <code>UNIFI_TYPE=classic</code>, and pulls three datasets: <code>stat/sta</code> (live clients), <code>stat/guest</code> (voucher-redeemed guests), and <code>stat/voucher</code> (full voucher inventory). Cross-references them against <code>mac-hotspot.txt</code>, then prints a two-section report (Authorized, Vouchers) and offers five interactive cleanup actions. <br>
       <br>
       <b>Action details:</b>
       <ul>
@@ -779,7 +790,7 @@ Grace         : a;MAC;IP;HOSTNAME;FIRST_SEEN_EPOCH;
       <br> Reads credentials from <code>/etc/uhotspot/uhotspot.conf</code>. Required variables: <code>UNIFI_CONTROLLER_URL</code>, <code>UNIFI_USERNAME</code>, <code>UNIFI_PASSWORD</code>, <code>HOTSPOT_ESSID</code>. Optional: <code>UNIFI_SITE</code> (defaults to <code>default</code>).
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <b>uaudit.sh</b> — Se autentica contra UniFi OS ( <code>/api/auth/login</code>) y consulta tres datasets: <code>stat/sta</code> (clientes en vivo), <code>stat/guest</code> (invitados con voucher canjeado), y <code>stat/voucher</code> (inventario completo de vouchers). Los cruza contra <code>mac-hotspot.txt</code>, imprime un reporte de dos secciones (Autorizados, Vouchers) y ofrece cinco acciones interactivas de limpieza. <br>
+      <b>uaudit.sh</b> — Se autentica contra UniFi OS ( <code>/api/auth/login</code>) por defecto, o contra controladores classic ( <code>/api/login</code>) cuando <code>UNIFI_TYPE=classic</code>, y consulta tres datasets: <code>stat/sta</code> (clientes en vivo), <code>stat/guest</code> (invitados con voucher canjeado), y <code>stat/voucher</code> (inventario completo de vouchers). Los cruza contra <code>mac-hotspot.txt</code>, imprime un reporte de dos secciones (Autorizados, Vouchers) y ofrece cinco acciones interactivas de limpieza. <br>
       <br>
       <b>Detalles de las acciones:</b>
       <ul>
@@ -1066,6 +1077,14 @@ No client connected, no voucher redeemed, no grace entry expired? The log betwee
 | **Captive portal probes / Sondas del portal cautivo** | Android probes `connectivitycheck.gstatic.com`; iOS probes `captive.apple.com`. If blocked or intercepted, the device reports *"connected without internet"* even when the proxy works. Whitelist these in Squid without auth. | Android sondea `connectivitycheck.gstatic.com`; iOS sondea `captive.apple.com`. Si están bloqueados o interceptados, el dispositivo reporta *"conectado sin internet"* aunque el proxy funcione. Agréguelos a la whitelist de Squid sin autenticación. |
 | **App proxy bypass / Apps que bypasean el proxy** | Most apps on Android and iOS bypass the system proxy and connect directly. Only browsers reliably honor a manual proxy. Without SSL bump, direct HTTPS traffic cannot be redirected. | La mayoría de las apps en Android e iOS bypasean el proxy del sistema y se conectan directamente. Solo los navegadores respetan de forma confiable un proxy manual. Sin SSL bump, el tráfico HTTPS directo no puede ser redirigido. |
 | **MAC randomization / Aleatorización de MAC** | Android 10+ and iOS 14+ randomize the MAC per network by default. A randomized MAC will never match an ACL entry and will appear as unauthorized on every connection. Users must disable MAC randomization for the SSID before connecting. | Android 10+ e iOS 14+ aleatorizan la MAC por red por defecto. Una MAC aleatorizada nunca coincidirá con una entrada ACL y aparecerá como no autorizada en cada conexión. El usuario debe deshabilitar la aleatorización de MAC para el SSID antes de conectarse. |
+
+### Access Control
+
+> This is a structural limitation of MAC-based classification, not a code defect — see mitigation below. / Esta es una limitación estructural de la clasificación basada en MAC, no un defecto de código — ver mitigación abajo.
+
+| Limitation | ENG | ESP |
+|------------|-----|-----|
+| **Indefinite MAC rotation bypasses grace→block promotion / Rotación indefinida de MAC evade la promoción grace→block** | `gracedhcp.txt` classification is keyed exclusively by MAC address (see *MAC randomization* above). A client that presents a new MAC on each reconnection is treated as a brand-new client every time: it receives a fresh `BLOCKDHCP_GRACE_SECONDS` timer and never accumulates enough grace-period age to be promoted to `blockdhcp.txt`. `pydhcpd`'s own DHCP rate-limiting (keyed per-MAC) does not mitigate this — it throttles request volume from a single identity, not the number of distinct identities a client can present, so the pattern is unaffected by any per-MAC threshold. DHCP client-hostname (option 12) cannot serve as a secondary identity signal either: it is client-supplied, unauthenticated (trivially spoofable), and not always present in `pydhcpd.leases` to begin with. There is no way to correlate rotated MACs to the same physical device from `pydhcpd.leases` alone; that would require device fingerprinting at the AP/802.11 layer, outside the scope of a DHCP-lease-based tool. <br><br>**Impact is bounded by firewall scope, not eliminated**: the `macgrace` ipset only grants DNS resolution and captive-portal ports — the same access any new, first-time client already receives — so rotating a MAC indefinitely does not grant more network access than a single legitimate connection would, *provided* the `macgrace` DNS rule is restricted to the configured resolvers (`SERV_DNS`), as in the reference `uiptables_example.sh`. If that rule instead accepts DNS to any destination, grace-state clients gain an unrestricted DNS channel that can be used for DNS tunneling — combined with indefinite MAC rotation, this becomes a persistent internet bypass that never requires redeeming a voucher. The residual cost of MAC rotation even with the DNS rule restricted is operational, not a security bypass: `gracedhcp.txt`/`blockdhcp.txt` accumulate entries for MACs that are never reused, and each rotation consumes a DHCP pool lease. | La clasificación en `gracedhcp.txt` se basa exclusivamente en la dirección MAC (ver *Aleatorización de MAC* arriba). Un cliente que presenta una MAC nueva en cada reconexión es tratado como cliente completamente nuevo cada vez: recibe un temporizador `BLOCKDHCP_GRACE_SECONDS` fresco y nunca acumula suficiente antigüedad en gracia como para ser promovido a `blockdhcp.txt`. El propio rate-limiting DHCP de `pydhcpd` (por MAC) no mitiga esto — limita el volumen de solicitudes de una sola identidad, no la cantidad de identidades distintas que un cliente puede presentar, así que el patrón no se ve afectado por ningún umbral por-MAC. El hostname DHCP (opción 12) tampoco puede servir como señal secundaria de identidad: lo provee el cliente, no está autenticado (trivialmente falsificable), y ni siquiera está siempre presente en `pydhcpd.leases`. No hay forma de correlacionar MACs rotadas con el mismo dispositivo físico solo desde `pydhcpd.leases`; eso requeriría fingerprinting de dispositivo a nivel de AP/802.11, fuera del alcance de una herramienta basada en leases DHCP. <br><br>**El impacto está acotado por el alcance del firewall, no eliminado**: el ipset `macgrace` solo otorga resolución DNS y los puertos del portal cautivo — el mismo acceso que ya recibe cualquier cliente nuevo de primera vez — así que rotar la MAC indefinidamente no otorga más acceso de red del que ya tendría una sola conexión legítima, *siempre que* la regla DNS de `macgrace` esté restringida a los resolvers configurados (`SERV_DNS`), como en el `uiptables_example.sh` de referencia. Si esa regla en cambio acepta DNS a cualquier destino, los clientes en estado grace ganan un canal DNS sin restricción utilizable para DNS tunneling — combinado con rotación indefinida de MAC, esto se convierte en un bypass de internet persistente que nunca requiere canjear un voucher. El costo residual de la rotación de MAC incluso con la regla DNS restringida es operativo, no un bypass de seguridad: `gracedhcp.txt`/`blockdhcp.txt` acumulan entradas de MACs que nunca se reutilizan, y cada rotación consume un lease del pool DHCP. |
 
 ## ⚠️ WARNING: Network Access
 

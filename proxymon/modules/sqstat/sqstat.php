@@ -11,6 +11,15 @@ ini_set('error_log', '/var/log/apache2/proxymon_error.log');
 // SIMPLE PERSISTENT REFRESH FIX
 $refresh_config_file = '/var/www/proxymon/sqstat_refresh.conf';
 
+// Clamp refresh to 0 (stopped) or a sane 5-3600s range
+function clamp_refresh_sqstat($value) {
+    $value = (int)$value;
+    if ($value <= 0) return 0;
+    if ($value < 5) return 5;
+    if ($value > 3600) return 3600;
+    return $value;
+}
+
 // Default refresh value
 $current_refresh = 5;
 
@@ -18,13 +27,13 @@ $current_refresh = 5;
 if (file_exists($refresh_config_file)) {
     $saved_refresh = file_get_contents($refresh_config_file);
     if ($saved_refresh !== false) {
-        $current_refresh = (int)$saved_refresh;
+        $current_refresh = clamp_refresh_sqstat($saved_refresh);
     }
 }
 
 // Handle refresh parameter from form
 if (isset($_GET["refresh"]) && is_numeric($_GET["refresh"])) {
-    $current_refresh = (int)$_GET["refresh"];
+    $current_refresh = clamp_refresh_sqstat($_GET["refresh"]);
     file_put_contents($refresh_config_file, $current_refresh);
 }
 

@@ -26,6 +26,10 @@ $co=new CGI;
 
 $year =$co->param('year');
 $month=$co->param('month');
+
+# Validate: year=4 digits, month="all" or 2 digits
+MyDie("invalid year/month\n") if ($year ne "" && $year !~ /^\d{4}$/);
+MyDie("invalid year/month\n") if ($month ne "" && $month ne "all" && $month !~ /^\d{2}$/);
 InitTPL("month_detail", scalar $co->param('tpl'));
 
 if ($month ne "all") {

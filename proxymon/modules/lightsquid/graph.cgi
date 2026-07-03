@@ -34,6 +34,14 @@ $user  = $co->param('user');
 $mode  = $co->param('mode');
 $png   = $co->param('png');
 
+# Validate: year=4 digits, month=2 digits, user=safe charset with no '..'
+if ( ($year  ne "" && $year  !~ /^\d{4}$/) ||
+     ($month ne "" && $month !~ /^\d{2}$/) ||
+     ($user  ne "" && ($user !~ /^[A-Za-z0-9._@-]+$/ || $user =~ /\.\./)) ) {
+    print "Content-Type: text/html\n\n";
+    MyDie("invalid year/month/user\n");
+}
+
 $mminy=60-50;
 $mmaxy=420-50;
 

@@ -9,6 +9,23 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+// CSRF protection: no login is required by design (this is a guest-access
+// LAN share), but every state-changing form still carries a per-session
+// token so a POST can only succeed if it was actually loaded from this
+// page first — not auto-submitted from an unrelated site in the visitor's
+// browser (CSRF). This adds no friction: the session/token are issued
+// silently, nobody is asked to authenticate.
+session_start();
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrf_token = $_SESSION['csrf_token'];
+
+function csrf_valid() {
+    return isset($_POST['csrf_token'], $_SESSION['csrf_token'])
+        && hash_equals($_SESSION['csrf_token'], $_POST['csrf_token']);
+}
+
 $base_path = '';
 $env_file  = '/var/www/smbstack/smbstack.env';
 if (file_exists($env_file)) {
@@ -60,7 +77,7 @@ function get_client_ip() {
 
 function write_audit($action, $file_path) {
     $log_file  = '/var/log/samba/log.audit';
-    $timestamp = date('Y-m-d\TH:i:s.000000P');
+    $timestamp = (new DateTime())->format('Y-m-d\TH:i:s.uP');
     $ip        = get_client_ip();
     $user      = 'www-data';
     $share     = 'compartida';
@@ -78,6 +95,24 @@ function write_audit($action, $file_path) {
     file_put_contents($log_file, $entry, FILE_APPEND | LOCK_EX);
 }
 
+// Blocks known script/executable extensions by checking the real extension
+// of the final (already-trimmed) filename, rather than a regex lookahead
+// that can be bypassed with a trailing space before the extension.
+function strip_dangerous_extension($name) {
+    $name = trim($name, '. ');
+    if ($name === '') return $name;
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    $blocked = [
+        'php', 'php1', 'php2', 'php3', 'php4', 'php5', 'php6', 'php7', 'php8', 'php9',
+        'phtml', 'pht', 'phar', 'cgi', 'pl', 'asp', 'aspx', 'jsp', 'sh',
+        'htaccess', 'htm', 'html', 'shtml', 'svg', 'xml',
+    ];
+    if (in_array($ext, $blocked, true)) {
+        $name .= '.txt';
+    }
+    return $name;
+}
+
 $request   = isset($_GET['path']) ? $_GET['path'] : '';
 $request   = ltrim(preg_replace('/[\x00-\x1F]/', '', $request), '/');
 $base_real = realpath($base_path);
@@ -91,6 +126,10 @@ if (!$full_path || ($full_path !== $base_real && strpos($full_path, $base_real .
 // Upload handler
 $upload_msg = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['upload'])) {
+    if (!csrf_valid()) {
+        header('Location: ?path=' . urlencode($request) . '&msg=csrf_error');
+        exit;
+    }
     $upload_depth = $request === '' ? 0 : substr_count(trim($request, '/'), '/') + 1;
     if ($upload_depth < 1) {
         header('Location: ?path=' . urlencode($request) . '&msg=protected');
@@ -100,6 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['upload'])) {
     $count     = is_array($files['name']) ? count($files['name']) : 1;
     $succeeded = 0;
     $failed    = 0;
+    $skipped   = 0;
     for ($i = 0; $i < $count; $i++) {
         $tmp_name  = is_array($files['tmp_name']) ? $files['tmp_name'][$i] : $files['tmp_name'];
         $orig_name = is_array($files['name'])     ? $files['name'][$i]     : $files['name'];
@@ -107,10 +147,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['upload'])) {
         if ($error !== UPLOAD_ERR_OK) { $failed++; continue; }
         $orig_name = basename($orig_name);
         $safe_name = preg_replace('/[^a-zA-Z0-9._\- ]/', '_', $orig_name);
-        $safe_name = preg_replace('/\.(php[0-9]?|phtml|pht|phar|cgi|pl|asp|aspx|jsp|sh|htaccess|html?|shtml|svg|xml)(?=\.|$)/i', '.txt', $safe_name);
-        $safe_name = trim($safe_name, '. ');
+        $safe_name = strip_dangerous_extension($safe_name);
         if ($safe_name === '') $safe_name = 'upload_' . time() . '_' . $i;
         $target = $full_path . '/' . $safe_name;
+        if (file_exists($target)) {
+            $skipped++;
+            continue;
+        }
         if (move_uploaded_file($tmp_name, $target)) {
             chmod($target, 0664);
             @chgrp($target, 'sambashare');
@@ -120,15 +163,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['upload'])) {
             $failed++;
         }
     }
-    if ($failed === 0)          $upload_msg = 'success';
-    elseif ($succeeded === 0)   $upload_msg = 'error';
-    else                        $upload_msg = 'partial';
+    if ($succeeded > 0 && $failed === 0 && $skipped === 0) {
+        $upload_msg = 'success';
+    } elseif ($succeeded === 0 && $failed === 0 && $skipped > 0) {
+        $upload_msg = 'upload_exists';
+    } elseif ($succeeded === 0) {
+        $upload_msg = 'error';
+    } else {
+        $upload_msg = 'partial';
+    }
     header('Location: ?path=' . urlencode($request) . '&msg=' . $upload_msg);
     exit;
 }
 
 // Mkdir handler
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mkdir'])) {
+    if (!csrf_valid()) {
+        header('Location: ?path=' . urlencode($request) . '&msg=csrf_error');
+        exit;
+    }
     $mkdir_depth = $request === '' ? 0 : substr_count(trim($request, '/'), '/') + 1;
     if ($mkdir_depth < 1) {
         header('Location: ?path=' . urlencode($request) . '&msg=protected');
@@ -160,6 +213,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mkdir'])) {
 
 // New file handler (create an empty or text-seeded file directly, no local upload needed)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['newfile'])) {
+    if (!csrf_valid()) {
+        header('Location: ?path=' . urlencode($request) . '&msg=csrf_error');
+        exit;
+    }
     $newfile_depth = $request === '' ? 0 : substr_count(trim($request, '/'), '/') + 1;
     if ($newfile_depth < 1) {
         header('Location: ?path=' . urlencode($request) . '&msg=protected');
@@ -169,8 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['newfile'])) {
     $file_name = preg_replace('/[^a-zA-Z0-9._\- ]/', '_', $file_name);
     // Same dangerous-extension guard as the upload handler, so a "new file"
     // can't be used to plant executable/script content either.
-    $file_name = preg_replace('/\.(php[0-9]?|phtml|pht|phar|cgi|pl|asp|aspx|jsp|sh|htaccess|html?|shtml|svg|xml)(?=\.|$)/i', '.txt', $file_name);
-    $file_name = trim($file_name, '. ');
+    $file_name = strip_dangerous_extension($file_name);
     if ($file_name === '') {
         header('Location: ?path=' . urlencode($request) . '&msg=error');
         exit;
@@ -204,6 +260,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['newfile'])) {
 // .recycle/www-data/20260622/LOCALSEND/foto.jpg instead of losing its
 // folder context.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recycle'])) {
+    if (!csrf_valid()) {
+        header('Location: ?path=' . urlencode($request) . '&msg=csrf_error');
+        exit;
+    }
     $item_rel  = ltrim(preg_replace('/[\x00-\x1F]/', '', $_POST['recycle']), '/');
     $item_full = realpath($base_path . '/' . $item_rel);
     $recycle_root = $base_path . '/.recycle/www-data/' . date('Ymd');
@@ -242,7 +302,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recycle'])) {
 }
 
 $msg = isset($_GET['msg']) ? $_GET['msg'] : '';
-$allowed_msgs = ['success', 'partial', 'recycled', 'protected', 'mkdir_success', 'mkdir_error', 'newfile_success', 'newfile_error', 'exists', 'error'];
+$allowed_msgs = ['success', 'partial', 'recycled', 'protected', 'mkdir_success', 'mkdir_error', 'newfile_success', 'newfile_error', 'exists', 'upload_exists', 'csrf_error', 'error'];
 if (!in_array($msg, $allowed_msgs, true)) $msg = '';
 
 $parts = $request ? explode('/', trim($request, '/')) : [];
@@ -285,10 +345,14 @@ function get_icon($name) {
 $total_files = count($files);
 $total_dirs  = count($dirs);
 $total_size  = 0;
-$rit = new RecursiveIteratorIterator(
-    new RecursiveDirectoryIterator($full_path, RecursiveDirectoryIterator::SKIP_DOTS),
-    RecursiveIteratorIterator::LEAVES_ONLY
-);
+$rdi = new RecursiveDirectoryIterator($full_path, RecursiveDirectoryIterator::SKIP_DOTS);
+// Prune .recycle from the walk entirely (not just from the total), both for
+// consistency with $total_files/$total_dirs above (which already exclude
+// it) and to avoid recursing into what can be a large trash subtree.
+$filtered = new RecursiveCallbackFilterIterator($rdi, function ($current) {
+    return $current->getFilename() !== '.recycle';
+});
+$rit = new RecursiveIteratorIterator($filtered, RecursiveIteratorIterator::LEAVES_ONLY);
 foreach ($rit as $item) {
     if ($item->isFile()) $total_size += $item->getSize();
 }
@@ -487,6 +551,10 @@ foreach ($rit as $item) {
 <div class="alert alert-error">❌ Could not create file. Check permissions.</div>
 <?php elseif ($msg === 'exists'): ?>
 <div class="alert alert-error">⚠️ A folder with that name already exists.</div>
+<?php elseif ($msg === 'upload_exists'): ?>
+<div class="alert alert-error">⚠️ Upload skipped: a file with that name already exists.</div>
+<?php elseif ($msg === 'csrf_error'): ?>
+<div class="alert alert-error">🔄 Security check failed (page may be stale). Please reload the page and try again.</div>
 <?php elseif ($msg === 'error'): ?>
 <div class="alert alert-error">❌ Operation failed. Check permissions.</div>
 <?php endif; ?>
@@ -508,6 +576,7 @@ foreach ($rit as $item) {
 
 <div class="upload-area" id="upload-area">
     <form method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
         <label class="btn btn-secondary" style="cursor:pointer;margin:0">
             📂 Select Files
             <input type="file" name="upload[]" required multiple style="display:none" onchange="
@@ -525,6 +594,7 @@ foreach ($rit as $item) {
 
 <div class="mkdir-area" id="mkdir-area">
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
         <input type="text" name="mkdir" placeholder="Folder name" required style="flex:1;padding:0.4rem 0.7rem;border-radius:6px;border:1px solid #ced4da;font-size:0.85rem">
         <button type="submit" class="btn btn-secondary">✔️ Create</button>
         <button type="button" class="btn btn-secondary" onclick="document.getElementById('mkdir-area').classList.remove('open')">✖️ Cancel</button>
@@ -533,6 +603,7 @@ foreach ($rit as $item) {
 
 <div class="mkdir-area" id="newfile-area">
     <form method="POST" style="align-items:flex-start">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
         <input type="text" name="newfile" placeholder="File name (e.g. notes.txt)" required style="flex:1;min-width:160px;padding:0.4rem 0.7rem;border-radius:6px;border:1px solid #ced4da;font-size:0.85rem">
         <textarea name="newfile_content" placeholder="Optional content..." rows="2" style="flex:2;min-width:200px;padding:0.4rem 0.7rem;border-radius:6px;border:1px solid #ced4da;font-size:0.85rem;font-family:inherit;resize:vertical"></textarea>
         <button type="submit" class="btn btn-secondary">✔️ Create</button>
@@ -596,6 +667,7 @@ foreach ($rit as $item) {
                     <a class="btn btn-primary" href="?path=<?= urlencode($rel) ?>">📂 Open</a>
                     <?php if (substr_count($rel, '/') >= 1): ?>
                     <form method="POST" style="display:inline" onsubmit="return confirm('Move this folder to recycle bin?')">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
                         <input type="hidden" name="recycle" value="<?= htmlspecialchars($rel) ?>">
                         <button type="submit" class="btn btn-danger">🗑️</button>
                     </form>
@@ -623,10 +695,13 @@ foreach ($rit as $item) {
                 <td><div class="action-cell">
                     <a class="btn btn-primary" href="<?= htmlspecialchars($dl_url) ?>" target="_blank">👁️ View</a>
                     <a class="btn btn-success" href="<?= htmlspecialchars($dl_url) ?>" download>⬇️ Download</a>
+                    <?php if (substr_count($rel, '/') >= 1): ?>
                     <form method="POST" style="display:inline" onsubmit="return confirm('Move this file to recycle bin?')">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
                         <input type="hidden" name="recycle" value="<?= htmlspecialchars($rel) ?>">
                         <button type="submit" class="btn btn-danger">🗑️</button>
                     </form>
+                    <?php endif; ?>
                 </div></td>
             </tr>
         <?php endforeach; ?>

@@ -397,11 +397,20 @@ function is_pydhcp() {
 
         if [[ -s "$temp_leases" ]]; then
             mv -f "$temp_leases" "$dhcpd"
+            chown pydhcpd:pydhcpd "$dhcpd"
+            chmod 640 "$dhcpd"
+        elif [[ -s "$dhcpd" ]]; then
+            # Parser kept nothing but the source file was not empty: this can
+            # mean every lease was genuinely blocked, but it can just as
+            # easily mean the parser failed to recognize the format. Either
+            # way, silently truncating a non-empty leases file is worse than
+            # leaving stale data for pydhcpd's own expiry to clean up.
+            ulog "read_leases: WARNING — kept 0 leases but $dhcpd was not empty; leaving it untouched to avoid data loss"
         else
-            echo "" > "$dhcpd"
+            : > "$dhcpd"
+            chown pydhcpd:pydhcpd "$dhcpd"
+            chmod 640 "$dhcpd"
         fi
-        chown pydhcpd:pydhcpd "$dhcpd"
-        chmod 640 "$dhcpd"
     }
 
     function update_dhcp_conf {

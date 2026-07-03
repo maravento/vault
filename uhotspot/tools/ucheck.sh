@@ -428,8 +428,8 @@ load_unifi_config() {
     perms=$(stat -c '%a' "$HOTSPOT_CONF" 2>/dev/null)
     gdigit="${perms: -2:1}"
     odigit="${perms: -1}"
-    if [[ "$owner" != "root" ]] || [[ "$gdigit" =~ [2367] ]] || [[ "$odigit" =~ [2367] ]]; then
-        printf "  ${RED}%s has unsafe owner/permissions (owner=%s perms=%s) -- not loaded${NC}\n" \
+    if [[ "$owner" != "root" ]] || [[ "$gdigit" != "0" ]] || [[ "$odigit" != "0" ]]; then
+        printf "  ${RED}%s has unsafe owner/permissions (owner=%s perms=%s) -- must be owned by root with no group/other access (600) -- not loaded${NC}\n" \
             "$HOTSPOT_CONF" "$owner" "$perms"
         return 1
     fi
@@ -472,13 +472,18 @@ menu_unifi_unauthorized() {
 
     printf "  ${CYAN}Connecting to %s...${NC}\n" "$UNIFI_CONTROLLER_URL"
 
-    local hdr token
+    local hdr token payload
     hdr=$(mktemp)
+    # Pass credentials to jq via environment and the body to curl via stdin —
+    # not --arg / -d — so the plaintext password never appears in either
+    # process's argv (readable by any local user via /proc/<pid>/cmdline).
+    payload=$(UH_JQ_USER="$UNIFI_USERNAME" UH_JQ_PASS="$UNIFI_PASSWORD" jq -n \
+        '{username: env.UH_JQ_USER, password: env.UH_JQ_PASS}')
     curl -sk --connect-timeout 10 --max-time 30 \
         -D "$hdr" -o /dev/null \
         -X POST "$login_url" \
         -H "Content-Type: application/json" \
-        -d "{\"username\":\"${UNIFI_USERNAME}\",\"password\":\"${UNIFI_PASSWORD}\"}" 2>/dev/null
+        --data-binary @- <<< "$payload" 2>/dev/null
     token=$(grep -i '^set-cookie: TOKEN=' "$hdr" 2>/dev/null | sed -E 's/.*TOKEN=([^;]+).*/\1/' | tr -d '\r\n')
     rm -f "$hdr"
 

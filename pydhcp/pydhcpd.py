@@ -55,13 +55,21 @@ LOG_FILE        = "/var/log/pydhcpd.log"
 # LOGGING
 # =============================================================================
 
+_TEST_MODE = len(sys.argv) > 1 and sys.argv[1] in ("-t", "--test")
+
+_log_handlers = [logging.StreamHandler(sys.stdout)]
+if not _TEST_MODE:
+    try:
+        _log_handlers.insert(0, logging.FileHandler(LOG_FILE))
+    except OSError as e:
+        sys.stderr.write(
+            f"WARNING: cannot open {LOG_FILE} for writing ({e}); "
+            "logging to stdout only\n")
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_FILE),
-        logging.StreamHandler(sys.stdout),
-    ],
+    handlers=_log_handlers,
 )
 log = logging.getLogger("pydhcpd")
 
@@ -98,6 +106,15 @@ OPT_MESSAGE            = 56
 OPT_CLIENT_ID          = 61
 OPT_WPAD               = 252
 OPT_END                = 255
+OPT_PAD                = 0
+DHCP_MIN_PACKET_SIZE   = 300  # RFC 951/2131: minimum BOOTP payload some
+                              # relays/clients expect; anything shorter may
+                              # be silently dropped by strict implementations.
+
+def _pad_to_min_bootp(packet):
+    if len(packet) < DHCP_MIN_PACKET_SIZE:
+        packet = packet + bytes(DHCP_MIN_PACKET_SIZE - len(packet))
+    return packet
 
 CONCAT_OPTS = {3, 6}
 
@@ -409,12 +426,21 @@ class LeaseManager:
     _RATE_LIMIT_WINDOW = 60   # seconds
     _RATE_LIMIT_MAX    = 5    # allocations per window per MAC
 
+    # A DISCOVER only ever earns a short-lived, in-memory-only reservation —
+    # never a full-duration lease. It's promoted to a real lease only when
+    # the matching REQUEST arrives. This keeps a DISCOVER flood (trivially
+    # forged, one MAC per packet) from being able to hold pool IPs hostage
+    # for hours; the reservation self-expires in seconds regardless of
+    # whether the client ever follows up.
+    _RESERVATION_TTL = 30     # seconds
+
     def __init__(self, path, config, daemon_user="pydhcpd", daemon_group="pydhcpd"):
         self.path   = path
         self.config = config
         self.lock   = threading.RLock()
         self._write_lock = threading.Lock()
         self.leases = {}
+        self._reservations = {}  # ip -> (mac, expiry_ts); provisional, never persisted
         self._alloc_counter = 0
         self._quarantine = {}
         self._rate    = {}   # mac -> deque of timestamps
@@ -539,13 +565,15 @@ class LeaseManager:
         with self.lock:
             self._quarantine[ip] = time.time() + duration
 
-    def allocate(self, mac, hostname, requested_ip=None, hint_ip=None, src_mac=None, persist=True):
+    def allocate(self, mac, hostname, requested_ip=None, hint_ip=None, src_mac=None,
+                 persist=True, provisional=False):
         mac = mac.lower()
         # Rate-limit per client MAC (chaddr) so that multiple clients behind
         # the same relay do not share a single rate-limit bucket.
         rate_key = mac
         # Captured inside the lock, written to disk after the lock is released
-        # so fsync does not block concurrent allocations.
+        # so fsync does not block concurrent allocations. Provisional grants
+        # (DISCOVER) never touch self.leases or disk at all — see _grant().
         snapshot_to_save = None
         try:
             with self.lock:
@@ -567,6 +595,32 @@ class LeaseManager:
                     log.warning("Rate-limit: %s exceeded %d allocations in %ds — dropped",
                                 rate_key, self._RATE_LIMIT_MAX, self._RATE_LIMIT_WINDOW)
                     return None, None, "rate limited"
+
+                def _held_by_other(ip):
+                    lease = self.leases.get(ip)
+                    if lease and not lease.is_expired() and lease.mac != mac:
+                        return True
+                    resv = self._reservations.get(ip)
+                    if resv and resv[1] > now and resv[0] != mac:
+                        return True
+                    return False
+
+                def _grant(ip):
+                    nonlocal snapshot_to_save
+                    if provisional:
+                        # Short-lived, in-memory-only hold — never a real
+                        # lease, never persisted, self-expires in seconds.
+                        self._reservations[ip] = (mac, now + self._RESERVATION_TTL)
+                    else:
+                        # Enforce one pool lease per MAC: drop any other pool
+                        # lease this MAC already holds so granting `ip` never
+                        # leaves two leases alive for the same client.
+                        for other_ip, other_lease in list(self.leases.items()):
+                            if (other_lease.mac == mac and other_ip != ip
+                                    and other_ip in self.pool):
+                                del self.leases[other_ip]
+                        self._reservations.pop(ip, None)
+                        snapshot_to_save = self._create_lease_locked(ip, mac, hostname, self.config.pool_def_lease)
 
                 # requested_ip (REQUEST, option 50) is a hard requirement:
                 # if it cannot be honored, the caller must NAK. hint_ip
@@ -590,28 +644,36 @@ class LeaseManager:
                             return None, None, "IP reserved for static host"
                         # soft hint pointing at someone else's static IP: ignore
                         # it and fall through to normal pool selection below.
-                    else:
-                        existing_lease = self.leases.get(candidate)
-                        if not existing_lease or existing_lease.is_expired():
+                    elif not _held_by_other(candidate):
+                        already_held_by_self = (
+                            (self.leases.get(candidate) and self.leases[candidate].mac == mac
+                             and not self.leases[candidate].is_expired())
+                            or (self._reservations.get(candidate, (None, 0))[0] == mac
+                                and self._reservations.get(candidate, (None, 0))[1] > now))
+                        if not already_held_by_self:
                             bucket.append(now)
-                            snapshot_to_save = self._create_lease_locked(candidate, mac, hostname, self.config.pool_def_lease)
-                            return candidate, self.config.pool_def_lease, None
-                        elif existing_lease.mac == mac:
-                            snapshot_to_save = self._create_lease_locked(candidate, mac, hostname, self.config.pool_def_lease)
-                            return candidate, self.config.pool_def_lease, None
-                        elif is_hard:
+                        _grant(candidate)
+                        return candidate, self.config.pool_def_lease, None
+                    elif is_hard:
+                        existing_lease = self.leases.get(candidate)
+                        if existing_lease and not existing_lease.is_expired():
                             return None, None, "requested IP in use"
-                        # else: soft hint already leased to someone else, fall through.
+                        return None, None, "pool exhausted"
+                    # else: soft hint already spoken for, fall through.
 
-                ip = self._get_pool_ip(mac)
+                if is_hard and candidate not in self.pool:
+                    return None, None, "requested IP outside of pool"
+
+                ip = self._get_pool_ip(mac, now)
                 if ip:
-                    existing_pool_lease = self.leases.get(ip)
-                    is_renewal = (existing_pool_lease
-                                  and existing_pool_lease.mac == mac
-                                  and not existing_pool_lease.is_expired())
-                    if not is_renewal:
+                    already_held_by_self = (
+                        (self.leases.get(ip) and self.leases[ip].mac == mac
+                         and not self.leases[ip].is_expired())
+                        or (self._reservations.get(ip, (None, 0))[0] == mac
+                            and self._reservations.get(ip, (None, 0))[1] > now))
+                    if not already_held_by_self:
                         bucket.append(now)
-                    snapshot_to_save = self._create_lease_locked(ip, mac, hostname, self.config.pool_def_lease)
+                    _grant(ip)
                     return ip, self.config.pool_def_lease, None
 
             return None, None, "pool exhausted"
@@ -619,16 +681,23 @@ class LeaseManager:
             if persist and snapshot_to_save is not None:
                 self._save_snapshot(snapshot_to_save)
 
-    def _get_pool_ip(self, mac):
+    def _get_pool_ip(self, mac, now=None):
+        if now is None:
+            now = time.time()
+
         existing = self.get_by_mac(mac)
         if existing and existing.ip in self.pool:
             return existing.ip
 
+        for ip, (resv_mac, expiry) in self._reservations.items():
+            if resv_mac == mac and expiry > now and ip in self.pool:
+                return ip
+
         static_ips = set(self.config.static_hosts.values())
         active_ips = {ip for ip, lease in self.leases.items() if not lease.is_expired()}
-        now = time.time()
         quarantined = {ip for ip, exp in self._quarantine.items() if exp > now}
-        free = self.pool - active_ips - static_ips - quarantined
+        reserved = {ip for ip, (_, exp) in self._reservations.items() if exp > now}
+        free = self.pool - active_ips - static_ips - quarantined - reserved
         if not free:
             return None
         sorted_free = sorted(free, key=self._ip_key)
@@ -714,6 +783,18 @@ class LeaseManager:
         self._save_snapshot(snapshot)
         return True
 
+    def release_reservation_owned(self, mac, ip):
+        # Drop a provisional (DISCOVER-only) hold immediately, e.g. when a
+        # ping-check finds the IP already in use. Never touches disk —
+        # reservations are in-memory only.
+        mac = mac.lower()
+        with self.lock:
+            resv = self._reservations.get(ip)
+            if resv and resv[0] == mac:
+                del self._reservations[ip]
+                return True
+        return False
+
     def cleanup_expired(self):
         with self.lock:
             expired = [ip for ip, l in self.leases.items() if l.is_expired()]
@@ -728,6 +809,9 @@ class LeaseManager:
             stale = [ip for ip, exp in self._quarantine.items() if exp <= now]
             for ip in stale:
                 del self._quarantine[ip]
+            stale_reservations = [ip for ip, (_, exp) in self._reservations.items() if exp <= now]
+            for ip in stale_reservations:
+                del self._reservations[ip]
             # Drop rate-limit buckets that have aged out completely so the map
             # does not grow unbounded for MACs that never come back (random-MAC
             # privacy on phones rotates the source MAC on every association).
@@ -881,7 +965,7 @@ def build_packet(msg_type, xid, mac_str, offered_ip, server_ip, config, lease_ti
 
     options += bytes([OPT_END])
 
-    return bytes(pkt) + bytes(options)
+    return _pad_to_min_bootp(bytes(pkt) + bytes(options))
 
 # =============================================================================
 # PING CHECK
@@ -891,6 +975,12 @@ _PING_CACHE_TTL = 120
 _ping_cache_lock = threading.Lock()
 _ping_cache = {}
 _ping_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="ping")
+# Caps how many DISCOVERs can have a ping-check outstanding at once. Without
+# this, making ping-check non-blocking for the main pool (see _handle_discover)
+# would just move the unbounded backlog from "blocked main-pool threads" to
+# "an ever-growing queue inside _ping_executor" under a DISCOVER flood.
+_PING_INFLIGHT_MAX = 64
+_ping_inflight = threading.Semaphore(_PING_INFLIGHT_MAX)
 
 def _shutdown_ping_executor():
     _ping_executor.shutdown(wait=False)
@@ -958,6 +1048,9 @@ class DHCPServer:
                 for ip in stale:
                     log.info("apply_config: removing lease %s (outside new pool)", ip)
                     del self.leases.leases[ip]
+                stale_resv = [ip for ip in list(self.leases._reservations) if ip not in new_pool]
+                for ip in stale_resv:
+                    del self.leases._reservations[ip]
                 snapshot = dict(self.leases.leases) if stale else None
             self.server_ip    = new_config.server_id or new_config.routers
             self.broadcast_ip = new_config.broadcast or BROADCAST_ADDR
@@ -1178,7 +1271,7 @@ class DHCPServer:
         pkt_buf[3]  = 0
         pkt_buf[4:8] = pkt["xid"]
         pkt_buf[10:12] = struct.pack("!H", 0x8000 if use_broadcast else 0)
-        pkt_buf[16:20] = ip_to_bytes(pkt.get("ciaddr", "0.0.0.0"))
+        pkt_buf[16:20] = ip_to_bytes("0.0.0.0")
         pkt_buf[20:24] = ip_to_bytes(self.server_ip)
         pkt_buf[24:28] = ip_to_bytes(pkt.get("giaddr", "0.0.0.0"))
         pkt_buf[28:34] = mac_bytes
@@ -1213,7 +1306,7 @@ class DHCPServer:
 
         options += bytes([OPT_END])
 
-        reply = bytes(pkt_buf) + bytes(options)
+        reply = _pad_to_min_bootp(bytes(pkt_buf) + bytes(options))
         self._send(reply, giaddr=pkt.get("giaddr", "0.0.0.0"), ciaddr=pkt.get("ciaddr", "0.0.0.0"))
 
     def _handle_discover(self, pkt, mac, hostname, log_hostname, src_mac=None):
@@ -1234,10 +1327,12 @@ class DHCPServer:
                 alloc_reason = None
             else:
                 offered_ip, lease_time, alloc_reason = self.leases.allocate(
-                    mac, hostname, hint_ip=pkt.get("requested_ip"), src_mac=src_mac, persist=False)
+                    mac, hostname, hint_ip=pkt.get("requested_ip"), src_mac=src_mac,
+                    persist=False, provisional=True)
         else:
             offered_ip, lease_time, alloc_reason = self.leases.allocate(
-                mac, hostname, hint_ip=pkt.get("requested_ip"), src_mac=src_mac, persist=False)
+                mac, hostname, hint_ip=pkt.get("requested_ip"), src_mac=src_mac,
+                persist=False, provisional=True)
 
         if not offered_ip:
             if alloc_reason and "blockdhcp" in alloc_reason:
@@ -1250,31 +1345,52 @@ class DHCPServer:
         existing_lease = self.leases.get_by_mac(mac)
         is_own_ip = existing_lease and existing_lease.ip == offered_ip
 
+        def _send_offer():
+            xid_hex = pkt["xid"].hex()
+            with self._pending_lock:
+                self._pending[xid_hex] = offered_ip
+                if len(self._pending) > 1024:
+                    self._pending.popitem(last=False)
+
+            use_broadcast = self._should_broadcast(pkt)
+            reply = build_packet(MSG_OFFER, pkt["xid"], mac, offered_ip,
+                                 server_ip_snapshot, config_snapshot, lease_time,
+                                 broadcast=use_broadcast, giaddr=pkt.get("giaddr", "0.0.0.0"))
+            if reply:
+                self._send(reply, giaddr=pkt.get("giaddr", "0.0.0.0"), ciaddr=pkt.get("ciaddr", "0.0.0.0"))
+                log.info("OFFER %s → %s", mac, offered_ip)
+
         if config_ping_check and not is_static and not is_own_ip:
-            future = _ping_executor.submit(ping_check, offered_ip)
-            try:
-                alive = future.result(timeout=2.0)
-            except Exception:
-                alive = False
-            if alive:
-                log.warning("PING-CHECK: %s is in use — quarantined", offered_ip)
-                self.leases.quarantine_ip(offered_ip, duration=3600)
-                self.leases.release(mac)
+            if _ping_inflight.acquire(blocking=False):
+                def _on_ping_done(future):
+                    try:
+                        alive = future.result()
+                    except Exception:
+                        alive = False
+                    finally:
+                        _ping_inflight.release()
+                    if alive:
+                        log.warning("PING-CHECK: %s is in use — quarantined", offered_ip)
+                        self.leases.quarantine_ip(offered_ip, duration=3600)
+                        self.leases.release_reservation_owned(mac, offered_ip)
+                        return
+                    _send_offer()
+
+                # Submit and return immediately: this frees the calling main-
+                # pool worker right away instead of blocking it on the ping
+                # for up to 2s. _on_ping_done runs on the ping executor's own
+                # thread once the ping finishes, and does the send/quarantine.
+                future = _ping_executor.submit(ping_check, offered_ip)
+                future.add_done_callback(_on_ping_done)
                 return
+            else:
+                # Ping subsystem saturated: fail open rather than blocking
+                # (or dropping) the DISCOVER — an occasional missed conflict
+                # check is far cheaper than starving the main pool.
+                log.debug("Ping-check backlog full — sending OFFER for %s "
+                          "without a conflict check", offered_ip)
 
-        xid_hex = pkt["xid"].hex()
-        with self._pending_lock:
-            self._pending[xid_hex] = offered_ip
-            if len(self._pending) > 1024:
-                self._pending.popitem(last=False)
-
-        use_broadcast = self._should_broadcast(pkt)
-        reply = build_packet(MSG_OFFER, pkt["xid"], mac, offered_ip,
-                             server_ip_snapshot, config_snapshot, lease_time,
-                             broadcast=use_broadcast, giaddr=pkt.get("giaddr", "0.0.0.0"))
-        if reply:
-            self._send(reply, giaddr=pkt.get("giaddr", "0.0.0.0"), ciaddr=pkt.get("ciaddr", "0.0.0.0"))
-            log.info("OFFER %s → %s", mac, offered_ip)
+        _send_offer()
 
     def _handle_request(self, pkt, mac, hostname, log_hostname, src_mac=None):
         log.info("REQUEST from %s (%s)", mac, log_hostname)
@@ -1335,17 +1451,25 @@ class DHCPServer:
                 self._send_nak(pkt, mac, "Not authorized for this IP")
                 return
 
+        old_ip_to_release = None
         if config_one_per_client and target_ip:
-            with self.leases.lock:
-                existing = self.leases.get_by_mac(mac)
-                if existing and existing.ip != target_ip and not self.leases.is_blocked(mac):
-                    self.leases.release(mac)
+            existing = self.leases.get_by_mac(mac)
+            if existing and existing.ip != target_ip and not self.leases.is_blocked(mac):
+                old_ip_to_release = existing.ip
 
         offered_ip, lease_time, alloc_reason = self.leases.allocate(mac, hostname, requested_ip=target_ip, src_mac=src_mac)
 
         if not offered_ip:
             self._send_nak(pkt, mac, alloc_reason or "No address available")
             return
+
+        if old_ip_to_release and old_ip_to_release != offered_ip:
+            # Only release the previous lease now that the new one is
+            # confirmed, so a failed allocate() never leaves the client
+            # with neither (was: release-then-allocate). This also keeps
+            # release()'s disk fsync out of any lock allocate() needs for
+            # other clients, instead of nesting it inside one long-held lock.
+            self.leases.release_owned(mac, old_ip_to_release)
 
         with self._pending_lock:
             self._pending.pop(xid_key, None)
@@ -1377,7 +1501,7 @@ class DHCPServer:
             msg = reason.encode("ascii", errors="replace")[:255]
             opts += bytes([OPT_MESSAGE, len(msg)]) + msg
         opts.append(OPT_END)
-        self._send(bytes(nak) + bytes(opts),
+        self._send(_pad_to_min_bootp(bytes(nak) + bytes(opts)),
                    giaddr=pkt.get("giaddr", "0.0.0.0"),
                    ciaddr="0.0.0.0")
         log.info("NAK → %s%s", mac, f" ({reason})" if reason else "")

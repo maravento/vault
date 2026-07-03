@@ -27,6 +27,12 @@ $co=new CGI;
 $year =$co->param('year' ) || ($tmpyear+1900);
 $month=$co->param('month') || sprintf("%02d",$mon+1);
 
+# Validate: year must be exactly 4 digits, month must be "all" or 2 digits.
+# Anything else falls back to the current year/month — this also blocks
+# path traversal in the later glob("$reportpath/$year$month*") calls.
+$year  = ($tmpyear+1900)        unless $year  =~ /^\d{4}$/;
+$month = sprintf("%02d",$mon+1) unless ($month eq "all" || $month =~ /^\d{2}$/);
+
 InitTPL("index", scalar $co->param('tpl'));
 
 if ($month ne "all") {

@@ -32,8 +32,10 @@
 #                                   (DESTRUCTIVE — requires typing YES)
 #
 # AUTH
-#   Authenticates against UniFi OS (/api/auth/login). Requires HOTSPOT_ESSID,
-#   UNIFI_CONTROLLER_URL, UNIFI_USERNAME, UNIFI_PASSWORD in uhotspot.conf
+#   Authenticates against UniFi OS (/api/auth/login) by default, or classic
+#   controllers (/api/login) when UNIFI_TYPE=classic is set in uhotspot.conf.
+#   Requires HOTSPOT_ESSID, UNIFI_CONTROLLER_URL, UNIFI_USERNAME,
+#   UNIFI_PASSWORD in uhotspot.conf
 #
 # DEPENDENCIES : curl, jq
 # CONFIG       : /etc/uhotspot/uhotspot.conf
@@ -79,8 +81,8 @@ _owner=$(stat -c '%U' "$CONFIG" 2>/dev/null)
 _perms=$(stat -c '%a' "$CONFIG" 2>/dev/null)
 _gdigit="${_perms: -2:1}"
 _odigit="${_perms: -1}"
-if [[ "$_owner" != "root" ]] || [[ "$_gdigit" =~ [2367] ]] || [[ "$_odigit" =~ [2367] ]]; then
-    echo "ERROR: $CONFIG has unsafe owner/permissions (owner=$_owner perms=$_perms). Refusing to source it."
+if [[ "$_owner" != "root" ]] || [[ "$_gdigit" != "0" ]] || [[ "$_odigit" != "0" ]]; then
+    echo "ERROR: $CONFIG has unsafe owner/permissions (owner=$_owner perms=$_perms) — must be owned by root with no group/other access (600). Refusing to source it."
     exit 1
 fi
 source "$CONFIG"
@@ -104,12 +106,12 @@ do_login() {
         login_path="/api/auth/login"
     fi
     local payload
-    payload=$(jq -n --arg u "$UNIFI_USERNAME" --arg p "$UNIFI_PASSWORD" \
-        '{username:$u, password:$p}')
+    payload=$(UH_JQ_USER="$UNIFI_USERNAME" UH_JQ_PASS="$UNIFI_PASSWORD" jq -n \
+        '{username: env.UH_JQ_USER, password: env.UH_JQ_PASS}')
     LOGIN=$(curl -sk -i -X POST -H "Content-Type: application/json" \
-        -d "$payload" \
+        --data-binary @- \
         --connect-timeout 10 --max-time 40 \
-        "$UNIFI_CONTROLLER_URL$login_path")
+        "$UNIFI_CONTROLLER_URL$login_path" <<< "$payload")
 
     CSRF_TOKEN=$(echo "$LOGIN" | grep -iE "^x-(updated-)?csrf-token:" | tail -1 | awk '{print $2}' | tr -d "\r")
     if [[ "$TYPE" == "classic" ]]; then

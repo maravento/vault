@@ -27,6 +27,12 @@ $month       =$co->param('month');
 $day         =$co->param('day');
 $filteruser  =$co->param('user');
 
+# Validate: year=4 digits, month/day=2 digits, user=safe charset with no '..'
+MyDie("invalid year/month/day\n") unless ($year =~ /^\d{4}$/ && $month =~ /^\d{2}$/ && $day =~ /^\d{2}$/);
+if ($filteruser ne "" && ($filteruser !~ /^[A-Za-z0-9._@-]+$/ || $filteruser =~ /\.\./)) {
+    $filteruser = "";
+}
+
 InitTPL("bigfiles", scalar $co->param('tpl'));
 
 $n=1;

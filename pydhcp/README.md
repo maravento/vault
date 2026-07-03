@@ -70,6 +70,10 @@
   </tr>
 </table>
 
+> **Note:** DHCP (RFC 2131) inherits its minimum packet format from BOOTP (RFC 951); pydhcpd pads packets to that minimum for protocol compliance. This does not imply support for BOOTP clients or PXE boot.
+>
+> **Nota:** Nota: DHCP (RFC 2131) hereda el formato mínimo de paquete de BOOTP (RFC 951); pydhcpd rellena los paquetes a ese mínimo por cumplimiento del protocolo. Esto no implica soporte para clientes BOOTP ni arranque PXE.
+
 ## Repository Structure
 
 ---

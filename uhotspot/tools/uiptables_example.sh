@@ -108,6 +108,7 @@ blockports_file="$acl_ipt_path/blockports.txt"
 dhcp_conf="/etc/pydhcp/pydhcpd.conf"
 path_ips="$acl_ipt_path/dhcp_ip.txt"
 path_macs="$acl_ipt_path/dhcp_mac.txt"
+dns=$(echo "${SERV_DNS:-8.8.8.8,1.1.1.1}" | tr ',' ' ')
  
 for f in "$mac_proxy_file" "$mac_unlimited_file" "$blockports_file" "$dhcp_conf"; do
     if [ ! -f "$f" ]; then
@@ -437,9 +438,18 @@ if [ -f "$grace_file" ]; then
         ipset add macgrace "$mac" -exist
     done
 fi
-# DNS
-iptables -t mangle -A PREROUTING -i $lan -m set --match-set macgrace src -p udp --dport 53 -j ACCEPT
-iptables -A FORWARD -i $lan -m set --match-set macgrace src -p udp --dport 53 -j ACCEPT
+# DNS (restricted to configured resolvers only — same pattern as macports;
+# without this restriction, grace-state clients can reach arbitrary DNS
+# servers on udp/53, which enables DNS tunneling as a full internet bypass
+# during the grace period, before ever redeeming a voucher)
+for dnsip in $dns; do
+    iptables -A FORWARD -i $lan -o $wan -m set --match-set macgrace src -d $dnsip -p udp --dport 53 -j ACCEPT
+    iptables -A FORWARD -i $lan -o $wan -m set --match-set macgrace src -d $dnsip -p tcp --dport 53 -j ACCEPT
+    iptables -t mangle -A PREROUTING -i $lan -m set --match-set macgrace src -d $dnsip -p udp --dport 53 -j ACCEPT
+    iptables -t mangle -A PREROUTING -i $lan -m set --match-set macgrace src -d $dnsip -p tcp --dport 53 -j ACCEPT
+done
+iptables -A FORWARD -i $lan -o $wan -m set --match-set macgrace src -p udp --dport 53 -j DROP
+iptables -A FORWARD -i $lan -o $wan -m set --match-set macgrace src -p tcp --dport 53 -j DROP
 # HTTP
 iptables -t mangle -A PREROUTING -i $lan -m set --match-set macgrace src -p tcp --dport 80 -j ACCEPT
 iptables -A INPUT -i $lan -m set --match-set macgrace src -p tcp --dport 80 -j ACCEPT
@@ -570,7 +580,6 @@ if [ -f "$hotspot_path/mac-hotspot.txt" ]; then
 fi
 
 # DNS
-dns=$(echo "${SERV_DNS:-8.8.8.8,1.1.1.1}" | tr ',' ' ')
 for dnsip in $dns; do
     iptables -A FORWARD -i $lan -o $wan -m set --match-set macports src -d $dnsip -p udp --dport 53 -j ACCEPT
     iptables -A FORWARD -i $lan -o $wan -m set --match-set macports src -d $dnsip -p tcp --dport 53 -j ACCEPT

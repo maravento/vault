@@ -28,6 +28,11 @@ $day        =$co->param('day');
 $sortorder  =$co->param('order');
 $sortorder ||='size';
 
+# Validate: year=4 digits, month/day=2 digits (empty allowed, matches prior behavior)
+MyDie("invalid year/month/day\n") if ($year ne "" && $year !~ /^\d{4}$/);
+MyDie("invalid year/month/day\n") if ($month ne "" && $month !~ /^\d{2}$/);
+MyDie("invalid year/month/day\n") if ($day ne "" && $day !~ /^\d{2}$/);
+
 InitTPL("topsites", scalar $co->param('tpl'));
 
 

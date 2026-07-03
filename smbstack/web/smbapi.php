@@ -120,20 +120,29 @@ class SambaLogReader {
         $logs = [];
         
         if (substr($filename, -3) === '.gz') {
-            // Compressed file - read line by line to avoid memory exhaustion
+            // Compressed file - gzip doesn't support seeking to the end, so
+            // stream through it line by line but only keep a sliding window
+            // of the most recent $limit entries (oldest ones are dropped as
+            // newer ones come in), instead of stopping at the first $limit
+            // lines from the start of the (oldest) rotated file.
             $gz = gzopen($filename, 'r');
             if ($gz === false) {
                 throw new Exception("Cannot read gzip file: $filename");
             }
-            while (!gzeof($gz) && count($logs) < $limit) {
+            $window = new SplQueue();
+            while (!gzeof($gz)) {
                 $line = gzgets($gz, 16384);
                 if ($line === false) break;
                 $parsed = $this->parseLine(trim($line));
                 if ($parsed) {
-                    $logs[] = $parsed;
+                    $window->enqueue($parsed);
+                    if (count($window) > $limit) {
+                        $window->dequeue();
+                    }
                 }
             }
             gzclose($gz);
+            $logs = iterator_to_array($window, false);
         } else {
             // Normal file - read from end (most recent logs)
             $file = new SplFileObject($filename);

@@ -149,8 +149,10 @@ sub CheckNewTPL($) {
  my $newtpl=shift;
 
  if ($newtpl) {
-   $templatename=$newtpl;
-   ReplaceSTRING(".cgi\\?",".cgi\?tpl=$newtpl\&");
+   if ($newtpl =~ /^[A-Za-z0-9_-]+$/ && -d "$tplpath/$newtpl") {
+     $templatename=$newtpl;
+     ReplaceSTRING(".cgi\\?",".cgi\?tpl=$newtpl\&");
+   }
  }
 }
 

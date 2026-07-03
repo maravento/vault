@@ -314,6 +314,10 @@ do_install() {
     chown -R www-data:www-data "$SMBSTACK_WEB"
 
     # apache vhosts (both in smbweb.conf)
+    # Listen is opened on all interfaces here only because SERVER_IP isn't
+    # known yet at this point (SMB_IFACE hasn't been prompted for). It gets
+    # narrowed down to just the LAN IP + loopback further below, once
+    # SERVER_IP is detected.
     cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
     grep -qxF "Listen 0.0.0.0:3092" /etc/apache2/ports.conf || echo "Listen 0.0.0.0:3092" | tee -a /etc/apache2/ports.conf
     cp -f "$WEB_DIR/smbweb.conf" /etc/apache2/sites-available/smbweb.conf
@@ -543,7 +547,16 @@ NMBD
     SERVER_IP=$(ip -4 addr show "$SMB_IFACE" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
     if [ -z "$SERVER_IP" ]; then
         echo "WARNING: Could not detect IP for interface $SMB_IFACE"
+        echo "The web panel will keep listening on all interfaces (0.0.0.0:3092)."
         SERVER_IP=""
+    else
+        # Narrow the web panel's Listen directive from all-interfaces down to
+        # just the chosen LAN IP, plus loopback (needed for a local tunnel
+        # daemon like cloudflared, which connects to Apache via 127.0.0.1 —
+        # see TRUSTED_PROXIES). This was written as 0.0.0.0:3092 earlier
+        # because SERVER_IP wasn't known yet at that point in the install.
+        sed -i "s|^Listen 0.0.0.0:3092\$|Listen $SERVER_IP:3092\nListen 127.0.0.1:3092|" /etc/apache2/ports.conf
+        systemctl restart apache2
     fi
 
     # create Samba account for local user
@@ -685,20 +698,30 @@ NMBD
 
 ### UNINSTALL
 do_uninstall() {
-    # load samba username from env
+    # load samba username and shared path from env
+    UNINSTALL_SHARED_PATH=""
     if [ -f "$SMBSTACK_ENV" ]; then
         SMBNAME=$(grep "^SMBNAME=" "$SMBSTACK_ENV" | cut -d= -f2 | tr -d '"')
         if [ -n "$SMBNAME" ]; then
             pdbedit -x "$SMBNAME" 2>/dev/null || true
             echo "Samba user removed: $SMBNAME"
         fi
+        UNINSTALL_SHARED_PATH=$(grep "^SHARED_PATH=" "$SMBSTACK_ENV" | cut -d= -f2- | tr -d '"')
     fi
     userdel smbguest 2>/dev/null || true
 
     # apache sites
     a2dissite -q smbweb.conf &>/dev/null
-    sed -i '/Listen 0.0.0.0:3092/d' /etc/apache2/ports.conf
+    # Matches whichever variant install left behind: the original
+    # 0.0.0.0:3092 (if SERVER_IP detection failed), or the narrowed
+    # <SERVER_IP>:3092 + 127.0.0.1:3092 pair. Anchored to the fixed port
+    # 3092, which is unique to this project, not to a specific IP.
+    sed -i '/^Listen .*:3092$/d' /etc/apache2/ports.conf
     rm -f /etc/apache2/sites-available/smbweb.conf
+    # Not restored from ports.conf.bak on purpose: the line above already
+    # removes exactly the one line the installer added, without touching
+    # anything else the admin may have added to ports.conf since install.
+    rm -f /etc/apache2/ports.conf.bak
 
     # project web directory
     rm -rf "$SMBSTACK_WWW"
@@ -719,8 +742,22 @@ do_uninstall() {
     [ -f /lib/systemd/system/smbd.service.bak ] && cp -f /lib/systemd/system/smbd.service.bak /lib/systemd/system/smbd.service
 
     # cron entries
+    # Anchored to the exact lines smbinstall.sh adds (full command/path),
+    # instead of bare substrings, so an unrelated user cron job that merely
+    # mentions "smbload.sh" or ".recycle" isn't swept away too.
     crontab -l 2>/dev/null > "/root/crontab-uninstall-$(date +%Y%m%d%H%M%S).bak" || true
-    crontab -l 2>/dev/null | grep -v "\.recycle" | grep -v "smbload.sh" | grep -v "smbwatch.sh" | crontab -
+    cron_tmp=$(mktemp)
+    crontab -l 2>/dev/null > "$cron_tmp" || true
+    if [ -n "$UNINSTALL_SHARED_PATH" ]; then
+        grep -vF "find \"$UNINSTALL_SHARED_PATH/.recycle/\"" "$cron_tmp" > "${cron_tmp}.next" || true
+        mv "${cron_tmp}.next" "$cron_tmp"
+    fi
+    grep -vF "$SMBSTACK_TOOLS/smbload.sh" "$cron_tmp" > "${cron_tmp}.next" || true
+    mv "${cron_tmp}.next" "$cron_tmp"
+    grep -vF "$SMBSTACK_TOOLS/smbwatch.sh" "$cron_tmp" > "${cron_tmp}.next" || true
+    mv "${cron_tmp}.next" "$cron_tmp"
+    crontab "$cron_tmp"
+    rm -f "$cron_tmp"
 
     # samba packages
     DEBIAN_FRONTEND=noninteractive apt-get remove -y samba samba-common samba-common-bin smbclient winbind cifs-utils

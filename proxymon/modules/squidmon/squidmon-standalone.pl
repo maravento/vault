@@ -30,7 +30,7 @@ sub init_config {
 sub ReadParse {
     my $query_string = '';
     
-    if ($ENV{'REQUEST_METHOD'} eq 'POST') {
+    if (($ENV{'REQUEST_METHOD'} // '') eq 'POST') {
         read(STDIN, $query_string, $ENV{'CONTENT_LENGTH'}) if $ENV{'CONTENT_LENGTH'};
     } else {
         $query_string = $ENV{'QUERY_STRING'} || '';
@@ -40,6 +40,7 @@ sub ReadParse {
     foreach my $pair (split(/&/, $query_string)) {
         my ($name, $value) = split(/=/, $pair, 2);
         next unless $name;
+        $value //= '';
         
         # URL decode
         $name =~ tr/+/ /;

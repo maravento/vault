@@ -184,7 +184,7 @@ create_proxymon_env() {
         echo -e "${GREEN}$env_file already exists — skipping configuration${NC}"
         # Warn if a newer version of this script expects variables
         # not present in an existing env file (version drift).
-        local required_vars="LAN SERVER_IP RANGE REPORT_PATH ACL_PATH ACL_MAC_PATH ACL_SQUID_PATH ACL_BANDATA_PATH ALLOW_LIST BLOCK_LIST_DAY BLOCK_LIST_WEEK BLOCK_LIST_MONTH MAX_BANDWIDTH_DAY MAX_BANDWIDTH_WEEK MAX_BANDWIDTH_MONTH UNIFI_HOTSPOT_ENABLED HOTSPOT_PATH UPDATE_REALNAME"
+        local required_vars="LAN SERVER_IP RANGE REPORT_IP_GLOB REPORT_PATH ACL_PATH ACL_MAC_PATH ACL_SQUID_PATH ACL_BANDATA_PATH ALLOW_LIST BLOCK_LIST_DAY BLOCK_LIST_WEEK BLOCK_LIST_MONTH MAX_BANDWIDTH_DAY MAX_BANDWIDTH_WEEK MAX_BANDWIDTH_MONTH UNIFI_HOTSPOT_ENABLED HOTSPOT_PATH UPDATE_REALNAME"
         local missing=""
         for var in $required_vars; do
             grep -q "^${var}=" "$env_file" || missing="$missing $var"
@@ -193,6 +193,18 @@ create_proxymon_env() {
             echo -e "${YELLOW}WARNING: $env_file is missing variables expected by this version:${NC}"
             echo -e "${YELLOW}  $missing${NC}"
             echo -e "${YELLOW}  Add them manually, or remove $env_file and re-run install to regenerate.${NC}"
+        fi
+
+        # RANGE used to hold a filename-matching glob (e.g. "192.168.10*"),
+        # not a network CIDR. An env file from before this change will fail
+        # this check and needs RANGE corrected manually (and REPORT_IP_GLOB
+        # added, per the check above) before Require ip will work correctly.
+        local _range_val
+        _range_val=$(grep "^RANGE=" "$env_file" | head -n1 | cut -d'=' -f2-)
+        if [ -n "$_range_val" ] && ! [[ "$_range_val" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$ ]]; then
+            echo -e "${YELLOW}WARNING: RANGE='$_range_val' in $env_file is not a network CIDR (e.g. 192.168.10.0/24).${NC}"
+            echo -e "${YELLOW}  This looks like the old filename-glob value. Add REPORT_IP_GLOB=$_range_val,${NC}"
+            echo -e "${YELLOW}  then set RANGE to your actual LAN subnet (e.g. RANGE=192.168.10.0/24).${NC}"
         fi
         return 0
     fi
@@ -230,10 +242,17 @@ create_proxymon_env() {
         echo -e "${RED}'$_serverip' is not a valid IPv4 address. Try again.${NC}"
     done
 
-    # Derive range from server IP (first 3 octets + *)
-    # NOTE: assumes a /24 subnet. For non-standard subnets, edit RANGE
-    # manually in /etc/proxymon/proxymon.env after installation.
-    _range="$(echo "$_serverip" | cut -d'.' -f1-3)*"
+    # Glob pattern used to match per-IP report filenames under REPORT_PATH
+    # (e.g. bandata.sh's "for file in $REPORT_IP_GLOB"). This is NOT a
+    # network range — it's a filename-matching pattern derived from the
+    # server's own /24, since report files are named after client IPs.
+    _report_ip_glob="$(echo "$_serverip" | cut -d'.' -f1-3)*"
+
+    # Real network range (CIDR) for the LAN this server serves — used to
+    # restrict the web panel to LAN clients. Derived from the same /24
+    # assumption as above. For a non-standard subnet, edit RANGE manually
+    # in /etc/proxymon/proxymon.env after installation.
+    _range="$(echo "$_serverip" | cut -d'.' -f1-3).0/24"
 
     # Bandwidth limits — validate with numfmt (accepts e.g. 500M, 1G, 1.5G)
     read_bandwidth() {
@@ -279,6 +298,7 @@ create_proxymon_env() {
 LAN=${_lan}
 SERVER_IP=${_serverip}
 RANGE=${_range}
+REPORT_IP_GLOB=${_report_ip_glob}
 
 # Paths (defaults — edit only if your setup differs)
 LIGHTSQUID_DIR=/var/www/proxymon/lightsquid
@@ -308,7 +328,7 @@ UPDATE_REALNAME=${_update_realname}
 ENVEOF
 
     chmod 640 "$env_file"
-    chown root:root "$env_file"
+    chown root:www-data "$env_file"
     echo -e "${GREEN}$env_file created${NC}"
     printf "\n"
 }
@@ -335,19 +355,12 @@ install_proxymon() {
     fi
     
     [ -f /etc/apache2/ports.conf.bak ] || cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
-    for port in 18080 18081; do
-        if ! grep -qxF "Listen 0.0.0.0:$port" /etc/apache2/ports.conf 2>/dev/null && \
-           ! grep -qxF "Listen $port" /etc/apache2/ports.conf 2>/dev/null; then
-            echo "Listen 0.0.0.0:$port" >> /etc/apache2/ports.conf
-            echo -e "${GREEN}Port $port added to Apache${NC}"
-        fi
-    done
-    
+
     echo -e "${YELLOW}Configuring Squid Monitor...${NC}"
     create_proxymon_env
 
     echo -e "${YELLOW}Configuring LightSquid...${NC}"
-    /var/www/proxymon/lightsquid/lightparser.pl today
+    /var/www/proxymon/lightsquid/lightparser.pl today || true
     echo -e "${GREEN}Initial LightSquid report generated${NC}"
 
     echo -e "${YELLOW}Configuring ACL directories and files...${NC}"
@@ -365,6 +378,40 @@ install_proxymon() {
         exit 1
     fi
     source "$_env_file"
+
+    echo -e "${YELLOW}Configuring Apache Listen directives...${NC}"
+    if [ -n "$SERVER_IP" ]; then
+        # Drop any prior Listen line for these ports (0.0.0.0, a stale IP,
+        # or a bare "Listen <port>") before adding the current ones.
+        for port in 18080 18081; do
+            sed -i -E "/^Listen [^[:space:]]*:${port}\$/d; /^Listen ${port}\$/d" /etc/apache2/ports.conf
+        done
+        # 18080 is the app — reachable from the LAN and from loopback
+        # (e.g. a local Cloudflare Tunnel connecting to the origin).
+        echo "Listen ${SERVER_IP}:18080" >> /etc/apache2/ports.conf
+        echo "Listen 127.0.0.1:18080" >> /etc/apache2/ports.conf
+        # 18081 is Bandata's warning page — LAN-only, no loopback needed.
+        echo "Listen ${SERVER_IP}:18081" >> /etc/apache2/ports.conf
+        echo -e "${GREEN}Port 18080 bound to ${SERVER_IP} and 127.0.0.1${NC}"
+        echo -e "${GREEN}Port 18081 bound to ${SERVER_IP}${NC}"
+    else
+        echo -e "${RED}SERVER_IP not set in proxymon.env — cannot configure Listen. Set it and re-run install.${NC}"
+        exit 1
+    fi
+
+    echo -e "${YELLOW}Restricting Proxymon panel to LAN...${NC}"
+    if [[ -f /etc/apache2/sites-available/proxymon.conf ]]; then
+        if [[ "$RANGE" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$ ]]; then
+            # 127.0.0.1 allowed alongside the LAN so a local tunnel/trusted
+            # proxy connecting over loopback to port 18080 still works.
+            sed -i "s|@@LAN_CIDR@@|$RANGE 127.0.0.1|g" /etc/apache2/sites-available/proxymon.conf
+            echo -e "${GREEN}Proxymon panel restricted to $RANGE and 127.0.0.1${NC}"
+        else
+            echo -e "${RED}RANGE='$RANGE' in $_env_file is not a valid CIDR (e.g. 192.168.10.0/24).${NC}"
+            echo -e "${RED}Fix RANGE in $_env_file, then re-run install. Aborting before enabling any site.${NC}"
+            exit 1
+        fi
+    fi
 
     # Create ACL directories
     mkdir -p "$ACL_PATH" "$ACL_MAC_PATH" "$ACL_SQUID_PATH" "$ACL_BANDATA_PATH"
@@ -432,7 +479,7 @@ install_proxymon() {
     chown -R www-data:www-data /var/www/proxymon/squidanalyzer
 
     cd /var/www/proxymon/squidanalyzer || exit 1
-    sudo -u www-data perl -I. ./squid-analyzer -c etc/squidanalyzer.conf -d &> /dev/null
+    sudo -u www-data perl -I. ./squid-analyzer -c etc/squidanalyzer.conf -d &> /dev/null || true
     cd - > /dev/null
 
     # ── Consolidated www-data crontab update (single atomic write) ──
@@ -652,8 +699,11 @@ EOF
     echo -e "${YELLOW} Restarting Apache2...${NC}"
     systemctl daemon-reload
     if ! apachectl -t -D DUMP_INCLUDES -S &>/dev/null; then
-        echo -e "${RED}Apache configuration test failed. Aborting before restart.${NC}"
-        echo -e "${RED}Run 'apachectl -t' to see the error and fix the configuration manually.${NC}"
+        echo -e "${RED}Apache configuration test failed. Disabling the sites just enabled so a future${NC}"
+        echo -e "${RED}unrelated Apache restart (reboot, unattended-upgrades, etc.) doesn't break on it.${NC}"
+        a2dissite proxymon.conf 2>/dev/null || true
+        a2dissite warning.conf 2>/dev/null || true
+        echo -e "${RED}Run 'apachectl -t' to see the error, fix the configuration, then re-run install.${NC}"
         exit 1
     fi
     echo -e "${GREEN}Apache configuration OK${NC}"
@@ -663,8 +713,8 @@ EOF
     a2query -s
     
     echo -e "${GREEN}Proxy Monitor installed successfully${NC}"
-    echo -e "${GREEN}Access Proxy Monitor: http://localhost:18080${NC}"
-    echo -e "${GREEN}Access Warning Portal: http://localhost:18081${NC}"
+    echo -e "${GREEN}Access Proxy Monitor: http://${SERVER_IP}:18080${NC}"
+    echo -e "${GREEN}Access Warning Portal: http://${SERVER_IP}:18081${NC}"
 }
 
 # ════════════════════════════════════════════════════════════════
@@ -699,6 +749,42 @@ uninstall_proxymon() {
         echo -e "${GREEN}Squid Monitor crontab removed${NC}"
     else
         echo -e "${YELLOW}WARNING: failed to update root crontab — bandata.sh entry may remain${NC}"
+    fi
+
+    if command -v iptables >/dev/null 2>&1; then
+        # Remove FORWARD/INPUT jumps into the Bandata chains by rule number
+        # (matched by target name, so this works regardless of which LAN
+        # interface bandata.sh was configured with).
+        for entry in "FORWARD:BANDATA_FWD" "INPUT:BANDATA_IN"; do
+            base_chain="${entry%%:*}"
+            target_chain="${entry##*:}"
+            while true; do
+                rulenum=$(iptables -L "$base_chain" --line-numbers -n 2>/dev/null | awk -v t="$target_chain" '$2==t{print $1; exit}')
+                [ -n "$rulenum" ] || break
+                iptables -D "$base_chain" "$rulenum" 2>/dev/null || break
+            done
+        done
+
+        # Remove the NAT redirect to the warning portal
+        while true; do
+            rulenum=$(iptables -t nat -L PREROUTING --line-numbers -n 2>/dev/null | awk '/match-set bandata/{print $1; exit}')
+            [ -n "$rulenum" ] || break
+            iptables -t nat -D PREROUTING "$rulenum" 2>/dev/null || break
+        done
+
+        # Flush and remove the now-unreferenced Bandata chains
+        for chain in BANDATA_FWD BANDATA_IN; do
+            if iptables -L "$chain" -n &>/dev/null; then
+                iptables -F "$chain" 2>/dev/null || true
+                iptables -X "$chain" 2>/dev/null || true
+            fi
+        done
+        echo -e "${GREEN}Bandata iptables rules removed${NC}"
+    fi
+
+    if command -v ipset >/dev/null 2>&1 && ipset list bandata &>/dev/null; then
+        ipset destroy bandata 2>/dev/null && echo -e "${GREEN}Bandata ipset destroyed${NC}" \
+            || echo -e "${YELLOW}WARNING: could not destroy ipset 'bandata' — remove manually if needed${NC}"
     fi
 
     if [[ -f "/etc/sarg/sarg.conf.bak" ]]; then
@@ -772,13 +858,10 @@ uninstall_proxymon() {
         fi
     fi
     
-    cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
-    sed -i '/Listen 0.0.0.0:18080/d' /etc/apache2/ports.conf
-    sed -i '/Listen 18080/d' /etc/apache2/ports.conf
+    sed -i -E '/^Listen [^[:space:]]*:18080$/d; /^Listen 18080$/d' /etc/apache2/ports.conf
     echo -e "${GREEN}Port 18080 removed from Apache${NC}"
     
-    sed -i '/Listen 0.0.0.0:18081/d' /etc/apache2/ports.conf
-    sed -i '/Listen 18081/d' /etc/apache2/ports.conf
+    sed -i -E '/^Listen [^[:space:]]*:18081$/d; /^Listen 18081$/d' /etc/apache2/ports.conf
     echo -e "${GREEN}Port 18081 removed from Apache${NC}"
     
     rm -f /var/log/apache2/{warning_access,warning_error,proxymon_access,proxymon_error}.log*

@@ -83,7 +83,7 @@ source "$PROXYMON_ENV"
 ### DERIVED VARIABLES
 # local aliases for readability
 lan="$LAN"
-range="$RANGE"
+range="$REPORT_IP_GLOB"
 report="$REPORT_PATH"
 allow_list="$ALLOW_LIST"
 block_list_day="$BLOCK_LIST_DAY"
@@ -150,6 +150,7 @@ day_logs=$report/$(date +"%Y%m%d")
 # bandata day rule
 if [[ "$today" -eq 6 || "$today" -eq 7 ]]; then
     echo "Weekend Excluded"
+    : > "$block_list_day"
 else
     if [ ! -d "$day_logs" ]; then
         echo "Day report folder not found: $day_logs"
@@ -172,7 +173,8 @@ else
         ) > "$_tmp_day" && _subshell_ok=1
 
         if [ "$_subshell_ok" -eq 1 ]; then
-            grep -wvFf "$allow_list" "$_tmp_day" | $reorganize | uniq > "$block_list_day"
+            grep -wvFf <(grep -v '^[[:space:]]*$' "$allow_list") "$_tmp_day" | $reorganize | uniq > "${block_list_day}.tmp" \
+                && mv -f "${block_list_day}.tmp" "$block_list_day"
         else
             echo "ERROR: subshell failed for $day_logs — keeping existing block list"
         fi
@@ -209,7 +211,8 @@ if [ "$today" -eq 1 ]; then
         folders=$(find "${week_dirs[@]}" -maxdepth 1 -type f -name "$range")
         totals=$(echo "$folders" | xargs -r -I {} awk '/^total:/{sub(".*/", "", FILENAME); print FILENAME" "$NF}' {})
         ips=$(echo "$totals" | awk '{ arr[$1]+=$2 } END { for (key in arr) printf("%s\t%s\n", arr[key], key) }' | sort -k1,1)
-        echo "$ips" | awk -v max="$max_bw_week" '$1 > max {print $2}' | grep -wvFf "$allow_list" | $reorganize | uniq > "$block_list_week"
+        echo "$ips" | awk -v max="$max_bw_week" '$1 > max {print $2}' | grep -wvFf <(grep -v '^[[:space:]]*$' "$allow_list") | $reorganize | uniq > "${block_list_week}.tmp" \
+            && mv -f "${block_list_week}.tmp" "$block_list_week"
     fi
 
     week_count=$(wc -l < "$block_list_week" 2>/dev/null || echo 0)
@@ -246,7 +249,8 @@ else
     folders=$(find "${month_dirs[@]}" -maxdepth 1 -type f -name "$range")
     totals=$(echo "$folders" | xargs -r -I {} awk '/^total:/{sub(".*/", "", FILENAME); print FILENAME" "$NF}' {})
     ips=$(echo "$totals" | awk '{ arr[$1]+=$2 } END { for (key in arr) printf("%s\t%s\n", arr[key], key) }' | sort -k1,1)
-    echo "$ips" | awk -v max="$max_bw_month" '$1 > max {print $2}' | grep -wvFf "$allow_list" | $reorganize | uniq > "$block_list_month"
+    echo "$ips" | awk -v max="$max_bw_month" '$1 > max {print $2}' | grep -wvFf <(grep -v '^[[:space:]]*$' "$allow_list") | $reorganize | uniq > "${block_list_month}.tmp" \
+        && mv -f "${block_list_month}.tmp" "$block_list_month"
 fi
 
 month_count=$(wc -l < "$block_list_month" 2>/dev/null || echo 0)
@@ -277,8 +281,11 @@ if [ -n "$all_bans" ]; then
 fi
 
 # Atomic swap: bandata_new replaces bandata with no window of empty set
-ipset swap bandata_new bandata
-ipset destroy bandata_new
+if ipset swap bandata_new bandata; then
+    ipset destroy bandata_new
+else
+    echo "ERROR: ipset swap failed — bandata_new left in place for inspection, bandata not updated"
+fi
 
 if [ -n "$all_bans" ]; then
     echo ""
@@ -409,13 +416,13 @@ update_lightsquid_realname() {
     if [ -z "$final_output" ]; then
         echo "  No MAC data processed for realname.cfg"
     else
-        echo "$final_output" > "$realname"
+        echo "$final_output" > "${realname}.tmp" && mv -f "${realname}.tmp" "$realname"
     fi
 
     if [ -z "$skip_output" ]; then
         echo "  No excluded data for skipuser.cfg"
     else
-        echo "$skip_output" > "$skipuser"
+        echo "$skip_output" > "${skipuser}.tmp" && mv -f "${skipuser}.tmp" "$skipuser"
     fi
 }
 # ==============================================================================

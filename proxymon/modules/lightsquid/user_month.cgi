@@ -26,6 +26,13 @@ $mode  = $co->param('mode');
 
 print "Content-Type: text/html\n\n";
 
+# Validate: year=4 digits, month=2 digits, user=safe charset with no '..'
+MyDie("invalid year/month\n") if ($year ne "" && $year !~ /^\d{4}$/);
+MyDie("invalid year/month\n") if ($month ne "" && $month !~ /^\d{2}$/);
+if ($user ne "" && ($user !~ /^[A-Za-z0-9._@-]+$/ || $user =~ /\.\./)) {
+    MyDie("invalid user\n");
+}
+
 InitTPL("user_month", scalar $co->param('tpl'));
 
 $workperiod = "$MonthName[$month] $year";

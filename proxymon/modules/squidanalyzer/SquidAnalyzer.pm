@@ -1703,9 +1703,13 @@ sub _init
 	# Enable local date format if defined, else strftime will be used. The limitation
 	# this behavior is that all dates in HTML files will be the same for performences reasons.
 	if ($self->{Locale}) {
-		my $lang = 'LANG=' . $self->{Locale};
-		$self->{start_date} = `$lang date | iconv -t $Translate{CharSet} 2>/dev/null`;
-		chomp($self->{start_date});
+		my $safe_locale  = ($self->{Locale} =~ /^[A-Za-z0-9_.\-]+$/) ? $self->{Locale} : '';
+		my $safe_charset = ($Translate{CharSet} =~ /^[A-Za-z0-9_.\-]+$/) ? $Translate{CharSet} : '';
+		if ($safe_locale && $safe_charset) {
+			my $lang = 'LANG=' . $safe_locale;
+			$self->{start_date} = `$lang date | iconv -t $safe_charset 2>/dev/null`;
+			chomp($self->{start_date});
+		}
 	}
 
 	# Get the last parsing date for Squid log incremental parsing

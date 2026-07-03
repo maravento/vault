@@ -27,6 +27,11 @@ eval {
     my $time_range     = $in{'time_range'} || $config{'time_range'} || 24;
     my $specific_client = $in{'client_ip'} || '';
 
+    # Validate as plain integers — these come straight from request params
+    $max_lines  = 50000 unless $max_lines  =~ /^\d+$/;
+    $time_range = 24    unless $time_range =~ /^\d+$/;
+    $specific_client = '' unless $specific_client =~ /^[0-9a-fA-F.:]*$/; # IPv4/IPv6 only
+
     $max_lines = 100000 if $time_range > 168;
     my $time_threshold = time() - ($time_range * 3600);
 
@@ -128,7 +133,7 @@ HTMLHEAD
         my $a = $domain_stats{$domain}{Allowed} || 0;
         my $b = $domain_stats{$domain}{Blocked} || 0;
         my $c = scalar keys %{$domain_stats{$domain}{clients}||{}};
-        print "<tr><td>$domain</td><td>".format_number_pdf($t)."</td><td class='allowed'>".format_number_pdf($a)."</td><td class='blocked'>".format_number_pdf($b)."</td><td>$c</td></tr>";
+        print "<tr><td>".html_escape_pdf($domain)."</td><td>".format_number_pdf($t)."</td><td class='allowed'>".format_number_pdf($a)."</td><td class='blocked'>".format_number_pdf($b)."</td><td>$c</td></tr>";
     }
     print "</table></body></html>";
 
@@ -143,5 +148,16 @@ sub format_number_pdf {
     $num ||= 0;
     $num =~ s/(\d)(?=(\d{3})+(?!\d))/$1,/g;
     return $num;
+}
+
+sub html_escape_pdf {
+    my ($s) = @_;
+    return '' unless defined $s;
+    $s =~ s/&/&amp;/g;
+    $s =~ s/</&lt;/g;
+    $s =~ s/>/&gt;/g;
+    $s =~ s/"/&quot;/g;
+    $s =~ s/'/&#39;/g;
+    return $s;
 }
 

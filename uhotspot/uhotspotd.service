@@ -9,5 +9,27 @@ ExecStart=/etc/uhotspot/uhotspotd.sh
 Restart=always
 RestartSec=10
 
+# ── Hardening ──────────────────────────────────────────────────────────────
+# Conservative on purpose: the reload chain this daemon triggers
+# (ureload.sh -> uleases.sh -> uiptables.sh) runs as child processes, so it
+# inherits every restriction set here. That chain calls iptables/ipset
+# (netlink), dozens of `sysctl -w` (writes to /proc/sys), and `systemctl
+# stop/start pydhcpd` (D-Bus) — directives that would break any of those
+# (ProtectKernelTunables, ProtectKernelModules, RestrictAddressFamilies,
+# PrivateNetwork, a hand-picked CapabilityBoundingSet) are deliberately
+# NOT set here. Revisit only after testing each one individually against
+# a real reload cycle.
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectClock=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+PrivateTmp=yes
+ProtectSystem=full
+ReadWritePaths=/etc/uhotspot /etc/acl /etc/pydhcp /etc/logrotate.d /var/lock /var/log /run
+
 [Install]
 WantedBy=multi-user.target

@@ -30,6 +30,13 @@ $day        =$co->param('day');
 $usersite   =$co->param('usersite');
 $mode       =$co->param('mode');
 
+# Validate: year=4 digits, month/day=2 digits (falls back to "day" mode's
+# own defaults below if missing); usersite must not carry HTML metachars.
+MyDie("invalid year/month/day\n") if ($year ne "" && $year !~ /^\d{4}$/);
+MyDie("invalid year/month/day\n") if ($month ne "" && $month !~ /^\d{2}$/);
+MyDie("invalid year/month/day\n") if ($day ne "" && $day !~ /^\d{2}$/);
+$usersite = "" if ($usersite =~ /[<>"'&]/);
+
 InitTPL("whousesite", scalar $co->param('tpl'));
 
 if      ($mode eq "month") {

@@ -623,7 +623,7 @@ systemctl enable apache2.service
 apt -qq install -y --reinstall apache2-doc
 upgrade
 cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
-sed -i -E 's/^([[:space:]]*)Listen[[:space:]]+([0-9]+)/\1Listen 0.0.0.0:\2/' /etc/apache2/ports.conf
+#sed -i -E 's/^([[:space:]]*)Listen[[:space:]]+([0-9]+)/\1Listen 0.0.0.0:\2/' /etc/apache2/ports.conf
 
 cp -f /etc/apache2/mods-available/mpm_prefork.conf{,.bak} &>/dev/null
 sed -i \
@@ -1010,7 +1010,7 @@ chmod 644 /var/www/wpad/wpad.pac
 cp -f "$gp_path/conf/server/wpad.conf" /etc/apache2/sites-available/wpad.conf
 chmod 644 /etc/apache2/sites-available/wpad.conf
 a2ensite -q wpad.conf
-grep -qxF 'Listen 0.0.0.0:18100' /etc/apache2/ports.conf || grep -qxF 'Listen 18100' /etc/apache2/ports.conf || echo 'Listen 0.0.0.0:18100' >> /etc/apache2/ports.conf
+grep -qxF 'Listen $serveripNEW:18100' /etc/apache2/ports.conf || grep -qxF 'Listen 18100' /etc/apache2/ports.conf || echo 'Listen $serveripNEW:18100' >> /etc/apache2/ports.conf
 apachectl -t -D DUMP_INCLUDES -S
 echo "WPAD-PAC Proxy Auto Access: http://SERVER_IP:18100/wpad.pac"
 echo OK
