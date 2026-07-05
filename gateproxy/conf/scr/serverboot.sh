@@ -1,10 +1,6 @@
 #!/bin/bash
 # maravento.com
-
 # Server Boot Load
-
-echo "Server Start. Wait..."
-printf "\n"
 
 # check root
 if [ "$(id -u)" != "0" ]; then
@@ -20,18 +16,129 @@ if ! flock -n 200; then
     exit 1
 fi
 
+LOG_FILE="/var/log/serverboot.log"
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG_FILE"
+}
+log "===================================================="
+log "Serverboot Start"
+
+# Wait until the required network topology is available.
+#
+# Interfaces are considered ready only when they have:
+#   UP        = administratively enabled
+#   LOWER_UP  = physical link detected
+#
+# Rules:
+#   - No bonding: at least 2 active interfaces.
+#   - Bonding: at least 4 active interfaces
+#     (bond + two slaves + another interface, usually WAN).
+#
+# Loopback (lo) is ignored.
+
+network_ready() {
+    local dev iface flags
+
+    iface_count=0
+    required=2
+    iface_list=""
+
+    # If bonding is configured, require four active interfaces.
+    [[ -f /sys/class/net/bonding_masters ]] && required=4
+
+    for dev in /sys/class/net/*; do
+        iface=$(basename "$dev")
+        [[ "$iface" == "lo" ]] && continue
+
+        flags=$(ip -o link show "$iface" 2>/dev/null | grep -oP '(?<=<)[^>]+')
+
+        if [[ "$flags" == *UP* && "$flags" == *LOWER_UP* ]]; then
+            ((iface_count++))
+            iface_list+="$iface"$'\n'
+        fi
+    done
+
+    ((iface_count >= required))
+}
+
+log "Waiting for network interfaces..."
+
+net_ready=0
+for i in $(seq 1 10); do
+    if network_ready; then
+        net_ready=1
+        log "Attempt $i/10: $iface_count interface(s) UP (required $required) - READY"
+        while IFS= read -r iface; do
+            [[ -n "$iface" ]] && log "$iface"
+        done <<< "$iface_list"
+        break
+    fi
+
+    log "Attempt $i/10: $iface_count interface(s) UP (required $required) - waiting..."
+    while IFS= read -r iface; do
+        [[ -n "$iface" ]] && log "$iface"
+    done <<< "$iface_list"
+
+    sleep 5
+done
+
+if ((net_ready)); then
+    log "Network ready."
+else
+    log "WARNING: network not ready after 10 retries ($iface_count/$required interfaces UP) - aborting serverboot"
+    while IFS= read -r iface; do
+        [[ -n "$iface" ]] && log "$iface"
+    done <<< "$iface_list"
+    exit 1
+fi
+
 ### SERVERS
-echo "DHCP..."
+log "DHCP..."
 systemctl reload pydhcpd.service
-echo "Squid Reload..."
+sleep 5
+log "Squid Reload..."
 systemctl reload squid.service
-echo "Apache2 Restart..."
+sleep 5
+log "Apache2 Restart..."
 systemctl restart apache2.service
-echo "Samba Restart..."
+sleep 5
+log "Samba Restart..."
 systemctl restart smbd.service
-echo "Winbind Reload..."
+sleep 5
+log "Winbind Reload..."
 systemctl restart winbind.service
-echo "Rsyslog Reload..."
+sleep 5
+log "Rsyslog Reload..."
 systemctl restart syslog.socket rsyslog.service
-echo "Server Load: $(date)" | tee -a /var/log/syslog
+sleep 5
+
+log "Server Start (firewall/ACL sequence)..."
+if [[ -d /etc/uhotspot ]]; then
+    log "uhotspotd Restart..."
+    if systemctl restart uhotspotd.service; then
+        log "uhotspotd Restart: OK"
+    else
+        log "uhotspotd Restart: FAILED (check journalctl -u uhotspotd.service)"
+    fi
+
+    if [[ -x /etc/uhotspot/tools/uleases.sh && -x /etc/uhotspot/tools/uiptables.sh ]]; then
+        if /etc/uhotspot/tools/uleases.sh; then
+            log "Uleases Load: OK"
+        else
+            log "Uleases Load: FAILED (check /var/log/uhotspot.log)"
+        fi
+
+        if /etc/uhotspot/tools/uiptables.sh; then
+            log "Firewall Load: OK"
+        else
+            log "Firewall Load: FAILED (check /var/log/uhotspot.log)"
+        fi
+    else
+        log "WARNING: uleases.sh/uiptables.sh not found or not executable — firewall/ACL sequence skipped"
+    fi
+else
+    log "WARNING: /etc/uhotspot not found — uhotspotd/firewall/ACL sequence skipped"
+fi
+
+log "ServerBoot Done"
 echo "Done"

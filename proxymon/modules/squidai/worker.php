@@ -122,8 +122,8 @@ define('LIGHTSQUID_DIR',  $proxymonEnv['REPORT_PATH']   ?? '/var/www/proxymon/li
 define('BLOCKDOMAINS',    $aclSquidPath . '/blockdomains.txt');
 define('BLOCKTLDS',       $aclSquidPath . '/blocktlds.txt');
 define('BLOCKPATTERNS',   $aclSquidPath . '/blockpatterns.txt');
-define('SQUID_LOG_DIR',   '/var/log/squid');
-define('SQUID_LOG_FILE',  '/var/log/squid/access.log');
+define('SQUID_LOG_DIR',   $proxymonEnv['SQUID_LOG_DIR']  ?? '/var/log/squid');
+define('SQUID_LOG_FILE',  $proxymonEnv['SQUID_LOG_FILE'] ?? '/var/log/squid/access.log');
 define('MAX_LOG_LINES_SCAN',    2000000);
 // ───────────────────────────────────────────────────────────────────
 

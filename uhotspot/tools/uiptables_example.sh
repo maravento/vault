@@ -108,7 +108,7 @@ blockports_file="$acl_ipt_path/blockports.txt"
 dhcp_conf="/etc/pydhcp/pydhcpd.conf"
 path_ips="$acl_ipt_path/dhcp_ip.txt"
 path_macs="$acl_ipt_path/dhcp_mac.txt"
-dns=$(echo "${SERV_DNS:-8.8.8.8,1.1.1.1}" | tr ',' ' ')
+#dns=$(echo "${SERV_DNS:-8.8.8.8,1.1.1.1}" | tr ',' ' ')
  
 for f in "$mac_proxy_file" "$mac_unlimited_file" "$blockports_file" "$dhcp_conf"; do
     if [ ! -f "$f" ]; then
@@ -438,27 +438,30 @@ if [ -f "$grace_file" ]; then
         ipset add macgrace "$mac" -exist
     done
 fi
-# DNS (restricted to configured resolvers only — same pattern as macports;
-# without this restriction, grace-state clients can reach arbitrary DNS
-# servers on udp/53, which enables DNS tunneling as a full internet bypass
-# during the grace period, before ever redeeming a voucher)
-for dnsip in $dns; do
-    iptables -A FORWARD -i $lan -o $wan -m set --match-set macgrace src -d $dnsip -p udp --dport 53 -j ACCEPT
-    iptables -A FORWARD -i $lan -o $wan -m set --match-set macgrace src -d $dnsip -p tcp --dport 53 -j ACCEPT
-    iptables -t mangle -A PREROUTING -i $lan -m set --match-set macgrace src -d $dnsip -p udp --dport 53 -j ACCEPT
-    iptables -t mangle -A PREROUTING -i $lan -m set --match-set macgrace src -d $dnsip -p tcp --dport 53 -j ACCEPT
+
+# DNS
+for dnsip in ${SERV_DNS//,/ }; do
+    for protocol in tcp udp; do
+        iptables -t mangle -A PREROUTING -i $lan -m set --match-set macgrace src -d "$dnsip" -p $protocol --dport 53 -j ACCEPT
+        iptables -A FORWARD -i $lan -m set --match-set macgrace src -d "$dnsip" -p $protocol --dport 53 -j ACCEPT
+    done
 done
-iptables -A FORWARD -i $lan -o $wan -m set --match-set macgrace src -p udp --dport 53 -j DROP
-iptables -A FORWARD -i $lan -o $wan -m set --match-set macgrace src -p tcp --dport 53 -j DROP
+for protocol in tcp udp; do
+    iptables -A FORWARD -i $lan -m set --match-set macgrace src -p $protocol --dport 53 -j DROP
+done
+# Redirect Port
+redir_port=8890
 # HTTP
+iptables -t nat -A PREROUTING -i $lan -m set --match-set macgrace src -p tcp --dport 80 -j REDIRECT --to-port $redir_port
 iptables -t mangle -A PREROUTING -i $lan -m set --match-set macgrace src -p tcp --dport 80 -j ACCEPT
-iptables -A INPUT -i $lan -m set --match-set macgrace src -p tcp --dport 80 -j ACCEPT
-iptables -A FORWARD -i $lan -m set --match-set macgrace src -p tcp --dport 80 -j ACCEPT
-iptables -t nat -A PREROUTING -i $lan -m set --match-set macgrace src -p tcp --dport 80 -j REDIRECT --to-port 8880
+for chain in INPUT FORWARD; do
+    iptables -A $chain -i $lan -m set --match-set macgrace src -p tcp -m multiport --dports 80,$redir_port -j ACCEPT
+done
 # CDP
 iptables -t mangle -A PREROUTING -i $lan -m set --match-set macgrace src -p tcp -m multiport --dports $cpd_tcp -j ACCEPT
-iptables -A INPUT -i $lan -m set --match-set macgrace src -p tcp -m multiport --dports $cpd_tcp -j ACCEPT
-iptables -A FORWARD -i $lan -m set --match-set macgrace src -p tcp -m multiport --dports $cpd_tcp -j ACCEPT
+for chain in INPUT FORWARD; do
+    iptables -A $chain -i $lan -m set --match-set macgrace src -p tcp -m multiport --dports $cpd_tcp -j ACCEPT
+done
 
 # Invalid and fragmented packets
 iptables -A INPUT -m conntrack --ctstate INVALID -j DROP
@@ -580,14 +583,12 @@ if [ -f "$hotspot_path/mac-hotspot.txt" ]; then
 fi
 
 # DNS
-for dnsip in $dns; do
-    iptables -A FORWARD -i $lan -o $wan -m set --match-set macports src -d $dnsip -p udp --dport 53 -j ACCEPT
-    iptables -A FORWARD -i $lan -o $wan -m set --match-set macports src -d $dnsip -p tcp --dport 53 -j ACCEPT
-    iptables -t mangle -A PREROUTING -i $lan -m set --match-set macports src -d $dnsip -p udp --dport 53 -j ACCEPT
-    iptables -t mangle -A PREROUTING -i $lan -m set --match-set macports src -d $dnsip -p tcp --dport 53 -j ACCEPT
+for dnsip in ${SERV_DNS//,/ }; do
+    for protocol in tcp udp; do
+        iptables -t mangle -A PREROUTING -i $lan -m set --match-set macports src -d $dnsip -p $protocol --dport 53 -j ACCEPT
+        iptables -A FORWARD -i $lan -o $wan -m set --match-set macports src -d $dnsip -p $protocol --dport 53 -j ACCEPT
+    done
 done
-iptables -A FORWARD -i $lan -o $wan -p udp --dport 53 -j DROP
-iptables -A FORWARD -i $lan -o $wan -p tcp --dport 53 -j DROP
 
 ## SECURITY RULES ##
 
@@ -703,5 +704,4 @@ iptables -A INPUT -j DROP
 iptables -A FORWARD -m hashlimit --hashlimit-name forward-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip,dstport -j NFLOG --nflog-prefix "FINAL-FORWARD DROP: "
 iptables -A FORWARD -j DROP
 
-log "iptables Load at: $(date)"
-log "uiptables done"
+log "iptables done at: $(date)"

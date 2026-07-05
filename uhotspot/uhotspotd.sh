@@ -515,22 +515,19 @@ queue_lease_removal() {
 
 # ── Step 3: MAC list deduplication ───────────────────────────────────────────
 dedup_mac_lists() {
-    # MANAGED_MACS is only populated when MANAGED_MACS_ENABLED=true in uhotspot.conf.
-    # When disabled, clean_managed_macs and authorize_managed_macs become no-ops
-    # because both check [[ -z "$MANAGED_MACS" ]] && return at their entry point.
-    if [[ "${MANAGED_MACS_ENABLED:-false}" != "true" ]]; then
-        MANAGED_MACS=""
-    else
-        MANAGED_MACS=$(
-            {
-                for f in "$ACL_MAC_PATH"/mac-*.txt; do
-                    [[ -f "$f" ]] && grep -ih '^a;' "$f" 2>/dev/null || true
-                done
-            } | awk -F';' '{print tolower($2)}' \
-              | grep -E '^([0-9a-f]{2}:){5}[0-9a-f]{2}$' \
-              | sort -u || true
-        )
-    fi
+    # Populated from whatever mac-*.txt files exist in ACL_MAC_PATH. Stays
+    # empty if none are present, in which case clean_managed_macs and
+    # authorize_managed_macs are no-ops (both check
+    # [[ -z "$MANAGED_MACS" ]] && return at their entry point).
+    MANAGED_MACS=$(
+        {
+            for f in "$ACL_MAC_PATH"/mac-*.txt; do
+                [[ -f "$f" ]] && grep -ih '^a;' "$f" 2>/dev/null || true
+            done
+        } | awk -F';' '{print tolower($2)}' \
+          | grep -E '^([0-9a-f]{2}:){5}[0-9a-f]{2}$' \
+          | sort -u || true
+    )
 
     local all_macs
     all_macs=$(

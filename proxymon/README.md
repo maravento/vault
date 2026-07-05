@@ -36,6 +36,90 @@ sudo bash proxymon.sh
 | :----: | :-----: | :-----: | :---------: | :--------------: |
 | Ubuntu 24.04.x | Intel Core i5/Xeon/AMD Ryzen 5 (≥ 3.0 GHz) | 16 GB | 2 GB SSD | Squid Cache v6.13, Apache v2.4.58, PHP 8.3.6 |
 
+### Installing Dependencies
+
+`proxymon.sh` checks that Squid, Apache, PHP, and a set of supporting packages
+are installed before proceeding, but it does not install them for you —
+installation aborts with a list of missing packages if any of this hasn't
+been done first.
+
+```bash
+# other required packages (checked by proxymon.sh, no extra setup needed)
+apt install -y wget git rsync ipset nbtscan libcgi-session-perl libgd-perl \
+                coreutils sarg fonts-lato fonts-liberation fonts-dejavu
+
+# squid
+apt install -y squid-openssl squid-langpack squid-common squidclient squid-purge
+mkdir -p /var/log/squid &>/dev/null
+touch /var/log/squid/{access,cache,store,deny}.log &>/dev/null
+chown proxy:proxy /var/log/squid/*.log
+chmod 640 /var/log/squid/*.log
+for cache_type in rock ufs; do
+    mkdir -p /var/spool/squid/${cache_type} 2>/dev/null
+done
+chown -R proxy:proxy /var/spool/squid
+chmod -R 700 /var/spool/squid
+usermod -aG proxy www-data
+systemctl enable squid.service
+squid -z
+cp -f /etc/logrotate.d/squid{,.bak} &>/dev/null
+sed -i '/sharedscripts/a \    create 0644 proxy proxy' /etc/logrotate.d/squid
+sed -i 's/rotate 2/rotate 7/' /etc/logrotate.d/squid
+sed -i 's/^	daily$/	monthly/' /etc/logrotate.d/squid
+
+# php
+apt install -y php libapache2-mod-php php-cli php-curl
+# Detect PHP version
+if command -v php &>/dev/null; then
+    PHP_VERSION=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>/dev/null)
+    echo "PHP version detected: $PHP_VERSION"
+else
+    echo "Error: PHP not installed"
+    exit 1
+fi
+# Ensure php.ini exists for Apache
+if [ ! -f /etc/php/$PHP_VERSION/apache2/php.ini ]; then
+    if [ -f /etc/php/$PHP_VERSION/cli/php.ini ]; then
+        mkdir -p /etc/php/$PHP_VERSION/apache2
+        cp /etc/php/$PHP_VERSION/cli/php.ini /etc/php/$PHP_VERSION/apache2/php.ini
+        echo "php.ini copied to /etc/php/$PHP_VERSION/apache2/"
+    else
+        echo "Error: php.ini not found"
+        exit 1
+    fi
+fi
+cp -f /etc/php/$PHP_VERSION/apache2/php.ini{,.bak} &>/dev/null
+sed -i \
+  -e 's/^\s*;*\s*max_execution_time\s*=.*/max_execution_time = 120/' \
+  -e 's/^\s*max_input_time\s*=.*/max_input_time = 120/' \
+  -e 's/^;\s*max_input_time\s*=.*/max_input_time = 120/' \
+  -e 's/^\s*memory_limit\s*=.*/memory_limit = 1024M/' \
+  -e 's/^\s*post_max_size\s*=.*/post_max_size = 64M/' \
+  -e 's/^\s*upload_max_filesize\s*=.*/upload_max_filesize = 64M/' \
+  -e 's/^\s*;*\s*opcache.memory_consumption\s*=.*/opcache.memory_consumption = 256/' \
+  -e 's/^\s*;*\s*realpath_cache_size\s*=.*/realpath_cache_size = 16M/' \
+  /etc/php/$PHP_VERSION/apache2/php.ini
+
+# apache
+apt install -y apache2 apache2-doc apache2-utils apache2-dev \
+                apache2-suexec-pristine libaprutil1t64 libaprutil1-dev \
+                libtest-fatal-perl
+systemctl enable apache2.service
+apt -qq install -y --reinstall apache2-doc
+cp -f /etc/apache2/mods-available/mpm_prefork.conf{,.bak} &>/dev/null
+sed -i \
+  -e 's/^\(StartServers[[:space:]]*\)5/\110/' \
+  -e 's/^\(MinSpareServers[[:space:]]*\)5/\110/' \
+  -e 's/^\(MaxSpareServers[[:space:]]*\)10/\115/' \
+  -e 's/^\(MaxRequestWorkers[[:space:]]*\)150/\1200/' \
+  -e 's/^\(MaxConnectionsPerChild[[:space:]]*\)0/\11000/' \
+  /etc/apache2/mods-available/mpm_prefork.conf
+# Enable modules
+a2dismod -q mpm_event || true
+a2enmod -q mpm_prefork || true
+a2enmod -q php || true
+```
+
 ### Important Before Using
 
 <table width="100%">
@@ -60,10 +144,10 @@ sudo bash proxymon.sh
 ### Features & Options
 
 ```bash
-# Proxy Monitor module installation/uninstallation script
+# Proxy Monitor module installation/update/uninstallation script
 #
 # Description:
-#   This script installs or uninstalls the Proxy Monitor application.
+#   This script installs, updates, or uninstalls the Proxy Monitor application.
 #   Proxy Monitor provides traffic monitoring and reporting for Squid proxy servers
 #   with Squidmon, LightSquid, SARG, Sqstat and Squid Analyzer modules.
 #
@@ -85,18 +169,45 @@ sudo bash proxymon.sh
 #
 # Options:
 #   install      Install Proxy Monitor
+#   update       Update Proxy Monitor code (/var/www/proxymon only)
 #   uninstall    Uninstall Proxy Monitor
 #   -h, --help   Show help message
 #
 # Examples:
 #   sudo ./proxymon.sh              # Interactive menu
 #   sudo ./proxymon.sh install      # Direct installation
+#   sudo ./proxymon.sh update       # Direct update
 #   sudo ./proxymon.sh uninstall    # Direct uninstallation
 ```
 
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <b>install</b> writes everything from scratch (Apache vhosts, <code>proxymon.env</code>, ACL lists, SARG/PHP/Apache hardening, cron). To avoid overwriting a working setup or prompting over one, it refuses to run if <code>/var/www/proxymon</code> already exists — use <b>update</b> or <b>uninstall</b> first.
+      <br><br>
+      <b>update</b> only refreshes code and permissions under <code>/var/www/proxymon</code>. It never touches Apache/PHP/SARG system config, cron, ACL lists, or <code>proxymon.env</code>, and it never prompts. Sequence: stop Apache → back up live data to <code>~&lt;local_user&gt;/proxymonbak/&lt;timestamp&gt;/</code> (a real folder, never <code>/tmp</code>) → replace code → restore live data from that backup → reset permissions → restart Apache. Each run's backup is timestamped and kept (never auto-deleted), so past backups accumulate as a safety net. Live data preserved this way:
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <b>install</b> escribe todo desde cero (vhosts de Apache, <code>proxymon.env</code>, listas ACL, hardening de SARG/PHP/Apache, cron). Para no sobrescribir una instalación en funcionamiento ni pedir datos sobre ella, se detiene si <code>/var/www/proxymon</code> ya existe — use <b>update</b> o <b>uninstall</b> primero.
+      <br><br>
+      <b>update</b> solo refresca el código y los permisos dentro de <code>/var/www/proxymon</code>. Nunca toca la configuración de Apache/PHP/SARG, el cron, las listas ACL, ni <code>proxymon.env</code>, y nunca pide datos. Secuencia: detiene Apache → respalda los datos vivos en <code>~&lt;local_user&gt;/proxymonbak/&lt;fecha&gt;/</code> (una carpeta real, nunca <code>/tmp</code>) → reemplaza el código → restaura los datos vivos desde ese respaldo → reestablece permisos → reinicia Apache. Cada corrida queda con su propio respaldo con fecha (nunca se borra solo), acumulando historial como red de seguridad. Datos vivos preservados de esta forma:
+    </td>
+  </tr>
+</table>
+
+| Path | Description | Descripción |
+| ---- | ------------ | ----------- |
+| `lightsquid/report` | Daily LightSquid reports | Reportes diarios de LightSquid |
+| `lightsquid/realname.cfg` | Hostname mappings | Mapeo de hostnames |
+| `lightsquid/skipuser.cfg` | Excluded users | Usuarios excluidos |
+| `sarg/squid-reports` | SARG rendered reports | Reportes generados por SARG |
+| `squidmon/etc/config` | SquidMon config file | Archivo de configuración de SquidMon |
+| `squidanalyzer/output` | SquidAnalyzer rendered reports | Reportes generados por SquidAnalyzer |
+| `sqstat/config.inc.php` | SQStat custom config (e.g. cachemgr credentials) | Config personalizada de SQStat (ej. credenciales de cachemgr) |
+
 <b>Access Proxymon</b>: [http://localhost:18080](http://localhost:18080)
 
-<b>Access Warning</b>: [http://localhost:18081](http://localhost:18081)
+<b>Warning for Bandata</b>: [http://localhost:18081](http://localhost:18081)
 
 ## HOW TO USE
 

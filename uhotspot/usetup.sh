@@ -18,10 +18,11 @@
 #    ./tools/uleases.sh
 #    ./tools/uhotspotmon.sh
 #
-#  Hard dependencies (auto-installed via apt when missing):
-#    bash, curl, jq, iptables, ipset, cron
+#  Hard dependencies (checked before anything else; aborts if any is missing —
+#  none of these are auto-installed):
+#    bash, curl, jq, iptables, ipset, cron, apache2
 #
-#  Hard dependency NOT auto-installed (aborts if missing):
+#  Hard dependency NOT an apt package (aborts if missing):
 #    pydhcpd must be installed and running.
 #    pydhcp is not an apt package; install it from
 #    https://github.com/maravento/vault/tree/master/pydhcp before running this script.
@@ -47,8 +48,8 @@ REPO_TOOLS="${SCRIPT_DIR}/tools"
 REPO_UHOTSPOTD="${SCRIPT_DIR}/uhotspotd.sh"
 REPO_SERVICE="${SCRIPT_DIR}/uhotspotd.service"
 
-# ─── Required apt packages (auto-installed when missing) ─────────────────────
-APT_DEPS=(curl jq iptables ipset cron)
+# ─── Required apt packages ────────────────────────────────────────────────────
+APT_DEPS=(curl jq iptables ipset cron apache2)
 
 # ─── Discovered runtime values (filled during install) ───────────────────────
 DHCP_BACKEND=""    # "pydhcpd"
@@ -71,10 +72,6 @@ confirm() {
 }
 
 # ─── Preflight checks ────────────────────────────────────────────────────────
-check_root() {
-    [[ $EUID -eq 0 ]] || abort "Must run as root. Use: sudo bash $(basename "$0")"
-}
-
 check_distro() {
     local id="" ver=""
     if [[ -r /etc/os-release ]]; then
@@ -112,21 +109,15 @@ check_repo_files() {
     info "Repo files located"
 }
 
-ensure_apt_deps() {
+check_apt_deps() {
     local missing=()
     for pkg in "${APT_DEPS[@]}"; do
-        if ! command -v "$pkg" &>/dev/null && ! dpkg -s "$pkg" &>/dev/null; then
-            missing+=("$pkg")
-        fi
+        dpkg -s "$pkg" &>/dev/null || missing+=("$pkg")
     done
     if (( ${#missing[@]} > 0 )); then
-        info "Installing missing apt packages: ${missing[*]}"
-        apt-get update -qq || abort "apt-get update failed"
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" \
-            || abort "apt-get install failed for: ${missing[*]}"
-    else
-        info "All apt dependencies already installed"
+        abort "Missing required package(s): ${missing[*]}. Install them first (e.g. apt-get install ${missing[*]}), then re-run."
     fi
+    info "All apt dependencies present: ${APT_DEPS[*]}"
 }
 
 detect_dhcp_backend() {
@@ -353,15 +344,11 @@ run_setup_wizard() {
     step "Managed MAC lists (optional)"
     echo "  mac-*.txt files allow specific devices to bypass the captive portal"
     echo "  automatically (corporate laptops, APs, printers, switches, etc.)."
-    echo "  If enabled, the daemon authorizes those MACs in UniFi each cycle."
+    echo "  The daemon authorizes those MACs in UniFi each cycle if present."
     echo "  Files are stored in /etc/acl/acl_mac/ and managed manually."
-    local CFG_USE_MANAGED_MACS="false"
-    if confirm "Enable managed MAC lists (mac-proxy, mac-unlimited, etc.)?" "n"; then
-        CFG_USE_MANAGED_MACS="true"
-        mkdir -p /etc/acl/acl_mac /etc/acl/acl_dhcp /etc/acl/acl_ipt
-        chmod 700 /etc/acl/acl_mac /etc/acl/acl_dhcp /etc/acl/acl_ipt
-        info "Directory /etc/acl/acl_mac created — add your mac-*.txt files there"
-    fi
+    mkdir -p /etc/acl/acl_mac /etc/acl/acl_dhcp /etc/acl/acl_ipt
+    chmod 700 /etc/acl/acl_mac /etc/acl/acl_dhcp /etc/acl/acl_ipt
+    info "Directory /etc/acl/acl_mac created — add your mac-*.txt files there"
 
     step "Writing $CONFIG_FILE"
     (
@@ -397,10 +384,6 @@ UNIFI_TYPE="${found_type}"
 # ── Reload script (required) ─────────────────────────────────────────────────
 SERVER_RELOAD_SCRIPT="${CFG_RELOAD_SCRIPT}"
 
-# ── Managed MAC lists (optional) ─────────────────────────────────────────────
-# Set to true if you use mac-*.txt files in /etc/acl/acl_mac/ to allow
-# specific devices to bypass the captive portal without a voucher.
-MANAGED_MACS_ENABLED="${CFG_USE_MANAGED_MACS}"
 
 # ── DHCP network (read by uleases.sh and uiptables.sh) ───────────────────────
 SERV_DHCP="${CFG_SERVER_IP}"
@@ -570,6 +553,101 @@ install_systemd_service() {
         || warn "Could not start uhotspotd — check: systemctl status uhotspotd"
 }
 
+# ─── Guest portal redirect (Apache) ──────────────────────────────────────────
+# Ports are intentionally hardcoded (not stored in uhotspot.conf): they belong
+# to Apache/uredirect, not to UniFi, which can change its own ports without
+# notice. Documented in README.md. Steps 1-5 below match the exact procedure
+# provided by Alej; step 6 (ss) runs automatically as a non-blocking check;
+# step 7 (curl) is left as a manual test, printed at the end, since it fires
+# a real HTTP request and shouldn't run unattended on every install/update.
+UREDIRECT_LISTEN_PORT=8890
+UREDIRECT_PORTAL_PORT=8880
+UREDIRECT_CONF="/etc/apache2/sites-available/uredirect.conf"
+APACHE_PORTS_CONF="/etc/apache2/ports.conf"
+
+setup_uredirect() {
+    step "Guest portal redirect (Apache)"
+
+    # SERVER_IP already exists in uhotspot.conf (written by the wizard above);
+    # it's not a shell variable in this scope, so read it back from there.
+    local SERVER_IP=""
+    # shellcheck source=/dev/null
+    source "$CONFIG_FILE"
+    if [[ -z "$SERVER_IP" ]]; then
+        warn "SERVER_IP not found in $CONFIG_FILE — cannot configure uredirect vhost"
+        return 0
+    fi
+
+    # 1+2. Create /etc/apache2/sites-available/uredirect.conf
+    cat > "$UREDIRECT_CONF" <<EOF
+<VirtualHost *:${UREDIRECT_LISTEN_PORT}>
+    ServerName ${SERVER_IP}
+    RedirectMatch 302 ^/ http://${SERVER_IP}:${UREDIRECT_PORTAL_PORT}/guest/s/default/
+    ErrorLog  \${APACHE_LOG_DIR}/uredirect_error.log
+    CustomLog \${APACHE_LOG_DIR}/uredirect_access.log combined
+</VirtualHost>
+EOF
+    chown root:root "$UREDIRECT_CONF"
+    chmod 644 "$UREDIRECT_CONF"
+    info "Written $UREDIRECT_CONF"
+
+    # 3. Add Listen directive to ports.conf
+    local listen_line="Listen ${SERVER_IP}:${UREDIRECT_LISTEN_PORT}"
+    if ! grep -qxF "$listen_line" "$APACHE_PORTS_CONF" 2>/dev/null; then
+        echo "$listen_line" >> "$APACHE_PORTS_CONF"
+        info "Added '$listen_line' to $APACHE_PORTS_CONF"
+    else
+        info "Listen directive already present in ports.conf"
+    fi
+
+    # 3a. a2ensite
+    a2ensite uredirect >/dev/null
+
+    # 4. apache2ctl configtest
+    if apache2ctl configtest &>/dev/null; then
+        info "apache2ctl configtest: Syntax OK"
+    else
+        warn "apache2ctl configtest FAILED — uredirect vhost NOT activated. Run 'apache2ctl configtest' to see the error."
+        return 0
+    fi
+
+    # 5. systemctl restart apache2
+    systemctl restart apache2 \
+        && info "apache2 restarted" \
+        || warn "Could not restart apache2 — check: systemctl status apache2"
+
+    # 6. ss verification (non-blocking)
+    if ss -ltnp 2>/dev/null | grep -q "${SERVER_IP}:${UREDIRECT_LISTEN_PORT}"; then
+        info "Verified: apache2 listening on ${SERVER_IP}:${UREDIRECT_LISTEN_PORT}"
+    else
+        warn "Could not verify apache2 is listening on ${SERVER_IP}:${UREDIRECT_LISTEN_PORT}"
+    fi
+
+    # 7. curl — manual test only, not run automatically
+    info "Manual test: curl -v http://${SERVER_IP}:${UREDIRECT_LISTEN_PORT}/foo"
+}
+
+remove_uredirect() {
+    step "Guest portal redirect (Apache)"
+    if [[ ! -f "$UREDIRECT_CONF" ]]; then
+        info "No Apache guest-portal redirect found"
+        return 0
+    fi
+    local SERVER_IP=""
+    [[ -f "$CONFIG_FILE" ]] && source "$CONFIG_FILE"
+    if confirm "Remove Apache guest-portal redirect (uredirect site)?" "y"; then
+        a2dissite uredirect 2>/dev/null || true
+        rm -f "$UREDIRECT_CONF"
+        sed -i "\#^Listen ${SERVER_IP}:${UREDIRECT_LISTEN_PORT}\$#d" "$APACHE_PORTS_CONF" 2>/dev/null || true
+        if command -v apache2ctl &>/dev/null && apache2ctl configtest &>/dev/null; then
+            systemctl restart apache2 2>/dev/null || true
+        fi
+        info "Apache guest-portal redirect removed"
+    else
+        warn "Apache guest-portal redirect preserved"
+    fi
+}
+
 # ─── Install mode ────────────────────────────────────────────────────────────
 do_install() {
     echo ""
@@ -578,14 +656,8 @@ do_install() {
     echo "══════════════════════════════════════════════════════"
 
     step "Preflight"
-    check_root
     check_distro
-    detect_local_user
     check_repo_files
-
-    step "Dependencies"
-    ensure_apt_deps
-    detect_dhcp_backend
 
     step "Filesystem layout"
     deploy_directories
@@ -599,6 +671,8 @@ do_install() {
 
     step "Systemd service"
     install_systemd_service
+
+    setup_uredirect
 
     step "Cron"
     register_cron
@@ -625,7 +699,6 @@ do_update() {
     echo "══════════════════════════════════════════════════════"
 
     step "Preflight"
-    check_root
     check_distro
     check_repo_files
 
@@ -633,15 +706,13 @@ do_update() {
         abort "uhotspot not installed. Run without --update first."
     fi
 
-    step "DHCP backend"
-    detect_dhcp_backend
-
     step "Backup"
     local backup_dir
     backup_dir="/etc/uhotspot.bak/$(date +%Y%m%d_%H%M%S)"
     mkdir -p "$backup_dir"
     cp -p "${HOTSPOT_DIR}/uhotspotd.sh" "$backup_dir/" 2>/dev/null || true
     cp -p "${TOOLS_DIR}/"*.sh "$backup_dir/" 2>/dev/null || true
+    cp -p "$UREDIRECT_CONF" "$backup_dir/" 2>/dev/null || true
     info "Current scripts backed up to $backup_dir"
 
     step "Deploy updated scripts"
@@ -651,6 +722,8 @@ do_update() {
     install -m 644 -o root -g root "$REPO_SERVICE" "$SERVICE_DEST"
     systemctl daemon-reload
     systemctl restart uhotspotd && info "uhotspotd restarted" || warn "Could not restart uhotspotd — check: systemctl status uhotspotd"
+
+    setup_uredirect
 
     step "Cron"
     register_cron
@@ -664,6 +737,9 @@ do_update() {
     echo "    - ${UIPTABLES_STUB}"
     echo "    - ACL data files (*.txt)"
     echo "    - Logrotate config"
+    echo ""
+    echo "  Replaced:"
+    echo "    - ${UREDIRECT_CONF} (regenerated; previous version backed up)"
     echo ""
     echo "  Cron entries reconciled (missing entries added; existing ones untouched)"
     echo ""
@@ -679,12 +755,12 @@ do_remove() {
     echo "══════════════════════════════════════════════════════"
     echo "  uhotspot — uninstaller"
     echo "══════════════════════════════════════════════════════"
-    check_root
 
     echo ""
     echo "  The following actions will be offered (each with confirmation):"
     echo "    • Remove cron entries pointing to ${HOTSPOT_DIR}/uhotspot.sh and ${HOTSPOT_DIR}/tools/ureload.sh"
     echo "    • Remove ${LOGROTATE_FILE}"
+    echo "    • Remove ${UREDIRECT_CONF} (guest portal redirect vhost, if present)"
     echo "    • Remove ${HOTSPOT_DIR} (includes config.conf, ACLs, uiptables.sh)"
     echo "    • Remove ${LOG_FILE} and rotated logs"
     echo ""
@@ -730,6 +806,8 @@ do_remove() {
         [[ -f "$lf" ]] && rm -f "$lf" && info "Removed $lf" || true
     done
     info "Logrotate configs removed"
+
+    remove_uredirect
 
     # /etc/uhotspot
     step "$HOTSPOT_DIR"
@@ -790,8 +868,38 @@ Run from inside the cloned uhotspot repository. See the README for details.
 EOF
 }
 
+# ─── Preflight (runs unconditionally, before any mode is dispatched) ─────────
+preflight() {
+    # root check
+    if [[ "$(id -u)" != "0" ]]; then
+        echo "ERROR: This script must be run as root"
+        exit 1
+    fi
+
+    # prevent overlapping runs
+    local script_lock="/var/lock/$(basename "$0" .sh).lock"
+    exec 200>"$script_lock"
+    if ! flock -n 200; then
+        echo "Script $(basename "$0") is already running"
+        exit 1
+    fi
+
+    detect_local_user
+    check_apt_deps
+    detect_dhcp_backend
+}
+
 # ─── Dispatch ────────────────────────────────────────────────────────────────
 main() {
+    case "${1:-}" in
+        --help|-h|help)
+            usage
+            exit 0
+            ;;
+    esac
+
+    preflight
+
     case "${1:-}" in
         ""|install)
             do_install
@@ -801,9 +909,6 @@ main() {
             ;;
         --remove|remove|--uninstall|uninstall)
             do_remove
-            ;;
-        --help|-h|help)
-            usage
             ;;
         *)
             err "Unknown option: $1"
