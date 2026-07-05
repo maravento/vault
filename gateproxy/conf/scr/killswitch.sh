@@ -8,24 +8,42 @@
 # Warning
 # Use it only in case of attack or illegal access to your network
 #
+# NOTE on logging:
+# - killswitch.sh belongs to the iptables ruleset — shares
+#   /var/log/iptables.log with scr/iptables.sh (rotation is self-installed
+#   there, /etc/logrotate.d/iptables).
+#
 ################################################################################
-# checking root
+
+# logging
+log_file="/var/log/iptables.log"
+log() {
+    local msg="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+}
+
+## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    log "ERROR: This script must be run as root"
     exit 1
 fi
-# checking script execution
+
+# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
+    log "Script $(basename "$0") is already running"
     exit 1
 fi
+
 # Verify: iptables -L -n / iptables -nvL / iptables -Ln -t mangle / iptables -Ln -t nat
 # Ports: /etc/services
 # check: https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt
-echo "Iptables NetCut. Wait..."
-printf "\n"
+
+# Start
+log "killswitch start..."
+
 ### VARIABLES
 # interfaces
 wan="eth0"
@@ -36,7 +54,6 @@ netmask="24"
 ####################
 ### KERNEL RULES ###
 ####################
-echo "Load Kerner Rules..."
 ### Zero all packets and counters ###
 iptables -F
 iptables -X
@@ -51,7 +68,6 @@ iptables -t security -X
 iptables -Z
 iptables -t nat -Z
 iptables -t mangle -Z
-echo "Drop All..."
 ### Global Policies IPv4
 iptables -P INPUT DROP
 iptables -P FORWARD DROP
@@ -60,12 +76,12 @@ iptables -P OUTPUT DROP
 ip6tables -P INPUT DROP
 ip6tables -P FORWARD DROP
 ip6tables -P OUTPUT DROP
-echo "Blackhole..."
 ### Blackhole IPv4
 ip route replace blackhole 0.0.0.0/0 2>/dev/null || true
 ### Blackhole IPv6
 ip -6 route replace blackhole ::/0 2>/dev/null || true
 ### Flush conntrack (existing connections bypass DROP policies)
 conntrack -F 2>/dev/null || true
-echo "iptables NetCut at: $(date)" | tee -a /var/log/syslog 2>/dev/null
-echo "Done"
+
+# End
+log "killswitch done at: $(date)"

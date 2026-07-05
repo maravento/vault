@@ -85,25 +85,42 @@
 # 3. Create wpad.pac file in Apache document root
 # 4. Set WPAD_ENABLED=true in /etc/uhotspot/uhotspot.conf
 #
+# NOTE on logging:
+# - Writes to /var/log/uhotspot.log (shared with ureload.sh). Rotation is
+#   self-installed below (/etc/logrotate.d/uhotspot).
+#
 ################################################################################
 
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# logging
+log_file="/var/log/uhotspot.log"
+log() {
+    local msg="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+}
+
+## root check
+if [ "$(id -u)" != "0" ]; then
+    log "ERROR: This script must be run as root"
+    exit 1
+fi
+
+# prevent overlapping runs
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -w 60 200; then
+    log "Script $(basename "$0") is already running — waited 60s, giving up"
+    exit 1
+fi
 
 set -euo pipefail
 
-LOG_FILE="/var/log/uhotspot.log"
-ulog() {
-    local msg
-    msg="$(date '+%Y-%m-%d %H:%M:%S') $*"
-    echo "$msg"
-    echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
-}
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Ensure log file exists with correct permissions.
-if [ ! -f "$LOG_FILE" ]; then
-    touch "$LOG_FILE"
-    chmod 640 "$LOG_FILE"
-    chown root:adm "$LOG_FILE" 2>/dev/null || chown root:root "$LOG_FILE"
+if [ ! -f "$log_file" ]; then
+    touch "$log_file"
+    chmod 640 "$log_file"
+    chown root:adm "$log_file" 2>/dev/null || chown root:root "$log_file"
 fi
 
 # Ensure logrotate config exists so the log does not grow unbounded.
@@ -125,19 +142,8 @@ EOF
 fi
 unset _logrotate_conf
 
-ulog "uleases start..."
-
-if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
-    exit 1
-fi
-
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-exec 200>"$SCRIPT_LOCK"
-if ! flock -w 60 200; then
-    echo "Script $(basename "$0") is already running — waited 60s, giving up"
-    exit 1
-fi
+# Start
+log "uleases start..."
 
 # When triggered by the daemon (UHOTSPOT_RELOAD_ACTIVE set), the daemon
 # already holds CYCLE_LOCK for the duration of its run_cycle — this script
@@ -158,8 +164,8 @@ if [[ -z "${UHOTSPOT_RELOAD_ACTIVE:-}" ]]; then
     CYCLE_LOCK="/var/lock/uhotspotd-cycle.lock"
     exec 201>"$CYCLE_LOCK"
     if ! flock -w 10 201; then
-        ulog "INFO: uhotspotd cycle in progress — skipping cron-triggered reload (will retry next run)"
-        ulog "uleases done (skipped)"
+        log "INFO: uhotspotd cycle in progress — skipping cron-triggered reload (will retry next run)"
+        log "uleases done (skipped)"
         exit 0
     fi
 fi
@@ -179,7 +185,7 @@ local_user=""
 
 ENV_FILE="/etc/uhotspot/uhotspot.conf"
 if [ ! -f "$ENV_FILE" ]; then
-    echo "ERROR: $ENV_FILE not found. Run usetup.sh first."
+    log "ERROR: $ENV_FILE not found. Run usetup.sh first."
     exit 1
 fi
 
@@ -221,7 +227,7 @@ if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null 2>/dev/null; then
     [ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
 fi
 if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
-    echo "ERROR: Cannot determine a valid local user. Set LOCAL_USER in $ENV_FILE."
+    log "ERROR: Cannot determine a valid local user. Set LOCAL_USER in $ENV_FILE."
     exit 1
 fi
 
@@ -293,18 +299,18 @@ _notify() {
 
 verify_dhcp_service() {
     if ! command -v python3 &>/dev/null; then
-        echo "ERROR: python3 is not installed (required by pydhcpd / uleases.sh)"
+        log "ERROR: python3 is not installed (required by pydhcpd / uleases.sh)"
         exit 1
     fi
     if ! systemctl is-active --quiet pydhcpd; then
-        echo "ERROR: pydhcpd is not running"
+        log "ERROR: pydhcpd is not running"
         exit 1
     fi
 }
 
 verify_dhcp_files() {
     if [ ! -d /etc/pydhcp ]; then
-        echo "ERROR: /etc/pydhcp does not exist. Is pydhcpd installed?"
+        log "ERROR: /etc/pydhcp does not exist. Is pydhcpd installed?"
         exit 1
     fi
     if [ ! -f /etc/pydhcp/pydhcpd.leases ]; then
@@ -316,7 +322,7 @@ verify_dhcp_files() {
 
 verify_dhcp_config() {
     if [ ! -f "/etc/pydhcp/pydhcpd.conf" ]; then
-        echo "ERROR: /etc/pydhcp/pydhcpd.conf does not exist"
+        log "ERROR: /etc/pydhcp/pydhcpd.conf does not exist"
         exit 1
     fi
     chmod 640 "/etc/pydhcp/pydhcpd.conf"
@@ -326,13 +332,13 @@ verify_dhcp_config() {
 verify_directories() {
     for dir in "$ACL_MAC_PATH" "$ACL_DHCP_PATH"; do
         if [ ! -d "$dir" ]; then
-            echo "ERROR: Directory $dir does not exist"
+            log "ERROR: Directory $dir does not exist"
             exit 1
         fi
     done
     if [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]]; then
         if [ ! -d "$HOTSPOT_PATH" ]; then
-            echo "ERROR: Directory $HOTSPOT_PATH does not exist"
+            log "ERROR: Directory $HOTSPOT_PATH does not exist"
             exit 1
         fi
     fi
@@ -380,7 +386,7 @@ function clean_hotspot_list() {
     while IFS= read -r pat; do
         local mac_actual="${pat//;/}"
         if grep -qF "$pat" "$ACL_MAC_HOTSPOT" 2>/dev/null; then
-            ulog "clean_hotspot_list: removing $mac_actual from mac-hotspot (found in mac-unlimited)"
+            log "clean_hotspot_list: removing $mac_actual from mac-hotspot (found in mac-unlimited)"
             (( removed++ )) || true
         fi
     done < "$patterns"
@@ -389,7 +395,7 @@ function clean_hotspot_list() {
         local _grep_rc=0
         grep -vFf "$patterns" "$ACL_MAC_HOTSPOT" > "$ACL_MAC_HOTSPOT".tmp || _grep_rc=$?
         if (( _grep_rc > 1 )); then
-            ulog "ERROR: clean_hotspot_list: grep failed (rc=$_grep_rc) — skipping update of mac-hotspot"
+            log "ERROR: clean_hotspot_list: grep failed (rc=$_grep_rc) — skipping update of mac-hotspot"
             rm -f "$ACL_MAC_HOTSPOT".tmp
         else
             chmod 600 "$ACL_MAC_HOTSPOT".tmp
@@ -399,7 +405,7 @@ function clean_hotspot_list() {
     fi
     rm -f "$patterns"
     if (( removed > 0 )); then
-        ulog "clean_hotspot_list: done (removed=$removed)"
+        log "clean_hotspot_list: done (removed=$removed)"
     fi
 }
 
@@ -425,7 +431,7 @@ function clean_grace_list() {
             local found_in=""
             grep -qhi "^a;${mac_actual};" "$ACL_MAC_PATH"/mac-* 2>/dev/null && found_in="acl_mac" || true
             grep -qi "^a;${mac_actual};" "$ACL_MAC_HOTSPOT" 2>/dev/null && found_in="${found_in:+$found_in/}hotspot" || true
-            ulog "clean_grace_list: removing $mac_actual from gracedhcp (found in ${found_in:-unknown}, date=$(date))"
+            log "clean_grace_list: removing $mac_actual from gracedhcp (found in ${found_in:-unknown}, date=$(date))"
             printf '^a;%s;\n' "$mac_actual" >> "$patterns"
             (( removed++ )) || true
         fi
@@ -436,7 +442,7 @@ function clean_grace_list() {
         local _grep_rc=0
         grep -vif "$patterns" "$ACL_GRACE_FILE" > "$ACL_GRACE_FILE.tmp" || _grep_rc=$?
         if (( _grep_rc > 1 )); then
-            ulog "ERROR: clean_grace_list: grep failed (rc=$_grep_rc) — skipping update of gracedhcp"
+            log "ERROR: clean_grace_list: grep failed (rc=$_grep_rc) — skipping update of gracedhcp"
             rm -f "$ACL_GRACE_FILE.tmp"
         else
             chmod 600 "$ACL_GRACE_FILE.tmp"
@@ -455,17 +461,17 @@ function expire_grace_entries() {
     while IFS= read -r _line; do
         IFS=';' read -r status mac ip hostname epoch _ <<< "$_line"
         if [[ "$status" != "a" || -z "$mac" || -z "$epoch" || ! "$epoch" =~ ^[0-9]+$ ]]; then
-            ulog "WARNING: expire_grace_entries: skipping malformed line (status=$status mac=$mac epoch=$epoch)"
+            log "WARNING: expire_grace_entries: skipping malformed line (status=$status mac=$mac epoch=$epoch)"
             continue
         fi
         age=$(( now_epoch - epoch ))
         if (( age >= BLOCKDHCP_GRACE_SECONDS )); then
-            ulog "expire_grace_entries: expired $mac (age=${age}s) → blockdhcp"
+            log "expire_grace_entries: expired $mac (age=${age}s) → blockdhcp"
             echo "a;${mac};${ip};${hostname};" >> "$ACL_BLOCK_FILE"
             # Queue lease removal so pydhcpd stops serving this MAC from the pool.
             if ! grep -qxF "$mac" "$LEASE_REMOVE_QUEUE" 2>/dev/null; then
                 echo "$mac" >> "$LEASE_REMOVE_QUEUE"
-                ulog "expire_grace_entries: queued lease removal for $mac"
+                log "expire_grace_entries: queued lease removal for $mac"
             fi
         else
             echo "a;${mac};${ip};${hostname};${epoch};" >> "$file_temp"
@@ -544,7 +550,7 @@ function is_pydhcp() {
                                 if grep -qxiF "${mac_address}" "${wellknow_file}" 2>/dev/null; then
                                     echo "$lease_content" >> "$temp_leases"
                                 else
-                                    ulog "read_leases: $mac_address → new → gracedhcp (ip=$ip_address host=$host epoch=$(date +%s))"
+                                    log "read_leases: $mac_address → new → gracedhcp (ip=$ip_address host=$host epoch=$(date +%s))"
                                     echo "a;${mac_address};${ip_address};${host};$(date +%s);" >> "$ACL_GRACE_FILE"
                                     echo "$lease_content" >> "$temp_leases"
                                 fi
@@ -552,7 +558,7 @@ function is_pydhcp() {
                         else
                             if ! grep -qi "^a;${mac_address};" "$ACL_MAC_PATH"/mac-* 2>/dev/null; then
                                 if ! grep -qi "^a;${mac_address};" "$ACL_BLOCK_FILE" 2>/dev/null; then
-                                    ulog "read_leases: $mac_address → unknown (no hotspot) → blockdhcp (ip=$ip_address)"
+                                    log "read_leases: $mac_address → unknown (no hotspot) → blockdhcp (ip=$ip_address)"
                                     echo "$line_lease" >> "$ACL_BLOCK_FILE"
                                     echo "$lease_content" >> "$temp_leases"
                                 fi
@@ -576,14 +582,14 @@ function is_pydhcp() {
                 # Every lease block was successfully parsed and every single one
                 # belongs to a MAC that is now in blockdhcp.txt — a legitimately
                 # empty result, not a parsing failure. Safe to clear.
-                ulog "read_leases: all $total_seen lease(s) belong to blocked MACs — clearing $dhcpd"
+                log "read_leases: all $total_seen lease(s) belong to blocked MACs — clearing $dhcpd"
                 echo "" > "$dhcpd"
                 rm -f "$temp_leases"
             elif (( original_count > 0 )); then
                 # Empty result NOT fully explained by blocked MACs (parsing
                 # failure, unexpected code path, etc.) — preserve the original
                 # to avoid losing lease data on a transient/unknown failure.
-                ulog "WARNING: read_leases: all $original_count lease(s) filtered out — preserving original $dhcpd"
+                log "WARNING: read_leases: all $original_count lease(s) filtered out — preserving original $dhcpd"
                 rm -f "$temp_leases"
             else
                 echo "" > "$dhcpd"
@@ -634,15 +640,15 @@ ddns-update-style none;
             usersource=$(echo "$line" | cut -d ';' -f 4)
             if [[ $wcstatus == "a" ]]; then
                 if ! [[ $macsource =~ ^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$ ]]; then
-                    ulog "update_dhcp_conf: skipping entry, invalid MAC: $macsource"
+                    log "update_dhcp_conf: skipping entry, invalid MAC: $macsource"
                     continue
                 fi
                 if ! [[ $ipsource =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-                    ulog "update_dhcp_conf: skipping entry, invalid IP: $ipsource"
+                    log "update_dhcp_conf: skipping entry, invalid IP: $ipsource"
                     continue
                 fi
                 if ! [[ $usersource =~ ^[A-Za-z0-9._-]{1,63}$ ]]; then
-                    ulog "update_dhcp_conf: skipping entry, invalid hostname: $usersource"
+                    log "update_dhcp_conf: skipping entry, invalid hostname: $usersource"
                     continue
                 fi
                 echo "
@@ -708,7 +714,7 @@ class "blockdhcp" {
         while read -r mac_actual; do
             [ -z "$mac_actual" ] && continue
             if grep -qF ";${mac_actual};" "$ACL_BLOCK_FILE" 2>/dev/null; then
-                ulog "clean_block_list: removing $mac_actual from blockdhcp (found in acl_mac, date=$(date))"
+                log "clean_block_list: removing $mac_actual from blockdhcp (found in acl_mac, date=$(date))"
                 printf ';%s;\n' "$mac_actual" >> "$patterns"
                 (( removed++ )) || true
             fi
@@ -718,7 +724,7 @@ class "blockdhcp" {
             local _grep_rc=0
             grep -vFf "$patterns" "$ACL_BLOCK_FILE" > "$ACL_BLOCK_FILE".tmp || _grep_rc=$?
             if (( _grep_rc > 1 )); then
-                ulog "ERROR: clean_block_list: grep failed (rc=$_grep_rc) — skipping update of blockdhcp"
+                log "ERROR: clean_block_list: grep failed (rc=$_grep_rc) — skipping update of blockdhcp"
                 rm -f "$ACL_BLOCK_FILE".tmp
             else
                 chmod 600 "$ACL_BLOCK_FILE".tmp
@@ -728,7 +734,7 @@ class "blockdhcp" {
         fi
         rm -f "$file_temp" "$patterns"
         if (( removed > 0 )); then
-            ulog "clean_block_list: done (removed=$removed)"
+            log "clean_block_list: done (removed=$removed)"
         fi
     }
 
@@ -741,7 +747,7 @@ class "blockdhcp" {
         while IFS= read -r pat; do
             local mac_actual="${pat//;/}"
             if grep -qF "$pat" "$ACL_MAC_PROXY" 2>/dev/null; then
-                ulog "clean_proxy_list: removing $mac_actual from mac-proxy (found in mac-unlimited)"
+                log "clean_proxy_list: removing $mac_actual from mac-proxy (found in mac-unlimited)"
                 (( removed++ )) || true
             fi
         done < "$patterns"
@@ -753,7 +759,7 @@ class "blockdhcp" {
             local _grep_rc=0
             grep -vFf "$patterns" "$ACL_MAC_PROXY" > "$file_temp" || _grep_rc=$?
             if (( _grep_rc > 1 )); then
-                ulog "ERROR: clean_proxy_list: grep failed (rc=$_grep_rc) — skipping update of mac-proxy"
+                log "ERROR: clean_proxy_list: grep failed (rc=$_grep_rc) — skipping update of mac-proxy"
                 rm -f "$file_temp"
             else
                 mv "$file_temp" "$ACL_MAC_PROXY"
@@ -761,13 +767,13 @@ class "blockdhcp" {
         fi
         rm -f "$patterns"
         if (( removed > 0 )); then
-            ulog "clean_proxy_list: done (removed=$removed)"
+            log "clean_proxy_list: done (removed=$removed)"
         fi
     }
 
 
     function clean_acl {
-        ulog "clean_acl: removing empty lines from ACL files"
+        log "clean_acl: removing empty lines from ACL files"
         sed '/^$/d' -i "$ACL_BLOCK_FILE"
         sed '/^$/d' -i "$ACL_MAC_PROXY"
         sed '/^$/d' -i "$ACL_MAC_UNLIMITED"
@@ -796,37 +802,37 @@ class "blockdhcp" {
     if [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]]; then
         clean_hotspot_list
     fi
-    ulog "Stopping pydhcpd"
+    log "Stopping pydhcpd"
     trap 'rm -f "${TEMP_FILES_TO_CLEAN[@]}" 2>/dev/null; systemctl reset-failed pydhcpd 2>/dev/null; systemctl is-active --quiet pydhcpd || systemctl start pydhcpd' EXIT
     systemctl stop pydhcpd
     drain_lease_queue
-    ulog "Processing leases"
+    log "Processing leases"
     read_leases
-    ulog "Sorting ACL files"
+    log "Sorting ACL files"
     order_files_acl
-    ulog "Rebuilding pydhcpd.conf"
+    log "Rebuilding pydhcpd.conf"
     update_dhcp_conf
-    ulog "Starting pydhcpd"
+    log "Starting pydhcpd"
     systemctl reset-failed pydhcpd 2>/dev/null || true
     systemctl start pydhcpd || true
     sleep 1
     if ! systemctl is-active --quiet pydhcpd; then
-        ulog "ERROR: pydhcpd failed to start after config rebuild — attempting backup config restore"
+        log "ERROR: pydhcpd failed to start after config rebuild — attempting backup config restore"
         if [ -f "${dhcp_conf}.bak" ]; then
             cp -f "${dhcp_conf}.bak" "$dhcp_conf"
-            ulog "Restored ${dhcp_conf}.bak — retrying pydhcpd start"
+            log "Restored ${dhcp_conf}.bak — retrying pydhcpd start"
             systemctl reset-failed pydhcpd 2>/dev/null || true
             systemctl start pydhcpd || true
             sleep 1
             if ! systemctl is-active --quiet pydhcpd; then
-                ulog "ERROR: pydhcpd failed to start even with backup config — manual intervention required"
-                _notify "$local_user" "uhotspot Error" "pydhcpd failed to start (backup also failed). Check $LOG_FILE" -i error
+                log "ERROR: pydhcpd failed to start even with backup config — manual intervention required"
+                _notify "$local_user" "uhotspot Error" "pydhcpd failed to start (backup also failed). Check $log_file" -i error
             else
-                ulog "pydhcpd recovered with backup config"
+                log "pydhcpd recovered with backup config"
             fi
         else
-            ulog "ERROR: No backup config found — manual intervention required"
-            _notify "$local_user" "uhotspot Error" "pydhcpd failed to start. Check $LOG_FILE" -i error
+            log "ERROR: No backup config found — manual intervention required"
+            _notify "$local_user" "uhotspot Error" "pydhcpd failed to start. Check $log_file" -i error
         fi
     fi
     trap cleanup_temp EXIT
@@ -855,7 +861,7 @@ drain_lease_queue() {
                 local lmac
                 lmac=$(echo "$block" | grep -oiE '([0-9a-f]{2}:){5}[0-9a-f]{2}' | head -1 | tr '[:upper:]' '[:lower:]')
                 if [[ -n "$lmac" ]] && echo "$queue_macs" | grep -qxF "$lmac"; then
-                    ulog "drain_lease_queue: removing $lmac from leases (date=$(date))"
+                    log "drain_lease_queue: removing $lmac from leases (date=$(date))"
                     (( removed++ )) || true
                 else
                     printf '%s' "$block" >> "$tmp"
@@ -871,11 +877,11 @@ drain_lease_queue() {
     chown pydhcpd:pydhcpd "$dhcpd_leases"
     chmod 640 "$dhcpd_leases"
     if ! : > "$LEASE_REMOVE_QUEUE" 2>/dev/null; then
-        ulog "WARNING: drain_lease_queue: cannot truncate $LEASE_REMOVE_QUEUE (permissions?) — queue will be reprocessed next run"
+        log "WARNING: drain_lease_queue: cannot truncate $LEASE_REMOVE_QUEUE (permissions?) — queue will be reprocessed next run"
     fi
 
     if (( removed > 0 )); then
-        ulog "drain_lease_queue: removed $removed lease(s)"
+        log "drain_lease_queue: removed $removed lease(s)"
     fi
 }
 
@@ -888,7 +894,7 @@ function duplicate() {
         sources+=("$ACL_MAC_HOTSPOT")
     fi
     if [[ ${#sources[@]} -eq 0 ]]; then
-        ulog "duplicate: no ACL source files found — skipping duplicate check"
+        log "duplicate: no ACL source files found — skipping duplicate check"
         is_pydhcp
         return
     fi
@@ -901,7 +907,7 @@ function duplicate() {
             while IFS= read -r dup; do
                 [[ -z "$dup" ]] && continue
                 locations=$(grep -lF ";${dup};" "${sources[@]}" 2>/dev/null | tr '\n' ' ')
-                ulog "ERROR: duplicate $field_name '$dup' in: $locations"
+                log "ERROR: duplicate $field_name '$dup' in: $locations"
             done <<< "$dups"
             has_error=1
         fi
@@ -910,8 +916,8 @@ function duplicate() {
     if (( has_error == 0 )); then
         is_pydhcp
     else
-        echo "Duplicate Data: $(date)" | tee -a /var/log/syslog 2>/dev/null || logger -t uleases "Duplicate Data detected — see uleases.log"
-        _notify "$local_user" "Warning: Abort" "Duplicate ACL data. Check $LOG_FILE" -i error
+        log "Duplicate Data detected"
+        _notify "$local_user" "Warning: Abort" "Duplicate ACL data. Check $log_file" -i error
         exit 1
     fi
 }
@@ -920,7 +926,9 @@ duplicate
 
 # Final summary
 _count() { local c=0; c=$(grep -c '^a;' "$1" 2>/dev/null) || c=0; echo "$c"; }
-ulog "Summary: blockdhcp=$(_count "$ACL_BLOCK_FILE") | proxy=$(_count "$ACL_MAC_PROXY") | unlimited=$(_count "$ACL_MAC_UNLIMITED")$(
+log "Summary: blockdhcp=$(_count "$ACL_BLOCK_FILE") | proxy=$(_count "$ACL_MAC_PROXY") | unlimited=$(_count "$ACL_MAC_UNLIMITED")$(
     [[ "${UNIFI_HOTSPOT_ENABLED:-true}" == "true" ]] && echo " | hotspot=$(_count "$ACL_MAC_HOTSPOT") | gracedhcp=$(_count "$ACL_GRACE_FILE")"
 )"
-ulog "uleases done"
+
+# End
+log "uleases done at: $(date)"

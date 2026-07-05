@@ -24,31 +24,31 @@
 # - RFC 6335 - Internet Assigned Numbers Authority (IANA) Procedures
 # - https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt
 
+# logging
+log_file="/var/log/iptables.log"
+log() {
+    local msg="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+}
+
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    log "ERROR: This script must be run as root"
     exit 1
 fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
+    log "Script $(basename "$0") is already running"
     exit 1
 fi
 
 set -euo pipefail
 
-# logging
-log_file="/var/log/iptables.log"
-log() {
-    local msg="$1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg"
-}
-
 log "Iptables Start..."
-printf "\n"
 
 ## VARIABLES ##
 # paths
@@ -65,8 +65,6 @@ netmask=24
 # Command to get active interfaces (except lo) (Name/IPv4/MAC) (Replace with your server IPv4/MAC):
 # join <(ip -o -br link | sort) <(ip -o -br addr | sort) | awk '$2=="UP" {print $1,$6,$3}' | sed -Ee 's./[0-9]+..'
 serverip=192.168.0.10
-
-log "Config: wan=$wan lan=$lan localnet=$localnet/$netmask serverip=$serverip"
 
 # ACL/config files used by this script (existence verified below)
 mac_proxy_file="$acl_mac_path/mac-proxy.txt"
@@ -102,11 +100,9 @@ if [ ! -f "$logrotate_conf" ]; then
 EOF
     chmod 644 "$logrotate_conf"
     chown root:root "$logrotate_conf"
-    log "Created logrotate config: $logrotate_conf"
 fi
 
 ## KERNEL RULES ##
-log "Kernel Rules..."
 # Zero all packets and counters
 # Reset tables
 iptables -F
@@ -135,18 +131,18 @@ ebtables -X 2>/dev/null || true
 #conntrack -F 2>/dev/null || true
 
 # IPv4
-##### 🧩 SYSTEM OPTIMIZATION #####
+##### SYSTEM OPTIMIZATION #####
 sysctl -w fs.file-max=2097152 >/dev/null 2>&1
 sysctl -w fs.inotify.max_user_watches=524288 >/dev/null 2>&1
 sysctl -w vm.overcommit_memory=1 >/dev/null 2>&1
 sysctl -w net.core.somaxconn=65535 >/dev/null 2>&1
 
-##### ⚙️ CONNECTION TRACKING #####
+##### CONNECTION TRACKING #####
 # Increase connection tracking table size for high concurrency
 sysctl -w net.netfilter.nf_conntrack_max=524288 >/dev/null 2>&1
 sysctl -w net.netfilter.nf_conntrack_buckets=131072 >/dev/null 2>&1
 
-##### 🔒 SECURITY & NETWORK HARDENING #####
+##### SECURITY & NETWORK HARDENING #####
 # Disable IP source routing (prevents IP spoofing and routing attacks)
 sysctl -w net.ipv4.conf.all.accept_source_route=0 >/dev/null 2>&1
 sysctl -w net.ipv4.conf.default.accept_source_route=0 >/dev/null 2>&1
@@ -161,8 +157,8 @@ sysctl -w net.ipv4.conf.default.log_martians=1 >/dev/null 2>&1
 sysctl -w net.ipv4.conf.all.rp_filter=1 >/dev/null 2>&1
 sysctl -w net.ipv4.conf.default.rp_filter=1 >/dev/null 2>&1
 
-##### 🌐 NETWORK PERFORMANCE & TCP PROTECTION #####
-# ⚙️ Optimized TCP/IP parameters for high-performance and secure routing
+##### NETWORK PERFORMANCE & TCP PROTECTION #####
+# Optimized TCP/IP parameters for high-performance and secure routing
 # Enable TCP SYN cookies (protects against SYN flood attacks)
 sysctl -w net.ipv4.tcp_syncookies=1 >/dev/null 2>&1
 # Increase SYN backlog queue and tune retries (helps prevent SYN flood)
@@ -171,7 +167,7 @@ sysctl -w net.ipv4.tcp_syn_retries=2 >/dev/null 2>&1
 sysctl -w net.ipv4.tcp_synack_retries=2 >/dev/null 2>&1
 # Enable RFC1337 fix (protects against TCP TIME-WAIT assassination)
 sysctl -w net.ipv4.tcp_rfc1337=1 >/dev/null 2>&1
-# Expand available local port range (default: 32768–60999)
+# Expand available local port range (default: 32768-60999)
 sysctl -w net.ipv4.ip_local_port_range="10000 65535" >/dev/null 2>&1
 # Reduce TCP FIN timeout (faster cleanup for orphaned sockets)
 sysctl -w net.ipv4.tcp_fin_timeout=30 >/dev/null 2>&1
@@ -203,11 +199,11 @@ sysctl -w net.ipv4.tcp_max_tw_buckets=1000000 >/dev/null 2>&1
 # Allow safe TIME_WAIT socket reuse (improves connection efficiency)
 sysctl -w net.ipv4.tcp_tw_reuse=1 >/dev/null 2>&1
 
-##### 🔁 ROUTING & FORWARDING #####
+##### ROUTING & FORWARDING #####
 # Enable packet forwarding (required for NAT/routing)
 sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1
 
-##### 🧩 ARP OPTIMIZATION #####
+##### ARP OPTIMIZATION #####
 # Enable ARP filtering (prevents incorrect replies when multiple interfaces exist)
 sysctl -w net.ipv4.conf.all.arp_filter=1 >/dev/null 2>&1
 sysctl -w net.ipv4.conf.default.arp_filter=1 >/dev/null 2>&1
@@ -228,7 +224,7 @@ sysctl -w net.ipv4.neigh.default.mcast_solicit=2 >/dev/null 2>&1
 # Base reachable time for neighbor entries
 sysctl -w net.ipv4.neigh.default.base_reachable_time_ms=300000 >/dev/null 2>&1
 
-##### 🧱 KERNEL & FILESYSTEM HARDENING #####
+##### KERNEL & FILESYSTEM HARDENING #####
 # Enable full ASLR (Address Space Layout Randomization)
 sysctl -w kernel.randomize_va_space=2 >/dev/null 2>&1
 # Protect hardlinks (prevents privilege escalation attacks)
@@ -236,7 +232,7 @@ sysctl -w fs.protected_hardlinks=1 >/dev/null 2>&1
 # Protect symlinks (prevents unauthorized link access in shared directories)
 sysctl -w fs.protected_symlinks=1 >/dev/null 2>&1
 
-##### 📡 ICMP #####
+##### ICMP #####
 # Disable sending ICMP redirects (prevents MITM via route manipulation)
 sysctl -w net.ipv4.conf.all.send_redirects=0 >/dev/null 2>&1
 sysctl -w net.ipv4.conf.default.send_redirects=0 >/dev/null 2>&1
@@ -265,12 +261,9 @@ ip6tables -A OUTPUT -o $wan -p udp --sport 546 --dport 547 -j ACCEPT
 # Established traffic
 ip6tables -A INPUT -i $wan -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
-log "OK"
-
 ## GLOBAL RULES ##
-log "Global Rules..."
 
-# Global Policies IPv4 (ACCEPT y luego drops explícitos)
+# Global Policies IPv4 (ACCEPT y luego drops explicitos)
 iptables -P INPUT ACCEPT
 iptables -P FORWARD ACCEPT
 iptables -P OUTPUT ACCEPT
@@ -411,51 +404,48 @@ if [ -n "$mac2ip" ]; then
     iptables -t mangle -A PREROUTING -i $lan -m set --match-set macip src,src -j ACCEPT
     iptables -t mangle -A PREROUTING -i $lan -j DROP
 else
-    echo "WARNING: No static DHCP entries found in $dhcp_conf; macip binding skipped"
+    log "WARNING: No static DHCP entries found in $dhcp_conf; macip binding skipped"
 fi
 
-log "OK"
-
 ## PORT RULES ##
-log "Port Rules..."
 
 # BLOCKPORTS
 # path: /etc/acl/acl_ipt/blockports.txt
 # Block Direct Connections:
-# - HTTPs (443) — TCP/UDP
-# - HTTPs Fallback (4444,9443) — TCP
-# - DoT (853,8053) — TCP
-# - DNS over QUIC DoQ (784) — UDP
-# - DoQ Fallback (8853) — UDP
-# - OpenVPN (1194) — UDP
-# - L2TP/IPsec (1701) — UDP
-# - IPsec IKE (500) — UDP
-# - IPsec NAT-T (4500) — UDP
-# - WireGuard (51820) — UDP
-# - SOCKS5 proxies (1080) — TCP
-# - Shadowsocks (7300) — TCP/UDP
-# - HTTP-Proxy Alternative (8080,8000,3129,3130) — TCP
-# - Spotify (4070) — TCP
+# - HTTPs (443) - TCP/UDP
+# - HTTPs Fallback (4444,9443) - TCP
+# - DoT (853,8053) - TCP
+# - DNS over QUIC DoQ (784) - UDP
+# - DoQ Fallback (8853) - UDP
+# - OpenVPN (1194) - UDP
+# - L2TP/IPsec (1701) - UDP
+# - IPsec IKE (500) - UDP
+# - IPsec NAT-T (4500) - UDP
+# - WireGuard (51820) - UDP
+# - SOCKS5 proxies (1080) - TCP
+# - Shadowsocks (7300) - TCP/UDP
+# - HTTP-Proxy Alternative (8080,8000,3129,3130) - TCP
+# - Spotify (4070) - TCP
 #
 # Block legacy, risky or potentially abusive services:
-# - Echo (7) — TCP/UDP
-# - CHARGEN (19) — TCP/UDP
-# - FTP (20,21) — TCP
-# - SSH (22) — TCP
-# - 6to4 (41,43,44,58,59,60,3544) — UDP
-# - FINGER (79) — TCP
-# - PPTP (1723) — TCP
-# - TOR Ports (9001,9050,9150) — TCP
-# - Brave Tor (9001:9004,9090,9101:9103,9030,9031,9050) — TCP
-# - IRC (6660-6669) — TCP
-# - Trojans/Metasploit (4444) — TCP
-# - SQL inyection/XSS (8088,8888) — TCP
-# - bittorrent (6881-6889,58251,58252,58687,6969) — TCP/UDP
-# - others P2P (1000,1007,1337,2760,4662,4672,5001) — TCP/UDP
-# - Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560) — TCP
-# - WINS (42) — TCP/UDP
-# - BTC/ETH (8332,8333,8545,30303) — TCP
-# - IPP (631) — TCP
+# - Echo (7) - TCP/UDP
+# - CHARGEN (19) - TCP/UDP
+# - FTP (20,21) - TCP
+# - SSH (22) - TCP
+# - 6to4 (41,43,44,58,59,60,3544) - UDP
+# - FINGER (79) - TCP
+# - PPTP (1723) - TCP
+# - TOR Ports (9001,9050,9150) - TCP
+# - Brave Tor (9001:9004,9090,9101:9103,9030,9031,9050) - TCP
+# - IRC (6660-6669) - TCP
+# - Trojans/Metasploit (4444) - TCP
+# - SQL inyection/XSS (8088,8888) - TCP
+# - bittorrent (6881-6889,58251,58252,58687,6969) - TCP/UDP
+# - others P2P (1000,1007,1337,2760,4662,4672,5001) - TCP/UDP
+# - Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560) - TCP
+# - WINS (42) - TCP/UDP
+# - BTC/ETH (8332,8333,8545,30303) - TCP
+# - IPP (631) - TCP
 if ! ipset list blockports &>/dev/null; then
     ipset create blockports bitmap:port range 0-65535 -exist
 else
@@ -528,18 +518,8 @@ iptables -A FORWARD -i $lan -o $lan -p tcp -m multiport --dports 2869,8200 -m se
 # IGMP (required for multicast group management)
 iptables -A FORWARD -i $lan -o $lan -p igmp -m set --match-set macports src -j ACCEPT
 
-# OPTIONAL
-# Localsend
-iptables -A FORWARD -i $lan -p tcp --dport 53317 -m set --match-set macports src -j ACCEPT
-# anydesk
-iptables -A FORWARD -i $lan -p tcp -m multiport --dports 6568,7070 -m set --match-set macports src  -j ACCEPT
-
-log "OK"
-
 ## SECURITY RULES ##
-log "Security Rules..."
-
-# Block 6to4 (IPv6-in-IPv4 tunneling) — prevents LAN clients from bypassing
+# Block 6to4 (IPv6-in-IPv4 tunneling) - prevents LAN clients from bypassing
 # IPv4-based firewall rules via IPv6 tunnel encapsulation
 iptables -A FORWARD -i $lan -p 41 -j DROP
 
@@ -614,11 +594,7 @@ done
 # Silence ICMP forward noise
 iptables -A FORWARD -i $lan -o $wan -p icmp -j DROP
 
-log "OK"
-
 ## MAC RULES ##
-log "MAC Rules"
-
 # MACPROXY (PAC 18100 - Opcion 252 DHCP, HTTP 80 to 3128)
 if ! ipset list macproxy &>/dev/null; then
     ipset create macproxy hash:mac -exist
@@ -634,35 +610,10 @@ for chain in INPUT FORWARD; do
     iptables -A $chain -i $lan -p tcp -m multiport --dports 18100,3128 -m set --match-set macproxy src -j ACCEPT
 done
 
-log "OK"
-
 ## END ## 
-log "Drop All..."
-# Restore bandata rules if the ipset exists and is non-empty.
-# uiptables.sh flushes all chains on every run; bandata.sh only runs every
-# 5 minutes via cron. Without this block, blocked IPs are freed on every
-# ACL reload until the next bandata cron cycle.
-if ipset list bandata &>/dev/null && \
-   ipset list bandata | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+'; then
-    log "Restoring bandata rules..."
-    iptables -N BANDATA_FWD 2>/dev/null || true
-    iptables -N BANDATA_IN  2>/dev/null || true
-    iptables -I FORWARD 1 -i "$lan" -j BANDATA_FWD
-    iptables -I INPUT   1 -i "$lan" -j BANDATA_IN
-    iptables -A BANDATA_FWD -m set --match-set bandata src -p udp --dport 53  -j ACCEPT
-    iptables -A BANDATA_FWD -m set --match-set bandata src -p tcp --dport 80  -j ACCEPT
-    iptables -A BANDATA_FWD -m set --match-set bandata src -j DROP
-    iptables -A BANDATA_IN  -m set --match-set bandata src -p tcp --dport 18081 -j ACCEPT
-    iptables -A BANDATA_IN  -m set --match-set bandata src -j DROP
-    iptables -t nat -I PREROUTING 1 -i "$lan" -m set --match-set bandata src \
-        -p tcp --dport 80 -j REDIRECT --to-port 18081
-    log "bandata rules restored ($(ipset list bandata | grep -cE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+') IPs)"
-fi
-
 iptables -A INPUT -m hashlimit --hashlimit-name input-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip,dstport -j NFLOG --nflog-prefix "FINAL-INPUT DROP: "
 iptables -A INPUT -j DROP
 iptables -A FORWARD -m hashlimit --hashlimit-name forward-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip,dstport -j NFLOG --nflog-prefix "FINAL-FORWARD DROP: "
 iptables -A FORWARD -j DROP
 
-log "iptables Load at: $(date)"
-log "Done"
+log "iptables done at: $(date)"

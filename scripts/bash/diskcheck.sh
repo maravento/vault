@@ -11,17 +11,25 @@
 # Cron Root: @daily /etc/scr/diskcheck.sh
 # Log rotate: /etc/logrotate.d/diskcheck
 #
+# NOTE on logging:
+# - Writes to /var/log/diskcheck.log (log + screen via tee). Rotation is
+#   self-installed by this script (/etc/logrotate.d/diskcheck).
+#
 ################################################################################
-
-echo "Check Disk Temp Starting. Wait..."
-printf "\n"
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# logging
+log_file="/var/log/diskcheck.log"
+log() {
+    local msg="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+}
+
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    log "ERROR: This script must be run as root"
     exit 1
 fi
 
@@ -29,20 +37,16 @@ fi
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
+    log "Script $(basename "$0") is already running"
     exit 1
 fi
 
 set -uo pipefail
 
-### LOG
-DISKCHECK_LOG="/var/log/diskcheck.log"
-touch "$DISKCHECK_LOG" 2>/dev/null || true
-exec >> "$DISKCHECK_LOG" 2>&1
+echo "----------------------------------------------------------------" | tee -a "$log_file"
 
-echo "----------------------------------------------------------------"
-echo "$(date '+%Y-%m-%d %H:%M:%S') — Diskcheck start"
-echo "----------------------------------------------------------------"
+# Start
+log "diskcheck start..."
 
 # LOCAL USER (multi-strategy detection with validation)
 local_user=""
@@ -58,10 +62,10 @@ local_user=$(who | awk '/\(:0\)/{print $1; exit}')
 [ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
 # Validate the user actually exists on the system
 if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
-    echo "ERROR: Cannot determine a valid local user"
+    log "ERROR: Cannot determine a valid local user"
     exit 1
 fi
-echo "Using local user: $local_user"
+log "Using local user: $local_user"
 
 # check dependencies
 pkgs='inxi smartmontools'
@@ -71,45 +75,45 @@ for p in $missing; do
     apt-cache show "$p" &>/dev/null || unavailable+=" $p"
 done
 if [ -n "$unavailable" ]; then
-    echo "Missing dependencies not found in APT:"
-    for u in $unavailable; do echo "   - $u"; done
-    echo "Please install them manually or enable the required repositories."
+    log "Missing dependencies not found in APT:"
+    for u in $unavailable; do log "   - $u"; done
+    log "Please install them manually or enable the required repositories."
     exit 1
 fi
 if [ -n "$missing" ]; then
-    echo "Waiting for APT/DPKG locks to be released..."
+    log "Waiting for APT/DPKG locks to be released..."
     APT_LOCK_TIMEOUT=120
     APT_LOCK_ELAPSED=0
     APT_LOCK_FILES="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
     while lsof $APT_LOCK_FILES >/dev/null 2>&1; do
         if [ "$APT_LOCK_ELAPSED" -ge "$APT_LOCK_TIMEOUT" ]; then
-            echo "APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
+            log "APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
             exit 1
         fi
-        echo "   Locks held, waiting... (${APT_LOCK_ELAPSED}s)"
+        log "   Locks held, waiting... (${APT_LOCK_ELAPSED}s)"
         sleep 5
         APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
     done
     dpkg --configure -a
-    echo "Installing: $missing"
+    log "Installing: $missing"
     apt-get -qq update
     if ! apt-get -y install $missing; then
-        echo "Error installing: $missing"
+        log "Error installing: $missing"
         exit 1
     fi
 else
-    echo "Dependencies OK"
+    log "Dependencies OK"
 fi
 
 # check ppa
 the_ppa=malcscott/ppa
 if ! grep -q "^deb .*$the_ppa" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
     if ! add-apt-repository -y ppa:$the_ppa >/dev/null 2>&1; then
-        echo "WARNING: Failed to add PPA $the_ppa. hddtemp may not be available."
+        log "WARNING: Failed to add PPA $the_ppa. hddtemp may not be available."
     else
         apt-get update -qq
         if ! apt-get install -y hddtemp >/dev/null 2>&1; then
-            echo "WARNING: Failed to install hddtemp from PPA $the_ppa."
+            log "WARNING: Failed to install hddtemp from PPA $the_ppa."
         fi
     fi
 fi
@@ -132,9 +136,9 @@ if [ ! -f "$LOGROTATE_CONF" ]; then
 EOF
     chmod 644 "$LOGROTATE_CONF"
     chown root:root "$LOGROTATE_CONF"
-    echo "Logrotate config created: $LOGROTATE_CONF"
+    log "Logrotate config created: $LOGROTATE_CONF"
 else
-    echo "Logrotate config: OK"
+    log "Logrotate config: OK"
 fi
 
 # ---------------------------------------------------------------------
@@ -169,9 +173,9 @@ notify_alert() {
     local msg="$1"
     local icon="${2:-dialog-warning}"
     logger -t disktemp "$msg"
-    echo "$msg"
+    log "$msg"
     _notify "$local_user" -i "$icon" "DISK ALERT" "$msg" \
-        || echo "  notify-send failed (no desktop session?)"
+        || log "  notify-send failed (no desktop session?)"
 }
 
 # ---------------------------------------------------------------------
@@ -205,8 +209,7 @@ fi
 # SMART DISK HEALTH CHECK
 # Detects HDD/SSD/NVMe degradation and alerts for timely replacement
 # ---------------------------------------------------------------------
-echo ""
-echo "Check Disk SMART Health. Wait..."
+log "Check Disk SMART Health. Wait..."
 
 # Alert thresholds
 REALLOCATED_THRESHOLD=10   # reallocated sectors (sign of bad sectors)
@@ -217,14 +220,14 @@ UNCORRECTABLE_THRESHOLD=1  # uncorrectable errors (critical from the first one)
 DISKS=$(lsblk -dno NAME,TYPE | awk '$2=="disk" {print "/dev/"$1}')
 
 if [ -z "$DISKS" ]; then
-    echo "No disks found"
+    log "No disks found"
 else
     for DISK in $DISKS; do
-        echo "Checking $DISK"
+        log "Checking $DISK"
         DISK_ALERTS=0
 
         if ! smartctl -i "$DISK" &>/dev/null; then
-            echo "$DISK: SMART not available or not supported"
+            log "$DISK: SMART not available or not supported"
             continue
         fi
 
@@ -246,7 +249,7 @@ else
                 notify_alert "$DISK (NVMe): Wear level at ${WEAR}%. Plan replacement soon." "drive-harddisk"
                 DISK_ALERTS=$((DISK_ALERTS + 1))
             fi
-            [ "$DISK_ALERTS" -eq 0 ] && echo "$DISK: OK"
+            [ "$DISK_ALERTS" -eq 0 ] && log "$DISK: OK"
             continue
         fi
 
@@ -274,9 +277,9 @@ else
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
 
-        [ "$DISK_ALERTS" -eq 0 ] && echo "$DISK: OK"
+        [ "$DISK_ALERTS" -eq 0 ] && log "$DISK: OK"
     done
 fi
 
-echo ""
-echo "Check Disk Health Done."
+# End
+log "diskcheck done at: $(date)"

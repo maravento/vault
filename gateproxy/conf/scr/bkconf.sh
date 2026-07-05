@@ -6,20 +6,26 @@
 # Backup System Files
 #
 ################################################################################
-echo "Backup System Files Start. Wait..."
-printf "\n"
+
+# logging
+log_file="/var/log/bkconfig.log"
+log() {
+    local msg="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+}
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    log "ERROR: This script must be run as root"
     exit 1
 fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
+    log "Script $(basename "$0") is already running"
     exit 1
 fi
 
@@ -37,7 +43,7 @@ local_user=$(who | awk '/\(:0\)/{print $1; exit}')
 [ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
 # Validate the user actually exists on the system
 if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
-    echo "ERROR: Cannot determine a valid local user"
+    log "ERROR: Cannot determine a valid local user"
     exit 1
 fi
 
@@ -45,6 +51,9 @@ fi
 # path to cloud
 bkconfig="/home/$local_user/bkconf"
 mkdir -p "$bkconfig" >/dev/null 2>&1
+
+log "bkconfig start..."
+
 ### BACKUP
 zipbk="backup_$(date +%Y%m%d_%H%M).zip"
 # Build pathbk as array, skipping non-existent paths
@@ -68,18 +77,19 @@ do
     if [ -e "$p" ]; then
         pathbk+=("$p")
     else
-        echo "WARNING: $p not found, skipping"
+        log "WARNING: $p not found, skipping"
     fi
 done
 case "$1" in
 'start')
-    echo "Start Backup Config Files..."
+    log "Start Backup Config Files..."
     zip -r "$bkconfig/$zipbk" "${pathbk[@]}" >/dev/null
-    echo "Backup Config: $(date)" | tee -a /var/log/syslog
+    log "Backup Config"
     ;;
 'stop') ;;
 *)
-    echo "Usage: $0 { start | stop }"
+    log "Usage: $0 { start | stop }"
     ;;
 esac
-echo "Done"
+
+log "bkconfig done at: $(date)"

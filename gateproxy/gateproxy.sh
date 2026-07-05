@@ -49,9 +49,9 @@ echo "Using local user: $local_user"
 
 ### LANGUAGE EN-ES
 lang_01=("Check System..." "Verificando Sistema...")
-lang_02=("Aborted installation. Check the Minimum Requirements" "Instalacion Abortada. Verifique los Requisitos Mínimos")
+lang_02=("Aborted installation. Check the Minimum Requirements" "Instalacion Abortada. Verifique los Requisitos Minimos")
 lang_03=("Checking Bandwidth..." "Verificando Ancho de Banda...")
-lang_04=("Update and Clean" "Actualización y Limpieza")
+lang_04=("Update and Clean" "Actualizacion y Limpieza")
 lang_05=("Wait..." "Espere...")
 lang_06=("Answer" "Responda")
 lang_07=("Check Dependencies..." "Verificando Dependencias...")
@@ -60,7 +60,7 @@ lang_09=("List of Network Interfaces Detected" "Lista de Interfaces de Red Detec
 lang_10=("Public Network Interface (Internet)" "Interfaz de Red Publica (Internet)")
 lang_11=("Local Network Interface" "Interfaz de Red Local")
 lang_12=("Welcome to GateProxy" "Bienvenido a GateProxy")
-lang_13=("Minimum Requirements:" "Requisitos Mínimos:")
+lang_13=("Minimum Requirements:" "Requisitos Minimos:")
 lang_14=("Press ENTER to start or CTRL+C to abort" "Presione ENTER para iniciar o CTRL+C para abortar")
 lang_15=("Server settings:" "Parametros del servidor:")
 lang_16=("Enter" "Introduzca")
@@ -277,9 +277,9 @@ echo "    ${lang_12[$lang]}"
 echo -e "\n"
 echo "    ${lang_13[$lang]}"
 echo "    OS:       Ubuntu 24.04.x"
-echo "    CPU:      4+ cores (≥ 3.0 GHz)"
+echo "    CPU:      4+ cores (>= 3.0 GHz)"
 echo "    NIC:      2 (WAN & LAN)"
-echo "    RAM:      4 GB for cache_mem (≥ 12 GB total RAM recommended)"
+echo "    RAM:      4 GB for cache_mem (>= 12 GB total RAM recommended)"
 echo "    Storage:  100 GB SSD for cache_dir rock"
 echo -e "\n"
 echo "    ${lang_14[$lang]}"
@@ -814,21 +814,21 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         sed -i "s/interface: eth[0-9]/interface: $LAN_INTERFACE/g" /etc/suricata/suricata.yaml
         if grep -q "community-id: false" /etc/suricata/suricata.yaml; then
             sed -i 's/community-id: false/community-id: true/' /etc/suricata/suricata.yaml
-            echo "✓ Community-ID enabled"
+            echo "OK: Community-ID enabled"
         fi
         # suricata disable and drop
         cp -f "$gp_path/conf/pack/"{disable,drop}.conf /etc/suricata/
         chown root:root /etc/suricata/{disable,drop}.conf
         chmod 644 /etc/suricata/{disable,drop}.conf
         # suricata update & clean
-        if [ ! -f /var/log/suricata/suricata-cron.log ]; then
-            touch /var/log/suricata/suricata-cron.log
-            chown root:root /var/log/suricata/suricata-cron.log
-            chmod 640 /var/log/suricata/suricata-cron.log
+        if [ ! -f /var/log/suricata/suricatacron.log ]; then
+            touch /var/log/suricata/suricatacron.log
+            chown root:root /var/log/suricata/suricatacron.log
+            chmod 640 /var/log/suricata/suricatacron.log
         fi        
-        cp -f "$gp_path/conf/pack/"{suricata-update,suricata-clean}.sh /etc/suricata/
-        chmod +x /etc/suricata/{suricata-update,suricata-clean}.sh
-        timeout 300 /etc/suricata/suricata-update.sh || echo "⚠ Warning: suricata-update timed out"
+        cp -f "$gp_path/conf/pack/"{suricataupdate,suricataclean}.sh /etc/suricata/
+        chmod +x /etc/suricata/{suricataupdate,suricataclean}.sh
+        timeout 300 /etc/suricata/suricataupdate.sh || echo "Warning: suricataupdate timed out"
         # suricata ratio
         if ! grep -q "detect-thread-ratio: 0.5" /etc/suricata/suricata.yaml; then
             sed -i 's/detect-thread-ratio: 1.0/detect-thread-ratio: 0.5/' /etc/suricata/suricata.yaml
@@ -840,11 +840,11 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         SURICATA_SERVICE="/usr/lib/systemd/system/suricata.service"
         CORRECT_EXECSTART="ExecStart=/usr/bin/suricata -D --af-packet -c /etc/suricata/suricata.yaml --pidfile /run/suricata.pid"
         if grep -q "^ExecStart=.*--af-packet" "$SURICATA_SERVICE" && ! grep -q "^ExecStart=.*-q" "$SURICATA_SERVICE"; then
-            echo "✓ Suricata Mode: IDS"
+            echo "OK: Suricata Mode: IDS"
         else
-            echo "⚠ Fixing Suricata IDS..."
+            echo "Fixing Suricata IDS..."
             sed -i "s|^ExecStart=.*|$CORRECT_EXECSTART|" "$SURICATA_SERVICE"
-            echo "✓ Suricata Mode: IDS"
+            echo "Suricata Mode: IDS"
         fi
         # evebox
         curl -fsSL https://evebox.org/files/GPG-KEY-evebox -o /etc/apt/keyrings/evebox.asc

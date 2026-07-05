@@ -1,45 +1,64 @@
 #!/bin/bash
 # /etc/uhotspot/tools/ureload.sh
-# Reload wrapper — invoked by uhotspot.sh after ACL changes
-LOG_FILE="/var/log/uhotspot.log"
-TS() { date '+%Y-%m-%d %H:%M:%S'; }
-RLOG() { echo "$(TS) $*" >> "$LOG_FILE"; }
+# Reload wrapper — invoked by uhotspotd after ACL changes, or via @hourly cron.
+# Runs uleases.sh (lease/ACL rebuild) then uiptables.sh (firewall rules), in
+# that order. Aborts if either is missing or fails.
+#
+# NOTE on logging:
+# - Writes to /var/log/uhotspot.log (shared with uleases.sh). Rotation is
+#   self-installed by uleases.sh (/etc/logrotate.d/uhotspot).
+
+# logging
+log_file="/var/log/uhotspot.log"
+log() {
+    local msg="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+}
+
+## root check
+if [ "$(id -u)" != "0" ]; then
+    log "ERROR: This script must be run as root"
+    exit 1
+fi
+
+# prevent overlapping runs
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    log "Script $(basename "$0") is already running"
+    exit 1
+fi
+
 set -euo pipefail
-# UHOTSPOT_RELOAD_ACTIVE is NOT set here. When called from the daemon
-# (check_and_reload_if_changed), the daemon already exports it before invoking
-# this script, so uleases.sh inherits it and skips its own cron-guard check
-# (correct — the daemon is in control of the reload, and it's the same
-# process tree). When called from the @hourly cron the variable is absent,
-# so uleases.sh coordinates via its own cycle-lock check before doing any
-# real work.
-RLOG "ureload start..."
+# UHOTSPOT_RELOAD_ACTIVE: not set here. The daemon exports it before calling
+# this script (so uleases.sh skips its own cron-guard); the @hourly cron
+# leaves it unset (so uleases.sh uses its own cycle-lock instead).
 
-# Guard against cascading failures: if uhotspotd is not active (crashed,
-# stopped, or never finished starting), nothing downstream should run blindly.
-# systemctl is-active only reports "active" while the process is alive AND
-# past its own startup checks — a failed startup (e.g. verify_installation
-# aborting) or a stop/crash both make this check fail, covering both
-# directions ("did it stop" and "did it actually start") with one call.
+# Start
+log "ureload start..."
+
+# Abort if uhotspotd isn't active — nothing downstream should run blindly.
 if ! systemctl is-active --quiet uhotspotd; then
-    RLOG "ERROR: uhotspotd is not active — aborting (uleases.sh/uiptables.sh not invoked)"
+    log "ERROR: uhotspotd is not active — aborting (uleases.sh/uiptables.sh not invoked)"
     exit 1
 fi
 
-# uleases.sh logs its own output directly to LOG_FILE via ulog(); its stdout
-# here is a duplicate and is discarded. stderr is still captured in case of
-# an uncaught bash error (e.g. unbound variable, command not found) that
-# never reaches ulog.
-if ! /etc/uhotspot/tools/uleases.sh >/dev/null 2>>"$LOG_FILE"; then
-    RLOG "ERROR: uleases.sh failed — aborting"
-    exit 1
-fi
-
-# uiptables.sh is optional (user-provided)
-UIPTABLES="/etc/uhotspot/tools/uiptables.sh"
-if [[ -x "$UIPTABLES" ]]; then
-    if ! "$UIPTABLES" >> "$LOG_FILE" 2>&1; then
-        RLOG "ERROR: uiptables.sh failed"
+# Both scripts log their own output via log(); stdout here is a duplicate
+# and is discarded, stderr is kept for uncaught bash errors.
+run_step() {
+    local script="$1" name="$2"
+    if [[ ! -x "$script" ]]; then
+        log "WARNING: $name not found or not executable: $script — aborting"
         exit 1
     fi
-fi
-RLOG "ureload done"
+    if ! "$script" >/dev/null 2>>"$log_file"; then
+        log "WARNING: $name failed — aborting"
+        exit 1
+    fi
+}
+
+run_step "/etc/uhotspot/tools/uleases.sh" "uleases.sh"
+run_step "/etc/uhotspot/tools/uiptables.sh" "uiptables.sh"
+
+# End
+log "ureload done at: $(date)"

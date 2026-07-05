@@ -44,33 +44,58 @@
 # 3. Create wpad.pac file in Apache document root
 # 4. Set WPAD_ENABLED=true in /etc/pydhcp/tools/pyleases.env
 #
+# NOTE on logging:
+# - Writes to /var/log/pydhcp.log. Rotation is normally deployed by
+#   pyinstall.sh (/etc/logrotate.d/pydhcp); this script just ensures the
+#   config exists in case it runs without a fresh install.
+#
 ################################################################################
-
-echo "Leases Start. Wait..."
-printf "\n"
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-LOG_FILE="/var/log/pyleases.log"
-ulog() {
-    local msg
-    msg="$(date '+%Y-%m-%d %H:%M:%S') $*"
-    echo "$msg"
-    echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
+# logging
+log_file="/var/log/pydhcp.log"
+log() {
+    local msg="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
-echo "────────────────────────────────────────────────────────────────────────────────" >> "$LOG_FILE" 2>/dev/null || true
-ulog "pyleases Start"
+# Delimits where a new run starts in the log — useful with heavy activity
+# (dozens of MACs coming and going per run).
+echo "────────────────────────────────────────────────────────────────────────────────" | tee -a "$log_file" 2>/dev/null || true
+
+# Start
+log "pyleases start..."
 
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    log "ERROR: This script must be run as root"
     exit 1
+fi
+
+# pyinstall.sh normally deploys this at install time; make sure it exists
+# in case this script runs on its own (e.g. env restored without reinstall).
+logrotate_conf="/etc/logrotate.d/pydhcp"
+if [ ! -f "$logrotate_conf" ]; then
+    cat > "$logrotate_conf" <<'EOF'
+/var/log/pydhcp.log {
+    weekly
+    rotate 4
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 root pydhcpd
+}
+EOF
+    chmod 644 "$logrotate_conf"
+    chown root:root "$logrotate_conf"
+    log "Created logrotate config: $logrotate_conf"
 fi
 
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
+    log "Script $(basename "$0") is already running"
     exit 1
 fi
 
@@ -94,7 +119,7 @@ local_user=$(who | awk '/\(:0\)/{print $1; exit}')
 [ -z "$local_user" ] && local_user="${SUDO_USER:-}"
 [ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
 if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
-    echo "ERROR: Cannot determine a valid local user"
+    log "ERROR: Cannot determine a valid local user"
     exit 1
 fi
 
@@ -115,13 +140,13 @@ setup_env() {
 
     while true; do
         read -rp "DHCP server IP (e.g. 192.168.0.10): " SERV_DHCP
-        validate_ip "$SERV_DHCP" && break || echo "Invalid IP, try again"
+        validate_ip "$SERV_DHCP" && break || log "Invalid IP, try again"
     done
 
     while true; do
         read -rp "Netmask [255.255.255.0]: " SERV_MASK
         SERV_MASK="${SERV_MASK:-255.255.255.0}"
-        validate_mask "$SERV_MASK" && break || echo "Invalid netmask, try again"
+        validate_mask "$SERV_MASK" && break || log "Invalid netmask, try again"
     done
 
     SERV_SUBNET=$(SERV_DHCP="$SERV_DHCP" SERV_MASK="$SERV_MASK" python3 -c '
@@ -136,8 +161,8 @@ import os
 net = ipaddress.IPv4Network(os.environ["SERV_DHCP"] + "/" + os.environ["SERV_MASK"], strict=False)
 print(net.broadcast_address)
 ')
-    echo "Subnet: $SERV_SUBNET"
-    echo "Broadcast: $SERV_BROADCAST"
+    log "Subnet: $SERV_SUBNET"
+    log "Broadcast: $SERV_BROADCAST"
 
     NET_BASE="${SERV_DHCP%.*}"
     while true; do
@@ -146,7 +171,7 @@ print(net.broadcast_address)
             SERV_INI_RANGE_BLOCK="${NET_BASE}.${POOL_START_OCT}"
             break
         fi
-        echo "Invalid value, enter a number between 1 and 254"
+        log "Invalid value, enter a number between 1 and 254"
     done
 
     while true; do
@@ -155,12 +180,12 @@ print(net.broadcast_address)
             SERV_END_RANGE_BLOCK="${NET_BASE}.${POOL_END_OCT}"
             break
         fi
-        echo "Pool end must be greater than pool start ($POOL_START_OCT) and <= 254"
+        log "Pool end must be greater than pool start ($POOL_START_OCT) and <= 254"
     done
 
     while true; do
         read -rp "DNS servers (e.g. 8.8.8.8,1.1.1.1): " SERV_DNS
-        validate_dns "$SERV_DNS" && break || echo "Invalid DNS format, try again"
+        validate_dns "$SERV_DNS" && break || log "Invalid DNS format, try again"
     done
 
     cat > "$env_file" <<EOF
@@ -202,12 +227,12 @@ PING_CHECK_ENABLED=true
 EOF
     chmod 640 "$env_file"
     chown root:pydhcpd "$env_file"
-    echo "Configuration saved to $env_file"
+    log "Configuration saved to $env_file"
 }
 
 ENV_FILE="$(dirname "$0")/pyleases.env"
 if [ ! -f "$ENV_FILE" ]; then
-    echo "Configuration file not found. Running setup..."
+    log "Configuration file not found. Running setup..."
     setup_env "$ENV_FILE"
 fi
 
@@ -276,11 +301,11 @@ _notify() {
 
 verify_dhcp_service() {
     if ! command -v python3 &>/dev/null; then
-        echo "ERROR: pydhcpd is not installed"
+        log "ERROR: pydhcpd is not installed"
         exit 1
     fi
     if ! systemctl is-active --quiet pydhcpd; then
-        echo "ERROR: pydhcpd is not running"
+        log "ERROR: pydhcpd is not running"
         exit 1
     fi
 }
@@ -298,7 +323,7 @@ verify_dhcp_files() {
 
 verify_dhcp_config() {
     if [ ! -f "/etc/pydhcp/pydhcpd.conf" ]; then
-        echo "ERROR: /etc/pydhcp/pydhcpd.conf does not exist"
+        log "ERROR: /etc/pydhcp/pydhcpd.conf does not exist"
         exit 1
     fi
     chmod 640 "/etc/pydhcp/pydhcpd.conf"
@@ -308,7 +333,7 @@ verify_dhcp_config() {
 verify_directories() {
     for dir in "$ACL_MAC_PATH" "$ACL_DHCP_PATH"; do
         if [ ! -d "$dir" ]; then
-            echo "ERROR: Directory $dir does not exist"
+            log "ERROR: Directory $dir does not exist"
             exit 1
         fi
     done
@@ -334,7 +359,7 @@ verify_dhcp_files
 verify_dhcp_config
 verify_directories
 initialize_empty_files
-ulog "Verification OK — pydhcpd active, paths valid"
+log "Verification OK — pydhcpd active, paths valid"
 
 function is_pydhcp() {
     dhcpd=/etc/pydhcp/pydhcpd.leases
@@ -374,14 +399,14 @@ function is_pydhcp() {
                         shopt -u nullglob
                         if [ ${#acl_mac_files[@]} -eq 0 ] || ! grep -qi "^a;${mac_address};" "${acl_mac_files[@]}" 2>/dev/null; then
                             if ! grep -qi "^a;${mac_address};" "$ACL_BLOCK_FILE" 2>/dev/null; then
-                                ulog "read_leases: $mac_address → unknown → blockdhcp (ip=$ip_address host=$host)"
+                                log "read_leases: $mac_address → unknown → blockdhcp (ip=$ip_address host=$host)"
                                 echo "$line_lease" >> "$ACL_BLOCK_FILE"
                                 echo "$lease_content" >> "$temp_leases"
                             else
-                                ulog "read_leases: $mac_address → blocked (lease discarded)"
+                                log "read_leases: $mac_address → blocked (lease discarded)"
                             fi
                         else
-                            ulog "read_leases: $mac_address → authoritative (ip=$ip_address)"
+                            log "read_leases: $mac_address → authoritative (ip=$ip_address)"
                             echo "$lease_content" >> "$temp_leases"
                         fi
                     fi
@@ -393,7 +418,7 @@ function is_pydhcp() {
 
         local leases_kept=0
         [[ -s "$temp_leases" ]] && { leases_kept=$(grep -c '^lease ' "$temp_leases" 2>/dev/null) || true; }
-        ulog "read_leases: done (leases_kept=$leases_kept)"
+        log "read_leases: done (leases_kept=$leases_kept)"
 
         if [[ -s "$temp_leases" ]]; then
             mv -f "$temp_leases" "$dhcpd"
@@ -405,7 +430,7 @@ function is_pydhcp() {
             # easily mean the parser failed to recognize the format. Either
             # way, silently truncating a non-empty leases file is worse than
             # leaving stale data for pydhcpd's own expiry to clean up.
-            ulog "read_leases: WARNING — kept 0 leases but $dhcpd was not empty; leaving it untouched to avoid data loss"
+            log "read_leases: WARNING — kept 0 leases but $dhcpd was not empty; leaving it untouched to avoid data loss"
         else
             : > "$dhcpd"
             chown pydhcpd:pydhcpd "$dhcpd"
@@ -445,15 +470,15 @@ ddns-update-style none;
                 # Validate every field before writing it into the config so an
                 # ACL entry cannot inject arbitrary dhcpd directives.
                 if ! [[ $macsource =~ ^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$ ]]; then
-                    ulog "update_dhcp_conf: skipping entry, invalid MAC: $macsource"
+                    log "update_dhcp_conf: skipping entry, invalid MAC: $macsource"
                     continue
                 fi
                 if ! [[ $ipsource =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-                    ulog "update_dhcp_conf: skipping entry, invalid IP: $ipsource"
+                    log "update_dhcp_conf: skipping entry, invalid IP: $ipsource"
                     continue
                 fi
                 if ! [[ $usersource =~ ^[A-Za-z0-9._-]{1,63}$ ]]; then
-                    ulog "update_dhcp_conf: skipping entry, invalid hostname: $usersource"
+                    log "update_dhcp_conf: skipping entry, invalid hostname: $usersource"
                     continue
                 fi
                 echo "
@@ -520,7 +545,7 @@ class "blockdhcp" {
         fi
         while read -r mac_actual; do
             if grep -qF ";${mac_actual};" "$ACL_BLOCK_FILE" 2>/dev/null; then
-                ulog "clean_block_list: removing $mac_actual from blockdhcp (found in acl_mac)"
+                log "clean_block_list: removing $mac_actual from blockdhcp (found in acl_mac)"
                 (( removed++ )) || true
             fi
             grep -vF ";${mac_actual};" "$ACL_BLOCK_FILE" > "$ACL_BLOCK_FILE".tmp
@@ -528,7 +553,7 @@ class "blockdhcp" {
             mv "$ACL_BLOCK_FILE".tmp "$ACL_BLOCK_FILE"
         done <"$file_temp"
         rm -f "$file_temp"
-        ulog "clean_block_list: done (removed=$removed)"
+        log "clean_block_list: done (removed=$removed)"
     }
 
     function clean_proxy_list {
@@ -538,19 +563,19 @@ class "blockdhcp" {
         while IFS= read -r line; do
             mac_actual=$(echo "$line" | cut -d ';' -f 2)
             if grep -qF ";${mac_actual};" "$ACL_MAC_PROXY" 2>/dev/null; then
-                ulog "clean_proxy_list: removing $mac_actual from mac-proxy (found in mac-unlimited)"
+                log "clean_proxy_list: removing $mac_actual from mac-proxy (found in mac-unlimited)"
                 (( removed++ )) || true
             fi
             grep -vF ";${mac_actual};" "$ACL_MAC_PROXY" > "$file_temp"
             mv "$file_temp" "$ACL_MAC_PROXY"
         done <"$ACL_MAC_UNLIMITED"
         rm -f "$file_temp"
-        ulog "clean_proxy_list: done (removed=$removed)"
+        log "clean_proxy_list: done (removed=$removed)"
     }
 
 
     function clean_acl {
-        ulog "clean_acl: removing empty lines from ACL files"
+        log "clean_acl: removing empty lines from ACL files"
         sed '/^$/d' -i "$ACL_BLOCK_FILE"
         sed '/^$/d' -i "$ACL_MAC_PROXY"
         sed '/^$/d' -i "$ACL_MAC_UNLIMITED"
@@ -564,29 +589,29 @@ class "blockdhcp" {
     clean_block_list
     clean_proxy_list
 
-    ulog "Stopping pydhcpd"
+    log "Stopping pydhcpd"
     systemctl stop pydhcpd
     if systemctl is-active --quiet pydhcpd; then
-        ulog "ERROR: Stopping pydhcpd FAILED — still active, aborting before touching config/ACLs"
+        log "ERROR: Stopping pydhcpd FAILED — still active, aborting before touching config/ACLs"
         _notify "$local_user" "Warning: Abort" "pydhcpd did not stop, aborting. $(date)" -i error
         exit 1
     fi
-    ulog "Stopping pydhcpd: done"
+    log "Stopping pydhcpd: done"
     PYDHCPD_NEEDS_RESTART=1
-    ulog "Processing leases"
+    log "Processing leases"
     read_leases
-    ulog "Sorting ACL files"
+    log "Sorting ACL files"
     order_files_acl
-    ulog "Rebuilding pydhcpd.conf"
+    log "Rebuilding pydhcpd.conf"
     update_dhcp_conf
-    ulog "Starting pydhcpd"
+    log "Starting pydhcpd"
     systemctl start pydhcpd
     if ! systemctl is-active --quiet pydhcpd; then
-        ulog "ERROR: Starting pydhcpd FAILED — check 'systemctl status pydhcpd'"
+        log "ERROR: Starting pydhcpd FAILED — check 'systemctl status pydhcpd'"
         _notify "$local_user" "Warning: Abort" "pydhcpd did not start after reload. $(date)" -i error
         exit 1
     fi
-    ulog "Starting pydhcpd: done"
+    log "Starting pydhcpd: done"
     PYDHCPD_NEEDS_RESTART=0
 }
 
@@ -603,11 +628,11 @@ function duplicate() {
         fi
     )
     if [ "${aclall}" == "" ]; then
-        ulog "Duplicate check: OK"
+        log "Duplicate check: OK"
         is_pydhcp
     else
-        ulog "ERROR: Duplicate data detected: $aclall"
-        echo "Duplicate Data: $(date) $aclall" | tee -a /var/log/syslog
+        log "ERROR: Duplicate data detected: $aclall"
+        log "Duplicate Data: $aclall"
         _notify "$local_user" "Warning: Abort" "Duplicate: $aclall. $(date)" -i error
         exit 1
     fi
@@ -615,5 +640,7 @@ function duplicate() {
 duplicate
 
 _count() { local c; c=$(grep -c '^a;' "$1" 2>/dev/null) || true; echo "${c:-0}"; }
-ulog "Summary: blockdhcp=$(_count "$ACL_BLOCK_FILE") | proxy=$(_count "$ACL_MAC_PROXY") | unlimited=$(_count "$ACL_MAC_UNLIMITED")"
-ulog "Done"
+log "Summary: blockdhcp=$(_count "$ACL_BLOCK_FILE") | proxy=$(_count "$ACL_MAC_PROXY") | unlimited=$(_count "$ACL_MAC_UNLIMITED")"
+
+# End
+log "pyleases done at: $(date)"

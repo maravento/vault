@@ -25,32 +25,44 @@
 #
 ################################################################################
 
-# checking root
+# logging
+log_file="/var/log/smbwatch.log"
+log() {
+    local msg="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+}
+
+## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    log "ERROR: This script must be run as root"
     exit 1
 fi
 
-# checking script execution (only for start)
+# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    log "Script $(basename "$0") is already running"
+    exit 1
+fi
 
 ### PATHS
 SMBSTACK_ENV="/var/www/smbstack/smbstack.env"
-LOGFILE="/var/log/smbwatch.log"
 PIDFILE="/tmp/smbstack-smbwatch.pid"
 STATEFILE="/tmp/smbstack-smbwatch.state"
 
 ### CHECK DEPENDENCIES
 for pkg in inotify-tools; do
     dpkg -s "$pkg" >/dev/null 2>&1 || {
-        echo "ERROR: '$pkg' is missing. Run: sudo apt install $pkg"
+        log "ERROR: '$pkg' is missing. Run: sudo apt install $pkg"
         exit 1
     }
 done
 
 ### LOAD ENV
 if [ ! -f "$SMBSTACK_ENV" ]; then
-    echo "ERROR: smbstack is not installed. Run smbinstall.sh --install first."
+    log "ERROR: smbstack is not installed. Run smbinstall.sh --install first."
     exit 1
 fi
 
@@ -105,10 +117,10 @@ handle_new_file() {
 
         if [ -f "$NEWFILE" ]; then
             mv -f "$NEWFILE" "$DEST/$(basename "$NEWFILE")"
-            echo "$(date '+%F %T') Moved file to recycle: $NEWFILE -> $DEST" >> "$LOGFILE"
+            log "Moved file to recycle: $NEWFILE -> $DEST"
         elif [ -d "$NEWFILE" ] && [ -z "$(ls -A "$NEWFILE")" ]; then
             mv -f "$NEWFILE" "$DEST/$(basename "$NEWFILE")"
-            echo "$(date '+%F %T') Moved empty dir to recycle: $NEWFILE -> $DEST" >> "$LOGFILE"
+            log "Moved empty dir to recycle: $NEWFILE -> $DEST"
         fi
     fi
 }
@@ -116,14 +128,14 @@ handle_new_file() {
 ### START
 start() {
     if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-        echo "SMBwatch is already running with PID $(cat "$PIDFILE")"
+        log "SMBwatch is already running with PID $(cat "$PIDFILE")"
         exit 1
     fi
 
-    if [ ! -f "$LOGFILE" ]; then
-        touch "$LOGFILE"
-        chmod 640 "$LOGFILE"
-        chown root:root "$LOGFILE"
+    if [ ! -f "$log_file" ]; then
+        touch "$log_file"
+        chmod 640 "$log_file"
+        chown root:root "$log_file"
     fi
 
     ### CHECK AND SET WATCH_LIMIT_GB
@@ -134,10 +146,10 @@ start() {
             if [[ "$input_limit" =~ ^[0-9]+$ ]] && [ "$input_limit" -gt 0 ] && [ "$input_limit" -le 10000 ]; then
                 WATCH_LIMIT_GB="$input_limit"
                 set_env_var "WATCH_LIMIT_GB" "$WATCH_LIMIT_GB"
-                echo "Watch limit set to ${WATCH_LIMIT_GB} GB"
+                log "Watch limit set to ${WATCH_LIMIT_GB} GB"
                 break
             else
-                echo "ERROR: Enter a valid number between 1 and 10000"
+                log "ERROR: Enter a valid number between 1 and 10000"
             fi
         done
     fi
@@ -148,11 +160,11 @@ start() {
         if [ -n "$input_exclude" ]; then
             WATCH_EXCLUDE="$input_exclude"
             set_env_var "WATCH_EXCLUDE" "$WATCH_EXCLUDE"
-            echo "Excluded folders: ${WATCH_EXCLUDE}"
+            log "Excluded folders: ${WATCH_EXCLUDE}"
         else
             WATCH_EXCLUDE="NONE"
             set_env_var "WATCH_EXCLUDE" "NONE"
-            echo "No folders excluded"
+            log "No folders excluded"
         fi
     fi
     [ "$WATCH_EXCLUDE" = "NONE" ] && WATCH_EXCLUDE=""
@@ -161,7 +173,7 @@ start() {
 
     ### BUILD WATCH_DIR from SHARED_PATH first-level subdirs (excluding hidden dirs and excluded folders)
     if [ -z "${SHARED_PATH:-}" ] || [ ! -d "$SHARED_PATH" ]; then
-        echo "ERROR: SHARED_PATH is not set or does not exist. Check $SMBSTACK_ENV"
+        log "ERROR: SHARED_PATH is not set or does not exist. Check $SMBSTACK_ENV"
         exit 1
     fi
 
@@ -181,41 +193,40 @@ start() {
     done < <(find "$SHARED_PATH" -mindepth 1 -maxdepth 1 -type d -print0)
 
     if [ "${#WATCH_DIRS[@]}" -eq 0 ]; then
-        echo "ERROR: No subdirectories found in $SHARED_PATH"
+        log "ERROR: No subdirectories found in $SHARED_PATH"
         exit 1
     fi
 
     printf '%s\n' "${WATCH_DIRS[@]}" > "$STATEFILE"
 
-    echo "Starting smbwatch..."
-    echo "  Shared path : $SHARED_PATH"
-    echo "  Watch limit : ${WATCH_LIMIT_GB} GB per folder"
-    echo "  Watching    :"
-    printf '    %s\n' "${WATCH_DIRS[@]}"
-    echo "  Excluded    : ${WATCH_EXCLUDE:-none}"
-    echo "  Recycle bin : $RECYCLE_DIR"
-    echo "  Log         : $LOGFILE"
-    echo ""
+    log "Starting smbwatch..."
+    log "  Shared path : $SHARED_PATH"
+    log "  Watch limit : ${WATCH_LIMIT_GB} GB per folder"
+    log "  Watching    :"
+    printf '    %s\n' "${WATCH_DIRS[@]}" | tee -a "$log_file"
+    log "  Excluded    : ${WATCH_EXCLUDE:-none}"
+    log "  Recycle bin : $RECYCLE_DIR"
+    log "  Log         : $log_file"
 
     exec 200>&-
-    inotifywait -m -r -e create --format '%w%f' "${WATCH_DIRS[@]}" 2>>"$LOGFILE" | while read -r NEWFILE; do
+    inotifywait -m -r -e create --format '%w%f' "${WATCH_DIRS[@]}" 2>>"$log_file" | while read -r NEWFILE; do
         handle_new_file "$NEWFILE"
     done &
 
     echo $! > "$PIDFILE"
-    echo "SMBwatch started with PID $(cat "$PIDFILE")"
+    log "SMBwatch started with PID $(cat "$PIDFILE")"
 
     # add @reboot cron entry if not already present
     if ! crontab -l 2>/dev/null | grep -q "smbwatch.sh start"; then
         crontab -l 2>/dev/null > "/var/www/smbstack/tools/crontab-$(date +%Y%m%d%H%M%S).bak" || true
         (crontab -l 2>/dev/null; echo "@reboot /var/www/smbstack/tools/smbwatch.sh start") | crontab -
-        echo "Added to cron @reboot"
+        log "Added to cron @reboot"
     fi
 }
 
 ### STOP
 stop() {
-    echo "Stopping smbwatch..."
+    log "Stopping smbwatch..."
     if [ -f "$PIDFILE" ]; then
         local PID PGID
         PID=$(cat "$PIDFILE")
@@ -226,30 +237,30 @@ stop() {
             else
                 kill "$PID" 2>/dev/null
             fi
-            echo "SMBwatch stopped (PID $PID)"
+            log "SMBwatch stopped (PID $PID)"
         else
-            echo "SMBwatch was not running (stale PID file removed)"
+            log "SMBwatch was not running (stale PID file removed)"
         fi
         rm -f "$PIDFILE" "$STATEFILE"
     else
-        echo "SMBwatch is not running"
+        log "SMBwatch is not running"
     fi
 }
 
 ### STATUS
 status() {
-    echo "SMBwatch status..."
+    log "SMBwatch status..."
     if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-        echo "  SMBwatch is RUNNING (PID $(cat "$PIDFILE"))"
-        echo "  Watch limit : ${WATCH_LIMIT_GB} GB per folder"
+        log "  SMBwatch is RUNNING (PID $(cat "$PIDFILE"))"
+        log "  Watch limit : ${WATCH_LIMIT_GB} GB per folder"
         if [ -f "$STATEFILE" ]; then
-            echo "  Watching    :"
-            sed 's/^/    /' "$STATEFILE"
+            log "  Watching    :"
+            sed 's/^/    /' "$STATEFILE" | tee -a "$log_file"
         else
-            echo "  Watching    : (unknown, state file missing)"
+            log "  Watching    : (unknown, state file missing)"
         fi
     else
-        echo "  SMBwatch is STOPPED"
+        log "  SMBwatch is STOPPED"
     fi
 }
 
@@ -258,12 +269,12 @@ case "$1" in
     start)
         exec 200>"$SCRIPT_LOCK"
         if ! flock -n 200; then
-            echo "Script $(basename "$0") is already running"
+            log "Script $(basename "$0") is already running"
             exit 1
         fi
         start
         ;;
     stop)   stop ;;
     status) status ;;
-    *)      echo "Usage: $(basename "$0") {start|stop|status}" ;;
+    *)      log "Usage: $(basename "$0") {start|stop|status}" ;;
 esac

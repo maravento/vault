@@ -49,6 +49,7 @@
 #
 # EXIT CODES:
 #   0 - Normal exit
+#   1 - Already running
 #   2 - Usage error (not root)
 #
 # REQUIREMENTS:
@@ -56,6 +57,21 @@
 #   - pydhcpd and uhotspot installed with standard paths
 #
 ################################################################################
+
+## root check
+if [ "$(id -u)" -ne 0 ]; then
+    echo "ERROR: must be run as root" >&2
+    exit 2
+fi
+
+# prevent overlapping runs
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    echo "Script $(basename "$0") is already running" >&2
+    exit 1
+fi
 
 set -uo pipefail
 
@@ -95,12 +111,6 @@ fi
 
 OK="${GREEN}Y${NC}"
 NO="${RED}N${NC}"
-
-# ─── Root check ──────────────────────────────────────────────────────────────
-if [ "$(id -u)" -ne 0 ]; then
-    echo "ERROR: must be run as root" >&2
-    exit 2
-fi
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 warn() {

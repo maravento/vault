@@ -72,16 +72,28 @@
 #   suffixes (e.g. "*.bart.zip", "*.locked.zip") and would be discarded
 #   in step 7 if whitelisted here.
 #
+# NOTE on logging:
+# - Writes to /var/log/blackshield.log (append-only, no rotation configured
+#   by this script). Set up logrotate for this file if disk usage matters.
+# - To clear it manually: truncate -s 0 /var/log/blackshield.log
+#
 ################################################################################
 
 set -e
 
-echo "Blackshield Start. Wait..."
-printf "\n"
+# logging
+log_file="/var/log/blackshield.log"
+log() {
+    local msg="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+}
+
+# Start
+log "blackshield start..."
 
 # check no-root
 if [ "$(id -u)" == "0" ]; then
-    echo "❌ This script should not be run as root."
+    log "❌ This script should not be run as root."
     exit 1
 fi
 
@@ -106,9 +118,9 @@ wgetd='wget -q -c --retry-connrefused --timeout=10 --tries=4'
 if $wgetd -O "${TMP_DIR}/bad-user-agents.list" "https://raw.githubusercontent.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker/refs/heads/master/_generator_lists/bad-user-agents.list"; then
     sed -E 's/\\//g; s#/#-#g' "${TMP_DIR}/bad-user-agents.list" >> "${OUT_DIR}/squid/blockua.txt"
     sort -o "${OUT_DIR}/squid/blockua.txt" -u "${OUT_DIR}/squid/blockua.txt"
-    echo "Bad User-Agents for Squid: blockua.txt"
+    log "Bad User-Agents for Squid: blockua.txt"
 else
-    echo "ERROR: failed to download bad-user-agents.list"
+    log "ERROR: failed to download bad-user-agents.list"
 fi
 
 : > "${TMP_DIR}/source_lst.txt"
@@ -118,7 +130,7 @@ function rw() {
     if $wgetd "$1" -O - >> "${TMP_DIR}/source_lst.txt"; then
         return 0
     else
-        echo "ERROR: $1"
+        log "ERROR: $1"
         return 1
     fi
 }
@@ -171,7 +183,7 @@ sort -u -o "${TMP_DIR}/discarded_lst.txt" "${TMP_DIR}/discarded_lst.txt"
 
 # Discarded lst
 if [ -s "${TMP_DIR}/discarded_lst.txt" ]; then
-    echo "NOTE: $(wc -l < "${TMP_DIR}/discarded_lst.txt") entries discarded (unsupported pattern format)"
+    log "NOTE: $(wc -l < "${TMP_DIR}/discarded_lst.txt") entries discarded (unsupported pattern format)"
 fi
 
 # Apply administrator-defined whitelist (exact match exclusions)
@@ -200,10 +212,11 @@ mv "$TMP_FILE" "${TMP_DIR}/output_lst.txt"
 
 # For Squid Extensions/Patterns
 sed -E 's/^\*\.//; s/([][(){}+.$])/\\\1/g; s/^/\\./; s/(.*)/\1([a-zA-Z][0-9]*)?(\\?.*)?$/' "${TMP_DIR}/output_lst.txt" | sort -u > "${OUT_DIR}/squid/rwext.txt"
-echo "Ransomware ACL for Squid: rwext.txt"
+log "Ransomware ACL for Squid: rwext.txt"
 
 # For Samba Veto Files
 echo "veto files = $(sed 's/^\*\.//' "${TMP_DIR}/output_lst.txt" | sort -u | sed 's/^/*./' | paste -sd '' - | sed 's/*/\/&/g; s/$/\//')" > "${OUT_DIR}/smb/smbveto.txt"
-echo "Ransomware ACL for Samba: smbveto.txt"
+log "Ransomware ACL for Samba: smbveto.txt"
 
-echo "Done"
+# End
+log "blackshield done at: $(date)"

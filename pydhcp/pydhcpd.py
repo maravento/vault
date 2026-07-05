@@ -591,7 +591,22 @@ class LeaseManager:
                 bucket = self._rate.setdefault(rate_key, collections.deque())
                 while bucket and bucket[0] < window_start:
                     bucket.popleft()
-                if len(bucket) >= self._RATE_LIMIT_MAX:
+                # A REQUEST that renews the exact IP this MAC already holds
+                # (active lease, or a live reservation from its own DISCOVER)
+                # never consumes a new pool address, so the allocation
+                # rate-limit — which exists only to throttle NEW allocations —
+                # must not reject it. This mirrors the counter logic below,
+                # which already declines to count such requests toward the quota.
+                renewing_own_ip = False
+                if requested_ip and requested_ip != "0.0.0.0":
+                    held = self.leases.get(requested_ip)
+                    if held and not held.is_expired() and held.mac == mac:
+                        renewing_own_ip = True
+                    else:
+                        resv = self._reservations.get(requested_ip)
+                        if resv and resv[0] == mac and resv[1] > now:
+                            renewing_own_ip = True
+                if len(bucket) >= self._RATE_LIMIT_MAX and not renewing_own_ip:
                     log.warning("Rate-limit: %s exceeded %d allocations in %ds — dropped",
                                 rate_key, self._RATE_LIMIT_MAX, self._RATE_LIMIT_WINDOW)
                     return None, None, "rate limited"
@@ -1571,6 +1586,12 @@ def test_config(config_path):
     try:
         config = DHCPConfig()
         config.load(config_path)
+        # server-identifier is mandatory to start the daemon (checked in main());
+        # validate it here too so -t does not report OK on a config that would
+        # then fail at real startup.
+        if not config.server_id:
+            print("Configuration error: server-identifier not set")
+            return False
         print(f"Configuration OK: {len(config.static_hosts)} static hosts, {len(config.blocked_macs)} blocked MACs")
         return True
     except ConfigError as e:

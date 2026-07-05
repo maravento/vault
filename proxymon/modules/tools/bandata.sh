@@ -10,38 +10,36 @@
 # Default limits: max 1G day / 5G week / 20G month
 # Limits can use M, G or B suffix (e.g. 500M, 1G, 1.5G)
 # bandata excludes weekends
+#
+# NOTE on logging:
+# - Writes to /var/log/bandata.log (log + screen via tee). Rotation is
+#   handled by this script itself: it self-installs /etc/logrotate.d/bandata
+#   on first run (see below), so no manual truncate is needed.
 
-# Root check
+# logging
+log_file="/var/log/bandata.log"
+log() {
+    local msg="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+}
+
+## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    log "ERROR: This script must be run as root"
     exit 1
 fi
 
-# Dependency check — abort early with a clear message instead of
-# failing silently partway through ipset/iptables operations
-for cmd in ipset iptables numfmt; do
-    if ! command -v "$cmd" >/dev/null 2>&1; then
-        echo "ERROR: required command '$cmd' not found. Install it before running this script."
-        exit 1
-    fi
-done
-
-# Prevent overlapping runs
+# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
+    log "Script $(basename "$0") is already running"
     exit 1
 fi
 
-### LOG
-BANDATA_LOG="/var/log/bandata.log"
-touch "$BANDATA_LOG" 2>/dev/null || true
-exec >> "$BANDATA_LOG" 2>&1
-
-echo "----------------------------------------------------------------"
-echo "$(date '+%Y-%m-%d %H:%M:%S') — Bandata start"
-echo "----------------------------------------------------------------"
+# Start
+log "bandata start..."
 
 # Verify logrotate config exists for this log; create it if missing (self-contained)
 logrotate_conf="/etc/logrotate.d/bandata"
@@ -59,13 +57,13 @@ if [ ! -f "$logrotate_conf" ]; then
 EOF
     chmod 644 "$logrotate_conf"
     chown root:root "$logrotate_conf"
-    echo "Created logrotate config: $logrotate_conf"
+    log "Created logrotate config: $logrotate_conf"
 fi
 
 ### CONFIGURATION
 PROXYMON_ENV="/etc/proxymon/proxymon.env"
 if [ ! -f "$PROXYMON_ENV" ]; then
-    echo "ERROR: $PROXYMON_ENV not found. Run proxymon.sh install to generate it."
+    log "ERROR: $PROXYMON_ENV not found. Run proxymon.sh install to generate it."
     exit 1
 fi
 _env_owner=$(stat -c '%U' "$PROXYMON_ENV" 2>/dev/null)
@@ -73,8 +71,8 @@ _env_perms=$(stat -c '%a' "$PROXYMON_ENV" 2>/dev/null)
 _env_group_digit="${_env_perms: -2:1}"
 _env_other_digit="${_env_perms: -1}"
 if [ "$_env_owner" != "root" ] || [[ "$_env_group_digit" =~ [2367] ]] || [[ "$_env_other_digit" =~ [2367] ]]; then
-    echo "ERROR: $PROXYMON_ENV has unsafe owner/permissions (owner=$_env_owner perms=$_env_perms)."
-    echo "Expected owner root with no group/other write access. Refusing to source it."
+    log "ERROR: $PROXYMON_ENV has unsafe owner/permissions (owner=$_env_owner perms=$_env_perms)."
+    log "Expected owner root with no group/other write access. Refusing to source it."
     exit 1
 fi
 # shellcheck source=/etc/proxymon/proxymon.env
@@ -94,12 +92,12 @@ skipuser="$SKIPUSERS_CFG"
 
 # Validate LAN interface — required for all iptables rules below
 if [ -z "$lan" ]; then
-    echo "ERROR: LAN is empty in $PROXYMON_ENV"
+    log "ERROR: LAN is empty in $PROXYMON_ENV"
     exit 1
 fi
 if [ ! -e "/sys/class/net/$lan" ]; then
-    echo "ERROR: network interface '$lan' (from LAN in $PROXYMON_ENV) does not exist on this system"
-    echo "Available interfaces: $(ls /sys/class/net 2>/dev/null | tr '\n' ' ')"
+    log "ERROR: network interface '$lan' (from LAN in $PROXYMON_ENV) does not exist on this system"
+    log "Available interfaces: $(ls /sys/class/net 2>/dev/null | tr '\n' ' ')"
     exit 1
 fi
 
@@ -124,49 +122,49 @@ fi
 # treating the limit as 0, which would block the entire network.
 max_bw_day=$(LC_ALL=C numfmt --from=iec "${MAX_BANDWIDTH_DAY/,/.}" 2>/dev/null)
 if [ -z "$max_bw_day" ]; then
-    echo "ERROR: invalid MAX_BANDWIDTH_DAY value in $PROXYMON_ENV: '${MAX_BANDWIDTH_DAY}'"
-    echo "Expected format: number with optional M or G suffix (e.g. 500M, 1G, 1.5G)"
+    log "ERROR: invalid MAX_BANDWIDTH_DAY value in $PROXYMON_ENV: '${MAX_BANDWIDTH_DAY}'"
+    log "Expected format: number with optional M or G suffix (e.g. 500M, 1G, 1.5G)"
     exit 1
 fi
 
 max_bw_week=$(LC_ALL=C numfmt --from=iec "${MAX_BANDWIDTH_WEEK/,/.}" 2>/dev/null)
 if [ -z "$max_bw_week" ]; then
-    echo "ERROR: invalid MAX_BANDWIDTH_WEEK value in $PROXYMON_ENV: '${MAX_BANDWIDTH_WEEK}'"
-    echo "Expected format: number with optional M or G suffix (e.g. 500M, 1G, 1.5G)"
+    log "ERROR: invalid MAX_BANDWIDTH_WEEK value in $PROXYMON_ENV: '${MAX_BANDWIDTH_WEEK}'"
+    log "Expected format: number with optional M or G suffix (e.g. 500M, 1G, 1.5G)"
     exit 1
 fi
 
 max_bw_month=$(LC_ALL=C numfmt --from=iec "${MAX_BANDWIDTH_MONTH/,/.}" 2>/dev/null)
 if [ -z "$max_bw_month" ]; then
-    echo "ERROR: invalid MAX_BANDWIDTH_MONTH value in $PROXYMON_ENV: '${MAX_BANDWIDTH_MONTH}'"
-    echo "Expected format: number with optional M or G suffix (e.g. 500M, 1G, 1.5G)"
+    log "ERROR: invalid MAX_BANDWIDTH_MONTH value in $PROXYMON_ENV: '${MAX_BANDWIDTH_MONTH}'"
+    log "Expected format: number with optional M or G suffix (e.g. 500M, 1G, 1.5G)"
     exit 1
 fi
 
 ### BANDATA DAY (daily)
-echo "Running Bandata Day..."
+log "Running Bandata Day..."
 # path to day report
 day_logs=$report/$(date +"%Y%m%d")
 # bandata day rule
 if [[ "$today" -eq 6 || "$today" -eq 7 ]]; then
-    echo "Weekend Excluded"
+    log "Weekend Excluded"
     : > "$block_list_day"
 else
     if [ ! -d "$day_logs" ]; then
-        echo "Day report folder not found: $day_logs"
+        log "Day report folder not found: $day_logs"
         : > "$block_list_day"
     else
         _tmp_day=$(mktemp)
         _subshell_ok=0
         (
-            cd "$day_logs" || { echo "ERROR: cannot cd into $day_logs" >&2; exit 1; }
+            cd "$day_logs" || { log "ERROR: cannot cd into $day_logs"; exit 1; }
             shopt -s nullglob
             for file in $range; do
                 total=$(awk '$1=="total:" {print $2}' "$file")
                 if [[ "$total" =~ ^[0-9]+$ ]] && (( total > max_bw_day )); then
                     echo "$file"
                 elif [ -n "$total" ] && ! [[ "$total" =~ ^[0-9]+$ ]]; then
-                    echo "WARNING: non-numeric total '$total' in $day_logs/$file — skipping" >&2
+                    log "WARNING: non-numeric total '$total' in $day_logs/$file — skipping"
                 fi
             done
             exit 0
@@ -176,26 +174,25 @@ else
             grep -wvFf <(grep -v '^[[:space:]]*$' "$allow_list") "$_tmp_day" | $reorganize | uniq > "${block_list_day}.tmp" \
                 && mv -f "${block_list_day}.tmp" "$block_list_day"
         else
-            echo "ERROR: subshell failed for $day_logs — keeping existing block list"
+            log "ERROR: subshell failed for $day_logs — keeping existing block list"
         fi
         rm -f "$_tmp_day"
     fi
-    
+
     day_count=$(wc -l < "$block_list_day" 2>/dev/null || echo 0)
     if [ "$day_count" -gt 0 ]; then
-        echo "Daily Blocked:"
-        sed 's/^/    /' "$block_list_day"
+        log "Daily Blocked:"
+        sed 's/^/    /' "$block_list_day" | tee -a "$log_file"
     else
-        echo "No daily blocks"
+        log "No daily blocks"
     fi
 fi
-echo "OK"
 
 ### BANDWIDTH WEEK (weekly MON-FRI)
 # NOTE: uses GNU date (coreutils) relative-date syntax ("last monday",
 # "+1 month -1 day"). Not portable to BSD/macOS date. This project
 # targets Linux only (already requires ipset/iptables).
-echo "Running Bandata Week..."
+log "Running Bandata Week..."
 
 if [ "$today" -eq 1 ]; then
     week_dirs=()
@@ -205,7 +202,7 @@ if [ "$today" -eq 1 ]; then
     done
 
     if [ ${#week_dirs[@]} -eq 0 ]; then
-        echo "No weekday report folders found for last week"
+        log "No weekday report folders found for last week"
         : > "$block_list_week"
     else
         folders=$(find "${week_dirs[@]}" -maxdepth 1 -type f -name "$range")
@@ -217,18 +214,17 @@ if [ "$today" -eq 1 ]; then
 
     week_count=$(wc -l < "$block_list_week" 2>/dev/null || echo 0)
     if [ "$week_count" -gt 0 ]; then
-        echo "Weekly Blocked:"
-        sed 's/^/    /' "$block_list_week"
+        log "Weekly Blocked:"
+        sed 's/^/    /' "$block_list_week" | tee -a "$log_file"
     else
-        echo "No weekly blocks"
+        log "No weekly blocks"
     fi
 else
-    echo "Weekly check runs on Monday only"
+    log "Weekly check runs on Monday only"
 fi
-echo "OK"
 
 ### BANDATA MONTH (monthly)
-echo "Running Bandata Month..."
+log "Running Bandata Month..."
 
 # Build weekday directories for current month (excluding weekends)
 month_prefix=$(date +"%Y%m")
@@ -243,7 +239,7 @@ for d in $(seq -w 1 "$days_in_month"); do
 done
 
 if [ ${#month_dirs[@]} -eq 0 ]; then
-    echo "No weekday report folders found for current month"
+    log "No weekday report folders found for current month"
     : > "$block_list_month"
 else
     folders=$(find "${month_dirs[@]}" -maxdepth 1 -type f -name "$range")
@@ -255,15 +251,14 @@ fi
 
 month_count=$(wc -l < "$block_list_month" 2>/dev/null || echo 0)
 if [ "$month_count" -gt 0 ]; then
-    echo "Monthly Blocked:"
-    sed 's/^/    /' "$block_list_month"
+    log "Monthly Blocked:"
+    sed 's/^/    /' "$block_list_month" | tee -a "$log_file"
 else
-    echo "No monthly blocks"
+    log "No monthly blocks"
 fi
-echo "OK"
 
 ### IPSET/IPTABLES FOR BANDATA
-echo "Running Ipset/Iptables Rules..."
+log "Running Ipset/Iptables Rules..."
 ipset -! create bandata hash:net family inet hashsize 1024 maxelem 65536
 ipset -! create bandata_new hash:net family inet hashsize 1024 maxelem 65536
 ipset -! flush bandata_new
@@ -284,12 +279,11 @@ fi
 if ipset swap bandata_new bandata; then
     ipset destroy bandata_new
 else
-    echo "ERROR: ipset swap failed — bandata_new left in place for inspection, bandata not updated"
+    log "ERROR: ipset swap failed — bandata_new left in place for inspection, bandata not updated"
 fi
 
 if [ -n "$all_bans" ]; then
-    echo ""
-    echo "FINAL BAN SUMMARY:"
+    log "FINAL BAN SUMMARY:"
     ipset list bandata 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | $reorganize | while IFS= read -r ip; do
         # Check which category this IP belongs to
         if grep -qxF "$ip" "$block_list_day" 2>/dev/null; then
@@ -301,14 +295,13 @@ if [ -n "$all_bans" ]; then
         else
             cat_type="UNKNOWN"
         fi
-        echo "  $ip [$cat_type]"
+        log "  $ip [$cat_type]"
     done
 else
-    echo "There are no IPs in bandata"
+    log "There are no IPs in bandata"
 fi
 
-echo ""
-echo "Applying Iptables Rules..."
+log "Applying Iptables Rules..."
 
 # Create dedicated chains if they don't exist
 iptables -N BANDATA_FWD 2>/dev/null
@@ -341,9 +334,6 @@ iptables -A BANDATA_IN -m set --match-set bandata src -j DROP
 # NAT redirect (PREROUTING is unaffected by the chain restructure)
 iptables -t nat -C PREROUTING -i "$lan" -m set --match-set bandata src -p tcp --dport 80 -j REDIRECT --to-port 18081 2>/dev/null || \
 iptables -t nat -I PREROUTING 1 -i "$lan" -m set --match-set bandata src -p tcp --dport 80 -j REDIRECT --to-port 18081
-
-echo "Done"
-printf "\n"
 
 ### WARNING PAGE UPDATE
 # Sync quota values from proxymon.env into warning.html
@@ -414,13 +404,13 @@ update_lightsquid_realname() {
     skip_output=$(printf "%s\n" "$skip_out" | sed '/^$/d' | $sort_ips)
 
     if [ -z "$final_output" ]; then
-        echo "  No MAC data processed for realname.cfg"
+        log "  No MAC data processed for realname.cfg"
     else
         echo "$final_output" > "${realname}.tmp" && mv -f "${realname}.tmp" "$realname"
     fi
 
     if [ -z "$skip_output" ]; then
-        echo "  No excluded data for skipuser.cfg"
+        log "  No excluded data for skipuser.cfg"
     else
         echo "$skip_output" > "${skipuser}.tmp" && mv -f "${skipuser}.tmp" "$skipuser"
     fi
@@ -431,3 +421,6 @@ update_lightsquid_realname() {
 if [[ "${UPDATE_REALNAME:-false}" == "true" ]]; then
     update_lightsquid_realname
 fi
+
+# End
+log "bandata done at: $(date)"

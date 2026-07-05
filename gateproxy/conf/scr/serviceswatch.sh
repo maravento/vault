@@ -1,24 +1,35 @@
 #!/bin/bash
 # maravento.com
-
+#
+################################################################################
+#
 # Services Watchdog
+#
+################################################################################
 
-echo "Check Services Start. Wait..."
-printf "\n"
+# logging
+log_file="/var/log/serviceswatch.log"
+log() {
+    local msg="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+}
 
-# check root
+## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "This script must be run as root" 1>&2
+    log "ERROR: This script must be run as root"
     exit 1
 fi
 
-# Prevent overlapping runs
+# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
+    log "Script $(basename "$0") is already running"
     exit 1
 fi
+
+log "serviceswatch start.."
 
 ## VARIABLES
 sleep_time="5"
@@ -27,84 +38,79 @@ sleep_time="5"
 
 # Webmin service
 if pgrep -f "miniserv.pl" > /dev/null; then
-    echo -e "\nONLINE"
+    log "ONLINE: Webmin"
 else
-    echo -e "\n"
     for pid in $(ps -ef | grep "[m]iniserv.pl" | awk '{print $2}'); do
         kill -9 "$pid" &>/dev/null
     done
     sleep "${sleep_time}"
     /etc/webmin/restart-by-force-kill
-    echo "Webmin start: $(date)" | tee -a /var/log/syslog
+    log "Webmin start"
 fi
 
 # PyDHCP service
 if pgrep -f "pydhcpd" > /dev/null; then
-    echo -e "\nONLINE"
+    log "ONLINE: PyDHCP"
 else
-    echo -e "\n"
     systemctl start pydhcpd.service
-    echo "DHCP start: $(date)" | tee -a /var/log/syslog
+    log "PyDHCP start"
 fi
 
 # Apache2 service
 if pgrep -f "apache2" > /dev/null; then
-    echo -e "\nONLINE"
+    log "ONLINE: apache2"
 else
-    echo -e "\n"
     for pid in $(ps -ef | grep "[a]pache2" | awk '{print $2}'); do
         kill -9 "$pid" &>/dev/null
     done
     sleep "${sleep_time}"
     systemctl start apache2.service
-    echo "Apache2 start: $(date)" | tee -a /var/log/syslog
+    log "Apache2 start"
 fi
 
 # Squid Service
 if pgrep -f "squid" > /dev/null; then
-    echo -e "\nONLINE"
+    log "ONLINE: squid"
 else
-    echo -e "\n"
     for pid in $(ps -ef | grep "[s]quid" | awk '{print $2}'); do
         kill -9 "$pid" &>/dev/null
         rm -f /run/squid.pid &>/dev/null
     done
     sleep "${sleep_time}"
     systemctl start squid.service
-    echo "Squid start: $(date)" | tee -a /var/log/syslog
+    log "Squid start"
 fi
 
 # rsyslog
 if pgrep -f "rsyslogd" > /dev/null; then
-    echo -e "\nONLINE"
+    log "ONLINE: rsyslog"
 else
-    echo -e "\n"
     systemctl stop syslog.socket rsyslog.service &>/dev/null
     sleep "${sleep_time}"
     systemctl start syslog.socket rsyslog.service
-    echo "Rsyslog start: $(date)" | tee -a /var/log/syslog
+    log "Rsyslog start"
 fi
 # Samba Service (smbd)
 if pgrep -x smbd > /dev/null; then
-    echo -e "\nONLINE"
+    log "ONLINE: smbd"
 else
-    echo -e "\n"
     for pid in $(pgrep smbd); do kill -9 "$pid" &>/dev/null; done
     sleep "${sleep_time}"
     systemctl start smbd.service
     # alternative:
     #/etc/init.d/smbd start
-    echo "Samba (smbd) start: $(date)" | tee -a /var/log/syslog
+    log "Samba (smbd) start"
 fi
 # Samba Service (winbind)
 if pgrep -x winbindd > /dev/null; then
-    echo -e "\nONLINE"
+    log "ONLINE: winbind"
 else
-    echo -e "\n"
     for pid in $(pgrep winbindd); do kill -9 "$pid" &>/dev/null; done
     sleep "${sleep_time}"
     systemctl start winbind.service
     # alternative:
     #/etc/init.d/winbind start
-    echo "Samba (winbind) start: $(date)" | tee -a /var/log/syslog
+    log "Samba (winbind) start"
 fi
+
+log "serviceswatch done at: $(date)"

@@ -1,27 +1,36 @@
 #!/bin/bash
 # maravento.com
-# Server Boot Load
+#
+################################################################################
+#
+# Server Boot
+#
+################################################################################
 
-# check root
+# logging
+log_file="/var/log/serverboot.log"
+log() {
+    local msg="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+}
+
+## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "This script must be run as root" 1>&2
+    log "ERROR: This script must be run as root"
     exit 1
 fi
 
-# Prevent overlapping runs
+# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
+    log "Script $(basename "$0") is already running"
     exit 1
 fi
 
-LOG_FILE="/var/log/serverboot.log"
-log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG_FILE"
-}
 log "===================================================="
-log "Serverboot Start"
+log "serverboot start.."
 
 # Wait until the required network topology is available.
 #
@@ -134,11 +143,10 @@ if [[ -d /etc/uhotspot ]]; then
             log "Firewall Load: FAILED (check /var/log/uhotspot.log)"
         fi
     else
-        log "WARNING: uleases.sh/uiptables.sh not found or not executable — firewall/ACL sequence skipped"
+        log "WARNING: uleases.sh/uiptables.sh not found or not executable - firewall/ACL sequence skipped"
     fi
 else
-    log "WARNING: /etc/uhotspot not found — uhotspotd/firewall/ACL sequence skipped"
+    log "WARNING: /etc/uhotspot not found - uhotspotd/firewall/ACL sequence skipped"
 fi
 
-log "ServerBoot Done"
-echo "Done"
+log "serverboot done at: $(date)"
