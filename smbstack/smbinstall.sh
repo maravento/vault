@@ -319,7 +319,11 @@ do_install() {
     # narrowed down to just the LAN IP + loopback further below, once
     # SERVER_IP is detected.
     cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
-    grep -qxF "Listen 0.0.0.0:3092" /etc/apache2/ports.conf || echo "Listen 0.0.0.0:3092" | tee -a /etc/apache2/ports.conf
+    # drop any :3092 Listen line(s) left by a previous/partial install run
+    # before re-adding 0.0.0.0, so reruns don't produce duplicate Listen
+    # directives (which makes apache2 fail to start on restart).
+    sed -i '/^Listen .*:3092$/d' /etc/apache2/ports.conf
+    echo "Listen 0.0.0.0:3092" | tee -a /etc/apache2/ports.conf
     cp -f "$WEB_DIR/smbweb.conf" /etc/apache2/sites-available/smbweb.conf
     a2ensite -q smbweb.conf
 

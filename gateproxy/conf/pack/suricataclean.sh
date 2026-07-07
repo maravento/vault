@@ -47,17 +47,18 @@ if systemctl start suricata; then
 else
     log "Warning: Failed to start Suricata"
 fi
-# Clean: EveBox DB (use sqlite3 to avoid WAL/SHM corruption)
+# Clean: EveBox DB. Deleting the files outright (instead of DELETE FROM
+# events; VACUUM;) also clears EveBox's eve.json read bookmark. The bookmark
+# itself lives in a separate *.bookmark file (not in the sqlite databases),
+# named after a hash of the eve.json path — it must be removed too, or it
+# survives pointing past the size of the freshly truncated eve.json above,
+# and EveBox gets stuck ("Invalid bookmark found: current file size less
+# than bookmark") and stops ingesting new events. EveBox is already stopped
+# below, and it recreates the schema/indexes/bookmark on next start.
 systemctl stop evebox &>/dev/null
-if command -v sqlite3 &>/dev/null; then
-    sqlite3 /var/lib/evebox/events.sqlite "DELETE FROM events; VACUUM;" 2>/dev/null || \
-        truncate -s 0 /var/lib/evebox/events.sqlite
-    sqlite3 /var/lib/evebox/config.sqlite "VACUUM;" 2>/dev/null || \
-        truncate -s 0 /var/lib/evebox/config.sqlite
-else
-    truncate -s 0 /var/lib/evebox/events.sqlite
-    truncate -s 0 /var/lib/evebox/config.sqlite
-fi
+rm -f /var/lib/evebox/events.sqlite /var/lib/evebox/events.sqlite-wal /var/lib/evebox/events.sqlite-shm
+rm -f /var/lib/evebox/config.sqlite /var/lib/evebox/config.sqlite-wal /var/lib/evebox/config.sqlite-shm
+rm -f /var/lib/evebox/*.bookmark
 log "EveBox database cleared"
 if systemctl start evebox; then
     log "EveBox started"

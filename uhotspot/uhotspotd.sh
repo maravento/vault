@@ -127,10 +127,12 @@ VOUCHER_COUNT=0
 SESSIONS_AUTHORIZED=0
 REVOKED=0
 MANAGED_AUTHORIZED=0
+NEWLY_AUTHORIZED_MACS=()
 _ACL_SNAPSHOT_HOTSPOT=""
 _ACL_SNAPSHOT_BLOCK=""
 _ACL_SNAPSHOT_QUEUE=""
 _ACL_SNAPSHOT_GRACE=""
+_RELOAD_OK=0
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 # _CYCLE_MARKED tracks whether the delimiter line has already been printed
@@ -854,6 +856,10 @@ process_sessions() {
             continue
         fi
         (( added++ )) || true
+        # New fixed-address assignment (not a renewal) — this MAC needs to be
+        # kicked off the AP once the reload below applies the new IP, so it
+        # reconnects with a clean DHCP DISCOVER instead of racing its old lease.
+        NEWLY_AUTHORIZED_MACS+=("$mac")
 
     done < <(echo "$sessions_data" | jq -r '
         .data[]
@@ -1032,13 +1038,18 @@ check_and_reload_if_changed() {
     [[ "$cur_queue"   != "$_ACL_SNAPSHOT_QUEUE"   ]] && log "INFO: lease removal queue changed"
     [[ "$cur_grace"   != "$_ACL_SNAPSHOT_GRACE"   ]] && log "INFO: gracedhcp.txt changed"
 
+    _RELOAD_OK=0
     if [[ -n "${SERVER_RELOAD_SCRIPT:-}" && -x "$SERVER_RELOAD_SCRIPT" ]]; then
         log "INFO: ACL changed — invoking $SERVER_RELOAD_SCRIPT"
         export UHOTSPOT_RELOAD_ACTIVE=1
-        timeout 60 "$SERVER_RELOAD_SCRIPT" >> "$LOG_FILE" 2>&1 \
-            || { rc=$?; [[ $rc -eq 124 ]] \
+        if timeout 60 "$SERVER_RELOAD_SCRIPT" >/dev/null 2>>"$LOG_FILE"; then
+            _RELOAD_OK=1
+        else
+            rc=$?
+            [[ $rc -eq 124 ]] \
                 && log "WARNING: $SERVER_RELOAD_SCRIPT timed out after 60s" \
-                || log "WARNING: $SERVER_RELOAD_SCRIPT exited with error (code $rc)"; }
+                || log "WARNING: $SERVER_RELOAD_SCRIPT exited with error (code $rc)"
+        fi
         unset UHOTSPOT_RELOAD_ACTIVE
     else
         log "WARNING: ACLs changed but SERVER_RELOAD_SCRIPT is not set or not executable"
@@ -1046,7 +1057,26 @@ check_and_reload_if_changed() {
     return 0
 }
 
-
+# ── Step 13: kick newly-authorized clients ───────────────────────────────────
+# A MAC that just got a new fixed hotspot IP (as opposed to a voucher renewal,
+# which keeps the existing IP) may still be holding its old pool-range lease
+# on the client side until its own DHCP renewal timer fires. Forcing a
+# disassociation here — only after the reload above has applied the new
+# fixed-address mapping — makes the client reconnect immediately with a clean
+# DHCP DISCOVER, so it gets the correct IP from the start instead of racing
+# its stale lease against the OS's own connectivity check.
+kick_newly_authorized() {
+    local mac kick_url http_code
+    for mac in "${NEWLY_AUTHORIZED_MACS[@]}"; do
+        kick_url=$(api_path "cmd/stamgr")
+        http_code=$(api_post "$kick_url" "{\"cmd\":\"kick-sta\",\"mac\":\"${mac}\"}")
+        if [[ "$http_code" == "200" ]]; then
+            log "INFO: kick_newly_authorized: kicked $mac (forcing reassociation with new fixed IP)"
+        else
+            log "WARNING: kick_newly_authorized: failed to kick $mac (HTTP $http_code) — client may keep its stale IP until its own DHCP renewal"
+        fi
+    done
+}
 
 # ── Full hotspot cycle ────────────────────────────────────────────────────────
 run_cycle() {
@@ -1060,6 +1090,7 @@ run_cycle() {
     SESSIONS_AUTHORIZED=0
     REVOKED=0
     MANAGED_AUTHORIZED=0
+    NEWLY_AUTHORIZED_MACS=()
 
     load_all_vouchers
     snapshot_acls
@@ -1088,6 +1119,10 @@ run_cycle() {
         grace_total=$(grep -c "^a;" "${ACL_GRACE_FILE:-/etc/acl/acl_dhcp/gracedhcp.txt}" 2>/dev/null || true)
         grace_total=$(( ${grace_total:-0} + 0 ))
         log "INFO: vouchers=$VOUCHER_COUNT | authorized=$authorized_total | grace=$grace_total | new_auth=$SESSIONS_AUTHORIZED | revoked=$REVOKED | managed_authorized=$MANAGED_AUTHORIZED"
+
+        if [[ "$_RELOAD_OK" == "1" && ${#NEWLY_AUTHORIZED_MACS[@]} -gt 0 ]]; then
+            kick_newly_authorized
+        fi
     fi
 
     flock -u 201

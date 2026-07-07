@@ -207,7 +207,7 @@ a2enmod -q php || true
 
 <b>Access Proxymon</b>: [http://localhost:18080](http://localhost:18080)
 
-<b>Warning for Bandata</b>: [http://localhost:18081](http://localhost:18081)
+<b>Warning for Bandata</b>: http://192.168.X.X:18081 (LAN-only, not reachable via localhost)
 
 ## HOW TO USE
 
@@ -739,7 +739,7 @@ sudo crontab -e
 </table>
 
 ```bash
-http://localhost:18081 or http://192.168.X.X:18081
+http://192.168.X.X:18081
 ```
 
 ##### Banned IPs

@@ -861,7 +861,7 @@ function checkBlacklist(string $ip, string $date): array {
     foreach ($lines as $line) {
         $line = trim($line);
         if ($line && $line[0] !== '#') {
-            $blacklist[] = strtolower($line);
+            $blacklist[] = normalizeBlockedDomain($line);
         }
     }
 
@@ -972,7 +972,7 @@ function getBlockedByType(string $type, string $date = 'today'): array {
         foreach (readLinesLocked(BLOCKDOMAINS) as $line) {
             $line = trim($line);
             if ($line && $line[0] !== '#') {
-                $blockedDomains[] = strtolower($line);
+                $blockedDomains[] = normalizeBlockedDomain($line);
             }
         }
     }
@@ -1214,6 +1214,17 @@ function getNetworkSummary(string $date = 'today'): array {
 }
 
 // ── HELPERS ──────────────────────────────────────────────────────────
+
+/**
+ * Squid's dstdomain ACL requires a leading dot to match a domain and all
+ * its subdomains (e.g. ".tiktokv.com"), so blockdomains.txt keeps that dot.
+ * Strip it here so the domain/subdomain comparison in checkBlacklist() and
+ * getBlockedByType() (which already implements "exact or subdomain" via
+ * str_ends_with) works against a bare domain instead of never matching.
+ */
+function normalizeBlockedDomain(string $line): string {
+    return ltrim(strtolower($line), '.');
+}
 
 function extractDomain(string $url): string {
     if (!$url || $url === '-') return '';

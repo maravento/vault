@@ -280,50 +280,18 @@ ip6tables -A INPUT -i lo -j ACCEPT
 ip6tables -A OUTPUT -o lo -j ACCEPT
 iptables -A INPUT -s 127.0.0.0/8 ! -i lo -j DROP
 
-# MACUNLIMITED (MAC + IP for Access Points, Switch, etc.)
-if ! ipset list macunlimited &>/dev/null; then
-    ipset create macunlimited hash:mac -exist
+# BOGONS
+bogonslst=/etc/acl/acl_ipt/bogons.txt
+if ! ipset list bogons &>/dev/null; then
+    ipset create bogons hash:net -exist
 else
-    ipset flush macunlimited
+    ipset flush bogons
 fi
-for mac in $(awk -F";" '$2 != "" {print $2}' "$mac_unlimited_file" 2>/dev/null); do
-    ipset add macunlimited $mac -exist
+for bogonscidr in $(grep -vE '^\s*#|^\s*$' "$bogonslst" | awk '{print $1}' | sort -V -u 2>/dev/null); do
+    ipset add bogons "$bogonscidr" -exist
 done
-iptables -t nat -A PREROUTING -i $lan -m set --match-set macunlimited src -j ACCEPT
-iptables -t mangle -A PREROUTING -i $lan -m set --match-set macunlimited src -j ACCEPT
-for chain in INPUT FORWARD; do
-    iptables -A $chain -i $lan -m set --match-set macunlimited src -j ACCEPT
-done
-
-# WAN DROP: CIDR
-iptables -A INPUT -i $wan -s 10.0.0.0/8 -j DROP
-iptables -A INPUT -i $wan -s 172.16.0.0/12 -j DROP
-#iptables -A INPUT -i $wan -s 192.168.0.0/16 -j DROP
-# WAN DROP: Local Ports (reduce noise)
-# 25     TCP - Postfix SMTP (master)
-# 80     TCP - HTTP
-# 3128   TCP - Squid proxy
-# 4330   TCP - PCP pmlogger (Performance Co-Pilot)
-# 5005   TCP - UniFi/Podman (pasta userspace network)
-# 5636   TCP - UniFi/Podman (pasta userspace network)
-# 5671   TCP - UniFi/Podman AMQP (pasta userspace network)
-# 6789   TCP - UniFi speed test (pasta userspace network)
-# 8443   TCP - UniFi HTTPS GUI (pasta userspace network)
-# 8444   TCP - UniFi OS HTTPS GUI (pasta userspace network)
-# 9543   TCP - UniFi/Podman (pasta userspace network)
-# 10000  TCP - Webmin
-# 11084  TCP - UniFi/Podman (pasta userspace network)
-# 11443  TCP - UniFi OS self-hosted GUI (pasta userspace network)
-# 18100  TCP - PAC proxy
-# 18080  TCP - Internal HTTP
-# 18081  TCP - Warning page (bandata)
-# 18082  TCP - Internal HTTP alternate
-# 44321  TCP - PCP pmcd (Performance Co-Pilot daemon)
-# 44322  TCP - PCP pmproxy
-# 44323  TCP - PCP pmproxy HTTPS
-iptables -A INPUT -i $wan -p tcp -m multiport --dports 25,80,3128,4330,5005,5636,5671,6789,8443,8444,9543,10000,11084,11443,18100 -j DROP
-iptables -A INPUT -i $wan -p tcp -m multiport --dports 18080,18081,18082,44321,44322,44323 -j DROP
-iptables -A INPUT -i $wan -p udp --dport 5353 -j DROP
+iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set bogons src -j DROP
+iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set bogons dst -j DROP
 
 # MASQUERADE: NAT for LAN to share dynamic WAN IP
 iptables -t nat -A POSTROUTING -s $localnet/$netmask -o $wan -j MASQUERADE
@@ -366,6 +334,21 @@ iptables -A FORWARD -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
 # Invalid NEW connections with SYN+ACK
 iptables -A INPUT -p tcp --tcp-flags SYN,ACK SYN,ACK -m conntrack --ctstate NEW -j DROP
 iptables -A FORWARD -p tcp --tcp-flags SYN,ACK SYN,ACK -m conntrack --ctstate NEW -j DROP
+
+# MACUNLIMITED (MAC + IP for Access Points, Switch, etc.)
+if ! ipset list macunlimited &>/dev/null; then
+    ipset create macunlimited hash:mac -exist
+else
+    ipset flush macunlimited
+fi
+for mac in $(awk -F";" '$2 != "" {print $2}' "$mac_unlimited_file" 2>/dev/null); do
+    ipset add macunlimited $mac -exist
+done
+iptables -t nat -A PREROUTING -i $lan -m set --match-set macunlimited src -j ACCEPT
+iptables -t mangle -A PREROUTING -i $lan -m set --match-set macunlimited src -j ACCEPT
+for chain in INPUT FORWARD; do
+    iptables -A $chain -i $lan -m set --match-set macunlimited src -j ACCEPT
+done
 
 # mac2ip
 mac2ip=$(awk '
@@ -511,6 +494,7 @@ iptables -A FORWARD -i $lan -o $lan -d 224.0.0.252 -p udp --dport 5355 -m set --
 # SSDP / UPnP
 iptables -A FORWARD -i $lan -o $lan -d 239.255.255.250 -p udp --dport 1900 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i $lan -o $lan -p udp --dport 5000 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i $lan -p udp -m multiport --dports 1900,5000 -m set --match-set macports src -j DROP
 # WSD
 iptables -A FORWARD -i $lan -o $lan -d 239.255.255.250 -p udp --dport 3702 -m set --match-set macports src -j ACCEPT
 # Multimedia & Streaming

@@ -1,8 +1,8 @@
 # RFC1122 - Self-identification
-0.0.0.0/8
+#0.0.0.0/8
 # RFC1918 - Private
-#10.0.0.0/8
-#172.16.0.0/12
+10.0.0.0/8
+172.16.0.0/12
 #192.168.0.0/16
 # RFC6598 - Shared Address Space
 100.64.0.0/10
@@ -22,9 +22,9 @@
 # RFC2544 - Benchmark testing
 198.18.0.0/15
 # RFC5771, RFC6034, RFC2365 - Multicast
-224.0.0.0/4
+#224.0.0.0/4
 # RFC1112 - Reserved (Class E)
 240.0.0.0/4
 # RFC919, RFC922 - Broadcast
-255.255.255.255/32
+#255.255.255.255/32
 

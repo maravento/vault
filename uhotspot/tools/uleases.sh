@@ -91,6 +91,8 @@
 #
 ################################################################################
 
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 # logging
 log_file="/var/log/uhotspot.log"
 log() {
@@ -113,8 +115,6 @@ if ! flock -w 60 200; then
 fi
 
 set -euo pipefail
-
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Ensure log file exists with correct permissions.
 if [ ! -f "$log_file" ]; then

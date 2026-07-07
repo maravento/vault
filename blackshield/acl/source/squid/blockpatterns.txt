@@ -1,4 +1,4 @@
-announce.php?passkey=
+announce\.php\?passkey=
 Azureus
 BitComet
 BitLord
@@ -12,7 +12,7 @@ iptv
 jndi:
 magnet:
 nopor
-.onion
+\.onion
 peer_id=
 porn
 psiphon
@@ -21,5 +21,5 @@ torrent
 tracker
 Transmission
 ultrasurf
-.utorrent
+\.utorrent
 XBT
