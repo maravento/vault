@@ -701,40 +701,58 @@ for module in servicemon netplanmgr; do
 done
 
 # Proxy Monitor
-wget -O proxymon.sh https://raw.githubusercontent.com/maravento/vault/refs/heads/master/proxymon/proxymon.sh
-chmod +x proxymon.sh
-{
-    echo "$serverip"      # Enter your Server IP
-    echo "$LAN_INTERFACE" # Enter LAN Net Interface  
-} | ./proxymon.sh install
-rm -f proxymon.sh
+if git clone https://github.com/maravento/proxymon; then
+    cd proxymon || {
+        echo "WARNING: Cannot enter proxymon directory. Skipping installation."
+    }
+
+    if [ -f proxymon.sh ]; then
+        chmod +x proxymon.sh
+        {
+            echo "$serverip"      # Enter your Server IP
+            echo "$LAN_INTERFACE" # Enter LAN Net Interface 
+        } | ./proxymon.sh install
+        cd ..
+    fi
+else
+    echo "WARNING: Failed to clone proxymon. Skipping installation."
+fi
 
 # DHCP SECTION
 # pydhcp
 echo "Installing pydhcp..."
-python3 gitfolder.py https://github.com/maravento/vault/pydhcp
-pydhcp_path="$(pwd)/pydhcp"
-if [ ! -d "$pydhcp_path" ]; then
-    echo "ERROR: pydhcp directory not found"
-    exit 1
+
+if git clone https://github.com/maravento/pydhcp; then
+    pydhcp_path="$(pwd)/pydhcp"
+
+    if [ -d "$pydhcp_path" ]; then
+        if cd "$pydhcp_path"; then
+            expect -c "
+                spawn bash pyinstall.sh
+                expect \"Select interface\"
+                send \"$LAN_INTERFACE\r\"
+                expect \"Enter DHCP server IP\"
+                send \"$serverip\r\"
+                expect \"Enter netmask\"
+                send \"$MASKNEW1\r\"
+                expect \"Enter pool start\"
+                send \"\r\"
+                expect \"Enter pool end\"
+                send \"\r\"
+                expect eof
+            "
+
+            cd "$(dirname "$pydhcp_path")"
+            echo "DHCP pool range: 220-235 (default). To modify edit /etc/pydhcp/pydhcpd.env"
+        else
+            echo "WARNING: Cannot enter pydhcp directory. Skipping pydhcp installation."
+        fi
+    else
+        echo "WARNING: pydhcp directory not found. Skipping pydhcp installation."
+    fi
+else
+    echo "WARNING: Failed to clone pydhcp. Skipping pydhcp installation."
 fi
-cd "$pydhcp_path" || { echo "ERROR: cannot cd to $pydhcp_path"; exit 1; }
-expect -c "
-    spawn bash pyinstall.sh
-    expect \"Select interface\"
-    send \"$LAN_INTERFACE\r\"
-    expect \"Enter DHCP server IP\"
-    send \"$serverip\r\"
-    expect \"Enter netmask\"
-    send \"$MASKNEW1\r\"
-    expect \"Enter pool start\"
-    send \"\r\"
-    expect \"Enter pool end\"
-    send \"\r\"
-    expect eof
-"
-cd "$(dirname "$pydhcp_path")" || exit 1
-echo "DHCP pool range: 220-235 (default). To modify edit /etc/pydhcp/pydhcpd.env"
 
 # LOGS SECTION 
 # ulog2
@@ -759,7 +777,7 @@ systemctl enable rsyslog.service
 nala install -y timeshift
 # FreeFileSync
 nala install -y libatk-adaptor libgail-common
-# https://www.maravento.com/2014/06/sincronizacion-espejo.html
+wget -O "$gp_path/conf/scr/ffsupdate.sh" https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh
 chmod +x "$gp_path/conf/scr/ffsupdate.sh"
 "$gp_path/conf/scr/ffsupdate.sh"
 crontab -l | {
@@ -879,26 +897,35 @@ upgrade
 # Samba with Shared folder, Recycle Bin and Audit
 echo -e "\n"
 while true; do
-read -r -p "${lang_19[$lang]} Samba?
+    read -r -p "${lang_19[$lang]} Samba?
 ${lang_20[$lang]} (y/n)" answer
+
     case "$answer" in
     [Yy]*)
-        python3 gitfolder.py https://github.com/maravento/vault/smbstack
-        smbstack_path="$(pwd)/smbstack"
-        if [ ! -d "$smbstack_path" ]; then
-            echo "ERROR: smbstack directory not found"
-            exit 1
+        if git clone https://github.com/maravento/smbstack; then
+            smbstack_path="$(pwd)/smbstack"
+
+            if [ -d "$smbstack_path" ]; then
+                if cd "$smbstack_path"; then
+                    bash smbinstall.sh --install
+                    cd "$(dirname "$smbstack_path")"
+                else
+                    echo "WARNING: Cannot enter smbstack directory. Skipping Samba installation."
+                fi
+            else
+                echo "WARNING: smbstack directory not found. Skipping Samba installation."
+            fi
+        else
+            echo "WARNING: Failed to clone smbstack. Skipping Samba installation."
         fi
-        cd "$smbstack_path" || { echo "ERROR: cannot cd to $smbstack_path"; exit 1; }
-        bash smbinstall.sh --install
-        cd "$(dirname "$smbstack_path")" || exit 1
         break
         ;;
+
     [Nn]*)
-        # execute command no
         echo NO
         break
         ;;
+
     *)
         echo
         echo "${lang_06[$lang]}: YES (y) or NO (n)"
@@ -963,18 +990,17 @@ chmod 644 /etc/netplan/00-networkd.yaml
 scripts=(
     "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackusb/linux/blackusb.sh"
     "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/cleaner.sh"
-    "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh"
     "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/filereport.sh"
     "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/hwclock.sh"
     "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/lock.sh"
 )
 for url in "${scripts[@]}"; do
     fname=$(basename "$url")
+
     if wget -q -O "$gp_path/conf/scr/$fname" "$url"; then
         echo "Downloaded: $fname"
     else
-        echo "ERROR: Failed to download $fname"
-        exit 1
+        echo "WARNING: Failed to download $fname. Skipping."
     fi
 done
 

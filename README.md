@@ -31,18 +31,11 @@
     <td width="50%">En pruebas y con ajustes menores en curso.</td>
   </tr>
   <tr>
-    <td colspan="2"><a href="https://github.com/maravento/vault"><img src="https://img.shields.io/badge/status-release_candidate-skyblue.svg"></a></td>
-  </tr>
-  <tr>
-    <td width="50%">Only critical fixes expected.</td>
-    <td width="50%">Solo se esperan correcciones críticas.</td>
-  </tr>
-  <tr>
     <td colspan="2"><a href="https://github.com/maravento/vault"><img src="https://img.shields.io/badge/status-frozen-blue.svg"></a></td>
   </tr>
   <tr>
-    <td width="50%">Development halted. No planned changes.</td>
-    <td width="50%">Desarrollo detenido. No se planean cambios.</td>
+    <td width="50%">Development halted. No planned changes. Only critical bugs</td>
+    <td width="50%">Desarrollo detenido. No se planean cambios. Solo bugs críticos</td>
   </tr>
   <tr>
     <td colspan="2"><a href="https://github.com/maravento/vault"><img src="https://img.shields.io/badge/status-deprecated-red.svg"></a></td>
@@ -83,12 +76,8 @@ python3 gitfolder.py https://github.com/maravento/vault/project_name
 - [gateproxy](https://github.com/maravento/vault/tree/master/gateproxy)
 - [itsm](https://github.com/maravento/vault/tree/master/itsm)
 - [netscan](https://github.com/maravento/vault/tree/master/netscan)
-- [proxymon](https://github.com/maravento/vault/tree/master/proxymon)
-- [pydhcp](https://github.com/maravento/vault/tree/master/pydhcp)
 - [scripts](https://github.com/maravento/vault/tree/master/scripts)
-- [smbstack](https://github.com/maravento/vault/tree/master/smbstack)
 - [trek](https://github.com/maravento/vault/tree/master/trek)
-- [uhotspot](https://github.com/maravento/vault/tree/master/uhotspot)
 - [winzenity](https://github.com/maravento/vault/tree/master/winzenity)
 
 ## NOTICE

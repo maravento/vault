@@ -1,6 +1,6 @@
 # [ITSM](https://github.com/maravento)
 
-[![status-release-candidate](https://img.shields.io/badge/status-release_candidate-skyblue.svg)](https://github.com/maravento)
+[![status-frozen](https://img.shields.io/badge/status-frozen-blue.svg)](https://github.com/maravento)
 
 <!-- markdownlint-disable MD033 -->
 
@@ -342,23 +342,23 @@ Package: ITSM
 | [iTop License](https://raw.githubusercontent.com/Combodo/iTop/refs/heads/develop/license.txt) | ![AGPLv3 License](https://img.shields.io/badge/License-AGPLv3-blue.svg) |
 | [GLPI License](https://raw.githubusercontent.com/glpi-project/glpi/refs/heads/main/LICENSE) | ![GPLv3 License](https://img.shields.io/badge/License-GPLv3-blue.svg) |
 
-## DISCLAIMER
-
----
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-## NOTICE
+## End-of-Life (EOL) | End-of-Support (EOS)
 
 ---
 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     Maravento Studio has no relationship with the developers of iTop or GLPI. We also do not use them, do not promote them, and do not provide support. Maravento Studio only provides support for the ITSM installer, which is an open source project, sponsored by <a href="https://co.linkedin.com/in/lancord" target="_blank">Uniopos SAS</a>. Only the sponsor of this installer may use it for commercial purposes.
+     This project has reached EOL - EOS. No longer supported or updated.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Maravento Studio no tiene ninguna relación con los desarrolladores de iTop o GLPI. Tampoco los usamos, no los promocionamos y no brindamos soporte. Maravento Studio solo brinda soporte al instalador ITSM, que es un proyecto de código abierto, patrocinado por <a href="https://co.linkedin.com/in/lancord" target="_blank">Uniopos SAS</a>. Solo el patrocinador de este instalador, podrá usarlo con fines comerciales.
+     Este proyecto ha alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.
     </td>
   </tr>
 </table>
+
+## DISCLAIMER
+
+---
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

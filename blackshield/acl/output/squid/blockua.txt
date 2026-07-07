@@ -1,4 +1,5 @@
 01h4x.com
+1h4x.com
 360Spider
 404checker
 404enemy
@@ -164,6 +165,7 @@ DTS Agent
 EasyDL
 Ebingbong
 eCatch
+ECCP
 ECCP-1.0
 Ecxi
 EirGrabber
@@ -200,6 +202,7 @@ Fyrebot
 GalaxyBot
 GeedoProductSearch
 Genieo
+GenomeCrawlerd
 GermCrawler
 Getintent
 GetRight
@@ -288,6 +291,7 @@ LeechFTP
 LeechGet
 LexiBot
 Lftp
+libredtail-http
 LibWeb
 Libwhisker
 LieBaoFast
@@ -387,12 +391,14 @@ Nuclei
 Nutch
 oBot
 Octopus
+Odin
 Offline Explorer
 Offline Navigator
 omgili
 OnCrawl
 openai
 openai.com
+opendirme-credhunt
 Openfind
 OpenLinkProfiler
 Openvas
@@ -545,6 +551,7 @@ Spider_Bot-3.0
 Spinn3r
 SplitSignalBot
 SputnikBot
+spy4x-domain-scanner
 spyfu
 Sqlmap
 Sqlworm
@@ -576,6 +583,7 @@ Thumbor
 TightTwatBot
 TinyTestBot
 Titan
+TLM-Audit-Scanner
 TMP
 Toata
 Toweyabot
