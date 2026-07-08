@@ -781,7 +781,7 @@ if %errorlevel% equ 0 (
 wsl --status >nul 2>&1
 if %errorlevel% equ 0 (
     wsl --status | findstr "Default Version: 2" >nul 2>&1
-    if %errorlevel% equ 0 (
+    if !errorlevel! equ 0 (
         echo [OK] WSL2 installed
         set "wsl_ok=1"
     ) else (
@@ -815,7 +815,7 @@ if %wsl_ok% neq 1 (
     dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart >nul
     dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart >nul
     call :install_wsl_kernel
-    if %errorlevel% neq 0 (
+    if !errorlevel! neq 0 (
         echo Failed to install WSL2. Cannot continue.
         pause
         goto :menu
@@ -828,7 +828,7 @@ if %wsl_ok% neq 1 (
 if %distro_ok% neq 1 (
     echo Installing Ubuntu in WSL2...
     wsl --install -d Ubuntu
-    if %errorlevel% neq 0 (
+    if !errorlevel! neq 0 (
         echo Failed to install Ubuntu. Cannot continue.
         pause
         goto :menu
@@ -1099,7 +1099,7 @@ if %detect_os% equ 1 (
     
     :: Stop containers if WSL is available
     wsl --list >nul 2>&1
-    if %errorlevel% equ 0 (
+    if !errorlevel! equ 0 (
         echo Stopping UniFi OS Server containers...
         wsl -d Ubuntu -u uosserver podman stop --all >nul 2>&1
         wsl -d Ubuntu -u uosserver podman rm --all >nul 2>&1

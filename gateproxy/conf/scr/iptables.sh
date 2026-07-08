@@ -319,7 +319,7 @@ iptables -A INPUT -i $lan -p udp --dport 123 -s $localnet/$netmask -j ACCEPT
 iptables -A FORWARD -i $lan -p udp --dport 123 -s $localnet/$netmask -j ACCEPT
 
 # WARNING PAGE HTTP FOR BANDATA (TCP 18081)
-# https://github.com/maravento/vault/tree/master/proxymon
+# https://github.com/maravento/proxymon
 iptables -A INPUT -i $lan -p tcp --dport 18081 -j ACCEPT
 
 # Invalid and fragmented packets

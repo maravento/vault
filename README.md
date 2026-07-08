@@ -89,7 +89,7 @@ python3 gitfolder.py https://github.com/maravento/vault/project_name
     <td style="width: 50%; vertical-align: top;">
       <strong>This repository</strong>
       <ul>
-        <li>Includes third-party components.</li>
+        <li>May include third-party components.</li>
         <li>Follows a non-standard workflow. Published commits may be rewritten or removed without notice as part of the debugging and improvement process.</li>
         <li>Does not accept Pull Requests. Changes must be proposed via Issues.</li>
       </ul>
@@ -97,7 +97,7 @@ python3 gitfolder.py https://github.com/maravento/vault/project_name
     <td style="width: 50%; vertical-align: top;">
       <strong>Este repositorio</strong>
       <ul>
-        <li>Incluye componentes de terceros.</li>
+        <li>Puede incluir componentes de terceros.</li>
         <li>Utiliza un flujo de trabajo no convencional. Los commits publicados pueden ser reescritos o eliminados sin previo aviso como parte del proceso de depuración y mejora.</li>
         <li>No acepta Pull Requests. Los cambios deben proponerse mediante Issues.</li>
       </ul>

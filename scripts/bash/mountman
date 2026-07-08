@@ -247,11 +247,12 @@ EOF
     # Check if SMB share is already mounted
     if check_resource_mounted "$SMB_HOST/$SMB_SHARE" "smb"; then
         MOUNT_INFO=$(mount | grep -F "//$SMB_HOST/$SMB_SHARE")
-        zenity --question \
+        if ! zenity --question \
             --title="Share Already Mounted" \
             --text="This SMB share is already mounted:\n\n$MOUNT_INFO\n\nDo you want to continue?" \
-            --ok-label="Continue" --cancel-label="Cancel"
-        [[ $? -eq 1 ]] && exit 0
+            --ok-label="Continue" --cancel-label="Cancel"; then
+            exit 0
+        fi
     fi
     
     mkdir -p "$LOCAL_DIR" || err "Failed to create mount point: $LOCAL_DIR"
@@ -259,12 +260,10 @@ EOF
     # Check if mount point is already in use
     if mountpoint -q "$LOCAL_DIR"; then
         CURRENT_SRC=$(mount | grep -F "$LOCAL_DIR" | awk '{print $1}')
-        zenity --question \
+        if zenity --question \
             --title="Mount Point In Use" \
             --text="$LOCAL_DIR is already mounted with:\n$CURRENT_SRC\n\nUnmount it first?" \
-            --ok-label="Unmount" --cancel-label="Cancel"
-        
-        if [[ $? -eq 0 ]]; then
+            --ok-label="Unmount" --cancel-label="Cancel"; then
             $ELEVATE_CMD umount -f "$LOCAL_DIR" 2>/dev/null || true
             sleep 1
         else
@@ -372,11 +371,12 @@ EOF
     # Check if SFTP host is already mounted
     if check_resource_mounted "$SFTP_HOST" "sftp"; then
         MOUNT_INFO=$(mount | grep -F "@$SFTP_HOST")
-        zenity --question \
+        if ! zenity --question \
             --title="SFTP Already Mounted" \
             --text="This SFTP host is already mounted:\n\n$MOUNT_INFO\n\nDo you want to continue?" \
-            --ok-label="Continue" --cancel-label="Cancel"
-        [[ $? -eq 1 ]] && exit 0
+            --ok-label="Continue" --cancel-label="Cancel"; then
+            exit 0
+        fi
     fi
 
     mkdir -p "$LOCAL_DIR" || err "Failed to create mount point: $LOCAL_DIR"
@@ -384,12 +384,10 @@ EOF
     # Check if mount point is already in use
     if mountpoint -q "$LOCAL_DIR"; then
         CURRENT_SRC=$(mount | grep -F "$LOCAL_DIR" | awk '{print $1}')
-        zenity --question \
+        if zenity --question \
             --title="Mount Point In Use" \
             --text="$LOCAL_DIR is already mounted with:\n$CURRENT_SRC\n\nUnmount it first?" \
-            --ok-label="Unmount" --cancel-label="Cancel"
-        
-        if [[ $? -eq 0 ]]; then
+            --ok-label="Unmount" --cancel-label="Cancel"; then
             fusermount -u "$LOCAL_DIR" 2>/dev/null || true
             sleep 1
         else
@@ -456,19 +454,17 @@ EOF
     # Check if mount point is already in use
     if mountpoint -q "$LOCAL_DIR"; then
         CURRENT_SRC=$(mount | grep -F "$LOCAL_DIR" | awk '{print $1}')
-        zenity --question \
+        if zenity --question \
             --title="Mount Point In Use" \
             --text="$LOCAL_DIR is already mounted with:\n$CURRENT_SRC\n\nUnmount it first?" \
-            --ok-label="Unmount" --cancel-label="Cancel"
-        
-        if [[ $? -eq 0 ]]; then
+            --ok-label="Unmount" --cancel-label="Cancel"; then
             $ELEVATE_CMD umount -f "$LOCAL_DIR" 2>/dev/null || true
             sleep 1
         else
             exit 0
         fi
     fi
-    
+
     TMPERR=$(mktemp) || err "Failed to create temporary file."
     read -ra FUSE_ARGS <<< "$FUSE_CMD"
     if $ELEVATE_CMD "${FUSE_ARGS[@]}" "$LOCAL_DIR" 2> "$TMPERR"; then

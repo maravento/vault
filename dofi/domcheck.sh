@@ -12,19 +12,26 @@
 # ./domcheck.sh my_domain_list.txt 50
 #
 # NOTE on logging:
-# - Writes to /var/log/dofi.log (shared with simplecheck.sh, append-only, no
+# - Writes to dofi.log (shared with simplecheck.sh, append-only, no
 #   rotation configured by this script). Set up logrotate for this file if
 #   disk usage matters.
-# - To clear it manually: truncate -s 0 /var/log/dofi.log
+# - To clear it manually: truncate -s 0 dofi.log
 #
 ################################################################################
 
 # logging
-log_file="/var/log/dofi.log"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+log_file="$SCRIPT_DIR/dofi.log"
 log() {
     local msg="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
+
+# check no-root
+if [ "$(id -u)" == "0" ]; then
+    log "[ERROR] This script should not be run as root."
+    exit 1
+fi
 
 if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
     log "Use: $0 <file_name> [parallel_processes]"
@@ -63,6 +70,7 @@ cleanup_tmp() {
 trap cleanup_tmp EXIT
 
 # Start
+START_TIME=$(date +%s)
 log "domcheck start..."
 
 sed '/^$/d; /^[[:space:]]*$/d; /#/d' "$infile" | sed 's/\r//g; s/^\.//g' >clean
@@ -88,9 +96,21 @@ else
 fi | xargs -I {} -P "$PROCS" sh -c 'd="$1"; case "$d" in *[!a-zA-Z0-9._-]*) exit 0 ;; esac; if timeout 5 host "$d" >/dev/null 2>&1; then echo HIT "$d"; else echo FAULT "$d"; fi' _ {} >>dnslookup2
 sed '/^FAULT/d' dnslookup2 | awk '{print $2}' | awk '{print "."$1}' | sort -u >>hit.txt
 sed '/^HIT/d' dnslookup2 | awk '{print $2}' | awk '{print "."$1}' | sort -u >fault.txt
-comm -23 <(sed '/^$/d; /#/d; s/\r//g; s/^\.//' "$infile" | sort -u) <(sed 's/^\.//' hit.txt | sort -u) >outdiff.txt
-log "hit.txt: domains confirmed to resolve via DNS from your list"
-log "outdiff.txt: domains that did not resolve (non-existent, failed, or unchecked)"
+log "hit.txt: domains successfully resolved"
+log "fault.txt: unresolved domains"
 
 # End
+END_TIME=$(date +%s)
+ELAPSED=$((END_TIME - START_TIME))
+
+TOTAL=$(wc -l < clean)
+HITS=$(wc -l < hit.txt)
+FAULTS=$(wc -l < fault.txt)
+
+log "Summary:"
+log "  Input domains : $TOTAL"
+log "  Resolved      : $HITS"
+log "  Unresolved    : $FAULTS"
+log "  Elapsed time  : ${ELAPSED}s"
+
 log "domcheck done at: $(date)"

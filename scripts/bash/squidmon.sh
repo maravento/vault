@@ -1189,6 +1189,7 @@ INDEXCGI
 # PDF Report Generator for Squid Monitor - Traffic Report Version
 use strict;
 use warnings;
+use CGI qw(escapeHTML);
 
 do '../web-lib.pl';
 do '../ui-lib.pl';
@@ -1209,6 +1210,10 @@ my $log_file = $config{'squid_log'} || '/var/log/squid/access.log';
 my $max_lines = $in{'max_lines'} || $config{'max_lines'} || '50000';
 my $time_range = $in{'time_range'} || $config{'time_range'} || '24';
 my $specific_client = $in{'client_ip'} || '';
+
+# Validate max_lines and time_range (user-controllable via $in{})
+$max_lines = 50000 if $max_lines !~ /^\d+$/ || $max_lines < 1 || $max_lines > 500000;
+$time_range = 24 if $time_range !~ /^\d+$/ || $time_range < 1;
 
 # Adjust lines to read based on time range for better performance
 if ($time_range > 168) { # More than 7 days
@@ -1363,7 +1368,7 @@ print << 'HTMLHEAD';
 HTMLHEAD
 
 if ($specific_client) {
-    print "<h1>Squid Monitor - Client Traffic Report: $specific_client</h1>";
+    print "<h1>Squid Monitor - Client Traffic Report: " . escapeHTML($specific_client) . "</h1>";
     print "<p>Generated on: " . scalar(localtime) . "</p>";
     print "<p>Time Period: Last 24 hours</p>";
 } else {
@@ -1396,7 +1401,7 @@ print "</div>";
 # Show different content based on report type
 if ($specific_client) {
     # CLIENT-SPECIFIC REPORT
-    print "<div class='section-title'>👤 Client Details: $specific_client</div>";
+    print "<div class='section-title'>👤 Client Details: " . escapeHTML($specific_client) . "</div>";
     
     if (exists $client_traffic{$specific_client}) {
         my $client_total = $client_traffic{$specific_client}{total} || 0;

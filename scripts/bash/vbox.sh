@@ -75,7 +75,7 @@ function vboxinstall() {
 
 function vboxpurge() {
     echo "Removing Virtualbox..."
-    sudo -u $local_user bash -c "vboxmanage list runningvms | grep -oP '(?<=\{)[0-9a-f-]+(?=\})' | xargs -r -I {} VBoxManage controlvm {} poweroff"
+    sudo -u $local_user bash -c "VBoxManage list runningvms | grep -oP '(?<=\{)[0-9a-f-]+(?=\})' | xargs -r -I {} VBoxManage controlvm {} poweroff"
     ps ax | grep -P 'vboxwebsrv|VirtualBox|Vbox' | awk '{print $1}' | xargs kill -9 &>/dev/null
     systemctl stop vboxweb-service.service &>/dev/null
     service vboxdrv stop &>/dev/null

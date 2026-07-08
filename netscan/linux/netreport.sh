@@ -47,17 +47,37 @@ log() { echo "INFO $(now) - $*"; }
 warn() { echo "WARN $(now) - $*" >&2; }
 die() { echo "ERROR $(now) - $*" >&2; exit 1; }
 
-# root required (nmap syn scans and -O require root)
-[ "$(id -u)" -eq 0 ] || die "Run as root (use sudo)"
-
-# detect non-root local user (owner of the session)
-local_user="${SUDO_USER:-$(logname 2>/dev/null || true)}"
-# fallback to first logged user if empty
-if [ -z "$local_user" ] || [ "$local_user" = "root" ]; then
-  local_user="$(who | awk '{print $1; exit}')"
+## root check
+if [ "$(id -u)" != "0" ]; then
+    echo "ERROR: This script must be run as root"
+    exit 1
 fi
-local_user="${local_user:-root}"
-log "Local user: $local_user"
+
+# prevent overlapping runs
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    echo "Script $(basename "$0") is already running"
+    exit 1
+fi
+
+# LOCAL USER (multi-strategy detection with validation)
+local_user=""
+# 1. Local graphical session (:0)
+local_user=$(who | awk '/\(:0\)/{print $1; exit}')
+# 2. Parent process logname (works well with sudo)
+[ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
+# 3. SUDO_USER variable (when run via sudo from terminal)
+[ -z "$local_user" ] && local_user="${SUDO_USER:-}"
+# 4. First active session user (SSH or other)
+[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
+# 5. First valid home directory
+[ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
+# Validate the user actually exists on the system
+if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
+    echo "ERROR: Cannot determine a valid local user"
+    exit 1
+fi
 
 # Report directory (owned by user)
 if [ "$local_user" = "root" ]; then

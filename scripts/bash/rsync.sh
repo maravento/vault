@@ -128,7 +128,7 @@ services=(
 
 is_service_configured() {
     local service_name="$1"
-    if sudo -u "$local_user" bash -c "rclone listremotes | grep -q '$service_name'"; then
+    if sudo -u "$local_user" bash -c "rclone listremotes | grep -q '^${service_name}:\$'"; then
         return 0
     else
         return 1

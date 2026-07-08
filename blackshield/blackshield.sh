@@ -73,29 +73,30 @@
 #   in step 7 if whitelisted here.
 #
 # NOTE on logging:
-# - Writes to /var/log/blackshield.log (append-only, no rotation configured
+# - Writes to blackshield.log (append-only, no rotation configured
 #   by this script). Set up logrotate for this file if disk usage matters.
-# - To clear it manually: truncate -s 0 /var/log/blackshield.log
+# - To clear it manually: truncate -s 0 blackshield.log
 #
 ################################################################################
 
 set -e
 
 # logging
-log_file="/var/log/blackshield.log"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+log_file="$SCRIPT_DIR/blackshield.log"
 log() {
     local msg="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
-# Start
-log "blackshield start..."
-
 # check no-root
 if [ "$(id -u)" == "0" ]; then
-    log "❌ This script should not be run as root."
+    log "[ERROR] This script should not be run as root."
     exit 1
 fi
+
+# Start
+log "blackshield start..."
 
 ### VARIABLES
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
