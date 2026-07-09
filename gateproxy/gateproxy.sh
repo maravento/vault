@@ -827,6 +827,13 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         add-apt-repository -y ppa:christian-boxdoerfer/fsearch-stable || true
         upgrade
         nala install -y fsearch || true
+        # ttyd (web terminal)
+        nala install -y ttyd
+        cp -f "$gp_path/conf/pack/ttyd.service" /etc/systemd/system/ttyd.service
+        sed -i "s/your_user/$local_user/g" /etc/systemd/system/ttyd.service
+        systemctl daemon-reload
+        systemctl enable --now ttyd.service
+        echo "ttyd Access: http://localhost:7681"
         # suricata install
         nala install -y suricata suricata-update jq
         sed -i "s/interface: eth[0-9]/interface: $LAN_INTERFACE/g" /etc/suricata/suricata.yaml

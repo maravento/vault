@@ -3,7 +3,7 @@
 #
 ################################################################################
 #
-# RustDesk Client Manager
+# RustDesk Client Install
 #
 ################################################################################
 
@@ -44,11 +44,11 @@ export LC_ALL=${LC_ALL:-C.UTF-8}
 check_dependencies() {
     if ! dpkg -s curl >/dev/null 2>&1; then
         if ! apt-get -qq update; then
-            echo "❌ Failed to update package lists while preparing to install curl"
+            echo "ERROR: Failed to update package lists while preparing to install curl"
             exit 1
         fi
         if ! apt-get install -y curl; then
-            echo "❌ Failed to install curl"
+            echo "ERROR: Failed to install curl"
             exit 1
         fi
     fi
@@ -64,20 +64,20 @@ check_dependencies() {
     done
 
     if [ ${#unavailable[@]} -gt 0 ]; then
-        echo "❌ Missing dependencies not found in APT:"
+        echo "ERROR: Missing dependencies not found in APT:"
         for u in "${unavailable[@]}"; do echo "   - $u"; done
-        echo "💡 Please install them manually or enable the required repositories."
+        echo "TIP: Please install them manually or enable the required repositories."
         exit 1
     fi
 
     if [ ${#missing[@]} -gt 0 ]; then
-        echo "🔧 Installing missing dependencies: ${missing[*]}"
+        echo "INFO: Installing missing dependencies: ${missing[*]}"
         APT_LOCK_TIMEOUT=120
         APT_LOCK_ELAPSED=0
         APT_LOCK_FILES="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
         while lsof $APT_LOCK_FILES >/dev/null 2>&1; do
             if [ "$APT_LOCK_ELAPSED" -ge "$APT_LOCK_TIMEOUT" ]; then
-                echo "❌ APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
+                echo "ERROR: APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
                 exit 1
             fi
             echo "   Locks still held, waiting... (${APT_LOCK_ELAPSED}s elapsed)"
@@ -85,11 +85,20 @@ check_dependencies() {
             APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
         done
         if ! apt-get -qq update; then
-            echo "❌ Failed to update package lists"
+            echo "ERROR: Failed to update package lists"
             exit 1
         fi
         if ! apt-get install -y "${missing[@]}"; then
-            echo "❌ Failed to install dependencies"
+            echo "ERROR: Failed to install dependencies"
+            exit 1
+        fi
+    fi
+
+    # rustdesk depends on libxdo3 | libxdo4 (either one satisfies it)
+    if ! dpkg -s libxdo3 &>/dev/null && ! dpkg -s libxdo4 &>/dev/null; then
+        echo "INFO: Installing missing dependency: libxdo3"
+        if ! apt-get install -y libxdo3; then
+            echo "ERROR: Failed to install libxdo3"
             exit 1
         fi
     fi
@@ -97,7 +106,7 @@ check_dependencies() {
 
 setup_keyboard() {
     if [ -z "$local_user" ]; then
-        echo "⚠️  Warning: Could not detect local user, skipping keyboard setup"
+        echo "WARNING: Could not detect local user, skipping keyboard setup"
         return
     fi
 
@@ -150,79 +159,96 @@ install_rustdesk() {
 
     VER_TAG=$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
     if [ -z "$VER_TAG" ]; then
-        echo "❌ Failed to fetch latest version"
+        echo "ERROR: Failed to fetch latest version"
         exit 1
     fi
 
-    if dpkg -l | grep -q '^ii  rustdesk'; then
+    if dpkg -l rustdesk 2>/dev/null | grep -q '^ii'; then
         INSTALLED_VER=$(dpkg -l rustdesk | grep '^ii' | awk '{print $3}')
-        echo "ℹ️  RustDesk installed: $INSTALLED_VER"
+        echo "INFO: RustDesk installed: $INSTALLED_VER"
     else
         INSTALLED_VER=""
-        echo "ℹ️  RustDesk not installed"
+        echo "INFO: RustDesk not installed"
     fi
 
-    echo "ℹ️  Latest version: $VER_TAG"
+    echo "INFO: Latest version: $VER_TAG"
 
     if [ "$INSTALLED_VER" = "$VER_TAG" ]; then
-        echo "✅ You already have the latest version. Nothing to do."
-        return
-    fi
-
-    read -rp "Do you want to install/update RustDesk to version $VER_TAG? (y/n): " RESP
-    if [[ ! "$RESP" =~ ^[Yy]$ ]]; then
-        echo "⚠️  Installation/update canceled."
+        echo "OK: You already have the latest version. Nothing to do."
         return
     fi
 
     DEB_FILE="rustdesk-${VER_TAG}-x86_64.deb"
-    SHA256_FILE="rustdesk-${VER_TAG}-x86_64.deb.sha256"
     BASE_URL="https://github.com/rustdesk/rustdesk/releases/download/${VER_TAG}"
 
     cd /tmp
     if ! wget -q "${BASE_URL}/${DEB_FILE}"; then
-        echo "❌ Download failed"
-        rm -f "$DEB_FILE"
-        exit 1
-    fi
-    if ! wget -q "${BASE_URL}/${SHA256_FILE}" 2>/dev/null; then
-        echo "❌ Failed to download integrity file ${SHA256_FILE}. Aborting."
-        rm -f "$DEB_FILE"
-        exit 1
-    fi
-    EXPECTED_SHA256=$(awk '{print $1}' "$SHA256_FILE")
-    ACTUAL_SHA256=$(sha256sum "$DEB_FILE" | awk '{print $1}')
-    rm -f "$SHA256_FILE"
-    if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
-        echo "❌ Integrity check failed for $DEB_FILE. Aborting."
+        echo "ERROR: Download failed"
         rm -f "$DEB_FILE"
         exit 1
     fi
 
-    echo "📦 Installing package..."
-    if dpkg -i "./$DEB_FILE"; then
+    echo "INFO: Installing package..."
+    DPKG_OUT=$(mktemp)
+    if dpkg -i "./$DEB_FILE" >"$DPKG_OUT" 2>&1; then
         setup_keyboard
-        rm -f "$DEB_FILE"
-        echo "✅ RustDesk $VER_TAG installed successfully"
+        # The .deb's own postinst enables and starts rustdesk.service on its
+        # own; undo that here so the package is installed but not running
+        # until the user starts it manually.
+        systemctl stop rustdesk 2>/dev/null || true
+        systemctl disable rustdesk 2>/dev/null || true
+        rm -f "$DEB_FILE" "$DPKG_OUT"
+        echo "OK: RustDesk $VER_TAG installed successfully"
+        echo "INFO: Service stopped. To start it now: sudo systemctl start rustdesk"
+        echo "INFO: To start it on every boot: sudo systemctl enable rustdesk"
     else
-        echo "❌ Installation failed"
-        rm -f "$DEB_FILE"
+        echo "ERROR: Installation failed"
+        cat "$DPKG_OUT" >&2
+        rm -f "$DEB_FILE" "$DPKG_OUT"
         exit 1
     fi
 }
 
 remove_rustdesk() {
-    if ! dpkg -l | grep -q '^ii  rustdesk'; then
-        echo "ℹ️  RustDesk is not installed"
+    if ! dpkg -l rustdesk 2>/dev/null | grep -q '^ii'; then
+        echo "INFO: RustDesk is not installed"
         return
     fi
 
-    echo "🗑️  Removing RustDesk..."
-    if apt-get remove --purge -y rustdesk; then
-        echo "✅ RustDesk removed successfully"
+    echo "INFO: Removing RustDesk..."
+    APT_OUT=$(mktemp)
+    if apt-get remove --purge -y rustdesk >"$APT_OUT" 2>&1; then
+        rm -f "$APT_OUT"
+        echo "OK: RustDesk removed successfully"
     else
-        echo "❌ Failed to remove RustDesk"
+        echo "ERROR: Failed to remove RustDesk"
+        cat "$APT_OUT" >&2
+        rm -f "$APT_OUT"
         exit 1
+    fi
+
+    # apt-get purge only removes what dpkg tracks. The client also leaves
+    # per-user runtime state it creates itself (dpkg never sees it), plus
+    # the .xprofile line this script added in setup_keyboard().
+    if [ -n "$local_user" ]; then
+        user_home=$(getent passwd "$local_user" | cut -d: -f6)
+        user_uid=$(id -u "$local_user" 2>/dev/null || true)
+
+        XPROFILE="$user_home/.xprofile"
+        [ -f "$XPROFILE" ] && sed -i '/^setxkbmap /d' "$XPROFILE"
+
+        rm -rf "$user_home/.local/share/logs/RustDesk"
+        [ -n "$user_uid" ] && rm -rf "/tmp/RustDesk-service" "/tmp/RustDesk-$user_uid"
+
+        if [ -d "$user_home/.config/rustdesk" ]; then
+            read -rp "Also delete saved profiles/connections at $user_home/.config/rustdesk? (y/n): " RESP
+            [[ "$RESP" =~ ^[Yy]$ ]] && rm -rf "$user_home/.config/rustdesk"
+        fi
+
+        if [ -d "$user_home/Videos/RustDesk" ]; then
+            read -rp "Also delete recordings at $user_home/Videos/RustDesk? (y/n): " RESP
+            [[ "$RESP" =~ ^[Yy]$ ]] && rm -rf "$user_home/Videos/RustDesk"
+        fi
     fi
 }
 
@@ -248,11 +274,11 @@ case $option in
         remove_rustdesk
         ;;
     3)
-        echo "👋 Goodbye!"
+        echo "Goodbye!"
         exit 0
         ;;
     *)
-        echo "❌ Invalid option"
+        echo "ERROR: Invalid option"
         exit 1
         ;;
 esac

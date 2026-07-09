@@ -340,6 +340,7 @@ Devices registered in `macports` have access to the following / Los dispositivos
 - **fail2ban** — brute-force protection with custom jail config
 - **lynis** — security auditing (`lynis -c -Q`; log at `/var/log/lynis.log`)
 - **fsearch** — fast file search (GUI)
+- **ttyd** — web terminal, loopback-only (`http://localhost:7681`)
 - **Suricata IDS** — network intrusion detection in AF-PACKET mode with auto-update rules; community-id enabled
 - **EveBox** — Suricata event browser (`http://localhost:5636`)
 

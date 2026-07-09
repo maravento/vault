@@ -6,8 +6,9 @@
 # Cloudflare Tunnel Service Manager (cftunnel)
 # Unified control script for multiple Cloudflare Tunnels
 #
-# Usage: cftunnel.sh {start|startall|stop|status}
+# Usage: cftunnel.sh {create|start|startall|stop|status}
 #
+#   create     Create a new tunnel interactively (login, name, hostname, service)
 #   start      Start tunnels interactively (asks per tunnel)
 #   startall   Start all configured tunnels without prompts + enable cron autostart
 #   stop       Stop all running tunnels + remove cron autostart entry
@@ -282,6 +283,97 @@ status_tunnel() {
     fi
 }
 
+create_tunnel() {
+    echo "Cloudflare Tunnel - Create New Tunnel"
+    echo "======================================"
+    echo ""
+
+    if ! preflight_check; then
+        return 1
+    fi
+
+    if [[ ! -f "$CONFIG_DIR/cert.pem" ]]; then
+        echo "No Cloudflare certificate found. Login is required first."
+        local do_login
+        read -r -p "Run 'cloudflared tunnel login' now? (y/n): " do_login
+        if [[ "$do_login" =~ ^[Yy]$ ]]; then
+            "$CLOUDFLARED_BIN" tunnel login
+            if [[ ! -f "$CONFIG_DIR/cert.pem" ]]; then
+                echo "[ERROR] Login did not complete (cert.pem not found)."
+                return 1
+            fi
+        else
+            echo "[ERROR] Cannot create a tunnel without logging in first."
+            return 1
+        fi
+    fi
+
+    local tunnel_name
+    read -r -p "Tunnel name: " tunnel_name
+    if [[ -z "$tunnel_name" ]]; then
+        echo "[ERROR] Tunnel name cannot be empty."
+        return 1
+    fi
+
+    local config_file="$CONFIG_DIR/${tunnel_name}.yml"
+    if [[ -f "$config_file" ]]; then
+        echo "[ERROR] Config file already exists: $config_file"
+        return 1
+    fi
+
+    echo "Running: cloudflared tunnel create $tunnel_name"
+    local create_output
+    create_output=$("$CLOUDFLARED_BIN" tunnel create "$tunnel_name" 2>&1)
+    echo "$create_output"
+
+    local tunnel_id
+    tunnel_id=$(echo "$create_output" | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+    if [[ -z "$tunnel_id" ]]; then
+        tunnel_id=$("$CLOUDFLARED_BIN" tunnel list 2>/dev/null | awk -v name="$tunnel_name" '$2==name {print $1}' | head -1)
+    fi
+    if [[ -z "$tunnel_id" ]]; then
+        echo "[ERROR] Could not determine tunnel ID. Aborting config creation."
+        return 1
+    fi
+
+    local credentials_file="$CONFIG_DIR/${tunnel_id}.json"
+
+    local hostname service
+    read -r -p "Public hostname (e.g. sub.domain.com): " hostname
+    read -r -p "Local service (e.g. http://localhost:8080): " service
+
+    if [[ -z "$hostname" || -z "$service" ]]; then
+        echo "[ERROR] Hostname and service are required."
+        return 1
+    fi
+
+    cat > "$config_file" <<EOF
+tunnel: $tunnel_id
+credentials-file: $credentials_file
+
+ingress:
+  - hostname: $hostname
+    service: $service
+  - service: http_status:404
+EOF
+
+    echo "[OK] Config file created: $config_file"
+
+    local do_route
+    read -r -p "Route DNS '$hostname' to this tunnel now? (y/n): " do_route
+    if [[ "$do_route" =~ ^[Yy]$ ]]; then
+        "$CLOUDFLARED_BIN" tunnel route dns "$tunnel_name" "$hostname"
+    fi
+
+    local do_start
+    read -r -p "Start tunnel '$tunnel_name' now? (y/n): " do_start
+    if [[ "$do_start" =~ ^[Yy]$ ]]; then
+        start_tunnel "$tunnel_name"
+    fi
+
+    echo "[OK] Tunnel '$tunnel_name' setup complete."
+}
+
 start_multiple_tunnels() {
     echo "Cloudflare Tunnel - Start Multiple Tunnels"
     echo "============================================"
@@ -390,6 +482,9 @@ ACTION="$1"
 TUNNEL_NAME="$2"
 
 case "$ACTION" in
+    create)
+        create_tunnel
+        ;;
     start)
         start_multiple_tunnels
         ;;
@@ -413,9 +508,10 @@ case "$ACTION" in
         status_all_tunnels
         ;;
     *)
-        echo "Usage: $0 {start|startall|stop|status}"
+        echo "Usage: $0 {create|start|startall|stop|status}"
         echo ""
         echo "Examples:"
+        echo "  $0 create                   # Create a new tunnel interactively"
         echo "  $0 start                    # Start tunnels interactively"
         echo "  $0 startall                 # Start all tunnels and enable autostart"
         echo "  $0 stop                     # Stop all tunnels and remove autostart"

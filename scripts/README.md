@@ -66,7 +66,9 @@ Tested on: Ubuntu 24.04.x LTS x64
 - [Iperf3 Client](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/iperf3.sh)
 - [Netplan Switch (install|uninstall|status|help)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/npswitch.sh)
 - [Port Kill (check port with: `sudo netstat -lnp | grep "port"`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/portkill.sh)
-- [Rustdesk Client (install|uninstall|update)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rustdesk.sh)
+- [Rustdesk Client (install|uninstall|update)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rdclient.sh)
+- [Rustdesk Server (install|uninstall|update)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rdserver.sh)
+- [x11vnc (install|uninstall|start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/x11vncmgr.sh)
 
 #### Proxy & Firewall
 - [IP Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ipkill.sh)
@@ -75,7 +77,7 @@ Tested on: Ubuntu 24.04.x LTS x64
 
 #### Server & Deployment
 
-- [Cloudflare Tunnel (start|stop|status) - Zero Trust Activation Recommended](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cftunnel.sh)
+- [Cloudflare Tunnel (create|start|startall|stop|status) - Zero Trust Activation Recommended](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cftunnel.sh)
 - [Docker + Portainer (install|remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/docker.sh)
 - [Joomla (install|remove with Apache/MySQL/PHP/mkcert)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/joomla.sh)
 - [ngLocalhost Tunnel (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/nglocalhost.sh)
