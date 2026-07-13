@@ -25,13 +25,20 @@ chmod +x gitfolder.py
 python3 gitfolder.py https://github.com/maravento/vault/scripts
 ```
 
+## WARNING
+
+---
+
+| Scripts        | Tested on           |
+| -------------- | ------------------- |
+| Batch (Windows)| Windows 10/11 x64    |
+| Bash (Linux)   | Ubuntu 24.04.x LTS x64 |
+
 ## HOW TO USE
 
 ---
 
 ### BASH (Linux)
-
-Tested on: Ubuntu 24.04.x LTS x64
 
 #### AI
 
@@ -121,8 +128,6 @@ Tested on: Ubuntu 24.04.x LTS x64
 
 ### BATCH (Windows)
 
-Tested on: Windows 10/11 x64
-
 #### Backup & Recovery
 
 - [Drivers (Backup and Restore)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/driversbk.bat)
@@ -144,21 +149,18 @@ Tested on: Windows 10/11 x64
 - [Uniform Server (Change MySQL/Apache Ports - Set portable|permanent - Run With System)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/uzeroconf.bat)
 - [VTools QEMU/KVM (Spice, VirtIO, and WinFsp Setup as a Service)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/vtools.bat)
 
-#### Unifi Win Tools
+### Unifi Tools
 
-- [Unifi Network Server Setup](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/unifisetup.bat)
+- [Unifi Setup for Windows](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/unifisetup.bat)
+- [Unifi Setup for Ubuntu](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/unifisetup.sh)
 
-### PYTHON (Linux)
-
-Tested on: Ubuntu 24.04.x LTS x64
+### Python (Linux)
 
 - [Email Scan (Replaces: BASE_URL and TARGET_EMAIL)](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/emailscan.py)
 - [Git Folder Download](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py)
 - [Link Check - Broken Link Scanner (Replaces: BASE_URL)](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/linkcheck.py)
 
 ### VBScript (Windows)
-
-Tested on: Windows 7/10/11 x64
 
 - [Autorun Disable](https://raw.githubusercontent.com/maravento/vault/master/scripts/vbs/autorun.vbs)
 
