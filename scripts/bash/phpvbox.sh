@@ -96,7 +96,7 @@ else
 fi
 
 # check Virtualbox 7x
-output=$(dpkg -l | grep -P 'virtualbox-\d+\.\d+' | awk '{print $2}')
+output=$(dpkg -l | grep -P 'virtualbox-\d+\.\d+' | awk '{print $2}' || true)
 if ! echo "$output" | grep -q "virtualbox-7"; then
     echo "Aborting. Vbox 7 is not installed"
     exit 1

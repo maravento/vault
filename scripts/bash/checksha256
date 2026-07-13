@@ -46,13 +46,13 @@ if ! command -v sha256sum &> /dev/null; then
 fi
 
 # Get the selected file (universal file manager detection)
-if [ -n "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS" ]; then
+if [ -n "${NAUTILUS_SCRIPT_SELECTED_FILE_PATHS:-}" ]; then
     # Nautilus or Caja - get first line only
     original_file=$(echo "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS" | head -n1)
-elif [ -n "$THUNAR_SELECTION" ]; then
+elif [ -n "${THUNAR_SELECTION:-}" ]; then
     # Thunar - get first line only
     original_file=$(echo "$THUNAR_SELECTION" | head -n1)
-elif [ -n "$NEMO_SCRIPT_SELECTED_FILE_PATHS" ]; then
+elif [ -n "${NEMO_SCRIPT_SELECTED_FILE_PATHS:-}" ]; then
     # Nemo (Linux Mint) - get first line only
     original_file=$(echo "$NEMO_SCRIPT_SELECTED_FILE_PATHS" | head -n1)
 elif [ $# -eq 1 ]; then

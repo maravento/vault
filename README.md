@@ -1,7 +1,8 @@
 # [Vault](https://github.com/maravento)
 
-[![status-maintained](https://img.shields.io/badge/status-maintained-purple.svg)](https://github.com/maravento)
-[![last commit](https://img.shields.io/github/last-commit/maravento/vault)](https://github.com/maravento)
+[![status-maintained](https://img.shields.io/badge/status-maintained-purple.svg)](https://github.com/maravento/vault)
+[![last commit](https://img.shields.io/github/last-commit/maravento/vault)](https://github.com/maravento/vault)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/maravento/vault)
 [![Twitter Follow](https://img.shields.io/twitter/follow/maraventostudio.svg?style=social)](https://twitter.com/maraventostudio)
 
 <!-- markdownlint-disable MD033 -->

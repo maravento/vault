@@ -92,8 +92,6 @@ chmod 0755 "$report_dir"
 # Private temp directory — isolated from /tmp symlink attacks
 SCRIPT_TMPDIR=$(mktemp -d)
 trap 'rm -rf "$SCRIPT_TMPDIR"' EXIT
-log_file="$SCRIPT_TMPDIR/netreport_debug.log"
-> "$log_file"
 
 # === Check dependencies once at start ===
 required=(nmap xsltproc)
@@ -424,8 +422,7 @@ xml_to_html() {
     return 0
   else
     warn "Custom XSL conversion failed:"
-    cat "$xsl_error" | head -5 | while read -r line; do warn "  $line"; done
-    cat "$xsl_error" >> "$log_file"
+    head -5 "$xsl_error" | while read -r line; do warn "  $line"; done
   fi
   
   # Fallback: try default nmap XSL
@@ -438,8 +435,7 @@ xml_to_html() {
       return 0
     else
       warn "Default XSL conversion failed:"
-      cat "$xsl_error" | head -5 | while read -r line; do warn "  $line"; done
-      cat "$xsl_error" >> "$log_file"
+      head -5 "$xsl_error" | while read -r line; do warn "  $line"; done
     fi
   else
     warn "Default nmap XSL not found at $default_xsl, skipping to HTML wrapper"
@@ -661,20 +657,21 @@ case "$opt" in
         prune_report_dir_keep_html
         exit 0
       else
-        die "No nmap output files found. Check $SCRIPT_TMPDIR/nmap_out and $log_file"
+        cp -f "$SCRIPT_TMPDIR/nmap_out" "${base}_nmap_out.log" 2>/dev/null
+        die "No nmap output files found. Check ${base}_nmap_out.log"
       fi
     fi
     
     # Verify XML is not empty
     if [ ! -s "$xml_file" ]; then
-      die "XML file is empty: $xml_file. Check $log_file for details"
+      die "XML file is empty: $xml_file"
     fi
     
     log "XML file created successfully ($(du -h "$xml_file" | cut -f1))"
     
     # Convert to HTML
     if ! xml_to_html "$xml_file" "$html_file"; then
-      die "Failed to convert XML to HTML. Check $log_file for details"
+      die "Failed to convert XML to HTML"
     fi
     
     # Finalize and cleanup
@@ -691,5 +688,4 @@ case "$opt" in
 esac
 
 log "=== Scan completed successfully ==="
-log "Debug log saved at: $log_file"
 echo ""

@@ -157,7 +157,7 @@ setup_keyboard() {
 install_rustdesk() {
     check_dependencies
 
-    VER_TAG=$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+    VER_TAG=$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//' || true)
     if [ -z "$VER_TAG" ]; then
         echo "ERROR: Failed to fetch latest version"
         exit 1

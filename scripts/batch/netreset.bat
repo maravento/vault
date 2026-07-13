@@ -13,41 +13,24 @@ if %errorlevel% neq 0 (
 
 setlocal enabledelayedexpansion
 
-SET "TEXT1[0]=The network parameters will be reset. Do you wish to continue?"
-SET "TEXT1[1]=Se van a resetear los parametros de red. Desea continuar?"
-SET "TEXT2[0]=Procedure with the reset"
-SET "TEXT2[1]=Procediento con el reset"
-SET "TEXT3[0]=There is no selection. End of script"
-SET "TEXT3[1]=No hay seleccion. Fin del script"
-SET "TEXT4[0]=Configuring interface:"
-SET "TEXT4[1]=Configurando interfaz:"
-SET "TEXT5[0]=Reboot is required. Do you wish to continue?"
-SET "TEXT5[1]=Es necesario reiniciar. Desea continuar?"
-
-SET "KEY=HKEY_CURRENT_USER\Control Panel\International"
-FOR /F "usebackq tokens=3" %%a IN (`reg query "%KEY%" ^| find /i "LocaleName"`) do set Language=%%a
-SET "UL=%LANGUAGE:~0,2%"
-IF "%UL%" EQU "en" (SET /A L=0)
-IF "%UL%" EQU "es" (SET /A L=1)
-
-:: checking privileges / verificando privilegios
+:: checking privileges
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     powershell -command "Start-Process '%comspec%' -ArgumentList '/c \"%~dpnx0\"' -Verb RunAs"
     exit /b
 )
 
-:: It asks if you want to continue with the reset / Pregunta si desea continuar con el reset
+:: It asks if you want to continue with the reset
 echo.
 echo NET RESET
 echo.
-set /p "choice=!TEXT1[%L%]! [Y/N]: "
+set /p "choice=The network parameters will be reset. Do you wish to continue? [Y/N]: "
 
-:: Check the user's response / Verifica la respuesta del usuario
+:: Check the user's response
 if /i "%choice%"=="Y" (
-    echo !TEXT2[%L%]!
+    echo Procedure with the reset
 ) else (
-    echo !TEXT3[%L%]!
+    echo There is no selection. End of script
     exit /b
 )
 
@@ -73,7 +56,7 @@ for %%k in (%keys%) do (
 for /f "usebackq delims=" %%a in (`powershell -NoProfile -Command "Get-NetAdapter | Select-Object -ExpandProperty Name"`) do (
     set "interface=%%a"
     setlocal disabledelayedexpansion
-    echo !TEXT4[%L%]! %interface%
+    echo Configuring interface: %interface%
     endlocal
     setlocal enabledelayedexpansion
     echo Reset IP...
@@ -104,7 +87,7 @@ for /f "usebackq delims=" %%a in (`powershell -NoProfile -Command "Get-NetAdapte
 )
 
 :: Restart
-set /p "choice=!TEXT5[%L%]! [Y/N]: "
+set /p "choice=Reboot is required. Do you wish to continue? [Y/N]: "
 
 if /i "!choice!"=="Y" (
     echo Restart...

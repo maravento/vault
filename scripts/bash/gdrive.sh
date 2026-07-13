@@ -16,23 +16,13 @@ printf "\n"
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-## root check
-if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+# check no-root
+if [ "$(id -u)" == "0" ]; then
+    echo "ERROR: This script should not be run as root."
     exit 1
 fi
 
-# LOCAL USER (multi-strategy detection with validation)
-local_user=""
-local_user=$(who | awk '/\(:0\)/{print $1; exit}')
-[ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
-[ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
-[ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
-if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
-    echo "ERROR: Cannot determine a valid local user"
-    exit 1
-fi
+local_user="$(id -un)"
 echo "Using local user: $local_user"
 
 # check dependencies
@@ -54,7 +44,6 @@ fi
 if [ ! -d "$GD" ]; then
     mkdir -p "$GD"
     chmod 755 "$GD"
-    chown "$local_user":"$local_user" "$GD"
 fi
 
 case "$1" in
@@ -64,7 +53,7 @@ start)
         echo "⚠️ $GD is already mounted."
         exit 0
     fi
-    if ! sudo -u "$local_user" google-drive-ocamlfuse "$GD"; then
+    if ! google-drive-ocamlfuse "$GD"; then
         echo "❌ Failed to mount Google Drive."
         exit 1
     fi

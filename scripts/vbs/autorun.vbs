@@ -233,7 +233,7 @@ If bAutorunDisabled and bCERTAutorunDisabled Then
     sVS = "Vulnerability Status"
     sMsg = sMsg & "PC Protected" & vbCrLf
     sMsg = sMsg & "Autorun Disabled" & vbCrLf
-    sMsg = sMsg & "No necesita ninguna accion" & vbCrLf & "No need to take any action" & vbCrLf
+    sMsg = sMsg & "No need to take any action" & vbCrLf
     ibtn = wshShell.Popup(sMsg,,sVS,BTNOK+ICONINFO)
     Wscript.Quit(0)
 End If 
@@ -254,31 +254,31 @@ Else
 End If
 
 If bAutorunDisabled and not bCERTAutorunDisabled Then
-    sMsg = sMSG & "Autorun ya desactivado. Desea aplicar metodo adicional CERT? (recomendado)" + vbCrLf + "Autorun already disabled. Apply additional CERT method? (recommended)"
+    sMsg = sMSG & "Autorun already disabled. Apply additional CERT method? (recommended)"
 
     ibtn = wshShell.Popup(sMsg,,sVS,BTNOKCANCEL+ICONBANG)
     If ibtn <> IBTNOK Then
-        ibtn = wshShell.PopUp("Operacion Cancelada" & vbCrLf & "Operation Cancelled",,sVS,BTNOK+ICONSTOP)
+        ibtn = wshShell.PopUp("Operation Cancelled",,sVS,BTNOK+ICONSTOP)
 
         Wscript.Quit(0)
     End If
 End If
 
 If not bAutorunDisabled and bCERTAutorunDisabled Then
-    sMsg = sMSG & "Desea desactivar autorun? (recomendado)" + vbCrLf + "Do you want to disable autorun? (recommended)"
+    sMsg = sMSG & "Do you want to disable autorun? (recommended)"
     ibtn = wshShell.Popup(sMsg,,sVS,BTNOKCANCEL+ICONBANG)
     If ibtn <> IBTNOK Then
-        ibtn = wshShell.PopUp("Operacion Cancelada" & vbCrLf & "Operation Cancelled",,sVS,BTNOK+ICONSTOP)
+        ibtn = wshShell.PopUp("Operation Cancelled",,sVS,BTNOK+ICONSTOP)
         Wscript.Quit(0)
     End If
 End If
 
 If not bAutorunDisabled and not bCERTAutorunDisabled Then
-    sMsg = sMSG & "Desea desactivar autorun? (recomendado)" + vbCrLf + "Do you want to disable autorun? (recommended)"
+    sMsg = sMSG & "Do you want to disable autorun? (recommended)"
 
     ibtn = wshShell.Popup(sMsg,,sVS,BTNOKCANCEL+ICONBANG)
     If ibtn <> IBTNOK Then
-        ibtn = wshShell.PopUp("Operacion Cancelada" & vbCrLf & "Operation Cancelled",,sVS,BTNOK+ICONSTOP)
+        ibtn = wshShell.PopUp("Operation Cancelled",,sVS,BTNOK+ICONSTOP)
         Wscript.Quit(0)
     End If
 End If
@@ -308,7 +308,7 @@ If not bCERTAutorunDisabled Then
 End If
 
 
-    ibtn = wshShell.Popup("Autorun Desactivado. Los cambios tendran efecto al reiniciar el PC" + vbCrLf + "Autorun Disabled. The changes will take effect when you restart PC",,sVS,BTNOK+ICONINFO)
+    ibtn = wshShell.Popup("Autorun Disabled. The changes will take effect when you restart PC",,sVS,BTNOK+ICONINFO)
     Wscript.Quit(0)
 
 On Error GoTo 0

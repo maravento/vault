@@ -139,8 +139,8 @@ configure_relay_host() {
 install_server() {
     check_dependencies
 
-    RELEASE_JSON=$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk-server/releases/latest)
-    VER_TAG=$(echo "$RELEASE_JSON" | jq -r '.tag_name')
+    RELEASE_JSON=$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk-server/releases/latest || true)
+    VER_TAG=$(echo "$RELEASE_JSON" | jq -r '.tag_name' 2>/dev/null || true)
     if [ -z "$VER_TAG" ] || [ "$VER_TAG" = "null" ]; then
         echo "ERROR: Failed to fetch latest version"
         exit 1

@@ -11,12 +11,20 @@ set -euo pipefail
 
 clear
 echo -e "\n"
-echo "Gateproxy Start. Wait..."
+
+log_file="$(dirname "$(realpath "$0")")/gateproxy.log"
+log() {
+    local msg="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+}
+trap 'log "ERROR: command failed at line $LINENO: $BASH_COMMAND"' ERR
+
+log "gateproxy start..."
 printf "\n"
 
 # checking root
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    log "ERROR: This script must be run as root"
     exit 1
 fi
 
@@ -24,7 +32,7 @@ fi
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
+    log "Script $(basename "$0") is already running"
     exit 1
 fi
 
@@ -42,47 +50,21 @@ local_user=$(who | awk '/\(:0\)/{print $1; exit}')
 [ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
 # Validate the user actually exists on the system
 if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
-    echo "ERROR: Cannot determine a valid local user"
+    log "ERROR: Cannot determine a valid local user"
     exit 1
 fi
-echo "Using local user: $local_user"
-
-### LANGUAGE EN-ES
-lang_01=("Check System..." "Verificando Sistema...")
-lang_02=("Aborted installation. Check the Minimum Requirements" "Instalacion Abortada. Verifique los Requisitos Minimos")
-lang_03=("Checking Bandwidth..." "Verificando Ancho de Banda...")
-lang_04=("Update and Clean" "Actualizacion y Limpieza")
-lang_05=("Wait..." "Espere...")
-lang_06=("Answer" "Responda")
-lang_07=("Check Dependencies..." "Verificando Dependencias...")
-lang_08=("Older NIC-Ethernet Format Detected" "Se ha detectado formato antiguo NIC-Ethernet")
-lang_09=("List of Network Interfaces Detected" "Lista de Interfaces de Red Detectadas")
-lang_10=("Public Network Interface (Internet)" "Interfaz de Red Publica (Internet)")
-lang_11=("Local Network Interface" "Interfaz de Red Local")
-lang_12=("Welcome to GateProxy" "Bienvenido a GateProxy")
-lang_13=("Minimum Requirements:" "Requisitos Minimos:")
-lang_14=("Press ENTER to start or CTRL+C to abort" "Presione ENTER para iniciar o CTRL+C para abortar")
-lang_15=("Server settings:" "Parametros del servidor:")
-lang_16=("Enter" "Introduzca")
-lang_17=("You have entered" "Ha introducido")
-lang_18=("Do you want to change?" "Desea modificar?")
-lang_19=("Do you want to install" "Desea instalar")
-lang_20=("with SHARED folder, Recycle Bin and Audit" "con carpeta COMPARTIDA, Papelera Reciclaje y Auditoria")
-lang_21=("Done. Press ENTER to Reboot" "Terminado. Presione ENTER para Reiniciar")
-lang_22=("e.g." "e.j.")
-
-lang=$([[ "${LANG,,}" =~ ^es ]] && echo 1 || echo 0)
+log "Using local user: $local_user"
 
 ### CHECK SO & DESKTOP
-echo "${lang_01[$lang]}"
+log "Check System..."
 # Get the current desktop environment in lowercase
 DESKTOP_ENV=$(echo "${XDG_CURRENT_DESKTOP:-}" | tr '[:upper:]' '[:lower:]')
 # Get the Ubuntu version number (e.g., 22.04, 24.04)
 UBUNTU_VERSION=$(lsb_release -rs)
 # Get the distribution ID (e.g., Ubuntu)
 UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
-echo "Desktop: $DESKTOP_ENV"
-echo "OS: $UBUNTU_ID $UBUNTU_VERSION"
+log "Desktop: $DESKTOP_ENV"
+log "OS: $UBUNTU_ID $UBUNTU_VERSION"
 
 ### VARIABLES
 SCRIPT_PATH="$(realpath "$0")"
@@ -106,7 +88,7 @@ if [ -f "$file" ]; then
 
             for required in "${required_components[@]}"; do
                 if ! printf '%s\n' "${found[@]}" | grep -qx "$required"; then
-                    echo "Missing '$required' in: $line"
+                    log "Missing '$required' in: $line"
                     sed -i "s|^$line|Components: ${required_components[*]}|" "$file"
                     changed=1
                     break
@@ -114,19 +96,19 @@ if [ -f "$file" ]; then
             done
 
             if [[ $changed -eq 0 ]]; then
-                echo "All components present in: $line"
+                log "All components present in: $line"
             fi
         fi
     done < <(grep "^Components:" "$file")
 
     if [[ $changed -eq 1 ]]; then
-        echo "Updating package list. Wait..."
+        log "Updating package list. Wait..."
         apt update > /dev/null 2>&1
     else
-        echo "No changes made. No update needed."
+        log "No changes made. No update needed."
     fi
 else
-    echo "NOTE: $file not found, skipping component check"
+    log "NOTE: $file not found, skipping component check"
 fi
 
 # DEPENDENCIES
@@ -137,21 +119,21 @@ for p in $missing; do
     apt-cache show "$p" &>/dev/null || unavailable+=" $p"
 done
 if [ -n "$unavailable" ]; then
-    echo "Missing dependencies not found in APT:"
-    for u in $unavailable; do echo "   - $u"; done
-    echo "Please install them manually or enable the required repositories."
+    log "Missing dependencies not found in APT:"
+    for u in $unavailable; do log "   - $u"; done
+    log "Please install them manually or enable the required repositories."
     exit 1
 fi
 if [ -n "$missing" ]; then
-    echo "Waiting for apt/dpkg to finish..."
+    log "Waiting for apt/dpkg to finish..."
     apt_wait=0
     apt_wait_limit=60
     while pgrep -x apt > /dev/null 2>&1 || pgrep -x apt-get > /dev/null 2>&1 || pgrep -x dpkg > /dev/null 2>&1; do
         if [ "$apt_wait" -ge "$apt_wait_limit" ]; then
-            echo "ERROR: apt/dpkg did not release after $((apt_wait_limit * 5)) seconds"
+            log "ERROR: apt/dpkg did not release after $((apt_wait_limit * 5)) seconds"
             exit 1
         fi
-        echo "Waiting for apt/dpkg to finish... ($apt_wait/$apt_wait_limit)"
+        log "Waiting for apt/dpkg to finish... ($apt_wait/$apt_wait_limit)"
         sleep 5
         (( apt_wait++ ))
     done
@@ -161,14 +143,14 @@ if [ -n "$missing" ]; then
     rm -f /var/lib/dpkg/lock-frontend
     rm -rf /var/lib/apt/lists/*
     dpkg --configure -a
-    echo "Installing: $missing"
+    log "Installing: $missing"
     apt-get -qq update
     if ! apt-get -y install $missing; then
-        echo "Error installing: $missing"
+        log "Error installing: $missing"
         exit 1
     fi
 else
-    echo "Dependencies OK"
+    log "Dependencies OK"
 fi
 
 ### BASIC
@@ -203,7 +185,7 @@ fi
 ### CLEAN | UPDATE | FIX
 echo -e "\n"
 function upgrade() {
-    echo "${lang_04[$lang]}. ${lang_05[$lang]}"
+    log "Update and Clean. Wait..."
     nala upgrade --purge -y
     aptitude safe-upgrade -y
     dpkg --configure -a
@@ -218,7 +200,7 @@ upgrade
 ### PACKAGES
 clear
 echo -e "\n"
-echo "${lang_07[$lang]}"
+log "Check Dependencies..."
 
 ### GATEPROXY GIT
 echo -e "\n"
@@ -236,7 +218,7 @@ find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_user:$loc
 
 # public interface
 function public_interface() {
-    read -r -p "${lang_16[$lang]} ${lang_10[$lang]} (${lang_22[$lang]} enpXsX): " ETH0
+    read -r -p "Enter Public Network Interface (Internet) (e.g. enpXsX): " ETH0
     if [[ "$ETH0" =~ ^[a-z][a-z0-9]{1,13}[0-9]+$ ]]; then
         find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$ETH0:g" "{}"
     fi
@@ -244,7 +226,7 @@ function public_interface() {
 
 # local interface
 function local_interface() {
-    read -r -p "${lang_16[$lang]} ${lang_11[$lang]} (${lang_22[$lang]} enpXsX): " ETH1
+    read -r -p "Enter Local Network Interface (e.g. enpXsX): " ETH1
     if [[ "$ETH1" =~ ^[a-z][a-z0-9]{1,13}[0-9]+$ ]]; then
         find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
         export LAN_INTERFACE="$ETH1"
@@ -255,17 +237,17 @@ function local_interface() {
 
 function is_interfaces() {
     if ip link show eth0 &>/dev/null; then
-        echo "${lang_08[$lang]}"
-        echo "${lang_02[$lang]}"
+        log "Older NIC-Ethernet Format Detected"
+        log "Aborted installation. Check the Minimum Requirements"
         rm -rf "$gp_path" &>/dev/null
         exit
     else
-        echo "Check Net Interfaces: OK"
-        echo "${lang_09[$lang]}:"
+        log "Check Net Interfaces: OK"
+        log "List of Network Interfaces Detected:"
         ip -o link | awk '$2 != "lo:" {print $2, $(NF-2)}' | sed 's_: _ _'
         public_interface
         local_interface
-        echo OK
+        log "OK"
     fi
 }
 is_interfaces
@@ -273,27 +255,27 @@ is_interfaces
 ### START
 clear
 echo -e "\n"
-echo "    ${lang_12[$lang]}"
+log "    Welcome to GateProxy"
 echo -e "\n"
-echo "    ${lang_13[$lang]}"
-echo "    OS:       Ubuntu 24.04.x"
-echo "    CPU:      4+ cores (>= 3.0 GHz)"
-echo "    NIC:      2 (WAN & LAN)"
-echo "    RAM:      4 GB for cache_mem (>= 12 GB total RAM recommended)"
-echo "    Storage:  100 GB SSD for cache_dir rock"
+log "    Minimum Requirements:"
+log "    OS:       Ubuntu 24.04.x"
+log "    CPU:      4+ cores (>= 3.0 GHz)"
+log "    NIC:      2 (WAN & LAN)"
+log "    RAM:      4 GB for cache_mem (>= 12 GB total RAM recommended)"
+log "    Storage:  100 GB SSD for cache_dir rock"
 echo -e "\n"
-echo "    ${lang_14[$lang]}"
+log "    Press ENTER to start or CTRL+C to abort"
 echo -e "\n"
 read -r RES
 clear
 
 echo -e "\n"
 while true; do
-    read -r -p "${lang_18[$lang]} Server IP 192.168.0.10? (y/n): " change_ip
+    read -r -p "Do you want to change? Server IP 192.168.0.10? (y/n): " change_ip
     case "$change_ip" in
         [Yy]*)
             while true; do
-                read -r -p "${lang_16[$lang]} IP (${lang_22[$lang]} 192.168.0.10): " input_ip
+                read -r -p "Enter IP (e.g. 192.168.0.10): " input_ip
                 serveripNEW=$(echo "$input_ip" | grep -E '^(([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])$')
                 if [ "$serveripNEW" ]; then
                     serverip="$serveripNEW"
@@ -306,21 +288,21 @@ while true; do
 
                     find "$gp_path/dhcp" -type f -name "blockdhcp*" -exec sed -i "s:192.168.0\.:$(echo "$serveripNEW" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
 
-                    echo "${lang_17[$lang]} IP $serverip :OK"
+                    log "You have entered IP $serverip :OK"
                     break
                 else
-                    echo "${lang_17[$lang]} IP incorrect"
+                    log "You have entered IP incorrect"
                 fi
             done
             break
             ;;
         [Nn]*)
             serverip="192.168.0.10"
-            echo "Default IP: $serverip"
+            log "Default IP: $serverip"
             break
             ;;
         *)
-            echo "${lang_06[$lang]}: YES (y) or NO (n)"
+            log "Answer: YES (y) or NO (n)"
             ;;
     esac
 done
@@ -338,22 +320,22 @@ is_ask() {
             while true; do
                 answer=$($funcion)
                 if [ "$answer" ]; then
-                    echo "$answer"
+                    log "$answer"
                     break
                 else
-                    echo "$iresponse"
+                    log "$iresponse"
                 fi
             done
             break
             ;;
         [Nn]*)
             # execute command no
-            echo NO
+            log "NO"
             break
             ;;
         *)
             echo
-            echo "${lang_06[$lang]}: YES (y) or NO (n)"
+            log "Answer: YES (y) or NO (n)"
             ;;
         esac
     done
@@ -364,102 +346,102 @@ MASKNEW1="255.255.255.0"
 
 # netmask
 function is_mask1() {
-    read -r -p "${lang_16[$lang]} Netmask (${lang_22[$lang]} 255.255.255.0): " MASK1
+    read -r -p "Enter Netmask (e.g. 255.255.255.0): " MASK1
     MASKNEW1=$(echo "$MASK1" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$MASKNEW1" ]; then
         find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:255.255.255.0:$MASKNEW1:g" "{}"
-        echo "${lang_17[$lang]} Netmask $MASK1 :OK"
+        log "You have entered Netmask $MASK1 :OK"
     else
         MASKNEW1="255.255.255.0"
     fi
 }
 
 function is_mask2() {
-    read -r -p "${lang_16[$lang]} Subnet-Mask (${lang_22[$lang]} 24): " MASK2
+    read -r -p "Enter Subnet-Mask (e.g. 24): " MASK2
     MASKNEW2=$(echo "$MASK2" | grep -E '^([1-9]|[12][0-9]|3[0-2])$')
     if [ "$MASKNEW2" ]; then
         find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:/24:/$MASKNEW2:g" "{}"
-        echo "${lang_17[$lang]} Subnet-Mask $MASK2 :OK"
+        log "You have entered Subnet-Mask $MASK2 :OK"
     fi
 }
 
 # dns primary
 function is_dns1() {
-    read -r -p "${lang_16[$lang]} DNS1 (${lang_22[$lang]} 8.8.8.8): " DNS1
+    read -r -p "Enter DNS1 (e.g. 8.8.8.8): " DNS1
     DNSNEW1=$(echo "$DNS1" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$DNSNEW1" ]; then
         find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.8.8:$DNSNEW1:g" "{}"
-        echo "${lang_17[$lang]} DNS1 $DNS1 :OK"
+        log "You have entered DNS1 $DNS1 :OK"
     fi
 }
 
 # dns secondary
 function is_dns2() {
-    read -r -p "${lang_16[$lang]} DNS2 (${lang_22[$lang]} 8.8.4.4): " DNS2
+    read -r -p "Enter DNS2 (e.g. 8.8.4.4): " DNS2
     DNSNEW2=$(echo "$DNS2" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$DNSNEW2" ]; then
         find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.4.4:$DNSNEW2:g" "{}"
-        echo "${lang_17[$lang]} DNS2 $DNS2 :OK"
+        log "You have entered DNS2 $DNS2 :OK"
     fi
 }
 
 # localnet
 function is_localnet() {
-    read -r -p "${lang_16[$lang]} Localnet (${lang_22[$lang]} 192.168.0.0): " LOCALNET
+    read -r -p "Enter Localnet (e.g. 192.168.0.0): " LOCALNET
     LOCALNETNEW=$(echo "$LOCALNET" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$LOCALNETNEW" ]; then
         find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$LOCALNETNEW:g" "{}"
-        echo "${lang_17[$lang]} Localnet $LOCALNET :OK"
+        log "You have entered Localnet $LOCALNET :OK"
     fi
 }
 
 # broadcast
 function is_broadcast() {
-    read -r -p "${lang_16[$lang]} Broadcast (${lang_22[$lang]} 192.168.0.255): " BROADCAST
+    read -r -p "Enter Broadcast (e.g. 192.168.0.255): " BROADCAST
     BROADCASTNEW=$(echo "$BROADCAST" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$BROADCASTNEW" ]; then
         find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.255:$BROADCASTNEW:g" "{}"
-        echo "${lang_17[$lang]} Broadcast $BROADCAST :OK"
+        log "You have entered Broadcast $BROADCAST :OK"
     fi
 }
 
 # squid port
 function is_port() {
-    read -r -p "${lang_16[$lang]} Proxy Port (${lang_22[$lang]} 3128): " PORT
+    read -r -p "Enter Proxy Port (e.g. 3128): " PORT
     PORTNEW=$(echo "$PORT" | grep -E '^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$')
     if [ "$PORTNEW" ]; then
         find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:3128:$PORTNEW:g" "{}"
-        echo "${lang_17[$lang]} Proxy Port $PORT :OK"
+        log "You have entered Proxy Port $PORT :OK"
     fi
 }
 
 echo -e "\n"
 while true; do
-    read -r -p "${lang_15[$lang]}
+    read -r -p "Server settings:
 Mask 255.255.255.0, Network /24, DNS 8.8.8.8 8.8.4.4,
 Broadcast 192.168.0.255, Localnet 192.168.0.0, Proxy Port 3128
-    ${lang_18[$lang]} (y/n)" answer
+    Do you want to change? (y/n)" answer
     case "$answer" in
     [Yy]*)
         # execute command yes
-        is_ask "${lang_18[$lang]} Mask 255.255.255.0? (y/n)" "${lang_17[$lang]} Mask incorrect" is_mask1
-        is_ask "${lang_18[$lang]} Sub-Mask /24? (y/n)" "${lang_17[$lang]} Sub-Mask incorrect" is_mask2
-        is_ask "${lang_18[$lang]} DNS1 8.8.8.8? (y/n)" "${lang_17[$lang]} DNS1 incorrect" is_dns1
-        is_ask "${lang_18[$lang]} DNS2 8.8.4.4? (y/n)" "${lang_17[$lang]} DNS2 incorrect" is_dns2
-        is_ask "${lang_18[$lang]} Localnet 192.168.0.0? (y/n)" "${lang_17[$lang]} Localnet incorrect" is_localnet
-        is_ask "${lang_18[$lang]} Broadcast 192.168.0.255? (y/n)" "${lang_17[$lang]} Broadcast incorrect" is_broadcast
-        is_ask "${lang_18[$lang]} Proxy Port Default 3128? (y/n)" "${lang_17[$lang]} Proxy Port incorrect" is_port
-        echo OK
+        is_ask "Do you want to change? Mask 255.255.255.0? (y/n)" "You have entered Mask incorrect" is_mask1
+        is_ask "Do you want to change? Sub-Mask /24? (y/n)" "You have entered Sub-Mask incorrect" is_mask2
+        is_ask "Do you want to change? DNS1 8.8.8.8? (y/n)" "You have entered DNS1 incorrect" is_dns1
+        is_ask "Do you want to change? DNS2 8.8.4.4? (y/n)" "You have entered DNS2 incorrect" is_dns2
+        is_ask "Do you want to change? Localnet 192.168.0.0? (y/n)" "You have entered Localnet incorrect" is_localnet
+        is_ask "Do you want to change? Broadcast 192.168.0.255? (y/n)" "You have entered Broadcast incorrect" is_broadcast
+        is_ask "Do you want to change? Proxy Port Default 3128? (y/n)" "You have entered Proxy Port incorrect" is_port
+        log "OK"
         break
         ;;
     [Nn]*)
         # execute command no
-        echo NO
+        log "NO"
         break
         ;;
     *)
         echo
-        echo "${lang_06[$lang]}: YES (y) or NO (n)"
+        log "Answer: YES (y) or NO (n)"
         ;;
     esac
 done
@@ -467,7 +449,7 @@ done
 ### ESSENTIAL
 clear
 echo -e "\n"
-echo "Essential Packages..."
+log "Essential Packages..."
 # DISK & STORAGE MANAGEMENT
 nala install -y gparted gnome-disk-utility qdirstat baobab
 nala install -y --no-install-recommends smartmontools gsmartcontrol
@@ -547,14 +529,14 @@ echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select tr
 nala install -y ttf-mscorefonts-installer fontconfig
 fc-cache -f
     
-echo OK
+log "OK"
 sleep 1
 
 upgrade
 
 ### SETUP ###
 echo -e "\n"
-echo "Gateproxy Packages..."
+log "Gateproxy Packages..."
 sed -i "/^127\.0\.1\.1/ r $gp_path/conf/server/hosts.txt" /etc/hosts
 sed -i '/^\s*\(fe00::\|ff00::\|ff02::\)/ s/^/#/' /etc/hosts
 grep -q "ipv6.msftncsi.com" /etc/hosts || echo "$serverip ipv6.msftncsi.com ipv6.msftconnecttest.com" | tee -a /etc/hosts
@@ -581,9 +563,9 @@ nala install -y php libapache2-mod-php php-cli php-curl
 # Detect PHP version
 if command -v php &>/dev/null; then
     PHP_VERSION=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>/dev/null)
-    echo "PHP version detected: $PHP_VERSION"
+    log "PHP version detected: $PHP_VERSION"
 else
-    echo "Error: PHP not installed"
+    log "Error: PHP not installed"
     exit 1
 fi
 
@@ -592,9 +574,9 @@ if [ ! -f /etc/php/$PHP_VERSION/apache2/php.ini ]; then
     if [ -f /etc/php/$PHP_VERSION/cli/php.ini ]; then
         mkdir -p /etc/php/$PHP_VERSION/apache2
         cp /etc/php/$PHP_VERSION/cli/php.ini /etc/php/$PHP_VERSION/apache2/php.ini
-        echo "php.ini copied to /etc/php/$PHP_VERSION/apache2/"
+        log "php.ini copied to /etc/php/$PHP_VERSION/apache2/"
     else
-        echo "Error: php.ini not found"
+        log "Error: php.ini not found"
         exit 1
     fi
 fi
@@ -680,7 +662,7 @@ upgrade
 nala install -y webmin
 upgrade
 systemctl enable --now webmin.service 2>/dev/null || true
-echo "Webmin Access: https://localhost:10000"
+log "Webmin Access: https://localhost:10000"
 rm -f setup-repos.sh
 
 # webmin modules
@@ -690,37 +672,37 @@ systemctl stop webmin.service 2>/dev/null || true
 find "$acl_mac_path" -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/dev/null
 # List of modules to install
 for module in servicemon netplanmgr; do
-    echo "Installing $module module..."
+    log "Installing $module module..."
     if wget -q -O ${module}.sh "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/${module}.sh"; then
         chmod +x ${module}.sh
         ./${module}.sh install
         rm -f ${module}.sh
     else
-        echo "Error: Failed to download ${module}.sh"
+        log "Error: Failed to download ${module}.sh"
     fi
 done
 
 # Proxy Monitor
 if git clone https://github.com/maravento/proxymon; then
     cd proxymon || {
-        echo "WARNING: Cannot enter proxymon directory. Skipping installation."
+        log "WARNING: Cannot enter proxymon directory. Skipping installation."
     }
 
     if [ -f proxymon.sh ]; then
         chmod +x proxymon.sh
         {
-            echo "$serverip"      # Enter your Server IP
-            echo "$LAN_INTERFACE" # Enter LAN Net Interface 
+            log "$serverip"      # Enter your Server IP
+            log "$LAN_INTERFACE" # Enter LAN Net Interface
         } | ./proxymon.sh install
         cd ..
     fi
 else
-    echo "WARNING: Failed to clone proxymon. Skipping installation."
+    log "WARNING: Failed to clone proxymon. Skipping installation."
 fi
 
 # DHCP SECTION
 # pydhcp
-echo "Installing pydhcp..."
+log "Installing pydhcp..."
 
 if git clone https://github.com/maravento/pydhcp; then
     pydhcp_path="$(pwd)/pydhcp"
@@ -743,15 +725,15 @@ if git clone https://github.com/maravento/pydhcp; then
             "
 
             cd "$(dirname "$pydhcp_path")"
-            echo "DHCP pool range: 220-235 (default). To modify edit /etc/pydhcp/pydhcpd.env"
+            log "DHCP pool range: 220-235 (default). To modify edit /etc/pydhcp/pydhcpd.env"
         else
-            echo "WARNING: Cannot enter pydhcp directory. Skipping pydhcp installation."
+            log "WARNING: Cannot enter pydhcp directory. Skipping pydhcp installation."
         fi
     else
-        echo "WARNING: pydhcp directory not found. Skipping pydhcp installation."
+        log "WARNING: pydhcp directory not found. Skipping pydhcp installation."
     fi
 else
-    echo "WARNING: Failed to clone pydhcp. Skipping pydhcp installation."
+    log "WARNING: Failed to clone pydhcp. Skipping pydhcp installation."
 fi
 
 # LOGS SECTION 
@@ -762,11 +744,8 @@ nala install -y ulogd2
 mkdir -p /var/log/ulog &>/dev/null
 touch /var/log/ulog/syslogemu.log &>/dev/null
 usermod -a -G ulog "$local_user"
-crontab -l | {
-    cat
-    echo "#*/10 * * * * /etc/scr/banip.sh"
-} | crontab -
-echo "Ulog Access: /var/log/ulog/syslogemu.log"
+(crontab -l 2>/dev/null; echo "#*/10 * * * * /etc/scr/banip.sh") | crontab -
+log "Ulog Access: /var/log/ulog/syslogemu.log"
 # rsyslog
 # in case fails: nala install -y libfastjson4
 nala install -y rsyslog
@@ -780,16 +759,13 @@ nala install -y libatk-adaptor libgail-common
 wget -O "$gp_path/conf/scr/ffsupdate.sh" https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh
 chmod +x "$gp_path/conf/scr/ffsupdate.sh"
 "$gp_path/conf/scr/ffsupdate.sh"
-crontab -l | {
-    cat
-    echo "@weekly /etc/scr/ffsupdate.sh"
-} | crontab -
-echo OK
+(crontab -l 2>/dev/null; echo "@weekly /etc/scr/ffsupdate.sh") | crontab -
+log "OK"
 sleep 1
 
 echo -e "\n"
 while true; do
-read -r -p "${lang_19[$lang]} Optional Pack?
+read -r -p "Do you want to install Optional Pack?
 Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
     case "$answer" in
     [Yy]*)
@@ -817,12 +793,12 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         cp "$gp_path/conf/pack/jail.local" /etc/fail2ban/jail.local
         sed -i 's/^#\?allowipv6 *= *.*/allowipv6 = 0/' /etc/fail2ban/fail2ban.conf
         systemctl enable fail2ban.service
-        echo "Check: sudo fail2ban-client status <jail_name>"
-        echo "Unban all: sudo fail2ban-client unban --all"
-        echo "Unban Jail: sudo fail2ban-client set <jail_name> unban --all"
+        log "Check: sudo fail2ban-client status <jail_name>"
+        log "Unban all: sudo fail2ban-client unban --all"
+        log "Unban Jail: sudo fail2ban-client set <jail_name> unban --all"
         # lynis
         nala install -y lynis
-        echo "Lynis Run: lynis -c -Q and log: /var/log/lynis.log"
+        log "Lynis Run: lynis -c -Q and log: /var/log/lynis.log"
         # fsearch
         add-apt-repository -y ppa:christian-boxdoerfer/fsearch-stable || true
         upgrade
@@ -833,13 +809,13 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         sed -i "s/your_user/$local_user/g" /etc/systemd/system/ttyd.service
         systemctl daemon-reload
         systemctl enable --now ttyd.service
-        echo "ttyd Access: http://localhost:7681"
+        log "ttyd Access: http://localhost:7681"
         # suricata install
         nala install -y suricata suricata-update jq
         sed -i "s/interface: eth[0-9]/interface: $LAN_INTERFACE/g" /etc/suricata/suricata.yaml
         if grep -q "community-id: false" /etc/suricata/suricata.yaml; then
             sed -i 's/community-id: false/community-id: true/' /etc/suricata/suricata.yaml
-            echo "OK: Community-ID enabled"
+            log "OK: Community-ID enabled"
         fi
         # suricata disable and drop
         cp -f "$gp_path/conf/pack/"{disable,drop}.conf /etc/suricata/
@@ -853,23 +829,23 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         fi        
         cp -f "$gp_path/conf/pack/"{suricataupdate,suricataclean}.sh /etc/suricata/
         chmod +x /etc/suricata/{suricataupdate,suricataclean}.sh
-        timeout 300 /etc/suricata/suricataupdate.sh || echo "Warning: suricataupdate timed out"
+        timeout 300 /etc/suricata/suricataupdate.sh || log "Warning: suricataupdate timed out"
         # suricata ratio
         if ! grep -q "detect-thread-ratio: 0.5" /etc/suricata/suricata.yaml; then
             sed -i 's/detect-thread-ratio: 1.0/detect-thread-ratio: 0.5/' /etc/suricata/suricata.yaml
         fi
         # suricata cron
-        (crontab -l 2>/dev/null; echo "0 2 * * * /etc/suricata/suricata-update.sh >/dev/null 2>&1") | crontab -
-        (crontab -l 2>/dev/null; echo "@monthly /etc/suricata/suricata-clean.sh >/dev/null 2>&1") | crontab -
+        (crontab -l 2>/dev/null; echo "0 2 * * * /etc/suricata/suricataupdate.sh >/dev/null 2>&1") | crontab -
+        (crontab -l 2>/dev/null; echo "@monthly /etc/suricata/suricataclean.sh >/dev/null 2>&1") | crontab -
         # suricata check IDS
         SURICATA_SERVICE="/usr/lib/systemd/system/suricata.service"
         CORRECT_EXECSTART="ExecStart=/usr/bin/suricata -D --af-packet -c /etc/suricata/suricata.yaml --pidfile /run/suricata.pid"
         if grep -q "^ExecStart=.*--af-packet" "$SURICATA_SERVICE" && ! grep -q "^ExecStart=.*-q" "$SURICATA_SERVICE"; then
-            echo "OK: Suricata Mode: IDS"
+            log "OK: Suricata Mode: IDS"
         else
-            echo "Fixing Suricata IDS..."
+            log "Fixing Suricata IDS..."
             sed -i "s|^ExecStart=.*|$CORRECT_EXECSTART|" "$SURICATA_SERVICE"
-            echo "Suricata Mode: IDS"
+            log "Suricata Mode: IDS"
         fi
         # evebox
         curl -fsSL https://evebox.org/files/GPG-KEY-evebox -o /etc/apt/keyrings/evebox.asc
@@ -883,17 +859,17 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         systemctl enable suricata evebox
         systemctl restart suricata
         systemctl start evebox
-        echo "EVEBox: http://localhost:5636"
+        log "EVEBox: http://localhost:5636"
         break
         ;;
     [Nn]*)
         # execute command no
-        echo NO
+        log "NO"
         break
         ;;
     *)
         echo
-        echo "${lang_06[$lang]}: YES (y) or NO (n)"
+        log "Answer: YES (y) or NO (n)"
         ;;
     esac
 done
@@ -904,8 +880,8 @@ upgrade
 # Samba with Shared folder, Recycle Bin and Audit
 echo -e "\n"
 while true; do
-    read -r -p "${lang_19[$lang]} Samba?
-${lang_20[$lang]} (y/n)" answer
+    read -r -p "Do you want to install Samba?
+with SHARED folder, Recycle Bin and Audit (y/n)" answer
 
     case "$answer" in
     [Yy]*)
@@ -917,51 +893,51 @@ ${lang_20[$lang]} (y/n)" answer
                     bash smbinstall.sh --install
                     cd "$(dirname "$smbstack_path")"
                 else
-                    echo "WARNING: Cannot enter smbstack directory. Skipping Samba installation."
+                    log "WARNING: Cannot enter smbstack directory. Skipping Samba installation."
                 fi
             else
-                echo "WARNING: smbstack directory not found. Skipping Samba installation."
+                log "WARNING: smbstack directory not found. Skipping Samba installation."
             fi
         else
-            echo "WARNING: Failed to clone smbstack. Skipping Samba installation."
+            log "WARNING: Failed to clone smbstack. Skipping Samba installation."
         fi
         break
         ;;
 
     [Nn]*)
-        echo NO
+        log "NO"
         break
         ;;
 
     *)
         echo
-        echo "${lang_06[$lang]}: YES (y) or NO (n)"
+        log "Answer: YES (y) or NO (n)"
         ;;
     esac
 done
-echo OK
+log "OK"
 
 upgrade
 
 ### ACLs ###
 echo -e "\n"
-echo "Downloading ACLs..."
+log "Downloading ACLs..."
 # Allow IP
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O "$acl_path/acl_squid/allowip.txt"
 if [ ! -s "$acl_path/acl_squid/allowip.txt" ]; then
-    echo "WARNING: allowip.txt download failed"
+    log "WARNING: allowip.txt download failed"
 fi
 
 # Block Patterns
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/source/squid/blockpatterns.txt -O "$acl_path/acl_squid/blockpatterns.txt"
 if [ ! -s "$acl_path/acl_squid/blockpatterns.txt" ]; then
-    echo "WARNING: blockpatterns.txt download failed"
+    log "WARNING: blockpatterns.txt download failed"
 fi
 
 # Block TLDs
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O "$acl_path/acl_squid/blocktlds.txt"
 if [ ! -s "$acl_path/acl_squid/blocktlds.txt" ]; then
-    echo "WARNING: blocktlds.txt download failed, disabling ACL in squid.conf"
+    log "WARNING: blocktlds.txt download failed, disabling ACL in squid.conf"
     sed -i '/^acl blocktlds /s/^/#/; /^http_access deny workdays blocktlds/s/^/#/' "$gp_path/conf/server/squid.conf"
 fi
 
@@ -972,15 +948,15 @@ if [ $wget_exit -eq 0 ] && [ -f blackweb.tar.gz ]; then
     cat blackweb.tar.gz* | tar xzf -
     cp blackweb.txt "$acl_path/acl_squid/blackweb.txt"
 else
-    echo "WARNING: blackweb.tar.gz download failed"
+    log "WARNING: blackweb.tar.gz download failed"
 fi
 rm -f blackweb.*
-echo OK
+log "OK"
 sleep 1
 
 ### ADD CONFIG ###
 echo -e "\n"
-echo "Applying Config..."
+log "Applying Config..."
 # squid
 cp -f /etc/squid/squid.conf{,.bak} &>/dev/null
 cp -f "$gp_path/conf/server/squid.conf" /etc/squid/squid.conf
@@ -1005,9 +981,9 @@ for url in "${scripts[@]}"; do
     fname=$(basename "$url")
 
     if wget -q -O "$gp_path/conf/scr/$fname" "$url"; then
-        echo "Downloaded: $fname"
+        log "Downloaded: $fname"
     else
-        echo "WARNING: Failed to download $fname. Skipping."
+        log "WARNING: Failed to download $fname. Skipping."
     fi
 done
 
@@ -1021,11 +997,11 @@ find "$scr_path" -name "*.sh" -exec chmod +x {} \;
 # alternative
 grep -qxF 'tmpfs /tmp tmpfs defaults,size=2G,nofail,noatime,mode=1777 0 0' /etc/fstab || \
     echo 'tmpfs /tmp tmpfs defaults,size=2G,nofail,noatime,mode=1777 0 0' >> /etc/fstab
-echo OK
+log "OK"
 sleep 1
 
 echo -e "\n"
-echo "Proxy Apache Config..."
+log "Proxy Apache Config..."
 
 cp -f /etc/apache2/sites-available/000-default.conf{,.bak} &>/dev/null
 sed -i "s_\(#LogLevel info ssl:warn\)_\1\n\tLogLevel warn_" /etc/apache2/sites-available/000-default.conf
@@ -1043,14 +1019,14 @@ chmod 644 /var/www/wpad/wpad.pac
 cp -f "$gp_path/conf/server/wpad.conf" /etc/apache2/sites-available/wpad.conf
 chmod 644 /etc/apache2/sites-available/wpad.conf
 a2ensite -q wpad.conf
-grep -qxF 'Listen $serveripNEW:18100' /etc/apache2/ports.conf || grep -qxF 'Listen 18100' /etc/apache2/ports.conf || echo 'Listen $serveripNEW:18100' >> /etc/apache2/ports.conf
+grep -qxF "Listen $serverip:18100" /etc/apache2/ports.conf || grep -qxF 'Listen 18100' /etc/apache2/ports.conf || echo "Listen $serverip:18100" >> /etc/apache2/ports.conf
 apachectl -t -D DUMP_INCLUDES -S
-echo "WPAD-PAC Proxy Auto Access: http://SERVER_IP:18100/wpad.pac"
-echo OK
+log "WPAD-PAC Proxy Auto Access: http://SERVER_IP:18100/wpad.pac"
+log "OK"
 sleep 1
 
 echo -e "\n"
-echo "Adding Parameters..."
+log "Adding Parameters..."
 grep -qxF '*.none    /var/log/ulog/syslogemu.log' /etc/rsyslog.conf || \
     echo '*.none    /var/log/ulog/syslogemu.log' | tee -a /etc/rsyslog.conf >/dev/null
 
@@ -1081,7 +1057,7 @@ echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/system.conf >/dev/null
 echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/user.conf >/dev/null
 sysctl -p
 
-echo "Apache Config..."
+log "Apache Config..."
 cp -f /etc/apache2/apache2.conf{,.bak} &>/dev/null
 #echo 'RequestReadTimeout header=10-20,MinRate=500 body=20,MinRate=500' | tee -a /etc/apache2/apache2.conf # optional
 cp -f "$gp_path/conf/server/servername.conf" /etc/apache2/conf-available/servername.conf
@@ -1120,12 +1096,12 @@ grep -q "^Timeout" /etc/apache2/conf-available/security.conf || \
 sed -i 's/Options -Indexes FollowSymLinks/Options -Indexes +FollowSymLinks/g' /etc/apache2/apache2.conf
 a2enmod -q headers mime rewrite || true
 a2enconf -q security || true
-echo OK
+log "OK"
 sleep 1
 
 # APACHE PASSWORD
 echo -e "\n"
-echo "Create Apache Password: /var/www/..."
+log "Create Apache Password: /var/www/..."
 echo -e "\n"
 htpasswd -c /etc/apache2/.htpasswd "$local_user"
 
@@ -1134,19 +1110,19 @@ apache2ctl configtest
 chmod -R 755 /var/www
 chown -R www-data:www-data /var/www
 apachectl -t -D DUMP_INCLUDES -S
-echo OK
+log "OK"
 sleep 1
 
 # CRONTAB
 echo -e "\n"
-echo "Add Crontab Tasks..."
+log "Add Crontab Tasks..."
 (crontab -l 2>/dev/null; echo "@reboot systemctl daemon-reload
 @reboot /etc/scr/hwclock.sh
 @reboot /etc/scr/lock.sh
 @reboot /etc/scr/blackusb.sh off
 */5 * * * * /etc/scr/serviceswatch.sh
 @weekly /etc/scr/cleaner.sh") | sort -u | crontab -
-echo OK
+log "OK"
 sleep 1
 
 ### ENDING ###
@@ -1174,8 +1150,8 @@ upgrade
 
 clear
 echo -e "\n"
-echo "${lang_21[$lang]}"
-echo "after reboot, run: systemctl list-units --type service --state running,failed"
+log "Done. Press ENTER to Reboot"
+log "after reboot, run: systemctl list-units --type service --state running,failed"
 read -r RES
 systemctl daemon-reexec
 systemctl daemon-reload
@@ -1192,4 +1168,6 @@ netplan apply
 #dpkg -l | grep "^rc" | cut -d " " -f 3 | xargs dpkg --purge &> /dev/null # optional
 rm -f gitfolder.py
 (sleep 2 && rm -- "$SCRIPT_PATH") &
+
+log "gateproxy done at: $(date)"
 reboot

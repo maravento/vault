@@ -22,7 +22,7 @@ set "logspath=%installpath%\logs"
 if not exist "%logspath%" mkdir "%logspath%"
 
 :: Get date and time for log name
-for /f "tokens=2 delims==" %%I in ('wmic os get localdatetime /value') do set datetime=%%I
+for /f "tokens=*" %%I in ('powershell -Command "Get-Date -Format yyyyMMddHHmmss"') do set "datetime=%%I"
 set "logname=unifi_install_%datetime:~0,8%_%datetime:~8,6%.log"
 set "logfile=%logspath%\%logname%"
 
@@ -160,8 +160,9 @@ exit /b 0
 echo.
 echo [%date% %time%] Starting JRE download >> "%logfile%"
 echo Getting the latest version of JRE...
-set "version_base_url=https://github.com/adoptium/temurin21-binaries/releases/download/"
-set "version_latest_url=https://api.github.com/repos/adoptium/temurin21-binaries/releases/latest"
+set "jdk_major=25"
+set "version_base_url=https://github.com/adoptium/temurin!jdk_major!-binaries/releases/download/"
+set "version_latest_url=https://api.github.com/repos/adoptium/temurin!jdk_major!-binaries/releases/latest"
 set "jdk_type=jre"
 set "os_arch=x64_windows"
 set "vm_type=hotspot"
@@ -179,8 +180,8 @@ set "url_version=!url_version:B=%2B!"
 set "file_version=!version!"
 for /l %%i in (1,1,10) do set "file_version=!file_version:+=_!"
 
-set "download_url=!version_base_url!jdk-!url_version!/OpenJDK21U-!jdk_type!_!os_arch!_!vm_type!_!file_version!.msi"
-set "msi_filename=OpenJDK21U-!jdk_type!_!os_arch!_!vm_type!_!file_version!.msi"
+set "download_url=!version_base_url!jdk-!url_version!/OpenJDK!jdk_major!U-!jdk_type!_!os_arch!_!vm_type!_!file_version!.msi"
+set "msi_filename=OpenJDK!jdk_major!U-!jdk_type!_!os_arch!_!vm_type!_!file_version!.msi"
 
 echo [%date% %time%] Download URL: !download_url! >> "%logfile%"
 cd /d "%installpath%" || exit /b 1
@@ -201,7 +202,7 @@ echo.
 echo [%date% %time%] Installing JRE... >> "%logfile%"
 echo Installing JRE...
 cd /d "%installpath%" || exit /b 1
-set "latest_msi=OpenJDK21U-!jdk_type!_!os_arch!_!vm_type!_!file_version!.msi"
+set "latest_msi=OpenJDK!jdk_major!U-!jdk_type!_!os_arch!_!vm_type!_!file_version!.msi"
 echo [%date% %time%] Installing MSI: !latest_msi! >> "%logfile%"
 start /wait msiexec /i "!latest_msi!" ADDLOCAL=FeatureMain,FeatureEnvironment,FeatureJarFileRunWith,FeatureJavaHome INSTALLDIR="%ProgramFiles%\Temurin" /quiet >nul 2>&1
 set "msi_error=!errorlevel!"
@@ -724,7 +725,7 @@ set "JAVA_PATH=%ProgramFiles%\Temurin\bin\java.exe"
 echo [%date% %time%] Java path: %JAVA_PATH% >> "%logfile%"
 
 echo [%date% %time%] Running: %JAVA_PATH% -jar lib\ace.jar startsvc >> "%logfile%"
-"%JAVA_PATH%" -jar lib\ace.jar startsvc &
+"%JAVA_PATH%" -jar lib\ace.jar startsvc
 timeout /t 5 /nobreak >nul
 echo [%date% %time%] Running: %JAVA_PATH% -jar lib\ace.jar installsvc >> "%logfile%"
 "%JAVA_PATH%" -jar lib\ace.jar installsvc >nul 2>&1

@@ -82,7 +82,7 @@ if ! dpkg -s squid &>/dev/null && ! dpkg -s squid-openssl &>/dev/null; then
 fi
 
 # Check other dependencies
-DEPENDENCIES="perl"
+DEPENDENCIES="perl gawk"
 for pkg in $DEPENDENCIES; do
   if ! dpkg -s "$pkg" &>/dev/null; then
     echo "'$pkg' is not installed. Run:"
@@ -207,7 +207,7 @@ squid_traffic() {
     CUTOFF=$((NOW - PERIOD))
 
     # Generate traffic report
-    zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {
+    zcat -f $ACCESS_LOG 2>/dev/null | gawk -v cutoff="$CUTOFF" '$1 > cutoff {
         match($7, /https?:\/\/([^\/]+)/, arr)
         if (arr[1] != "") print $3, arr[1]
     }' \

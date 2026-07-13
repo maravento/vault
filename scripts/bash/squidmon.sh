@@ -874,7 +874,7 @@ if ($search_query && $search_query ne '') {
         
         # Only search URLs if it is NOT an IP address
         if (!$show_client && !$search_is_ip) {
-            # Buscar en URLs bloqueadas del cliente
+            # Search blocked URLs for the client
             foreach my $acl (keys %{$client_acl_stats{$client}}) {
                 next if $acl eq 'total' || $acl eq 'urls';
                 
@@ -953,8 +953,7 @@ foreach my $client (sort @clients_to_show) {
         
         # If there is no ACL filter OR if the ACL matches
         if (!$show_acl || $show_acl eq '' || $acl eq $show_acl) {
-            # Si no hay filtro de tipo O si los datos coinciden
-            if ((!$show_blocked && !$show_allowed) || 
+            if ((!$show_blocked && !$show_allowed) ||
                 ($show_blocked && !$show_allowed && $b > 0) ||
                 ($show_allowed && !$show_blocked && $a > 0) ||
                 ($show_blocked && $show_allowed && ($b > 0 || $a > 0))) {

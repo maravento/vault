@@ -4,7 +4,7 @@
 ################################################################################
 #
 # Cleaner
-# Search and send to trash:
+# Search and permanently delete:
 # - Windows ADS files (e.g., :Zone.Identifier, :encryptable, Thumbs.db)
 # - macOS and Linux system files (e.g., .fuse_hidden*, .spotlight-*, .fseventsd*, .DS_Store, ~lock.*)
 # - Extended attributes and metadata streams (e.g., :attributes:)

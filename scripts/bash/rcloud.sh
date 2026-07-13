@@ -13,7 +13,7 @@
 
 set -u
 
-# LOG FILE para debugging
+# LOG FILE for debugging
 SCRIPT_LOG="/var/log/rcloud-startup.log"
 exec 1> >(tee -a "$SCRIPT_LOG")
 exec 2>&1

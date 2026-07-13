@@ -150,7 +150,7 @@ frun () {
         exit
     fi
 
-    # Inicializar INSTNUM
+    # Initialize INSTNUM
     INSTNUM=0
 
     # 1-9 number
@@ -203,7 +203,7 @@ frun () {
 # Stop MEGAsync
 stop() {
     echo "Stopping MEGAsync Instances..."
-    killall megasync 2>/dev/null # Cerrar instancias de megasync
+    killall megasync 2>/dev/null # Close MEGAsync instances
     echo "MEGAsync Instances stopped."
 }
 

@@ -215,7 +215,6 @@ switch ($choice) {
 		} else {
 			Write-Host "File not found: $vhostsPath"
 		}
-	Write-Host "vhosts updated successfully."
 	}
     
     "2" {
@@ -239,11 +238,15 @@ switch ($choice) {
             exit
         }
 
-        $originalAttributes = (Get-Item $configPath).Attributes
-        Set-ItemProperty $configPath -Name Attributes -Value ((Get-ItemProperty $configPath).Attributes -band (-bnot [System.IO.FileAttributes]::ReadOnly))
+        if (Test-Path $configPath) {
+            $originalAttributes = (Get-Item $configPath).Attributes
+            Set-ItemProperty $configPath -Name Attributes -Value ((Get-ItemProperty $configPath).Attributes -band (-bnot [System.IO.FileAttributes]::ReadOnly))
 
-        Copy-Item -Path $backupPath -Destination $configPath -Force
-        Set-ItemProperty $configPath -Name Attributes -Value $originalAttributes
+            Copy-Item -Path $backupPath -Destination $configPath -Force
+            Set-ItemProperty $configPath -Name Attributes -Value $originalAttributes
+        } else {
+            Copy-Item -Path $backupPath -Destination $configPath -Force
+        }
 
         Write-Host "`nConfiguration restored from backup successfully"
     }

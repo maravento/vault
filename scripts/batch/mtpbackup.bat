@@ -20,7 +20,7 @@ set "source_folder=%APPDATA%\Thunderbird\Profiles"
 echo.
 echo Thunderbird Email Profiles Backup
 echo.
-set /p usb_letter=Enter the USB letter / Ingrese la letra de la USB (example E): 
+set /p usb_letter=Enter the USB letter (example E):
 
 echo Log File: %usb_letter%:\profiles_bk.txt
 

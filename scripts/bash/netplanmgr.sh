@@ -162,7 +162,7 @@ sub is_safe_netplan_file {
 }
 
 # ============================================================
-# PROCESS ACTIONS (antes del header para manejar redirects)
+# PROCESS ACTIONS (before the header, to handle redirects)
 # ============================================================
 
 # Handle AJAX request for file content
@@ -260,7 +260,7 @@ if (defined $in{'apply'}) {
 }
 
 # ============================================================
-# UI OUTPUT (después de procesar acciones)
+# UI OUTPUT (after processing actions)
 # ============================================================
 
 # Anti-cache headers

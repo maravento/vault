@@ -239,7 +239,7 @@ function mount_img_kpartx() {
     fi
 }
 
-# Menú de selección
+# Selection menu
 printf "\n"
 echo "Select a method for VHD image:"
 echo "1. With loop"

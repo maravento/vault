@@ -31,6 +31,15 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
+# MAC/IP validation before feeding external ACL data into ipset
+is_valid_mac() {
+    [[ "$1" =~ ^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$ ]]
+}
+
+is_valid_ip() {
+    [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]
+}
+
 ## root check
 if [ "$(id -u)" != "0" ]; then
     log "ERROR: This script must be run as root"
@@ -73,7 +82,7 @@ blockports_file="$acl_ipt_path/blockports.txt"
 dhcp_conf="/etc/pydhcp/pydhcpd.conf"
 path_ips="$acl_ipt_path/dhcp_ip.txt"
 path_macs="$acl_ipt_path/dhcp_mac.txt"
- 
+
 for f in "$mac_proxy_file" "$mac_unlimited_file" "$blockports_file" "$dhcp_conf"; do
     if [ ! -f "$f" ]; then
         log "ERROR: required file not found: $f"
@@ -253,13 +262,13 @@ sysctl -w net.ipv6.conf.all.disable_ipv6=0 >/dev/null 2>&1
 sysctl -w net.ipv6.conf.default.disable_ipv6=0 >/dev/null 2>&1
 sysctl -w net.ipv6.conf.lo.disable_ipv6=0 >/dev/null 2>&1
 # LAN IPv6
-sysctl -w net.ipv6.conf.${lan}.disable_ipv6=1 >/dev/null 2>&1
+sysctl -w "net.ipv6.conf.${lan}.disable_ipv6=1" >/dev/null 2>&1
 # ICMPv6 esencial (NDP, SLAAC, Path MTU)
-ip6tables -A OUTPUT -o $wan -p ipv6-icmp -j ACCEPT
+ip6tables -A OUTPUT -o "$wan" -p ipv6-icmp -j ACCEPT
 # DHCPv6
-ip6tables -A OUTPUT -o $wan -p udp --sport 546 --dport 547 -j ACCEPT
+ip6tables -A OUTPUT -o "$wan" -p udp --sport 546 --dport 547 -j ACCEPT
 # Established traffic
-ip6tables -A INPUT -i $wan -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+ip6tables -A INPUT -i "$wan" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
 ## GLOBAL RULES ##
 
@@ -294,33 +303,33 @@ iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set bogons src -j DROP
 iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set bogons dst -j DROP
 
 # MASQUERADE: NAT for LAN to share dynamic WAN IP
-iptables -t nat -A POSTROUTING -s $localnet/$netmask -o $wan -j MASQUERADE
+iptables -t nat -A POSTROUTING -s "$localnet/$netmask" -o "$wan" -j MASQUERADE
 #
 # SNAT example for static WAN IP (more efficient)
 # wan_ip=$(ip -4 -o addr show dev "$wan" | awk '{print $4}' | cut -d/ -f1)
-# iptables -t nat -A POSTROUTING -s $localnet/$netmask -o $wan -j SNAT --to-source $wan_ip
+# iptables -t nat -A POSTROUTING -s "$localnet/$netmask" -o "$wan" -j SNAT --to-source "$wan_ip"
 
 # LAN ---> PROXY <--- WAN
 iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -A OUTPUT -m conntrack --ctstate NEW,ESTABLISHED,RELATED -j ACCEPT
 # Squid proxy outbound traffic
-iptables -A OUTPUT -o $wan -m owner --uid-owner proxy -j ACCEPT
+iptables -A OUTPUT -o "$wan" -m owner --uid-owner proxy -j ACCEPT
 
 # DHCP
-iptables -t mangle -A PREROUTING -i $lan -p udp --dport 67 -j ACCEPT
-iptables -A OUTPUT -o $wan -p udp --sport 68 --dport 67 -j ACCEPT
-iptables -A INPUT -i $wan -p udp --sport 67 --dport 68 -j ACCEPT
-iptables -A INPUT -i $lan -p udp --sport 68 --dport 67 -j ACCEPT
-iptables -A OUTPUT -o $lan -p udp --sport 67 --dport 68 -j ACCEPT
+iptables -t mangle -A PREROUTING -i "$lan" -p udp --dport 67 -j ACCEPT
+iptables -A OUTPUT -o "$wan" -p udp --sport 68 --dport 67 -j ACCEPT
+iptables -A INPUT -i "$wan" -p udp --sport 67 --dport 68 -j ACCEPT
+iptables -A INPUT -i "$lan" -p udp --sport 68 --dport 67 -j ACCEPT
+iptables -A OUTPUT -o "$lan" -p udp --sport 67 --dport 68 -j ACCEPT
 
 # NTP
-iptables -A INPUT -i $lan -p udp --dport 123 -s $localnet/$netmask -j ACCEPT
-iptables -A FORWARD -i $lan -p udp --dport 123 -s $localnet/$netmask -j ACCEPT
+iptables -A INPUT -i "$lan" -p udp --dport 123 -s "$localnet/$netmask" -j ACCEPT
+iptables -A FORWARD -i "$lan" -p udp --dport 123 -s "$localnet/$netmask" -j ACCEPT
 
 # WARNING PAGE HTTP FOR BANDATA (TCP 18081)
 # https://github.com/maravento/proxymon
-iptables -A INPUT -i $lan -p tcp --dport 18081 -j ACCEPT
+iptables -A INPUT -i "$lan" -p tcp --dport 18081 -j ACCEPT
 
 # Invalid and fragmented packets
 iptables -A INPUT -m conntrack --ctstate INVALID -j DROP
@@ -342,12 +351,12 @@ else
     ipset flush macunlimited
 fi
 for mac in $(awk -F";" '$2 != "" {print $2}' "$mac_unlimited_file" 2>/dev/null); do
-    ipset add macunlimited $mac -exist
+    is_valid_mac "$mac" && ipset add macunlimited "$mac" -exist
 done
-iptables -t nat -A PREROUTING -i $lan -m set --match-set macunlimited src -j ACCEPT
-iptables -t mangle -A PREROUTING -i $lan -m set --match-set macunlimited src -j ACCEPT
+iptables -t nat -A PREROUTING -i "$lan" -m set --match-set macunlimited src -j ACCEPT
+iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macunlimited src -j ACCEPT
 for chain in INPUT FORWARD; do
-    iptables -A $chain -i $lan -m set --match-set macunlimited src -j ACCEPT
+    iptables -A "$chain" -i "$lan" -m set --match-set macunlimited src -j ACCEPT
 done
 
 # mac2ip
@@ -367,6 +376,7 @@ else
     ipset flush macip
 fi
 create_acl() {
+    local ips macs mac ip
     ips="# ips"
     macs="# macs"
     while (( $# >= 2 )); do
@@ -375,7 +385,7 @@ create_acl() {
         ip="$1"
         shift
         # Add MAC+IP to set
-        ipset add macip $ip,$mac -exist
+        is_valid_mac "$mac" && is_valid_ip "$ip" && ipset add macip "$ip,$mac" -exist
         ips="$ips\n$ip"
         macs="$macs\n$mac"
     done
@@ -384,8 +394,8 @@ create_acl() {
 }
 if [ -n "$mac2ip" ]; then
     create_acl $mac2ip
-    iptables -t mangle -A PREROUTING -i $lan -m set --match-set macip src,src -j ACCEPT
-    iptables -t mangle -A PREROUTING -i $lan -j DROP
+    iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macip src,src -j ACCEPT
+    iptables -t mangle -A PREROUTING -i "$lan" -j DROP
 else
     log "WARNING: No static DHCP entries found in $dhcp_conf; macip binding skipped"
 fi
@@ -435,10 +445,10 @@ else
     ipset flush blockports
 fi
 for blports in $(sort -V -u "$blockports_file" 2>/dev/null); do
- ipset add blockports $blports -exist
+    ipset add blockports "$blports" -exist
 done
 for proto in tcp udp; do
-    iptables -t mangle -A PREROUTING -i $lan -p $proto -m set --match-set blockports dst -j DROP
+    iptables -t mangle -A PREROUTING -i "$lan" -p "$proto" -m set --match-set blockports dst -j DROP
 done
 
 # MAC Ports
@@ -447,82 +457,82 @@ if ! ipset list macports &>/dev/null; then
 else
     ipset flush macports
 fi
-for mac in $(awk -F";" '$2 != "" {print $2}' $acl_mac_path/mac-* 2>/dev/null); do
-    ipset add macports $mac -exist
+for mac in $(awk -F";" '$2 != "" {print $2}' "$acl_mac_path"/mac-* 2>/dev/null); do
+    is_valid_mac "$mac" && ipset add macports "$mac" -exist
 done
 
 # DNS
 dns="8.8.8.8 1.1.1.1"
 for dnsip in $dns; do
-    iptables -A FORWARD -i $lan -o $wan -m set --match-set macports src -d $dnsip -p udp --dport 53 -j ACCEPT
-    iptables -A FORWARD -i $lan -o $wan -m set --match-set macports src -d $dnsip -p tcp --dport 53 -j ACCEPT
-    iptables -t mangle -A PREROUTING -i $lan -m set --match-set macports src -d $dnsip -p udp --dport 53 -j ACCEPT
-    iptables -t mangle -A PREROUTING -i $lan -m set --match-set macports src -d $dnsip -p tcp --dport 53 -j ACCEPT
+    iptables -A FORWARD -i "$lan" -o "$wan" -m set --match-set macports src -d "$dnsip" -p udp --dport 53 -j ACCEPT
+    iptables -A FORWARD -i "$lan" -o "$wan" -m set --match-set macports src -d "$dnsip" -p tcp --dport 53 -j ACCEPT
+    iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macports src -d "$dnsip" -p udp --dport 53 -j ACCEPT
+    iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macports src -d "$dnsip" -p tcp --dport 53 -j ACCEPT
 done
-iptables -A FORWARD -i $lan -o $wan -p udp --dport 53 -j DROP
-iptables -A FORWARD -i $lan -o $wan -p tcp --dport 53 -j DROP
+iptables -A FORWARD -i "$lan" -o "$wan" -p udp --dport 53 -j DROP
+iptables -A FORWARD -i "$lan" -o "$wan" -p tcp --dport 53 -j DROP
 
 # PRINTERS
 for chain in INPUT FORWARD; do
     # PRINTERS & SCANNERS UDP: SNMP (161,162) + prnrequest/prnstatus (3910/3911)
-    iptables -A $chain -i $lan -p udp -m multiport --dports 161,162,3910,3911 -m set --match-set macports src -j ACCEPT
+    iptables -A "$chain" -i "$lan" -p udp -m multiport --dports 161,162,3910,3911 -m set --match-set macports src -j ACCEPT
     # PRINTERS & SCANNERS TCP: JetDirect/RAW (9100) + prnrequest/prnstatus (3910/3911)
-    iptables -A $chain -i $lan -p tcp -m multiport --dports 9100,3910,3911 -m set --match-set macports src -j ACCEPT
+    iptables -A "$chain" -i "$lan" -p tcp -m multiport --dports 9100,3910,3911 -m set --match-set macports src -j ACCEPT
 done
 # STUN/TURN (WebRTC, Teams, Meet, Zoom)
-iptables -A FORWARD -i $lan -o $wan -p udp -m multiport --dports 3478:3481 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i $lan -o $wan -p tcp -m multiport --dports 3478,5349 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -o "$wan" -p udp -m multiport --dports 3478:3481 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -o "$wan" -p tcp -m multiport --dports 3478,5349 -m set --match-set macports src -j ACCEPT
 # Google STUN
-iptables -A FORWARD -i $lan -o $wan -p udp -m multiport --dports 19302:19309 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -o "$wan" -p udp -m multiport --dports 19302:19309 -m set --match-set macports src -j ACCEPT
 # FILE SHARING SAMBA (SMB)
-iptables -A INPUT -i $lan -p tcp -m multiport --dports 445,3092 -m set --match-set macports src -j ACCEPT
+iptables -A INPUT -i "$lan" -p tcp -m multiport --dports 445,3092 -m set --match-set macports src -j ACCEPT
 # EMAIL (SMTP, IMAP, POP3)
-iptables -A FORWARD -i $lan -p tcp -m multiport --dports 110,143,465,587,993,995 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -p tcp -m multiport --dports 110,143,465,587,993,995 -m set --match-set macports src -j ACCEPT
 # MESSAGING & XMPP (Jabber, FCM)
-iptables -A FORWARD -i $lan -p tcp -m multiport --dports 5222,5223,5228,5269 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -p tcp -m multiport --dports 5222,5223,5228,5269 -m set --match-set macports src -j ACCEPT
 # WSD (Web Services Discovery) - TCP
-iptables -A FORWARD -i $lan -p tcp -m multiport --dports 5357,5358 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -p tcp -m multiport --dports 5357,5358 -m set --match-set macports src -j ACCEPT
 # mDNS LAN noise
-iptables -A INPUT -i $lan -d 224.0.0.251 -p udp --dport 5353 -j DROP
+iptables -A INPUT -i "$lan" -d 224.0.0.251 -p udp --dport 5353 -j DROP
 # Drop local multicast (collaboration tools, discovery, etc.)
-iptables -A INPUT -i $lan -d 239.255.0.0/16 -j DROP
+iptables -A INPUT -i "$lan" -d 239.255.0.0/16 -j DROP
 # LAN traffic: discovery, printing, collaboration
 # mDNS / Bonjour / AirPrint
-iptables -A FORWARD -i $lan -o $lan -d 224.0.0.251 -p udp --dport 5353 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -o "$lan" -d 224.0.0.251 -p udp --dport 5353 -m set --match-set macports src -j ACCEPT
 # LLMNR
-iptables -A FORWARD -i $lan -o $lan -d 224.0.0.252 -p udp --dport 5355 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -o "$lan" -d 224.0.0.252 -p udp --dport 5355 -m set --match-set macports src -j ACCEPT
 # SSDP / UPnP
-iptables -A FORWARD -i $lan -o $lan -d 239.255.255.250 -p udp --dport 1900 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i $lan -o $lan -p udp --dport 5000 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i $lan -p udp -m multiport --dports 1900,5000 -m set --match-set macports src -j DROP
+iptables -A FORWARD -i "$lan" -o "$lan" -d 239.255.255.250 -p udp --dport 1900 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -o "$lan" -p udp --dport 5000 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -p udp -m multiport --dports 1900,5000 -m set --match-set macports src -j DROP
 # WSD
-iptables -A FORWARD -i $lan -o $lan -d 239.255.255.250 -p udp --dport 3702 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -o "$lan" -d 239.255.255.250 -p udp --dport 3702 -m set --match-set macports src -j ACCEPT
 # Multimedia & Streaming
-iptables -A FORWARD -i $lan -o $lan -p tcp -m multiport --dports 2869,8200 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -o "$lan" -p tcp -m multiport --dports 2869,8200 -m set --match-set macports src -j ACCEPT
 # IGMP (required for multicast group management)
-iptables -A FORWARD -i $lan -o $lan -p igmp -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -o "$lan" -p igmp -m set --match-set macports src -j ACCEPT
 
 ## SECURITY RULES ##
 # Block 6to4 (IPv6-in-IPv4 tunneling) - prevents LAN clients from bypassing
 # IPv4-based firewall rules via IPv6 tunnel encapsulation
-iptables -A FORWARD -i $lan -p 41 -j DROP
+iptables -A FORWARD -i "$lan" -p 41 -j DROP
 
 # NETBIOS NMBD (disabled in smb.conf)
 for chain in INPUT FORWARD; do
-    iptables -A $chain -i $lan -p udp -m multiport --dports 137,138 -j DROP
-    iptables -A $chain -i $lan -p tcp --dport 139 -j DROP
+    iptables -A "$chain" -i "$lan" -p udp -m multiport --dports 137,138 -j DROP
+    iptables -A "$chain" -i "$lan" -p tcp --dport 139 -j DROP
 done
 # CoAP/CoAPs 5683/5684
 for chain in INPUT FORWARD; do
-    iptables -A $chain -i $lan -p udp -m multiport --dports 5683,5684 -j DROP
+    iptables -A "$chain" -i "$lan" -p udp -m multiport --dports 5683,5684 -j DROP
 done
 
 # syncflood
 iptables -N syn_flood
-iptables -A INPUT -i $wan -p tcp --tcp-flags FIN,SYN,RST,ACK SYN -j syn_flood
-iptables -A INPUT -i $lan -p tcp --tcp-flags FIN,SYN,RST,ACK SYN -j syn_flood
-iptables -A syn_flood -i $wan -m limit --limit 50/s --limit-burst 200 -j RETURN
-iptables -A syn_flood -i $lan -m limit --limit 200/s --limit-burst 500 -j RETURN
+iptables -A INPUT -i "$wan" -p tcp --tcp-flags FIN,SYN,RST,ACK SYN -j syn_flood
+iptables -A INPUT -i "$lan" -p tcp --tcp-flags FIN,SYN,RST,ACK SYN -j syn_flood
+iptables -A syn_flood -i "$wan" -m limit --limit 50/s --limit-burst 200 -j RETURN
+iptables -A syn_flood -i "$lan" -m limit --limit 200/s --limit-burst 500 -j RETURN
 iptables -A syn_flood -m limit --limit 1/min -j NFLOG --nflog-prefix "SYNFLOOD: "
 iptables -A syn_flood -j DROP
 
@@ -530,41 +540,41 @@ iptables -A syn_flood -j DROP
 # Allow peer-to-peer update sharing within the local network.
 # Block outbound WUDO traffic to WAN and direct connections to the firewall.
 for proto in tcp udp; do
-    iptables -A FORWARD -i $lan -p $proto --dport 7680 -s $localnet/$netmask -d $localnet/$netmask -j ACCEPT
+    iptables -A FORWARD -i "$lan" -p "$proto" --dport 7680 -s "$localnet/$netmask" -d "$localnet/$netmask" -j ACCEPT
 done
 for chain in INPUT FORWARD; do
     for proto in tcp udp; do
-        iptables -A $chain -i $lan -p $proto --dport 7680 -j DROP
+        iptables -A "$chain" -i "$lan" -p "$proto" --dport 7680 -j DROP
     done
 done
 
 # Block GRE (Generic Routing Encapsulation) protocol 47
 for chain in INPUT FORWARD; do
-    iptables -A $chain -i $lan -p 47 -j DROP
+    iptables -A "$chain" -i "$lan" -p 47 -j DROP
 done
 # Block Windows ICS (Internet Connection Sharing) network range
-iptables -A FORWARD -i $lan -d 192.168.137.0/24 -j DROP
+iptables -A FORWARD -i "$lan" -d 192.168.137.0/24 -j DROP
 # Block WS-Discovery unicast to server (Windows clients noise)
-iptables -A INPUT -i $lan -p udp --sport 3702 -d $serverip -j DROP
+iptables -A INPUT -i "$lan" -p udp --sport 3702 -d "$serverip" -j DROP
 # KMS Windows activation noise
-iptables -A INPUT -i $lan -p tcp --dport 1688 -j ACCEPT
-iptables -A FORWARD -i $lan -o $wan -p tcp --dport 1688 -j ACCEPT
+iptables -A INPUT -i "$lan" -p tcp --dport 1688 -j ACCEPT
+iptables -A FORWARD -i "$lan" -o "$wan" -p tcp --dport 1688 -j ACCEPT
 # Spotify LAN sync broadcast noise
-iptables -A INPUT -i $lan -p udp --dport 57621 -j DROP
+iptables -A INPUT -i "$lan" -p udp --dport 57621 -j DROP
 # Cisco IP phones discovery noise
-iptables -A INPUT -i $lan -p udp -m multiport --dports 2007,2008 -j DROP
+iptables -A INPUT -i "$lan" -p udp -m multiport --dports 2007,2008 -j DROP
 # SAP broadcast noise (Optional)
-iptables -A INPUT -i $lan -p udp --dport 3289 -j DROP
+iptables -A INPUT -i "$lan" -p udp --dport 3289 -j DROP
 # Dropbox LAN sync broadcast noise
-iptables -A INPUT -i $lan -p udp --dport 17500 -j DROP
+iptables -A INPUT -i "$lan" -p udp --dport 17500 -j DROP
 
 protocols=(
  "torrent:|426974546f7272656e742070726f746f636f6c|"
  "tor:|1cc02bc02fc02cc030c00ac009c013c01400330039002f0035000a00ff01|"
 )
 for p in "${protocols[@]}"; do
-    iptables -A FORWARD -i $lan -m string --hex-string "${p#*:}" --algo bm -j NFLOG --nflog-prefix "${p%%:*}: "
-    iptables -A FORWARD -i $lan -m string --hex-string "${p#*:}" --algo bm -j DROP
+    iptables -A FORWARD -i "$lan" -m string --hex-string "${p#*:}" --algo bm -j NFLOG --nflog-prefix "${p%%:*}: "
+    iptables -A FORWARD -i "$lan" -m string --hex-string "${p#*:}" --algo bm -j DROP
 done
 
 # ICMP (ping) (Optional)
@@ -576,7 +586,7 @@ done
 #iptables -A FORWARD -p icmp -m limit --limit 10/second -j ACCEPT
 #iptables -A OUTPUT -p icmp --icmp-type echo-request -j ACCEPT
 # Silence ICMP forward noise
-iptables -A FORWARD -i $lan -o $wan -p icmp -j DROP
+iptables -A FORWARD -i "$lan" -o "$wan" -p icmp -j DROP
 
 ## MAC RULES ##
 # MACPROXY (PAC 18100 - Opcion 252 DHCP, HTTP 80 to 3128)
@@ -586,15 +596,15 @@ else
     ipset flush macproxy
 fi
 for mac in $(awk -F";" '$2 != "" {print $2}' "$mac_proxy_file" 2>/dev/null); do
-    ipset add macproxy $mac -exist
+    is_valid_mac "$mac" && ipset add macproxy "$mac" -exist
 done
-iptables -t mangle -A PREROUTING -i $lan -m set --match-set macproxy src -p tcp -m multiport --dports 18100,80 -j ACCEPT
-iptables -t nat -A PREROUTING -i $lan -p tcp --dport 80 -m set --match-set macproxy src -j REDIRECT --to-port 3128
+iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macproxy src -p tcp -m multiport --dports 18100,80 -j ACCEPT
+iptables -t nat -A PREROUTING -i "$lan" -p tcp --dport 80 -m set --match-set macproxy src -j REDIRECT --to-port 3128
 for chain in INPUT FORWARD; do
-    iptables -A $chain -i $lan -p tcp -m multiport --dports 18100,3128 -m set --match-set macproxy src -j ACCEPT
+    iptables -A "$chain" -i "$lan" -p tcp -m multiport --dports 18100,3128 -m set --match-set macproxy src -j ACCEPT
 done
 
-## END ## 
+## END ##
 iptables -A INPUT -m hashlimit --hashlimit-name input-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip,dstport -j NFLOG --nflog-prefix "FINAL-INPUT DROP: "
 iptables -A INPUT -j DROP
 iptables -A FORWARD -m hashlimit --hashlimit-name forward-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip,dstport -j NFLOG --nflog-prefix "FINAL-FORWARD DROP: "
