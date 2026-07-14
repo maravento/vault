@@ -2,8 +2,9 @@
 
 [![status-maintained](https://img.shields.io/badge/status-maintained-purple.svg)](https://github.com/maravento/vault)
 [![last commit](https://img.shields.io/github/last-commit/maravento/vault)](https://github.com/maravento/vault)
+[![Stargazers](https://img.shields.io/github/stars/maravento/vault?label=Stargazers)](https://github.com/maravento/vault/stargazers)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/maravento/vault)
-[![Twitter Follow](https://img.shields.io/twitter/follow/maraventostudio.svg?style=social)](https://twitter.com/maraventostudio)
+[![Twitter Follow](https://img.shields.io/twitter/follow/maraventostudio.svg)](https://twitter.com/maraventostudio)
 
 <!-- markdownlint-disable MD033 -->
 
@@ -105,12 +106,6 @@ python3 gitfolder.py https://github.com/maravento/vault/project_name
     </td>
   </tr>
 </table>
-
-## STARGAZERS
-
----
-
-[![Stargazers](https://bytecrank.com/nastyox/reporoster/php/stargazersSVG.php?user=maravento&repo=vault)](https://github.com/maravento/vault/stargazers)
 
 ## CONTRIBUTIONS
 
