@@ -1482,12 +1482,12 @@ install_opencode_desktop() {
         fi
 
         info "Installing package: $pkg_name"
+        chmod 644 "$asset_tmp"
         if ! apt-get install -y "$asset_tmp"; then
             err "Failed to install OpenCode Desktop"
             rm -f "$asset_tmp"
             return 1
         fi
-        rm -f "$asset_tmp"
 
         _opencode_desktop_state_write "deb" "$version" "$pkg_name"
         ok "OpenCode Desktop installed via .deb ($pkg_name, $version)"
