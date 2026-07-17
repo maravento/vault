@@ -45,7 +45,7 @@ fi
 echo "Using local user: $local_user"
 
 # check dependencies
-pkgs='kpartx'
+pkgs='kpartx pv'
 missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
 unavailable=""
 for p in $missing; do

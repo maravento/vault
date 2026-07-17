@@ -21,7 +21,7 @@
 
 | OS | CPU | NIC | RAM | Storage |
 | :---: | :---: | :---: | :---: | :---: |
-| Ubuntu 24.04.x | 4+ cores (≥ 3.0 GHz) | 2 (WAN & LAN) | 16-32 GB (4 GB cache_mem) | 100 GB SSD (cache_dir rock) |
+| Ubuntu 24.04.x | 4+ cores (≥ 3.0 GHz) | 2 (WAN & LAN) | 12+ GB (4 GB cache_mem) | 100 GB SSD (cache_dir rock) |
 
 ## HOW TO USE
 
@@ -43,6 +43,17 @@ wget -qO gateproxy.sh https://raw.githubusercontent.com/maravento/vault/master/g
 ```
 
 ![Gateproxy](https://raw.githubusercontent.com/maravento/vault/master/gateproxy/img/gateproxy.png)
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+     Before installing anything, the script checks for conflicting software already on the system: <code>isc-dhcp-server</code>/<code>dnsmasq</code> (DHCP), <code>squid</code>/<code>squid3</code>/<code>tinyproxy</code>/<code>privoxy</code>/<code>3proxy</code> (proxy), <code>nginx</code>/<code>lighttpd</code>/<code>caddy</code> (web server), <code>syslog-ng</code>, <code>firewalld</code>, <code>snort</code>, or an active <code>ufw</code>. If any of these are present, the installer aborts with instructions to remove them first.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+     Antes de instalar nada, el script verifica que no haya software en conflicto ya presente: <code>isc-dhcp-server</code>/<code>dnsmasq</code> (DHCP), <code>squid</code>/<code>squid3</code>/<code>tinyproxy</code>/<code>privoxy</code>/<code>3proxy</code> (proxy), <code>nginx</code>/<code>lighttpd</code>/<code>caddy</code> (servidor web), <code>syslog-ng</code>, <code>firewalld</code>, <code>snort</code>, o un <code>ufw</code> activo. Si detecta alguno, el instalador aborta con instrucciones para removerlo primero.
+    </td>
+  </tr>
+</table>
 
 ## SETUP PARAMETERS
 
@@ -66,11 +77,22 @@ wget -qO gateproxy.sh https://raw.githubusercontent.com/maravento/vault/master/g
 | Server IP | `192.168.0.10` | Gateway IP assigned to this server / IP del servidor en la LAN |
 | Netmask | `255.255.255.0` | Subnet mask / Máscara de subred |
 | Subnet (CIDR) | `/24` | CIDR prefix length / Prefijo CIDR |
-| Localnet | `192.168.0.0` | LAN network address / Dirección de red LAN |
-| Broadcast | `192.168.0.255` | LAN broadcast address / Dirección de broadcast LAN |
 | DNS Primary | `8.8.8.8` | Primary DNS server / DNS primario |
 | DNS Secondary | `8.8.4.4` | Secondary DNS server / DNS secundario |
 | Proxy Port | `3128` | Squid proxy port / Puerto del proxy Squid |
+
+Localnet (`192.168.0.0`) and Broadcast (`192.168.0.255`) are derived automatically from the Server IP, not asked separately / Localnet (`192.168.0.0`) y Broadcast (`192.168.0.255`) se derivan automáticamente del Server IP, no se preguntan por separado.
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+     If a previous run was interrupted after network data was collected (e.g. the network took too long to come up), the script saves those answers to <code>/etc/gateproxy/network.env</code>. On the next run it asks whether to reuse them, skipping the questions above. This file is deleted automatically once the installation completes successfully.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+     Si una corrida anterior se interrumpió después de recolectar los datos de red (ej. la red tardó demasiado en levantar), el script guarda esas respuestas en <code>/etc/gateproxy/network.env</code>. En la siguiente corrida pregunta si quiere reusarlos, saltando las preguntas anteriores. Este archivo se borra automáticamente cuando la instalación termina exitosamente.
+    </td>
+  </tr>
+</table>
 
 <table width="100%">
   <tr>
@@ -108,6 +130,7 @@ join <(ip -o -br link | sort) <(ip -o -br addr | sort) | awk '$2=="UP" {print $1
 | :--- | :---: | :--- |
 | **Squid** (squid-openssl) | `3128` | Transparent + explicit proxy with rock/ufs cache |
 | **WPAD/PAC** (Apache2) | `18100` | Proxy auto-config served via `wpad.pac` |
+| **Proxymon** | `18080` | Bandwidth monitoring dashboard |
 | **Proxymon** | `18081` | Bandwidth quota warning page (bandata redirect) |
 
 ### Web / Admin
@@ -367,11 +390,22 @@ The following scripts from `conf/scr/` are copied to `/etc/scr/` during installa
 
 | Script | Trigger | Purpose |
 | :--- | :--- | :--- |
-| `iptables.sh` | `@reboot` / manual | Load firewall rules and ipsets |
+| `iptables.sh` | manual | Load firewall rules and ipsets |
 | `serverboot.sh` | manual (`alias server`) | Start/restart all server services |
 | `serviceswatch.sh` | every 5 min | Restart failed services |
 | `killswitch.sh` | manual | Block all traffic in emergency |
 | `bkconf.sh` | manual | Backup configuration files |
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+     Some deployed tools — <code>iptables.sh</code> here, and pydhcp's own <code>pyleases.sh</code> — are never added to cron automatically by any installer. Scheduling them (or not) is entirely up to the operator, based on their own needs.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+     Algunas herramientas desplegadas — <code>iptables.sh</code> aquí, y <code>pyleases.sh</code> de pydhcp — nunca se agregan al cron automáticamente por ningún instalador. Programarlas (o no) queda enteramente a criterio del operador, según sus necesidades.
+    </td>
+  </tr>
+</table>
 
 The installer also downloads the following scripts from external repositories / El instalador también descarga los siguientes scripts de repositorios externos:
 
@@ -422,10 +456,10 @@ curl http://SERVER_IP:18100/wpad.pac
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     Gateproxy is a script designed for very specific network environments and is only compatible with Ubuntu 24.04.x LTS. It is not intended for general or production use. Using it outside the environment for which it was designed may cause unexpected behavior or system misconfiguration. Use at your own risk.
+     Gateproxy is a script designed for very specific network environments. It requires Ubuntu 24.04 LTS or newer (versions above 24.04 are untested and will show a warning). It is not intended for general or production use. Using it outside the environment for which it was designed may cause unexpected behavior or system misconfiguration. Use at your own risk.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Gateproxy es un script diseñado para entornos de red muy específicos y solo es compatible con Ubuntu 24.04.x LTS. No está destinado para uso general ni en producción. Usarlo fuera del entorno para el que fue diseñado puede causar comportamientos inesperados o una mala configuración del sistema. Úselo bajo su propio riesgo.
+     Gateproxy es un script diseñado para entornos de red muy específicos. Requiere Ubuntu 24.04 LTS o superior (versiones posteriores a 24.04 no están probadas y mostrarán una advertencia). No está destinado para uso general ni en producción. Usarlo fuera del entorno para el que fue diseñado puede causar comportamientos inesperados o una mala configuración del sistema. Úselo bajo su propio riesgo.
     </td>
   </tr>
 </table>

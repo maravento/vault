@@ -41,13 +41,27 @@ USER_LANG=$(locale | grep LANG= | cut -d= -f2 | cut -d_ -f1) || true
 export LANG=${LANG:-C.UTF-8}
 export LC_ALL=${LC_ALL:-C.UTF-8}
 
+retry_cmd() {
+    local max_attempts=10
+    local attempt=1
+    until "$@"; do
+        if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "ERROR: command failed after $max_attempts attempts: $*"
+            exit 1
+        fi
+        echo "WARNING: command failed (attempt $attempt/$max_attempts), retrying in 10s: $*"
+        attempt=$((attempt + 1))
+        sleep 10
+    done
+}
+
 check_dependencies() {
     if ! dpkg -s curl >/dev/null 2>&1; then
-        if ! apt-get -qq update; then
+        if ! retry_cmd apt-get -qq update; then
             echo "ERROR: Failed to update package lists while preparing to install curl"
             exit 1
         fi
-        if ! apt-get install -y curl; then
+        if ! retry_cmd apt-get install -y curl; then
             echo "ERROR: Failed to install curl"
             exit 1
         fi
@@ -84,11 +98,11 @@ check_dependencies() {
             sleep 5
             APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
         done
-        if ! apt-get -qq update; then
+        if ! retry_cmd apt-get -qq update; then
             echo "ERROR: Failed to update package lists"
             exit 1
         fi
-        if ! apt-get install -y "${missing[@]}"; then
+        if ! retry_cmd apt-get install -y "${missing[@]}"; then
             echo "ERROR: Failed to install dependencies"
             exit 1
         fi
@@ -97,7 +111,7 @@ check_dependencies() {
     # rustdesk depends on libxdo3 | libxdo4 (either one satisfies it)
     if ! dpkg -s libxdo3 &>/dev/null && ! dpkg -s libxdo4 &>/dev/null; then
         echo "INFO: Installing missing dependency: libxdo3"
-        if ! apt-get install -y libxdo3; then
+        if ! retry_cmd apt-get install -y libxdo3; then
             echo "ERROR: Failed to install libxdo3"
             exit 1
         fi
@@ -182,7 +196,7 @@ install_rustdesk() {
     BASE_URL="https://github.com/rustdesk/rustdesk/releases/download/${VER_TAG}"
 
     cd /tmp
-    if ! wget -q "${BASE_URL}/${DEB_FILE}"; then
+    if ! retry_cmd wget -q "${BASE_URL}/${DEB_FILE}"; then
         echo "ERROR: Download failed"
         rm -f "$DEB_FILE"
         exit 1

@@ -2,99 +2,23 @@
 # maravento.com
 #
 ################################################################################
-# npswitch.sh
-# 
-# Intelligent Network Renderer Switcher for Ubuntu/Debian Netplan
-# Safely switches between NetworkManager and systemd-networkd
+# npswitch.sh — Netplan Renderer Switcher
 #
-# DESCRIPTION:
-#   This script provides an intelligent way to switch network management 
-#   between NetworkManager and systemd-networkd on systems using Netplan.
-#   It automatically detects your network setup (WiFi, Ethernet, virtual 
-#   interfaces) and recommends the best renderer for your use case.
-#
-# FEATURES:
-#   • Automatic interface detection and classification
-#   • Smart recommendations based on your hardware
-#   • Safe backup/restore of Netplan configurations
-#   • Proper service management (stop, disable, mask)
-#   • Virtual interface exclusion (Docker, libvirt, bridges)
-#   • WiFi detection and warnings
-#   • Interactive or command-line usage
-#
-# WHEN TO USE NetworkManager:
-#   ✓ Laptops and workstations with WiFi
-#   ✓ Systems that need GUI network management (nmtui/nmcli)
-#   ✓ Frequent network switching (home/office/mobile)
-#   ✓ Desktop environments (GNOME, KDE, etc.)
-#
-# WHEN TO USE systemd-networkd:
-#   ✓ Servers with only Ethernet connections
-#   ✓ Headless systems and VMs
-#   ✓ Minimal installations (lower resource usage)
-#   ✓ Systems that need faster boot times
-#   ✓ Container hosts and cloud instances
+# Safely switches between NetworkManager and systemd-networkd on
+# Ubuntu/Debian systems using Netplan. Detects your interfaces (WiFi,
+# Ethernet, virtual) and recommends the best renderer.
 #
 # USAGE:
-#   Interactive menu:
-#     sudo ./npswitch.sh
-#
-#   Command-line options:
-#     sudo ./npswitch.sh --status        # Show current config
-#     sudo ./npswitch.sh --to-networkd   # Switch to networkd
-#     sudo ./npswitch.sh --to-nm         # Switch to NetworkManager
-#     sudo ./npswitch.sh --help          # Show help
-#
-# QUICK START:
-#   1. Make executable:
-#      chmod +x npswitch.sh
-#
-#   2. Check your current setup:
-#      sudo ./npswitch.sh --status
-#
-#   3. Switch renderer (the script will guide you):
-#      sudo ./npswitch.sh --to-nm
-#      # or
-#      sudo ./npswitch.sh --to-networkd
-#
-# SAFETY FEATURES:
-#   • Automatic backup of all YAML files before changes (.bak extension)
-#   • Configuration validation before applying changes
-#   • Rollback capability if errors occur
-#   • Warning prompts for risky operations (WiFi systems)
-#   • No modification of virtual interfaces (Docker, libvirt, etc.)
-#
-# REQUIREMENTS:
-#   • Ubuntu 18.04+ or Debian-based system with Netplan
-#   • Root/sudo privileges
-#   • netplan, systemctl, and ip commands available
-#
-# FILES MODIFIED:
-#   • /etc/netplan/*.yaml (backed up as *.yaml.bak)
-#   • Creates /etc/netplan/00-networkd.yaml when switching to networkd
-#   • Restores original YAML files when switching to NetworkManager
-#
-# TROUBLESHOOTING:
-#   If something goes wrong:
-#   1. Check service status:
-#      sudo systemctl status NetworkManager
-#      sudo systemctl status systemd-networkd
-#
-#   2. Restore backups manually:
-#      cd /etc/netplan
-#      sudo mv *.yaml.bak *.yaml (remove .bak extension)
-#      sudo netplan apply
-#
-#   3. View network interfaces:
-#      ip addr show
-#      sudo netplan status
+#   sudo ./npswitch.sh                 # interactive menu
+#   sudo ./npswitch.sh --status        # show current config
+#   sudo ./npswitch.sh --to-networkd   # switch to systemd-networkd
+#   sudo ./npswitch.sh --to-nm         # switch to NetworkManager
+#   sudo ./npswitch.sh --help          # show help
 #
 # NOTES:
-#   ⚠ This script may temporarily disconnect your network connection
-#   ⚠ Use with caution on remote SSH sessions
-#   ⚠ Virtual interfaces (docker0, virbr0, etc.) are intentionally excluded
-#   ⚠ WiFi requires NetworkManager for easy management
-#
+#   ⚠ May temporarily disconnect your network — use with caution over SSH
+#   ⚠ YAML files are backed up (.bak) before any change
+#   ⚠ Virtual interfaces (docker0, virbr0, etc.) are excluded
 ################################################################################
 
 ## root check
@@ -704,25 +628,13 @@ show_help() {
     cat << EOF
 Usage: $0 [OPTIONS]
 
-Network Renderer Switcher for Netplan
-Intelligently switches between NetworkManager and systemd-networkd
+Switches between NetworkManager and systemd-networkd on Netplan systems.
 
 Options:
   --status              Show current configuration and recommendations
-  --to-networkd         Switch to systemd-networkd renderer
-  --to-nm               Switch to NetworkManager renderer
+  --to-networkd         Switch to systemd-networkd
+  --to-nm               Switch to NetworkManager
   -h, --help            Show this help message
-
-Features:
-  • Intelligent interface detection (WiFi, Ethernet, Virtual)
-  • Automatic renderer recommendations
-  • Safe exclusion of virtual interfaces from networkd config
-  • Automatic file protection via .bak extension
-
-Examples:
-  $0 --status           # Analyze and get recommendations
-  $0 --to-networkd      # Switch to systemd-networkd (servers)
-  $0 --to-nm            # Switch to NetworkManager (WiFi/desktop)
 
 EOF
 }
@@ -732,20 +644,15 @@ show_menu() {
     while true; do
         clear
         current_renderer=$(detect_current_renderer)
-        
-        echo -e "${BLUE}============================================================${NC}"
-        echo -e "${BLUE}          NETPLAN RENDERER SWITCHER${NC}"
-        echo -e "${BLUE}        Intelligent Network Configuration Tool${NC}"
-        echo -e "${BLUE}============================================================${NC}"
+
+        echo -e "${BLUE}Netplan Renderer Switcher${NC} — current: ${GREEN}$current_renderer${NC}"
         echo ""
-        echo -e "Current renderer: ${GREEN}$current_renderer${NC}"
-        echo ""
-        echo "  1) Show detailed status & recommendations"
+        echo "  1) Status"
         echo "  2) Switch to systemd-networkd"
         echo "  3) Switch to NetworkManager"
         echo "  4) Exit"
         echo ""
-        echo -n "Select an option [1-4]: "
+        echo -n "Select [1-4]: "
         read -r option
         
         case $option in

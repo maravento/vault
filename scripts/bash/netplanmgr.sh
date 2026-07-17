@@ -195,7 +195,8 @@ if (defined $in{'save'}) {
 if (defined $in{'validate'}) {
     my $file = $in{'file'} || '';
     if ($file && is_safe_netplan_file($file) && -f $file) {
-        my $tmpdir  = "/tmp/netplan-test-$$";
+        my $tmpdir  = `mktemp -d /tmp/netplan-test-XXXXXX`;
+        chomp $tmpdir;
         my $tmpyaml = "$tmpdir/etc/netplan/validate-$$.yaml";
         system("mkdir -p \"$tmpdir/etc/netplan\"");
         my $content = read_file_content($file);
@@ -222,14 +223,7 @@ if (defined $in{'validate'}) {
 if (defined $in{'apply'}) {
     my $file = $in{'file'} || '';
     if ($file && is_safe_netplan_file($file)) {
-        # Save first if content present
-        if (defined $in{'content'}) {
-            if (!write_file_content($file, $in{'content'})) {
-                &redirect("index.cgi?error=save");
-                exit;
-            }
-        }
-        # Backup if enabled in config
+        # Backup if enabled in config (before overwriting, so it's a real restore point)
         if (($config{'netplan_backup'} // '1') eq '1') {
             my $backup_dir  = $config{'backup_path'} || '/var/backups/netplan';
             my $backup_keep = int($config{'backup_keep'} || 5);
@@ -243,6 +237,13 @@ if (defined $in{'apply'}) {
             my @old = sort glob("\"$backup_dir/${basename}.*.bak\"");
             while (@old > $backup_keep) {
                 unlink(shift @old);
+            }
+        }
+        # Save first if content present
+        if (defined $in{'content'}) {
+            if (!write_file_content($file, $in{'content'})) {
+                &redirect("index.cgi?error=save");
+                exit;
             }
         }
         # Apply
@@ -1059,12 +1060,13 @@ EOF
     # ============================================================
     # 13. Create icon.gif
     # ============================================================
-    cat > /tmp/icon.gif.b64 << 'ICONEOF'
+    ICON_B64=$(mktemp)
+    cat > "$ICON_B64" << 'ICONEOF'
 R0lGODlhMAAwAPAAAAAAAAAAACH5BAEAAAAALAAAAAAwADAAAAKrhI+py+0Po5wqJEszCpyf7mkUiAGkOJJqiUKr2krvGS/zDdYGzusmj6vdLjPfynb0/XIVmnLZQTKfsOZU95I6W8NNUQj8yq5hcWRbzk62xOA5BIX/Pj0XML6rP9JuvJ3v4cTGAChncpFR+JSXtshIlgSm5mWWWPlYJdLVFqmxSdlpOQmayRU6isXnGHfnqEhVyBITazgbuxiFWXKlxFJ6uGpVGywsS3yMHFMAADs=
 ICONEOF
-    
-    base64 -d /tmp/icon.gif.b64 > "$MODDIR/images/icon.gif" || true
-    rm -f /tmp/icon.gif.b64
+
+    base64 -d "$ICON_B64" > "$MODDIR/images/icon.gif" || true
+    rm -f "$ICON_B64"
     
     # ============================================================
     # Set permissions

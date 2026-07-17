@@ -159,7 +159,7 @@ start_tunnel() {
         return 1
     fi
 
-    echo "Running: cloudflared tunnel run --config $config_file $tunnel_id"
+    echo "Running: cloudflared --config $config_file tunnel run $tunnel_id"
     nohup "$CLOUDFLARED_BIN" --config "$config_file" tunnel run "$tunnel_id" >> "$log_file" 2>&1 &
 
     local new_pid=$!
@@ -479,7 +479,6 @@ _cron_remove() {
 
 ### --- MAIN --- ###
 ACTION="$1"
-TUNNEL_NAME="$2"
 
 case "$ACTION" in
     create)

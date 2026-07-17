@@ -13,6 +13,12 @@
 
 set -u
 
+## root check
+if [ "$(id -u)" != "0" ]; then
+    echo "ERROR: This script must be run as root"
+    exit 1
+fi
+
 # LOG FILE for debugging
 SCRIPT_LOG="/var/log/rcloud-startup.log"
 exec 1> >(tee -a "$SCRIPT_LOG")
@@ -25,12 +31,6 @@ echo "================================================"
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-## root check
-if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
-    exit 1
-fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"

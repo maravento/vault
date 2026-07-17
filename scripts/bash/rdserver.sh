@@ -37,6 +37,20 @@ fi
 
 set -euo pipefail
 
+retry_cmd() {
+    local max_attempts=10
+    local attempt=1
+    until "$@"; do
+        if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "ERROR: command failed after $max_attempts attempts: $*"
+            exit 1
+        fi
+        echo "WARNING: command failed (attempt $attempt/$max_attempts), retrying in 10s: $*"
+        attempt=$((attempt + 1))
+        sleep 10
+    done
+}
+
 RD_USER="rustdesk"
 RD_DATA_DIR="/var/lib/rustdesk-server"
 RD_LOG_DIR="/var/log/rustdesk-server"
@@ -72,7 +86,7 @@ check_dependencies() {
             sleep 5
             APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
         done
-        if ! apt-get -qq update || ! apt-get install -y "${missing[@]}"; then
+        if ! retry_cmd apt-get -qq update || ! retry_cmd apt-get install -y "${missing[@]}"; then
             echo "ERROR: Failed to install dependencies: ${missing[*]}"
             exit 1
         fi
@@ -174,7 +188,7 @@ install_server() {
             exit 1
         fi
 
-        if ! wget -q "${BASE_URL}/${deb}"; then
+        if ! retry_cmd wget -q "${BASE_URL}/${deb}"; then
             echo "ERROR: Download failed: $deb"
             rm -f "$HBBS_DEB" "$HBBR_DEB"
             exit 1

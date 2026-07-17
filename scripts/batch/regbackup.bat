@@ -56,6 +56,10 @@ if exist "%DEST%\*" (
 )
 goto end
 
+:invalid
+echo Invalid option
+goto end
+
 :end
 echo Done
 exit /b

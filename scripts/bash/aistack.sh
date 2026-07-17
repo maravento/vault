@@ -55,6 +55,20 @@ fi
 
 set -euo pipefail
 
+retry_cmd() {
+    local max_attempts=10
+    local attempt=1
+    until "$@"; do
+        if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "ERROR: command failed after $max_attempts attempts: $*"
+            exit 1
+        fi
+        echo "WARNING: command failed (attempt $attempt/$max_attempts), retrying in 10s: $*"
+        attempt=$((attempt + 1))
+        sleep 10
+    done
+}
+
 # ── Configuration ──────────────────────────────────────────────────────────────
 AI_BASE_DIR="/home/$local_user/aiworker"
 OPEN_WEBUI_PORT=3000
@@ -283,12 +297,12 @@ install_docker() {
         ok "Docker is already installed"
     else
         info "Installing Docker..."
-        apt-get install -y ca-certificates curl gnupg lsb-release
+        retry_cmd apt-get install -y ca-certificates curl gnupg lsb-release
 
         # GPG key
         rm -f /etc/apt/keyrings/docker.gpg /tmp/docker_$$.gpg
         mkdir -p /etc/apt/keyrings
-        if ! curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /tmp/docker_$$.gpg; then
+        if ! retry_cmd curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /tmp/docker_$$.gpg; then
             err "Failed to download Docker GPG key"
             rm -f /tmp/docker_$$.gpg
             exit 1
@@ -317,8 +331,8 @@ install_docker() {
             tee /etc/apt/sources.list.d/docker.list > /dev/null
 
         # Install Docker
-        apt-get update
-        apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        retry_cmd apt-get update
+        retry_cmd apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
         
         mkdir -p /etc/docker
         systemctl start docker
@@ -358,7 +372,7 @@ install_nvidia_docker() {
         distribution=$(. /etc/os-release; echo "$ID$VERSION_ID")
         rm -f /etc/apt/keyrings/nvidia-docker.gpg /tmp/nvidia_docker_$$.gpg
         mkdir -p /etc/apt/keyrings
-        if ! curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey -o /tmp/nvidia_docker_$$.gpg; then
+        if ! retry_cmd curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey -o /tmp/nvidia_docker_$$.gpg; then
             err "Failed to download NVIDIA Docker GPG key"
             rm -f /tmp/nvidia_docker_$$.gpg
             exit 1
@@ -371,9 +385,9 @@ install_nvidia_docker() {
             | sed 's|deb https://|deb [signed-by=/etc/apt/keyrings/nvidia-docker.gpg] https://|g' \
             | tee /etc/apt/sources.list.d/nvidia-docker.list > /dev/null
         ok "NVIDIA Docker GPG key imported to keyrings"
-        
-        apt-get update
-        apt-get install -y nvidia-container-toolkit
+
+        retry_cmd apt-get update
+        retry_cmd apt-get install -y nvidia-container-toolkit
         
         # Configure Docker daemon — merge nvidia runtime into existing config if present
         mkdir -p /etc/docker
@@ -716,7 +730,7 @@ install_opencode() {
         info "Installing nvm (Node Version Manager) for user: $local_user..."
         local nvm_tmp
         nvm_tmp=$(mktemp /tmp/nvm_install_XXXXXX.sh)
-        if ! curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh -o "$nvm_tmp"; then
+        if ! retry_cmd curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh -o "$nvm_tmp"; then
             err "Failed to download nvm install script"
             rm -f "$nvm_tmp"
             return 1
@@ -762,7 +776,7 @@ install_opencode() {
         info "Installing pnpm..."
         local pnpm_tmp
         pnpm_tmp=$(mktemp /tmp/pnpm_install_XXXXXX.sh)
-        if ! curl -fsSL https://get.pnpm.io/install.sh -o "$pnpm_tmp"; then
+        if ! retry_cmd curl -fsSL https://get.pnpm.io/install.sh -o "$pnpm_tmp"; then
             err "Failed to download pnpm install script"
             rm -f "$pnpm_tmp"
             return 1
@@ -839,7 +853,7 @@ WRAPPER
     info "Installing via official install script as user: $local_user..."
     local install_tmp
     install_tmp=$(mktemp /tmp/opencode_install_XXXXXX.sh)
-    if ! curl -fsSL https://opencode.ai/install -o "$install_tmp"; then
+    if ! retry_cmd curl -fsSL https://opencode.ai/install -o "$install_tmp"; then
         err "Failed to download opencode install script"
         rm -f "$install_tmp"
         return 1
@@ -1034,7 +1048,7 @@ WRAPPER
         info "pnpm package not found — reinstalling via official script..."
         local update_tmp
         update_tmp=$(mktemp /tmp/opencode_update_XXXXXX.sh)
-        if ! curl -fsSL https://opencode.ai/install -o "$update_tmp"; then
+        if ! retry_cmd curl -fsSL https://opencode.ai/install -o "$update_tmp"; then
             err "Failed to download opencode install script"
             rm -f "$update_tmp"
             return 1
@@ -1510,7 +1524,7 @@ install_opencode_desktop() {
 
         if ! dpkg -s libfuse2 &>/dev/null 2>&1; then
             info "Installing libfuse2 (required by AppImage)..."
-            apt-get install -y libfuse2 &>/dev/null
+            retry_cmd apt-get install -y libfuse2 &>/dev/null
             ok "libfuse2 installed"
         fi
 
@@ -2056,8 +2070,8 @@ update_components() {
             ;;
         3)
             step "Updating Docker Engine & Portainer..."
-            apt-get update -qq
-            apt-get install --only-upgrade -y docker-ce docker-ce-cli containerd.io >/dev/null 2>&1
+            retry_cmd apt-get update -qq
+            retry_cmd apt-get install --only-upgrade -y docker-ce docker-ce-cli containerd.io >/dev/null 2>&1
 
             docker stop portainer >/dev/null 2>&1 || true
             docker rm portainer >/dev/null 2>&1 || true
@@ -2238,7 +2252,7 @@ install_lmstudio() {
     # Install libfuse2 dependency (required by AppImage)
     if ! dpkg -s libfuse2 &>/dev/null 2>&1; then
         info "Installing libfuse2 (required by AppImage)..."
-        apt-get install -y libfuse2 &>/dev/null
+        retry_cmd apt-get install -y libfuse2 &>/dev/null
         ok "libfuse2 installed"
     fi
 

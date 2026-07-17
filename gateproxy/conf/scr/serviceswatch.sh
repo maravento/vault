@@ -5,6 +5,9 @@
 #
 # Services Watchdog
 #
+# NOTE on logging:
+# - Writes to /var/log/serviceswatch.log (shared with conf/scr/serviceswatch.sh).
+#
 ################################################################################
 
 # logging
@@ -29,7 +32,8 @@ if ! flock -n 200; then
     exit 1
 fi
 
-log "serviceswatch start.."
+# Start
+log "serviceswatch start..."
 
 ## VARIABLES
 sleep_time="5"
@@ -37,7 +41,7 @@ sleep_time="5"
 ### CHECK SERVICES
 
 # Webmin service
-if pgrep -f "miniserv.pl" > /dev/null; then
+if pgrep -x miniserv.pl > /dev/null; then
     log "ONLINE: Webmin"
 else
     for pid in $(ps -ef | grep "[m]iniserv.pl" | awk '{print $2}'); do
@@ -48,16 +52,8 @@ else
     log "Webmin start"
 fi
 
-# PyDHCP service
-if pgrep -f "pydhcpd" > /dev/null; then
-    log "ONLINE: PyDHCP"
-else
-    systemctl start pydhcpd.service
-    log "PyDHCP start"
-fi
-
 # Apache2 service
-if pgrep -f "apache2" > /dev/null; then
+if pgrep -x apache2 > /dev/null; then
     log "ONLINE: apache2"
 else
     for pid in $(ps -ef | grep "[a]pache2" | awk '{print $2}'); do
@@ -69,7 +65,7 @@ else
 fi
 
 # Squid Service
-if pgrep -f "squid" > /dev/null; then
+if pgrep -x squid > /dev/null; then
     log "ONLINE: squid"
 else
     for pid in $(ps -ef | grep "[s]quid" | awk '{print $2}'); do
@@ -82,7 +78,7 @@ else
 fi
 
 # rsyslog
-if pgrep -f "rsyslogd" > /dev/null; then
+if pgrep -x rsyslogd > /dev/null; then
     log "ONLINE: rsyslog"
 else
     systemctl stop syslog.socket rsyslog.service &>/dev/null
@@ -90,27 +86,6 @@ else
     systemctl start syslog.socket rsyslog.service
     log "Rsyslog start"
 fi
-# Samba Service (smbd)
-if pgrep -x smbd > /dev/null; then
-    log "ONLINE: smbd"
-else
-    for pid in $(pgrep smbd); do kill -9 "$pid" &>/dev/null; done
-    sleep "${sleep_time}"
-    systemctl start smbd.service
-    # alternative:
-    #/etc/init.d/smbd start
-    log "Samba (smbd) start"
-fi
-# Samba Service (winbind)
-if pgrep -x winbindd > /dev/null; then
-    log "ONLINE: winbind"
-else
-    for pid in $(pgrep winbindd); do kill -9 "$pid" &>/dev/null; done
-    sleep "${sleep_time}"
-    systemctl start winbind.service
-    # alternative:
-    #/etc/init.d/winbind start
-    log "Samba (winbind) start"
-fi
 
+# End
 log "serviceswatch done at: $(date)"

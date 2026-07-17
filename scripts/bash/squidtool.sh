@@ -4,7 +4,7 @@
 ################################################################################
 #
 # SQUID ANALYSIS TOOL
-# squidtools.sh
+# squidtool.sh
 #
 # This script provides a unified interface for analyzing Squid proxy logs.
 # It contains six main functions:
@@ -46,7 +46,7 @@
 # 6) squid_ip_timeframe
 #    - Analyzes traffic for a specific IP address within a user-defined time range
 #      (hour range) on the current day.
-#    - Converts UTC timestamps from the log to local Colombia time (UTC-5).
+#    - Converts UTC timestamps from the log to the system's local time zone.
 #    - Displays detailed information including timestamp, cache code, HTTP status,
 #      transferred bytes, method, and URL for each matching request.
 #    - Useful for identifying activity gaps or concentrated traffic during specific
@@ -156,7 +156,7 @@ squid_audit() {
 
     read -p "Enter the word to search (e.g.: video): " WORD
 
-    cat $CACHE_LOG 2>/dev/null | perl -pe 's/^(\d+\.\d+)/localtime($1)/e' \
+    zcat -f $CACHE_LOG 2>/dev/null | perl -pe 's/^(\d+\.\d+)/localtime($1)/e' \
     | grep -i "clientAccessCheckDone" \
     | grep -a -i -F "$WORD" >> "$LOG_FILE"
 
@@ -369,24 +369,24 @@ squid_stats() {
 
     # === TOP LISTS ===
     TOP_IPS=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {count[$3]++; bytes[$3]+=$5} END {
-        for (ip in count) printf "%s (%d req/%.1fMB) ", ip, count[ip], bytes[ip]/1048576
-    }' | tr ' ' '\n' | sort -t'(' -k2 -nr | head -5 | tr '\n' ' ')
+        for (ip in count) printf "%s (%d req/%.1fMB)\n", ip, count[ip], bytes[ip]/1048576
+    }' | sort -t'(' -k2 -nr | head -5 | tr '\n' ' ')
     echo "Top 5 client IPs,$TOP_IPS" >> "$CSV_FILE"
 
     TOP_DOMAINS=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff {
         gsub(/^https?:\/\//, "", $7); gsub(/\/.*/, "", $7)
         count[$7]++; bytes[$7]+=$5
     } END {
-        for (domain in count) printf "%s (%d req/%.1fMB) ", domain, count[domain], bytes[domain]/1048576
-    }' | tr ' ' '\n' | sort -t'(' -k2 -nr | head -5 | tr '\n' ' ')
+        for (domain in count) printf "%s (%d req/%.1fMB)\n", domain, count[domain], bytes[domain]/1048576
+    }' | sort -t'(' -k2 -nr | head -5 | tr '\n' ' ')
     echo "Top 5 domains by requests,$TOP_DOMAINS" >> "$CSV_FILE"
 
     TOP_ERROR_DOMAINS=$(zcat -f $ACCESS_LOG 2>/dev/null | awk -v cutoff="$CUTOFF" '$1 > cutoff && ($4 ~ /\/40[0-9]/ || $4 ~ /\/50[0-9]/) {
         gsub(/^https?:\/\//, "", $7); gsub(/\/.*/, "", $7)
         errors[$7]++
     } END {
-        for (domain in errors) printf "%s (%d errors) ", domain, errors[domain]
-    }' | tr ' ' '\n' | sort -t'(' -k2 -nr | head -5 | tr '\n' ' ')
+        for (domain in errors) printf "%s (%d errors)\n", domain, errors[domain]
+    }' | sort -t'(' -k2 -nr | head -5 | tr '\n' ' ')
     echo "Top 5 error domains,$TOP_ERROR_DOMAINS" >> "$CSV_FILE"
 
     # === GENERATE HTML REPORT ===

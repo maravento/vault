@@ -799,12 +799,13 @@ Version 1.0 (2024)
 - Configuration page with module information
 EOF
     
-    cat > /tmp/icon.gif.b64 << 'ICONEOF'
+    ICON_B64=$(mktemp)
+    cat > "$ICON_B64" << 'ICONEOF'
 R0lGODlhMAAwAPAAAAAAAAAAACH5BAEAAAAALAAAAAAwADAAAAKrhI+py+0Po5wqJEszCpyf7mkUiAGkOJJqiUKr2krvGS/zDdYGzusmj6vdLjPfynb0/XIVmnLZQTKfsOZU95I6W8NNUQj8yq5hcWRbzk62xOA5BIX/Pj0XML6rP9JuvJ3v4cTGAChncpFR+JSXtshIlgSm5mWWWPlYJdLVFqmxSdlpOQmayRU6isXnGHfnqEhVyBITazgbuxiFWXKlxFJ6uGpVGywsS3yMHFMAADs=
 ICONEOF
-    
-    base64 -d /tmp/icon.gif.b64 > "$MODDIR/images/icon.gif" || true
-    rm -f /tmp/icon.gif.b64
+
+    base64 -d "$ICON_B64" > "$MODDIR/images/icon.gif" || true
+    rm -f "$ICON_B64"
     
     chown -R root:root "$MODDIR" "$ETCDIR"
     chmod -R 755 "$MODDIR"

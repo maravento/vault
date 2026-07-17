@@ -1922,16 +1922,17 @@ EOF
     # ============================================================
     # 16. Create icon.gif (updated Squid icon - base64 encoded)
     # ============================================================
-    cat > /tmp/squid_icon.gif.b64 << 'ICONEOF'
+    ICON_B64=$(mktemp)
+    cat > "$ICON_B64" << 'ICONEOF'
 R0lGODlhMAAwAPAAAAAAAAAAACH5BAEAAAAALAAAAAAwADAAAALIhI+py+0Po5xUhouz3jzUDobbdFUQFpXm6bHrgaKA+qiiDMdyW/Or3qI5hK8FsXEsGpLIm3NEekp9LKoS17Mql1oF08KzdRPiGxkYTAWd59JujPiqYTnw1iuPY4sZylTqt/fSZ3enB1dneDY3w1bYw2WG92SEmAXYNpinN/ljyTn5hxNGytUkupbYaKq46tqY+mooFhm7GchKSNu6qxurWJar07qq4dp3GwXrtsZMHHy8C/xLIz0bpmp9l8w6/dntjUm8LDleVAAAOw==
 ICONEOF
-    
-    if ! base64 -d /tmp/squid_icon.gif.b64 > "$MODDIR/images/icon.gif"; then
+
+    if ! base64 -d "$ICON_B64" > "$MODDIR/images/icon.gif"; then
         echo "ERROR: Failed to decode icon.gif from base64"
-        rm -f /tmp/squid_icon.gif.b64 "$MODDIR/images/icon.gif"
+        rm -f "$ICON_B64" "$MODDIR/images/icon.gif"
         exit 1
     fi
-    rm -f /tmp/squid_icon.gif.b64
+    rm -f "$ICON_B64"
     
     # ============================================================
     # 17. Set correct permissions

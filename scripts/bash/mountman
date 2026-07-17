@@ -281,6 +281,11 @@ EOF
         if [[ -n "${CREDS_FILE:-}" ]] && [[ -f "$CREDS_FILE" ]]; then
             MOUNT_CREDS_FILE="$CREDS_FILE"
         else
+            if [[ -z "${SMB_PASS:-}" ]]; then
+                SMB_PASS=$(zenity --entry --hide-text --title="Password" \
+                    --text="Credentials file not found for '$SMB_USER'. Enter password (leave blank for guest):" \
+                    2>/dev/null) || true
+            fi
             MOUNT_CREDS_FILE=$(mktemp)
             chmod 600 "$MOUNT_CREDS_FILE"
             printf 'username=%s\npassword=%s\n' "$SMB_USER" "$SMB_PASS" > "$MOUNT_CREDS_FILE"

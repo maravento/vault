@@ -20,7 +20,7 @@
 # Optional parameters:
 # By default, output goes to 'output.txt' and removed lines to 'removed.txt'.
 # Customize output with:
-# python domfilter.py --input mylst.txt --output outlst.txt --remove removelst.txt
+# python domfilter.py --input mylst.txt --output outlst.txt --removed removelst.txt
 # SSL verification can be disabled (not recommended) with --no-verify-ssl
 
 # Important:

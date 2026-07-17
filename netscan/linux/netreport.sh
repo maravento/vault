@@ -657,7 +657,7 @@ case "$opt" in
         prune_report_dir_keep_html
         exit 0
       else
-        cp -f "$SCRIPT_TMPDIR/nmap_out" "${base}_nmap_out.log" 2>/dev/null
+        cp -f "$SCRIPT_TMPDIR/nmap_out" "${base}_nmap_out.log" 2>/dev/null || true
         die "No nmap output files found. Check ${base}_nmap_out.log"
       fi
     fi

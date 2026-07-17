@@ -70,6 +70,13 @@ SCRIPT_NAME=$(basename "$0")
 PID_FILE="/tmp/${SCRIPT_NAME}.pid"
 ACTIVE_FLAG="/tmp/${SCRIPT_NAME}_active"
 
+# Root-only state dir (not world-writable /tmp) to avoid symlink attacks on
+# files that must persist across start/status/stop invocations
+STATE_DIR="/run/${SCRIPT_NAME}"
+mkdir -p -m 700 "$STATE_DIR"
+OUTPUT_FILE="$STATE_DIR/output.txt"
+PORTS_FILE="$STATE_DIR/ports.txt"
+
 is_running() {
     if pgrep -f "ssh.*serveo.net" > /dev/null; then
         return 0
@@ -133,21 +140,21 @@ start() {
     fi
     echo "Starting tunnel with ports: $ports"
 
-    > /tmp/serveo_output.txt
+    > "$OUTPUT_FILE"
     # OPCIONAL: Add the following options if you do not want to use SSH fingerprint verification
     # -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
-    ssh -q -T -o LogLevel=ERROR -o ServerAliveInterval=60 -o ServerAliveCountMax=30 ${PORT_ARGS:-} serveo.net > /tmp/serveo_output.txt 2>&1 &
+    ssh -q -T -o LogLevel=ERROR -o ServerAliveInterval=60 -o ServerAliveCountMax=30 ${PORT_ARGS:-} serveo.net > "$OUTPUT_FILE" 2>&1 &
     SSH_PID=$!
     echo "$SSH_PID" > "$PID_FILE"
 
     for i in {1..10}; do
-        if [ -s /tmp/serveo_output.txt ]; then
+        if [ -s "$OUTPUT_FILE" ]; then
             break
         fi
         sleep 1
     done
 
-    output=$(cat /tmp/serveo_output.txt)
+    output=$(cat "$OUTPUT_FILE")
 
     if [ -z "$output" ]; then
         echo "Error: Could not get output from Serveo"
@@ -193,11 +200,11 @@ start() {
     rm -f "$ACTIVE_FLAG"
     echo "The tunnel is now active"
 
-    > /tmp/serveo_ports.txt
+    > "$PORTS_FILE"
     i=0
     for assigned_port in $assigned_ports; do
         local_port="${local_ports[$i]}"
-        echo "$local_port:$assigned_port" >> /tmp/serveo_ports.txt
+        echo "$local_port:$assigned_port" >> "$PORTS_FILE"
         ((i++)) || true
     done
 }
@@ -216,11 +223,11 @@ stop() {
             echo "pkill -9 -f \"ssh.*serveo.net\""
         else
             echo "✅ Tunnel successfully stopped"
-            rm -f /tmp/serveo_ports.txt
+            rm -f "$PORTS_FILE"
         fi
     else
         echo "⚠️ There are no active tunnels"
-        rm -f /tmp/serveo_ports.txt
+        rm -f "$PORTS_FILE"
     fi
 }
 
@@ -237,7 +244,7 @@ status() {
             echo "PID: $(cat "$PID_FILE" 2>/dev/null || echo "not available")"
         fi
 
-        if [ -f /tmp/serveo_ports.txt ]; then
+        if [ -f "$PORTS_FILE" ]; then
             echo "Exposed Ports:"
             while IFS=: read -r local_port remote_port; do
                 if [[ "$local_port" -eq 22 ]]; then
@@ -245,7 +252,7 @@ status() {
                 else
                     echo "  Local $local_port ➜ https://serveo.net:$remote_port"
                 fi
-            done < /tmp/serveo_ports.txt
+            done < "$PORTS_FILE"
         else
             echo "No port mapping info found."
         fi

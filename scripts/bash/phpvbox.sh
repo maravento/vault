@@ -55,6 +55,20 @@ if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
 fi
 echo "Using local user: $local_user"
 
+retry_cmd() {
+    local max_attempts=10
+    local attempt=1
+    until "$@"; do
+        if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "ERROR: command failed after $max_attempts attempts: $*"
+            exit 1
+        fi
+        echo "WARNING: command failed (attempt $attempt/$max_attempts), retrying in 10s: $*"
+        attempt=$((attempt + 1))
+        sleep 10
+    done
+}
+
 # check dependencies
 pkgs=(bsdutils lsof unzip apache2 libapache2-mod-php php php-soap php-xml)
 missing=()
@@ -86,8 +100,8 @@ if [ "${#missing[@]}" -gt 0 ]; then
         APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
     done
     echo "Installing: ${missing[*]}"
-    apt-get -qq update
-    if ! apt-get -y install "${missing[@]}"; then
+    retry_cmd apt-get -qq update
+    if ! retry_cmd apt-get -y install "${missing[@]}"; then
         echo "Error installing: ${missing[*]}"
         exit 1
     fi
@@ -104,7 +118,7 @@ fi
 
 ### PHPVBOX
 # download phpvirtualbox
-wget -q -c https://github.com/BartekSz95/phpvirtualbox/archive/main.zip
+retry_cmd wget -q -c https://github.com/BartekSz95/phpvirtualbox/archive/main.zip
 DOWNLOAD_SHA256="$(sha256sum main.zip | awk '{print $1}')"
 echo "📋 main.zip SHA256: $DOWNLOAD_SHA256"
 unzip -q main.zip
@@ -159,7 +173,7 @@ chmod +x /etc/init.d/phpvbox_port.sh
 # Add the task to the crontab (skip if already present)
 CRON_ENTRY="*/30 * * * * /etc/init.d/phpvbox_port.sh"
 if ! crontab -l 2>/dev/null | grep -qF "$CRON_ENTRY"; then
-    (crontab -l 2>/dev/null; echo "$CRON_ENTRY") | crontab -
+    (crontab -l 2>/dev/null || true; echo "$CRON_ENTRY") | crontab -
 fi
 if ! service cron restart; then
     echo "Failed to restart cron"

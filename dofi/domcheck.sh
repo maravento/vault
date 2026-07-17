@@ -12,9 +12,8 @@
 # ./domcheck.sh my_domain_list.txt 50
 #
 # NOTE on logging:
-# - Writes to dofi.log (shared with simplecheck.sh, append-only, no
-#   rotation configured by this script). Set up logrotate for this file if
-#   disk usage matters.
+# - Writes to dofi.log (append-only, no rotation configured by this
+#   script). Set up logrotate for this file if disk usage matters.
 # - To clear it manually: truncate -s 0 dofi.log
 #
 ################################################################################

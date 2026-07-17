@@ -30,7 +30,7 @@ CA_CERT_D=/usr/local/share/ca-certificates
 # Function: Remove regular squid and install squid-openssl
 remove_and_install_squid_openssl() {
     echo "Backing up /etc/squid/squid.conf..."
-    BACKUP_CONF="/tmp/squid.conf.bak"
+    BACKUP_CONF=$(mktemp /tmp/squid.conf.bak.XXXXXX)
     [ -f /etc/squid/squid.conf ] && cp /etc/squid/squid.conf "$BACKUP_CONF"
 
     echo "Removing old squid..."

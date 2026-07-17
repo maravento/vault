@@ -83,8 +83,12 @@ done
 case "$1" in
 'start')
     log "Start Backup Config Files..."
-    zip -r "$bkconfig/$zipbk" "${pathbk[@]}" >/dev/null
-    log "Backup Config"
+    if zip -r "$bkconfig/$zipbk" "${pathbk[@]}" >/dev/null; then
+        log "Backup Config: $bkconfig/$zipbk"
+    else
+        log "ERROR: Backup Config failed"
+        exit 1
+    fi
     ;;
 'stop') ;;
 *)

@@ -71,7 +71,7 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 - [Check Bandwidth (Set Minimum download|upload Value)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bandwidth.sh)
 - [Internet Watchdog (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/watchdog.sh)
 - [Iperf3 Client](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/iperf3.sh)
-- [Netplan Switch (install|uninstall|status|help)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/npswitch.sh)
+- [Netplan Switch (--status|--to-networkd|--to-nm|--help)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/npswitch.sh)
 - [Port Kill (check port with: `sudo netstat -lnp | grep "port"`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/portkill.sh)
 - [Rustdesk Client (install|uninstall|update)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rdclient.sh)
 - [Rustdesk Server (install|uninstall|update)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rdserver.sh)

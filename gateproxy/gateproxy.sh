@@ -13,6 +13,7 @@ clear
 echo -e "\n"
 
 log_file="$(dirname "$(realpath "$0")")/gateproxy.log"
+: > "$log_file" 2>/dev/null || true
 log() {
     local msg="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
@@ -35,6 +36,55 @@ if ! flock -n 200; then
     log "Script $(basename "$0") is already running"
     exit 1
 fi
+
+# checking conflicting pre-installed packages
+check_conflicts() {
+    local role="$1"; shift
+    local found=()
+    for pkg in "$@"; do
+        if dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "ok installed"; then
+            found+=("$pkg")
+        fi
+    done
+    if [ "${#found[@]}" -gt 0 ]; then
+        log "ERROR: Conflicting $role package(s) already installed: ${found[*]}"
+        log "ERROR: gateproxy installs its own $role stack. Remove them first: apt purge -y ${found[*]}"
+        exit 1
+    fi
+}
+
+retry_cmd() {
+    local max_attempts=10
+    local attempt=1
+    until "$@"; do
+        if [ "$attempt" -ge "$max_attempts" ]; then
+            log "ERROR: command failed after $max_attempts attempts: $*"
+            exit 1
+        fi
+        log "WARNING: command failed (attempt $attempt/$max_attempts), retrying in 10s: $*"
+        case "$1" in
+            nala|apt|apt-get)
+                rm -f /var/cache/apt/archives/*.deb 2>/dev/null || true
+                ;;
+        esac
+        attempt=$((attempt + 1))
+        sleep 10
+    done
+}
+
+log "Checking for conflicting pre-installed packages..."
+check_conflicts "DHCP server" isc-dhcp-server dnsmasq
+check_conflicts "proxy"       squid squid3 tinyproxy privoxy 3proxy
+check_conflicts "web server"  nginx lighttpd caddy
+check_conflicts "syslog"      syslog-ng
+check_conflicts "firewall"    firewalld
+check_conflicts "IDS"         snort
+if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "^Status: active"; then
+    log "ERROR: ufw is active and will conflict with gateproxy's iptables rules."
+    log "ERROR: Disable it first: ufw disable"
+    exit 1
+fi
+log "No conflicting packages found: OK"
 
 # LOCAL USER (multi-strategy detection with validation)
 local_user=""
@@ -65,6 +115,21 @@ UBUNTU_VERSION=$(lsb_release -rs)
 UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
 log "Desktop: $DESKTOP_ENV"
 log "OS: $UBUNTU_ID $UBUNTU_VERSION"
+
+if [ "$UBUNTU_ID" != "ubuntu" ]; then
+    log "ERROR: Unsupported OS $UBUNTU_ID (Ubuntu only)"
+    exit 1
+fi
+if [ "$(printf '%s\n' "$UBUNTU_VERSION" "24.04" | sort -V | head -n1)" != "24.04" ]; then
+    log "ERROR: Ubuntu $UBUNTU_VERSION below min supported 24.04"
+    exit 1
+elif [ "$UBUNTU_VERSION" != "24.04" ]; then
+    log "WARNING: Ubuntu $UBUNTU_VERSION untested (min: 24.04)"
+fi
+
+log "Clearing apt package cache..."
+apt-get clean &>/dev/null || true
+rm -f /var/cache/apt/archives/*.deb 2>/dev/null || true
 
 ### VARIABLES
 SCRIPT_PATH="$(realpath "$0")"
@@ -103,7 +168,7 @@ if [ -f "$file" ]; then
 
     if [[ $changed -eq 1 ]]; then
         log "Updating package list. Wait..."
-        apt update > /dev/null 2>&1
+        retry_cmd apt update > /dev/null 2>&1
     else
         log "No changes made. No update needed."
     fi
@@ -135,7 +200,7 @@ if [ -n "$missing" ]; then
         fi
         log "Waiting for apt/dpkg to finish... ($apt_wait/$apt_wait_limit)"
         sleep 5
-        (( apt_wait++ ))
+        apt_wait=$((apt_wait + 1))
     done
     rm -f /var/lib/apt/lists/lock
     rm -f /var/cache/apt/archives/lock
@@ -145,26 +210,23 @@ if [ -n "$missing" ]; then
     dpkg --configure -a
     log "Installing: $missing"
     apt-get -qq update
-    if ! apt-get -y install $missing; then
-        log "Error installing: $missing"
-        exit 1
-    fi
+    retry_cmd apt-get -y install $missing
 else
     log "Dependencies OK"
 fi
 
 ### BASIC
 # time
-apt purge -y ntp ntpdate chrony &>/dev/null
-apt install -y --reinstall systemd-timesyncd &>/dev/null
-hwclock -w &>/dev/null
-systemctl enable --now systemd-timesyncd &>/dev/null
-timedatectl set-ntp true &>/dev/null
-timedatectl status | grep -E "NTP|synchroniz"
+apt purge -y ntp ntpdate chrony &>/dev/null || true
+retry_cmd apt install -y --reinstall systemd-timesyncd &>/dev/null
+hwclock -w &>/dev/null || log "WARNING: hwclock -w failed (no RTC available?)"
+systemctl enable --now systemd-timesyncd &>/dev/null || log "WARNING: systemd-timesyncd failed to start"
+timedatectl set-ntp true &>/dev/null || log "WARNING: timedatectl set-ntp failed"
+timedatectl status | grep -E "NTP|synchroniz" || true
 # install | remove
-apt -qq install -y apt-file
-apt-file update
-apt -qq remove -y zsys &>/dev/null
+retry_cmd apt -qq install -y apt-file
+retry_cmd apt-file update
+apt -qq remove -y zsys &>/dev/null || true
 ubuntu-drivers autoinstall &>/dev/null || true
 # configure
 pro config set apt_news=false || true
@@ -173,23 +235,18 @@ DISK=$(lsblk -dno NAME,TYPE | awk '$2=="disk"{print "/dev/"$1; exit}')
 ifconfig lo 127.0.0.1
 #systemctl disable avahi-daemon cups-browser &> /dev/null # optional
 # cron
-cp /etc/crontab{,.bak} &>/dev/null
-cp /etc/apt/sources.list{,.bak} &>/dev/null
-# Disable NFS (Network File System) / NIS (Network Information Service)
-if systemctl list-unit-files | grep -q '^rpcbind'; then
-    systemctl stop rpcbind.service rpcbind.socket &>/dev/null || true
-    systemctl disable rpcbind.service rpcbind.socket &>/dev/null || true
-    systemctl mask rpcbind.service rpcbind.socket &>/dev/null || true
-fi
+cp /etc/crontab{,.bak} &>/dev/null || true
+cp /etc/apt/sources.list{,.bak} &>/dev/null || true
 
 ### CLEAN | UPDATE | FIX
 echo -e "\n"
 function upgrade() {
     log "Update and Clean. Wait..."
-    nala upgrade --purge -y
-    aptitude safe-upgrade -y
+    retry_cmd nala upgrade --purge -y
+    retry_cmd aptitude safe-upgrade -y
     dpkg --configure -a
-    nala install --fix-broken -y
+    retry_cmd nala install --fix-broken -y
+    systemctl daemon-reload
     sync
     updatedb
     update-desktop-database
@@ -205,9 +262,9 @@ log "Check Dependencies..."
 ### GATEPROXY GIT
 echo -e "\n"
 [ -d "$gp_path" ] && rm -rf "$gp_path"
-wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
+retry_cmd wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
 chmod +x gitfolder.py
-python3 gitfolder.py https://github.com/maravento/vault/gateproxy
+retry_cmd python3 gitfolder.py https://github.com/maravento/vault/gateproxy
 
 ### CONFIG
 echo -e "\n"
@@ -218,21 +275,29 @@ find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_user:$loc
 
 # public interface
 function public_interface() {
-    read -r -p "Enter Public Network Interface (Internet) (e.g. enpXsX): " ETH0
-    if [[ "$ETH0" =~ ^[a-z][a-z0-9]{1,13}[0-9]+$ ]]; then
-        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$ETH0:g" "{}"
-    fi
+    while true; do
+        read -r -p "Enter Public Network Interface (Internet) (e.g. enpXsX): " ETH0
+        if [[ "$ETH0" =~ ^[a-z][a-z0-9]{1,13}[0-9]+$ ]]; then
+            find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$ETH0:g" "{}"
+            break
+        else
+            log "Invalid interface name. Try again."
+        fi
+    done
 }
 
 # local interface
 function local_interface() {
-    read -r -p "Enter Local Network Interface (e.g. enpXsX): " ETH1
-    if [[ "$ETH1" =~ ^[a-z][a-z0-9]{1,13}[0-9]+$ ]]; then
-        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
-        export LAN_INTERFACE="$ETH1"
-    else
-        export LAN_INTERFACE="eth1"
-    fi
+    while true; do
+        read -r -p "Enter Local Network Interface (e.g. enpXsX): " ETH1
+        if [[ "$ETH1" =~ ^[a-z][a-z0-9]{1,13}[0-9]+$ ]]; then
+            find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
+            export LAN_INTERFACE="$ETH1"
+            break
+        else
+            log "Invalid interface name. Try again."
+        fi
+    done
 }
 
 function is_interfaces() {
@@ -250,6 +315,40 @@ function is_interfaces() {
         log "OK"
     fi
 }
+
+NETWORK_ENV="/etc/gateproxy/network.env"
+mkdir -p /etc/gateproxy &>/dev/null
+REUSE_NETWORK=false
+if [ -f "$NETWORK_ENV" ]; then
+    while true; do
+        read -r -p "Reuse network data from a previous run? (y/n): " reuse_ans
+        case "$reuse_ans" in
+            [Yy]*) REUSE_NETWORK=true; break ;;
+            [Nn]*) REUSE_NETWORK=false; break ;;
+            *) log "Answer: YES (y) or NO (n)" ;;
+        esac
+    done
+fi
+
+if [ "$REUSE_NETWORK" = true ]; then
+    source "$NETWORK_ENV"
+    export LAN_INTERFACE
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$ETH0:g" "{}"
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$LAN_INTERFACE:g" "{}"
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.10:$serverip:g" "{}"
+    find "$gp_path/acl" -type f -name "mac-*" -exec sed -i "s:192.168.0\.:$(echo "$serverip" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
+    find "$gp_path/acl/acl_dhcp" -type f -name "blockdhcp*" -exec sed -i "s:192.168.0\.:$(echo "$serverip" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$LOCALNETNEW:g" "{}"
+    sed -i "s:192\.168\.0\.\*:$(echo "$LOCALNETNEW" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/server/wpad.pac"
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.255:$BROADCASTNEW:g" "{}"
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:255.255.255.0:$MASKNEW1:g" "{}"
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:/24:/$MASKNEW2:g" "{}"
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.8.8:$DNSNEW1:g" "{}"
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.4.4:$DNSNEW2:g" "{}"
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:3128:$PORTNEW:g" "{}"
+    log "Reusing saved data: $LAN_INTERFACE / $serverip"
+else
+
 is_interfaces
 
 ### START
@@ -261,7 +360,7 @@ log "    Minimum Requirements:"
 log "    OS:       Ubuntu 24.04.x"
 log "    CPU:      4+ cores (>= 3.0 GHz)"
 log "    NIC:      2 (WAN & LAN)"
-log "    RAM:      4 GB for cache_mem (>= 12 GB total RAM recommended)"
+log "    RAM:      4 GB cache_mem (12+ GB RAM recommended)"
 log "    Storage:  100 GB SSD for cache_dir rock"
 echo -e "\n"
 log "    Press ENTER to start or CTRL+C to abort"
@@ -286,7 +385,7 @@ while true; do
 
                     find "$gp_path/acl" -type f -name "mac-*" -exec sed -i "s:192.168.0\.:$(echo "$serveripNEW" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
 
-                    find "$gp_path/dhcp" -type f -name "blockdhcp*" -exec sed -i "s:192.168.0\.:$(echo "$serveripNEW" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
+                    find "$gp_path/acl/acl_dhcp" -type f -name "blockdhcp*" -exec sed -i "s:192.168.0\.:$(echo "$serveripNEW" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
 
                     log "You have entered IP $serverip :OK"
                     break
@@ -307,6 +406,19 @@ while true; do
     esac
 done
 
+LOCALNETNEW="$(echo "$serverip" | awk -F '.' '{OFS="."; $4="0"; print $0}')"
+if [ "$LOCALNETNEW" != "192.168.0.0" ]; then
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$LOCALNETNEW:g" "{}"
+    sed -i "s:192\.168\.0\.\*:$(echo "$LOCALNETNEW" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/server/wpad.pac"
+fi
+log "Localnet: $LOCALNETNEW (from Server IP)"
+
+BROADCASTNEW="$(echo "$serverip" | awk -F '.' '{OFS="."; $4="255"; print $0}')"
+if [ "$BROADCASTNEW" != "192.168.0.255" ]; then
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.255:$BROADCASTNEW:g" "{}"
+fi
+log "Broadcast: $BROADCASTNEW (from Server IP)"
+
 ### PARAMETERS
 is_ask() {
     inquiry="$1"
@@ -318,9 +430,7 @@ is_ask() {
         [Yy]*)
             # execute command yes
             while true; do
-                answer=$($funcion)
-                if [ "$answer" ]; then
-                    log "$answer"
+                if $funcion; then
                     break
                 else
                     log "$iresponse"
@@ -343,6 +453,7 @@ is_ask() {
 
 # netmask
 MASKNEW1="255.255.255.0"
+MASKNEW2="24"
 
 # netmask
 function is_mask1() {
@@ -351,8 +462,10 @@ function is_mask1() {
     if [ "$MASKNEW1" ]; then
         find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:255.255.255.0:$MASKNEW1:g" "{}"
         log "You have entered Netmask $MASK1 :OK"
+        return 0
     else
         MASKNEW1="255.255.255.0"
+        return 1
     fi
 }
 
@@ -362,6 +475,9 @@ function is_mask2() {
     if [ "$MASKNEW2" ]; then
         find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:/24:/$MASKNEW2:g" "{}"
         log "You have entered Subnet-Mask $MASK2 :OK"
+        return 0
+    else
+        return 1
     fi
 }
 
@@ -372,6 +488,9 @@ function is_dns1() {
     if [ "$DNSNEW1" ]; then
         find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.8.8:$DNSNEW1:g" "{}"
         log "You have entered DNS1 $DNS1 :OK"
+        return 0
+    else
+        return 1
     fi
 }
 
@@ -382,26 +501,9 @@ function is_dns2() {
     if [ "$DNSNEW2" ]; then
         find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.4.4:$DNSNEW2:g" "{}"
         log "You have entered DNS2 $DNS2 :OK"
-    fi
-}
-
-# localnet
-function is_localnet() {
-    read -r -p "Enter Localnet (e.g. 192.168.0.0): " LOCALNET
-    LOCALNETNEW=$(echo "$LOCALNET" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
-    if [ "$LOCALNETNEW" ]; then
-        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$LOCALNETNEW:g" "{}"
-        log "You have entered Localnet $LOCALNET :OK"
-    fi
-}
-
-# broadcast
-function is_broadcast() {
-    read -r -p "Enter Broadcast (e.g. 192.168.0.255): " BROADCAST
-    BROADCASTNEW=$(echo "$BROADCAST" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
-    if [ "$BROADCASTNEW" ]; then
-        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.255:$BROADCASTNEW:g" "{}"
-        log "You have entered Broadcast $BROADCAST :OK"
+        return 0
+    else
+        return 1
     fi
 }
 
@@ -412,14 +514,16 @@ function is_port() {
     if [ "$PORTNEW" ]; then
         find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:3128:$PORTNEW:g" "{}"
         log "You have entered Proxy Port $PORT :OK"
+        return 0
+    else
+        return 1
     fi
 }
 
 echo -e "\n"
 while true; do
     read -r -p "Server settings:
-Mask 255.255.255.0, Network /24, DNS 8.8.8.8 8.8.4.4,
-Broadcast 192.168.0.255, Localnet 192.168.0.0, Proxy Port 3128
+Mask 255.255.255.0, Network /24, DNS 8.8.8.8 8.8.4.4, Proxy Port 3128
     Do you want to change? (y/n)" answer
     case "$answer" in
     [Yy]*)
@@ -428,8 +532,6 @@ Broadcast 192.168.0.255, Localnet 192.168.0.0, Proxy Port 3128
         is_ask "Do you want to change? Sub-Mask /24? (y/n)" "You have entered Sub-Mask incorrect" is_mask2
         is_ask "Do you want to change? DNS1 8.8.8.8? (y/n)" "You have entered DNS1 incorrect" is_dns1
         is_ask "Do you want to change? DNS2 8.8.4.4? (y/n)" "You have entered DNS2 incorrect" is_dns2
-        is_ask "Do you want to change? Localnet 192.168.0.0? (y/n)" "You have entered Localnet incorrect" is_localnet
-        is_ask "Do you want to change? Broadcast 192.168.0.255? (y/n)" "You have entered Broadcast incorrect" is_broadcast
         is_ask "Do you want to change? Proxy Port Default 3128? (y/n)" "You have entered Proxy Port incorrect" is_port
         log "OK"
         break
@@ -446,87 +548,142 @@ Broadcast 192.168.0.255, Localnet 192.168.0.0, Proxy Port 3128
     esac
 done
 
+cat > "$NETWORK_ENV" <<EOF
+ETH0="$ETH0"
+LAN_INTERFACE="$LAN_INTERFACE"
+serverip="$serverip"
+LOCALNETNEW="$LOCALNETNEW"
+BROADCASTNEW="$BROADCASTNEW"
+MASKNEW1="$MASKNEW1"
+MASKNEW2="$MASKNEW2"
+DNSNEW1="${DNSNEW1:-8.8.8.8}"
+DNSNEW2="${DNSNEW2:-8.8.4.4}"
+PORTNEW="${PORTNEW:-3128}"
+EOF
+chown root:root "$NETWORK_ENV"
+chmod 600 "$NETWORK_ENV"
+
+fi
+
+### NETPLAN
+if [ "$REUSE_NETWORK" = true ] && ip -4 addr show "$LAN_INTERFACE" 2>/dev/null | grep -qF "inet $serverip/"; then
+    log "Network already configured: $LAN_INTERFACE has $serverip"
+else
+
+echo -e "\n"
+log "Applying network configuration..."
+find /etc/netplan -maxdepth 1 -type f -name '*.yaml' -not -name '*.yaml.bak' -exec mv -- {} {}.bak \; 2>/dev/null
+mkdir -p /etc/cloud/cloud.cfg.d
+echo "network: {config: disabled}" > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+cp -f "$gp_path/conf/server/00-networkd.yaml" /etc/netplan/00-networkd.yaml
+chown root:root /etc/netplan/00-networkd.yaml
+chmod 600 /etc/netplan/00-networkd.yaml
+if ! netplan generate 2>&1 | tee -a "$log_file"; then
+    log "ERROR: netplan generate failed"
+    exit 1
+fi
+if ! netplan apply 2>&1 | tee -a "$log_file"; then
+    log "ERROR: netplan apply failed"
+    exit 1
+fi
+
+log "Waiting for $LAN_INTERFACE to come up with $serverip..."
+NETPLAN_WAIT=0
+NETPLAN_WAIT_LIMIT=30
+until ip -4 addr show "$LAN_INTERFACE" 2>/dev/null | grep -qF "inet $serverip/"; do
+    if [ "$NETPLAN_WAIT" -ge "$NETPLAN_WAIT_LIMIT" ]; then
+        log "ERROR: $LAN_INTERFACE did not come up with an IP."
+        log "Wait a few minutes and run: sudo bash gateproxy.sh"
+        exit 1
+    fi
+    sleep 2
+    NETPLAN_WAIT=$((NETPLAN_WAIT + 1))
+done
+log "Network OK: $LAN_INTERFACE has $serverip"
+
+fi
+
 ### ESSENTIAL
 clear
 echo -e "\n"
 log "Essential Packages..."
 # DISK & STORAGE MANAGEMENT
-nala install -y gparted gnome-disk-utility qdirstat baobab
-nala install -y --no-install-recommends smartmontools gsmartcontrol
+retry_cmd nala install -y gparted gnome-disk-utility qdirstat baobab
+retry_cmd nala install -y --no-install-recommends smartmontools gsmartcontrol
 
 # FILE SYSTEMS SUPPORT
-nala install -y nfs-common ntfs-3g reiserfsprogs reiser4progs xfsprogs \
+retry_cmd nala install -y nfs-common ntfs-3g reiserfsprogs reiser4progs xfsprogs \
                 jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus \
                 mtools nilfs-tools f2fs-tools exfat-fuse
 
 # FUSE & VIRTUAL FILE SYSTEMS
-nala install -y libfuse2t64 gvfs-fuse bindfs sshfs jmtpfs
+retry_cmd nala install -y libfuse2t64 gvfs-fuse bindfs sshfs jmtpfs
 
 # VOLUME & QUOTA MANAGEMENT
-nala install -y lvm2 quota attr
-nala install -y udisks2 udisks2-btrfs udisks2-lvm2
+retry_cmd nala install -y lvm2 quota attr
+retry_cmd nala install -y udisks2 udisks2-btrfs udisks2-lvm2
 
 # SYSTEM UTILITIES & MONITORING
-nala install -y trash-cli pm-utils cpu-x btop htop lsof \
+retry_cmd nala install -y trash-cli pm-utils cpu-x btop htop lsof \
                 inotify-tools dmidecode idle3 wmctrl pv tree moreutils \
                 preload deborphan debconf-utils mokutil util-linux \
                 linux-tools-common apparmor-utils
 
 # PACKAGE MANAGEMENT TOOLS
-nala install -y dpkg ppa-purge apt-utils gdebi synaptic
+retry_cmd nala install -y dpkg ppa-purge apt-utils gdebi synaptic
 
 # TEXT & FILE UTILITIES
-nala install -y gawk rename renameutils sharutils dos2unix colordiff \
+retry_cmd nala install -y gawk rename renameutils sharutils dos2unix colordiff \
                 ripgrep yamllint
 
 # LOGGING & SYSTEM SERVICES
-nala install -y finger logrotate
+retry_cmd nala install -y finger logrotate
 
 # DRIVERS & KERNEL MODULES
-nala install -y linux-firmware linux-headers-$(uname -r) module-assistant
+retry_cmd nala install -y linux-firmware linux-headers-$(uname -r) module-assistant
 
 # DEVELOPMENT: COMPILERS & BUILD TOOLS
-nala install -y build-essential clang autoconf autoconf-archive autogen \
+retry_cmd nala install -y build-essential clang autoconf autoconf-archive autogen \
                 automake dh-autoreconf pkg-config
 
 # DEVELOPMENT: LIBRARIES & HEADERS
-nala install -y uuid-dev libmnl-dev libssl-dev libffi-dev libpam0g-dev \
+retry_cmd nala install -y uuid-dev libmnl-dev libssl-dev libffi-dev libpam0g-dev \
                 libpcap-dev libasound2-dev libglib2.0-dev libudisks2-dev \
                 liblvm2-dev python3-dev gtkhash
 
 # PROGRAMMING: PYTHON
-nala install -y python3-pip python3-venv python3-psutil
+retry_cmd nala install -y python3-pip python3-venv python3-psutil
 
 # PROGRAMMING: RUBY
-nala install -y rubygems-integration rake ruby ruby-did-you-mean ruby-json \
+retry_cmd nala install -y rubygems-integration rake ruby ruby-did-you-mean ruby-json \
                 ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit
 
 # PROGRAMMING: JAVASCRIPT & WEB
-nala install -y javascript-common libjs-jquery xsltproc
+retry_cmd nala install -y javascript-common libjs-jquery xsltproc
 
 # NETWORK & CONNECTIVITY
-nala install -y wget bind9-dnsutils conntrack i2c-tools wsdd ipset
+retry_cmd nala install -y wget bind9-dnsutils conntrack i2c-tools wsdd ipset
 
 # GEOLOCATION DATABASES
-nala install -y geoip-database
+retry_cmd nala install -y geoip-database
 
 # GRAPHICS & DISPLAY
 # if there any problems, install the package: libegl-mesa0
-nala install -y mesa-utils libfontconfig1
+retry_cmd nala install -y mesa-utils libfontconfig1
 
 # RUNTIME LIBRARIES
-nala install -y libuser gir1.2-gtop-2.0
+retry_cmd nala install -y libuser gir1.2-gtop-2.0
     
 # MAIL
 service sendmail stop &>/dev/null || true
 update-rc.d -f sendmail remove &>/dev/null || true
-DEBIAN_FRONTEND=noninteractive nala install -y postfix
-nala install -y mailutils
+DEBIAN_FRONTEND=noninteractive retry_cmd nala install -y postfix
+retry_cmd nala install -y mailutils
 
 # FONTS
-nala install -y fonts-lato fonts-liberation fonts-dejavu
+retry_cmd nala install -y fonts-lato fonts-liberation fonts-dejavu
 echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
-nala install -y ttf-mscorefonts-installer fontconfig
+retry_cmd nala install -y ttf-mscorefonts-installer fontconfig
 fc-cache -f
     
 log "OK"
@@ -537,9 +694,14 @@ upgrade
 ### SETUP ###
 echo -e "\n"
 log "Gateproxy Packages..."
-sed -i "/^127\.0\.1\.1/ r $gp_path/conf/server/hosts.txt" /etc/hosts
+if grep -q "^127\.0\.1\.1" /etc/hosts; then
+    sed -i "/^127\.0\.1\.1/ r $gp_path/conf/server/hosts.txt" /etc/hosts
+else
+    log "NOTE: /etc/hosts has no 127.0.1.1 line, appending hostname entry instead"
+    cat "$gp_path/conf/server/hosts.txt" >> /etc/hosts
+fi
 sed -i '/^\s*\(fe00::\|ff00::\|ff02::\)/ s/^/#/' /etc/hosts
-grep -q "ipv6.msftncsi.com" /etc/hosts || echo "$serverip ipv6.msftncsi.com ipv6.msftconnecttest.com" | tee -a /etc/hosts
+grep -q "ipv6.msftncsi.com" /etc/hosts || echo "$serverip ipv6.msftncsi.com ipv6.msftconnecttest.com" | tee -a /etc/hosts >/dev/null
 
 # ACLs SECTION
 acl_mac_path="$acl_path/acl_mac"
@@ -558,7 +720,7 @@ chmod 644 "$acl_ipt_path"/*.txt
 chown root:root "$acl_ipt_path"/*.txt
 
 # PHP
-nala install -y php libapache2-mod-php php-cli php-curl
+retry_cmd nala install -y php libapache2-mod-php php-cli php-curl
 
 # Detect PHP version
 if command -v php &>/dev/null; then
@@ -581,7 +743,7 @@ if [ ! -f /etc/php/$PHP_VERSION/apache2/php.ini ]; then
     fi
 fi
 
-cp -f /etc/php/$PHP_VERSION/apache2/php.ini{,.bak} &>/dev/null
+cp -f /etc/php/$PHP_VERSION/apache2/php.ini{,.bak} &>/dev/null || true
 sed -i \
   -e 's/^\s*;*\s*max_execution_time\s*=.*/max_execution_time = 120/' \
   -e 's/^\s*max_input_time\s*=.*/max_input_time = 120/' \
@@ -595,19 +757,19 @@ sed -i \
   
 # HTTP SERVER SECTION
 # apache2
-nala install -y apache2 apache2-doc apache2-utils apache2-dev \
+retry_cmd nala install -y apache2 apache2-doc apache2-utils apache2-dev \
                 apache2-suexec-pristine libaprutil1t64 libaprutil1-dev \
                 libtest-fatal-perl
 systemctl enable apache2.service
 # To fix apache2 error: Syntax error on line 146 of /etc/apache2/apache2.conf | Cannot load /usr/lib/apache2/modules/mod_dnssd.so
 #nala install -y libapache2-mod-dnssd
 # To fix apache2-doc error:
-apt -qq install -y --reinstall apache2-doc
+retry_cmd apt -qq install -y --reinstall apache2-doc
 upgrade
-cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
+cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null || true
 #sed -i -E 's/^([[:space:]]*)Listen[[:space:]]+([0-9]+)/\1Listen 0.0.0.0:\2/' /etc/apache2/ports.conf
 
-cp -f /etc/apache2/mods-available/mpm_prefork.conf{,.bak} &>/dev/null
+cp -f /etc/apache2/mods-available/mpm_prefork.conf{,.bak} &>/dev/null || true
 sed -i \
   -e 's/^\(StartServers[[:space:]]*\)5/\110/' \
   -e 's/^\(MinSpareServers[[:space:]]*\)5/\110/' \
@@ -619,7 +781,8 @@ sed -i \
 # Enable modules  
 a2dismod -q mpm_event || true
 a2enmod -q mpm_prefork || true
-a2enmod -q php || true
+a2enmod -q "php${PHP_VERSION}" || true
+a2enmod -q headers mime rewrite || true
 
 # PROXY SECTION
 # squid-cache
@@ -627,11 +790,11 @@ while pgrep squid > /dev/null; do
     killall -s SIGTERM squid &>/dev/null
     sleep 5
 done
-nala purge -y squid* &>/dev/null
+nala purge -y squid* &>/dev/null || true
 rm -rf /var/spool/squid* /var/log/squid* /etc/squid* &>/dev/null
 rm -f /run/squid.pid &>/dev/null
 #DEBIAN_FRONTEND=noninteractive nala install -y --no-install-recommends squid-openssl
-nala install -y squid-openssl squid-langpack squid-common squidclient squid-purge
+retry_cmd nala install -y squid-openssl squid-langpack squid-common squidclient squid-purge
 upgrade
 mkdir -p /var/log/squid &>/dev/null
 touch /var/log/squid/{access,cache,store,deny}.log &>/dev/null
@@ -644,8 +807,9 @@ chown -R proxy:proxy /var/spool/squid
 chmod -R 700 /var/spool/squid
 usermod -aG proxy www-data
 systemctl enable squid.service
+systemctl stop squid.service &>/dev/null || true
 squid -z
-cp -f /etc/logrotate.d/squid{,.bak} &>/dev/null
+cp -f /etc/logrotate.d/squid{,.bak} &>/dev/null || true
 sed -i '/sharedscripts/a \    create 0644 proxy proxy' /etc/logrotate.d/squid
 sed -i 's/rotate 2/rotate 7/' /etc/logrotate.d/squid
 sed -i 's/^	daily$/	monthly/' /etc/logrotate.d/squid
@@ -655,46 +819,64 @@ sed -i 's/^	daily$/	monthly/' /etc/logrotate.d/squid
 # ADMIN SECTION
 # webmin
 # https://www.maravento.com/2019/06/instalar-modulo-webmin-por-linea-de.html
-curl -o setup-repos.sh https://raw.githubusercontent.com/webmin/webmin/master/setup-repos.sh
+retry_cmd curl -o setup-repos.sh https://raw.githubusercontent.com/webmin/webmin/master/setup-repos.sh
 chmod +x setup-repos.sh
 echo "y" | ./setup-repos.sh
 upgrade
-nala install -y webmin
+retry_cmd nala install -y webmin
 upgrade
-systemctl enable --now webmin.service 2>/dev/null || true
+systemctl enable webmin.service 2>/dev/null || true
 log "Webmin Access: https://localhost:10000"
 rm -f setup-repos.sh
 
 # webmin modules
 # Text Editor | Service Monitor | Netplan Manager
 systemctl stop webmin.service 2>/dev/null || true
-/usr/share/webmin/install-module.pl "$gp_path/conf/webmin/text-editor.wbm"
-find "$acl_mac_path" -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/dev/null
+/usr/share/webmin/install-module.pl "$gp_path/conf/webmin/text-editor.wbm" || log "WARNING: text-editor module install failed"
+find "$acl_mac_path" -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/dev/null || true
 # List of modules to install
 for module in servicemon netplanmgr; do
     log "Installing $module module..."
-    if wget -q -O ${module}.sh "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/${module}.sh"; then
-        chmod +x ${module}.sh
-        ./${module}.sh install
-        rm -f ${module}.sh
+    if wget -q -O "$gp_path/${module}.sh" "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/${module}.sh"; then
+        chmod +x "$gp_path/${module}.sh"
+        "$gp_path/${module}.sh" install || log "WARNING: $module module install failed"
+        rm -f "$gp_path/${module}.sh"
     else
         log "Error: Failed to download ${module}.sh"
     fi
 done
 
 # Proxy Monitor
-if git clone https://github.com/maravento/proxymon; then
-    cd proxymon || {
-        log "WARNING: Cannot enter proxymon directory. Skipping installation."
+retry_cmd nala install -y rsync nbtscan libcgi-session-perl libgd-perl sarg
+if (cd "$gp_path" && git clone https://github.com/maravento/proxymon); then
+    if cd "$gp_path/proxymon"; then
+        if [ -f proxymon.sh ]; then
+            chmod +x proxymon.sh
+            PROXYMON_EXPECT=$(mktemp)
+            cat > "$PROXYMON_EXPECT" <<EOF
+spawn ./proxymon.sh install
+interact {
+    -o
+    "LAN interface (default:" {
+        send "$LAN_INTERFACE\r"
     }
-
-    if [ -f proxymon.sh ]; then
-        chmod +x proxymon.sh
-        {
-            log "$serverip"      # Enter your Server IP
-            log "$LAN_INTERFACE" # Enter LAN Net Interface
-        } | ./proxymon.sh install
-        cd ..
+    "Server IP for LAN (default:" {
+        send "$serverip\r"
+    }
+}
+catch wait result
+exit [lindex \$result 3]
+EOF
+            if expect -f "$PROXYMON_EXPECT"; then
+                log "Sent to proxymon: serverip=$serverip lan_interface=$LAN_INTERFACE"
+            else
+                log "WARNING: proxymon.sh install failed. Skipping installation."
+            fi
+            rm -f "$PROXYMON_EXPECT"
+        fi
+        cd "$gp_path"
+    else
+        log "WARNING: Cannot enter proxymon directory. Skipping installation."
     fi
 else
     log "WARNING: Failed to clone proxymon. Skipping installation."
@@ -704,27 +886,32 @@ fi
 # pydhcp
 log "Installing pydhcp..."
 
-if git clone https://github.com/maravento/pydhcp; then
-    pydhcp_path="$(pwd)/pydhcp"
+if (cd "$gp_path" && git clone https://github.com/maravento/pydhcp); then
+    pydhcp_path="$gp_path/pydhcp"
 
     if [ -d "$pydhcp_path" ]; then
         if cd "$pydhcp_path"; then
-            expect -c "
-                spawn bash pyinstall.sh
-                expect \"Select interface\"
-                send \"$LAN_INTERFACE\r\"
-                expect \"Enter DHCP server IP\"
-                send \"$serverip\r\"
-                expect \"Enter netmask\"
-                send \"$MASKNEW1\r\"
-                expect \"Enter pool start\"
-                send \"\r\"
-                expect \"Enter pool end\"
-                send \"\r\"
-                expect eof
-            "
+            PYDHCP_EXPECT=$(mktemp)
+            cat > "$PYDHCP_EXPECT" <<EOF
+spawn bash pyinstall.sh
+expect -re {\[([0-9]+)\][ \t]+$LAN_INTERFACE[ \t(]}
+send "\$expect_out(1,string)\r"
+expect "Enter DHCP server IP"
+send "$serverip\r"
+expect "Enter netmask"
+send "$MASKNEW1\r"
+expect "Enter pool start"
+send "\r"
+expect "Enter pool end"
+send "\r"
+expect eof
+catch wait result
+exit [lindex \$result 3]
+EOF
+            expect -f "$PYDHCP_EXPECT" || log "WARNING: pydhcp install failed"
+            rm -f "$PYDHCP_EXPECT"
 
-            cd "$(dirname "$pydhcp_path")"
+            cd "$gp_path"
             log "DHCP pool range: 220-235 (default). To modify edit /etc/pydhcp/pydhcpd.env"
         else
             log "WARNING: Cannot enter pydhcp directory. Skipping pydhcp installation."
@@ -740,26 +927,26 @@ fi
 # ulog2
 # https://www.maravento.com/2014/07/registros-iptables.html
 chown root:root /var/log
-nala install -y ulogd2
+retry_cmd nala install -y ulogd2
 mkdir -p /var/log/ulog &>/dev/null
 touch /var/log/ulog/syslogemu.log &>/dev/null
 usermod -a -G ulog "$local_user"
-(crontab -l 2>/dev/null; echo "#*/10 * * * * /etc/scr/banip.sh") | crontab -
+(crontab -l 2>/dev/null || true; echo "#*/10 * * * * /etc/scr/banip.sh") | crontab -
 log "Ulog Access: /var/log/ulog/syslogemu.log"
 # rsyslog
 # in case fails: nala install -y libfastjson4
-nala install -y rsyslog
+retry_cmd nala install -y rsyslog
 systemctl enable rsyslog.service
     
 # BACKUP SECTION 
 # Timeshift
-nala install -y timeshift
+retry_cmd nala install -y timeshift
 # FreeFileSync
-nala install -y libatk-adaptor libgail-common
-wget -O "$gp_path/conf/scr/ffsupdate.sh" https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh
+retry_cmd nala install -y libatk-adaptor libgail-common
+retry_cmd wget -O "$gp_path/conf/scr/ffsupdate.sh" https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh
 chmod +x "$gp_path/conf/scr/ffsupdate.sh"
-"$gp_path/conf/scr/ffsupdate.sh"
-(crontab -l 2>/dev/null; echo "@weekly /etc/scr/ffsupdate.sh") | crontab -
+"$gp_path/conf/scr/ffsupdate.sh" || log "WARNING: ffsupdate.sh failed (FreeFileSync not installed)"
+(crontab -l 2>/dev/null || true; echo "@weekly /etc/scr/ffsupdate.sh") | crontab -
 log "OK"
 sleep 1
 
@@ -771,25 +958,25 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
     [Yy]*)
         # execute command yes
         # Net Tools (Replace NIC and IP/CIDR)
-        nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
-        nala install -y fping              # Net diagnostics: fping -a -g 192.168.1.0/24
-        nala install -y ethtool            # Net config: ethtool eth0
+        retry_cmd nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
+        retry_cmd nala install -y fping              # Net diagnostics: fping -a -g 192.168.1.0/24
+        retry_cmd nala install -y ethtool            # Net config: ethtool eth0
         # Net test: On server: iperf3 -s | On client: iperf3 -c serverip
-        DEBIAN_FRONTEND=noninteractive nala install -y iperf3  2>/dev/null
+        DEBIAN_FRONTEND=noninteractive retry_cmd nala install -y iperf3  2>/dev/null
         # Net Scanning (Replace NIC and IP/CIDR)
-        nala install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
-        nala install -y nbtscan            # nbtscan 192.168.1.0/24
-        nala install -y nast               # nast -m
-        nala install -y arp-scan           # arp-scan --localnet
-        nala install -y arping             # arping -I eth0 192.168.1.1
-        nala install -y netdiscover        # netdiscover
+        retry_cmd nala install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
+        retry_cmd nala install -y nbtscan            # nbtscan 192.168.1.0/24
+        retry_cmd nala install -y nast               # nast -m
+        retry_cmd nala install -y arp-scan           # arp-scan --localnet
+        retry_cmd nala install -y arping             # arping -I eth0 192.168.1.1
+        retry_cmd nala install -y netdiscover        # netdiscover
         # Nmap
-        nala install -y nmap python3-nmap ndiff
+        retry_cmd nala install -y nmap python3-nmap ndiff
         # Domain/IP Scanning
-        nala install -y traceroute         # traceroute google.com
-        nala install -y mtr-tiny           # mtr google.com
+        retry_cmd nala install -y traceroute         # traceroute google.com
+        retry_cmd nala install -y mtr-tiny           # mtr google.com
         # fail2ban
-        nala install -y fail2ban
+        retry_cmd nala install -y fail2ban
         cp "$gp_path/conf/pack/jail.local" /etc/fail2ban/jail.local
         sed -i 's/^#\?allowipv6 *= *.*/allowipv6 = 0/' /etc/fail2ban/fail2ban.conf
         systemctl enable fail2ban.service
@@ -797,21 +984,21 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         log "Unban all: sudo fail2ban-client unban --all"
         log "Unban Jail: sudo fail2ban-client set <jail_name> unban --all"
         # lynis
-        nala install -y lynis
+        retry_cmd nala install -y lynis
         log "Lynis Run: lynis -c -Q and log: /var/log/lynis.log"
         # fsearch
         add-apt-repository -y ppa:christian-boxdoerfer/fsearch-stable || true
         upgrade
         nala install -y fsearch || true
         # ttyd (web terminal)
-        nala install -y ttyd
+        retry_cmd nala install -y ttyd
         cp -f "$gp_path/conf/pack/ttyd.service" /etc/systemd/system/ttyd.service
         sed -i "s/your_user/$local_user/g" /etc/systemd/system/ttyd.service
         systemctl daemon-reload
-        systemctl enable --now ttyd.service
+        systemctl enable ttyd.service
         log "ttyd Access: http://localhost:7681"
         # suricata install
-        nala install -y suricata suricata-update jq
+        retry_cmd nala install -y suricata suricata-update jq
         sed -i "s/interface: eth[0-9]/interface: $LAN_INTERFACE/g" /etc/suricata/suricata.yaml
         if grep -q "community-id: false" /etc/suricata/suricata.yaml; then
             sed -i 's/community-id: false/community-id: true/' /etc/suricata/suricata.yaml
@@ -829,14 +1016,13 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         fi        
         cp -f "$gp_path/conf/pack/"{suricataupdate,suricataclean}.sh /etc/suricata/
         chmod +x /etc/suricata/{suricataupdate,suricataclean}.sh
-        timeout 300 /etc/suricata/suricataupdate.sh || log "Warning: suricataupdate timed out"
         # suricata ratio
         if ! grep -q "detect-thread-ratio: 0.5" /etc/suricata/suricata.yaml; then
             sed -i 's/detect-thread-ratio: 1.0/detect-thread-ratio: 0.5/' /etc/suricata/suricata.yaml
         fi
         # suricata cron
-        (crontab -l 2>/dev/null; echo "0 2 * * * /etc/suricata/suricataupdate.sh >/dev/null 2>&1") | crontab -
-        (crontab -l 2>/dev/null; echo "@monthly /etc/suricata/suricataclean.sh >/dev/null 2>&1") | crontab -
+        (crontab -l 2>/dev/null || true; echo "0 2 * * * /etc/suricata/suricataupdate.sh >/dev/null 2>&1") | crontab -
+        (crontab -l 2>/dev/null || true; echo "@monthly /etc/suricata/suricataclean.sh >/dev/null 2>&1") | crontab -
         # suricata check IDS
         SURICATA_SERVICE="/usr/lib/systemd/system/suricata.service"
         CORRECT_EXECSTART="ExecStart=/usr/bin/suricata -D --af-packet -c /etc/suricata/suricata.yaml --pidfile /run/suricata.pid"
@@ -848,17 +1034,16 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
             log "Suricata Mode: IDS"
         fi
         # evebox
-        curl -fsSL https://evebox.org/files/GPG-KEY-evebox -o /etc/apt/keyrings/evebox.asc
+        mkdir -p /etc/apt/keyrings
+        retry_cmd curl -fsSL https://evebox.org/files/GPG-KEY-evebox -o /etc/apt/keyrings/evebox.asc
         echo "deb [signed-by=/etc/apt/keyrings/evebox.asc] https://evebox.org/files/debian stable main" | tee /etc/apt/sources.list.d/evebox.list
         upgrade
-        nala install -y evebox
+        retry_cmd nala install -y evebox
         # Configure
         cp -f "$gp_path/conf/pack/evebox.yaml" /etc/evebox/evebox.yaml
         cp -f "$gp_path/conf/pack/evebox.service" /etc/systemd/system/evebox.service
         systemctl daemon-reload
         systemctl enable suricata evebox
-        systemctl restart suricata
-        systemctl start evebox
         log "EVEBox: http://localhost:5636"
         break
         ;;
@@ -885,13 +1070,33 @@ with SHARED folder, Recycle Bin and Audit (y/n)" answer
 
     case "$answer" in
     [Yy]*)
-        if git clone https://github.com/maravento/smbstack; then
-            smbstack_path="$(pwd)/smbstack"
+        if (cd "$gp_path" && git clone https://github.com/maravento/smbstack); then
+            smbstack_path="$gp_path/smbstack"
 
             if [ -d "$smbstack_path" ]; then
                 if cd "$smbstack_path"; then
-                    bash smbinstall.sh --install
-                    cd "$(dirname "$smbstack_path")"
+                    SMB_EXPECT=$(mktemp)
+                    cat > "$SMB_EXPECT" <<EOF
+spawn bash smbinstall.sh --install
+interact {
+    -o
+    "Enter Samba server IP/network (e.g. 192.168.1.0/24): " {
+        send "$LOCALNETNEW/$MASKNEW2\r"
+    }
+    "Enter network interface: " {
+        send "$LAN_INTERFACE\r"
+    }
+}
+catch wait result
+exit [lindex \$result 3]
+EOF
+                    if expect -f "$SMB_EXPECT"; then
+                        log "smbstack installed OK"
+                    else
+                        log "WARNING: smbinstall.sh --install failed. Skipping Samba installation."
+                    fi
+                    rm -f "$SMB_EXPECT"
+                    cd "$gp_path"
                 else
                     log "WARNING: Cannot enter smbstack directory. Skipping Samba installation."
                 fi
@@ -923,34 +1128,32 @@ upgrade
 echo -e "\n"
 log "Downloading ACLs..."
 # Allow IP
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O "$acl_path/acl_squid/allowip.txt"
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O "$acl_path/acl_squid/allowip.txt" || true
 if [ ! -s "$acl_path/acl_squid/allowip.txt" ]; then
     log "WARNING: allowip.txt download failed"
 fi
 
 # Block Patterns
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/source/squid/blockpatterns.txt -O "$acl_path/acl_squid/blockpatterns.txt"
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/source/squid/blockpatterns.txt -O "$acl_path/acl_squid/blockpatterns.txt" || true
 if [ ! -s "$acl_path/acl_squid/blockpatterns.txt" ]; then
     log "WARNING: blockpatterns.txt download failed"
 fi
 
 # Block TLDs
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O "$acl_path/acl_squid/blocktlds.txt"
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O "$acl_path/acl_squid/blocktlds.txt" || true
 if [ ! -s "$acl_path/acl_squid/blocktlds.txt" ]; then
     log "WARNING: blocktlds.txt download failed, disabling ACL in squid.conf"
     sed -i '/^acl blocktlds /s/^/#/; /^http_access deny workdays blocktlds/s/^/#/' "$gp_path/conf/server/squid.conf"
 fi
 
 # Blackweb
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/blackweb.tar.gz
-wget_exit=$?
-if [ $wget_exit -eq 0 ] && [ -f blackweb.tar.gz ]; then
-    cat blackweb.tar.gz* | tar xzf -
-    cp blackweb.txt "$acl_path/acl_squid/blackweb.txt"
+if (cd "$gp_path" && wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/blackweb.tar.gz && [ -f blackweb.tar.gz ]); then
+    (cd "$gp_path" && cat blackweb.tar.gz* | tar xzf -)
+    cp "$gp_path/blackweb.txt" "$acl_path/acl_squid/blackweb.txt"
 else
     log "WARNING: blackweb.tar.gz download failed"
 fi
-rm -f blackweb.*
+rm -f "$gp_path"/blackweb.*
 log "OK"
 sleep 1
 
@@ -958,16 +1161,11 @@ sleep 1
 echo -e "\n"
 log "Applying Config..."
 # squid
-cp -f /etc/squid/squid.conf{,.bak} &>/dev/null
+cp -f /etc/squid/squid.conf{,.bak} &>/dev/null || true
 cp -f "$gp_path/conf/server/squid.conf" /etc/squid/squid.conf
 chown root:root /etc/squid/squid.conf
 chmod 644 /etc/squid/squid.conf
-# netplan
-mv -f /etc/netplan/01-network-manager-all.yaml{,.bak} &>/dev/null
-mv -f /etc/netplan/90-NM-*.yaml{,.bak} &>/dev/null
-cp -f "$gp_path/conf/server/00-networkd.yaml" /etc/netplan/00-networkd.yaml
-chown root:root /etc/netplan/00-networkd.yaml
-chmod 644 /etc/netplan/00-networkd.yaml
+systemctl restart squid.service
 # scripts
 # Download external scripts to project scr folder
 scripts=(
@@ -1003,7 +1201,7 @@ sleep 1
 echo -e "\n"
 log "Proxy Apache Config..."
 
-cp -f /etc/apache2/sites-available/000-default.conf{,.bak} &>/dev/null
+cp -f /etc/apache2/sites-available/000-default.conf{,.bak} &>/dev/null || true
 sed -i "s_\(#LogLevel info ssl:warn\)_\1\n\tLogLevel warn_" /etc/apache2/sites-available/000-default.conf
 add_txt="$gp_path/conf/server/000-add.txt"
 sed -i "/DocumentRoot/{
@@ -1020,8 +1218,8 @@ cp -f "$gp_path/conf/server/wpad.conf" /etc/apache2/sites-available/wpad.conf
 chmod 644 /etc/apache2/sites-available/wpad.conf
 a2ensite -q wpad.conf
 grep -qxF "Listen $serverip:18100" /etc/apache2/ports.conf || grep -qxF 'Listen 18100' /etc/apache2/ports.conf || echo "Listen $serverip:18100" >> /etc/apache2/ports.conf
-apachectl -t -D DUMP_INCLUDES -S
-log "WPAD-PAC Proxy Auto Access: http://SERVER_IP:18100/wpad.pac"
+apachectl -t -D DUMP_INCLUDES -S || true
+log "WPAD-PAC: http://$serverip:18100/wpad.pac"
 log "OK"
 sleep 1
 
@@ -1031,11 +1229,11 @@ grep -qxF '*.none    /var/log/ulog/syslogemu.log' /etc/rsyslog.conf || \
     echo '*.none    /var/log/ulog/syslogemu.log' | tee -a /etc/rsyslog.conf >/dev/null
 
 # backup conf files
-cp -f /etc/security/limits.conf{,.bak} &>/dev/null
-cp -f /etc/systemd/system.conf{,.bak} &>/dev/null
-cp -f /etc/systemd/user.conf{,.bak} &>/dev/null
-cp -f /etc/sysctl.conf{,.bak} &>/dev/null
-cp -f /etc/hosts{,.bak} &>/dev/null
+cp -f /etc/security/limits.conf{,.bak} &>/dev/null || true
+cp -f /etc/systemd/system.conf{,.bak} &>/dev/null || true
+cp -f /etc/systemd/user.conf{,.bak} &>/dev/null || true
+cp -f /etc/sysctl.conf{,.bak} &>/dev/null || true
+cp -f /etc/hosts{,.bak} &>/dev/null || true
 
 # adding parameters
 tee -a /etc/security/limits.conf >/dev/null <<EOT
@@ -1055,10 +1253,10 @@ net.ipv4.tcp_congestion_control = bbr
 EOT
 echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/system.conf >/dev/null
 echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/user.conf >/dev/null
-sysctl -p
+sysctl -p || log "WARNING: some sysctl parameters failed to apply"
 
 log "Apache Config..."
-cp -f /etc/apache2/apache2.conf{,.bak} &>/dev/null
+cp -f /etc/apache2/apache2.conf{,.bak} &>/dev/null || true
 #echo 'RequestReadTimeout header=10-20,MinRate=500 body=20,MinRate=500' | tee -a /etc/apache2/apache2.conf # optional
 cp -f "$gp_path/conf/server/servername.conf" /etc/apache2/conf-available/servername.conf
 a2enconf servername
@@ -1094,7 +1292,6 @@ grep -q "^Header unset ETag" /etc/apache2/conf-available/security.conf || \
 grep -q "^Timeout" /etc/apache2/conf-available/security.conf || \
     echo 'Timeout 60' >> /etc/apache2/conf-available/security.conf
 sed -i 's/Options -Indexes FollowSymLinks/Options -Indexes +FollowSymLinks/g' /etc/apache2/apache2.conf
-a2enmod -q headers mime rewrite || true
 a2enconf -q security || true
 log "OK"
 sleep 1
@@ -1103,20 +1300,22 @@ sleep 1
 echo -e "\n"
 log "Create Apache Password: /var/www/..."
 echo -e "\n"
-htpasswd -c /etc/apache2/.htpasswd "$local_user"
+until htpasswd -c /etc/apache2/.htpasswd "$local_user"; do
+    log "Passwords did not match or were empty. Try again."
+done
 
 # APACHE CONFIG
-apache2ctl configtest
+apache2ctl configtest || true
 chmod -R 755 /var/www
 chown -R www-data:www-data /var/www
-apachectl -t -D DUMP_INCLUDES -S
+apachectl -t -D DUMP_INCLUDES -S || true
 log "OK"
 sleep 1
 
 # CRONTAB
 echo -e "\n"
 log "Add Crontab Tasks..."
-(crontab -l 2>/dev/null; echo "@reboot systemctl daemon-reload
+(crontab -l 2>/dev/null || true; echo "@reboot systemctl daemon-reload
 @reboot /etc/scr/hwclock.sh
 @reboot /etc/scr/lock.sh
 @reboot /etc/scr/blackusb.sh off
@@ -1126,22 +1325,30 @@ log "OK"
 sleep 1
 
 ### ENDING ###
+# Disable NFS (Network File System) / NIS (Network Information Service)
+if systemctl list-unit-files | grep -q '^rpcbind'; then
+    systemctl stop rpcbind.service rpcbind.socket &>/dev/null || true
+    systemctl disable rpcbind.service rpcbind.socket &>/dev/null || true
+    systemctl mask rpcbind.service rpcbind.socket &>/dev/null || true
+fi
+
 # Restart Daemon
 systemctl daemon-reexec &>/dev/null
 # Update initramfs (optional)
 #update-initramfs -u -k all
 # create alias "upgrade"
-sudo -u "$local_user" bash -c "printf '%s\n' 'alias upgrade=\"sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo updatedb && sudo update-desktop-database && sudo snap refresh\"' >> /home/${local_user}/.bashrc"
+sudo -u "$local_user" bash -c "printf '%s\n' 'alias upgrade=\"sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo systemctl daemon-reload && sudo updatedb && sudo update-desktop-database && sudo snap refresh\"' >> /home/${local_user}/.bashrc"
 sudo -u "$local_user" bash -c "printf '%s\n' 'alias server=\"sudo /etc/scr/serverboot.sh\"' >> /home/${local_user}/.bashrc"
 sudo -u "$local_user" bash -c "printf '%s\n' 'alias cleaner=\"sudo /etc/scr/cleaner.sh\"' >> /home/${local_user}/.bashrc"
 # IPv4 priority
 sed -i 's/^#\s*precedence ::ffff:0:0\/96\s\+100/precedence ::ffff:0:0\/96  100/' /etc/gai.conf
 # snap
-snap unset system proxy.http
-snap unset system proxy.https
-snap refresh snapd
-systemctl restart snapd
-snap refresh
+snap unset system proxy.http || true
+snap unset system proxy.https || true
+retry_cmd snap refresh snapd
+systemctl daemon-reload
+systemctl restart snapd || true
+retry_cmd snap refresh
 # logs
 chmod 755 /var/log
 chown root:syslog /var/log
@@ -1151,22 +1358,21 @@ upgrade
 clear
 echo -e "\n"
 log "Done. Press ENTER to Reboot"
-log "after reboot, run: systemctl list-units --type service --state running,failed"
+log "after reboot, run:"
+log "systemctl list-units --type service --state running,failed"
 read -r RES
 systemctl daemon-reexec
 systemctl daemon-reload
 update-ca-certificates -f
-systemctl reload apache2
-systemctl restart systemd-resolved
+systemctl reload apache2 || true
 sed -i '/^#\?SystemMaxUse=$/s/.*/SystemMaxUse=50M/' /etc/systemd/journald.conf
-systemctl restart systemd-journald
 journalctl --vacuum-size=50M
-a2query -s
-netplan generate
-netplan apply
+a2query -s || true
 #apt -qq -y remove --purge `deborphan --guess-all` # optional
 #dpkg -l | grep "^rc" | cut -d " " -f 3 | xargs dpkg --purge &> /dev/null # optional
 rm -f gitfolder.py
+rm -rf "$gp_path"
+rm -f "$NETWORK_ENV"
 (sleep 2 && rm -- "$SCRIPT_PATH") &
 
 log "gateproxy done at: $(date)"

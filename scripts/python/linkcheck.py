@@ -234,7 +234,6 @@ def scan():
             print()
 
         filename = f"broken_links_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-        # LC-03 fix: capture OSError when writing results file
         try:
             with open(filename, "w", encoding="utf-8") as f:
                 f.write("Broken Link Report\n")

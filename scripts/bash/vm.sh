@@ -84,5 +84,9 @@ status)
     sudo -H -u "$local_user" VBoxManage showvminfo "$VMNAME" --machinereadable | grep 'VMState=' | cut -d '=' -f2
     exit 0
     ;;
+*)
+    echo "Usage: $0 {start|stop|shutdown|reset|status}"
+    exit 1
+    ;;
 esac
 exit 0
