@@ -7,8 +7,7 @@
 #
 ################################################################################
 
-echo "Auto Mount/Unmount NTFS Starting. Wait..."
-printf "\n"
+set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -16,26 +15,45 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
-# prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-exec 200>"$SCRIPT_LOCK"
-if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
-    exit 1
-fi
+# LOCAL USER detection
+detect_local_user() {
+    local uid_min uid_max
+    local user uid best_user="" best_uid=999999
 
-# LOCAL USER (multi-strategy detection with validation)
-local_user=""
-local_user=$(who | awk '/\(:0\)/{print $1; exit}')
-[ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
-[ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
-[ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
-if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
-    echo "ERROR: Cannot determine a valid local user"
+    uid_min=$(awk '/^UID_MIN/{print $2}' /etc/login.defs 2>/dev/null)
+    uid_max=$(awk '/^UID_MAX/{print $2}' /etc/login.defs 2>/dev/null)
+    uid_min=${uid_min:-1000}
+    uid_max=${uid_max:-60000}
+
+    while IFS=: read -r user _ uid _ _ _ shell; do
+        [ "$user" = "root" ] && continue
+        [ -z "$uid" ] && continue
+        [ "$uid" -lt "$uid_min" ] && continue
+        [ "$uid" -gt "$uid_max" ] && continue
+
+        case "$shell" in
+            */false|*/nologin) continue ;;
+        esac
+
+        id -nG "$user" 2>/dev/null | grep -qw sudo || continue
+
+        if [ "$uid" -lt "$best_uid" ]; then
+            best_uid="$uid"
+            best_user="$user"
+        fi
+    done </etc/passwd
+
+    [ -n "$best_user" ] || return 1
+    echo "$best_user"
+}
+
+if ! local_user=$(detect_local_user); then
+    echo "ERROR: No valid local user found. Create one with sudo access."
     exit 1
 fi
 echo "Using local user: $local_user"
+
+echo "Auto Mount/Unmount NTFS Starting. Wait..."
 
 # check dependencies
 pkgs='ntfs-3g'

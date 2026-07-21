@@ -18,6 +18,8 @@
 #
 ################################################################################
 
+set -uo pipefail
+
 # logging
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 log_file="$SCRIPT_DIR/dofi.log"
@@ -32,6 +34,15 @@ if [ "$(id -u)" == "0" ]; then
     exit 1
 fi
 
+# prevent overlapping runs
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    log "Script $(basename "$0") is already running"
+    exit 1
+fi
+
+# parallel_processes
 if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
     log "Use: $0 <file_name> [parallel_processes]"
     exit 1

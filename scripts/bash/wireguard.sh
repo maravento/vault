@@ -7,8 +7,7 @@
 #
 ################################################################################
 
-echo "WireGuard Install | Remove Starting. Wait..."
-printf "\n"
+set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -18,11 +17,14 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
+
+echo "WireGuard Install | Remove Starting. Wait..."
 
 # Function to install WireGuard as Server
 install_wireguard_server() {

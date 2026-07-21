@@ -9,8 +9,7 @@
 #
 ################################################################################
 
-echo "Joomla Starting. Wait..."
-printf "\n"
+set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -20,11 +19,14 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
+
+echo "Joomla Starting. Wait..."
 
 install_joomla() {
     if [ -d "/var/www/html/joomla" ]; then
@@ -37,7 +39,7 @@ install_joomla() {
     read -r -sp "Set the password for the MySQL joomla user: " DBPASS
     echo
 
-    # Escape single quotes for safe embedding in SQL string literals (SQL standard: ' → '')
+    # Escape single quotes for safe embedding in SQL string literals (SQL standard: ' -> '')
     SQL_ROOTPASS="${ROOTPASS//\'/\'\'}"
     SQL_DBPASS="${DBPASS//\'/\'\'}"
 
@@ -171,8 +173,8 @@ EOF
     DocumentRoot /var/www/html
 
     SSLEngine on
-    SSLCertificateFile      /etc/ssl/certs/localhost.pem
-    SSLCertificateKeyFile   /etc/ssl/private/localhost-key.pem
+    SSLCertificateFile /etc/ssl/certs/localhost.pem
+    SSLCertificateKeyFile /etc/ssl/private/localhost-key.pem
 
     <Directory /var/www/html/joomla>
         Options Indexes FollowSymLinks
@@ -234,7 +236,7 @@ delete_dependencies() {
 }
 
 warning() {
-    read -r -p "⚠️ WARNING: This will remove MySQL/Apache2/PHP/mkcert. Confirm? (y/n): " confirm
+    read -r -p " WARNING: This will remove MySQL/Apache2/PHP/mkcert. Confirm? (y/n): " confirm
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
         delete_dependencies
     else
@@ -246,10 +248,10 @@ warning() {
 clear
 echo
 echo "======== JOOMLA MENU ========"
-echo " 1)  Install Joomla & dependencies"
-echo " 2)  Delete Joomla"
-echo " 3)  Delete MySQL/Apache2/PHP/mkcert"
-echo " 4)  Exit"
+echo "1) Install Joomla & dependencies"
+echo "2) Delete Joomla"
+echo "3) Delete MySQL/Apache2/PHP/mkcert"
+echo "4) Exit"
 read -r -p "Select an option [1-4]: " OPTION
 
 case "$OPTION" in

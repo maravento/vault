@@ -7,6 +7,8 @@
 #
 ################################################################################
 
+set -uo pipefail
+
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -50,7 +52,7 @@ fi
 # Clean: EveBox DB. Deleting the files outright (instead of DELETE FROM
 # events; VACUUM;) also clears EveBox's eve.json read bookmark. The bookmark
 # itself lives in a separate *.bookmark file (not in the sqlite databases),
-# named after a hash of the eve.json path — it must be removed too, or it
+# named after a hash of the eve.json path -- it must be removed too, or it
 # survives pointing past the size of the freshly truncated eve.json above,
 # and EveBox gets stuck ("Invalid bookmark found: current file size less
 # than bookmark") and stops ingesting new events. EveBox is already stopped

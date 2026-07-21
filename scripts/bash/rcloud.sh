@@ -11,7 +11,10 @@
 #
 ################################################################################
 
-set -u
+set -uo pipefail
+
+# PATH for cron
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -20,38 +23,57 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # LOG FILE for debugging
-SCRIPT_LOG="/var/log/rcloud-startup.log"
+SCRIPT_LOG="/var/log/rcloud.log"
 exec 1> >(tee -a "$SCRIPT_LOG")
 exec 2>&1
 
-echo "================================================"
-echo "$(date) - Rclone Cloud Start"
-echo "User: $(whoami)"
-echo "================================================"
-
-# PATH for cron
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
 
-# LOCAL USER (multi-strategy detection with validation)
-local_user=""
-local_user=$(who | awk '/\(:0\)/{print $1; exit}')
-[ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
-[ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
-[ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
-if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
-    echo "ERROR: Cannot determine a valid local user"
+# LOCAL USER detection
+detect_local_user() {
+    local uid_min uid_max
+    local user uid best_user="" best_uid=999999
+
+    uid_min=$(awk '/^UID_MIN/{print $2}' /etc/login.defs 2>/dev/null)
+    uid_max=$(awk '/^UID_MAX/{print $2}' /etc/login.defs 2>/dev/null)
+    uid_min=${uid_min:-1000}
+    uid_max=${uid_max:-60000}
+
+    while IFS=: read -r user _ uid _ _ _ shell; do
+        [ "$user" = "root" ] && continue
+        [ "$uid" -lt "$uid_min" ] && continue
+        [ "$uid" -gt "$uid_max" ] && continue
+
+        case "$shell" in
+            */false|*/nologin) continue ;;
+        esac
+
+        id -nG "$user" 2>/dev/null | grep -qw sudo || continue
+
+        if [ "$uid" -lt "$best_uid" ]; then
+            best_uid="$uid"
+            best_user="$user"
+        fi
+    done </etc/passwd
+
+    [ -n "$best_user" ] || return 1
+    echo "$best_user"
+}
+
+if ! local_user=$(detect_local_user); then
+    echo "ERROR: No valid local user found. Create one with sudo access."
     exit 1
 fi
 echo "Using local user: $local_user"
+
+echo "Rclone Cloud Start. Wait..."
 
 # check internet with retry (essential for @reboot)
 echo "Checking internet connection..."
@@ -144,7 +166,7 @@ start_script() {
     for service_info in "${services[@]}"; do
         IFS=':' read -r service_name service_path <<<"$service_info"
         echo "Mounting $service_name to $service_path"
-        
+
         # check rclone for service
         if ! sudo -u "$local_user" rclone listremotes | grep -q "^${service_name}:$"; then
             echo "ERROR: Rclone remote '$service_name' not configured"
@@ -156,7 +178,7 @@ start_script() {
             echo "WARNING: $service_name is already mounted at $service_path, skipping"
             continue
         fi
-        
+
         # mount with nohup
         sudo -u "$local_user" nohup rclone mount "$service_name:" "$service_path" \
             --log-file "$rclonelog" \
@@ -164,9 +186,9 @@ start_script() {
             --vfs-cache-mode writes \
             --daemon \
             >/dev/null 2>&1 &
-        
+
         sleep 2
-        
+
         # check mount
         if mount | grep -q "$service_path"; then
             echo "SUCCESS: $service_name mounted"
@@ -200,7 +222,7 @@ stop_script() {
             echo "$service_name is not mounted"
         fi
     done
-    
+
     # clean
     rm -f "$mount_lock"
     echo "Script stopped"
@@ -217,7 +239,7 @@ restart_script() {
 # status script
 status_script() {
     echo "=== Rclone Cloud Status ==="
-    
+
     if [ -e "$mount_lock" ]; then
         echo "Lock file: EXISTS"
     else
@@ -229,15 +251,15 @@ status_script() {
     for service_info in "${services[@]}"; do
         IFS=':' read -r service_name service_path <<<"$service_info"
         if mount | grep -q "$service_path"; then
-            echo "  ✓ $service_name is MOUNTED at $service_path"
+            echo "$service_name is MOUNTED at $service_path"
         else
-            echo "  ✗ $service_name is NOT MOUNTED"
+            echo "$service_name is NOT MOUNTED"
         fi
     done
-    
+
     echo ""
     echo "Rclone processes:"
-    ps aux | grep "[r]clone mount" || echo "  No rclone mount processes found"
+    ps aux | grep "[r]clone mount" || echo " No rclone mount processes found"
 }
 
 # additional commands (start, stop, restart, status)

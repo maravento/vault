@@ -7,10 +7,8 @@
 # A simple proxy/firewall server
 #
 ################################################################################
-set -euo pipefail
 
-clear
-echo -e "\n"
+set -Eeuo pipefail
 
 log_file="$(dirname "$(realpath "$0")")/gateproxy.log"
 : > "$log_file" 2>/dev/null || true
@@ -20,22 +18,23 @@ log() {
 }
 trap 'log "ERROR: command failed at line $LINENO: $BASH_COMMAND"' ERR
 
-log "gateproxy start..."
-printf "\n"
-
-# checking root
+## root check
 if [ "$(id -u)" != "0" ]; then
     log "ERROR: This script must be run as root"
     exit 1
 fi
 
-# checking script execution
+# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     log "Script $(basename "$0") is already running"
     exit 1
 fi
+
+log "gateproxy start..."
+printf "\n"
 
 # checking conflicting pre-installed packages
 check_conflicts() {
@@ -86,21 +85,40 @@ if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "^Status: acti
 fi
 log "No conflicting packages found: OK"
 
-# LOCAL USER (multi-strategy detection with validation)
-local_user=""
-# 1. Local graphical session (:0)
-local_user=$(who | awk '/\(:0\)/{print $1; exit}')
-# 2. Parent process logname (works well with sudo)
-[ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
-# 3. SUDO_USER variable (when run via sudo from terminal)
-[ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-# 4. First active session user (SSH or other)
-[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
-# 5. First valid home directory
-[ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
-# Validate the user actually exists on the system
-if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
-    log "ERROR: Cannot determine a valid local user"
+# LOCAL USER detection
+detect_local_user() {
+    local uid_min uid_max
+    local user uid best_user="" best_uid=999999
+
+    uid_min=$(awk '/^UID_MIN/{print $2}' /etc/login.defs 2>/dev/null)
+    uid_max=$(awk '/^UID_MAX/{print $2}' /etc/login.defs 2>/dev/null)
+    uid_min=${uid_min:-1000}
+    uid_max=${uid_max:-60000}
+
+    while IFS=: read -r user _ uid _ _ _ shell; do
+        [ "$user" = "root" ] && continue
+        [ -z "$uid" ] && continue
+        [ "$uid" -lt "$uid_min" ] && continue
+        [ "$uid" -gt "$uid_max" ] && continue
+
+        case "$shell" in
+            */false|*/nologin) continue ;;
+        esac
+
+        id -nG "$user" 2>/dev/null | grep -qw sudo || continue
+
+        if [ "$uid" -lt "$best_uid" ]; then
+            best_uid="$uid"
+            best_user="$user"
+        fi
+    done </etc/passwd
+
+    [ -n "$best_user" ] || return 1
+    echo "$best_user"
+}
+
+if ! local_user=$(detect_local_user); then
+    log "ERROR: No valid local user found. Create one with sudo access."
     exit 1
 fi
 log "Using local user: $local_user"
@@ -223,6 +241,8 @@ hwclock -w &>/dev/null || log "WARNING: hwclock -w failed (no RTC available?)"
 systemctl enable --now systemd-timesyncd &>/dev/null || log "WARNING: systemd-timesyncd failed to start"
 timedatectl set-ntp true &>/dev/null || log "WARNING: timedatectl set-ntp failed"
 timedatectl status | grep -E "NTP|synchroniz" || true
+# Performance Co-Pilot (PCP)
+systemctl disable --now pmcd pmproxy pmlogger &>/dev/null || log "WARNING: PCP failed to disable"
 # install | remove
 retry_cmd apt -qq install -y apt-file
 retry_cmd apt-file update
@@ -1372,7 +1392,6 @@ a2query -s || true
 #dpkg -l | grep "^rc" | cut -d " " -f 3 | xargs dpkg --purge &> /dev/null # optional
 rm -f gitfolder.py
 rm -rf "$gp_path"
-rm -f "$NETWORK_ENV"
 (sleep 2 && rm -- "$SCRIPT_PATH") &
 
 log "gateproxy done at: $(date)"

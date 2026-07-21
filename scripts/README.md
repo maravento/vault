@@ -25,20 +25,15 @@ chmod +x gitfolder.py
 python3 gitfolder.py https://github.com/maravento/vault/scripts
 ```
 
-## WARNING
-
----
-
-| Scripts        | Tested on           |
-| -------------- | ------------------- |
-| Batch (Windows)| Windows 10/11 x64    |
-| Bash (Linux)   | Ubuntu 24.04.x LTS x64 |
-
 ## HOW TO USE
 
 ---
 
 ### BASH (Linux)
+
+#### Requirements
+
+**⚠️ WARNING:** Only tested on Ubuntu 24.04 LTS. Other versions or distros not tested, use at your own risk.
 
 #### AI
 
@@ -127,6 +122,8 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 - [Squid Monitor - Server Category (install|uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/squidmon.sh)
 
 ### BATCH (Windows)
+
+Tested on: Windows 10/11 x64
 
 #### Backup & Recovery
 

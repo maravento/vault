@@ -11,27 +11,36 @@
 #
 ################################################################################
 
-echo "Gdrive Starting. Wait..."
-printf "\n"
+set -uo pipefail
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # check no-root
 if [ "$(id -u)" == "0" ]; then
-    echo "ERROR: This script should not be run as root."
+    echo "[ERROR] This script should not be run as root."
+    exit 1
+fi
+
+# prevent overlapping runs
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    echo "[ERROR] Script $(basename "$0") is already running"
     exit 1
 fi
 
 local_user="$(id -un)"
 echo "Using local user: $local_user"
 
+echo "Gdrive Starting. Wait..."
+
 # check dependencies
 pkgs='google-drive-ocamlfuse libcurl3-gnutls libfuse2 libsqlite3-0'
 for pkg in $pkgs; do
     dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {
-        echo "❌ '$pkg' is not installed. Run:"
-        echo "   sudo add-apt-repository -y ppa:alessandro-strada/ppa"
-        echo "   sudo apt install $pkg"
+        echo "'$pkg' is not installed. Run:"
+        echo "sudo add-apt-repository -y ppa:alessandro-strada/ppa"
+        echo "sudo apt install $pkg"
         exit 1
     }
 done
@@ -46,15 +55,15 @@ if [ ! -d "$GD" ]; then
     chmod 755 "$GD"
 fi
 
-case "$1" in
+case "${1:-}" in
 start)
     echo 'Mount Google Drive...'
     if mountpoint -q "$GD"; then
-        echo "⚠️ $GD is already mounted."
+        echo "$GD is already mounted."
         exit 0
     fi
     if ! google-drive-ocamlfuse "$GD"; then
-        echo "❌ Failed to mount Google Drive."
+        echo "Failed to mount Google Drive."
         exit 1
     fi
     echo "OK"
@@ -63,11 +72,11 @@ start)
 stop)
     echo 'Umount Google Drive...'
     if ! mountpoint -q "$GD"; then
-        echo "⚠️ $GD is not mounted."
+        echo "$GD is not mounted."
         exit 0
     fi
     if ! fusermount -u "$GD"; then
-        echo "❌ Failed to unmount Google Drive."
+        echo "Failed to unmount Google Drive."
         exit 1
     fi
     echo "OK"

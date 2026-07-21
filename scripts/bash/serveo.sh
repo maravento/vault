@@ -6,14 +6,13 @@
 # Serveo tunnel start | stop | status
 # https://serveo.net/
 
-# ⚠ Before using this script:
+# Before using this script:
 # - Register on the tunnel service website with your email address.
 # - The server fingerprint will be automatically managed by this script.
 #
 ################################################################################
 
-echo "Serveo Tunnel Starting. Wait..."
-printf "\n"
+set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -21,30 +20,49 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
-# prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-exec 200>"$SCRIPT_LOCK"
-if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
-    exit 1
-fi
+# LOCAL USER detection
+detect_local_user() {
+    local uid_min uid_max
+    local user uid best_user="" best_uid=999999
 
-# LOCAL USER (multi-strategy detection with validation)
-local_user=""
-local_user=$(who | awk '/\(:0\)/{print $1; exit}')
-[ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
-[ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
-[ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
-if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
-    echo "ERROR: Cannot determine a valid local user"
+    uid_min=$(awk '/^UID_MIN/{print $2}' /etc/login.defs 2>/dev/null)
+    uid_max=$(awk '/^UID_MAX/{print $2}' /etc/login.defs 2>/dev/null)
+    uid_min=${uid_min:-1000}
+    uid_max=${uid_max:-60000}
+
+    while IFS=: read -r user _ uid _ _ _ shell; do
+        [ "$user" = "root" ] && continue
+        [ -z "$uid" ] && continue
+        [ "$uid" -lt "$uid_min" ] && continue
+        [ "$uid" -gt "$uid_max" ] && continue
+
+        case "$shell" in
+            */false|*/nologin) continue ;;
+        esac
+
+        id -nG "$user" 2>/dev/null | grep -qw sudo || continue
+
+        if [ "$uid" -lt "$best_uid" ]; then
+            best_uid="$uid"
+            best_user="$user"
+        fi
+    done </etc/passwd
+
+    [ -n "$best_user" ] || return 1
+    echo "$best_user"
+}
+
+if ! local_user=$(detect_local_user); then
+    echo "ERROR: No valid local user found. Create one with sudo access."
     exit 1
 fi
 echo "Using local user: $local_user"
 
+echo "Serveo Tunnel Starting. Wait..."
+
 # check dependencies
 if ! command -v ssh >/dev/null 2>&1; then
-    echo "⚠️ SSH is not installed"
+    echo "SSH is not installed"
     echo "run: sudo apt install openssh-server"
     exit 1
 fi
@@ -108,14 +126,23 @@ kill_all_tunnel_processes() {
 }
 
 start() {
+    # prevent overlapping runs
+    SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+    (umask 077; : >> "$SCRIPT_LOCK")
+    exec 200>"$SCRIPT_LOCK"
+    if ! flock -n 200; then
+        echo "Script $(basename "$0") is already running"
+        exit 1
+    fi
+
     kill_all_tunnel_processes
     echo "Ports commonly exposed for remote access:"
-    echo "SSH Access:   22 (SSH), 3306/5432 (Databases)..."
-    echo "Web Access:   80 (HTTP), 443 (HTTPS)..."
+    echo "SSH Access: 22 (SSH), 3306/5432 (Databases)..."
+    echo "Web Access: 80 (HTTP), 443 (HTTPS)..."
     echo
     read -p "Enter port number(s) to expose (separated by spaces):" ports
     if [ -z "$ports" ]; then
-        echo "❌ Error. You must enter at least one port."
+        echo "Error. You must enter at least one port."
         exit 1
     fi
 
@@ -124,10 +151,10 @@ start() {
     local_ports=()
     for port in $ports; do
         if ss -tuln | grep -q ":$port "; then
-            echo "Port $port accessible ✅"
+            echo "Port $port accessible "
         else
-            echo "⚠️ Port $port is not accessible locally"
-            echo "   Make sure a service is listening on that port"
+            echo "Port $port is not accessible locally"
+            echo "Make sure a service is listening on that port"
             continue
         fi
         PORT_ARGS+=" -R 0:localhost:$port"
@@ -182,17 +209,17 @@ start() {
     i=0
     for assigned_port in $assigned_ports; do
         local_port="${local_ports[$i]}"
-        
+
         if [[ "$local_port" -eq 22 ]] || [[ "$local_port" -eq 21 ]] || \
            [[ "$local_port" -eq 25 ]] || [[ "$local_port" -eq 53 ]] || \
            [[ "$local_port" -eq 110 ]] || [[ "$local_port" -eq 143 ]] || \
            [[ "$local_port" -eq 3306 ]] || [[ "$local_port" -eq 5432 ]] || \
            [[ "$local_port" -eq 6379 ]]; then
             echo "To connect from the remote client to the local port $local_port, run:"
-            echo "  ssh -p $assigned_port $local_user@serveo.net"
+            echo "ssh -p $assigned_port $local_user@serveo.net"
         else
             echo "Open your browser and access the port $local_port:"
-            echo "  https://serveo.net:$assigned_port"
+            echo "https://serveo.net:$assigned_port"
         fi
         ((i++)) || true
     done
@@ -219,21 +246,21 @@ stop() {
         sleep 1
 
         if pgrep -f "ssh.*serveo.net" > /dev/null; then
-            echo "❌ ERROR: Not all processes could be stopped. Try manually:"
+            echo "ERROR: Not all processes could be stopped. Try manually:"
             echo "pkill -9 -f \"ssh.*serveo.net\""
         else
-            echo "✅ Tunnel successfully stopped"
+            echo "Tunnel successfully stopped"
             rm -f "$PORTS_FILE"
         fi
     else
-        echo "⚠️ There are no active tunnels"
+        echo "There are no active tunnels"
         rm -f "$PORTS_FILE"
     fi
 }
 
 status() {
     if is_running; then
-        echo "✅ The tunnel is running"
+        echo "The tunnel is running"
 
         ssh_pids=$(ps ax | grep -v grep | grep "[s]sh.*serveo.net" | awk '{print $1}')
         if [ -n "$ssh_pids" ]; then
@@ -248,9 +275,9 @@ status() {
             echo "Exposed Ports:"
             while IFS=: read -r local_port remote_port; do
                 if [[ "$local_port" -eq 22 ]]; then
-                    echo "  Local $local_port ➜ ssh -p $remote_port user@serveo.net"
+                    echo "Local $local_port -> ssh -p $remote_port user@serveo.net"
                 else
-                    echo "  Local $local_port ➜ https://serveo.net:$remote_port"
+                    echo "Local $local_port -> https://serveo.net:$remote_port"
                 fi
             done < "$PORTS_FILE"
         else
@@ -258,11 +285,11 @@ status() {
         fi
 
     else
-        echo "⚠️ The tunnel is NOT running"
+        echo "The tunnel is NOT running"
     fi
 }
 
-case "$1" in
+case "${1:-}" in
     start)
         start
         ;;

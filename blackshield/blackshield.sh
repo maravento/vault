@@ -79,7 +79,7 @@
 #
 ################################################################################
 
-set -e
+set -uo pipefail
 
 # logging
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -92,6 +92,14 @@ log() {
 # check no-root
 if [ "$(id -u)" == "0" ]; then
     log "[ERROR] This script should not be run as root."
+    exit 1
+fi
+
+# prevent overlapping runs
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    log "[ERROR] Script $(basename "$0") is already running"
     exit 1
 fi
 

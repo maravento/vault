@@ -15,9 +15,11 @@
   </tr>
 </table>
 
-## DEPENDENCIES
+## Requirements
 
 ---
+
+**⚠️ WARNING:** Only tested on Ubuntu 24.04 LTS. Other versions or distros not tested, use at your own risk.
 
 ```bash
 bash samba squid iptables ulogd2 ipset perl

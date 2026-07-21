@@ -15,19 +15,20 @@
 #
 ################################################################################
 
-echo "Start KDE Connect Send. Wait..."
-printf "\n"
+set -uo pipefail
 
 # check no-root
-if [ "$(id -u)" -eq 0 ]; then
-    echo "❌ This script should not be run as root."
+if [ "$(id -u)" == "0" ]; then
+    echo "[ERROR] This script should not be run as root."
     exit 1
 fi
+
+echo "Start KDE Connect Send. Wait..."
 
 # check dependencies
 for pkg in kdeconnect-cli; do
   dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {
-    echo "❌ '$pkg' is not installed. Run:"
+    echo "'$pkg' is not installed. Run:"
     echo "sudo apt install $pkg"
     exit 1
   }
@@ -48,13 +49,13 @@ else
     exit 1
 fi
 if [ "${#files[@]}" -eq 0 ]; then
-    echo "❌ No files selected"
+    echo "No files selected"
     exit 1
 fi
 devices="$(kdeconnect-cli -a 2>/dev/null)"
 if [[ -z "$devices" ]]; then
-    echo "❌ No connected or accessible kdeconnect devices found"
-    echo "   Make sure KDE Connect is running and your device is paired and reachable"
+    echo "No connected or accessible kdeconnect devices found"
+    echo "Make sure KDE Connect is running and your device is paired and reachable"
     exit 1
 fi
 phone_id="$(kdeconnect-cli -a --id-only 2>/dev/null | head -1)"
@@ -62,10 +63,10 @@ if [[ -z "$phone_id" ]]; then
     phone_id="$(echo "$devices" | grep -oP '(?<=: )[\w-]+(?= :)' | head -1)"
 fi
 if [[ -z "$phone_id" ]]; then
-    echo "❌ Could not determine phone ID"
+    echo "Could not determine phone ID"
     exit 1
 fi
-echo "📱 Using device: $phone_id"
+echo "Using device: $phone_id"
 printf "\n"
 total_files="${#files[@]}"
 current=0
@@ -77,20 +78,20 @@ for file in "${files[@]}"; do
     echo "[$current/$total_files] Sending: $base"
 
     if [ -d "$file" ]; then
-        echo "⚠️  Skipping directory: $base"
+        echo "Skipping directory: $base"
         continue
     fi
 
     if [ ! -f "$file" ]; then
-        echo "⚠️  File not found: $file"
+        echo "File not found: $file"
         continue
     fi
 
     if kdeconnect-cli --device "$phone_id" --share "$file" 2>/dev/null; then
-        echo "✅ File sent: $base"
+        echo "File sent: $base"
         sent=$((sent + 1))
     else
-        echo "❌ Error sending file: $base"
+        echo "Error sending file: $base"
     fi
 
     if [ $current -lt $total_files ]; then
@@ -98,4 +99,4 @@ for file in "${files[@]}"; do
     fi
 done
 printf "\n"
-echo "✅ Done. Sent $sent of $total_files file(s)"
+echo "Done. Sent $sent of $total_files file(s)"

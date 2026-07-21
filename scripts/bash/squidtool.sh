@@ -10,53 +10,55 @@
 # It contains six main functions:
 #
 # 1) squid_filter
-#    - Allows the user to search the Squid access log for a specific IP
-#      and/or keyword.
-#    - Converts numeric timestamps in the log to human-readable dates.
-#    - Results are saved to squid_filter.log in the current directory.
+# - Allows the user to search the Squid access log for a specific IP
+# and/or keyword.
+# - Converts numeric timestamps in the log to human-readable dates.
+# - Results are saved to squid_filter.log in the current directory.
 #
 # 2) squid_audit
-#    - Searches the Squid cache log for events where "clientAccessCheckDone" occurred.
-#    - Converts numeric timestamps to human-readable dates.
-#    - Requires debug_options "ALL,1 33,2 28,9" to be enabled in squid.conf.
-#      If not enabled, the function exits with an informative error.
-#    - Results are saved to squid_audit.log in the current directory.
+# - Searches the Squid cache log for events where "clientAccessCheckDone" occurred.
+# - Converts numeric timestamps to human-readable dates.
+# - Requires debug_options "ALL,1 33,2 28,9" to be enabled in squid.conf.
+# If not enabled, the function exits with an informative error.
+# - Results are saved to squid_audit.log in the current directory.
 #
 # 3) squid_traffic
-#    - Generates a traffic report from the Squid access log for a specified
-#      analysis period (default 72 hours).
-#    - Lists IP addresses and the number of hits to external domains.
-#    - Flags IPs exceeding a configurable alert threshold.
-#    - Results are saved to squid_traffic.log in the current directory.
+# - Generates a traffic report from the Squid access log for a specified
+# analysis period (default 72 hours).
+# - Lists IP addresses and the number of hits to external domains.
+# - Flags IPs exceeding a configurable alert threshold.
+# - Results are saved to squid_traffic.log in the current directory.
 #
 # 4) squid_global
-#    - Exports comprehensive Squid access log data to CSV format for a specified
-#      analysis period (default 72 hours).
-#    - Includes detailed fields: date, time, IP, method, HTTP code, size, cache status,
-#      URL, domain, status classification, and error type categorization.
-#    - Results are saved to squid_global.csv in the current directory.
+# - Exports comprehensive Squid access log data to CSV format for a specified
+# analysis period (default 72 hours).
+# - Includes detailed fields: date, time, IP, method, HTTP code, size, cache status,
+# URL, domain, status classification, and error type categorization.
+# - Results are saved to squid_global.csv in the current directory.
 #
 # 5) squid_stats
-#    - Generates comprehensive statistics and analytics from the Squid access log
-#      for a specified analysis period (default 72 hours).
-#    - Produces detailed metrics including performance data, cache hit rates, status
-#      code analysis, bandwidth usage, top clients/domains, and error analysis.
-#    - Generates both CSV (squid_stats.csv) and HTML (squid_stats.html) reports.
+# - Generates comprehensive statistics and analytics from the Squid access log
+# for a specified analysis period (default 72 hours).
+# - Produces detailed metrics including performance data, cache hit rates, status
+# code analysis, bandwidth usage, top clients/domains, and error analysis.
+# - Generates both CSV (squid_stats.csv) and HTML (squid_stats.html) reports.
 #
 # 6) squid_ip_timeframe
-#    - Analyzes traffic for a specific IP address within a user-defined time range
-#      (hour range) on the current day.
-#    - Converts UTC timestamps from the log to the system's local time zone.
-#    - Displays detailed information including timestamp, cache code, HTTP status,
-#      transferred bytes, method, and URL for each matching request.
-#    - Useful for identifying activity gaps or concentrated traffic during specific
-#      hours of the day.
-#    - Results are saved to squid_ip_timeframe.log in the current directory.
+# - Analyzes traffic for a specific IP address within a user-defined time range
+# (hour range) on the current day.
+# - Converts UTC timestamps from the log to the system's local time zone.
+# - Displays detailed information including timestamp, cache code, HTTP status,
+# transferred bytes, method, and URL for each matching request.
+# - Useful for identifying activity gaps or concentrated traffic during specific
+# hours of the day.
+# - Results are saved to squid_ip_timeframe.log in the current directory.
 #
 # All logs are written to the current working directory, and the script
 # informs the user where to find the output files after execution.
 #
 ################################################################################
+
+set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -144,7 +146,7 @@ squid_audit() {
     echo "=== Squid Audit ===" > "$LOG_FILE"
 
     # Check debug_options in squid.conf
-    SQUID_CONF="/etc/squid/squid.conf"  # Adjust for your system
+    SQUID_CONF="/etc/squid/squid.conf" # Adjust for your system
     REQUIRED_DEBUG="ALL,1 33,2 28,9"
 
     if [[ ! -f "$SQUID_CONF" ]] || ! grep -q "^debug_options\s\+$REQUIRED_DEBUG" "$SQUID_CONF"; then
@@ -182,14 +184,14 @@ squid_traffic() {
 
     # Initialize log file
     echo "============================================================" > "$LOG_FILE"
-    echo "           SQUID TRAFFIC ANALYSIS REPORT" >> "$LOG_FILE"
+    echo "SQUID TRAFFIC ANALYSIS REPORT" >> "$LOG_FILE"
     echo "============================================================" >> "$LOG_FILE"
     echo "Analysis started: $(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE"
     echo "Configuration:" >> "$LOG_FILE"
-    echo "  • Minimum hits   : $MIN_HITS" >> "$LOG_FILE"
-    echo "  • Alert threshold: $ALERT_THRESHOLD" >> "$LOG_FILE"
-    echo "  • Analysis period: ${PERIOD_HOURS}H" >> "$LOG_FILE"
-    echo "  • Access log     : /var/log/squid/access.log* (all files)" >> "$LOG_FILE"
+    echo "* Minimum hits : $MIN_HITS" >> "$LOG_FILE"
+    echo "* Alert threshold: $ALERT_THRESHOLD" >> "$LOG_FILE"
+    echo "* Analysis period: ${PERIOD_HOURS}H" >> "$LOG_FILE"
+    echo "* Access log : /var/log/squid/access.log* (all files)" >> "$LOG_FILE"
     echo "------------------------------------------------------------" >> "$LOG_FILE"
     printf "%-8s %-15s %-60s\n" "Hits" "IP" "URL" >> "$LOG_FILE"
     echo "------------------------------------------------------------" >> "$LOG_FILE"
@@ -253,7 +255,7 @@ squid_global() {
     echo "date,time,ip,method,http_code,size,cache_status,url,domain,status,error_type" > "$CSV_FILE"
 
     zcat -f $ACCESS_LOG 2>/dev/null | gawk -v cutoff="$CUTOFF" '
-    function extract_domain(u,    d, h) {
+    function extract_domain(u, d, h) {
         if (u == "" || u == "-")
             return "-"
         if (u ~ /^https?:\/\//) {
@@ -300,7 +302,7 @@ squid_global() {
         print dt","ip","method","status_code","size","cache","url","domain","status","error_type
     }' >> "$CSV_FILE"
 
-    echo "✅ CSV export completed: $CSV_FILE"
+    echo "CSV export completed: $CSV_FILE"
 }
 
 squid_stats() {
@@ -322,7 +324,7 @@ squid_stats() {
     PERIOD=$((PERIOD_HOURS * 3600))
     CUTOFF=$((NOW - PERIOD))
 
-    echo "⏳ Generating comprehensive statistics..."
+    echo "Generating comprehensive statistics..."
     echo "Metric,Value" > "$CSV_FILE"
 
     # === BASIC METRICS ===
@@ -421,12 +423,12 @@ squid_stats() {
         echo "</head>"
         echo "<body>"
         echo "<div class='container'>"
-        echo "<h1>📊 Squid Proxy Statistics</h1>"
-        
+        echo "<h1> Squid Proxy Statistics</h1>"
+
         # Main stats grid
         echo "<div class='stats-grid'>"
         echo "<div class='stat-card'>"
-        echo "<h3>📈 General Overview</h3>"
+        echo "<h3> General Overview</h3>"
         echo "<div class='metric'><span class='metric-name'>Analysis Period</span><span class='metric-value'>$PERIOD_HOURS hours</span></div>"
         echo "<div class='metric'><span class='metric-name'>Total Requests</span><span class='metric-value'>$(printf "%'d" $TOTAL_REQUESTS)</span></div>"
         echo "<div class='metric'><span class='metric-name'>Requests/Hour</span><span class='metric-value'>$REQ_PER_HOUR</span></div>"
@@ -435,7 +437,7 @@ squid_stats() {
         echo "</div>"
 
         echo "<div class='stat-card'>"
-        echo "<h3>💾 Bandwidth & Performance</h3>"
+        echo "<h3> Bandwidth & Performance</h3>"
         echo "<div class='metric'><span class='metric-name'>Total Data</span><span class='metric-value'>${DATA_GB} GB</span></div>"
         echo "<div class='metric'><span class='metric-name'>Average Bandwidth</span><span class='metric-value'>${BANDWIDTH_MBPS} Mbps</span></div>"
         echo "<div class='metric'><span class='metric-name'>Avg Response Size</span><span class='metric-value'>${AVG_RESPONSE_SIZE} KB</span></div>"
@@ -443,7 +445,7 @@ squid_stats() {
         echo "</div>"
 
         echo "<div class='stat-card'>"
-        echo "<h3>✅ Status Analysis</h3>"
+        echo "<h3> Status Analysis</h3>"
         echo "<div class='metric'><span class='metric-name'>Success Rate</span><span class='metric-value'>${SUCCESS_PCT}%</span></div>"
         echo "<div class='metric'><span class='metric-name'>Successful (2xx)</span><span class='metric-value'>$SUCCESS</span></div>"
         echo "<div class='metric'><span class='metric-name'>Redirects (3xx)</span><span class='metric-value warning'>$REDIRECTS</span></div>"
@@ -453,7 +455,7 @@ squid_stats() {
         echo "</div>"
 
         # Detailed table
-        echo "<h2 class='section-title'>📋 Detailed Metrics</h2>"
+        echo "<h2 class='section-title'> Detailed Metrics</h2>"
         echo "<table>"
         echo "<tr><th>Metric</th><th>Value</th></tr>"
         tail -n +2 "$CSV_FILE" | while IFS=, read -r metric value; do
@@ -517,14 +519,14 @@ squid_ip_timeframe() {
     local TZ_LABEL=$(date +%Z) # Fetch system timezone (e.g., UTC, EST, COT)
     {
         echo "============================================================"
-        echo "            SQUID IP TIMEFRAME ANALYSIS"
+        echo "SQUID IP TIMEFRAME ANALYSIS"
         echo "============================================================"
         echo "Analysis started: $(date '+%Y-%m-%d %H:%M:%S')"
         echo "Configuration:"
-        echo "  • IP Address     : $IP"
-        echo "  • Time range     : $START_TIME to $END_TIME ($TZ_LABEL)"
-        echo "  • Date Target    : $USER_DATE"
-        echo "  • Access log     : $ACCESS_LOGS"
+        echo "* IP Address : $IP"
+        echo "* Time range : $START_TIME to $END_TIME ($TZ_LABEL)"
+        echo "* Date Target : $USER_DATE"
+        echo "* Access log : $ACCESS_LOGS"
         echo "------------------------------------------------------------"
         printf "%-12s %-15s %-8s %-12s %-8s %-60s\n" "Time(Local)" "Status/Result" "HTTP" "Bytes" "Method" "URL"
         echo "------------------------------------------------------------"
@@ -532,15 +534,15 @@ squid_ip_timeframe() {
 
     # 5. Optimized Log Processing
     local FOUND=0
-    
+
     # zcat -f handles both compressed (.gz) and plain text logs seamlessly
     # awk filters by IP and Epoch range before the data reaches the Bash loop
     while read -r ts status_code bytes method url; do
-        
+
         # Convert Epoch timestamp back to human-readable local time
         # ${ts%.*} removes any millisecond decimals to prevent date command errors
         local L_TIME=$(date -d "@${ts%.*}" "+%H:%M:%S" 2>/dev/null)
-        
+
         # Convert Bytes to human-readable units (MB/KB/B) using Bash arithmetic
         local BYTES_FMT
         if [ "$bytes" -ge 1048576 ]; then
@@ -558,7 +560,7 @@ squid_ip_timeframe() {
         # Append formatted entry to the result file
         printf "%-12s %-15s %-8s %-12s %-8s %-60s\n" \
             "$L_TIME" "$CACHE_S" "$HTTP_S" "$BYTES_FMT" "$method" "$url" >> "$LOG_FILE"
-        
+
         ((FOUND++))
 
     done < <(zcat -f $ACCESS_LOGS 2>/dev/null | awk -v ip="$IP" -v s="$START_EPOCH" -v e="$END_EPOCH" \
@@ -600,4 +602,4 @@ case "$CHOICE" in
 esac
 
 SCRIPT_END=$(date +%s)
-echo "⏱ Total script duration: $((SCRIPT_END - SCRIPT_START)) seconds"
+echo "Total script duration: $((SCRIPT_END - SCRIPT_START)) seconds"

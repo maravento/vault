@@ -6,33 +6,35 @@
 # Services Monitor module installation/uninstallation script for Webmin
 #
 # Description:
-#   This script installs or uninstalls the Services Monitor module for Webmin.
-#   The module provides a modern interface to monitor and manage systemd services,
-#   with real-time status updates and syslog integration.
+# This script installs or uninstalls the Services Monitor module for Webmin.
+# The module provides a modern interface to monitor and manage systemd services,
+# with real-time status updates and syslog integration.
 #
 # Features:
-#   - Modern and user-friendly web interface
-#   - Monitor enabled system services
-#   - Start, stop, and restart services
-#   - Multi-language support (English and Spanish)
-#   - Syslog integration for service events
-#   - Automatic dependency checking
-#   - Configurable service filtering (Default/Active/Failed)
+# - Modern and user-friendly web interface
+# - Monitor enabled system services
+# - Start, stop, and restart services
+# - Multi-language support (English and Spanish)
+# - Syslog integration for service events
+# - Automatic dependency checking
+# - Configurable service filtering (Default/Active/Failed)
 #
 # Usage:
-#   sudo ./servicemon.sh [OPTIONS]
+# sudo ./servicemon.sh [OPTIONS]
 #
 # Options:
-#   install      Install the module
-#   uninstall    Uninstall the module
-#   -h, --help   Show help message
+# install Install the module
+# uninstall Uninstall the module
+# -h, --help Show help message
 #
 # Examples:
-#   sudo ./servicemon.sh              # Interactive menu
-#   sudo ./servicemon.sh install      # Direct installation
-#   sudo ./servicemon.sh uninstall    # Direct uninstallation
+# sudo ./servicemon.sh # Interactive menu
+# sudo ./servicemon.sh install # Direct installation
+# sudo ./servicemon.sh uninstall # Direct uninstallation
 #
 ################################################################################
+
+set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -42,13 +44,12 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
-
-set -e
 
 MODNAME="servicemon"
 MODDIR="/usr/share/webmin/$MODNAME"
@@ -60,17 +61,17 @@ install_module() {
     echo "Installing Services Monitor Module"
     echo "=========================================="
     echo ""
-    
+
     echo "Checking dependencies..."
-    echo "✓ Dependencies checked"
-    
+    echo "Dependencies checked"
+
     echo "Creating Services Monitor module structure..."
-    
+
     mkdir -p "$MODDIR/images"
     mkdir -p "$MODDIR/lang"
     mkdir -p "$MODDIR/help"
     mkdir -p "$ETCDIR"
-    
+
     cat > "$MODDIR/index.cgi" <<'INDEXCGI'
 #!/usr/bin/perl
 # Services Monitor - Main interface
@@ -103,11 +104,11 @@ foreach my $key (keys %in) {
                "User action: $action on service $service");
 
         system("systemctl", $action, $service);
-        
+
         sleep 2;
-        
+
         my $status = check_service_status($service);
-        
+
         if ($action eq 'stop' && $status ne 'active') {
             system("logger -t servicemon -p daemon.warning 'Service stopped: $service'");
         } elsif ($action eq 'start' && $status eq 'active') {
@@ -115,7 +116,7 @@ foreach my $key (keys %in) {
         } elsif ($action eq 'restart') {
             system("logger -t servicemon -p daemon.info 'Service restarted: $service'");
         }
-        
+
         my $timestamp = time();
         &redirect("index.cgi?nocache=$timestamp");
     }
@@ -345,7 +346,7 @@ my @active_list = ();
 
 foreach my $service (@all_services) {
     my $status = check_service_status($service);
-    
+
     if ($status eq 'active') {
         push @active_list, $service;
     } else {
@@ -354,7 +355,7 @@ foreach my $service (@all_services) {
 }
 
 print "<div class='summary-box'>";
-print "<h3>📊 $text{'summary_title'}</h3>";
+print "<h3> $text{'summary_title'}</h3>";
 print "<div class='summary-stats'>";
 
 $total_services = scalar(@all_services);
@@ -387,16 +388,16 @@ if ($filter_mode eq 'active') {
 }
 
 print "<div class='alert-banner alert-info'>";
-print "ℹ️ <strong>$filter_text</strong>";
+print " <strong>$filter_text</strong>";
 print "</div>";
 
 if ($failed_services == 0) {
     print "<div class='alert-banner alert-success'>";
-    print "✅ <strong>$text{'summary_all_ok'}</strong>";
+    print " <strong>$text{'summary_all_ok'}</strong>";
     print "</div>";
 } else {
     print "<div class='alert-banner alert-warning'>";
-    print "⚠️ <strong>$failed_services $text{'summary_needs_attention'}</strong>";
+    print " <strong>$failed_services $text{'summary_needs_attention'}</strong>";
     print "</div>";
 }
 
@@ -416,10 +417,10 @@ if ($filter_mode eq 'default' || $filter_mode eq 'failed') {
     foreach my $service (@failed_list) {
         my $display_name = $service;
         $display_name =~ s/\.service$//;
-        
+
         print "<tr class='service-row-failed'>";
-        print "<td><span class='service-icon'>⚙️</span><span class='service-name'>$display_name</span></td>";
-        print "<td><span class='status-badge status-failed'>✗ $text{'status_failed'}</span></td>";
+        print "<td><span class='service-icon'> </span><span class='service-name'>$display_name</span></td>";
+        print "<td><span class='status-badge status-failed'> $text{'status_failed'}</span></td>";
         print "<td style='text-align: center;'>";
         print &ui_submit($text{'action_start'}, "start_$service", undef, undef, "class='action-btn btn-start'");
         print " ";
@@ -434,10 +435,10 @@ if ($filter_mode eq 'default' || $filter_mode eq 'active') {
     foreach my $service (@active_list) {
         my $display_name = $service;
         $display_name =~ s/\.service$//;
-        
+
         print "<tr class='service-row-active'>";
-        print "<td><span class='service-icon'>⚙️</span><span class='service-name'>$display_name</span></td>";
-        print "<td><span class='status-badge status-active'>✓ $text{'status_active'}</span></td>";
+        print "<td><span class='service-icon'> </span><span class='service-name'>$display_name</span></td>";
+        print "<td><span class='status-badge status-active'> $text{'status_active'}</span></td>";
         print "<td style='text-align: center;'>";
         print &ui_submit($text{'action_stop'}, "stop_$service", undef, undef, "class='action-btn btn-stop'");
         print " ";
@@ -469,7 +470,7 @@ if ($auto_refresh eq '1') {
     my $interval_ms = $refresh_interval * 1000;
     print <<AUTOREFRESH;
 <div class='refresh-indicator' id='refreshIndicator'>
-🔄 Auto-refresh: <span id='countdown'>$refresh_interval</span>s
+ Auto-refresh: <span id='countdown'>$refresh_interval</span>s
 </div>
 
 <script>
@@ -496,7 +497,7 @@ AUTOREFRESH
 sub get_all_services {
     my @services;
     my $output = `systemctl list-unit-files --type=service --state=enabled --no-pager --no-legend 2>/dev/null`;
-    
+
     foreach my $line (split(/\n/, $output)) {
         if ($line =~ /^(\S+\.service)\s+/) {
             my $service = $1;
@@ -505,7 +506,7 @@ sub get_all_services {
             push @services, $service;
         }
     }
-    
+
     return sort @services;
 }
 
@@ -519,9 +520,9 @@ sub check_service_status {
 
 
 INDEXCGI
-    
+
     chmod +x "$MODDIR/index.cgi"
-    
+
     cat > "$MODDIR/module.info" <<'EOF'
 desc=Services Monitor
 longdesc=Monitor and manage system services
@@ -530,7 +531,7 @@ os_support=*-linux
 version=1.0
 depends=webmin
 EOF
-    
+
     cat > "$MODDIR/module.info.es" <<'EOF'
 desc=Monitor de Servicios
 longdesc=Monitorea y gestiona servicios del sistema
@@ -539,7 +540,7 @@ os_support=*-linux
 version=1.0
 depends=webmin
 EOF
-    
+
     cat > "$MODDIR/lang/en" <<'EOF'
 index_title=Services Monitor
 index_table=System Services Status
@@ -596,7 +597,7 @@ filter_showing_active=Showing: Active services only
 filter_showing_failed=Showing: Failed services only
 filter_no_services=No services match the current filter
 EOF
-    
+
     cat > "$MODDIR/lang/es" <<'EOF'
 index_title=Monitor de Servicios
 index_table=Estado de Servicios del Sistema
@@ -613,71 +614,71 @@ summary_title=Resumen
 summary_total=Total de servicios
 summary_active=Servicios activos
 summary_failed=Servicios fallidos
-summary_all_ok=Todos los servicios están funcionando correctamente
-summary_needs_attention=servicio(s) que requieren atención
-index=Índice de Webmin
+summary_all_ok=Todos los servicios estan funcionando correctamente
+summary_needs_attention=servicio(s) que requieren atencion
+index=Indice de Webmin
 index_return=Volver al Monitor de Servicios
-config_title=Configuración del Monitor de Servicios
-config_header=Configuración del Módulo
-config_about_title=Acerca de Este Módulo
-config_about_desc=Monitor de Servicios es un módulo de Webmin que le permite monitorear y gestionar servicios del sistema que están habilitados para iniciarse automáticamente. Proporciona una interfaz moderna y fácil de usar para la gestión de servicios.
-config_features_title=Características
+config_title=Configuracion del Monitor de Servicios
+config_header=Configuracion del Modulo
+config_about_title=Acerca de Este Modulo
+config_about_desc=Monitor de Servicios es un modulo de Webmin que le permite monitorear y gestionar servicios del sistema que estan habilitados para iniciarse automaticamente. Proporciona una interfaz moderna y facil de usar para la gestion de servicios.
+config_features_title=Caracteristicas
 config_feature_1=Monitorear todos los servicios del sistema habilitados en tiempo real
 config_feature_2=Iniciar, detener y reiniciar servicios con un clic
 config_feature_3=Indicadores visuales de estado (Activo/Fallido)
-config_feature_4=Integración con syslog para todas las acciones de servicios
-config_feature_5=Soporte multiidioma (Inglés y Español)
-config_location_title=Ubicaciones del Módulo
-config_module_dir=Directorio del módulo
-config_config_dir=Directorio de configuración
+config_feature_4=Integracion con syslog para todas las acciones de servicios
+config_feature_5=Soporte multiidioma (Ingles y Espanol)
+config_location_title=Ubicaciones del Modulo
+config_module_dir=Directorio del modulo
+config_config_dir=Directorio de configuracion
 config_access_url=URL de acceso
 config_logs_title=Registros del Sistema
 config_logs_desc=Todas las acciones de servicios se registran en syslog con la etiqueta 'servicemon'. Puede verlos usando:
 config_notifications_title=Registros del Sistema
 config_notifications_desc=Todas las acciones de servicios se registran en syslog con la etiqueta 'servicemon'.
-config_filter_title=Filtro de Visualización de Servicios
-config_filter_desc=Seleccione qué servicios mostrar en la interfaz principal:
+config_filter_title=Filtro de Visualizacion de Servicios
+config_filter_desc=Seleccione que servicios mostrar en la interfaz principal:
 config_filter_default=Predeterminado (Servicios Fallidos + Activos)
 config_filter_active=Solo servicios activos
 config_filter_failed=Solo servicios fallidos
-config_filter_help=Esta configuración controla qué servicios se muestran en la interfaz principal del monitor. 'Predeterminado' muestra todos los servicios, 'Activo' muestra solo los servicios en ejecución, y 'Fallido' muestra solo los servicios detenidos o fallidos.
-config_save=Guardar Configuración
-config_saved=Configuración guardada exitosamente
-config_refresh_title=Configuración de Auto-actualización
-config_refresh_desc=Configure la recarga automática de la página para monitorear servicios en tiempo real.
-config_auto_refresh=Activar auto-actualización
-config_refresh_interval=Intervalo de actualización (segundos)
-config_refresh_help=Cuando está activado, la página se recargará automáticamente cada X segundos. Mínimo recomendado: 30 segundos para evitar carga excesiva del servidor.
+config_filter_help=Esta configuracion controla que servicios se muestran en la interfaz principal del monitor. 'Predeterminado' muestra todos los servicios, 'Activo' muestra solo los servicios en ejecucion, y 'Fallido' muestra solo los servicios detenidos o fallidos.
+config_save=Guardar Configuracion
+config_saved=Configuracion guardada exitosamente
+config_refresh_title=Configuracion de Auto-actualizacion
+config_refresh_desc=Configure la recarga automatica de la pagina para monitorear servicios en tiempo real.
+config_auto_refresh=Activar auto-actualizacion
+config_refresh_interval=Intervalo de actualizacion (segundos)
+config_refresh_help=Cuando esta activado, la pagina se recargara automaticamente cada X segundos. Minimo recomendado: 30 segundos para evitar carga excesiva del servidor.
 filter_showing_default=Mostrando: Todos los servicios (Fallidos + Activos)
 filter_showing_active=Mostrando: Solo servicios activos
 filter_showing_failed=Mostrando: Solo servicios fallidos
 filter_no_services=No hay servicios que coincidan con el filtro actual
 EOF
-    
+
     cat > "$MODDIR/config.info" <<'EOF'
 filter_mode=Service Display Filter,4,default-Default (Failed + Active services),active-Active services only,failed-Failed services only
 auto_refresh=Auto-refresh,1,1-Enabled,0-Disabled
 refresh_interval=Refresh interval (seconds),3,30
 EOF
-    
+
     cat > "$MODDIR/config.info.es" <<'EOF'
-filter_mode=Filtro de Visualización de Servicios,4,default-Predeterminado (Servicios Fallidos + Activos),active-Solo servicios activos,failed-Solo servicios fallidos
-auto_refresh=Auto-actualización,1,1-Activado,0-Desactivado
-refresh_interval=Intervalo de actualización (segundos),3,30
+filter_mode=Filtro de Visualizacion de Servicios,4,default-Predeterminado (Servicios Fallidos + Activos),active-Solo servicios activos,failed-Solo servicios fallidos
+auto_refresh=Auto-actualizacion,1,1-Activado,0-Desactivado
+refresh_interval=Intervalo de actualizacion (segundos),3,30
 EOF
-    
+
     cat > "$MODDIR/defaultconfig" <<'EOF'
 filter_mode=default
 auto_refresh=0
 refresh_interval=30
 EOF
-    
+
     cat > "$ETCDIR/config" <<'EOF'
 filter_mode=default
 auto_refresh=0
 refresh_interval=30
 EOF
-    
+
     cat > "$MODDIR/servicemon-lib.pl" <<'EOF'
 #!/usr/bin/perl
 # Services Monitor library functions
@@ -688,9 +689,9 @@ do '../ui-lib.pl';
 
 1;
 EOF
-    
+
     chmod +x "$MODDIR/servicemon-lib.pl"
-    
+
     cat > "$MODDIR/install_check.pl" <<'EOF'
 #!/usr/bin/perl
 # Check if systemctl is available
@@ -704,9 +705,9 @@ sub module_install_check {
     return undef;
 }
 EOF
-    
+
     chmod +x "$MODDIR/install_check.pl"
-    
+
     cat > "$MODDIR/help/intro.html" <<'EOF'
 <header>Services Monitor</header>
 
@@ -743,44 +744,44 @@ EOF
 
 <footer>
 EOF
-    
+
     cat > "$MODDIR/help/intro.es.html" <<'EOF'
 <header>Monitor de Servicios</header>
 
-<h3>Introducción</h3>
-<p>El módulo Monitor de Servicios le permite ver y gestionar servicios del sistema que están habilitados para iniciarse automáticamente. Proporciona una interfaz simple para iniciar, detener y reiniciar servicios.</p>
+<h3>Introduccion</h3>
+<p>El modulo Monitor de Servicios le permite ver y gestionar servicios del sistema que estan habilitados para iniciarse automaticamente. Proporciona una interfaz simple para iniciar, detener y reiniciar servicios.</p>
 
-<h3>Características</h3>
+<h3>Caracteristicas</h3>
 <ul>
 <li>Ver todos los servicios del sistema habilitados</li>
 <li>Ver el estado de los servicios (Activo o Fallido)</li>
 <li>Iniciar, detener o reiniciar servicios</li>
 <li>Actualizaciones de estado en tiempo real</li>
-<li>Notificaciones automáticas vía syslog</li>
+<li>Notificaciones automaticas via syslog</li>
 <li>Filtrado configurable de servicios</li>
 </ul>
 
 <h3>Estado de los Servicios</h3>
-<p><b>Activo:</b> El servicio está actualmente en ejecución</p>
-<p><b>Fallido:</b> El servicio no está en ejecución (detenido o fallido)</p>
+<p><b>Activo:</b> El servicio esta actualmente en ejecucion</p>
+<p><b>Fallido:</b> El servicio no esta en ejecucion (detenido o fallido)</p>
 
 <h3>Filtrado de Servicios</h3>
-<p>Puede configurar qué servicios mostrar en la configuración del módulo:</p>
+<p>Puede configurar que servicios mostrar en la configuracion del modulo:</p>
 <ul>
 <li><b>Predeterminado:</b> Muestra servicios fallidos y activos</li>
-<li><b>Solo activos:</b> Muestra solo servicios en ejecución</li>
+<li><b>Solo activos:</b> Muestra solo servicios en ejecucion</li>
 <li><b>Solo fallidos:</b> Muestra solo servicios detenidos o fallidos</li>
 </ul>
 
 <h3>Notificaciones</h3>
-<p>Cuando un servicio se detiene, el módulo:</p>
+<p>Cuando un servicio se detiene, el modulo:</p>
 <ul>
 <li>Registra el evento en syslog con la etiqueta 'servicemon'</li>
 </ul>
 
 <footer>
 EOF
-    
+
     cat > "$MODDIR/CHANGELOG" <<'EOF'
 Version 1.1 (2024)
 - Added configurable service filtering
@@ -798,7 +799,7 @@ Version 1.0 (2024)
 - Modern and user-friendly interface
 - Configuration page with module information
 EOF
-    
+
     ICON_B64=$(mktemp)
     cat > "$ICON_B64" << 'ICONEOF'
 R0lGODlhMAAwAPAAAAAAAAAAACH5BAEAAAAALAAAAAAwADAAAAKrhI+py+0Po5wqJEszCpyf7mkUiAGkOJJqiUKr2krvGS/zDdYGzusmj6vdLjPfynb0/XIVmnLZQTKfsOZU95I6W8NNUQj8yq5hcWRbzk62xOA5BIX/Pj0XML6rP9JuvJ3v4cTGAChncpFR+JSXtshIlgSm5mWWWPlYJdLVFqmxSdlpOQmayRU6isXnGHfnqEhVyBITazgbuxiFWXKlxFJ6uGpVGywsS3yMHFMAADs=
@@ -806,28 +807,28 @@ ICONEOF
 
     base64 -d "$ICON_B64" > "$MODDIR/images/icon.gif" || true
     rm -f "$ICON_B64"
-    
+
     chown -R root:root "$MODDIR" "$ETCDIR"
     chmod -R 755 "$MODDIR"
     chmod 644 "$MODDIR"/*.info* "$MODDIR/lang/"* "$MODDIR/help/"* "$MODDIR/CHANGELOG" 2>/dev/null || true
     chmod 755 "$MODDIR"/*.cgi "$MODDIR"/*.pl 2>/dev/null || true
     chmod 644 "$MODDIR/images/"* 2>/dev/null || true
-    
+
     if [ -f /etc/webmin/webmin.acl ]; then
         if ! grep -q "servicemon" /etc/webmin/webmin.acl 2>/dev/null; then
             sed -i.bak 's/\(^root:.*\)/\1 servicemon/' /etc/webmin/webmin.acl
             rm -f /etc/webmin/webmin.acl.bak
-            echo "✓ Module added to webmin.acl"
+            echo "Module added to webmin.acl"
         fi
     else
-        echo "⚠ Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
+        echo "Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
     fi
-    
+
     rm -f /var/webmin/module.infos.cache
-    
+
     echo "Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
-    
+
     echo ""
     echo "=========================================="
     echo "Services Monitor module installed successfully!"
@@ -837,11 +838,11 @@ ICONEOF
     echo "Config location: $ETCDIR"
     echo ""
     echo "Features:"
-    echo "  ✓ Modern and user-friendly interface"
-    echo "  ✓ Syslog integration (tag: servicemon)"
-    echo "  ✓ Real-time service monitoring"
-    echo "  ✓ Configuration page available"
-    echo "  ✓ Configurable service filtering"
+    echo "Modern and user-friendly interface"
+    echo "Syslog integration (tag: servicemon)"
+    echo "Real-time service monitoring"
+    echo "Configuration page available"
+    echo "Configurable service filtering"
     echo ""
     echo "Please log out and log back into Webmin to see the new module."
     echo "You can find it under the 'System' category."
@@ -857,34 +858,34 @@ uninstall_module() {
     echo "Uninstalling Services Monitor Module"
     echo "=========================================="
     echo ""
-    
+
     if [ ! -d "$MODDIR" ]; then
-        echo "⚠  Module is not installed."
+        echo "Module is not installed."
         echo ""
         return 1
     fi
-    
+
     echo "Removing module directories..."
     rm -rf "$MODDIR"
     rm -rf "$ETCDIR"
-    echo "✓ Module directories removed"
-    
+    echo "Module directories removed"
+
     if [ -f /etc/webmin/webmin.acl ]; then
         if grep -q "servicemon" /etc/webmin/webmin.acl 2>/dev/null; then
             sed -i.bak 's/ servicemon//g' /etc/webmin/webmin.acl
             rm -f /etc/webmin/webmin.acl.bak
-            echo "✓ Module removed from webmin.acl"
+            echo "Module removed from webmin.acl"
         fi
     else
-        echo "⚠ Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
+        echo "Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
     fi
-    
+
     rm -f /var/webmin/module.infos.cache
-    echo "✓ Module cache cleared"
-    
+    echo "Module cache cleared"
+
     echo "Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
-    
+
     echo ""
     echo "=========================================="
     echo "Services Monitor module uninstalled successfully!"
@@ -895,13 +896,13 @@ uninstall_module() {
 show_menu() {
     clear
     echo "============================================================"
-    echo "          SERVICES MONITOR - WEBMIN MODULE"
-    echo "                 Installation Menu"
+    echo "SERVICES MONITOR - WEBMIN MODULE"
+    echo "Installation Menu"
     echo "============================================================"
     echo ""
-    echo "  1) Install module"
-    echo "  2) Uninstall module"
-    echo "  3) Exit"
+    echo "1) Install module"
+    echo "2) Uninstall module"
+    echo "3) Exit"
     echo ""
     echo -n "Select an option [1-3]: "
 }
@@ -910,16 +911,16 @@ show_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  install      Install the Services Monitor module"
-    echo "  uninstall    Uninstall the Services Monitor module"
-    echo "  -h, --help   Show this help message"
+    echo "install Install the Services Monitor module"
+    echo "uninstall Uninstall the Services Monitor module"
+    echo "-h, --help Show this help message"
     echo ""
     echo "If no option is provided, interactive menu will be shown."
     echo ""
     echo "Examples:"
-    echo "  $0 install      # Install module without menu"
-    echo "  $0 uninstall    # Uninstall module without menu"
-    echo "  $0              # Show interactive menu"
+    echo "$0 install # Install module without menu"
+    echo "$0 uninstall # Uninstall module without menu"
+    echo "$0 # Show interactive menu"
     echo ""
 }
 
@@ -928,7 +929,7 @@ main() {
         echo "Error: Webmin is not installed on this system"
         exit 1
     fi
-    
+
     if [ $# -gt 0 ]; then
         case "$1" in
             install)
@@ -951,11 +952,11 @@ main() {
                 ;;
         esac
     fi
-    
+
     while true; do
         show_menu
         read -r option
-        
+
         case $option in
             1)
                 install_module

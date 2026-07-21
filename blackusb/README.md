@@ -19,6 +19,12 @@
 
 ---
 
+### Requirements
+
+**⚠️ WARNING:** Only tested on Ubuntu 24.04 LTS. Other versions or distros not tested, use at your own risk.
+
+`bash`, `udev`, `usbutils`
+
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
@@ -89,17 +95,15 @@ sudo /path_to/blackusb.sh s
 
 `/var/log/blackusb.log`
 
-Example:
+Example (blocked and whitelisted devices are both logged, each entry preceded by a divider line):
 
 ```bash
-2017-07-06 12:34:10 Blackusb triggered!
-Unknown Device Blocked: SUBSYSTEM=="usb", ATTR{idVendor}=="0781", ATTR{idProduct}=="5567", ATTR{serial}=="4C530799910104103543"
+──────────────────────────────────────────
+2026-07-22 12:34:10 [BLACKLIST] Unknown Device Blocked: SUBSYSTEM=="usb", ATTR{idVendor}=="0781", ATTR{idProduct}=="5567", ATTR{serial}=="4C530799910104103543"
 Cruzer Blade
+──────────────────────────────────────────
+2026-07-22 12:35:02 [WHITELIST] Allowed Device Connected: Vendor=0781, Product=5567, Name=Cruzer Blade
 ```
-
-### Dependencies
-
-`bash`, `udev`, `usbutils`
 
 ### Fork
 

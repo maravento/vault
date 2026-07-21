@@ -7,8 +7,7 @@
 #
 ################################################################################
 
-echo "Kworker Kill Starting. Wait..."
-printf "\n"
+set -uo pipefail
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -20,11 +19,14 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
+
+echo "Kworker Kill Starting. Wait..."
 
 kworker=$(mktemp /tmp/gpelist.XXXXXX)
 trap 'rm -f "$kworker"' EXIT

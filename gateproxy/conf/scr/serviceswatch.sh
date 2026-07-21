@@ -10,6 +10,11 @@
 #
 ################################################################################
 
+set -uo pipefail
+
+# PATH for cron
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 # logging
 log_file="/var/log/serviceswatch.log"
 log() {

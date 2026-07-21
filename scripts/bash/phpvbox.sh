@@ -12,13 +12,10 @@
 #
 ################################################################################
 
-echo "phpVirtualBox Starting. Wait..."
-printf "\n"
+set -euo pipefail
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-set -euo pipefail
 
 # cleanup temporary files on exit or error
 WORK_DIR="$(pwd)"
@@ -36,24 +33,52 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
 
-# LOCAL USER (multi-strategy detection with validation)
-local_user=""
-local_user=$(who | awk '/\(:0\)/{print $1; exit}')
-[ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
-[ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
-[ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
-if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
-    echo "ERROR: Cannot determine a valid local user"
+# LOCAL USER detection
+detect_local_user() {
+    local uid_min uid_max
+    local user uid best_user="" best_uid=999999
+
+    uid_min=$(awk '/^UID_MIN/{print $2}' /etc/login.defs 2>/dev/null)
+    uid_max=$(awk '/^UID_MAX/{print $2}' /etc/login.defs 2>/dev/null)
+    uid_min=${uid_min:-1000}
+    uid_max=${uid_max:-60000}
+
+    while IFS=: read -r user _ uid _ _ _ shell; do
+        [ "$user" = "root" ] && continue
+        [ -z "$uid" ] && continue
+        [ "$uid" -lt "$uid_min" ] && continue
+        [ "$uid" -gt "$uid_max" ] && continue
+
+        case "$shell" in
+            */false|*/nologin) continue ;;
+        esac
+
+        id -nG "$user" 2>/dev/null | grep -qw sudo || continue
+
+        if [ "$uid" -lt "$best_uid" ]; then
+            best_uid="$uid"
+            best_user="$user"
+        fi
+    done </etc/passwd
+
+    [ -n "$best_user" ] || return 1
+    echo "$best_user"
+}
+
+if ! local_user=$(detect_local_user); then
+    echo "ERROR: No valid local user found. Create one with sudo access."
     exit 1
 fi
 echo "Using local user: $local_user"
+
+echo "phpVirtualBox Starting. Wait..."
 
 retry_cmd() {
     local max_attempts=10
@@ -81,12 +106,12 @@ for p in "${missing[@]}"; do
 done
 if [ "${#unavailable[@]}" -gt 0 ]; then
     echo "Missing dependencies not found in APT:"
-    for u in "${unavailable[@]}"; do echo "   - $u"; done
+    for u in "${unavailable[@]}"; do echo " - $u"; done
     echo "Please install them manually or enable the required repositories."
     exit 1
 fi
 if [ "${#missing[@]}" -gt 0 ]; then
-    echo "🔧 Waiting for APT/DPKG locks to be released..."
+    echo "Waiting for APT/DPKG locks to be released..."
     APT_LOCK_TIMEOUT=120
     APT_LOCK_ELAPSED=0
     APT_LOCK_FILES=(/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend)
@@ -95,7 +120,7 @@ if [ "${#missing[@]}" -gt 0 ]; then
             echo "APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
             exit 1
         fi
-        echo "   Locks still held, waiting... (${APT_LOCK_ELAPSED}s elapsed)"
+        echo "Locks still held, waiting... (${APT_LOCK_ELAPSED}s elapsed)"
         sleep 5
         APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
     done
@@ -120,7 +145,7 @@ fi
 # download phpvirtualbox
 retry_cmd wget -q -c https://github.com/BartekSz95/phpvirtualbox/archive/main.zip
 DOWNLOAD_SHA256="$(sha256sum main.zip | awk '{print $1}')"
-echo "📋 main.zip SHA256: $DOWNLOAD_SHA256"
+echo "main.zip SHA256: $DOWNLOAD_SHA256"
 unzip -q main.zip
 # ren config
 mv phpvirtualbox-main/config.php-example phpvirtualbox-main/config.php
@@ -183,8 +208,8 @@ echo "Script and cron task added successfully."
 echo
 echo "Access: http://localhost/phpvirtualbox"
 echo "Default user: admin / Default password: admin"
-echo "⚠️  WARNING: Change the default password immediately after first login."
-echo "    Go to: Admin menu → Change Password"
-echo "    Leaving the default password exposes VirtualBox to unauthorized access."
+echo "WARNING: Change the default password immediately after first login."
+echo "Go to: Admin menu -> Change Password"
+echo "Leaving the default password exposes VirtualBox to unauthorized access."
 echo "Use vinagre or remmina to connect (activate Enable Server into Remote Display of VM)"
 echo "Done"

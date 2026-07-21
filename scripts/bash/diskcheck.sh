@@ -13,9 +13,11 @@
 #
 # NOTE on logging:
 # - Writes to /var/log/diskcheck.log (log + screen via tee). Rotation is
-#   self-installed by this script (/etc/logrotate.d/diskcheck).
+# self-installed by this script (/etc/logrotate.d/diskcheck).
 #
 ################################################################################
+
+set -uo pipefail
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -35,34 +37,52 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     log "Script $(basename "$0") is already running"
     exit 1
 fi
 
-set -uo pipefail
-
 echo "----------------------------------------------------------------" | tee -a "$log_file"
 
 # Start
 log "diskcheck start..."
 
-# LOCAL USER (multi-strategy detection with validation)
-local_user=""
-# 1. Local graphical session (:0)
-local_user=$(who | awk '/\(:0\)/{print $1; exit}')
-# 2. Parent process logname (works well with sudo)
-[ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
-# 3. SUDO_USER variable (when run via sudo from terminal)
-[ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-# 4. First active session user (SSH or other)
-[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
-# 5. First valid home directory
-[ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
-# Validate the user actually exists on the system
-if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
-    log "ERROR: Cannot determine a valid local user"
+# LOCAL USER detection
+detect_local_user() {
+    local uid_min uid_max
+    local user uid best_user="" best_uid=999999
+
+    uid_min=$(awk '/^UID_MIN/{print $2}' /etc/login.defs 2>/dev/null)
+    uid_max=$(awk '/^UID_MAX/{print $2}' /etc/login.defs 2>/dev/null)
+    uid_min=${uid_min:-1000}
+    uid_max=${uid_max:-60000}
+
+    while IFS=: read -r user _ uid _ _ _ shell; do
+        [ "$user" = "root" ] && continue
+        [ -z "$uid" ] && continue
+        [ "$uid" -lt "$uid_min" ] && continue
+        [ "$uid" -gt "$uid_max" ] && continue
+
+        case "$shell" in
+            */false|*/nologin) continue ;;
+        esac
+
+        id -nG "$user" 2>/dev/null | grep -qw sudo || continue
+
+        if [ "$uid" -lt "$best_uid" ]; then
+            best_uid="$uid"
+            best_user="$user"
+        fi
+    done </etc/passwd
+
+    [ -n "$best_user" ] || return 1
+    echo "$best_user"
+}
+
+if ! local_user=$(detect_local_user); then
+    log "ERROR: No valid local user found. Create one with sudo access."
     exit 1
 fi
 log "Using local user: $local_user"
@@ -76,7 +96,7 @@ for p in $missing; do
 done
 if [ -n "$unavailable" ]; then
     log "Missing dependencies not found in APT:"
-    for u in $unavailable; do log "   - $u"; done
+    for u in $unavailable; do log " - $u"; done
     log "Please install them manually or enable the required repositories."
     exit 1
 fi
@@ -90,7 +110,7 @@ if [ -n "$missing" ]; then
             log "APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
             exit 1
         fi
-        log "   Locks held, waiting... (${APT_LOCK_ELAPSED}s)"
+        log "Locks held, waiting... (${APT_LOCK_ELAPSED}s)"
         sleep 5
         APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
     done
@@ -175,7 +195,7 @@ notify_alert() {
     logger -t disktemp "$msg"
     log "$msg"
     _notify "$local_user" -i "$icon" "DISK ALERT" "$msg" \
-        || log "  notify-send failed (no desktop session?)"
+        || log " notify-send failed (no desktop session?)"
 }
 
 # ---------------------------------------------------------------------
@@ -202,7 +222,7 @@ fi
 # option 2 (for some ssd sata and hdd - uncomment if needed)
 #temperature=$(hddtemp /dev/sda --numeric)
 #if [ $temperature -ge $degrees ]; then
-#    notify_alert "ALERT: hard drive's temperature is above: $temperature" "checkbox"
+# notify_alert "ALERT: hard drive's temperature is above: $temperature" "checkbox"
 #fi
 
 # ---------------------------------------------------------------------
@@ -212,9 +232,9 @@ fi
 log "Check Disk SMART Health. Wait..."
 
 # Alert thresholds
-REALLOCATED_THRESHOLD=10   # reallocated sectors (sign of bad sectors)
-PENDING_THRESHOLD=5        # sectors pending reallocation
-UNCORRECTABLE_THRESHOLD=1  # uncorrectable errors (critical from the first one)
+REALLOCATED_THRESHOLD=10 # reallocated sectors (sign of bad sectors)
+PENDING_THRESHOLD=5 # sectors pending reallocation
+UNCORRECTABLE_THRESHOLD=1 # uncorrectable errors (critical from the first one)
 
 # Detect all disks in the system (HDD, SSD, NVMe)
 DISKS=$(lsblk -dno NAME,TYPE | awk '$2=="disk" {print "/dev/"$1}')
@@ -261,7 +281,7 @@ else
         POWER_HOURS=$(echo "$SMART_ATTRS" | awk '/Power_On_Hours/ {print $10}')
 
         if [ -n "$REALLOCATED" ] && [ "$REALLOCATED" -ge "$REALLOCATED_THRESHOLD" ] 2>/dev/null; then
-            notify_alert "$DISK: $REALLOCATED reallocated sectors detected. Disk degrading — plan replacement." "drive-harddisk"
+            notify_alert "$DISK: $REALLOCATED reallocated sectors detected. Disk degrading -- plan replacement." "drive-harddisk"
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
         if [ -n "$PENDING" ] && [ "$PENDING" -ge "$PENDING_THRESHOLD" ] 2>/dev/null; then

@@ -12,6 +12,8 @@
 #
 ################################################################################
 
+set -uo pipefail
+
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # logging
@@ -21,12 +23,15 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
+## root check
 if [ "$(id -u)" != "0" ]; then
     log "ERROR: This script must be run as root"
     exit 1
 fi
 
+# prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     log "Script $(basename "$0") is already running"

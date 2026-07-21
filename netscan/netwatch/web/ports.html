@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetWatch - Ports</title>
+<meta name="color-scheme" content="dark light">
+<script>
+    (function() {
+        var t = localStorage.getItem('netwatch-theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+    })();
+</script>
+<style>
+    :root {
+        /* Fixed chrome — toolbar, mode bar, filters, live badge, column
+           headers. None of this changes with the light/dark toggle; only
+           the table BODY (data rows) does, via
+           --bg-table-body/--text-data/--row-hover below, the only
+           variables re-declared under [data-theme="light"]. */
+        color-scheme: dark;
+        --bg-primary: #1a2332;
+        --bg-panel-alt: #243447;
+        --bg-btn: #2c3e50;
+        --bg-btn-hover: #37485c;
+        --bg-input: #1a2332;
+        --border: rgba(255,255,255,0.1);
+        --border-soft: rgba(255,255,255,0.06);
+        --text-primary: #ffffff;
+        --text-secondary: #a0aec0;
+        --text-chrome: #e2e8f0;
+        --text-muted: #718096;
+        --accent: #48bb78;
+        --accent-dark: #38a169;
+        --accent-fg: #0d1b12;
+        --danger: #f56565;
+
+        /* Table body only — this is what the toggle actually controls.
+           Full contrast: white text on black in dark mode, black text on
+           white in light mode. Status colors (--status-*) also shift shade
+           per mode so OPEN/CLOSED stay readable against either background. */
+        --bg-table-body: #000000;
+        --text-data: #ffffff;
+        --row-hover: rgba(255,255,255,0.05);
+        --status-open: #48bb78;
+        --status-closed: #f56565;
+    }
+
+    [data-theme="light"] {
+        --bg-table-body: #ffffff;
+        --text-data: #000000;
+        --row-hover: rgba(0,0,0,0.04);
+        --status-open: #2f855a;
+        --status-closed: #c53030;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-chrome);
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* ── Toolbar: one compact row, title + search + filters + live ── */
+    .toolbar {
+        background: var(--bg-panel-alt);
+        padding: 0.55rem 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+        border-bottom: 2px solid var(--accent);
+    }
+    .toolbar-title {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        white-space: nowrap;
+    }
+
+    .search-wrap {
+        position: relative;
+        flex: 1;
+        min-width: 160px;
+        display: flex;
+        align-items: center;
+    }
+    .search-wrap input {
+        width: 100%;
+        background: var(--bg-btn);
+        border: 1px solid var(--border);
+        color: var(--text-chrome);
+        padding: 0.4rem 0.6rem 0.4rem 1.7rem;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        outline: none;
+    }
+    .search-wrap input:focus { border-color: var(--accent); }
+    .search-wrap input::placeholder { color: var(--text-secondary); }
+    .search-wrap .sicon {
+        position: absolute;
+        left: 0.55rem;
+        color: var(--text-secondary);
+        font-size: 0.78rem;
+        pointer-events: none;
+    }
+
+    select, .toolbar button, .mode-bar button {
+        background: var(--bg-btn);
+        color: var(--text-secondary);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.4rem 0.55rem;
+        font-size: 0.78rem;
+        cursor: pointer;
+    }
+    select:hover, .toolbar button:hover { background: var(--bg-btn-hover); color: var(--text-primary); }
+
+    .live-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: rgba(72,187,120,0.12);
+        border: 1px solid rgba(72,187,120,0.4);
+        padding: 0.35rem 0.65rem;
+        border-radius: 99px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: var(--accent);
+        white-space: nowrap;
+        cursor: pointer;
+        user-select: none;
+    }
+    .live-badge.paused {
+        background: rgba(245,101,101,0.12);
+        border-color: rgba(245,101,101,0.4);
+        color: var(--danger);
+    }
+    .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .live-dot.pulse { animation: netwatch-pulse 1.2s infinite; }
+    .live-dot.paused { background: var(--danger); animation: none; }
+    @keyframes netwatch-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+    /* ── Mode bar: Server/Target selection, one compact row ── */
+    .mode-bar {
+        background: var(--bg-primary);
+        padding: 0.4rem 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+        border-bottom: 1px solid var(--border-soft);
+        font-size: 0.8rem;
+    }
+    .mode-option { display: flex; align-items: center; gap: 0.35rem; cursor: pointer; color: var(--text-chrome); }
+    .mode-bar input[type="text"] {
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text-chrome);
+        padding: 0.35rem 0.6rem;
+        font-size: 0.8rem;
+        width: 190px;
+    }
+    .mode-bar input[type="text"]:disabled { opacity: 0.4; }
+    .mode-bar button {
+        background: var(--accent);
+        color: var(--accent-fg);
+        border: none;
+        font-weight: 600;
+        padding: 0.4rem 0.9rem;
+    }
+    .mode-bar button:hover { background: var(--accent-dark); }
+    .mode-current { font-size: 0.76rem; color: var(--text-secondary); }
+    #modeMsg { font-size: 0.76rem; padding: 0 0.9rem; min-height: 1.1em; flex-shrink: 0; }
+    #modeMsg.error { color: var(--danger); }
+    #modeMsg.ok { color: var(--accent); }
+
+    /* ── Stats bar: thin summary strip ── */
+    .statsbar {
+        background: var(--bg-primary);
+        padding: 0.3rem 0.9rem;
+        font-size: 0.74rem;
+        color: var(--text-secondary);
+        flex-shrink: 0;
+        border-bottom: 1px solid var(--border-soft);
+    }
+
+    /* ── Table area: scrolls internally, header stays put ── */
+    .table-wrap { flex: 1; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; background: var(--bg-table-body); }
+    thead { position: sticky; top: 0; z-index: 2; }
+    th, td {
+        text-align: left;
+        padding: 0.45rem 0.9rem;
+        font-size: 0.82rem;
+        border-bottom: 1px solid var(--border-soft);
+    }
+    td { color: var(--text-data); }
+    th {
+        background: var(--bg-panel-alt);
+        color: var(--text-primary);
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+    }
+    th:hover { color: var(--accent); }
+    .sort-arrow { color: var(--accent); margin-left: 0.25rem; font-size: 0.7em; }
+    tr:hover td { background: var(--row-hover); }
+    .badge {
+        display: inline-block;
+        padding: 0.15rem 0.55rem;
+        border-radius: 10px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .badge-open { background: rgba(72,187,120,0.15); color: var(--status-open); }
+    .badge-closed { background: rgba(245,101,101,0.15); color: var(--status-closed); }
+    .empty { text-align: center; padding: 2rem; color: var(--text-muted); }
+
+    .col-host { font-weight: 600; }
+    .col-port { font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+    <div class="toolbar-title">🔌 Ports</div>
+    <div class="search-wrap">
+        <span class="sicon">🔍</span>
+        <input id="q" type="text" placeholder="Search host, port, service...">
+    </div>
+    <select id="fStatus">
+        <option value="">All status</option>
+        <option value="open">Open</option>
+        <option value="closed">Closed</option>
+    </select>
+    <select id="fProto">
+        <option value="">All protocols</option>
+    </select>
+    <select id="fRefresh">
+        <option value="5000">Refresh: 5s</option>
+        <option value="15000" selected>Refresh: 15s</option>
+        <option value="30000">Refresh: 30s</option>
+        <option value="60000">Refresh: 60s</option>
+    </select>
+    <button id="btnReload" title="Reload now">🔄 Reload</button>
+    <div class="live-badge" id="liveBadge" onclick="toggleLive()" title="Click to pause/resume auto-refresh">
+        <span class="live-dot pulse" id="liveDot"></span>
+        <span id="liveLabel">LIVE</span>
+    </div>
+</div>
+
+<div class="mode-bar">
+    <label class="mode-option">
+        <input type="radio" name="mode" value="server" id="modeServer"> Server (this host's listening ports)
+    </label>
+    <label class="mode-option">
+        <input type="radio" name="mode" value="target" id="modeTarget"> Target
+    </label>
+    <input type="text" id="targetIp" placeholder="IP or hostname" disabled>
+    <button id="applyModeBtn">Apply</button>
+    <div class="mode-current" id="modeCurrent"></div>
+</div>
+<div id="modeMsg"></div>
+
+<div class="statsbar" id="summary">Loading...</div>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th onclick="sortBy('host')">Host <span class="sort-arrow" id="arr-host"></span></th>
+                <th onclick="sortBy('port')">Port <span class="sort-arrow" id="arr-port"></span></th>
+                <th onclick="sortBy('proto')">Proto <span class="sort-arrow" id="arr-proto"></span></th>
+                <th onclick="sortBy('service')">Service <span class="sort-arrow" id="arr-service"></span></th>
+                <th onclick="sortBy('status')">Status <span class="sort-arrow" id="arr-status"></span></th>
+                <th onclick="sortBy('last_checked')">Date <span class="sort-arrow" id="arr-last_checked"></span></th>
+            </tr>
+        </thead>
+        <tbody id="rows">
+            <tr><td colspan="6" class="empty">Loading ports...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<script>
+let csrfToken = '';
+var ALL = [];
+var CUR = [];
+var sortKey = 'port';
+var sortDir = 1;
+var refreshTimer = null;
+var liveOn = true;
+var justApplied = false; // set on Apply, cleared once a load returns any row
+
+async function getCsrfToken() {
+    const res = await fetch('/ports/netwatchapi.php?action=csrfToken');
+    const json = await res.json();
+    if (json.success) csrfToken = json.data.csrf_token;
+}
+
+async function loadMode() {
+    try {
+        const res = await fetch('/ports/netwatchapi.php?action=getPortsMode');
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || 'Request failed');
+        const { mode, target_ip, server_ip } = json.data;
+        document.getElementById('modeServer').checked = mode === 'server';
+        document.getElementById('modeTarget').checked = mode === 'target';
+        document.getElementById('targetIp').disabled = mode !== 'target';
+        if (mode === 'target' && target_ip) {
+            document.getElementById('targetIp').value = target_ip;
+        }
+        document.getElementById('modeCurrent').textContent = mode === 'target'
+            ? `Currently watching target: ${target_ip || '(not set)'}`
+            : `Currently watching server: ${server_ip || 'this host'}`;
+    } catch (e) {
+        document.getElementById('modeCurrent').textContent = 'Error loading mode';
+    }
+}
+
+async function loadPorts() {
+    try {
+        const res = await fetch('/ports/netwatchapi.php?action=listPorts');
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || 'Request failed');
+        ALL = json.data;
+        if (ALL.length > 0) justApplied = false;
+        populateProtoFilter();
+        applyFilters();
+    } catch (e) {
+        document.getElementById('summary').textContent = 'Error loading ports';
+    }
+}
+
+function populateProtoFilter() {
+    const sel = document.getElementById('fProto');
+    const current = sel.value;
+    const protos = [...new Set(ALL.map(p => p.proto).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="">All protocols</option>' +
+        protos.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p.toUpperCase())}</option>`).join('');
+    if (protos.includes(current)) sel.value = current;
+}
+
+function applyFilters() {
+    const fStatus = document.getElementById('fStatus').value;
+    const fProto = document.getElementById('fProto').value;
+    const q = document.getElementById('q').value.toLowerCase().trim();
+
+    CUR = ALL.filter(p => {
+        if (fStatus && p.status !== fStatus) return false;
+        if (fProto && p.proto !== fProto) return false;
+        if (q) {
+            const hay = `${p.host} ${p.port} ${p.proto} ${p.service || ''} ${p.status}`.toLowerCase();
+            if (hay.indexOf(q) === -1) return false;
+        }
+        return true;
+    });
+
+    sortCur();
+    renderTable();
+}
+
+// "192.168.0.9" < "192.168.0.10" as plain strings sorts wrong (lexicographic,
+// not numeric). host can also be a hostname (target mode) instead of an IP,
+// so this returns null rather than sorting when it isn't a valid IPv4.
+function ipToNum(ip) {
+    const parts = String(ip).split('.').map(Number);
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null;
+    return parts.reduce((acc, n) => acc * 256 + n, 0);
+}
+
+function sortCur() {
+    CUR.sort((a, b) => {
+        let va = a[sortKey], vb = b[sortKey];
+        if (sortKey === 'port') { va = parseInt(va) || 0; vb = parseInt(vb) || 0; return (va - vb) * sortDir; }
+        if (sortKey === 'host') {
+            const na = ipToNum(va), nb = ipToNum(vb);
+            if (na !== null && nb !== null) return (na - nb) * sortDir;
+        }
+        va = va == null ? '' : String(va).toLowerCase();
+        vb = vb == null ? '' : String(vb).toLowerCase();
+        return va < vb ? -sortDir : va > vb ? sortDir : 0;
+    });
+}
+
+function sortBy(key) {
+    if (sortKey === key) sortDir *= -1;
+    else { sortKey = key; sortDir = 1; }
+
+    document.querySelectorAll('.sort-arrow').forEach(el => el.textContent = '');
+    const arr = document.getElementById('arr-' + key);
+    if (arr) arr.textContent = sortDir === 1 ? '▲' : '▼';
+
+    sortCur();
+    renderTable();
+}
+
+function renderTable() {
+    const rows = document.getElementById('rows');
+    const summary = document.getElementById('summary');
+
+    if (CUR.length === 0) {
+        let emptyMsg = 'No ports match the current filters';
+        if (ALL.length === 0) {
+            emptyMsg = justApplied ? 'Scanning ports. Wait...' : 'No ports observed yet in this mode';
+        }
+        rows.innerHTML = `<tr><td colspan="6" class="empty">${emptyMsg}</td></tr>`;
+    } else {
+        rows.innerHTML = CUR.map(p => `
+            <tr>
+                <td class="col-host">${escapeHtml(p.host)}</td>
+                <td class="col-port">${escapeHtml(String(p.port))}</td>
+                <td class="col-proto">${escapeHtml(p.proto)}</td>
+                <td class="col-service">${escapeHtml(p.service || '-')}</td>
+                <td><span class="badge badge-${p.status}">${p.status.toUpperCase()}</span></td>
+                <td class="col-date" title="Last changed: ${escapeHtml(formatDate(p.last_changed))}">${escapeHtml(formatDate(p.last_checked))}</td>
+            </tr>
+        `).join('');
+    }
+
+    const open = ALL.filter(p => p.status === 'open').length;
+    summary.textContent = CUR.length === ALL.length
+        ? `${ALL.length} ports — ${open} open, ${ALL.length - open} closed`
+        : `${CUR.length} of ${ALL.length} ports — ${open} open, ${ALL.length - open} closed`;
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// Daemons store timestamps in UTC ("...Z"); convert to the browser's local
+// time before display, otherwise the Date column reads hours off from the
+// header clock (same fix as logview's date_default_timezone_set()).
+function formatDate(iso) {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    if (isNaN(d)) return iso.replace('T', ' ').replace('Z', '');
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function setupRefresh() {
+    const val = parseInt(document.getElementById('fRefresh').value, 10);
+    if (refreshTimer) clearInterval(refreshTimer);
+    if (liveOn) refreshTimer = setInterval(loadPorts, val);
+    try { localStorage.setItem('netwatch-ports-refresh', String(val)); } catch (e) { /* ignore */ }
+}
+
+function toggleLive() {
+    liveOn = !liveOn;
+    const badge = document.getElementById('liveBadge');
+    const dot   = document.getElementById('liveDot');
+    const label = document.getElementById('liveLabel');
+    if (liveOn) {
+        badge.className = 'live-badge';
+        dot.className   = 'live-dot pulse';
+        label.textContent = 'LIVE';
+        loadPorts();
+        setupRefresh();
+    } else {
+        badge.className = 'live-badge paused';
+        dot.className   = 'live-dot paused';
+        label.textContent = 'PAUSED';
+        if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+    }
+}
+
+(function restoreRefresh() {
+    try {
+        const saved = localStorage.getItem('netwatch-ports-refresh');
+        if (saved !== null) document.getElementById('fRefresh').value = saved;
+    } catch (e) { /* ignore */ }
+})();
+
+document.getElementById('q').addEventListener('input', applyFilters);
+document.getElementById('fStatus').addEventListener('change', applyFilters);
+document.getElementById('fProto').addEventListener('change', applyFilters);
+document.getElementById('fRefresh').addEventListener('change', setupRefresh);
+document.getElementById('btnReload').addEventListener('click', loadPorts);
+
+document.querySelectorAll('input[name="mode"]').forEach(el => {
+    el.addEventListener('change', () => {
+        document.getElementById('targetIp').disabled = document.getElementById('modeTarget').checked !== true;
+    });
+});
+
+document.getElementById('applyModeBtn').addEventListener('click', async () => {
+    const msg = document.getElementById('modeMsg');
+    msg.textContent = '';
+    msg.className = '';
+    const mode = document.getElementById('modeTarget').checked ? 'target' : 'server';
+    const targetIp = document.getElementById('targetIp').value.trim();
+
+    if (mode === 'target' && !targetIp) {
+        msg.textContent = 'Enter a target IP or hostname.';
+        msg.className = 'error';
+        return;
+    }
+
+    const body = new URLSearchParams({ mode, target_ip: targetIp, csrf_token: csrfToken });
+    try {
+        const res = await fetch('/ports/netwatchapi.php?action=setPortsMode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body
+        });
+        const json = await res.json();
+        if (json.success) {
+            msg.textContent = 'Mode applied.';
+            msg.className = 'ok';
+            justApplied = true;
+            await loadMode();
+            await loadPorts();
+        } else {
+            msg.textContent = json.error || 'Failed to apply mode';
+            msg.className = 'error';
+        }
+    } catch (e) {
+        msg.textContent = 'Network error';
+        msg.className = 'error';
+    }
+});
+
+// index.php also pokes our data-theme attribute directly on toggle, but
+// that reaches into contentDocument and can silently miss (cross-document
+// timing). The native storage event fires reliably in this same-origin
+// child document whenever the parent's localStorage write happens, so it's
+// the dependable path — the direct poke is just a same-tick head start.
+window.addEventListener('storage', (e) => {
+    if (e.key === 'netwatch-theme' && e.newValue) {
+        document.documentElement.setAttribute('data-theme', e.newValue);
+    }
+});
+
+(async () => {
+    await getCsrfToken();
+    await loadMode();
+    await loadPorts();
+    setupRefresh();
+})();
+</script>
+
+</body>
+</html>

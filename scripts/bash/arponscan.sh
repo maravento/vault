@@ -8,8 +8,7 @@
 #
 ################################################################################
 
-echo "ARP table filter Starting. Wait..."
-printf "\n"
+set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -19,11 +18,14 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
+
+echo "ARP table filter Starting. Wait..."
 
 # check dependencies
 pkgs='arpon'
@@ -34,7 +36,7 @@ for p in $missing; do
 done
 if [ -n "$unavailable" ]; then
     echo "Missing dependencies not found in APT:"
-    for u in $unavailable; do echo "   - $u"; done
+    for u in $unavailable; do echo " - $u"; done
     echo "Please install them manually or enable the required repositories."
     exit 1
 fi
@@ -48,7 +50,7 @@ if [ -n "$missing" ]; then
             echo "APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
             exit 1
         fi
-        echo "   Locks held, waiting... (${APT_LOCK_ELAPSED}s)"
+        echo "Locks held, waiting... (${APT_LOCK_ELAPSED}s)"
         sleep 5
         APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
     done
@@ -95,7 +97,7 @@ function arponrun() {
 
     # optional rule: flush ARP table
     ip -s -s neigh flush all >/dev/null 2>&1
-    # optional rule: flush ARP table (PERM) — keep local server IP
+    # optional rule: flush ARP table (PERM) -- keep local server IP
     arp -a | grep -i perm | grep -oP '(\d+\.){3}\d+' | grep -v "$localip" | xargs -I {} arp -d {}
     # run script and add ip+mac to ARP table
     "$ARPSTATIC_FILE" >/dev/null 2>&1

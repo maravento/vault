@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetWatch - LAN Devices</title>
+<meta name="color-scheme" content="dark light">
+<script>
+    (function() {
+        var t = localStorage.getItem('netwatch-theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+    })();
+</script>
+<style>
+    :root {
+        /* Fixed chrome — toolbar, filters, live badge, column headers.
+           None of this changes with the light/dark toggle; only the table
+           BODY (data rows) does, via --bg-table-body/--text-data/--row-hover
+           below, which are the only variables re-declared under
+           [data-theme="light"]. */
+        color-scheme: dark;
+        --bg-primary: #1a2332;
+        --bg-panel-alt: #243447;
+        --bg-btn: #2c3e50;
+        --bg-btn-hover: #37485c;
+        --border: rgba(255,255,255,0.1);
+        --border-soft: rgba(255,255,255,0.06);
+        --text-primary: #ffffff;
+        --text-secondary: #a0aec0;
+        --text-chrome: #e2e8f0;
+        --text-muted: #718096;
+        --accent: #48bb78;
+        --danger: #f56565;
+
+        /* Table body only — this is what the toggle actually controls.
+           Full contrast: white text on black in dark mode, black text on
+           white in light mode. Status colors (--status-*) also shift shade
+           per mode so ONLINE/OFFLINE stay readable against either background. */
+        --bg-table-body: #000000;
+        --text-data: #ffffff;
+        --row-hover: rgba(255,255,255,0.05);
+        --status-online: #48bb78;
+        --status-offline: #f56565;
+    }
+
+    [data-theme="light"] {
+        --bg-table-body: #ffffff;
+        --text-data: #000000;
+        --row-hover: rgba(0,0,0,0.04);
+        --status-online: #2f855a;
+        --status-offline: #c53030;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-chrome);
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* ── Toolbar: one compact row, title + search + filters + live ── */
+    .toolbar {
+        background: var(--bg-panel-alt);
+        padding: 0.55rem 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+        border-bottom: 2px solid var(--accent);
+    }
+    .toolbar-title {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        white-space: nowrap;
+    }
+
+    .search-wrap {
+        position: relative;
+        flex: 1;
+        min-width: 180px;
+        display: flex;
+        align-items: center;
+    }
+    .search-wrap input {
+        width: 100%;
+        background: var(--bg-btn);
+        border: 1px solid var(--border);
+        color: var(--text-chrome);
+        padding: 0.4rem 0.6rem 0.4rem 1.7rem;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        outline: none;
+    }
+    .search-wrap input:focus { border-color: var(--accent); }
+    .search-wrap input::placeholder { color: var(--text-secondary); }
+    .search-wrap .sicon {
+        position: absolute;
+        left: 0.55rem;
+        color: var(--text-secondary);
+        font-size: 0.78rem;
+        pointer-events: none;
+    }
+
+    select, .toolbar button {
+        background: var(--bg-btn);
+        color: var(--text-secondary);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.4rem 0.55rem;
+        font-size: 0.78rem;
+        cursor: pointer;
+    }
+    select:hover, .toolbar button:hover { background: var(--bg-btn-hover); color: var(--text-primary); }
+
+    .live-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: rgba(72,187,120,0.12);
+        border: 1px solid rgba(72,187,120,0.4);
+        padding: 0.35rem 0.65rem;
+        border-radius: 99px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: var(--accent);
+        white-space: nowrap;
+        cursor: pointer;
+        user-select: none;
+    }
+    .live-badge.paused {
+        background: rgba(245,101,101,0.12);
+        border-color: rgba(245,101,101,0.4);
+        color: var(--danger);
+    }
+    .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .live-dot.pulse { animation: netwatch-pulse 1.2s infinite; }
+    .live-dot.paused { background: var(--danger); animation: none; }
+    @keyframes netwatch-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+    /* ── Stats bar: thin summary strip below the toolbar ── */
+    .statsbar {
+        background: var(--bg-primary);
+        padding: 0.3rem 0.9rem;
+        font-size: 0.74rem;
+        color: var(--text-secondary);
+        flex-shrink: 0;
+        border-bottom: 1px solid var(--border-soft);
+    }
+
+    /* ── Table area: scrolls internally, header stays put ── */
+    .table-wrap { flex: 1; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; background: var(--bg-table-body); }
+    thead { position: sticky; top: 0; z-index: 2; }
+    th, td {
+        text-align: left;
+        padding: 0.45rem 0.9rem;
+        font-size: 0.82rem;
+        border-bottom: 1px solid var(--border-soft);
+    }
+    td { color: var(--text-data); }
+    th {
+        background: var(--bg-panel-alt);
+        color: var(--text-primary);
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+    }
+    th:hover { color: var(--accent); }
+    .sort-arrow { color: var(--accent); margin-left: 0.25rem; font-size: 0.7em; }
+    tr:hover td { background: var(--row-hover); }
+    .badge {
+        display: inline-block;
+        padding: 0.15rem 0.55rem;
+        border-radius: 10px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .badge-online { background: rgba(72,187,120,0.15); color: var(--status-online); }
+    .badge-offline { background: rgba(245,101,101,0.15); color: var(--status-offline); }
+    .empty { text-align: center; padding: 2rem; color: var(--text-muted); }
+
+    .col-ip { font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+    <div class="toolbar-title">🌐 LAN Devices</div>
+    <div class="search-wrap">
+        <span class="sicon">🔍</span>
+        <input id="q" type="text" placeholder="Search IP, MAC, vendor, hostname...">
+    </div>
+    <select id="fIface">
+        <option value="">All interfaces</option>
+    </select>
+    <select id="fStatus">
+        <option value="">All status</option>
+        <option value="online">Online</option>
+        <option value="offline">Offline</option>
+    </select>
+    <select id="fRefresh">
+        <option value="5000">Refresh: 5s</option>
+        <option value="15000" selected>Refresh: 15s</option>
+        <option value="30000">Refresh: 30s</option>
+        <option value="60000">Refresh: 60s</option>
+    </select>
+    <button id="btnReload" title="Reload now">🔄 Reload</button>
+    <div class="live-badge" id="liveBadge" onclick="toggleLive()" title="Click to pause/resume auto-refresh">
+        <span class="live-dot pulse" id="liveDot"></span>
+        <span id="liveLabel">LIVE</span>
+    </div>
+</div>
+
+<div class="statsbar" id="summary">Loading...</div>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th onclick="sortBy('ip')">IP <span class="sort-arrow" id="arr-ip"></span></th>
+                <th onclick="sortBy('mac')">MAC <span class="sort-arrow" id="arr-mac"></span></th>
+                <th onclick="sortBy('iface')">Interface <span class="sort-arrow" id="arr-iface"></span></th>
+                <th onclick="sortBy('vendor')">Vendor <span class="sort-arrow" id="arr-vendor"></span></th>
+                <th onclick="sortBy('hostname')">Hostname <span class="sort-arrow" id="arr-hostname"></span></th>
+                <th onclick="sortBy('status')">Status <span class="sort-arrow" id="arr-status"></span></th>
+                <th onclick="sortBy('last_seen')">Date <span class="sort-arrow" id="arr-last_seen"></span></th>
+            </tr>
+        </thead>
+        <tbody id="rows">
+            <tr><td colspan="7" class="empty">Loading devices...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<script>
+var ALL = [];
+var CUR = [];
+var sortKey = 'ip';
+var sortDir = 1;
+var refreshTimer = null;
+var liveOn = true;
+
+async function loadDevices() {
+    try {
+        const res = await fetch('/lan/netwatchapi.php?action=listDevices');
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || 'Request failed');
+        ALL = json.data;
+        populateIfaceFilter();
+        applyFilters();
+    } catch (e) {
+        document.getElementById('summary').textContent = 'Error loading devices';
+    }
+}
+
+function populateIfaceFilter() {
+    const sel = document.getElementById('fIface');
+    const current = sel.value;
+    const ifaces = [...new Set(ALL.map(d => d.iface).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="">All interfaces</option>' +
+        ifaces.map(i => `<option value="${escapeHtml(i)}">${escapeHtml(i)}</option>`).join('');
+    if (ifaces.includes(current)) sel.value = current;
+}
+
+function applyFilters() {
+    const fIface = document.getElementById('fIface').value;
+    const fStatus = document.getElementById('fStatus').value;
+    const q = document.getElementById('q').value.toLowerCase().trim();
+
+    CUR = ALL.filter(d => {
+        if (fIface && d.iface !== fIface) return false;
+        if (fStatus && d.status !== fStatus) return false;
+        if (q) {
+            const hay = `${d.ip} ${d.mac} ${d.iface || ''} ${d.vendor || ''} ${d.hostname || ''} ${d.status}`.toLowerCase();
+            if (hay.indexOf(q) === -1) return false;
+        }
+        return true;
+    });
+
+    sortCur();
+    renderTable();
+}
+
+// "192.168.0.9" < "192.168.0.10" as plain strings sorts wrong (lexicographic,
+// not numeric) — pack each octet into 8 bits so the comparison is numeric.
+function ipToNum(ip) {
+    const parts = String(ip).split('.').map(Number);
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return -1;
+    return parts.reduce((acc, n) => acc * 256 + n, 0);
+}
+
+function sortCur() {
+    CUR.sort((a, b) => {
+        if (sortKey === 'ip') {
+            return (ipToNum(a.ip) - ipToNum(b.ip)) * sortDir;
+        }
+        let va = a[sortKey], vb = b[sortKey];
+        va = va == null ? '' : String(va).toLowerCase();
+        vb = vb == null ? '' : String(vb).toLowerCase();
+        return va < vb ? -sortDir : va > vb ? sortDir : 0;
+    });
+}
+
+function sortBy(key) {
+    if (sortKey === key) sortDir *= -1;
+    else { sortKey = key; sortDir = 1; }
+
+    document.querySelectorAll('.sort-arrow').forEach(el => el.textContent = '');
+    const arr = document.getElementById('arr-' + key);
+    if (arr) arr.textContent = sortDir === 1 ? '▲' : '▼';
+
+    sortCur();
+    renderTable();
+}
+
+function renderTable() {
+    const rows = document.getElementById('rows');
+    const summary = document.getElementById('summary');
+
+    if (CUR.length === 0) {
+        rows.innerHTML = `<tr><td colspan="7" class="empty">${ALL.length === 0 ? 'No devices discovered yet' : 'No devices match the current filters'}</td></tr>`;
+    } else {
+        rows.innerHTML = CUR.map(d => `
+            <tr>
+                <td class="col-ip">${escapeHtml(d.ip)}</td>
+                <td class="col-mac">${escapeHtml(d.mac)}</td>
+                <td class="col-iface">${escapeHtml(d.iface || '-')}</td>
+                <td class="col-vendor">${escapeHtml(d.vendor || '-')}</td>
+                <td class="col-hostname">${escapeHtml(d.hostname || '-')}</td>
+                <td><span class="badge badge-${d.status}">${d.status.toUpperCase()}</span></td>
+                <td class="col-date" title="First seen: ${escapeHtml(formatDate(d.first_seen))}">${escapeHtml(formatDate(d.last_seen))}</td>
+            </tr>
+        `).join('');
+    }
+
+    const online = ALL.filter(d => d.status === 'online').length;
+    summary.textContent = CUR.length === ALL.length
+        ? `${ALL.length} devices — ${online} online, ${ALL.length - online} offline`
+        : `${CUR.length} of ${ALL.length} devices — ${online} online, ${ALL.length - online} offline`;
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// Daemons store timestamps in UTC ("...Z"); convert to the browser's local
+// time before display, otherwise the Date column reads hours off from the
+// header clock (same fix as logview's date_default_timezone_set()).
+function formatDate(iso) {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    if (isNaN(d)) return iso.replace('T', ' ').replace('Z', '');
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function setupRefresh() {
+    const val = parseInt(document.getElementById('fRefresh').value, 10);
+    if (refreshTimer) clearInterval(refreshTimer);
+    if (liveOn) refreshTimer = setInterval(loadDevices, val);
+    try { localStorage.setItem('netwatch-lan-refresh', String(val)); } catch (e) { /* ignore */ }
+}
+
+function toggleLive() {
+    liveOn = !liveOn;
+    const badge = document.getElementById('liveBadge');
+    const dot   = document.getElementById('liveDot');
+    const label = document.getElementById('liveLabel');
+    if (liveOn) {
+        badge.className = 'live-badge';
+        dot.className   = 'live-dot pulse';
+        label.textContent = 'LIVE';
+        loadDevices();
+        setupRefresh();
+    } else {
+        badge.className = 'live-badge paused';
+        dot.className   = 'live-dot paused';
+        label.textContent = 'PAUSED';
+        if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+    }
+}
+
+(function restoreRefresh() {
+    try {
+        const saved = localStorage.getItem('netwatch-lan-refresh');
+        if (saved !== null) document.getElementById('fRefresh').value = saved;
+    } catch (e) { /* ignore */ }
+})();
+
+document.getElementById('q').addEventListener('input', applyFilters);
+document.getElementById('fIface').addEventListener('change', applyFilters);
+document.getElementById('fStatus').addEventListener('change', applyFilters);
+document.getElementById('fRefresh').addEventListener('change', setupRefresh);
+document.getElementById('btnReload').addEventListener('click', loadDevices);
+
+// index.php also pokes our data-theme attribute directly on toggle, but
+// that reaches into contentDocument and can silently miss (cross-document
+// timing). The native storage event fires reliably in this same-origin
+// child document whenever the parent's localStorage write happens, so it's
+// the dependable path — the direct poke is just a same-tick head start.
+window.addEventListener('storage', (e) => {
+    if (e.key === 'netwatch-theme' && e.newValue) {
+        document.documentElement.setAttribute('data-theme', e.newValue);
+    }
+});
+
+loadDevices();
+setupRefresh();
+</script>
+
+</body>
+</html>

@@ -7,8 +7,7 @@
 #
 ################################################################################
 
-echo "CPU limit Starting. Wait..."
-printf "\n"
+set -uo pipefail
 
 ## root check
 if [ "$(id -u)" -ne 0 ]; then
@@ -16,15 +15,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-# prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-exec 200>"$SCRIPT_LOCK"
-if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
-    exit 1
-fi
-
-set -uo pipefail
+echo "CPU limit Starting. Wait..."
 
 # check dependencies
 pkgs='cpulimit'
@@ -35,7 +26,7 @@ for p in $missing; do
 done
 if [ -n "$unavailable" ]; then
     echo "Missing dependencies not found in APT:"
-    for u in $unavailable; do echo "   - $u"; done
+    for u in $unavailable; do echo " - $u"; done
     echo "Please install them manually or enable the required repositories."
     exit 1
 fi
@@ -49,7 +40,7 @@ if [ -n "$missing" ]; then
             echo "APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
             exit 1
         fi
-        echo "   Locks held, waiting... (${APT_LOCK_ELAPSED}s)"
+        echo "Locks held, waiting... (${APT_LOCK_ELAPSED}s)"
         sleep 5
         APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
     done
@@ -65,26 +56,35 @@ else
 fi
 
 start_limit() {
+    # prevent overlapping runs
+    SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+    (umask 077; : >> "$SCRIPT_LOCK")
+    exec 200>"$SCRIPT_LOCK"
+    if ! flock -n 200; then
+        echo "Script $(basename "$0") is already running"
+        exit 1
+    fi
+
     echo "Running processes:"
-    ps -eo pid,comm --no-headers | grep -v kworker | sort -k2 | awk '{printf "  PID: %-8s %s\n", $1, $2}'
+    ps -eo pid,comm --no-headers | grep -v kworker | sort -k2 | awk '{printf " PID: %-8s %s\n", $1, $2}'
     echo ""
     # program name:
     read -r -p "Enter the program name: " program_name
 
     # Sanitize program name to prevent regex abuse
     if [[ "$program_name" =~ [^a-zA-Z0-9_\-\.] ]]; then
-        echo "❌ Invalid program name: only alphanumeric characters, hyphens, underscores and dots are allowed."
+        echo "Invalid program name: only alphanumeric characters, hyphens, underscores and dots are allowed."
         exit 1
     fi
 
     # Verify process exists
     if ! pgrep -f "$program_name" &>/dev/null; then
-        echo "❌ No running process found for '$program_name'."
+        echo "No running process found for '$program_name'."
         exit 1
     fi
 
     pid_count=$(pgrep -f "$program_name" | wc -l)
-    echo "✅ Found $pid_count process(es) matching '$program_name'."
+    echo "Found $pid_count process(es) matching '$program_name'."
 
     # CPU %
     read -r -p "Enter the CPU % number for '$program_name' (0-100): " cpu_limit
@@ -101,7 +101,7 @@ start_limit() {
         cpulimit -l "$cpu_limit" -p "$pid" >/dev/null &
         cpulimit_pid=$!
         echo "$cpulimit_pid" >> /var/run/cpulimit_managed.pid
-        echo "✅ $cpu_limit% CPU limit applied to '$program_name' (PID: $pid, cpulimit PID: $cpulimit_pid)"
+        echo "$cpu_limit% CPU limit applied to '$program_name' (PID: $pid, cpulimit PID: $cpulimit_pid)"
     done < <(pgrep -f "$program_name")
 }
 

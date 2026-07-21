@@ -4,19 +4,19 @@
 ################################################################################
 #
 # iperf3 LAN Performance Test
-# Description:  Interactive LAN throughput and latency tester (TCP/UDP/ping)
+# Description: Interactive LAN throughput and latency tester (TCP/UDP/ping)
 #
-# Usage:        ./iperf3.sh
+# Usage: ./iperf3.sh
 # Requirements: iperf3 (client and server)
 #
 # Before running, start the iperf3 server on each target host:
-#               iperf3 -s
+# iperf3 -s
 #
 # Tests performed per target:
-#   - Latency      ping (5 packets, configurable via PING_COUNT)
-#   - TCP upload   iperf3 (configurable streams and duration)
-#   - TCP download iperf3 reverse mode
-#   - UDP          iperf3 (1 Gbps target)
+# - Latency ping (5 packets, configurable via PING_COUNT)
+# - TCP upload iperf3 (configurable streams and duration)
+# - TCP download iperf3 reverse mode
+# - UDP iperf3 (1 Gbps target)
 #
 # Output: logs saved to ./iperf3_logs/
 #
@@ -24,14 +24,20 @@
 
 set -uo pipefail
 
-# ─── Configuration ──────────────────────────────────────────────────────────
+# check no-root
+if [ "$(id -u)" == "0" ]; then
+    echo "[ERROR] This script should not be run as root."
+    exit 1
+fi
+
+# --- Configuration ----------------------------------------------------------
 DURATION=30
 PARALLEL=4
 PING_COUNT=5
 LOG_DIR="./iperf3_logs"
 IPERF_CMD=""
 IPERF_PORT=""
-# ────────────────────────────────────────────────────────────────────────────
+# ----------------------------------------------------------------------------
 
 RED='\033[0;31m'
 GRN='\033[0;32m'
@@ -40,40 +46,40 @@ BLU='\033[1;34m'
 CYN='\033[0;36m'
 NC='\033[0m'
 
-trap 'echo -e "\n${YLW}[WARN]${NC}  Interrupted. Logs saved to: $LOG_DIR/"; exit 130' INT TERM
+trap 'echo -e "\n${YLW}[WARN]${NC} Interrupted. Logs saved to: $LOG_DIR/"; exit 130' INT TERM
 
-die()  { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
-info() { echo -e "${BLU}[INFO]${NC}  $*"; }
-ok()   { echo -e "${GRN}[OK]${NC}    $*"; }
-warn() { echo -e "${YLW}[WARN]${NC}  $*"; }
-hdr()  { echo -e "\n${CYN}══════════════════════════════════════════════════${NC}"; \
-         echo -e "${CYN}  $*${NC}"; \
-         echo -e "${CYN}══════════════════════════════════════════════════${NC}"; }
+die() { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
+info() { echo -e "${BLU}[INFO]${NC} $*"; }
+ok() { echo -e "${GRN}[OK]${NC} $*"; }
+warn() { echo -e "${YLW}[WARN]${NC} $*"; }
+hdr() { echo -e "\n${CYN}--------------------------------------------------${NC}"; \
+         echo -e "${CYN} $*${NC}"; \
+         echo -e "${CYN}--------------------------------------------------${NC}"; }
 
-# ─── Dependencies ───────────────────────────────────────────────────────────
+# --- Dependencies -----------------------------------------------------------
 check_deps() {
     command -v iperf3 &>/dev/null || die "iperf3 not found. Install with: sudo apt install iperf3"
 }
 
-# ─── Detect active local interfaces ─────────────────────────────────────────
+# --- Detect active local interfaces -----------------------------------------
 get_interfaces() {
     ip -o link show up | awk -F': ' '{print $2}' | grep -v '^lo$'
 }
 
-# ─── Validate IP ─────────────────────────────────────────────────────────────
+# --- Validate IP -------------------------------------------------------------
 validate_ip() {
     local ip="$1"
     local pattern='^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
     [[ "$ip" =~ $pattern ]]
 }
 
-# ─── Sanitize IP for safe use in filenames ───────────────────────────────────
+# --- Sanitize IP for safe use in filenames -----------------------------------
 sanitize_label() {
     local raw="$1"
     echo "$raw" | tr -cs '[:alnum:]_.-' '_' | sed 's/^_//;s/_$//'
 }
 
-# ─── Detect if iperf3 is listening on target port ────────────────────────────
+# --- Detect if iperf3 is listening on target port ----------------------------
 detect_iperf() {
     local ip="$1"
 
@@ -92,22 +98,22 @@ detect_iperf() {
     return 1
 }
 
-# ─── Latency test (ping) ─────────────────────────────────────────────────────
+# --- Latency test (ping) -----------------------------------------------------
 run_ping() {
     local ip="$1"
     local log="$2"
     echo "" >> "$log"
-    echo "── Latency (ping ${PING_COUNT} packets) ──────────────────" >> "$log"
+    echo "-- Latency (ping ${PING_COUNT} packets) ------------------" >> "$log"
     ping -c "$PING_COUNT" -i 0.5 "$ip" 2>&1 | tee -a "$log"
 }
 
-# ─── iperf TCP upload test ───────────────────────────────────────────────────
+# --- iperf TCP upload test ---------------------------------------------------
 run_iperf3_tcp() {
     local ip="$1"
     local iface="$2"
     local log="$3"
     echo "" >> "$log"
-    echo "── iperf TCP ($PARALLEL streams, ${DURATION}s) ──────────────────" >> "$log"
+    echo "-- iperf TCP ($PARALLEL streams, ${DURATION}s) ------------------" >> "$log"
     if ! $IPERF_CMD -c "$ip" -p "$IPERF_PORT" -t "$DURATION" -P "$PARALLEL" \
             --bind-dev "$iface" 2>&1 | tee -a "$log"; then
         $IPERF_CMD -c "$ip" -p "$IPERF_PORT" -t "$DURATION" -P "$PARALLEL" \
@@ -115,17 +121,17 @@ run_iperf3_tcp() {
     fi
 }
 
-# ─── iperf UDP test (iperf3 only) ────────────────────────────────────────────
+# --- iperf UDP test (iperf3 only) --------------------------------------------
 run_iperf3_udp() {
     local ip="$1"
     local iface="$2"
     local log="$3"
     echo "" >> "$log"
     if [[ "$IPERF_CMD" != "iperf3" ]]; then
-        echo "── iperf UDP: skipped (requires iperf3, detected $IPERF_CMD) ────" >> "$log"
+        echo "-- iperf UDP: skipped (requires iperf3, detected $IPERF_CMD) ----" >> "$log"
         return 0
     fi
-    echo "── iperf3 UDP (1 Gbps target, ${DURATION}s) ─────────────────────" >> "$log"
+    echo "-- iperf3 UDP (1 Gbps target, ${DURATION}s) ---------------------" >> "$log"
     if ! iperf3 -c "$ip" -p "$IPERF_PORT" -u -b 1G -t "$DURATION" \
             --bind-dev "$iface" 2>&1 | tee -a "$log"; then
         iperf3 -c "$ip" -p "$IPERF_PORT" -u -b 1G -t "$DURATION" \
@@ -133,17 +139,17 @@ run_iperf3_udp() {
     fi
 }
 
-# ─── iperf TCP download test (reverse) ──────────────────────────────────────
+# --- iperf TCP download test (reverse) --------------------------------------
 run_iperf3_reverse() {
     local ip="$1"
     local iface="$2"
     local log="$3"
     echo "" >> "$log"
     if [[ "$IPERF_CMD" != "iperf3" ]]; then
-        echo "── iperf TCP Reverse: skipped (requires iperf3, detected $IPERF_CMD) ──" >> "$log"
+        echo "-- iperf TCP Reverse: skipped (requires iperf3, detected $IPERF_CMD) --" >> "$log"
         return 0
     fi
-    echo "── iperf3 TCP Reverse - download ($PARALLEL streams, ${DURATION}s) ──" >> "$log"
+    echo "-- iperf3 TCP Reverse - download ($PARALLEL streams, ${DURATION}s) --" >> "$log"
     if ! $IPERF_CMD -c "$ip" -p "$IPERF_PORT" -t "$DURATION" -P "$PARALLEL" \
             -R --bind-dev "$iface" 2>&1 | tee -a "$log"; then
         $IPERF_CMD -c "$ip" -p "$IPERF_PORT" -t "$DURATION" -P "$PARALLEL" \
@@ -151,7 +157,7 @@ run_iperf3_reverse() {
     fi
 }
 
-# ─── Run complete test per target ────────────────────────────────────────────
+# --- Run complete test per target --------------------------------------------
 run_tests() {
     local ip="$1"
     local iface="$2"
@@ -176,7 +182,7 @@ run_tests() {
     ok "Log saved to: $log"
 }
 
-# ─── Main ────────────────────────────────────────────────────────────────────
+# --- Main --------------------------------------------------------------------
 main() {
     check_deps
     mkdir -p "$LOG_DIR"
@@ -192,7 +198,7 @@ main() {
     fi
 
     for i in "${!IFACES[@]}"; do
-        echo "  [$((i+1))] ${IFACES[$i]}"
+        echo "[$((i+1))] ${IFACES[$i]}"
     done
     echo ""
 
@@ -213,7 +219,7 @@ main() {
     declare -a TARGET_IPS
 
     while true; do
-        read -rp "  Server IP: " t_ip
+        read -rp " Server IP: " t_ip
         [[ -z "$t_ip" ]] && break
 
         if ! validate_ip "$t_ip"; then
