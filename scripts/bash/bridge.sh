@@ -9,6 +9,8 @@
 #
 ################################################################################
 
+set -uo pipefail
+
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -20,6 +22,7 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
@@ -44,7 +47,7 @@ check_dependencies() {
     if [ $missing -eq 1 ]; then
         echo "" >&2
         echo "Install dependencies with:" >&2
-        echo "  sudo apt-get install network-manager iproute2" >&2
+        echo "sudo apt-get install network-manager iproute2" >&2
         return 1
     fi
     echo "All dependencies are installed"
@@ -57,7 +60,7 @@ detect_ethernet_interface() {
     for wifi in $wifi_interfaces; do
         if nmcli -t -f DEVICE,STATE device status | grep -q "^${wifi}:connected"; then
             echo "WiFi interface '$wifi' is active. Please disable WiFi before creating a bridge." >&2
-            echo "   Run: nmcli radio wifi off" >&2
+            echo "Run: nmcli radio wifi off" >&2
             return 1
         fi
     done
@@ -134,7 +137,7 @@ show_restored_status() {
         nmcli connection show "$original_conn" | grep -E "GENERAL.STATE|IP4.ADDRESS" | head -2
     else
         ip addr show "$INTERFACE" 2>/dev/null | grep -E "inet|ether" | head -2 \
-            || echo "  Interface not available"
+            || echo " Interface not available"
     fi
 }
 
@@ -246,7 +249,7 @@ activate_bridge() {
 
     echo "Activating slave..."
     if ! nmcli connection up "$BRIDGE_SLAVE" 2>&1; then
-        echo "⚠ Problem activating slave, but continuing..."
+        echo "Problem activating slave, but continuing..."
     fi
     sleep 3
 
@@ -281,7 +284,7 @@ wait_for_dhcp() {
         sleep 5
     done
 
-    echo "⚠ No IP address obtained via DHCP"
+    echo "No IP address obtained via DHCP"
     return 1
 }
 
@@ -316,7 +319,7 @@ restore_normal_network() {
 }
 
 # Main
-case "$1" in
+case "${1:-}" in
     on)
         echo "Verifying dependencies..."
         check_dependencies || exit 1
@@ -327,7 +330,7 @@ case "$1" in
 
         if bridge_exists; then
             echo "Bridge $BRIDGE_NAME is already active or exists"
-            echo "   Use '$0 off' to deactivate it first"
+            echo "Use '$0 off' to deactivate it first"
             exit 1
         fi
 
@@ -376,18 +379,18 @@ case "$1" in
         if ip link show "$BRIDGE_NAME" 2>/dev/null; then
             ip -br addr show "$BRIDGE_NAME"
             if bridge link show dev "$INTERFACE" 2>/dev/null | grep -q "$BRIDGE_NAME"; then
-                echo "  ${INTERFACE} linked to bridge"
+                echo "${INTERFACE} linked to bridge"
             else
-                echo "  ${INTERFACE} NOT linked to bridge"
+                echo "${INTERFACE} NOT linked to bridge"
             fi
         else
-            echo "  Does not exist"
+            echo "Does not exist"
         fi
 
         echo ""
         if [ "$INTERFACE" != "unknown" ]; then
             echo "Physical interface ${INTERFACE}:"
-            ip -br addr show "$INTERFACE" 2>/dev/null || echo "  No IP address"
+            ip -br addr show "$INTERFACE" 2>/dev/null || echo " No IP address"
         else
             echo "Physical interface: No Ethernet interface detected"
         fi
@@ -404,10 +407,10 @@ case "$1" in
         echo "Usage: sudo $0 [on|off|status|clean]"
         echo ""
         echo "Options:"
-        echo "  on     - Activate bridge ${BRIDGE_NAME}"
-        echo "  off    - Deactivate bridge and restore original configuration"
-        echo "  status - Check detailed status"
-        echo "  clean  - Clean up bridge connections"
+        echo "on - Activate bridge ${BRIDGE_NAME}"
+        echo "off - Deactivate bridge and restore original configuration"
+        echo "status - Check detailed status"
+        echo "clean - Clean up bridge connections"
         exit 1
         ;;
 esac

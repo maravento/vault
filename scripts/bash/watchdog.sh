@@ -11,36 +11,38 @@
 # runs safely in the background, and avoids multiple instances.
 #
 # Usage:
-#   ./watchdog.sh start     # Launch watchdog in background
-#   ./watchdog.sh status    # Check if watchdog is running
-#   ./watchdog.sh stop      # Stop the running watchdog
+# ./watchdog.sh start # Launch watchdog in background
+# ./watchdog.sh status # Check if watchdog is running
+# ./watchdog.sh stop # Stop the running watchdog
 #
 # Log output:
-#   connection.log
-#   Format: [YYYY-MM-DD HH:MM:SS] Internet OK | Loss: X% | Avg latency: Y ms
-#           or   [YYYY-MM-DD HH:MM:SS] Internet DOWN
+# connection.log
+# Format: [YYYY-MM-DD HH:MM:SS] Internet OK | Loss: X% | Avg latency: Y ms
+# or [YYYY-MM-DD HH:MM:SS] Internet DOWN
 #
 # Note:
 # - Target IP can be changed by editing the TARGET variable.
 # - PID is tracked in /tmp/watchdog.pid
 #
 # Command to check real-time logs:
-#   tail -f connection.log
+# tail -f connection.log
 #
 ################################################################################
+
+set -uo pipefail
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # check no-root
-if [ "$(id -u)" -eq 0 ]; then
-    echo "❌ This script should not be run as root."
+if [ "$(id -u)" == "0" ]; then
+    echo "[ERROR] This script should not be run as root."
     exit 1
 fi
 
 # check dependencies
 if ! command -v notify-send &>/dev/null; then
-    echo "❌ libnotify-bin is not installed. Run: sudo apt install libnotify-bin"
+    echo "libnotify-bin is not installed. Run: sudo apt install libnotify-bin"
     exit 1
 fi
 
@@ -72,6 +74,14 @@ LOGFILE="$SCRIPT_DIR/connection.log"
 TARGET="1.1.1.1"
 
 start() {
+    # prevent overlapping runs
+    SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+    exec 200>"$SCRIPT_LOCK"
+    if ! flock -n 200; then
+        echo "[ERROR] Script $(basename "$0") is already running"
+        exit 1
+    fi
+
     _pid=$(cat "$PIDFILE" 2>/dev/null)
     if [ -f "$PIDFILE" ] && [[ "$_pid" =~ ^[0-9]+$ ]] && kill -0 "$_pid" 2>/dev/null; then
         echo "[!] Watchdog already running (PID $_pid)"
@@ -106,7 +116,7 @@ start() {
         rm -f "$PIDFILE"
         exit 1
     fi
-    echo "[✓] Watchdog started (PID $(cat "$PIDFILE"))"
+    echo "[ ] Watchdog started (PID $(cat "$PIDFILE"))"
 }
 
 stop() {
@@ -118,7 +128,7 @@ stop() {
             exit 1
         fi
         if kill "$PID" 2>/dev/null; then
-            echo "[✓] Watchdog stopped (PID $PID)"
+            echo "[ ] Watchdog stopped (PID $PID)"
             rm -f "$PIDFILE"
         else
             echo "[!] Failed to stop watchdog (PID $PID may not exist)"
@@ -131,15 +141,15 @@ stop() {
 status() {
     _pid=$(cat "$PIDFILE" 2>/dev/null)
     if [ -f "$PIDFILE" ] && [[ "$_pid" =~ ^[0-9]+$ ]] && kill -0 "$_pid" 2>/dev/null; then
-        echo "[✓] Watchdog is running (PID $_pid)"
+        echo "[ ] Watchdog is running (PID $_pid)"
     else
-        echo "[✗] Watchdog is not running"
+        echo "[ ] Watchdog is not running"
     fi
 }
 
-case "$1" in
-    start)  start ;;
-    stop)   stop ;;
+case "${1:-}" in
+    start) start ;;
+    stop) stop ;;
     status) status ;;
     *)
         echo "Usage: $0 {start|stop|status}"

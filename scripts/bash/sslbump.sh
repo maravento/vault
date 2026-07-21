@@ -7,8 +7,7 @@
 #
 ################################################################################
 
-echo "Squid SSL-Bump. Wait..."
-echo
+set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -25,13 +24,15 @@ if ! flock -n 200; then
     exit 1
 fi
 
+echo "Squid SSL-Bump. Wait..."
+
 CA_CERT_D=/usr/local/share/ca-certificates
 
 # Function: Remove regular squid and install squid-openssl
 remove_and_install_squid_openssl() {
-    echo "Backing up /etc/squid/squid.conf..."
-    BACKUP_CONF=$(mktemp /tmp/squid.conf.bak.XXXXXX)
-    [ -f /etc/squid/squid.conf ] && cp /etc/squid/squid.conf "$BACKUP_CONF"
+    echo "Backing up /etc/squid..."
+    BACKUP_DIR=$(mktemp -d /tmp/squid.etc.bak.XXXXXX)
+    [ -d /etc/squid ] && cp -a /etc/squid/. "$BACKUP_DIR/"
 
     echo "Removing old squid..."
     apt purge -y squid* &>/dev/null
@@ -46,9 +47,9 @@ remove_and_install_squid_openssl() {
     }
 
     # Restore previous configuration
-    if [ -f "$BACKUP_CONF" ]; then
+    if [ -d "$BACKUP_DIR" ]; then
         mkdir -p /etc/squid
-        cp "$BACKUP_CONF" /etc/squid/squid.conf
+        cp -a "$BACKUP_DIR/." /etc/squid/
     fi
 
     mkdir -p /var/log/squid

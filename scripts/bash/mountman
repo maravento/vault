@@ -9,13 +9,15 @@
 #
 ################################################################################
 
+set -euo pipefail
+
 # check no-root
 if [ "$(id -u)" == "0" ]; then
-    echo "❌ This script should not be run as root."
+    echo "[ERROR] This script should not be run as root."
     exit 1
 fi
 
-set -euo pipefail
+echo "Start Mountman. Wait..."
 
 # --- Helpers ---
 err() {
@@ -49,7 +51,7 @@ fi
 check_resource_mounted() {
     local resource="$1"
     local protocol="$2"
-    
+
     case "$protocol" in
         "smb")
             mount | grep -qF "//$resource" && return 0
@@ -142,11 +144,11 @@ if [[ "$LOAD_CONNECTION" == "yes" ]]; then
         --title="Select connection profile" \
         --file-filter="Connection files (*.conn)|*.conn" \
         --file-filter="All files|*") || exit 0
-    
+
     if [[ ! -f "$CONN_FILE" ]]; then
         err "Connection file not found."
     fi
-    
+
     # Read connection file using a safe key=value parser (no code execution)
     while IFS= read -r line; do
         [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
@@ -183,7 +185,7 @@ if [[ "$LOAD_CONNECTION" == "yes" ]]; then
     if [[ -n "${LOCAL_DIR:-}" && "$LOCAL_DIR" != /* ]]; then
         err "Invalid connection file: LOCAL_DIR must be an absolute path."
     fi
-    
+
 else
     # Normal flow: ask for protocol
     PROTOCOL=$(zenity --list --radiolist \
@@ -204,19 +206,19 @@ if [[ "$PROTOCOL" == "smb" ]]; then
         SMB_USER=$(zenity --entry --title="Username" --text="Username (leave blank for guest):" 2>/dev/null) || true
         SMB_PASS=$(zenity --entry --hide-text --title="Password" --text="Password (leave blank for guest):" 2>/dev/null) || true
         LOCAL_DIR=$(zenity --file-selection --directory --title="Select local mount point") || exit 0
-        
+
         # Ask if user wants to save this connection
         SAVE_CONNECTION=$(zenity --question \
             --title="Save Connection" \
             --text="Do you want to save this connection profile?" \
             --ok-label="Yes" --cancel-label="No" 2>/dev/null && echo "yes" || echo "no")
-        
+
         if [[ "$SAVE_CONNECTION" == "yes" ]]; then
             SAVE_FILE=$(zenity --file-selection --save \
                 --title="Save connection profile" \
                 --filename="smb-connection.conn" \
                 --file-filter="Connection files (*.conn)|*.conn") || true
-            
+
             if [[ -n "$SAVE_FILE" ]]; then
                 [[ "$SAVE_FILE" != *.conn ]] && SAVE_FILE="${SAVE_FILE}.conn"
                 CREDS_FILE="${SAVE_FILE%.conn}.creds"
@@ -238,12 +240,12 @@ EOF
             fi
         fi
     fi
-    
+
     # Validate required variables
     if [[ -z "${SMB_HOST:-}" ]] || [[ -z "${SMB_SHARE:-}" ]]; then
         err "Invalid connection: SMB_HOST and SMB_SHARE are required."
     fi
-    
+
     # Check if SMB share is already mounted
     if check_resource_mounted "$SMB_HOST/$SMB_SHARE" "smb"; then
         MOUNT_INFO=$(mount | grep -F "//$SMB_HOST/$SMB_SHARE")
@@ -254,9 +256,9 @@ EOF
             exit 0
         fi
     fi
-    
+
     mkdir -p "$LOCAL_DIR" || err "Failed to create mount point: $LOCAL_DIR"
-    
+
     # Check if mount point is already in use
     if mountpoint -q "$LOCAL_DIR"; then
         CURRENT_SRC=$(mount | grep -F "$LOCAL_DIR" | awk '{print $1}')
@@ -311,7 +313,7 @@ EOF
     [[ "$_CREDS_TEMP" == "true" ]] && [[ -n "$MOUNT_CREDS_FILE" ]] && rm -f "$MOUNT_CREDS_FILE"
 
     if [[ $SUCCESS -eq 1 ]]; then
-        info "Mounted successfully:\n//$SMB_HOST/$SMB_SHARE → $LOCAL_DIR\n\n(Protocol version: SMB ${VER:-unknown})" "Mounted"
+        info "Mounted successfully:\n//$SMB_HOST/$SMB_SHARE -> $LOCAL_DIR\n\n(Protocol version: SMB ${VER:-unknown})" "Mounted"
         xdg-open "$LOCAL_DIR" >/dev/null 2>&1 &
     else
         ERR=$(< "$TMPERR")
@@ -333,23 +335,23 @@ if [[ "$PROTOCOL" == "sftp" ]]; then
         SFTP_USER=$(zenity --entry --title="Username" --text="Enter username (optional):" 2>/dev/null) || true
         SFTP_PATH=$(zenity --entry --title="Remote Path" --text="Enter remote path (optional, e.g. /home/user):" 2>/dev/null) || true
         LOCAL_DIR=$(zenity --file-selection --directory --title="Select local mount point") || exit 0
-        
+
         # Ask if user wants to save this connection
         SAVE_CONNECTION=$(zenity --question \
             --title="Save Connection" \
             --text="Do you want to save this connection profile?" \
             --ok-label="Yes" --cancel-label="No" 2>/dev/null && echo "yes" || echo "no")
-        
+
         if [[ "$SAVE_CONNECTION" == "yes" ]]; then
             SAVE_FILE=$(zenity --file-selection --save \
                 --title="Save connection profile" \
                 --filename="sftp-connection.conn" \
                 --file-filter="Connection files (*.conn)|*.conn") || true
-            
+
             if [[ -n "$SAVE_FILE" ]]; then
                 # Ensure .conn extension
                 [[ "$SAVE_FILE" != *.conn ]] && SAVE_FILE="${SAVE_FILE}.conn"
-                
+
                 cat > "$SAVE_FILE" <<EOF
 # SFTP Connection Profile
 PROTOCOL="sftp"
@@ -363,7 +365,7 @@ EOF
             fi
         fi
     fi
-    
+
     # Validate required variables
     if [[ -z "${SFTP_HOST:-}" ]]; then
         err "Invalid connection: SFTP_HOST is required."
@@ -385,7 +387,7 @@ EOF
     fi
 
     mkdir -p "$LOCAL_DIR" || err "Failed to create mount point: $LOCAL_DIR"
-    
+
     # Check if mount point is already in use
     if mountpoint -q "$LOCAL_DIR"; then
         CURRENT_SRC=$(mount | grep -F "$LOCAL_DIR" | awk '{print $1}')
@@ -405,7 +407,7 @@ EOF
     [[ -n "${SFTP_PATH:-}" ]] && TARGET="$TARGET:$SFTP_PATH"
 
     if sshfs "$TARGET" "$LOCAL_DIR" -o reconnect,ServerAliveInterval=15,uid=$(id -u),gid=$(id -g); then
-        info "Mounted:\n$TARGET → $LOCAL_DIR" "Mounted"
+        info "Mounted:\n$TARGET -> $LOCAL_DIR" "Mounted"
         xdg-open "$LOCAL_DIR" >/dev/null 2>&1 &
     else
         err "Failed to mount $TARGET via sshfs."
@@ -420,23 +422,23 @@ if [[ "$PROTOCOL" == "fuse" ]]; then
         FUSE_CMD=""
         FUSE_CMD=$(zenity --entry --title="FUSE Command" --text="Enter full FUSE command (example: sshfs user@host:/path):") || exit 0
         LOCAL_DIR=$(zenity --file-selection --directory --title="Select local mount point") || exit 0
-        
+
         # Ask if user wants to save this connection
         SAVE_CONNECTION=$(zenity --question \
             --title="Save Connection" \
             --text="Do you want to save this connection profile?" \
             --ok-label="Yes" --cancel-label="No" 2>/dev/null && echo "yes" || echo "no")
-        
+
         if [[ "$SAVE_CONNECTION" == "yes" ]]; then
             SAVE_FILE=$(zenity --file-selection --save \
                 --title="Save connection profile" \
                 --filename="fuse-connection.conn" \
                 --file-filter="Connection files (*.conn)|*.conn") || true
-            
+
             if [[ -n "$SAVE_FILE" ]]; then
                 # Ensure .conn extension
                 [[ "$SAVE_FILE" != *.conn ]] && SAVE_FILE="${SAVE_FILE}.conn"
-                
+
                 cat > "$SAVE_FILE" <<EOF
 # FUSE Connection Profile
 PROTOCOL="fuse"
@@ -448,14 +450,14 @@ EOF
             fi
         fi
     fi
-    
+
     # Validate required variables
     if [[ -z "${FUSE_CMD:-}" ]]; then
         err "Invalid connection: FUSE_CMD is required."
     fi
-    
+
     mkdir -p "$LOCAL_DIR" || err "Failed to create mount point: $LOCAL_DIR"
-    
+
     # Check if mount point is already in use
     if mountpoint -q "$LOCAL_DIR"; then
         CURRENT_SRC=$(mount | grep -F "$LOCAL_DIR" | awk '{print $1}')

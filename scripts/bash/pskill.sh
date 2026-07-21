@@ -7,10 +7,7 @@
 #
 ################################################################################
 
-set -u
-
-echo "Kill Process Starting. Wait..."
-printf "\n"
+set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -18,13 +15,7 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
-# prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-exec 200>"$SCRIPT_LOCK"
-if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
-    exit 1
-fi
+echo "Kill Process Starting. Wait..."
 
 ### KILL PROCESS
 read -rp "Set process name (e.g. vlc): " PS
@@ -40,10 +31,7 @@ if [[ "$PS" =~ $PROTECTED ]]; then
     exit 1
 fi
 
-pids=$(ps ax | awk '{print $1, $5}' | grep -wF "$PS" | awk '{print $1}' 2>/dev/null) || {
-    echo "ERROR: Failed to query process list"
-    exit 1
-}
+pids=$(ps ax | awk '{print $1, $5}' | grep -wF "$PS" | awk '{print $1}' 2>/dev/null || true)
 
 if [ -z "$pids" ]; then
     echo "There are no records of: $PS"

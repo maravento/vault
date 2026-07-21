@@ -5,23 +5,24 @@
 #
 # ngLocalhost tunnel start | stop | status
 # https://www.nglocalhost.com/
-# ⚠ Before using this script:
+# Before using this script:
 # - Register on the tunnel service website with your email address.
 # - The server fingerprint will be automatically managed by this script.
 #
 ################################################################################
 
-echo "ngLocalhost Tunnel Starting. Wait..."
-printf "\n"
+set -uo pipefail
 
 # check no-root
 if [ "$(id -u)" == "0" ]; then
-    echo "❌ This script should not be run as root."
+    echo "[ERROR] This script should not be run as root."
     exit 1
 fi
 
+echo "ngLocalhost Tunnel Starting. Wait..."
+
 if ! command -v ssh >/dev/null 2>&1; then
-    echo "⚠️ SSH is not installed"
+    echo "SSH is not installed"
     echo "run: sudo apt install openssh-server"
     exit 1
 fi
@@ -60,10 +61,18 @@ kill_all_tunnel_processes() {
     rm -f "$PID_FILE" "$ACTIVE_FLAG" "$PORTS_FILE"
 }
 start() {
+    # prevent overlapping runs
+    SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+    exec 200>"$SCRIPT_LOCK"
+    if ! flock -n 200; then
+        echo "[ERROR] Script $(basename "$0") is already running"
+        exit 1
+    fi
+
     kill_all_tunnel_processes
     read -p "Enter port number(s) to expose: " ports
     if [ -z "$ports" ]; then
-        echo "❌ Error. You must enter at least one port."
+        echo "Error. You must enter at least one port."
         exit 1
     fi
     touch "$ACTIVE_FLAG"
@@ -71,9 +80,9 @@ start() {
     local_ports=()
     for port in $ports; do
         if ss -tuln | grep -q ":$port "; then
-            echo "Port $port accessible ✅"
+            echo "Port $port accessible "
         else
-            echo "⚠️ Port $port is not accessible locally"
+            echo "Port $port is not accessible locally"
             continue
         fi
         PORT_ARGS+=" -R 0:localhost:$port"
@@ -107,7 +116,7 @@ start() {
     > "$PORTS_FILE"
     i=0
     for assigned_port in $assigned_ports; do
-        echo "Local ${local_ports[$i]} ➜ https://nglocalhost.com:$assigned_port"
+        echo "Local ${local_ports[$i]} -> https://nglocalhost.com:$assigned_port"
         echo "${local_ports[$i]}:$assigned_port" >> "$PORTS_FILE"
         ((i++)) || true
     done
@@ -116,20 +125,20 @@ start() {
 stop() {
     if is_running; then
         kill_all_tunnel_processes
-        echo "✅ Tunnel stopped"
+        echo "Tunnel stopped"
     else
-        echo "⚠️ No tunnel running"
+        echo "No tunnel running"
     fi
 }
 status() {
     if is_running; then
-        echo "✅ Tunnel running"
+        echo "Tunnel running"
         cat "$PORTS_FILE" 2>/dev/null
     else
-        echo "⚠️ Tunnel NOT running"
+        echo "Tunnel NOT running"
     fi
 }
-case "$1" in
+case "${1:-}" in
     start) start ;;
     stop) stop ;;
     status) status ;;

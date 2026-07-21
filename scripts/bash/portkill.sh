@@ -8,10 +8,7 @@
 #
 ################################################################################
 
-set -u
-
-echo "Port Kill Starting. Wait..."
-printf "\n"
+set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -19,17 +16,7 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
-# prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-cleanup() {
-    : # lock file intentionally preserved; kernel releases flock on exit
-}
-trap cleanup EXIT
-exec 200>"$SCRIPT_LOCK"
-if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
-    exit 1
-fi
+echo "Port Kill Starting. Wait..."
 
 ### PORT KILL
 read -rp "Enter Port Number to close: " port

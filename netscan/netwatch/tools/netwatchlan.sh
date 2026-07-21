@@ -1,0 +1,403 @@
+#!/bin/bash
+# maravento.com
+#
+################################################################################
+#
+# netwatchlan - LAN Devices Watchdog
+# https://github.com/maravento/vault
+#
+# Periodically arp-scans every configured interface (LAN and/or WAN -- a
+# server can have more than one) and keeps the "devices" table in
+# netwatch.db up to date (current state), appending a row to
+# "device_events" only when a device's state actually transitions
+# (new_device / online / offline) -- not on every poll.
+#
+# Hostname resolution tries, in order: reverse DNS (getent), then mDNS
+# (avahi-resolve-address) and NetBIOS (nbtscan) if those optional packages
+# are installed -- see resolve_hostname(). Neither is required for the
+# daemon to run; without them it just falls back to DNS-only resolution.
+#
+# netwatch.env variables:
+# LAN_IFACES : comma-separated network interfaces to arp-scan
+# LAN_POLL_INTERVAL : seconds between scans (default: 60)
+# LAN_OFFLINE_GRACE : consecutive missed polls before marking offline (default: 3)
+#
+# On start, waits up to 2 minutes for every interface in LAN_IFACES to report
+# link state "up" before entering the scan loop (see wait_for_interfaces()) --
+# needed for @reboot, since bonded/aggregated interfaces can come up later
+# than the LAN's physical NICs. If interfaces are still down after 2 minutes,
+# the daemon starts anyway and keeps retrying each interface every poll cycle.
+#
+# Log file:
+# /var/log/netwatch.log (root:root, 640) -- shared by all three netwatch
+# scripts (installer + netwatchlan.sh + netwatchports.sh).
+#
+# Usage:
+# ./netwatchlan.sh {start|stop|status}
+#
+################################################################################
+
+set -uo pipefail
+
+# PATH for cron
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# logging
+log_file="/var/log/netwatch.log"
+log() {
+    local msg="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+}
+
+## root check
+if [ "$(id -u)" != "0" ]; then
+    log "ERROR: This script must be run as root"
+    exit 1
+fi
+
+### PATHS
+NETWATCH_ENV="/etc/netwatch/netwatch.env"
+DB_FILE="/var/www/netwatch/data/netwatch.db"
+PIDFILE="/var/run/netwatchlan.pid"
+
+### CHECK DEPENDENCIES
+for pkg in arp-scan sqlite3; do
+    command -v "$pkg" >/dev/null 2>&1 || {
+        log "ERROR: '$pkg' is missing. Run: sudo apt install $pkg"
+        exit 1
+    }
+done
+
+### LOAD ENV
+if [ ! -f "$NETWATCH_ENV" ]; then
+    log "ERROR: netwatch is not installed. Run netwatchinstall.sh --install first."
+    exit 1
+fi
+
+load_env() {
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^[A-Z_]+=.* ]]; then
+            key="${line%%=*}"
+            val="${line#*=}"
+            val="${val//\"}"
+            export "$key=$val"
+        fi
+    done < "$NETWATCH_ENV"
+}
+load_env
+
+set_env_var() {
+    local key="$1" val="$2"
+    local esc_val
+    val=$(printf '%s' "$val" | tr -d '\r\n')
+    esc_val=$(printf '%s' "$val" | sed -e 's/[\&|]/\\&/g')
+    if grep -q "^${key}=" "$NETWATCH_ENV"; then
+        sed -i "s|^${key}=.*|${key}=\"${esc_val}\"|" "$NETWATCH_ENV"
+    else
+        echo "${key}=\"${val}\"" >> "$NETWATCH_ENV"
+    fi
+}
+
+### DB CHECK
+if [ ! -f "$DB_FILE" ]; then
+    log "ERROR: Database not found at $DB_FILE. Run netwatchinstall.sh --install first."
+    exit 1
+fi
+
+now_iso() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
+
+sql_escape() { printf '%s' "$1" | sed "s/'/''/g"; }
+
+# One transaction per scan cycle in a single sqlite3 process: run_scan loads
+# the devices table once, computes transitions in bash, and hands the whole set
+# of statements here. Data is substituted into the heredoc once (bash expansion
+# is single-pass, so a '$' inside a value is not re-expanded); an empty batch is
+# a no-op.
+run_batch() {
+    [ -z "${1:-}" ] && return 0
+    sqlite3 -cmd "PRAGMA busy_timeout=5000;" "$DB_FILE" >/dev/null 2>>"$log_file" <<SQL
+BEGIN IMMEDIATE;
+${1}COMMIT;
+SQL
+}
+
+# Hostname resolution fallback chain: reverse DNS -> mDNS (avahi) -> NetBIOS
+# (nbtscan). avahi-utils/nbtscan are optional -- if not installed, this
+# silently falls back to DNS-only behavior (their absence never blocks
+# install or scanning). Each unresolved device costs up to ~4s per poll
+# cycle (1s getent + 1s avahi + 2s nbtscan) since all three are tried in
+# sequence every time DNS comes up empty -- on a LAN with many
+# never-resolving devices this can stretch a cycle past LAN_POLL_INTERVAL;
+# the daemon self-throttles (next cycle only starts after this one
+# finishes), so it degrades to slower cycles rather than overlapping runs.
+resolve_hostname() {
+    local ip="$1"
+    local h=""
+
+    h=$(timeout 1 getent hosts "$ip" 2>/dev/null | awk '{print $2; exit}')
+
+    if [ -z "$h" ] && command -v avahi-resolve-address &>/dev/null; then
+        h=$(timeout 1 avahi-resolve-address -a "$ip" 2>/dev/null | awk '{print $2; exit}')
+    fi
+
+    if [ -z "$h" ] && command -v nbtscan &>/dev/null; then
+        h=$(timeout 2 nbtscan -q "$ip" 2>/dev/null | awk '{print $2; exit}')
+    fi
+
+    printf '%s' "$h"
+}
+
+### WAIT FOR INTERFACES (essential for @reboot -- bonded/aggregated
+### interfaces like bond0 can take longer than the LAN's physical NICs to
+### come up and report link state)
+wait_for_interfaces() {
+    local ifaces iface all_up
+    local max_attempts=24 attempt=1 # 2 min top
+    IFS=',' read -ra ifaces <<< "$LAN_IFACES"
+
+    while (( attempt <= max_attempts )); do
+        all_up=1
+        for iface in "${ifaces[@]}"; do
+            if ! ip link show "$iface" up &>/dev/null; then
+                all_up=0
+                log "Waiting for interface '$iface' to come up (attempt $attempt/$max_attempts)"
+                break
+            fi
+        done
+        if [ "$all_up" -eq 1 ]; then
+            log "All interfaces are up: $LAN_IFACES"
+            return 0
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "WARNING: not all interfaces came up after $max_attempts attempts, starting anyway"
+    return 0
+}
+
+### ONE SCAN CYCLE
+run_scan() {
+    if [ -z "${LAN_IFACES:-}" ]; then
+        log "ERROR: LAN_IFACES is not set"
+        return 1
+    fi
+
+    local now
+    now=$(now_iso)
+
+    # Load the devices table once (mac -> status / miss_count / ip) so both the
+    # scan loop and the offline sweep decide transitions in bash.
+    declare -A dev_status=() dev_miss=() dev_ip=() seen_macs=()
+    local d_mac d_status d_miss d_ip
+    while IFS='|' read -r d_mac d_status d_miss d_ip; do
+        [ -z "$d_mac" ] && continue
+        dev_status["$d_mac"]="$d_status"
+        dev_miss["$d_mac"]="$d_miss"
+        dev_ip["$d_mac"]="$d_ip"
+    done < <(sqlite3 -separator '|' "$DB_FILE" "SELECT mac, status, miss_count, ip FROM devices;" 2>>"$log_file")
+
+    local sql=""
+
+    local ifaces iface
+    IFS=',' read -ra ifaces <<< "$LAN_IFACES"
+    for iface in "${ifaces[@]}"; do
+        if ! ip link show "$iface" &>/dev/null; then
+            log "WARNING: interface '$iface' does not exist, skipping"
+            continue
+        fi
+
+        # arp-scan plain output, tab-separated: IP<TAB>MAC<TAB>Vendor.
+        # -q (--quiet) is deliberately NOT used here -- it strips the vendor
+        # field entirely ("Only the IP address and MAC address are
+        # displayed"), which is why every row showed a blank Vendor column.
+        local scan_out
+        scan_out=$(arp-scan --interface="$iface" --localnet -x -g 2>>"$log_file") || true
+
+        local ip mac vendor
+        while IFS=$'\t' read -r ip mac vendor; do
+            [ -z "$ip" ] && continue
+            [ -z "$mac" ] && continue
+            mac=$(echo "$mac" | tr 'A-F' 'a-f')
+            # a device answering on more than one configured interface appears
+            # once per interface: record it once per cycle (first one wins)
+            [ -n "${seen_macs[$mac]:-}" ] && continue
+            seen_macs["$mac"]=1
+
+            local hostname hostname_esc esc_mac esc_ip esc_iface esc_vendor
+            hostname=$(resolve_hostname "$ip")
+            hostname_esc=$(sql_escape "$hostname")
+            esc_mac=$(sql_escape "$mac")
+            esc_ip=$(sql_escape "$ip")
+            esc_iface=$(sql_escape "$iface")
+            esc_vendor=$(sql_escape "$vendor")
+
+            if [ -z "${dev_status[$mac]:-}" ]; then
+                sql+="INSERT INTO devices (mac, ip, iface, vendor, hostname, status, first_seen, last_seen, miss_count) VALUES ('$esc_mac', '$esc_ip', '$esc_iface', '$esc_vendor', '$hostname_esc', 'online', '$now', '$now', 0);
+INSERT INTO device_events (mac, ip, event_type, event_time) VALUES ('$esc_mac', '$esc_ip', 'new_device', '$now');
+"
+                log "New device: $ip ($mac) on $iface"
+            else
+                # A transient resolution failure (empty hostname this cycle)
+                # must not blank out a hostname resolved on a previous cycle.
+                sql+="UPDATE devices SET ip='$esc_ip', iface='$esc_iface', vendor='$esc_vendor', hostname=CASE WHEN '$hostname_esc' != '' THEN '$hostname_esc' ELSE hostname END, status='online', last_seen='$now', miss_count=0 WHERE mac='$esc_mac';
+"
+                if [ "${dev_status[$mac]}" = "offline" ]; then
+                    sql+="INSERT INTO device_events (mac, ip, event_type, event_time) VALUES ('$esc_mac', '$esc_ip', 'online', '$now');
+"
+                    log "Device back online: $ip ($mac) on $iface"
+                fi
+            fi
+        done <<< "$scan_out"
+    done
+
+    # mark devices not seen this cycle on ANY configured interface
+    local mac new_miss esc_mac ip_addr esc_ip_addr
+    for mac in "${!dev_status[@]}"; do
+        [ "${dev_status[$mac]}" = "online" ] || continue
+        [ -n "${seen_macs[$mac]:-}" ] && continue
+        new_miss=$(( ${dev_miss[$mac]:-0} + 1 ))
+        esc_mac=$(sql_escape "$mac")
+        sql+="UPDATE devices SET miss_count=${new_miss} WHERE mac='$esc_mac';
+"
+        if [ "$new_miss" -ge "${LAN_OFFLINE_GRACE:-3}" ]; then
+            ip_addr="${dev_ip[$mac]:-}"
+            esc_ip_addr=$(sql_escape "$ip_addr")
+            sql+="UPDATE devices SET status='offline' WHERE mac='$esc_mac' AND status='online';
+INSERT INTO device_events (mac, ip, event_type, event_time) VALUES ('$esc_mac', '$esc_ip_addr', 'offline', '$now');
+"
+            log "Device offline: $ip_addr ($mac)"
+        fi
+    done
+
+    run_batch "$sql"
+}
+
+### START
+start() {
+    # prevent overlapping runs
+    SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+    (umask 077; : >> "$SCRIPT_LOCK")
+    exec 200>"$SCRIPT_LOCK"
+    if ! flock -n 200; then
+        log "Script $(basename "$0") is already running"
+        exit 1
+    fi
+
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        log "netwatchlan is already running with PID $(cat "$PIDFILE")"
+        exit 1
+    fi
+
+    # Enforce perms unconditionally: the shared /var/log/netwatch.log may
+    # already exist (created by the installer or the other daemon), so
+    # normalize ownership/mode on every start rather than only on creation.
+    touch "$log_file"
+    chmod 640 "$log_file"
+    chown root:root "$log_file"
+
+    ### CHECK LAN_IFACES
+    if [ -z "${LAN_IFACES:-}" ]; then
+        log "ERROR: LAN_IFACES is not set in $NETWATCH_ENV"
+        exit 1
+    fi
+
+    ### WAIT FOR INTERFACES (essential for @reboot)
+    wait_for_interfaces
+
+    ### CHECK AND SET LAN_POLL_INTERVAL
+    if [ -z "${LAN_POLL_INTERVAL:-}" ]; then
+        LAN_POLL_INTERVAL=60
+        set_env_var "LAN_POLL_INTERVAL" "$LAN_POLL_INTERVAL"
+    fi
+
+    ### CHECK AND SET LAN_OFFLINE_GRACE
+    if [ -z "${LAN_OFFLINE_GRACE:-}" ]; then
+        LAN_OFFLINE_GRACE=3
+        set_env_var "LAN_OFFLINE_GRACE" "$LAN_OFFLINE_GRACE"
+    fi
+
+    log "Starting netwatchlan..."
+    log "Interfaces : $LAN_IFACES"
+    log "Interval : ${LAN_POLL_INTERVAL}s"
+    log "Offline grace: ${LAN_OFFLINE_GRACE} polls"
+    log "Database : $DB_FILE"
+    log "Log : $log_file"
+
+    # Fork the loop (keeps this function's variables/functions in scope,
+    # unlike a re-exec'd `bash -c`), but explicitly detach it from the
+    # controlling terminal: redirect all three fds away from the tty and
+    # disown the job. A bare `(...) &` still inherits stdin/stdout/stderr,
+    # which is why a foreground `./netwatchlan.sh start` never returned
+    # control -- the shell/terminal waits for those fds to close.
+    # stdout/stderr go to /dev/null, not $log_file: log() already appends
+    # every line to $log_file itself via `tee -a`, so redirecting the
+    # subshell's inherited stdout there too would double-write each line
+    # (tee's own stdout copy landing back in the same file a second time).
+    (
+        while true; do
+            run_scan
+            sleep "$LAN_POLL_INTERVAL"
+        done
+    ) </dev/null >/dev/null 2>&1 &
+    disown
+
+    echo $! > "$PIDFILE"
+    log "netwatchlan started with PID $(cat "$PIDFILE")"
+
+    # add @reboot cron entry if not already present
+    if ! crontab -l 2>/dev/null | grep -qF "netwatchlan.sh start"; then
+        crontab -l 2>/dev/null > "/var/www/netwatch/tools/crontab-$(date +%Y%m%d%H%M%S).bak" || true
+        (crontab -l 2>/dev/null; echo "@reboot /var/www/netwatch/tools/netwatchlan.sh start") | crontab -
+        log "Added to cron @reboot"
+    fi
+}
+
+### STOP
+stop() {
+    log "Stopping netwatchlan..."
+    if [ -f "$PIDFILE" ]; then
+        local PID PGID
+        PID=$(cat "$PIDFILE")
+        if kill -0 "$PID" 2>/dev/null; then
+            PGID=$(ps -o pgid= -p "$PID" 2>/dev/null | tr -d ' ')
+            if [ -n "$PGID" ]; then
+                kill -- "-$PGID" 2>/dev/null
+            else
+                kill "$PID" 2>/dev/null
+            fi
+            log "netwatchlan stopped (PID $PID)"
+        else
+            log "netwatchlan was not running (stale PID file removed)"
+        fi
+        rm -f "$PIDFILE"
+    else
+        log "netwatchlan is not running"
+    fi
+}
+
+### STATUS
+status() {
+    log "netwatchlan status..."
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        log "netwatchlan is RUNNING (PID $(cat "$PIDFILE"))"
+        log "Interfaces : ${LAN_IFACES:-unset}"
+        log "Interval : ${LAN_POLL_INTERVAL:-60}s"
+        if [ -f "$DB_FILE" ]; then
+            local counts
+            counts=$(sqlite3 "$DB_FILE" "SELECT status, COUNT(*) FROM devices GROUP BY status;" 2>/dev/null)
+            log "Devices :"
+            echo "$counts" | sed 's/^/ /' | tee -a "$log_file"
+        fi
+    else
+        log "netwatchlan is STOPPED"
+    fi
+}
+
+### MAIN
+case "${1:-}" in
+    start) start ;;
+    stop) stop ;;
+    status) status ;;
+    *) log "Usage: $(basename "$0") {start|stop|status}" ;;
+esac

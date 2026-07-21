@@ -7,6 +7,8 @@
 #
 ################################################################################
 
+set -uo pipefail
+
 # logging
 log_file="/var/log/serverboot.log"
 log() {
@@ -120,33 +122,5 @@ sleep 5
 log "Rsyslog Reload..."
 systemctl restart syslog.socket rsyslog.service
 sleep 5
-
-log "Server Start (firewall/ACL sequence)..."
-if [[ -d /etc/uhotspot ]]; then
-    log "uhotspotd Restart..."
-    if systemctl restart uhotspotd.service; then
-        log "uhotspotd Restart: OK"
-    else
-        log "uhotspotd Restart: FAILED (check journalctl -u uhotspotd.service)"
-    fi
-
-    if [[ -x /etc/uhotspot/tools/uleases.sh && -x /etc/uhotspot/tools/uiptables.sh ]]; then
-        if /etc/uhotspot/tools/uleases.sh; then
-            log "Uleases Load: OK"
-        else
-            log "Uleases Load: FAILED (check /var/log/uhotspot.log)"
-        fi
-
-        if /etc/uhotspot/tools/uiptables.sh; then
-            log "Firewall Load: OK"
-        else
-            log "Firewall Load: FAILED (check /var/log/uhotspot.log)"
-        fi
-    else
-        log "WARNING: uleases.sh/uiptables.sh not found or not executable - firewall/ACL sequence skipped"
-    fi
-else
-    log "WARNING: /etc/uhotspot not found - uhotspotd/firewall/ACL sequence skipped"
-fi
 
 log "serverboot done at: $(date)"

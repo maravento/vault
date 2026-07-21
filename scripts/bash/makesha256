@@ -12,14 +12,15 @@
 #
 ################################################################################
 
-echo "Start MakeSHA256. Wait..."
-printf "\n"
+set -uo pipefail
 
 # check no-root
 if [ "$(id -u)" == "0" ]; then
-    echo "❌ This script should not be run as root."
+    echo "[ERROR] This script should not be run as root."
     exit 1
 fi
+
+echo "Start MakeSHA256. Wait..."
 
 show_error() {
     zenity --error --title="Make SHA256" --text="$1"
@@ -169,7 +170,7 @@ done
 
         if hash=$(sha256sum "$actual_file" 2>/dev/null); then
             checksum_only=$(echo "$hash" | awk '{print $1}')
-            printf '%s  %s\n' "$checksum_only" "$file_path" >> "$checksum_file"
+            printf '%s %s\n' "$checksum_only" "$file_path" >> "$checksum_file"
         else
             echo "Error processing $file_path" >&2
             exit 1
@@ -189,7 +190,7 @@ progress_exit=$?
 
 if [ "$progress_exit" -eq 0 ] && [ -s "$checksum_file" ]; then
     file_count=$(wc -l < "$checksum_file")
-    show_info "✅ SUCCESS\n\n📄 Checksum file created: $(basename "$checksum_file")\n📊 Files processed: $file_count\n📂 Location: $(dirname "$checksum_file")\n\nYou can now use this file to verify the integrity of your files."
+    show_info "SUCCESS\n\nChecksum file created: $(basename "$checksum_file")\nFiles processed: $file_count\nLocation: $(dirname "$checksum_file")\n\nYou can now use this file to verify the integrity of your files."
 else
-    show_error "❌ FAILED\n\nUnable to create checksum file.\nCheck that you have write permissions in the target directory."
+    show_error "FAILED\n\nUnable to create checksum file.\nCheck that you have write permissions in the target directory."
 fi

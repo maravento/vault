@@ -15,13 +15,15 @@
   </tr>
 </table>
 
-## DATA SHEET
+## Requirements
 
 ---
 
-| OS | CPU | NIC | RAM | Storage |
-| :---: | :---: | :---: | :---: | :---: |
-| Ubuntu 24.04.x | 4+ cores (≥ 3.0 GHz) | 2 (WAN & LAN) | 12+ GB (4 GB cache_mem) | 100 GB SSD (cache_dir rock) |
+**⚠️ WARNING:** Only tested on Ubuntu 24.04 LTS. Other versions or distros not tested, use at your own risk.
+
+| CPU | NIC | RAM | Storage |
+| :---: | :---: | :---: | :---: |
+| 4+ cores (≥ 3.0 GHz) | 2 (WAN & LAN) | 12+ GB (4 GB cache_mem) | 100 GB SSD (cache_dir rock) |
 
 ## HOW TO USE
 
@@ -30,10 +32,10 @@
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     Run the following command on a fresh Ubuntu 24.04.x installation. The script must be executed as root or with <code>sudo</code>. It will self-delete after completion and reboot the system automatically.
+     Run the following command on a fresh installation. The script must be executed as root or with <code>sudo</code>. It will self-delete after completion and reboot the system automatically.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Ejecute el siguiente comando en una instalación limpia de Ubuntu 24.04.x. El script debe ejecutarse como root o con <code>sudo</code>. Se eliminará automáticamente al finalizar y reiniciará el sistema.
+     Ejecute el siguiente comando en una instalación limpia. El script debe ejecutarse como root o con <code>sudo</code>. Se eliminará automáticamente al finalizar y reiniciará el sistema.
     </td>
   </tr>
 </table>
@@ -86,10 +88,10 @@ Localnet (`192.168.0.0`) and Broadcast (`192.168.0.255`) are derived automatical
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     If a previous run was interrupted after network data was collected (e.g. the network took too long to come up), the script saves those answers to <code>/etc/gateproxy/network.env</code>. On the next run it asks whether to reuse them, skipping the questions above. This file is deleted automatically once the installation completes successfully.
+     The script saves the network answers to <code>/etc/gateproxy/network.env</code> after collecting them. On the next run — whether the previous one was interrupted or completed successfully — it asks whether to reuse them, skipping the questions above; answering no discards them and asks again, saving fresh values. The file is not deleted automatically.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Si una corrida anterior se interrumpió después de recolectar los datos de red (ej. la red tardó demasiado en levantar), el script guarda esas respuestas en <code>/etc/gateproxy/network.env</code>. En la siguiente corrida pregunta si quiere reusarlos, saltando las preguntas anteriores. Este archivo se borra automáticamente cuando la instalación termina exitosamente.
+     El script guarda las respuestas de red en <code>/etc/gateproxy/network.env</code> después de recolectarlas. En la siguiente corrida —se haya interrumpido o completado exitosamente la anterior— pregunta si quiere reusarlos, saltando las preguntas anteriores; responder que no descarta esos valores y vuelve a preguntar, guardando los nuevos. El archivo no se borra automáticamente.
     </td>
   </tr>
 </table>
@@ -456,10 +458,10 @@ curl http://SERVER_IP:18100/wpad.pac
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     Gateproxy is a script designed for very specific network environments. It requires Ubuntu 24.04 LTS or newer (versions above 24.04 are untested and will show a warning). It is not intended for general or production use. Using it outside the environment for which it was designed may cause unexpected behavior or system misconfiguration. Use at your own risk.
+     Gateproxy is a script designed for very specific network environments (see Requirements above for the supported OS/version). It is not intended for general or production use. Using it outside the environment for which it was designed may cause unexpected behavior or system misconfiguration. Use at your own risk.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Gateproxy es un script diseñado para entornos de red muy específicos. Requiere Ubuntu 24.04 LTS o superior (versiones posteriores a 24.04 no están probadas y mostrarán una advertencia). No está destinado para uso general ni en producción. Usarlo fuera del entorno para el que fue diseñado puede causar comportamientos inesperados o una mala configuración del sistema. Úselo bajo su propio riesgo.
+     Gateproxy es un script diseñado para entornos de red muy específicos (ver Requirements arriba para el SO/versión soportada). No está destinado para uso general ni en producción. Usarlo fuera del entorno para el que fue diseñado puede causar comportamientos inesperados o una mala configuración del sistema. Úselo bajo su propio riesgo.
     </td>
   </tr>
 </table>

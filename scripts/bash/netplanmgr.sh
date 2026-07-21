@@ -5,35 +5,37 @@
 # Netplan Manager module installation/uninstallation script for Webmin
 #
 # Description:
-#   Netplan Manager module for Webmin. Provides a graphical and scriptable
-#   interface to manage network configuration through Netplan directly from Webmin.
-#   Enables real-time editing, validation, and application of network settings
-#   without manual YAML file handling.
+# Netplan Manager module for Webmin. Provides a graphical and scriptable
+# interface to manage network configuration through Netplan directly from Webmin.
+# Enables real-time editing, validation, and application of network settings
+# without manual YAML file handling.
 #
 # Features:
-#   - Reads and edits Netplan configuration files (/etc/netplan/*.yaml)
-#   - Creates automatic YAML backups before applying any changes
-#   - Applies configuration instantly using "netplan apply"
-#   - Validates YAML syntax and warns of possible errors
-#   - Displays current interface status and active configuration
-#   - Supports restore of previous Netplan backups
-#   - Installs and integrates seamlessly into Webmin's Network category
-#   - Works with both systemd-netplanmgr and NetworkManager backends
-#   - Includes responsive layout and action buttons for quick management
+# - Reads and edits Netplan configuration files (/etc/netplan/*.yaml)
+# - Creates automatic YAML backups before applying any changes
+# - Applies configuration instantly using "netplan apply"
+# - Validates YAML syntax and warns of possible errors
+# - Displays current interface status and active configuration
+# - Supports restore of previous Netplan backups
+# - Installs and integrates seamlessly into Webmin's Network category
+# - Works with both systemd-netplanmgr and NetworkManager backends
+# - Includes responsive layout and action buttons for quick management
 #
 # Usage:
-#   sudo ./netplanmgr.sh [OPTIONS]
+# sudo ./netplanmgr.sh [OPTIONS]
 #
 # Options:
-#   install      Install the module
-#   uninstall    Uninstall the module
-#   -h, --help   Show help message
+# install Install the module
+# uninstall Uninstall the module
+# -h, --help Show help message
 #
 # Examples:
-#   sudo ./netplanmgr.sh              # Interactive menu
-#   sudo ./netplanmgr.sh install      # Direct installation
-#   sudo ./netplanmgr.sh uninstall    # Direct uninstallation
+# sudo ./netplanmgr.sh # Interactive menu
+# sudo ./netplanmgr.sh install # Direct installation
+# sudo ./netplanmgr.sh uninstall # Direct uninstallation
 ################################################################################
+
+set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -43,13 +45,12 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
-
-set -e
 
 MODNAME="netplanmgr"
 if ! [[ "$MODNAME" =~ ^[a-zA-Z0-9_-]+$ ]]; then
@@ -68,23 +69,23 @@ install_module() {
     echo "Installing Netplan Manager Module"
     echo "=========================================="
     echo ""
-    
+
     # Check dependencies
     echo "Checking dependencies..."
     if ! command -v netplan &>/dev/null; then
-        echo "⚠ Warning: 'netplan' command not found. Module will still be installed,"
-        echo "  but Netplan operations will fail until netplan is present on the system."
+        echo "Warning: 'netplan' command not found. Module will still be installed,"
+        echo "but Netplan operations will fail until netplan is present on the system."
     fi
-    echo "✓ Dependencies checked"
-    
+    echo "Dependencies checked"
+
     echo "Creating Netplan Manager module structure..."
-    
+
     # Create directories
     mkdir -p "$MODDIR/images"
     mkdir -p "$MODDIR/lang"
     mkdir -p "$MODDIR/help"
     mkdir -p "$ETCDIR"
-    
+
     # ============================================================
     # 1. index.cgi (main file)
     # ============================================================
@@ -195,13 +196,13 @@ if (defined $in{'save'}) {
 if (defined $in{'validate'}) {
     my $file = $in{'file'} || '';
     if ($file && is_safe_netplan_file($file) && -f $file) {
-        my $tmpdir  = `mktemp -d /tmp/netplan-test-XXXXXX`;
+        my $tmpdir = `mktemp -d /tmp/netplan-test-XXXXXX`;
         chomp $tmpdir;
         my $tmpyaml = "$tmpdir/etc/netplan/validate-$$.yaml";
         system("mkdir -p \"$tmpdir/etc/netplan\"");
         my $content = read_file_content($file);
         if ($content && write_file_content($tmpyaml, $content)) {
-            my $out  = `netplan generate --root-dir="$tmpdir" 2>&1`;
+            my $out = `netplan generate --root-dir="$tmpdir" 2>&1`;
             my $exit = $? >> 8;
             system("rm -rf \"$tmpdir\" 2>/dev/null");
             if ($exit == 0) {
@@ -225,7 +226,7 @@ if (defined $in{'apply'}) {
     if ($file && is_safe_netplan_file($file)) {
         # Backup if enabled in config (before overwriting, so it's a real restore point)
         if (($config{'netplan_backup'} // '1') eq '1') {
-            my $backup_dir  = $config{'backup_path'} || '/var/backups/netplan';
+            my $backup_dir = $config{'backup_path'} || '/var/backups/netplan';
             my $backup_keep = int($config{'backup_keep'} || 5);
             system("mkdir -p \"$backup_dir\"");
             (my $basename = $file) =~ s{.*/}{};
@@ -247,7 +248,7 @@ if (defined $in{'apply'}) {
             }
         }
         # Apply
-        my $out  = `netplan apply 2>&1`;
+        my $out = `netplan apply 2>&1`;
         my $exit = $? >> 8;
         if ($exit == 0) {
             &redirect("index.cgi?applied=1&file=" . &urlize($file));
@@ -601,42 +602,42 @@ print <<'CSS';
     .netplan-container {
         padding: 10px;
     }
-    
+
     .file-table {
         font-size: 14px;
     }
-    
+
     .file-table th,
     .file-table td {
         padding: 8px;
     }
-    
+
     .button-group {
         flex-direction: column;
         width: 100%;
     }
-    
+
     .button-group button,
     .button-group form {
         width: 100%;
     }
-    
+
     .netplan-btn {
         width: 100%;
         padding: 10px 16px;
     }
-    
+
     .btn-primary, .btn-secondary, .btn-success {
         padding: 8px 12px;
         font-size: 13px;
         width: 100%;
     }
-    
+
     .modal-container {
         width: 95%;
         max-height: 95vh;
     }
-    
+
     .modal-body textarea {
         min-height: 300px;
         font-size: 12px;
@@ -647,25 +648,25 @@ print <<'CSS';
     .file-table thead {
         display: none;
     }
-    
+
     .file-table tr {
         display: block;
         margin-bottom: 16px;
         border: 1px solid #dee2e6;
         border-radius: 8px;
     }
-    
+
     .file-table td {
         display: block;
         text-align: left;
         padding: 8px 12px;
         border-bottom: 1px solid #dee2e6;
     }
-    
+
     .file-table td:last-child {
         border-bottom: none;
     }
-    
+
     .file-table td:before {
         content: attr(data-label);
         font-weight: bold;
@@ -673,7 +674,7 @@ print <<'CSS';
         margin-bottom: 4px;
         color: #495057;
     }
-    
+
     .modal-container {
         width: 100%;
         max-height: 100vh;
@@ -684,14 +685,14 @@ print <<'CSS';
 CSS
 
 if (defined $in{'saved'}) {
-    print "<div class='alert-success'>✓ $text{'save_success'}</div>";
+    print "<div class='alert-success'> $text{'save_success'}</div>";
 }
 
 if (defined $in{'validated'}) {
     if ($in{'validated'} eq '1') {
-        print "<div class='alert-success'>✓ $text{'validate_success'}</div>";
+        print "<div class='alert-success'> $text{'validate_success'}</div>";
     } else {
-        print "<div class='alert-error'>✗ $text{'validate_failed'}</div>";
+        print "<div class='alert-error'> $text{'validate_failed'}</div>";
         if (defined $in{'msg'}) {
             print "<pre style='background:#f8f9fa;padding:12px;border-radius:4px;overflow-x:auto;'>" . &html_escape($in{'msg'}) . "</pre>";
         }
@@ -700,9 +701,9 @@ if (defined $in{'validated'}) {
 
 if (defined $in{'applied'}) {
     if ($in{'applied'} eq '1') {
-        print "<div class='alert-success'>✓ $text{'apply_success'}</div>";
+        print "<div class='alert-success'> $text{'apply_success'}</div>";
     } else {
-        print "<div class='alert-error'>✗ $text{'apply_failed'}</div>";
+        print "<div class='alert-error'> $text{'apply_failed'}</div>";
         if (defined $in{'msg'}) {
             print "<pre style='background:#f8f9fa;padding:12px;border-radius:4px;overflow-x:auto;'>" . &html_escape($in{'msg'}) . "</pre>";
         }
@@ -710,11 +711,11 @@ if (defined $in{'applied'}) {
 }
 
 if (defined $in{'error'}) {
-    print "<div class='alert-error'>✗ $text{'file_error'}</div>";
+    print "<div class='alert-error'> $text{'file_error'}</div>";
 }
 
 print "<div class='netplan-container'>";
-print "<h3>🌐 $text{'index_title'}</h3>";
+print "<h3> $text{'index_title'}</h3>";
 print "<p>$text{'index_desc'}</p>";
 
 my @files = list_netplan_files();
@@ -725,37 +726,37 @@ if (!@files) {
     print "<table class='file-table'>";
     print "<thead><tr><th>$text{'table_file'}</th><th>$text{'table_actions'}</th></tr></thead>";
     print "<tbody>";
-    
+
     foreach my $f (@files) {
         my $basename = $f;
         $basename =~ s{.*/}{};
         my $escaped_file = &html_escape($f);
         my $escaped_basename = &html_escape($basename);
-        
+
         print "<tr>";
         print "<td data-label='$text{\"table_file\"}'><code>$escaped_basename</code></td>";
         print "<td data-label='$text{\"table_actions\"}'>";
         print "<div class='button-group'>";
-        
+
         print "<button type='button' class='netplan-btn netplan-btn-edit' onclick='openEditModal(\"$escaped_file\", \"$escaped_basename\")'>$text{'action_edit'}</button>";
-        
+
         print "<form method='post' action='index.cgi' style='display:inline-block; margin:0;'>";
         print "<input type='hidden' name='file' value='$escaped_file'>";
         print "<input type='hidden' name='validate' value='1'>";
         print "<button type='submit' class='netplan-btn netplan-btn-validate'>$text{'action_validate'}</button>";
         print "</form>";
-        
+
         print "<form method='post' action='index.cgi' style='display:inline-block; margin:0;'>";
         print "<input type='hidden' name='file' value='$escaped_file'>";
         print "<input type='hidden' name='apply' value='1'>";
         print "<button type='submit' class='netplan-btn netplan-btn-apply'>$text{'action_apply'}</button>";
         print "</form>";
-        
+
         print "</div>";
         print "</td>";
         print "</tr>";
     }
-    
+
     print "</tbody></table>";
 }
 
@@ -764,7 +765,7 @@ if (defined $in{'edit'}) {
     my $content = read_file_content($file) || "";
     my $basename = $file;
     $basename =~ s{.*/}{};
-    
+
     print "<div class='edit-section'>";
     print "<h4>$text{'editing'}: <code>$basename</code></h4>";
     print &ui_form_start("index.cgi", "post");
@@ -806,10 +807,10 @@ function openEditModal(filePath, fileName) {
     document.getElementById('modalContent').value = 'Loading...';
     document.getElementById('modalTitle').textContent = 'Editing: ' + fileName;
     document.getElementById('modalFile').value = filePath;
-    
+
     document.getElementById('modalOverlay').classList.add('active');
     document.getElementById('editModal').classList.add('active');
-    
+
     fetch('index.cgi?ajax=1&file=' + encodeURIComponent(filePath))
         .then(response => response.text())
         .then(content => {
@@ -843,7 +844,7 @@ MODAL
 INDEXCGI
 
     chmod 755 "$MODDIR/index.cgi"
-    
+
     # ============================================================
     # 2. module.info (English)
     # ============================================================
@@ -855,7 +856,7 @@ os_support=*-linux
 version=1.2
 depends=webmin
 EOF
-    
+
     # ============================================================
     # 3. module.info.es (Spanish)
     # ============================================================
@@ -867,7 +868,7 @@ os_support=*-linux
 version=1.2
 depends=webmin
 EOF
-    
+
     # ============================================================
     # 4. lang/en (English strings)
     # ============================================================
@@ -893,33 +894,33 @@ no_files=No Netplan YAML files found in /etc/netplan
 applying=Applying configuration...
 index=Webmin Index
 EOF
-    
+
     # ============================================================
     # 5. lang/es (Spanish strings)
     # ============================================================
     cat > "$MODDIR/lang/es" <<'EOF'
 index_title=Administrador de Netplan
-index_desc=Gestiona los archivos de configuración Netplan en /etc/netplan
-table_file=Archivo de Configuración
+index_desc=Gestiona los archivos de configuracion Netplan en /etc/netplan
+table_file=Archivo de Configuracion
 table_actions=Acciones
 action_edit=Editar
 action_validate=Validar
 action_apply=Aplicar
 action_save=Guardar
 action_cancel=Cancelar
-validate_success=La configuración YAML es válida
-validate_failed=La validación falló
+validate_success=La configuracion YAML es valida
+validate_failed=La validacion fallo
 save_success=Archivo guardado exitosamente
 save_failed=Fallo al guardar el archivo
-apply_success=Configuración aplicada con éxito
-apply_failed=Fallo al aplicar la configuración
+apply_success=Configuracion aplicada con exito
+apply_failed=Fallo al aplicar la configuracion
 file_error=Archivo no especificado o no encontrado
 editing=Editando
 no_files=No se encontraron archivos YAML de Netplan en /etc/netplan
-applying=Aplicando configuración...
-index=Índice de Webmin
+applying=Aplicando configuracion...
+index=Indice de Webmin
 EOF
-    
+
     # ============================================================
     # 6. config.info (Configuration options - English)
     # ============================================================
@@ -934,12 +935,12 @@ EOF
     # 6b. config.info.es (Configuration options - Spanish)
     # ============================================================
     cat > "$MODDIR/config.info.es" <<'EOF'
-netplan_path=Directorio de configuración Netplan,0
-netplan_backup=Crear respaldo antes de aplicar,1,1-Sí,0-No
+netplan_path=Directorio de configuracion Netplan,0
+netplan_backup=Crear respaldo antes de aplicar,1,1-Si,0-No
 backup_path=Directorio de respaldos,0
-backup_keep=Número de respaldos a mantener,0,5
+backup_keep=Numero de respaldos a mantener,0,5
 EOF
-    
+
     # ============================================================
     # 7. defaultconfig (Default configuration values)
     # ============================================================
@@ -949,7 +950,7 @@ netplan_backup=1
 backup_path=/var/backups/netplan
 backup_keep=5
 EOF
-    
+
     # ============================================================
     # 8. config (Initial configuration - same as defaults)
     # ============================================================
@@ -959,7 +960,7 @@ netplan_backup=1
 backup_path=/var/backups/netplan
 backup_keep=5
 EOF
-    
+
     # ============================================================
     # 9. install_check.pl
     # ============================================================
@@ -976,9 +977,9 @@ sub module_install_check {
     return undef;
 }
 EOF
-    
+
     chmod 755 "$MODDIR/install_check.pl"
-    
+
     # ============================================================
     # 10. help/intro.html
     # ============================================================
@@ -1005,34 +1006,34 @@ EOF
 
 <footer>
 EOF
-    
+
     # ============================================================
     # 11. help/intro.es.html
     # ============================================================
     cat > "$MODDIR/help/intro.es.html" <<'EOF'
 <header>Administrador de Netplan</header>
 
-<h3>Introducción</h3>
-<p>El módulo Administrador de Netplan permite ver, editar y aplicar archivos YAML de Netplan ubicados en /etc/netplan. Use Validar antes de Aplicar para evitar aplicar configuraciones erróneas.</p>
+<h3>Introduccion</h3>
+<p>El modulo Administrador de Netplan permite ver, editar y aplicar archivos YAML de Netplan ubicados en /etc/netplan. Use Validar antes de Aplicar para evitar aplicar configuraciones erroneas.</p>
 
 <h3>Uso</h3>
 <ul>
-<li><strong>Editar:</strong> Abre el archivo YAML en un editor. Después de editar, presione Guardar.</li>
+<li><strong>Editar:</strong> Abre el archivo YAML en un editor. Despues de editar, presione Guardar.</li>
 <li><strong>Validar:</strong> Verifica la sintaxis YAML usando netplan generate.</li>
-<li><strong>Aplicar:</strong> Ejecuta <code>netplan apply</code> para activar la configuración.</li>
+<li><strong>Aplicar:</strong> Ejecuta <code>netplan apply</code> para activar la configuracion.</li>
 </ul>
 
 <h3>Flujo de trabajo</h3>
 <ol>
-<li>Haga clic en <strong>Editar</strong> para modificar un archivo de configuración</li>
+<li>Haga clic en <strong>Editar</strong> para modificar un archivo de configuracion</li>
 <li>Realice sus cambios y haga clic en <strong>Guardar</strong></li>
 <li>Haga clic en <strong>Validar</strong> para verificar errores</li>
-<li>Si la validación pasa, haga clic en <strong>Aplicar</strong> para activar</li>
+<li>Si la validacion pasa, haga clic en <strong>Aplicar</strong> para activar</li>
 </ol>
 
 <footer>
 EOF
-    
+
     # ============================================================
     # 12. CHANGELOG
     # ============================================================
@@ -1056,7 +1057,7 @@ Version 1.0 (2025)
 - View, edit, validate and apply Netplan YAML files
 - Multi-language (en/es)
 EOF
-    
+
     # ============================================================
     # 13. Create icon.gif
     # ============================================================
@@ -1067,7 +1068,7 @@ ICONEOF
 
     base64 -d "$ICON_B64" > "$MODDIR/images/icon.gif" || true
     rm -f "$ICON_B64"
-    
+
     # ============================================================
     # Set permissions
     # ============================================================
@@ -1076,7 +1077,7 @@ ICONEOF
     chmod 644 "$MODDIR"/*.info* "$MODDIR/lang/"* "$MODDIR/help/"* "$MODDIR/CHANGELOG" 2>/dev/null || true
     chmod 755 "$MODDIR"/*.cgi "$MODDIR"/*.pl 2>/dev/null || true
     chmod 644 "$MODDIR/images/"* 2>/dev/null || true
-    
+
     # ============================================================
     # Register in Webmin ACL
     # ============================================================
@@ -1084,22 +1085,22 @@ ICONEOF
         if ! grep -q "$MODNAME" /etc/webmin/webmin.acl 2>/dev/null; then
             sed -i.bak 's/\(^root:.*\)/\1 '"$MODNAME"'/' /etc/webmin/webmin.acl
             rm -f /etc/webmin/webmin.acl.bak
-            echo "✓ Module added to webmin.acl"
+            echo "Module added to webmin.acl"
         fi
     else
-        echo "⚠ Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
+        echo "Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
     fi
-    
+
     # Clear cache
     rm -f /var/webmin/module.infos.cache
-    
+
     # Restart Webmin
     echo "Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
-    
+
     echo ""
     echo "=========================================="
-    echo "✓ Netplan Manager installed successfully!"
+    echo "Netplan Manager installed successfully!"
     echo "=========================================="
     echo ""
     echo "Module location: $MODDIR"
@@ -1119,39 +1120,39 @@ uninstall_module() {
     echo "Uninstalling Netplan Manager Module"
     echo "=========================================="
     echo ""
-    
+
     if [ ! -d "$MODDIR" ]; then
-        echo "⚠  Module is not installed."
+        echo "Module is not installed."
         echo ""
         return 1
     fi
-    
+
     echo "Removing module files..."
     rm -rf "$MODDIR"
     rm -rf "$ETCDIR"
-    
+
     # Remove from ACL
     if [ -f /etc/webmin/webmin.acl ]; then
         if grep -q "$MODNAME" /etc/webmin/webmin.acl 2>/dev/null; then
             sed -i.bak 's/ '"$MODNAME"'//g' /etc/webmin/webmin.acl
             rm -f /etc/webmin/webmin.acl.bak
-            echo "✓ Module removed from webmin.acl"
+            echo "Module removed from webmin.acl"
         fi
     else
-        echo "⚠ Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
+        echo "Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
     fi
-    
+
     # Clear cache
     rm -f /var/webmin/module.infos.cache
-    echo "✓ Module cache cleared"
-    
+    echo "Module cache cleared"
+
     # Restart Webmin
     echo "Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
-    
+
     echo ""
     echo "=========================================="
-    echo "✓ Netplan Manager uninstalled"
+    echo "Netplan Manager uninstalled"
     echo "=========================================="
     echo ""
 }
@@ -1163,13 +1164,13 @@ show_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  install      Install the Netplan Manager module"
-    echo "  uninstall    Uninstall the Netplan Manager module"
-    echo "  -h, --help   Show this help message"
+    echo "install Install the Netplan Manager module"
+    echo "uninstall Uninstall the Netplan Manager module"
+    echo "-h, --help Show this help message"
     echo ""
     echo "Examples:"
-    echo "  $0 install"
-    echo "  $0 uninstall"
+    echo "$0 install"
+    echo "$0 uninstall"
     echo ""
 }
 
@@ -1181,7 +1182,7 @@ main() {
         echo "Error: Webmin is not installed on this system"
         exit 1
     fi
-    
+
     if [ $# -gt 0 ]; then
         case "$1" in
             install)
@@ -1204,22 +1205,22 @@ main() {
                 ;;
         esac
     fi
-    
+
     # Interactive menu
     while true; do
         clear
         echo "============================================================"
-        echo "          NETPLAN MANAGER - WEBMIN MODULE"
-        echo "                 Installation Menu"
+        echo "NETPLAN MANAGER - WEBMIN MODULE"
+        echo "Installation Menu"
         echo "============================================================"
         echo ""
-        echo "  1) Install module"
-        echo "  2) Uninstall module"
-        echo "  3) Exit"
+        echo "1) Install module"
+        echo "2) Uninstall module"
+        echo "3) Exit"
         echo ""
         echo -n "Select an option [1-3]: "
         read -r option
-        
+
         case $option in
             1)
                 install_module

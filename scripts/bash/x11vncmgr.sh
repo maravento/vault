@@ -31,7 +31,7 @@
 #
 ################################################################################
 
-set -e
+set -uo pipefail
 
 DISPLAY_NUM=":0"
 XAUTH_PATH="/var/run/lightdm/root/:0"
@@ -48,12 +48,20 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
-require_root() {
-    if [ "$(id -u)" -ne 0 ]; then
-        log "ERROR: This script must be run as root (sudo)."
-        exit 1
-    fi
-}
+## root check
+if [ "$(id -u)" != "0" ]; then
+    log "ERROR: This script must be run as root"
+    exit 1
+fi
+
+# prevent overlapping runs
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    log "Script $(basename "$0") is already running"
+    exit 1
+fi
 
 check_password_exists() {
     if [ ! -f "$VNC_PASSWD" ]; then
@@ -90,8 +98,6 @@ verify_removed() {
 }
 
 do_install() {
-    require_root
-
     if ! command -v x11vnc >/dev/null 2>&1; then
         if ! apt_out=$(apt update 2>&1); then
             log "ERROR: apt update failed."
@@ -132,8 +138,6 @@ EOF
 }
 
 do_uninstall() {
-    require_root
-
     systemctl stop "$SERVICE_NAME" 2>/dev/null || true
     systemctl disable "$SERVICE_NAME" 2>/dev/null || true
 
@@ -161,7 +165,6 @@ do_uninstall() {
 }
 
 do_start() {
-    require_root
     check_password_exists
     systemctl start "$SERVICE_NAME"
 
@@ -171,14 +174,12 @@ do_start() {
 }
 
 do_stop() {
-    require_root
     systemctl stop "$SERVICE_NAME"
 
     log "Service stopped."
 }
 
 do_restart() {
-    require_root
     systemctl restart "$SERVICE_NAME"
 
     log "Service restarted."
@@ -236,7 +237,7 @@ menu() {
 # Start
 log "x11vncmgr start..."
 
-if [ -z "$1" ]; then
+if [ -z "${1:-}" ]; then
     menu
 else
     case "$1" in

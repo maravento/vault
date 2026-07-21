@@ -15,6 +15,8 @@
 #   status     List active/inactive tunnels
 ################################################################################
 
+set -uo pipefail
+
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -485,9 +487,23 @@ case "$ACTION" in
         create_tunnel
         ;;
     start)
+        # prevent overlapping runs
+        SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+        exec 200>"$SCRIPT_LOCK"
+        if ! flock -n 200; then
+            echo "[ERROR] Script $(basename "$0") is already running"
+            exit 1
+        fi
         start_multiple_tunnels
         ;;
     startall)
+        # prevent overlapping runs
+        SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+        exec 200>"$SCRIPT_LOCK"
+        if ! flock -n 200; then
+            echo "[ERROR] Script $(basename "$0") is already running"
+            exit 1
+        fi
         script_path=$(realpath "$0")
         startall_tunnels
         if ! crontab -l 2>/dev/null | grep -qF "$script_path"; then

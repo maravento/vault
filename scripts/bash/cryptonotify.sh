@@ -15,25 +15,32 @@
 #
 ################################################################################
 
-echo "Top 5 Crypto Price Notifier Starting. Wait..."
-printf "\n"
+set -uo pipefail
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # check no-root
-if [ "$(id -u)" -eq 0 ]; then
-    echo "❌ This script should not be run as root."
+if [ "$(id -u)" == "0" ]; then
+    echo "[ERROR] This script should not be run as root."
     exit 1
 fi
 
-set -uo pipefail
+# prevent overlapping runs
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    echo "[ERROR] Script $(basename "$0") is already running"
+    exit 1
+fi
+
+echo "Top 5 Crypto Price Notifier Starting. Wait..."
 
 # check dependencies
 pkgs='curl jq libnotify-bin'
 for pkg in $pkgs; do
   if ! dpkg -s "$pkg" &>/dev/null; then
-    echo "❌ '$pkg' is not installed. Run:"
+    echo "'$pkg' is not installed. Run:"
     echo "sudo apt install $pkg"
     exit 1
   fi
@@ -70,7 +77,7 @@ top5_http_code=$(echo "$top5_response" | tail -n1)
 top5=$(echo "$top5_response" | head -n -1)
 
 if [ "$top5_http_code" != "200" ]; then
-    echo "❌ CoinGecko API error (HTTP $top5_http_code). Cannot fetch market data."
+    echo "CoinGecko API error (HTTP $top5_http_code). Cannot fetch market data."
     _notify -i dialog-error "Crypto Prices" "API error (HTTP $top5_http_code). Try again later."
     exit 1
 fi
@@ -79,7 +86,7 @@ fi
 mapfile -t ids < <(echo "$top5" | jq -r '.[].id')
 
 if [ ${#ids[@]} -eq 0 ]; then
-    echo "❌ No data returned from CoinGecko API."
+    echo "No data returned from CoinGecko API."
     _notify -i dialog-error "Crypto Prices" "No data returned from API. Try again later."
     exit 1
 fi
@@ -102,7 +109,7 @@ prices_http_code=$(echo "$prices_response" | tail -n1)
 prices=$(echo "$prices_response" | head -n -1)
 
 if [ "$prices_http_code" != "200" ]; then
-    echo "❌ CoinGecko prices API error (HTTP $prices_http_code)."
+    echo "CoinGecko prices API error (HTTP $prices_http_code)."
     _notify -i dialog-error "Crypto Prices" "Price API error (HTTP $prices_http_code). Try again later."
     exit 1
 fi

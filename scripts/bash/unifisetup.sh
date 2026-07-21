@@ -6,39 +6,36 @@
 # UniFi Setup - Installer / Uninstaller / Updater for Ubuntu
 #
 # Description:
-#   Installs, updates, and removes UniFi Network Application and UniFi OS
-#   Server on Ubuntu, using Ubiquiti's own official release catalog
-#   (download.svc.ui.com) to detect and download versions. No third-party
-#   scripts or APIs are used.
-#
-# Supported OS:
-#   Ubuntu 24.04 LTS (noble) or newer. Nothing older is supported.
+# Installs, updates, and removes UniFi Network Application and UniFi OS
+# Server on Ubuntu, using Ubiquiti's own official release catalog
+# (download.svc.ui.com) to detect and download versions. No third-party
+# scripts or APIs are used.
 #
 # Products:
-#   - UniFi Network Application (installed via the official .deb package,
-#     requires MongoDB and a matching Java runtime)
-#   - UniFi OS Server (installed via the official Linux installer binary,
-#     runs rootless containers through Podman)
+# - UniFi Network Application (installed via the official .deb package,
+# requires MongoDB and a matching Java runtime)
+# - UniFi OS Server (installed via the official Linux installer binary,
+# runs rootless containers through Podman)
 #
 # Usage:
-#   sudo ./unifisetup.sh
+# sudo ./unifisetup.sh
 #
 # Menu-driven only, no command-line parameters are accepted:
-#   1. Install UniFi Network Application
-#   2. Install UniFi OS Server
-#   3. Update UniFi Network Application
-#   4. Update UniFi OS Server
-#   5. Uninstall UniFi Network Application
-#   6. Uninstall UniFi OS Server
-#   7. Show status (installed vs. latest online)
-#   8. Exit
+# 1. Install UniFi Network Application
+# 2. Install UniFi OS Server
+# 3. Update UniFi Network Application
+# 4. Update UniFi OS Server
+# 5. Uninstall UniFi Network Application
+# 6. Uninstall UniFi OS Server
+# 7. Show status (installed vs. latest online)
+# 8. Exit
 #
 # Log file: unifisetup.log, next to this script (truncate -s 0 unifisetup.log to clear)
 # Downloads/work dir: .unifisetup-work, also next to this script
 #
 ################################################################################
 
-set -u
+set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -48,6 +45,7 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
@@ -95,8 +93,7 @@ os_check() {
     . /etc/os-release
 
     if [ "${ID:-}" != "ubuntu" ]; then
-        log "ERROR: This script only supports Ubuntu (detected: ${ID:-unknown})"
-        exit 1
+        log "WARNING: This script targets Ubuntu (detected: ${ID:-unknown}) -- continuing at your own risk"
     fi
 
     local version_major version_minor
@@ -104,12 +101,11 @@ os_check() {
     version_minor="$((10#$(echo "${VERSION_ID:-0}" | cut -d'.' -f2)))"
 
     if [ "${version_major}" -lt "${MIN_MAJOR}" ] || { [ "${version_major}" -eq "${MIN_MAJOR}" ] && [ "${version_minor}" -lt "$((10#$MIN_MINOR))" ]; }; then
-        log "ERROR: Requires Ubuntu ${MIN_MAJOR}.${MIN_MINOR}+ (detected ${VERSION_ID:-unknown})"
-        exit 1
+        log "WARNING: Untested below Ubuntu ${MIN_MAJOR}.${MIN_MINOR} (detected ${VERSION_ID:-unknown}) -- continuing at your own risk"
     fi
 
     os_codename="${VERSION_CODENAME:-noble}"
-    log "OS check passed: Ubuntu ${VERSION_ID} (${os_codename})"
+    log "OS check done: Ubuntu ${VERSION_ID:-unknown} (${os_codename})"
 }
 
 arch_check() {
@@ -290,7 +286,7 @@ install_network() {
     fi
 
     # Pin this JRE as the default "java" in PATH, instead of trusting
-    # update-alternatives' auto-priority — another JRE on this host
+    # update-alternatives' auto-priority -- another JRE on this host
     # (e.g. for a different app) could otherwise end up as the default
     # that UniFi's service picks up.
     local java_bin
@@ -648,7 +644,7 @@ action_status() {
 
     echo ""
     echo "==========================================="
-    echo " UniFi Network Application"
+    echo "UniFi Network Application"
     echo "==========================================="
     echo "Installed: ${installed_network_version:-not installed}"
     echo "Latest online: ${latest_network_version:-unknown}"
@@ -657,7 +653,7 @@ action_status() {
     fi
     echo ""
     echo "==========================================="
-    echo " UniFi OS Server"
+    echo "UniFi OS Server"
     echo "==========================================="
     echo "Installed: ${installed_osserver_version:-not installed}"
     echo "Latest online: ${latest_osserver_version:-unknown}"
@@ -676,7 +672,7 @@ menu() {
         clear
         echo ""
         echo "==========================================="
-        echo " UniFi Setup"
+        echo "UniFi Setup"
         echo "==========================================="
         echo "1. Install UniFi Network Application"
         echo "2. Install UniFi OS Server"

@@ -1,43 +1,40 @@
 #!/bin/bash
 # maravento.com
-
+#
+################################################################################
+#
 ## Iptables/Ipset Firewall O(1)
 ## Verify: iptables -L -n / iptables -nvL / iptables -Ln -t mangle / iptables -Ln -t nat
 ## Sockets: ss -ltuna
 # Ports: /etc/services
 # ============================
-# Ports 0-1023:     "Well-known ports" (System/Privileged)
-#                   - Require superuser privileges to bind
-#                   - Standard services: HTTP(80), HTTPS(443), SSH(22), DNS(53)
-#                   - FTP(21), Telnet(23), SMTP(25), etc.
+# Ports 0-1023: "Well-known ports" (System/Privileged)
+# - Require superuser privileges to bind
+# - Standard services: HTTP(80), HTTPS(443), SSH(22), DNS(53)
+# - FTP(21), Telnet(23), SMTP(25), etc.
 # Ports 1024-49151: "Registered ports" (IANA Assigned)
-#                   - Assigned by Internet Assigned Numbers Authority
-#                   - User/application services without root privileges
-#                   - Examples: MySQL(3306), PostgreSQL(5432), Skype(1000-10000)
+# - Assigned by Internet Assigned Numbers Authority
+# - User/application services without root privileges
+# - Examples: MySQL(3306), PostgreSQL(5432), Skype(1000-10000)
 # Ports 49152-65535: "Dynamic/Private ports" (Ephemeral)
-#                    - Available for any use, not registered by IANA
-#                    - Used for temporary/outbound connections
-#                    - Client-side dynamic port assignments
+# - Available for any use, not registered by IANA
+# - Used for temporary/outbound connections
+# - Client-side dynamic port assignments
 # REFERENCES:
 # - https://gutl.jovenclub.cu/wiki/doku.php?id=definiciones:puertos_tcp_udp
 # - https://en.wikipedia.org/wiki/List_of_TCP_and_UDP_port_numbers
 # - RFC 6335 - Internet Assigned Numbers Authority (IANA) Procedures
 # - https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt
+#
+################################################################################
+
+set -euo pipefail
 
 # logging
 log_file="/var/log/iptables.log"
 log() {
     local msg="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
-}
-
-# MAC/IP validation before feeding external ACL data into ipset
-is_valid_mac() {
-    [[ "$1" =~ ^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$ ]]
-}
-
-is_valid_ip() {
-    [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]
 }
 
 ## root check
@@ -55,11 +52,19 @@ if ! flock -n 200; then
     exit 1
 fi
 
-set -euo pipefail
-
 log "Iptables Start..."
 
 ## VARIABLES ##
+
+# MAC/IP validation before feeding external ACL data into ipset
+is_valid_mac() {
+    [[ "$1" =~ ^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$ ]]
+}
+
+is_valid_ip() {
+    [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]
+}
+
 # paths
 acl_path="/etc/acl"
 acl_mac_path="$acl_path/acl_mac"
@@ -355,7 +360,7 @@ for mac in $(awk -F";" '$2 != "" {print $2}' "$mac_unlimited_file" 2>/dev/null);
 done
 iptables -t nat -A PREROUTING -i "$lan" -m set --match-set macunlimited src -j ACCEPT
 iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macunlimited src -j ACCEPT
-# Unlimited devices never use the proxy — block PAC access so DHCP option 252
+# Unlimited devices never use the proxy -- block PAC access so DHCP option 252
 # (WPAD, if enabled) has no effect on them, since pydhcpd is ACL-agnostic and
 # sends it to every client regardless of classification.
 iptables -A INPUT -i "$lan" -p tcp -m multiport --dports 3128,18100 -m set --match-set macunlimited src -j DROP

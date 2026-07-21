@@ -8,25 +8,27 @@
 # Compatible:
 # Android 5.0 (API 21) or higher
 #
-# ⚠️ Requirements (run once):
+# Requirements (run once):
 # 1. Enable "Developer options" on your Android device.
-#    → Settings > About phone > Tap "Build number" 7 times.
+# -> Settings > About phone > Tap "Build number" 7 times.
 # 2. Enable "USB debugging" in Developer options.
 # 3. Connect the phone via USB and authorize the PC when prompted.
 # 4. Install required packages on Ubuntu:
-#    sudo apt install adb scrcpy
+# sudo apt install adb scrcpy
 #
-# ✅ Usage:
-#    ./droid2pc start   # Start scrcpy if device is connected
-#    ./droid2pc stop    # Stop any running scrcpy instance
-#    ./droid2pc status  # Check if scrcpy is running
+# Usage:
+# ./droid2pc start # Start scrcpy if device is connected
+# ./droid2pc stop # Stop any running scrcpy instance
+# ./droid2pc status # Check if scrcpy is running
 #
 #
 ################################################################################
 
-# no-root
-if [ "$(id -u)" -eq 0 ]; then
-    echo "❌ This script should not be run as root."
+set -uo pipefail
+
+# check no-root
+if [ "$(id -u)" == "0" ]; then
+    echo "[ERROR] This script should not be run as root."
     exit 1
 fi
 
@@ -63,6 +65,14 @@ check_device() {
 }
 
 start() {
+    # prevent overlapping runs
+    SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+    exec 200>"$SCRIPT_LOCK"
+    if ! flock -n 200; then
+        echo "[ERROR] Script $(basename "$0") is already running"
+        exit 1
+    fi
+
     check_device
     if pgrep -x scrcpy > /dev/null; then
         show_error "scrcpy is already running.\n\nClose the existing instance first."
@@ -106,9 +116,9 @@ status() {
     fi
 }
 
-case "$1" in
-    start)  start  ;;
-    stop)   stop   ;;
+case "${1:-}" in
+    start) start ;;
+    stop) stop ;;
     status) status ;;
     *)
         show_error "Usage: $0 {start|stop|status}"

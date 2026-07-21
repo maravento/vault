@@ -12,8 +12,6 @@
 #
 ################################################################################
 
-echo "Start Cleaner. Wait..."
-
 set -uo pipefail
 
 # PATH for cron
@@ -33,6 +31,8 @@ if ! flock -n $LOCK_FD; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi
+
+echo "Start Cleaner. Wait..."
 
 start=$(date +%s)
 

@@ -19,14 +19,15 @@
 #
 ################################################################################
 
-echo "MEGAsync Instances Starting. Wait..."
-printf "\n"
+set -uo pipefail
 
 # check no-root
 if [ "$(id -u)" == "0" ]; then
-    echo "❌ This script should not be run as root."
+    echo "[ERROR] This script should not be run as root."
     exit 1
 fi
+
+echo "MEGAsync Instances Starting. Wait..."
 
 # check dependencies
 DEPENDENCIES=("zenity" "libatk-adaptor" "libgail-common" "libgtk2.0-0")
@@ -49,27 +50,11 @@ done
 # Check if MEGAsync is installed
 for pkg in megasync; do
   dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {
-    echo "❌ '$pkg' is not installed. Run:"
+    echo "'$pkg' is not installed. Run:"
     echo "sudo apt install $pkg"
     exit 1
   }
 done
-
-# check lock
-LOCKFILE="/tmp/msyncs.lock"
-if [[ -f "$LOCKFILE" ]]; then
-    LOCK_PID=$(cat "$LOCKFILE" 2>/dev/null)
-    if [[ -n "$LOCK_PID" ]] && kill -0 "$LOCK_PID" 2>/dev/null; then
-        echo "Script $0 is already running (PID $LOCK_PID)"
-        exit 1
-    fi
-    rm -f "$LOCKFILE"
-fi
-echo $$ > "$LOCKFILE" || { echo "Failed to create lock file: $LOCKFILE"; exit 1; }
-cleanup() {
-    rm -f "$LOCKFILE"
-}
-trap cleanup EXIT
 
 # Variables
 REALHOME="$HOME"
@@ -104,7 +89,7 @@ generateDesktopEntry () {
   echo "Type=Application" >> "$DEPATH"
   echo "Exec=/usr/bin/msyncs start" >> "$DEPATH"
   echo "Name=msyncs" >> "$DEPATH"
-  echo "Comment=Open all your MEGAsync instances"  >> "$DEPATH"
+  echo "Comment=Open all your MEGAsync instances" >> "$DEPATH"
   echo "Icon=/usr/share/icons/hicolor/256x256/apps/mega.png" >> "$DEPATH"
   echo "Hidden=false" >> "$DEPATH"
   chmod +x "$DEPATH"
@@ -112,6 +97,14 @@ generateDesktopEntry () {
 
 # Installation function
 start () {
+  # prevent overlapping runs
+  SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+  exec 200>"$SCRIPT_LOCK"
+  if ! flock -n 200; then
+    echo "[ERROR] Script $(basename "$0") is already running"
+    exit 1
+  fi
+
   checkDep "zenity"
   checkDep "megasync"
 
@@ -129,7 +122,7 @@ frun () {
         if [ "$(cat "$FILE")" == "1" ]; then
             echo "MEGAsync Instances are already configured, launching the instances..."
             killall megasync 2> /dev/null # Close open megasync instances
-            
+
             # Launch each instance in its corresponding folder
             for d in "$REALHOME/$MEGADIR"/*/ ; do
                 echo "Launching $(basename "$d")"
@@ -156,7 +149,7 @@ frun () {
     # 1-9 number
     while [[ ! $INSTNUM =~ ^[1-9]$ ]]; do
         INSTNUM=$(zenity --entry --text="How many MEGAsync instances do you need? (1-9)")
-        
+
         # check valid number
         if [[ ! $INSTNUM =~ ^[1-9]$ ]]; then
             zenity --error --text="Please enter a valid number between 1 and 9."
@@ -185,7 +178,7 @@ frun () {
         (export HOME="$REALHOME/$MEGADIR/${ARRAY[$i]}"; nohup megasync >/dev/null 2>&1 &)
         sleep 2
         zenity --warning --width=400 \
-            --text="⚠️  INSTANCE ${ARRAY[$i]} ($i/$INSTNUM)  ⚠️\n\n────────────────────────────────\n⛔  DO NOT CLICK OK UNTIL YOU HAVE\n    FINISHED CONFIGURING THIS ACCOUNT\n    OR IT WILL BE CLOSED AND LOST\n────────────────────────────────\n\n➤ Log in to your MEGA account\n➤ Complete the configuration\n➤ Close MEGAsync\n➤ THEN click OK to continue"
+            --text=" INSTANCE ${ARRAY[$i]} ($i/$INSTNUM) \n\n--------------------------------\nDO NOT CLICK OK UNTIL YOU HAVE\nFINISHED CONFIGURING THIS ACCOUNT\nOR IT WILL BE CLOSED AND LOST\n--------------------------------\n\nLog in to your MEGA account\nComplete the configuration\nClose MEGAsync\nTHEN click OK to continue"
         killall megasync 2>/dev/null
         sleep 1
     done
@@ -196,7 +189,6 @@ frun () {
     echo 1 > "$FILE"
     zenity --info --text="All instances configured. Restarting MEGAsync Instances..."
     echo "Restarting MEGAsync Instances..."
-    rm -f "$LOCKFILE"
     exec /usr/bin/msyncs start
 }
 
@@ -223,7 +215,7 @@ if [ ! -f "$FILE" ]; then
 fi
 
 # Handle script arguments
-case "$1" in
+case "${1:-}" in
   start)
     start
     ;;

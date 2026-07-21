@@ -310,6 +310,7 @@ LinqiaRSSBot
 LinqiaScrapeBot
 Lipperhey
 Lipperhey Spider
+litellm-recon
 Litemage_walker
 Lmspider
 LNSpiderguy
@@ -581,6 +582,7 @@ The Intraformant
 TheNomad
 Thumbor
 TightTwatBot
+Timpibot
 TinyTestBot
 Titan
 TLM-Audit-Scanner

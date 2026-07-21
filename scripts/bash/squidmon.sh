@@ -6,37 +6,39 @@
 # Squid Monitor module installation/uninstallation script for Webmin
 #
 # Description:
-#   This script installs or uninstalls the Squid Monitor module for Webmin.
-#   The module provides a interface to monitor Squid proxy logs,
-#   focusing on blocked requests (TCP_DENIED) and ACL statistics.
+# This script installs or uninstalls the Squid Monitor module for Webmin.
+# The module provides a interface to monitor Squid proxy logs,
+# focusing on blocked requests (TCP_DENIED) and ACL statistics.
 #
 # Features:
-#   - Dashboard with real-time statistics
-#   - Monitor TCP_DENIED requests from Squid logs
-#   - Configurable ACL monitoring (add/remove ACL files to track)
-#   - Support for file-based and regex-based ACLs
-#   - Top blocked domains and clients
-#   - Detailed blocked requests by client IP with ACL identification
-#   - Hourly traffic graphs
-#   - Multi-language support (English and Spanish)
-#   - Auto-refresh capability
-#   - Zero external dependencies (pure Perl parsing)
-#   - Search bar
+# - Dashboard with real-time statistics
+# - Monitor TCP_DENIED requests from Squid logs
+# - Configurable ACL monitoring (add/remove ACL files to track)
+# - Support for file-based and regex-based ACLs
+# - Top blocked domains and clients
+# - Detailed blocked requests by client IP with ACL identification
+# - Hourly traffic graphs
+# - Multi-language support (English and Spanish)
+# - Auto-refresh capability
+# - Zero external dependencies (pure Perl parsing)
+# - Search bar
 #
 # Usage:
-#   sudo ./squidmon.sh [OPTIONS]
+# sudo ./squidmon.sh [OPTIONS]
 #
 # Options:
-#   install      Install the module
-#   uninstall    Uninstall the module
-#   -h, --help   Show help message
+# install Install the module
+# uninstall Uninstall the module
+# -h, --help Show help message
 #
 # Examples:
-#   sudo ./squidmon.sh              # Interactive menu
-#   sudo ./squidmon.sh install      # Direct installation
-#   sudo ./squidmon.sh uninstall    # Direct uninstallation
+# sudo ./squidmon.sh # Interactive menu
+# sudo ./squidmon.sh install # Direct installation
+# sudo ./squidmon.sh uninstall # Direct uninstallation
 #
 ################################################################################
+
+set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -53,8 +55,6 @@ if ! flock -n 200; then
     exit 1
 fi
 
-set -e
-
 MODNAME="squidmon"
 MODDIR="/usr/share/webmin/$MODNAME"
 ETCDIR="/etc/webmin/$MODNAME"
@@ -68,7 +68,7 @@ install_module() {
     echo "Installing Squid Monitor Module"
     echo "=========================================="
     echo ""
-    
+
     # Check if Squid is installed
     if ! command -v squid &>/dev/null; then
         echo "Warning: Squid does not appear to be installed"
@@ -81,15 +81,15 @@ install_module() {
             exit 0
         fi
     fi
-    
+
     echo "Creating Squid Monitor module structure..."
-    
+
     # Create directories
     mkdir -p "$MODDIR/images"
     mkdir -p "$MODDIR/lang"
     mkdir -p "$MODDIR/help"
     mkdir -p "$ETCDIR"
-    
+
     # ============================================================
     # 1. index.cgi (main dashboard)
     # ============================================================
@@ -128,23 +128,23 @@ $refresh_interval = 60 if $refresh_interval !~ /^\d+$/ || $refresh_interval < 30
 # Validate max_lines
 $max_lines = 50000 if $max_lines !~ /^\d+$/ || $max_lines < 1 || $max_lines > 500000;
 
-# Parse ACL list - SUPPORT BOTH \n AND \t
+# Parse ACL list - SUPPORT BOTH \nAND \t
 my @monitored_acls = ();
 if ($acl_list) {
     foreach my $acl_entry (split(/[\n\t]+/, $acl_list)) {
         $acl_entry =~ s/^\s+|\s+$//g;
         next if $acl_entry eq '';
-        
+
         # Support regex: prefix for regex-based ACLs
         if ($acl_entry =~ /^regex:(.+)=(.+)$/) {
             my $regex_pattern = $1;
             my $label = $2;
             $regex_pattern =~ s/^\s+|\s+$//g;
             $label =~ s/^\s+|\s+$//g;
-            push @monitored_acls, { 
-                type => 'regex', 
-                value => $regex_pattern, 
-                label => $label 
+            push @monitored_acls, {
+                type => 'regex',
+                value => $regex_pattern,
+                label => $label
             };
         }
         # File-based ACL
@@ -153,10 +153,10 @@ if ($acl_list) {
             my $label = $2;
             $path =~ s/^\s+|\s+$//g;
             $label =~ s/^\s+|\s+$//g;
-            push @monitored_acls, { 
-                type => 'file', 
-                value => $path, 
-                label => $label 
+            push @monitored_acls, {
+                type => 'file',
+                value => $path,
+                label => $label
             };
         }
     }
@@ -265,7 +265,7 @@ print "<div class='dashboard-container'>";
 # Check if log file exists
 if (!-f $log_file) {
     print "<div class='alert alert-warning'>";
-    print "⚠️ <strong>$text{'error_log_not_found'}</strong><br>";
+    print " <strong>$text{'error_log_not_found'}</strong><br>";
     print "$text{'error_log_path'}: <code>$log_file</code>";
     print "</div>";
     print "</div>";
@@ -293,7 +293,7 @@ my %client_logs = ();
 
 # Preload ACLs into REVERSE LOOKUP HASH for O(1) speed
 my %domain_to_acl = (); # domain => ACL label (instant lookup)
-my @regex_acls = ();    # Only store regex ACLs separately
+my @regex_acls = (); # Only store regex ACLs separately
 
 # Validate that an ACL file path is absolute and confined to allowed directories
 sub is_safe_acl_path {
@@ -312,7 +312,7 @@ foreach my $acl (@monitored_acls) {
             while (my $line = <$fh>) {
                 chomp($line);
                 $line =~ s/^\s+|\s+$//g;
-                $line =~ s/^\.+//g;  # REMOVE LEADING DOTS
+                $line =~ s/^\.+//g; # REMOVE LEADING DOTS
                 next if $line eq '' || $line =~ /^#/;
                 # REVERSE INDEX: domain points to ACL label
                 $domain_to_acl{lc($line)} = $acl->{label};
@@ -335,24 +335,24 @@ if (open(my $fh, '<', $log_file)) {
     my $chunk_size = 8192;
     my $buffer = '';
     my $lines_found = 0;
-    
+
     while ($file_size > 0 && $lines_found < $lines_to_read) {
         my $read_size = $chunk_size;
         $read_size = $file_size if $file_size < $chunk_size;
         $file_size -= $read_size;
-        
+
         seek($fh, $file_size, 0);
         read($fh, my $chunk, $read_size);
         $buffer = $chunk . $buffer;
-        
+
         my @lines = split(/\n/, $buffer);
         $buffer = shift(@lines) if $file_size > 0;
-        
+
         unshift(@log_lines, @lines);
         $lines_found = scalar(@log_lines);
     }
     close($fh);
-    
+
     # Keep only last N lines
     @log_lines = splice(@log_lines, -$lines_to_read) if scalar(@log_lines) > $lines_to_read;
 }
@@ -441,7 +441,7 @@ if ($action_code =~ /^TCP_DENIED/) {
     foreach my $acl (@matched_acls) {
         $acl_hits{$acl}++;
     }
-    
+
     # If no ACL matched, count as Unknown ACL
     if (!@matched_acls) {
         $acl_hits{'Unknown ACL'}++;
@@ -468,27 +468,27 @@ $stats{unique_domains} = scalar(keys %blocked_domains);
 print "<div class='stats-grid'>";
 
 print "<div class='stat-card card-blue'>";
-print "<h3>📊 $text{'stat_total_requests'}</h3>";
+print "<h3> $text{'stat_total_requests'}</h3>";
 print "<div class='number'>" . format_number($stats{total_requests}) . "</div>";
 print "<div class='label'>$text{'stat_last'} $time_range $text{'stat_hours'}</div>";
 print "</div>";
 
 print "<div class='stat-card card-red'>";
-print "<h3>🚫 $text{'stat_blocked'}</h3>";
+print "<h3> $text{'stat_blocked'}</h3>";
 print "<div class='number'>" . format_number($stats{blocked_requests}) . "</div>";
 my $block_percent = $stats{total_requests} > 0 ? sprintf("%.1f", ($stats{blocked_requests} / $stats{total_requests}) * 100) : 0;
 print "<div class='label'>$block_percent% $text{'stat_of_total'}</div>";
 print "</div>";
 
 print "<div class='stat-card card-green'>";
-print "<h3>✅ $text{'stat_allowed'}</h3>";
+print "<h3> $text{'stat_allowed'}</h3>";
 print "<div class='number'>" . format_number($stats{allowed_requests}) . "</div>";
 my $allow_percent = $stats{total_requests} > 0 ? sprintf("%.1f", ($stats{allowed_requests} / $stats{total_requests}) * 100) : 0;
 print "<div class='label'>$allow_percent% $text{'stat_of_total'}</div>";
 print "</div>";
 
 print "<div class='stat-card card-purple'>";
-print "<h3>👥 $text{'stat_clients'}</h3>";
+print "<h3> $text{'stat_clients'}</h3>";
 print "<div class='number'>$stats{unique_clients}</div>";
 print "<div class='label'>$text{'stat_unique_clients'}</div>";
 print "</div>";
@@ -498,7 +498,7 @@ print "</div>"; # End stats-grid
 # Chart
 # Traffic Distribution Chart - Fixed colors and time context
 print "<div class='content-card'>";
-print "<h2>📊 $text{'traffic_distribution'}</h2>";
+print "<h2> $text{'traffic_distribution'}</h2>";
 
 my $blocked = $stats{blocked_requests} || 0;
 my $allowed = $stats{allowed_requests} || 0;
@@ -506,15 +506,15 @@ my $total = $blocked + $allowed;
 
 # Show the time period
 print "<div style='text-align: center; margin-bottom: 20px; padding: 10px; background: #f8fafc; border-radius: 6px;'>";
-print "<strong style='color: #000000 !important; font-size: 14px;'>📅 Time Period: Last $time_range hours</strong>";
+print "<strong style='color: #000000 !important; font-size: 14px;'> Time Period: Last $time_range hours</strong>";
 print "</div>";
 
 if ($total > 0) {
     my $blocked_percent = sprintf("%.1f", ($blocked / $total) * 100);
     my $allowed_percent = sprintf("%.1f", ($allowed / $total) * 100);
-    
+
     print "<table style='width: 100%; border-collapse: collapse; margin: 20px 0; color: #000000 !important;'>";
-    
+
     # Header row - No background, just text
     print "<tr>";
     print "<th style='text-align: left; padding: 12px; width: 100px; color: #000000 !important; border: 1px solid #e5e7eb !important;'>Type</th>";
@@ -522,10 +522,10 @@ if ($total > 0) {
     print "<th style='text-align: center; padding: 12px; width: 80px; color: #000000 !important; border: 1px solid #e5e7eb !important;'>Percent</th>";
     print "<th style='padding: 12px; color: #000000 !important; border: 1px solid #e5e7eb !important;'>Distribution</th>";
     print "</tr>";
-    
+
     # Blocked row
     print "<tr style='background: #fef2f2;'>";
-    print "<td style='padding: 12px; border: 1px solid #e5e7eb; color: #000000 !important; text-align: left;'><strong style='color: #dc2626 !important;'>🚫 Blocked</strong></td>";
+    print "<td style='padding: 12px; border: 1px solid #e5e7eb; color: #000000 !important; text-align: left;'><strong style='color: #dc2626 !important;'> Blocked</strong></td>";
     print "<td style='padding: 12px; border: 1px solid #e5e7eb; text-align: left; color: #000000 !important;'>" . format_number($blocked) . "</td>";
     print "<td style='padding: 12px; border: 1px solid #e5e7eb; text-align: left; color: #000000 !important;'><strong>$blocked_percent%</strong></td>";
     print "<td style='padding: 12px; border: 1px solid #e5e7eb; color: #000000 !important; text-align: left;'>";
@@ -535,7 +535,7 @@ if ($total > 0) {
 
     # Allowed row
     print "<tr style='background: #f0fdf4;'>";
-    print "<td style='padding: 12px; border: 1px solid #e5e7eb; color: #000000 !important; text-align: left;'><strong style='color: #10b981 !important;'>✅ Allowed</strong></td>";
+    print "<td style='padding: 12px; border: 1px solid #e5e7eb; color: #000000 !important; text-align: left;'><strong style='color: #10b981 !important;'> Allowed</strong></td>";
     print "<td style='padding: 12px; border: 1px solid #e5e7eb; text-align: left; color: #000000 !important;'>" . format_number($allowed) . "</td>";
     print "<td style='padding: 12px; border: 1px solid #e5e7eb; text-align: left; color: #000000 !important;'><strong>$allowed_percent%</strong></td>";
     print "<td style='padding: 12px; border: 1px solid #e5e7eb; color: #000000 !important; text-align: left;'>";
@@ -545,24 +545,24 @@ if ($total > 0) {
 
     # Total row
     print "<tr style='background: #eff6ff;'>";
-    print "<td style='padding: 12px; border: 1px solid #e5e7eb; color: #000000 !important; text-align: left;'><strong style='color: #3b82f6 !important;'>📊 Total</strong></td>";
+    print "<td style='padding: 12px; border: 1px solid #e5e7eb; color: #000000 !important; text-align: left;'><strong style='color: #3b82f6 !important;'> Total</strong></td>";
     print "<td style='padding: 12px; border: 1px solid #e5e7eb; text-align: left; color: #000000 !important;'><strong>" . format_number($total) . "</strong></td>";
     print "<td style='padding: 12px; border: 1px solid #e5e7eb; text-align: left; color: #000000 !important;'><strong>100%</strong></td>";
     print "<td style='padding: 12px; border: 1px solid #e5e7eb; color: #000000 !important; text-align: left;'>";
     print "<div style='background: #3b82f6; height: 25px; width: 100%; border-radius: 4px;'></div>";
     print "</td>";
     print "</tr>";
-    
+
     print "</table>";
-    
+
     # Additional information about the period
     print "<div style='margin-top: 15px; padding: 10px; background: #fffbeb; border-radius: 6px; border-left: 4px solid #f59e0b;'>";
     print "<small style='color: #000000 !important;'>";
-    print "ℹ️ <strong>Time Context:</strong> Showing data from the last <strong>$time_range hours</strong>. ";
+    print " <strong>Time Context:</strong> Showing data from the last <strong>$time_range hours</strong>. ";
     print "Analyzed " . format_number(scalar(@log_lines)) . " log lines from Squid access log.";
     print "</small>";
     print "</div>";
-    
+
 } else {
     print "<div style='text-align: center; padding: 40px; color: #000000 !important;'>";
     print "No traffic data available for the last $time_range hours";
@@ -574,8 +574,8 @@ print "</div>";
 # ACL Statistics (if configured)
 if (@monitored_acls > 0) {
     print "<div class='content-card'>";
-    print "<h2>📋 $text{'acl_stats_title'}</h2>";
-    
+    print "<h2> $text{'acl_stats_title'}</h2>";
+
     if (scalar(keys %acl_hits) > 0) {
         print "<div class='table-responsive'>";
         print "<table class='data-table'>";
@@ -586,14 +586,14 @@ if (@monitored_acls > 0) {
         print "<th>$text{'acl_percentage'}</th>";
         print "<th style='width: 40%;'>$text{'acl_activity'}</th>";
         print "</tr></thead><tbody>";
-        
+
         my $total_acl_blocks = 0;
         $total_acl_blocks += $_ for values %acl_hits;
-        
+
         foreach my $acl_label (sort { $acl_hits{$b} <=> $acl_hits{$a} } keys %acl_hits) {
             my $hits = $acl_hits{$acl_label};
             my $percentage = $total_acl_blocks > 0 ? sprintf("%.1f", ($hits / $total_acl_blocks) * 100) : 0;
-            
+
             # Find ACL type
             my $acl_type = 'file';
             foreach my $acl (@monitored_acls) {
@@ -602,7 +602,7 @@ if (@monitored_acls > 0) {
                     last;
                 }
             }
-            
+
             print "<tr>";
             print "<td><strong>$acl_label</strong></td>";
             print "<td><span class='badge " . ($acl_type eq 'regex' ? 'badge-blocked' : 'badge-allowed') . "'>$acl_type</span></td>";
@@ -615,14 +615,14 @@ if (@monitored_acls > 0) {
             print "</td>";
             print "</tr>";
         }
-        
+
         print "</tbody></table></div>";
     } else {
         print "<div class='alert alert-info'>";
-        print "ℹ️ $text{'acl_no_blocks'}";
+        print " $text{'acl_no_blocks'}";
         print "</div>";
     }
-    
+
     print "</div>";
 }
 
@@ -631,7 +631,7 @@ print "<div class='grid-2'>";
 
 # Top Blocked Domains
 print "<div class='content-card'>";
-print "<h2>🚫 $text{'top_blocked_title'}</h2>";
+print "<h2> $text{'top_blocked_title'}</h2>";
 
 if (scalar(keys %blocked_domains) > 0) {
     print "<div class='table-responsive'>";
@@ -640,7 +640,7 @@ if (scalar(keys %blocked_domains) > 0) {
     print "<th>$text{'domain'}</th>";
     print "<th>$text{'blocks'}</th>";
     print "</tr></thead><tbody>";
-    
+
     my $count = 0;
     foreach my $domain (sort { $blocked_domains{$b} <=> $blocked_domains{$a} } keys %blocked_domains) {
         last if ++$count > 10;
@@ -649,11 +649,11 @@ if (scalar(keys %blocked_domains) > 0) {
         print "<td><span class='badge badge-blocked'>" . format_number($blocked_domains{$domain}) . "</span></td>";
         print "</tr>";
     }
-    
+
     print "</tbody></table></div>";
 } else {
     print "<div class='alert alert-success'>";
-    print "✅ $text{'no_blocks'}";
+    print " $text{'no_blocks'}";
     print "</div>";
 }
 
@@ -661,7 +661,7 @@ print "</div>";
 
 # Top Blocked Clients
 print "<div class='content-card'>";
-print "<h2>👥 $text{'top_clients_title'}</h2>";
+print "<h2> $text{'top_clients_title'}</h2>";
 
 if (scalar(keys %clients_data) > 0) {
     print "<div class='table-responsive'>";
@@ -672,14 +672,14 @@ if (scalar(keys %clients_data) > 0) {
     print "<th>$text{'blocked'}</th>";
     print "<th>$text{'blocked_percent'}</th>";
     print "</tr></thead><tbody>";
-    
+
     my $count = 0;
     foreach my $client (sort { $clients_data{$b}{total} <=> $clients_data{$a}{total} } keys %clients_data) {
         last if ++$count > 10;
         my $total = $clients_data{$client}{total} || 0;
         my $blocked = $clients_data{$client}{blocked} || 0;
         my $percent = $total > 0 ? sprintf("%.1f", ($blocked / $total) * 100) : 0;
-        
+
         print "<tr>";
         print "<td><strong>$client</strong></td>";
         print "<td>" . format_number($total) . "</td>";
@@ -687,11 +687,11 @@ if (scalar(keys %clients_data) > 0) {
         print "<td>$percent%</td>";
         print "</tr>";
     }
-    
+
     print "</tbody></table></div>";
 } else {
     print "<div class='alert alert-info'>";
-    print "ℹ️ $text{'no_clients'}";
+    print " $text{'no_clients'}";
     print "</div>";
 }
 
@@ -701,19 +701,19 @@ print "</div>"; # End grid-2
 
 # === Traffic by Client IP (Optimized with ACL Menu) ===
 print "<div class='content-card' id='traffic-by-ip'>";
-print "<h2>📶 $text{'traffic_by_ip'}</h2>";
+print "<h2> $text{'traffic_by_ip'}</h2>";
 
 # PDF Button - General
 print "<div style='margin-bottom: 20px; text-align: right;'>";
 print "<form method='post' action='pdf_report.cgi' target='_blank' style='display: inline; background: #1f2937; padding: 15px; border-radius: 8px;'>";
-print "<span style='color: white; margin-right: 10px;'>📊 Report Time Range:</span>";
+print "<span style='color: white; margin-right: 10px;'> Report Time Range:</span>";
 print "<select name='time_range' style='margin-right: 10px; padding: 5px;'>";
 print "<option value='24'>Last 24 Hours</option>";
 print "<option value='168'>Last 7 Days</option>";
 print "<option value='720'>Last 30 Days</option>";
 print "</select>";
 print "<input type='hidden' name='max_lines' value='$max_lines'>";
-print "<input type='submit' value='📄 Generate PDF Report' style='background-color: #1f2937; color: #ffffff !important; border: 1px solid #ffffff !important; padding: 5px 10px; margin-right: 10px;'>";
+print "<input type='submit' value=' Generate PDF Report' style='background-color: #1f2937; color: #ffffff !important; border: 1px solid #ffffff !important; padding: 5px 10px; margin-right: 10px;'>";
 print "</form>";
 print "</div>";
 
@@ -766,44 +766,44 @@ foreach my $acl (@monitored_acls) {
 # Process logs for client data with improved ACL detection
 foreach my $line (@log_lines) {
     next unless $line =~ /^(\d+\.\d+)\s+\S+\s+(\S+)\s+(\S+)\s+\S+\s+\S+\s+(https?:\/\/)?([^\s\/]+)([^\s]*)/;
-    
+
     my $timestamp = int($1);
     my $client = $2;
     my $action_code = $3;
     my $domain = $5;
     my $proto = ($action_code =~ /^CONNECT/) ? 'https://' : ($4 || 'http://');
     my $url = $proto . ($5 // '') . ($6 // '');
-    
+
     # Skip if outside time range
     next if $timestamp < $time_threshold;
-    
+
     my $is_blocked = ($action_code =~ /^TCP_DENIED/) ? 'Blocked' : 'Allowed';
-    
+
     # DEBUG: Request information
     $debug_info{total_requests}++;
     $debug_info{"$client-$is_blocked"}++;
-    
+
     # Determine which ACL matched
     my $matched_acl = 'N/A';
-    
+
     if ($is_blocked eq 'Blocked') {
         my $domain_lc = lc($domain);
         $debug_info{blocked_requests}++;
-        
+
         # DEBUG
         $debug_info{domains}{$domain_lc}++;
-        
+
         # REMOVE PORT from domain if it exists
         my $domain_only = $domain_lc;
-        $domain_only =~ s/:\d+$//;  # Remove :port
-        
+        $domain_only =~ s/:\d+$//; # Remove :port
+
         # 1. Search for EXACT match in file ACLs
         my $found_acl = '';
         if (exists $domain_to_acl{$domain_only}) {
             $found_acl = $domain_to_acl{$domain_only};
             $debug_info{exact_matches}++;
         }
-        
+
         # 2. Search for a SUBDOMAIN match if an exact match was not found
         if (!$found_acl && $domain_only =~ /\./) {
             my @parts = split(/\./, $domain_only);
@@ -817,7 +817,7 @@ foreach my $line (@log_lines) {
                 }
             }
         }
-        
+
         # 3. Search in ACLs regex if not found in files
         if (!$found_acl) {
             foreach my $acl (@regex_acls) {
@@ -829,16 +829,16 @@ foreach my $line (@log_lines) {
                 }
             }
         }
-        
+
         $matched_acl = $found_acl || 'Unknown ACL';
         $acl_hits{$matched_acl}++;
-        
+
     } else {
         # For allowed requests - DO NOT count as an ACL hit
         $matched_acl = 'Allowed Traffic';
         $debug_info{allowed_requests}++;
     }
-    
+
     # Store ALL unfiltered statistics
         $client_acl_stats{$client}{$matched_acl}{$is_blocked}++;
         $client_acl_stats{$client}{total}{$is_blocked}++;
@@ -853,31 +853,31 @@ foreach my $line (@log_lines) {
 # ============================================================
 
 my @clients_to_show = ();
-my $search_is_ip = 0;  # Flag para saber si la búsqueda es una IP
+my $search_is_ip = 0; # Flag para saber si la busqueda es una IP
 
 # If there is an active search
 if ($search_query && $search_query ne '') {
-    $search_query = lc($search_query);  # Convertir a minúsculas para comparación
-    
+    $search_query = lc($search_query); # Convertir a minusculas para comparacion
+
     # Detect if it is an IP address (simple pattern: xxx.xxx.xxx.xxx)
     if ($search_query =~ /^(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)$/) {
         $search_is_ip = 1;
     }
-    
+
     foreach my $client (keys %client_acl_stats) {
         my $show_client = 0;
-        
+
         # Search for a match in the client's IP address.
         if ($client =~ /\Q$search_query\E/i) {
             $show_client = 1;
         }
-        
+
         # Only search URLs if it is NOT an IP address
         if (!$show_client && !$search_is_ip) {
             # Search blocked URLs for the client
             foreach my $acl (keys %{$client_acl_stats{$client}}) {
                 next if $acl eq 'total' || $acl eq 'urls';
-                
+
                 if (exists $client_acl_stats{$client}{$acl}{urls}{Blocked}) {
                     foreach my $url (@{$client_acl_stats{$client}{$acl}{urls}{Blocked}}) {
                         if ($url =~ /\Q$search_query\E/i) {
@@ -886,15 +886,15 @@ if ($search_query && $search_query ne '') {
                         }
                     }
                 }
-                
+
                 last if $show_client;
             }
-            
+
             # Search within allowed client URLs
             if (!$show_client) {
                 foreach my $acl (keys %{$client_acl_stats{$client}}) {
                     next if $acl eq 'total' || $acl eq 'urls';
-                    
+
                     if (exists $client_acl_stats{$client}{$acl}{urls}{Allowed}) {
                         foreach my $url (@{$client_acl_stats{$client}{$acl}{urls}{Allowed}}) {
                             if ($url =~ /\Q$search_query\E/i) {
@@ -903,12 +903,12 @@ if ($search_query && $search_query ne '') {
                             }
                         }
                     }
-                    
+
                     last if $show_client;
                 }
             }
         }
-        
+
         push @clients_to_show, $client if $show_client;
     }
 } else {
@@ -921,10 +921,10 @@ if ($search_query && $search_query ne '') {
     my $results_count = scalar(@clients_to_show);
     my $search_type = $search_is_ip ? "IP Address" : "Domain";
     print "<div style='margin-bottom: 15px; padding: 12px; background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px;'>";
-    print "<strong style='color: #1e40af;'>🔍 Search Results ($search_type):</strong> ";
+    print "<strong style='color: #1e40af;'> Search Results ($search_type):</strong> ";
     print "Found <strong style='color: #1e40af;'>$results_count</strong> client(s) matching '<strong>" . escapeHTML($search_query) . "</strong>'";
     print "</div>";
-    
+
     if ($results_count == 0) {
         print "<div style='padding: 20px; text-align: center; background: #fff5f5; border-radius: 4px; border: 1px solid #fecaca;'>";
         print "<strong style='color: #dc2626;'>No results found</strong><br>";
@@ -947,10 +947,10 @@ foreach my $client (sort @clients_to_show) {
     my $client_has_matching_data = 0;
     foreach my $acl (keys %acl_stats) {
         next if $acl eq 'total';
-        
+
         my $b = $acl_stats{$acl}{Blocked} || 0;
         my $a = $acl_stats{$acl}{Allowed} || 0;
-        
+
         # If there is no ACL filter OR if the ACL matches
         if (!$show_acl || $show_acl eq '' || $acl eq $show_acl) {
             if ((!$show_blocked && !$show_allowed) ||
@@ -962,24 +962,24 @@ foreach my $client (sort @clients_to_show) {
             }
         }
     }
-    
+
     # If there is no matching data, skip this client
     next unless $client_has_matching_data;
 
     print "<details style='margin-bottom: 15px; border: 1px solid #ddd; border-radius: 5px;'>";
     print "<summary style='padding: 10px; background: #f8f9fa; cursor: pointer; color: #212529 !important;'>";
-    print "<strong>$client</strong> — Total: <strong>$total_requests</strong> | ";
+    print "<strong>$client</strong> -- Total: <strong>$total_requests</strong> | ";
     print "Blocked: <span style='color: #dc3545 !important;'><strong>$total_blocked</strong></span> | ";
     print "Allowed: <span style='color: #28a745 !important;'><strong>$total_allowed</strong></span>";
-    
+
     # PDF Button by IP
     print "<form method='post' action='pdf_report.cgi' target='_blank' style='display: inline; float: right;'>";
     print "<input type='hidden' name='client_ip' value='$client'>";
     print "<input type='hidden' name='time_range' value='$time_range'>";
     print "<input type='hidden' name='max_lines' value='$max_lines'>";
-    print "<input type='submit' value='📄 PDF Report' style='background: #dc2626; color: #000000 !important; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-weight: bold; font-family: Arial, sans-serif !important; font-size: 12px !important; margin-left: 10px;'>";
+    print "<input type='submit' value=' PDF Report' style='background: #dc2626; color: #000000 !important; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-weight: bold; font-family: Arial, sans-serif !important; font-size: 12px !important; margin-left: 10px;'>";
     print "</form>";
-    
+
     print "</summary>";
 
     print "<div style='padding: 15px; background: white; color: #212529 !important;'>";
@@ -1020,17 +1020,17 @@ foreach my $client (sort @clients_to_show) {
         print "<td style='padding: 8px; text-align: center; color: #28a745;'><strong>$a</strong></td>";
         print "<td style='padding: 8px; text-align: center;'><strong>$t</strong></td>";
         print "</tr>";
-        
+
         # Show blocked URLs for this ACL
         if ($b > 0 && exists $acl_stats{$acl}{urls}{Blocked}) {
             my @blocked_urls = @{ $acl_stats{$acl}{urls}{Blocked} };
-            
+
             # If the search is for a DOMAIN, filter URLs
             # If the search is for an IP address, show all URLs associated with that IP address
             if ($search_query && $search_query ne '' && !$search_is_ip) {
                 @blocked_urls = grep { /\Q$search_query\E/i } @blocked_urls;
             }
-            
+
             if (@blocked_urls) {
                 print "<tr style='background: #fff5f5;'>";
                 print "<td colspan='4' style='padding: 10px; font-size: 12px;'>";
@@ -1040,23 +1040,23 @@ foreach my $client (sort @clients_to_show) {
                     $url_count{$url}++;
                 }
                 foreach my $url (sort { $url_count{$b} <=> $url_count{$a} } keys %url_count) {
-                    print "• $url (" . $url_count{$url} . "x)<br>";
+                    print "* $url (" . $url_count{$url} . "x)<br>";
                 }
                 print "</td>";
                 print "</tr>";
             }
         }
-        
+
         # Show allowed URLs for this ACL
         if ($a > 0 && exists $acl_stats{$acl}{urls}{Allowed}) {
             my @allowed_urls = @{ $acl_stats{$acl}{urls}{Allowed} };
-            
+
             # If the search is for a DOMAIN, filter URLs
             # If the search is for an IP address, show all URLs associated with that IP address
             if ($search_query && $search_query ne '' && !$search_is_ip) {
                 @allowed_urls = grep { /\Q$search_query\E/i } @allowed_urls;
             }
-            
+
             if (@allowed_urls) {
                 print "<tr style='background: #f5fff5;'>";
                 print "<td colspan='4' style='padding: 10px; font-size: 12px;'>";
@@ -1066,7 +1066,7 @@ foreach my $client (sort @clients_to_show) {
                     $url_count{$url}++;
                 }
                 foreach my $url (sort { $url_count{$b} <=> $url_count{$a} } keys %url_count) {
-                    print "• $url (" . $url_count{$url} . "x)<br>";
+                    print "* $url (" . $url_count{$url} . "x)<br>";
                 }
                 print "</td>";
                 print "</tr>";
@@ -1092,7 +1092,7 @@ document.querySelectorAll('.ip-row').forEach(function(row) {
     row.addEventListener('click', function() {
         var ip = row.getAttribute('data-ip');
         var details = document.getElementById('details-' + ip);
-        
+
         if (details) {
             if (details.style.display === 'none' || details.style.display === '') {
                 // Hide all other details first
@@ -1145,7 +1145,7 @@ if ($auto_refresh eq '1') {
     my $interval_ms = $refresh_interval * 1000;
     print <<AUTOREFRESH;
 <div class='refresh-indicator' id='refreshIndicator'>
-🔄 Auto-refresh: <span id='countdown'>$refresh_interval</span>s
+ Auto-refresh: <span id='countdown'>$refresh_interval</span>s
 </div>
 
 <script>
@@ -1176,13 +1176,13 @@ sub format_number {
     return $num;
 }
 INDEXCGI
-    
+
     chmod +x "$MODDIR/index.cgi"
-    
+
     # ============================================================
     # 2. pdf_report.cgi (PDF Report Generator)
     # ============================================================
-    
+
     cat > "$MODDIR/pdf_report.cgi" <<'PDFCGI'
 #!/usr/bin/perl
 # PDF Report Generator for Squid Monitor - Traffic Report Version
@@ -1239,24 +1239,24 @@ if (open(my $fh, '<', $log_file)) {
     my $chunk_size = 8192;
     my $buffer = '';
     my $lines_found = 0;
-    
+
     while ($file_size > 0 && $lines_found < $lines_to_read) {
         my $read_size = $chunk_size;
         $read_size = $file_size if $file_size < $chunk_size;
         $file_size -= $read_size;
-        
+
         seek($fh, $file_size, 0);
         read($fh, my $chunk, $read_size);
         $buffer = $chunk . $buffer;
-        
+
         my @lines = split(/\n/, $buffer);
         $buffer = shift(@lines) if $file_size > 0;
-        
+
         unshift(@log_lines, @lines);
         $lines_found = scalar(@log_lines);
     }
     close($fh);
-    
+
     @log_lines = splice(@log_lines, -$lines_to_read) if scalar(@log_lines) > $lines_to_read;
 }
 
@@ -1276,7 +1276,7 @@ foreach my $line (@log_lines) {
     $stats{total_requests}++;
 
     my $is_blocked = ($action_code =~ /^TCP_DENIED/) ? 'Blocked' : 'Allowed';
-    
+
     if ($is_blocked eq 'Blocked') {
         $stats{blocked_requests}++;
     } else {
@@ -1286,12 +1286,12 @@ foreach my $line (@log_lines) {
     # Store client traffic data
     $client_traffic{$client}{total}++;
     $client_traffic{$client}{$is_blocked}++;
-    
+
     # Store domain statistics (for all traffic)
     $domain_stats{$domain}{total}++;
     $domain_stats{$domain}{$is_blocked}++;
     $domain_stats{$domain}{clients}{$client}++;
-    
+
     # Hourly statistics
     my ($hour) = (localtime($timestamp))[2];
     $hourly_stats{$hour}{total}++;
@@ -1307,52 +1307,52 @@ print << 'HTMLHEAD';
     <meta charset="UTF-8">
     <title>Squid Monitor - Traffic Report</title>
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
+        body {
+            font-family: Arial, sans-serif;
             margin: 20px;
             color: #000000;
             font-size: 12px;
         }
-        .header { 
-            text-align: center; 
+        .header {
+            text-align: center;
             border-bottom: 2px solid #333;
             padding-bottom: 10px;
             margin-bottom: 20px;
         }
-        .summary { 
-            background: #f5f5f5; 
-            padding: 15px; 
+        .summary {
+            background: #f5f5f5;
+            padding: 15px;
             margin-bottom: 20px;
             border-radius: 5px;
         }
-        table { 
-            width: 100%; 
-            border-collapse: collapse; 
+        table {
+            width: 100%;
+            border-collapse: collapse;
             margin-bottom: 20px;
         }
-        th { 
-            background: #333; 
-            color: white; 
-            padding: 8px; 
+        th {
+            background: #333;
+            color: white;
+            padding: 8px;
             text-align: left;
             border: 1px solid #555;
         }
-        td { 
-            padding: 8px; 
+        td {
+            padding: 8px;
             border: 1px solid #ddd;
             vertical-align: top;
         }
-        .client-section { 
-            margin-bottom: 30px; 
+        .client-section {
+            margin-bottom: 30px;
             page-break-inside: avoid;
         }
         .blocked { color: #dc2626; font-weight: bold; }
         .allowed { color: #10b981; font-weight: bold; }
         .traffic { color: #3b82f6; font-weight: bold; }
-        .section-title { 
-            background: #4b5563; 
-            color: white; 
-            padding: 10px; 
+        .section-title {
+            background: #4b5563;
+            color: white;
+            padding: 10px;
             margin: 20px 0 10px 0;
             border-radius: 4px;
         }
@@ -1386,7 +1386,7 @@ if ($specific_client) {
 print "</div>";
 
 print "<div class='summary'>";
-print "<h2>📊 Traffic Summary</h2>";
+print "<h2> Traffic Summary</h2>";
 print "<p><strong>Total Requests:</strong> <span class='traffic'>" . format_number($stats{total_requests}) . "</span></p>";
 print "<p><strong>Allowed Requests:</strong> <span class='allowed'>" . format_number($stats{allowed_requests}) . " (" . sprintf("%.1f", ($stats{allowed_requests}/$stats{total_requests})*100) . "%)</span></p>";
 print "<p><strong>Blocked Requests:</strong> <span class='blocked'>" . format_number($stats{blocked_requests}) . " (" . sprintf("%.1f", ($stats{blocked_requests}/$stats{total_requests})*100) . "%)</span></p>";
@@ -1400,25 +1400,25 @@ print "</div>";
 # Show different content based on report type
 if ($specific_client) {
     # CLIENT-SPECIFIC REPORT
-    print "<div class='section-title'>👤 Client Details: " . escapeHTML($specific_client) . "</div>";
-    
+    print "<div class='section-title'> Client Details: " . escapeHTML($specific_client) . "</div>";
+
     if (exists $client_traffic{$specific_client}) {
         my $client_total = $client_traffic{$specific_client}{total} || 0;
         my $client_blocked = $client_traffic{$specific_client}{Blocked} || 0;
         my $client_allowed = $client_traffic{$specific_client}{Allowed} || 0;
-        
+
         print "<table>";
         print "<tr><th>Metric</th><th>Count</th><th>Percentage</th></tr>";
         print "<tr><td>Total Requests</td><td class='traffic'>" . format_number($client_total) . "</td><td>100%</td></tr>";
         print "<tr><td>Allowed</td><td class='allowed'>" . format_number($client_allowed) . "</td><td>" . sprintf("%.1f", ($client_allowed/$client_total)*100) . "%</td></tr>";
         print "<tr><td>Blocked</td><td class='blocked'>" . format_number($client_blocked) . "</td><td>" . sprintf("%.1f", ($client_blocked/$client_total)*100) . "%</td></tr>";
         print "</table>";
-        
+
         # Top domains for this client
-        print "<div class='section-title'>🌐 Top Visited Domains</div>";
+        print "<div class='section-title'> Top Visited Domains</div>";
         print "<table>";
         print "<tr><th>Domain</th><th>Visits</th><th>Status</th></tr>";
-        
+
         my $domain_count = 0;
         foreach my $domain (sort { ($domain_stats{$b}{total} || 0) <=> ($domain_stats{$a}{total} || 0) } keys %domain_stats) {
             next unless exists $domain_stats{$domain}{clients}{$specific_client};
@@ -1430,15 +1430,15 @@ if ($specific_client) {
         }
         print "</table>";
     }
-    
+
 } else {
     # GENERAL TRAFFIC REPORT
-    
+
     # Top Domains
-    print "<div class='section-title'>🌐 Top 15 Most Visited Domains</div>";
+    print "<div class='section-title'> Top 15 Most Visited Domains</div>";
     print "<table>";
     print "<tr><th>Domain</th><th>Total Visits</th><th>Allowed</th><th>Blocked</th><th>Unique Clients</th></tr>";
-    
+
     my $domain_count = 0;
     foreach my $domain (sort { ($domain_stats{$b}{total} || 0) <=> ($domain_stats{$a}{total} || 0) } keys %domain_stats) {
         last if $domain_count++ >= 15;
@@ -1455,9 +1455,9 @@ if ($specific_client) {
         print "</tr>";
     }
     print "</table>";
-    
+
     # Hourly Traffic
-    print "<div class='section-title'>🕒 Traffic by Hour</div>";
+    print "<div class='section-title'> Traffic by Hour</div>";
     print "<table>";
     print "<tr><th>Hour</th><th>Total</th><th>Allowed</th><th>Blocked</th><th>Block Rate</th></tr>";
     foreach my $hour (sort { $a <=> $b } keys %hourly_stats) {
@@ -1474,12 +1474,12 @@ if ($specific_client) {
         print "</tr>";
     }
     print "</table>";
-    
+
     # Top Clients
-    print "<div class='section-title'>👥 Top 15 Clients by Traffic</div>";
+    print "<div class='section-title'> Top 15 Clients by Traffic</div>";
     print "<table>";
     print "<tr><th>Client IP</th><th>Total</th><th>Allowed</th><th>Blocked</th><th>Block Rate</th></tr>";
-    
+
     my $client_count = 0;
     foreach my $client (sort { ($client_traffic{$b}{total} || 0) <=> ($client_traffic{$a}{total} || 0) } keys %client_traffic) {
         last if $client_count++ >= 15;
@@ -1510,9 +1510,9 @@ sub format_number {
     return $num;
 }
 PDFCGI
-    
+
     chmod +x "$MODDIR/pdf_report.cgi"
-    
+
     # ============================================================
     # 3. module.info (English)
     # ============================================================
@@ -1525,7 +1525,7 @@ version=1.1
 depends=webmin
 defaultconfig=1
 EOF
-    
+
     # ============================================================
     # 4. module.info.es (Spanish)
     # ============================================================
@@ -1538,7 +1538,7 @@ version=1.1
 depends=webmin
 defaultconfig=1
 EOF
-    
+
     # ============================================================
     # 5. lang/en (English strings)
     # ============================================================
@@ -1602,30 +1602,30 @@ config_saved=Configuration saved successfully
 traffic_distribution=Traffic Distribution
 traffic_by_ip=Traffic by Client IP (Click to Expand)
 EOF
-    
+
     # ============================================================
     # 6. lang/es (Spanish strings)
     # ============================================================
     cat > "$MODDIR/lang/es" <<'EOF'
 index_title=Monitor del Proxy
-index=Índice de Webmin
+index=Indice de Webmin
 stat_total_requests=Peticiones Totales
 stat_blocked=Bloqueadas
 stat_allowed=Permitidas
-stat_clients=Clientes Únicos
-stat_last=Últimas
+stat_clients=Clientes Unicos
+stat_last=Ultimas
 stat_hours=horas
 stat_of_total=del total
-stat_unique_clients=clientes únicos
-acl_stats_title=Estadísticas de ACL
+stat_unique_clients=clientes unicos
+acl_stats_title=Estadisticas de ACL
 acl_name=Nombre de ACL
 acl_type=Tipo
 acl_blocks=Bloqueos
 acl_percentage=Porcentaje
 acl_activity=Actividad
-acl_no_blocks=No se registraron bloqueos para las ACL configuradas en este período
-top_blocked_title=Dominios Más Bloqueados
-top_allowed_title=Dominios Más Permitidos
+acl_no_blocks=No se registraron bloqueos para las ACL configuradas en este periodo
+top_blocked_title=Dominios Mas Bloqueados
+top_allowed_title=Dominios Mas Permitidos
 top_clients_title=Principales Clientes
 domain=Dominio
 blocks=Bloqueos
@@ -1635,38 +1635,38 @@ total=Total
 blocked=Bloqueadas
 blocked_percent=% Bloqueadas
 blocked_count=Cantidad Bloqueada
-no_blocks=No hay peticiones bloqueadas en este período
-no_allowed=No hay peticiones permitidas en este período
+no_blocks=No hay peticiones bloqueadas en este periodo
+no_allowed=No hay peticiones permitidas en este periodo
 no_clients=No hay datos de clientes disponibles
 hourly_activity_title=Peticiones en el Tiempo
-blocked_by_ip_title=Tráfico por IP de Cliente (Clic para Expandir)
+blocked_by_ip_title=Trafico por IP de Cliente (Clic para Expandir)
 click_to_expand=clic para expandir
 datetime=Fecha/Hora
 domain_or_ip=Dominio/IP
-no_denied_events=No hay eventos TCP_DENIED registrados en este período
+no_denied_events=No hay eventos TCP_DENIED registrados en este periodo
 no_log_data=No hay datos de log disponibles
 error_log_not_found=Archivo de log de Squid no encontrado
 error_log_path=Ruta esperada
-config_title=Configuración del Monitor de Squid
-config_header=Configuración del Módulo
+config_title=Configuracion del Monitor de Squid
+config_header=Configuracion del Modulo
 config_squid_log=Ruta del archivo de log de Squid
-config_max_lines=Máximo de líneas a procesar
-config_max_lines_help=Número de líneas del log a leer (más líneas = más datos pero más lento)
+config_max_lines=Maximo de lineas a procesar
+config_max_lines_help=Numero de lineas del log a leer (mas lineas = mas datos pero mas lento)
 config_time_range=Rango de tiempo (horas)
-config_time_range_help=Solo mostrar peticiones de las últimas X horas
+config_time_range_help=Solo mostrar peticiones de las ultimas X horas
 config_acl_list=Archivos ACL a Monitorear
-config_acl_list_help=Uno por línea. Formato archivo: /ruta/a/acl.txt=Nombre Etiqueta. Formato regex: regex:patrón=Nombre Etiqueta
+config_acl_list_help=Uno por linea. Formato archivo: /ruta/a/acl.txt=Nombre Etiqueta. Formato regex: regex:patron=Nombre Etiqueta
 config_acl_example=Ejemplo: /etc/squid/acl/redes_sociales.txt=Redes Sociales
 config_acl_regex_example=Ejemplo regex: regex:^(http|https)://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+=Bloquear IPv4
-config_auto_refresh=Activar auto-actualización
-config_refresh_interval=Intervalo de actualización (segundos)
-config_refresh_help=Mínimo recomendado: 60 segundos
-config_save=Guardar Configuración
-config_saved=Configuración guardada exitosamente
-traffic_distribution=Distribución del Tráfico
-traffic_by_ip=Tráfico por IP de Cliente (Clic para Expandir)
+config_auto_refresh=Activar auto-actualizacion
+config_refresh_interval=Intervalo de actualizacion (segundos)
+config_refresh_help=Minimo recomendado: 60 segundos
+config_save=Guardar Configuracion
+config_saved=Configuracion guardada exitosamente
+traffic_distribution=Distribucion del Trafico
+traffic_by_ip=Trafico por IP de Cliente (Clic para Expandir)
 EOF
-    
+
     # ============================================================
     # 7. config.info (Webmin native configuration)
     # ============================================================
@@ -1678,19 +1678,19 @@ acl_list=ACL files to monitor (one per line: path=label or regex:pattern=label),
 auto_refresh=Auto-refresh,1,1-Enabled,0-Disabled
 refresh_interval=Refresh interval (seconds),0,60
 EOF
-    
+
     # ============================================================
     # 8. config.info.es (Spanish)
     # ============================================================
     cat > "$MODDIR/config.info.es" <<'EOF'
 squid_log=Ruta del archivo de log de Squid,0,/var/log/squid/access.log
-max_lines=Máximo de líneas a procesar,3,50000
+max_lines=Maximo de lineas a procesar,3,50000
 time_range=Rango de tiempo en horas,0,720
-acl_list=Archivos ACL a monitorear (uno por línea: ruta=etiqueta o regex:patrón=etiqueta),9,50,8,\t
-auto_refresh=Auto-actualización,1,1-Activado,0-Desactivado
-refresh_interval=Intervalo de actualización (segundos),0,60
+acl_list=Archivos ACL a monitorear (uno por linea: ruta=etiqueta o regex:patron=etiqueta),9,50,8,\t
+auto_refresh=Auto-actualizacion,1,1-Activado,0-Desactivado
+refresh_interval=Intervalo de actualizacion (segundos),0,60
 EOF
-    
+
     # ============================================================
     # 9. defaultconfig (default configuration with 3 ACLs)
     # ============================================================
@@ -1702,7 +1702,7 @@ acl_list=/etc/squid/acl/blocktlds.txt=Blocked TLD	/etc/squid/acl/blockdomains.tx
 auto_refresh=0
 refresh_interval=60
 EOF
-    
+
     # ============================================================
     # 10. config (current configuration with 3 ACLs)
     # ============================================================
@@ -1714,7 +1714,7 @@ acl_list=/etc/squid/acl/blocktlds.txt=Blocked TLD	/etc/squid/acl/blockdomains.tx
 auto_refresh=0
 refresh_interval=60
 EOF
-    
+
     # ============================================================
     # 11. squidmon-lib.pl (module library)
     # ============================================================
@@ -1728,9 +1728,9 @@ do '../ui-lib.pl';
 
 1;
 EOF
-    
+
     chmod +x "$MODDIR/squidmon-lib.pl"
-    
+
     # ============================================================
     # 12. install_check.pl (installation verification)
     # ============================================================
@@ -1748,9 +1748,9 @@ sub module_install_check {
     return undef;
 }
 EOF
-    
+
     chmod +x "$MODDIR/install_check.pl"
-    
+
     # ============================================================
     # 13. help/intro.html (English help)
     # ============================================================
@@ -1821,36 +1821,36 @@ regex:.*\.(exe|msi|dmg)$=Executable Files</pre>
 
 <footer>
 EOF
-    
+
     # ============================================================
     # 14. help/intro.es.html (Spanish help)
     # ============================================================
     cat > "$MODDIR/help/intro.es.html" <<'EOF'
 <header>Monitor de Squid</header>
 
-<h3>Introducción</h3>
-<p>El módulo Monitor de Proxy proporciona un dashboard para monitorear su servidor proxy Squid. Se enfoca en peticiones bloqueadas (TCP_DENIED) y proporciona estadísticas detalladas sobre la actividad de las ACL.</p>
+<h3>Introduccion</h3>
+<p>El modulo Monitor de Proxy proporciona un dashboard para monitorear su servidor proxy Squid. Se enfoca en peticiones bloqueadas (TCP_DENIED) y proporciona estadisticas detalladas sobre la actividad de las ACL.</p>
 
-<h3>Características</h3>
+<h3>Caracteristicas</h3>
 <ul>
-<li>Estadísticas en tiempo real desde los logs de Squid</li>
+<li>Estadisticas en tiempo real desde los logs de Squid</li>
 <li>Monitoreo de peticiones TCP_DENIED (bloqueadas)</li>
-<li>Seguimiento de múltiples archivos ACL y sus conteos de bloqueos</li>
+<li>Seguimiento de multiples archivos ACL y sus conteos de bloqueos</li>
 <li>Soporte para ACLs basadas en archivos y regex</li>
 <li>Peticiones bloqueadas detalladas por IP de cliente con detalles expandibles</li>
-<li>Dominios y clientes más bloqueados</li>
-<li>Rangos de tiempo configurables y auto-actualización</li>
+<li>Dominios y clientes mas bloqueados</li>
+<li>Rangos de tiempo configurables y auto-actualizacion</li>
 <li>Cero dependencias externas (parsing puro en Perl)</li>
 </ul>
 
-<h3>Configuración</h3>
-<p>En la configuración del módulo, puede personalizar:</p>
+<h3>Configuracion</h3>
+<p>En la configuracion del modulo, puede personalizar:</p>
 <ul>
-<li><b>Ruta del archivo de log:</b> Ubicación del access.log de Squid (predeterminado: /var/log/squid/access.log)</li>
-<li><b>Líneas a procesar:</b> Cuántas líneas del log leer (predeterminado: 50,000)</li>
-<li><b>Rango de tiempo:</b> Solo mostrar peticiones de las últimas X horas (predeterminado: 24)</li>
+<li><b>Ruta del archivo de log:</b> Ubicacion del access.log de Squid (predeterminado: /var/log/squid/access.log)</li>
+<li><b>Lineas a procesar:</b> Cuantas lineas del log leer (predeterminado: 50,000)</li>
+<li><b>Rango de tiempo:</b> Solo mostrar peticiones de las ultimas X horas (predeterminado: 24)</li>
 <li><b>Archivos ACL:</b> Lista de archivos ACL a monitorear con etiquetas personalizadas</li>
-<li><b>Auto-actualización:</b> Recargar automáticamente el dashboard cada X segundos</li>
+<li><b>Auto-actualizacion:</b> Recargar automaticamente el dashboard cada X segundos</li>
 </ul>
 
 <h3>Monitoreo de ACL</h3>
@@ -1866,33 +1866,33 @@ EOF
 
 <h4>ACLs basadas en regex</h4>
 <p>Formato:</p>
-<pre>regex:patrón=Nombre Etiqueta</pre>
+<pre>regex:patron=Nombre Etiqueta</pre>
 <p>Ejemplo:</p>
 <pre>regex:^(http|https)://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+=Bloquear IPv4
 regex:.*\.(exe|msi|dmg)$=Archivos Ejecutables</pre>
 
-<p>El dashboard mostrará cuántos bloqueos generó cada ACL e identificará qué ACL bloqueó cada petición.</p>
+<p>El dashboard mostrara cuantos bloqueos genero cada ACL e identificara que ACL bloqueo cada peticion.</p>
 
 <h3>Vista Detallada de Peticiones Bloqueadas</h3>
-<p>La sección "Peticiones Bloqueadas por IP de Cliente" muestra todos los clientes con peticiones bloqueadas. Haga clic en cualquier IP de cliente para expandir y ver:</p>
+<p>La seccion "Peticiones Bloqueadas por IP de Cliente" muestra todos los clientes con peticiones bloqueadas. Haga clic en cualquier IP de cliente para expandir y ver:</p>
 <ul>
-<li>Fecha y hora de cada petición bloqueada</li>
+<li>Fecha y hora de cada peticion bloqueada</li>
 <li>Dominio o IP que fue bloqueado</li>
-<li>Qué ACL realizó el bloqueo</li>
+<li>Que ACL realizo el bloqueo</li>
 </ul>
 
 <h3>Notas de Rendimiento</h3>
 <ul>
-<li>El análisis se hace en tiempo real cuando carga la página</li>
+<li>El analisis se hace en tiempo real cuando carga la pagina</li>
 <li>Archivos de log grandes pueden tardar unos segundos en procesarse</li>
-<li>Ajuste "Líneas a procesar" si la página carga lentamente</li>
-<li>Squid rota los logs automáticamente, así que access.log se mantiene manejable</li>
-<li>Las ACLs regex son ligeramente más lentas que las ACLs basadas en archivos</li>
+<li>Ajuste "Lineas a procesar" si la pagina carga lentamente</li>
+<li>Squid rota los logs automaticamente, asi que access.log se mantiene manejable</li>
+<li>Las ACLs regex son ligeramente mas lentas que las ACLs basadas en archivos</li>
 </ul>
 
 <footer>
 EOF
-    
+
     # ============================================================
     # 15. CHANGELOG
     # ============================================================
@@ -1918,7 +1918,7 @@ Version 1.0 (2024)
 - Auto-refresh capability
 - Zero external dependencies
 EOF
-    
+
     # ============================================================
     # 16. Create icon.gif (updated Squid icon - base64 encoded)
     # ============================================================
@@ -1933,7 +1933,7 @@ ICONEOF
         exit 1
     fi
     rm -f "$ICON_B64"
-    
+
     # ============================================================
     # 17. Set correct permissions
     # ============================================================
@@ -1942,62 +1942,62 @@ ICONEOF
     chmod 644 "$MODDIR"/*.info* "$MODDIR/lang/"* "$MODDIR/help/"* "$MODDIR/CHANGELOG" 2>/dev/null || true
     chmod 755 "$MODDIR"/*.cgi "$MODDIR"/*.pl 2>/dev/null || true
     chmod 644 "$MODDIR/images/"* 2>/dev/null || true
-    
+
     # ============================================================
     # 18. Register module in Webmin ACL
     # ============================================================
     if [[ -f /etc/webmin/webmin.acl ]] && ! grep -q "squidmon" /etc/webmin/webmin.acl; then
         sed -i.bak 's/\(^root:.*\)/\1 squidmon/' /etc/webmin/webmin.acl
         rm -f /etc/webmin/webmin.acl.bak
-        echo "✓ Module added to webmin.acl"
+        echo "Module added to webmin.acl"
     fi
-    
+
     # ============================================================
     # 19. Clear module cache
     # ============================================================
     rm -f /var/webmin/module.infos.cache
-    
+
     # ============================================================
     # 20. Restart Webmin
     # ============================================================
     echo "Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
-    
+
     echo ""
     echo "=========================================="
-    echo "✓ Squid Monitor module installed successfully!"
+    echo "Squid Monitor module installed successfully!"
     echo "=========================================="
     echo ""
     echo "Module location: $MODDIR"
     echo "Config location: $ETCDIR"
     echo ""
     echo "Features:"
-    echo "  ✓ Dashboard"
-    echo "  ✓ TCP_DENIED request monitoring"
-    echo "  ✓ File-based and regex-based ACL tracking"
-    echo "  ✓ Detailed blocked requests by client IP"
-    echo "  ✓ ACL identification per blocked request"
-    echo "  ✓ Top blocked domains and clients"
-    echo "  ✓ Real-time statistics"
-    echo "  ✓ Zero external dependencies"
+    echo "Dashboard"
+    echo "TCP_DENIED request monitoring"
+    echo "File-based and regex-based ACL tracking"
+    echo "Detailed blocked requests by client IP"
+    echo "ACL identification per blocked request"
+    echo "Top blocked domains and clients"
+    echo "Real-time statistics"
+    echo "Zero external dependencies"
     echo ""
     echo "Default Configuration (3 ACLs included):"
-    echo "  - Log file: /var/log/squid/access.log"
-    echo "  - Lines to parse: 50,000"
-    echo "  - Time range: Last 24 hours"
-    echo "  - ACL 1: /etc/squid/acl/blocktlds.txt = Blocked TLD"
-    echo "  - ACL 2: /etc/squid/acl/blockdomains.txt = Blocked Sites"
-    echo "  - ACL 3: regex:^(http|https)://[0-9]+.*=Block IPv4 (regex)"
+    echo "- Log file: /var/log/squid/access.log"
+    echo "- Lines to parse: 50,000"
+    echo "- Time range: Last 24 hours"
+    echo "- ACL 1: /etc/squid/acl/blocktlds.txt = Blocked TLD"
+    echo "- ACL 2: /etc/squid/acl/blockdomains.txt = Blocked Sites"
+    echo "- ACL 3: regex:^(http|https)://[0-9]+.*=Block IPv4 (regex)"
     echo ""
     echo "Next Steps:"
-    echo "  1. Log out and log back into Webmin"
-    echo "  2. Find the module under 'Servers' category"
-    echo "  3. Configure your ACL files in Module Configuration"
-    echo "  4. Access: https://localhost:10000/squidmon/"
+    echo "1. Log out and log back into Webmin"
+    echo "2. Find the module under 'Servers' category"
+    echo "3. Configure your ACL files in Module Configuration"
+    echo "4. Access: https://localhost:10000/squidmon/"
     echo ""
     echo "ACL Configuration Examples:"
-    echo "  File-based: /etc/squid/acl/social_media.txt=Social Media"
-    echo "  Regex-based: regex:^(http|https)://[0-9]+\.[0-9]+.*=Block IPv4"
+    echo "File-based: /etc/squid/acl/social_media.txt=Social Media"
+    echo "Regex-based: regex:^(http|https)://[0-9]+\.[0-9]+.*=Block IPv4"
     echo ""
 }
 
@@ -2010,36 +2010,36 @@ uninstall_module() {
     echo "Uninstalling Squid Monitor Module"
     echo "=========================================="
     echo ""
-    
+
     if [ ! -d "$MODDIR" ]; then
-        echo "⚠  Module is not installed."
+        echo "Module is not installed."
         echo ""
         return 1
     fi
-    
+
     echo "Removing module directories..."
     rm -rf "$MODDIR"
     rm -rf "$ETCDIR"
-    echo "✓ Module directories removed"
-    
+    echo "Module directories removed"
+
     # Remove from Webmin ACL
     if [[ -f /etc/webmin/webmin.acl ]] && grep -q "squidmon" /etc/webmin/webmin.acl; then
         sed -i.bak 's/ squidmon//g' /etc/webmin/webmin.acl
         rm -f /etc/webmin/webmin.acl.bak
-        echo "✓ Module removed from webmin.acl"
+        echo "Module removed from webmin.acl"
     fi
-    
+
     # Clear module cache
     rm -f /var/webmin/module.infos.cache
-    echo "✓ Module cache cleared"
-    
+    echo "Module cache cleared"
+
     # Restart Webmin
     echo "Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
-    
+
     echo ""
     echo "=========================================="
-    echo "✓ Squid Monitor module uninstalled successfully!"
+    echo "Squid Monitor module uninstalled successfully!"
     echo "=========================================="
     echo ""
 }
@@ -2050,13 +2050,13 @@ uninstall_module() {
 show_menu() {
     clear
     echo "============================================================"
-    echo "          PROXY MONITOR - WEBMIN MODULE"
-    echo "              Installation Menu"
+    echo "PROXY MONITOR - WEBMIN MODULE"
+    echo "Installation Menu"
     echo "============================================================"
     echo ""
-    echo "  1) Install module"
-    echo "  2) Uninstall module"
-    echo "  3) Exit"
+    echo "1) Install module"
+    echo "2) Uninstall module"
+    echo "3) Exit"
     echo ""
     echo -n "Select an option [1-3]: "
 }
@@ -2068,16 +2068,16 @@ show_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  install      Install the Squid Monitor module"
-    echo "  uninstall    Uninstall the Squid Monitor module"
-    echo "  -h, --help   Show this help message"
+    echo "install Install the Squid Monitor module"
+    echo "uninstall Uninstall the Squid Monitor module"
+    echo "-h, --help Show this help message"
     echo ""
     echo "If no option is provided, interactive menu will be shown."
     echo ""
     echo "Examples:"
-    echo "  $0 install      # Install module without menu"
-    echo "  $0 uninstall    # Uninstall module without menu"
-    echo "  $0              # Show interactive menu"
+    echo "$0 install # Install module without menu"
+    echo "$0 uninstall # Uninstall module without menu"
+    echo "$0 # Show interactive menu"
     echo ""
 }
 
@@ -2090,7 +2090,7 @@ main() {
         echo "Error: Webmin is not installed on this system"
         exit 1
     fi
-    
+
     # Check for command line arguments
     if [ $# -gt 0 ]; then
         case "$1" in
@@ -2114,12 +2114,12 @@ main() {
                 ;;
         esac
     fi
-    
+
     # Interactive menu mode (no arguments provided)
     while true; do
         show_menu
         read -r option
-        
+
         case $option in
             1)
                 install_module

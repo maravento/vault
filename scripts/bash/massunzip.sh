@@ -8,23 +8,32 @@
 #
 ################################################################################
 
-echo "Unzip Files With Pass Starting. Wait..."
-printf "\n"
+set -uo pipefail
 
 # check no-root
 if [ "$(id -u)" == "0" ]; then
-    echo "❌ This script should not be run as root."
+    echo "[ERROR] This script should not be run as root."
     exit 1
 fi
 
+# prevent overlapping runs
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    echo "[ERROR] Script $(basename "$0") is already running"
+    exit 1
+fi
+
+echo "Unzip Files With Pass Starting. Wait..."
+
 if ! apt-cache policy | grep -qE '/multiverse'; then
-    echo "⚠️ The 'multiverse' repository is not enabled. Run:"
+    echo "The 'multiverse' repository is not enabled. Run:"
     echo "sudo add-apt-repository multiverse && sudo apt update"
     exit 1
 fi
 
 if ! command -v 7z >/dev/null 2>&1; then
-    echo "⚠️ 7z is not installed. Run:"
+    echo "7z is not installed. Run:"
     echo "sudo apt install p7zip-full p7zip-rar"
     exit 1
 fi
@@ -54,7 +63,7 @@ for f in *.@(gz|rar|zip|zip.001|7z|7z.001); do
         if 7z t -p"$p" "$f" &>/dev/null; then
             echo "password match '$f': $p"
             if ! 7z x -y -p"$p" "$f" -aoa &>/dev/null; then
-                echo "❌ Extraction failed: $f"
+                echo "Extraction failed: $f"
             fi
             matched=1
             break
@@ -64,10 +73,10 @@ for f in *.@(gz|rar|zip|zip.001|7z|7z.001); do
     done
 
     if [ "$matched" -eq 0 ]; then
-        echo "❌ No password matched for: $f"
+        echo "No password matched for: $f"
     fi
 done
 
 if [ "$found_files" -eq 0 ]; then
-    echo "⚠️ No compressed files found in current directory."
+    echo "No compressed files found in current directory."
 fi

@@ -648,6 +648,7 @@
 \.bkqfmsahpt([a-zA-Z][0-9]*)?(\?.*)?$
 \.BKRansomware([a-zA-Z][0-9]*)?(\?.*)?$
 \.bl0cked([a-zA-Z][0-9]*)?(\?.*)?$
+\.bl4ck([a-zA-Z][0-9]*)?(\?.*)?$
 \.black007([a-zA-Z][0-9]*)?(\?.*)?$
 \.Black([a-zA-Z][0-9]*)?(\?.*)?$
 \.BlackBit([a-zA-Z][0-9]*)?(\?.*)?$
@@ -661,6 +662,7 @@
 \.BlackHeart([a-zA-Z][0-9]*)?(\?.*)?$
 \.BlackKingdom([a-zA-Z][0-9]*)?(\?.*)?$
 \.blackmatter([a-zA-Z][0-9]*)?(\?.*)?$
+\.blacknet([a-zA-Z][0-9]*)?(\?.*)?$
 \.Blackout([a-zA-Z][0-9]*)?(\?.*)?$
 \.BlackPink([a-zA-Z][0-9]*)?(\?.*)?$
 \.blackransombdbot([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2577,6 +2579,7 @@
 \.jcrypt([a-zA-Z][0-9]*)?(\?.*)?$
 \.JDPR([a-zA-Z][0-9]*)?(\?.*)?$
 \.jdyi([a-zA-Z][0-9]*)?(\?.*)?$
+\.jeckel-lock([a-zA-Z][0-9]*)?(\?.*)?$
 \.jeepers([a-zA-Z][0-9]*)?(\?.*)?$
 \.JEEPERS([a-zA-Z][0-9]*)?(\?.*)?$
 \.JeepersCrypt([a-zA-Z][0-9]*)?(\?.*)?$
@@ -2774,6 +2777,7 @@
 \.kool([a-zA-Z][0-9]*)?(\?.*)?$
 \.koom([a-zA-Z][0-9]*)?(\?.*)?$
 \.KOPYTZEMPEREEBET([a-zA-Z][0-9]*)?(\?.*)?$
+\.kora([a-zA-Z][0-9]*)?(\?.*)?$
 \.korea([a-zA-Z][0-9]*)?(\?.*)?$
 \.koreaGame([a-zA-Z][0-9]*)?(\?.*)?$
 \.korrektor([a-zA-Z][0-9]*)?(\?.*)?$
@@ -3700,6 +3704,7 @@
 \.ordinal([a-zA-Z][0-9]*)?(\?.*)?$
 \.Ordinal([a-zA-Z][0-9]*)?(\?.*)?$
 \.Ordinypt([a-zA-Z][0-9]*)?(\?.*)?$
+\.orexin([a-zA-Z][0-9]*)?(\?.*)?$
 \.origami([a-zA-Z][0-9]*)?(\?.*)?$
 \.orion([a-zA-Z][0-9]*)?(\?.*)?$
 \.orkf([a-zA-Z][0-9]*)?(\?.*)?$
@@ -5225,6 +5230,7 @@
 \.WannaSmile([a-zA-Z][0-9]*)?(\?.*)?$
 \.WannaSpam([a-zA-Z][0-9]*)?(\?.*)?$
 \.Wanqu([a-zA-Z][0-9]*)?(\?.*)?$
+\.want_to_cry([a-zA-Z][0-9]*)?(\?.*)?$
 \.waqa([a-zA-Z][0-9]*)?(\?.*)?$
 \.waqq([a-zA-Z][0-9]*)?(\?.*)?$
 \.warlocks([a-zA-Z][0-9]*)?(\?.*)?$

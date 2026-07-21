@@ -8,29 +8,23 @@
 #
 # Monitors USB connections and blocks unauthorized devices not in the whitelist.
 # Executes configurable commands (e.g. sync, poweroff) on unknown device events.
+# Logs both blocked (unknown) and allowed (whitelisted) device connections.
 # Manages udev rules for whitelisting, activation/deactivation and demo mode.
 #
 ################################################################################
 
-echo "BlackUSB Start. Wait..."
-printf "\n"
+set -uo pipefail
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# checking root
+## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
 
-# checking script execution
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-exec 200>"$SCRIPT_LOCK"
-if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
-    exit 1
-fi
+echo "BlackUSB Start. Wait..."
 
 # How to Use:
 # block usb except whitelist (00-blackusb.rules)
@@ -55,6 +49,20 @@ log_enabled='yes'
 log_file='/var/log/blackusb.log'
 if [ ! -f "$log_file" ]; then touch "$log_file"; fi
 
+# Rotate log_file weekly, keep 4 weeks (deployed once, never overwritten)
+logrotate_file='/etc/logrotate.d/blackusb'
+if [ ! -f "$logrotate_file" ]; then
+    cat >"$logrotate_file" <<EOF
+$log_file {
+    weekly
+    rotate 4
+    compress
+    missingok
+    notifempty
+}
+EOF
+fi
+
 # Use custom editor
 custom_editor='yes'
 editor_x='gedit'
@@ -77,7 +85,10 @@ trigger_cmd_add="$PROGRAM_ABS trigger"
 # Run this when specified usb device is removed
 trigger_cmd_remove="$PROGRAM_ABS trigger"
 
-# Code       #
+# Run this when a whitelisted usb device is added (logging only, no block)
+trigger_cmd_allow="$PROGRAM_ABS allow_trigger"
+
+# Code #
 ##############
 if [[ $custom_editor = 'yes' ]]; then
     [[ -n $DISPLAY ]] && INX=yes
@@ -203,11 +214,16 @@ gen_whitelist() {
     fi
 
     for ((i = 0; i < "${#vendors[@]}"; i++)); do
-        string="SUBSYSTEM==\"usb\", ATTR{idVendor}==\"${vendors[$i]}\", ATTR{idProduct}==\"${products[$i]}\""
-        [[ -z ${serials[$i]} ]] || string="${string}, ATTR{serial}==\"${serials[$i]}\""
-        string="${string}, ENV{ACTION}==\"add\", GOTO=\"end\""
+        # match_string (no RUN+=) is what's checked against the existing rule
+        # file, so devices whitelisted before trigger_cmd_allow was added
+        # (old-format line, no RUN+=) are still recognized as already present
+        # and not duplicated.
+        match_string="SUBSYSTEM==\"usb\", ATTR{idVendor}==\"${vendors[$i]}\", ATTR{idProduct}==\"${products[$i]}\""
+        [[ -z ${serials[$i]} ]] || match_string="${match_string}, ATTR{serial}==\"${serials[$i]}\""
+        match_string="${match_string}, ENV{ACTION}==\"add\""
+        string="${match_string}, RUN+=\""$trigger_cmd_allow"\", GOTO=\"end\""
 
-        if [[ !("$rulevar" =~ .*"$string".*) ]]; then
+        if [[ !("$rulevar" =~ .*"$match_string".*) ]]; then
             if [[ -z ${products_name[$i]} ]]; then
                 rulevar+="\n${string}\n"
             else
@@ -279,8 +295,8 @@ trigger() {
         fi
     done
 
-    trigger_msg="\n$(date '+%Y-%m-%d %H:%M:%S') Blackusb triggered!\n"
-    [[ -z $newdevice ]] && trigger_msg+="Device ejected" || trigger_msg+="Unknown Device Blocked: $newdevice"
+    trigger_msg="\n------------------------------------------\n$(date '+%Y-%m-%d %H:%M:%S') "
+    [[ -z $newdevice ]] && trigger_msg+="[EJECTED] Device ejected" || trigger_msg+="[BLACKLIST] Unknown Device Blocked: $newdevice"
     if [[ $demo = 'yes' ]]; then
         echo -e "$trigger_msg \nDemo mode" >>"$log_file"
     else
@@ -291,7 +307,24 @@ trigger() {
     fi
 }
 
-case $1 in
+# Logs a whitelisted device connecting (RUN+= from the per-device udev rule,
+# before its GOTO="end"). Device identity comes from the ID_* env vars udev
+# sets for the matching add event, not from a re-scan of /sys/bus/usb/devices.
+log_allowed() {
+    local vendor="${ID_VENDOR_ID:-unknown}"
+    local product="${ID_MODEL_ID:-unknown}"
+    local serial="${ID_SERIAL_SHORT:-}"
+    local name="${ID_MODEL:-}"
+
+    local allow_msg="[WHITELIST] Allowed Device Connected: Vendor=$vendor, Product=$product"
+    [[ -n $name ]] && allow_msg+=", Name=${name//_/ }"
+    [[ -n $serial ]] && allow_msg+=", Serial=$serial"
+    allow_msg="\n------------------------------------------\n$(date '+%Y-%m-%d %H:%M:%S') $allow_msg\n"
+
+    [[ $log_enabled = 'yes' ]] && echo -e "$allow_msg" >>"$log_file"
+}
+
+case "${1:-}" in
 g | gen)
     read_values && gen_whitelist && message "rules refreshed, $count rules added"
     [[ "${rule_file##*.}" = 'off' ]] && message "blackusb inactive"
@@ -312,6 +345,15 @@ o | on)
 t | trigger)
     setsid "$PROGRAM_ABS" trigger_async </dev/null >/dev/null 2>&1 &
     disown
+    ;;
+
+allow_trigger)
+    setsid "$PROGRAM_ABS" allow_trigger_async </dev/null >/dev/null 2>&1 &
+    disown
+    ;;
+
+allow_trigger_async)
+    log_allowed
     ;;
 
 trigger_async)

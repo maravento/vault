@@ -15,6 +15,15 @@
   </tr>
 </table>
 
+## Requirements
+
+---
+
+**⚠️ WARNING:** Only tested on Ubuntu 24.04 LTS. Other versions or distros not tested, use at your own risk.
+
+- Python 3.12.3
+- Bash 5.2.21
+
 ## DOWNLOAD PROJECT
 
 ---
@@ -29,15 +38,6 @@ python3 gitfolder.py https://github.com/maravento/vault/dofi
 cd dofi
 python domfilter.py
 ```
-
-### Requirements
-
-- Python 3.12.3
-- Bash 5.2.21
-
-### Tested on
-
-Ubuntu 22.04/24.04 x64
 
 ### Important before use
 

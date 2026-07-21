@@ -17,7 +17,7 @@
 #
 ################################################################################
 
-set -u
+set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
@@ -27,6 +27,7 @@ fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
@@ -35,30 +36,30 @@ fi
 
 # Function to show detected chipset
 show_chipset() {
-    echo "🔍 Detected chipset:"
+    echo "Detected chipset:"
     lspci | grep -i ethernet
 }
 
 # Function to show current Realtek kernel module
 show_current_module() {
-    echo "🔍 Current Realtek network module:"
+    echo "Current Realtek network module:"
     lspci -k | grep -A 2 -i ethernet | grep -i 'kernel driver'
 }
 
 # Function to install r8168 driver
 install_r8168() {
     if lsmod | grep -q '^r8168'; then
-        echo "⚠️ Driver 'r8168' is already active. Installation not needed."
+        echo "Driver 'r8168' is already active. Installation not needed."
         exit 0
     fi
 
-    echo "🚧 Installing and configuring 'r8168' driver..."
+    echo "Installing and configuring 'r8168' driver..."
     if ! apt-get -qq update; then
-        echo "❌ Failed to update package lists"
+        echo "Failed to update package lists"
         exit 1
     fi
     if ! apt-get install -y r8168-dkms; then
-        echo "❌ Failed to install r8168-dkms"
+        echo "Failed to install r8168-dkms"
         exit 1
     fi
 
@@ -75,9 +76,9 @@ install_r8168() {
     modprobe r8168
 
     if lsmod | grep -q '^r8168'; then
-        echo "✅ Driver 'r8168' installed and in use."
+        echo "Driver 'r8168' installed and in use."
     else
-        echo "⚠️ Could not activate 'r8168'. Please reboot and try again."
+        echo "Could not activate 'r8168'. Please reboot and try again."
     fi
     exit 0
 }
@@ -85,20 +86,20 @@ install_r8168() {
 # Function to restore r8169 driver
 restore_r8169() {
     if lsmod | grep -q '^r8169'; then
-        echo "⚠️ Driver 'r8169' is already active. Restore not needed."
+        echo "Driver 'r8169' is already active. Restore not needed."
         exit 0
     fi
 
-    echo "🚧 Restoring 'r8169' driver..."
+    echo "Restoring 'r8169' driver..."
     rm -f /etc/modprobe.d/blacklist-r8169.conf
 
     if lsmod | grep -q '^r8168'; then
         modprobe -r r8168 2>/dev/null
     fi
 
-    echo "🧹 Removing 'r8168-dkms' package..."
+    echo "Removing 'r8168-dkms' package..."
     if ! apt-get purge -y r8168-dkms; then
-        echo "❌ Failed to remove r8168-dkms"
+        echo "Failed to remove r8168-dkms"
         exit 1
     fi
 
@@ -108,9 +109,9 @@ restore_r8169() {
     modprobe r8169
 
     if lsmod | grep -q '^r8169'; then
-        echo "✅ Driver 'r8169' restored and in use."
+        echo "Driver 'r8169' restored and in use."
     else
-        echo "⚠️ Could not activate 'r8169'. Please reboot and try again."
+        echo "Could not activate 'r8169'. Please reboot and try again."
     fi
     exit 0
 }
@@ -119,22 +120,22 @@ restore_r8169() {
 install_r8125() {
     # Detect RTL8125 chipset
     if ! lspci | grep -i 'RTL8125' >/dev/null; then
-        echo "⚠️ No compatible RTL8125 NIC detected. Aborting."
+        echo "No compatible RTL8125 NIC detected. Aborting."
         exit 1
     fi
 
     if lsmod | grep -q '^r8125'; then
-        echo "⚠️ Driver 'r8125' is already active. Installation not needed."
+        echo "Driver 'r8125' is already active. Installation not needed."
         exit 0
     fi
 
-    echo "🚧 Installing and configuring 'r8125' driver..."
+    echo "Installing and configuring 'r8125' driver..."
     if ! apt-get -qq update; then
-        echo "❌ Failed to update package lists"
+        echo "Failed to update package lists"
         exit 1
     fi
     if ! apt-get install -y r8125-dkms; then
-        echo "❌ Failed to install r8125-dkms"
+        echo "Failed to install r8125-dkms"
         exit 1
     fi
 
@@ -148,9 +149,9 @@ install_r8125() {
     modprobe r8125
 
     if lsmod | grep -q '^r8125'; then
-        echo "✅ Driver 'r8125' installed and in use."
+        echo "Driver 'r8125' installed and in use."
     else
-        echo "⚠️ Could not activate 'r8125'. Please reboot and try again."
+        echo "Could not activate 'r8125'. Please reboot and try again."
     fi
     exit 0
 }
@@ -174,7 +175,7 @@ while true; do
         1) install_r8168 ;;
         2) restore_r8169 ;;
         3) install_r8125 ;;
-        4) echo "👋 Exiting."; exit 0 ;;
-        *) echo "❌ Invalid option."; continue ;;
+        4) echo " Exiting."; exit 0 ;;
+        *) echo " Invalid option."; continue ;;
     esac
 done

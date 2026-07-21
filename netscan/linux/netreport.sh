@@ -6,78 +6,100 @@
 # Net Report
 # ------------
 # Brief: Simple menu-driven nmap wrapper that produces timestamped HTML reports
-#        in ~/Report (owned by the non-root local user). No automatic browser open.
+# in ~/Report (owned by the non-root local user). No automatic browser open.
 #
 # Requirements:
-#   - Run as root (sudo) because scans use -sS and -O.
-#   - Packages: nmap, xsltproc (script will check if missing).
+# - Run as root (sudo) because scans use -sS and -O.
+# - Packages: nmap, xsltproc (script will check if missing).
 #
 # Outputs:
-#   - /home/<user>/Report/scan_TIMESTAMP.html
-#   - Only .html files remain in Report (script deletes intermediate .xml/.nmap/.gnmap).
+# - /home/<user>/Report/scan_TIMESTAMP.html
+# - Only .html files remain in Report (script deletes intermediate .xml/.nmap/.gnmap).
 #
 # Menu options:
-#   1) LAN Scan
-#      Lists available interfaces and asks user to select one.
-#      nmap -sS -T4 -F -sV <selected-network>
-#      -> output: scan_TIMESTAMP.html
-#   2) Advanced LAN Scan
-#      Lists available interfaces and asks user to select one.
-#      nmap -sS -T4 -p- -sV -sC --max-retries 3 --host-timeout 5m <network>
-#      -> output: scan_deep_TIMESTAMP.html
-#   3) IP/Host Scan
-#      Lists available interfaces, asks user to select one, performs a quick
-#      ping sweep to show active hosts, then asks for the target IP or hostname.
-#      nmap -Pn -sS -T4 -p- -sV --version-intensity 8 -sC -O --script vuln --traceroute \
-#          -oA <base> --max-retries 3 --host-timeout 10m <target>
-#      -> output: scan_ip_TIMESTAMP.html
-#   4) Exit
+# 1) LAN Scan
+# Lists available interfaces and asks user to select one.
+# nmap -sS -T4 -F -sV <selected-network>
+# -> output: scan_TIMESTAMP.html
+# 2) Advanced LAN Scan
+# Lists available interfaces and asks user to select one.
+# nmap -sS -T4 -p- -sV -sC --max-retries 3 --host-timeout 5m <network>
+# -> output: scan_deep_TIMESTAMP.html
+# 3) IP/Host Scan
+# Lists available interfaces, asks user to select one, performs a quick
+# ping sweep to show active hosts, then asks for the target IP or hostname.
+# nmap -Pn -sS -T4 -p- -sV --version-intensity 8 -sC -O --script vuln --traceroute \
+# -oA <base> --max-retries 3 --host-timeout 10m <target>
+# -> output: scan_ip_TIMESTAMP.html
+# 4) Exit
 #
 # Usage:
-#   sudo /path/to/netreport.sh
+# sudo /path/to/netreport.sh
 #
 ################################################################################
 
 set -euo pipefail
-IFS=$'\n\t'
 
 timestamp() { date +%F-%H_%M_%S; }
-now() { date '+%F %T'; }
-log() { echo "INFO $(now) - $*"; }
-warn() { echo "WARN $(now) - $*" >&2; }
-die() { echo "ERROR $(now) - $*" >&2; exit 1; }
+
+# logging
+log_file="/var/log/netreport.log"
+_log_line() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $*" | tee -a "$log_file" 2>/dev/null || true
+}
+log() { _log_line "INFO $*"; }
+warn() { _log_line "WARN $*" >&2; }
+die() { _log_line "ERROR $*" >&2; exit 1; }
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
-    exit 1
+    die "This script must be run as root"
 fi
 
 # prevent overlapping runs
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
-    exit 1
+    die "Script $(basename "$0") is already running"
 fi
 
-# LOCAL USER (multi-strategy detection with validation)
-local_user=""
-# 1. Local graphical session (:0)
-local_user=$(who | awk '/\(:0\)/{print $1; exit}')
-# 2. Parent process logname (works well with sudo)
-[ -z "$local_user" ] && local_user=$(logname 2>/dev/null || true)
-# 3. SUDO_USER variable (when run via sudo from terminal)
-[ -z "$local_user" ] && local_user="${SUDO_USER:-}"
-# 4. First active session user (SSH or other)
-[ -z "$local_user" ] && local_user=$(who | awk 'NR==1{print $1}')
-# 5. First valid home directory
-[ -z "$local_user" ] && local_user=$(ls -l /home 2>/dev/null | awk '/^d/{print $3; exit}')
-# Validate the user actually exists on the system
-if [ -z "$local_user" ] || ! id "$local_user" &>/dev/null; then
-    echo "ERROR: Cannot determine a valid local user"
-    exit 1
+# LOCAL USER detection
+detect_local_user() {
+    local uid_min uid_max
+    local user uid best_user="" best_uid=999999
+
+    uid_min=$(awk '/^UID_MIN/{print $2}' /etc/login.defs 2>/dev/null)
+    uid_max=$(awk '/^UID_MAX/{print $2}' /etc/login.defs 2>/dev/null)
+    uid_min=${uid_min:-1000}
+    uid_max=${uid_max:-60000}
+
+    while IFS=: read -r user _ uid _ _ _ shell; do
+        [ "$user" = "root" ] && continue
+        [ -z "$uid" ] && continue
+        [ "$uid" -lt "$uid_min" ] && continue
+        [ "$uid" -gt "$uid_max" ] && continue
+
+        case "$shell" in
+            */false|*/nologin) continue ;;
+        esac
+
+        id -nG "$user" 2>/dev/null | grep -qw sudo || continue
+
+        if [ "$uid" -lt "$best_uid" ]; then
+            best_uid="$uid"
+            best_user="$user"
+        fi
+    done </etc/passwd
+
+    [ -n "$best_user" ] || return 1
+    echo "$best_user"
+}
+
+if ! local_user=$(detect_local_user); then
+    die "No valid local user found. Create one with sudo access."
 fi
+echo "Using local user: $local_user"
 
 # Report directory (owned by user)
 if [ "$local_user" = "root" ]; then
@@ -89,7 +111,7 @@ mkdir -p "$report_dir"
 chown "$local_user:$local_user" "$report_dir"
 chmod 0755 "$report_dir"
 
-# Private temp directory — isolated from /tmp symlink attacks
+# Private temp directory -- isolated from /tmp symlink attacks
 SCRIPT_TMPDIR=$(mktemp -d)
 trap 'rm -rf "$SCRIPT_TMPDIR"' EXIT
 
@@ -111,7 +133,7 @@ fi
 # Create embedded custom XSL stylesheet
 create_custom_xsl() {
   local xsl_file="$1"
-  
+
   cat > "$xsl_file" << 'XSLEOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
@@ -125,7 +147,7 @@ create_custom_xsl() {
   <title>Nmap Scan Report - <xsl:value-of select="nmaprun/runstats/finished/@timestr"/></title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { 
+    body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
       background: #f5f7fa;
       color: #2c3e50;
@@ -174,20 +196,20 @@ create_custom_xsl() {
 </head>
 <body>
 <div class="container">
-  
+
   <!-- Header -->
   <div class="header">
-    <h1>🔍 Nmap Scan Report</h1>
+    <h1> Nmap Scan Report</h1>
     <div class="info">
       <div>Command: <xsl:value-of select="nmaprun/@args"/></div>
       <div>Scan started: <xsl:value-of select="nmaprun/@startstr"/></div>
       <div>Nmap version: <xsl:value-of select="nmaprun/@version"/></div>
     </div>
   </div>
-  
+
   <!-- Summary -->
   <div class="summary">
-    <h2>📊 Scan Summary</h2>
+    <h2> Scan Summary</h2>
     <div class="summary-grid">
       <div class="summary-item">
         <strong>Total Hosts</strong>
@@ -207,7 +229,7 @@ create_custom_xsl() {
       </div>
     </div>
   </div>
-  
+
   <!-- Hosts -->
   <div class="content">
     <xsl:choose>
@@ -220,7 +242,7 @@ create_custom_xsl() {
       <xsl:otherwise>
         <xsl:for-each select="nmaprun/host">
           <div class="host">
-            
+
             <!-- Host Header -->
             <div class="host-header">
               <h2>
@@ -238,7 +260,7 @@ create_custom_xsl() {
                 </xsl:if>
               </h2>
             </div>
-            
+
             <!-- Host Info -->
             <div class="host-info">
               <div class="host-info-grid">
@@ -253,7 +275,7 @@ create_custom_xsl() {
                     </xsl:otherwise>
                   </xsl:choose>
                 </div>
-                
+
                 <xsl:if test="address[@addrtype='mac']">
                   <div class="info-item">
                     <strong>MAC:</strong>
@@ -264,14 +286,14 @@ create_custom_xsl() {
                     </span>
                   </div>
                 </xsl:if>
-                
+
                 <xsl:if test="os/osmatch">
                   <div class="info-item">
                     <strong>OS:</strong>
                     <span><xsl:value-of select="os/osmatch[1]/@name"/> (<xsl:value-of select="os/osmatch[1]/@accuracy"/>%)</span>
                   </div>
                 </xsl:if>
-                
+
                 <xsl:if test="uptime">
                   <div class="info-item">
                     <strong>Uptime:</strong>
@@ -280,11 +302,11 @@ create_custom_xsl() {
                 </xsl:if>
               </div>
             </div>
-            
+
             <!-- Ports -->
             <xsl:if test="ports/port">
               <div class="ports">
-                <h3>🔌 Open Ports (<xsl:value-of select="count(ports/port[state[@state='open']])"/>)</h3>
+                <h3> Open Ports (<xsl:value-of select="count(ports/port[state[@state='open']])"/>)</h3>
                 <table class="port-table">
                   <thead>
                     <tr>
@@ -319,7 +341,7 @@ create_custom_xsl() {
                           </xsl:if>
                         </td>
                       </tr>
-                      
+
                       <!-- Script Output for this port -->
                       <xsl:if test="script">
                         <tr>
@@ -338,11 +360,11 @@ create_custom_xsl() {
                 </table>
               </div>
             </xsl:if>
-            
+
             <!-- Host Scripts -->
             <xsl:if test="hostscript/script">
               <div class="ports">
-                <h3>📝 Host Scripts</h3>
+                <h3> Host Scripts</h3>
                 <xsl:for-each select="hostscript/script">
                   <div style="margin: 15px 0;">
                     <strong><xsl:value-of select="@id"/></strong>
@@ -351,19 +373,19 @@ create_custom_xsl() {
                 </xsl:for-each>
               </div>
             </xsl:if>
-            
+
           </div>
         </xsl:for-each>
       </xsl:otherwise>
     </xsl:choose>
   </div>
-  
+
   <!-- Footer -->
   <div class="footer">
     <p>Report generated by Net Report | Nmap <xsl:value-of select="nmaprun/@version"/></p>
     <p>Scan completed: <xsl:value-of select="nmaprun/runstats/finished/@timestr"/></p>
   </div>
-  
+
 </div>
 </body>
 </html>
@@ -385,35 +407,35 @@ show_spinner_for_pid() {
     sleep 0.2
   done
   wait "$pid" || true
-  printf "\r[-] Done.           \n"
+  printf "\r[-] Done. \n"
 }
 
 # convert XML -> HTML with improved error handling
 xml_to_html() {
-  local xml="$1" 
-  local html="$2" 
+  local xml="$1"
+  local html="$2"
   local xsl="$SCRIPT_TMPDIR/netreport-custom.xsl"
   local xsl_error="$SCRIPT_TMPDIR/xsltproc_error.log"
-  
+
   log "Converting XML to HTML: $xml -> $html"
-  
+
   # Verify XML file exists and is not empty
   if [ ! -f "$xml" ]; then
     warn "XML file does not exist: $xml"
     return 1
   fi
-  
+
   if [ ! -s "$xml" ]; then
     warn "XML file is empty: $xml"
     return 1
   fi
-  
+
   # Create custom XSL if not present
   if [ ! -f "$xsl" ]; then
     log "Creating custom XSL stylesheet..."
     create_custom_xsl "$xsl"
   fi
-  
+
   # Try conversion with custom XSL
   log "Converting with custom XSL..."
   if xsltproc -o "$html" "$xsl" "$xml" 2>"$xsl_error"; then
@@ -422,9 +444,9 @@ xml_to_html() {
     return 0
   else
     warn "Custom XSL conversion failed:"
-    head -5 "$xsl_error" | while read -r line; do warn "  $line"; done
+    head -5 "$xsl_error" | while read -r line; do warn " $line"; done
   fi
-  
+
   # Fallback: try default nmap XSL
   default_xsl="/usr/share/nmap/nmap.xsl"
   if [ -f "$default_xsl" ]; then
@@ -435,12 +457,12 @@ xml_to_html() {
       return 0
     else
       warn "Default XSL conversion failed:"
-      head -5 "$xsl_error" | while read -r line; do warn "  $line"; done
+      head -5 "$xsl_error" | while read -r line; do warn " $line"; done
     fi
   else
     warn "Default nmap XSL not found at $default_xsl, skipping to HTML wrapper"
   fi
-  
+
   # Last resort: create basic HTML wrapper
   warn "All XSL conversions failed, creating basic HTML wrapper"
   {
@@ -453,7 +475,7 @@ xml_to_html() {
     sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' "$xml"
     echo '</pre></body></html>'
   } > "$html"
-  
+
   return 0
 }
 
@@ -473,26 +495,26 @@ prune_report_dir_keep_html() {
 # Verify and finalize HTML report
 finalize_html_report() {
   local html_file="$1"
-  
+
   if [ ! -f "$html_file" ]; then
     die "HTML report was not created: $html_file"
   fi
-  
+
   if [ ! -s "$html_file" ]; then
     die "HTML report is empty: $html_file"
   fi
-  
+
   # Set proper ownership and permissions
   chown "$local_user:$local_user" "$html_file" 2>/dev/null || true
   chmod 0644 "$html_file"
-  
+
   local file_size=$(du -h "$html_file" | cut -f1)
   log "Report saved: $html_file (size: $file_size)"
   echo ""
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "----------------------------------------"
   echo "Report: $html_file"
   echo "Size: $file_size"
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "----------------------------------------"
   echo ""
 }
 
@@ -502,7 +524,7 @@ select_interface() {
   SEL_NET=""
   echo "Available network interfaces:"
   local iface_list
-  iface_list=$(ip -4 addr show scope global | awk '/inet /{ip=$2} /inet /{iface=$NF; printf "  %-12s %s\n", iface, ip}')
+  iface_list=$(ip -4 addr show scope global | awk '/inet /{ip=$2} /inet /{iface=$NF; printf " %-12s %s\n", iface, ip}')
   if [ -z "$iface_list" ]; then
     die "No network interfaces with a global IPv4 address found."
   fi
@@ -529,9 +551,9 @@ select_interface() {
 # MENU
 TS=$(timestamp)
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "       Net Report - Network Scanner"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "----------------------------------------"
+echo "Net Report - Network Scanner"
+echo "----------------------------------------"
 echo ""
 echo "1) LAN Scan"
 echo "2) Advanced LAN Scan"
@@ -555,21 +577,21 @@ case "$opt" in
     log "Using network: $net on $iface"
     xml_file="${report_dir}/scan_${TS}.xml"
     html_file="${report_dir}/scan_${TS}.html"
-    
+
     log "Starting LAN Scan on $net"
-    
+
     # Run nmap in background
     nmap -sS -T4 -F -sV "$net" -oX "$xml_file" > "$SCRIPT_TMPDIR/nmap_out" 2>&1 &
     pid=$!
     show_spinner_for_pid "$pid"
-    
+
     # Convert and finalize
     xml_to_html "$xml_file" "$html_file" || die "Failed to convert XML to HTML"
     finalize_html_report "$html_file"
     cleanup_intermediate_files "${report_dir}/scan_${TS}"
     prune_report_dir_keep_html
     ;;
-    
+
   2)
     # Option 2: Advanced LAN Scan => scan_deep_TIMESTAMP.html
     log "=== Option 2: Advanced LAN Scan ==="
@@ -579,22 +601,22 @@ case "$opt" in
     log "Using network: $net on $iface"
     xml_file="${report_dir}/scan_deep_${TS}.xml"
     html_file="${report_dir}/scan_deep_${TS}.html"
-    
+
     log "Starting Advanced LAN Scan on $net"
     log "This may take several minutes..."
-    
+
     # Run nmap in background
     nmap -sS -T4 -p- -sV -sC --max-retries 3 --host-timeout 5m "$net" -oX "$xml_file" > "$SCRIPT_TMPDIR/nmap_out" 2>&1 &
     pid=$!
     show_spinner_for_pid "$pid"
-    
+
     # Convert and finalize
     xml_to_html "$xml_file" "$html_file" || die "Failed to convert XML to HTML"
     finalize_html_report "$html_file"
     cleanup_intermediate_files "${report_dir}/scan_deep_${TS}"
     prune_report_dir_keep_html
     ;;
-    
+
   3)
     # Option 3: IP/Host Scan => scan_ip_TIMESTAMP.html
     log "=== Option 3: IP/Host Scan ==="
@@ -603,7 +625,7 @@ case "$opt" in
     net="$SEL_NET"
     log "Discovering active hosts on $net ..."
     echo ""
-    nmap -sn "$net" 2>/dev/null | awk '/report for/{ip=$5} /MAC/{printf "  %-18s %s %s %s\n", ip, $3, $4, $5}' | sort -t. -k4 -n
+    nmap -sn "$net" 2>/dev/null | awk '/report for/{ip=$5} /MAC/{printf " %-18s %s %s %s\n", ip, $3, $4, $5}' | sort -t. -k4 -n
     echo ""
     while true; do
       read -rp "Target IP or hostname: " target
@@ -617,14 +639,14 @@ case "$opt" in
     if ! [[ "$target" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$ ]]; then
       die "Invalid target format: $target"
     fi
-    
+
     base="${report_dir}/scan_ip_${TS}"
     xml_file="${base}.xml"
     html_file="${report_dir}/scan_ip_${TS}.html"
-    
+
     log "Starting IP/Host Scan on: $target"
     log "This scan covers all ports and includes vulnerability detection. May take 20-30 minutes..."
-    
+
     # Full scan: all 65535 ports, OS detection, version intensity, vuln scripts and traceroute
     nmap -Pn -sS -T4 -p- -sV --version-intensity 8 -sC -O \
          --script vuln --traceroute \
@@ -633,11 +655,11 @@ case "$opt" in
          "$target" > "$SCRIPT_TMPDIR/nmap_out" 2>&1 &
     pid=$!
     show_spinner_for_pid "$pid"
-    
+
     # Verify XML was created
     if [ ! -f "$xml_file" ]; then
       warn "XML file not found: $xml_file"
-      
+
       # Check if .nmap file exists as fallback
       if [ -f "${base}.nmap" ]; then
         warn "Found .nmap file, converting to HTML..."
@@ -651,7 +673,7 @@ case "$opt" in
           cat "${base}.nmap"
           echo '</pre></body></html>'
         } > "$html_file"
-        
+
         finalize_html_report "$html_file"
         cleanup_intermediate_files "$base"
         prune_report_dir_keep_html
@@ -661,25 +683,25 @@ case "$opt" in
         die "No nmap output files found. Check ${base}_nmap_out.log"
       fi
     fi
-    
+
     # Verify XML is not empty
     if [ ! -s "$xml_file" ]; then
       die "XML file is empty: $xml_file"
     fi
-    
+
     log "XML file created successfully ($(du -h "$xml_file" | cut -f1))"
-    
+
     # Convert to HTML
     if ! xml_to_html "$xml_file" "$html_file"; then
       die "Failed to convert XML to HTML"
     fi
-    
+
     # Finalize and cleanup
     finalize_html_report "$html_file"
     cleanup_intermediate_files "$base"
     prune_report_dir_keep_html
     ;;
-    
+
   4)
     log "Exit requested"
     echo "Goodbye!"
