@@ -15,6 +15,15 @@ header('Content-Type: application/json');
 // only where a token is touched, and release it immediately after.
 function ensure_session() {
     if (session_status() !== PHP_SESSION_ACTIVE) {
+        // Harden the session cookie: HttpOnly blocks JS access (mitigates
+        // session theft via any future XSS), SameSite=Strict blocks the
+        // cookie being sent on cross-site requests (mitigates CSRF as a
+        // second layer, on top of the token already used by setPortsMode).
+        // 'secure' is left off since this vhost is plain HTTP by design
+        // (see the "No HTTPS" note in the README) -- setting it would make
+        // the cookie unusable and silently break every session-based action.
+        ini_set('session.cookie_httponly', '1');
+        ini_set('session.cookie_samesite', 'Strict');
         session_start();
     }
 }
@@ -226,15 +235,19 @@ try {
         case 'listPorts':
             $pm = read_ports_mode();
             $host = $pm['mode'] === 'target' ? $pm['target_ip'] : ($server_ip ?: 'localhost');
-            // Only 'open' ports: port_scan_state never deletes closed rows
-            // (netwatchports.sh only prunes ones older than its retention
-            // window), and a host with lots of one-shot ephemeral ports
-            // (mDNS/SSDP discovery, LAN-discovery apps, etc.) can accumulate
-            // thousands of closed rows within a single day -- rendering all
-            // of them made the Ports tab take several seconds just to build
-            // the table. The UI's 'Closed' filter will show nothing now;
-            // closed-port history is still available via portEvents.
-            $stmt = $pdo->prepare("SELECT host, port, proto, service, status, last_checked, last_changed FROM port_scan_state WHERE source = :source AND host = :host AND status = 'open' ORDER BY port");
+            // 'open' ports plus 'closed' ones still within netwatchports.sh's
+            // own purge window (PURGE_CLOSED_AFTER_HOURS, 6h) -- kept in sync
+            // with that constant so the UI's 'Closed' filter always reflects
+            // exactly what's actually still in the table, never a stale
+            // in-between window. A host with lots of one-shot ephemeral ports
+            // (mDNS/SSDP discovery, LAN-discovery apps, etc.) can otherwise
+            // accumulate thousands of closed rows per day, which is what
+            // made the Ports tab take several seconds just to build the
+            // table -- bounding both this query and the purge to the same 6h
+            // keeps it fast while the 'Closed' filter still shows the recent
+            // ones. Full history, including anything older, stays in
+            // port_events.
+            $stmt = $pdo->prepare("SELECT host, port, proto, service, status, last_checked, last_changed FROM port_scan_state WHERE source = :source AND host = :host AND (status = 'open' OR julianday(last_changed) >= julianday('now', '-6 hours')) ORDER BY port");
             $stmt->execute([':source' => $pm['mode'], ':host' => $host]);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             json_out(['success' => true, 'data' => $rows, 'count' => count($rows), 'mode' => $pm['mode'], 'host' => $host]);
@@ -258,6 +271,9 @@ try {
             json_out(['success' => false, 'error' => 'Invalid action']);
     }
 } catch (Exception $e) {
+    // Log the real error server-side; the client only ever sees the
+    // generic message (no internal details/paths leaked in the response).
+    error_log('netwatchapi.php: ' . $e->getMessage());
     http_response_code(500);
     json_out(['success' => false, 'error' => 'Internal server error']);
 }

@@ -76,6 +76,10 @@ netscan/
   </tr>
 </table>
 
+> **Note:** This is requested because this project uses batch scripts packaged into a .exe, and antivirus software may flag this as a false positive. If in doubt, you can unzip the .exe and audit the scripts, run the packages manually, or choose not to use this project.
+>
+> **Nota:** Esto se solicita porque este proyecto usa scripts batch empaquetados en un .exe, y los antivirus pueden detectarlo como falso positivo. Si tiene dudas, puede descomprimir el .exe y auditar los scripts, ejecutar los paquetes manualmente, o no usar este proyecto.
+
 #### ⚠️ WARNING
 
 <table width="100%">
@@ -475,6 +479,8 @@ Shows: daemon status (running/stopped), Apache port 3126, last 10 lines of the s
 | **Server** | ✅ yes | Watches this server's own listening TCP and UDP ports | `ss -tulnp` (reads the kernel's socket table directly — not a scan, always accurate, includes the owning process) |
 | **Target** | no | Watches a single external host you choose | `nmap -Pn -sT -sU -F --host-timeout 60s` (top ~100 common TCP + UDP ports, skips host-discovery so a target dropping ICMP still gets scanned) every poll cycle |
 
+##### Switching Modes
+
 ```bash
 sudo /var/www/netwatch/tools/netwatchports.sh mode server
 sudo /var/www/netwatch/tools/netwatchports.sh mode target 192.168.1.10
@@ -490,23 +496,20 @@ sudo /var/www/netwatch/tools/netwatchports.sh list
       Al hacer clic en Apply (o correr <code>mode target</code>) solo se escribe el nuevo modo/target en <code>ports_mode.conf</code> — no escanea al instante. <code>netwatchports.sh</code> ya está corriendo en background y recién toma el cambio en su siguiente ciclo (<code>PORT_POLL_INTERVAL</code>, 30s por defecto), así que la tabla puede verse vacía hasta ese tiempo justo después de cambiar. Lo que se actualiza en el navegador (selector <code>Refresh: 15s</code>) es un segundo sondeo independiente de lo que ya hay en la base de datos — no el escaneo en sí.
     </td>
   </tr>
-</table>
-
-<table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <strong>End-to-end timing:</strong> up to <code>PORT_POLL_INTERVAL</code> (30s default) for the daemon to pick up the new target, plus the <code>nmap</code> scan itself (seconds against a responsive host; the UDP half in particular can take much longer against one that silently drops probes — capped at 60s via <code>--host-timeout</code>, so one cycle can't stall the next), plus up to the browser's refresh interval to display it. Close to two minutes end-to-end isn't unusual against a heavily filtered target.
+      <strong>End-to-end timing (Target mode):</strong> up to <code>PORT_POLL_INTERVAL</code> (30s default) for the daemon to pick up the new target, plus the <code>nmap</code> scan itself (seconds against a responsive host; the UDP half in particular can take much longer against one that silently drops probes — capped at 60s via <code>--host-timeout</code>, so one cycle can't stall the next), plus up to the browser's refresh interval to display it. Close to two minutes end-to-end isn't unusual against a heavily filtered target.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <strong>Tiempo de punta a punta:</strong> hasta <code>PORT_POLL_INTERVAL</code> (30s por defecto) para que el daemon tome el nuevo target, más el escaneo <code>nmap</code> en sí (segundos contra un host que responde; la mitad UDP en particular puede tardar mucho más contra uno que descarta los probes en silencio — acotado a 60s vía <code>--host-timeout</code>, así que un ciclo no puede estancar al siguiente), más hasta el intervalo de refresco del navegador para mostrarlo. No es raro que sean casi dos minutos de punta a punta contra un target muy filtrado.
+      <strong>Tiempo de punta a punta (modo Target):</strong> hasta <code>PORT_POLL_INTERVAL</code> (30s por defecto) para que el daemon tome el nuevo target, más el escaneo <code>nmap</code> en sí (segundos contra un host que responde; la mitad UDP en particular puede tardar mucho más contra uno que descarta los probes en silencio — acotado a 60s vía <code>--host-timeout</code>, así que un ciclo no puede estancar al siguiente), más hasta el intervalo de refresco del navegador para mostrarlo. No es raro que sean casi dos minutos de punta a punta contra un target muy filtrado.
     </td>
   </tr>
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <strong>ICMP is not required.</strong> The scan runs with <code>-Pn</code> (skips host-discovery/ping), so the target's firewall does not need to allow ICMP echo for its ports to be detected — the TCP/UDP probes go out directly either way.
+      <strong>ICMP is not required (Target mode).</strong> The scan runs with <code>-Pn</code> (skips host-discovery/ping), so the target's firewall does not need to allow ICMP echo for its ports to be detected — the TCP/UDP probes go out directly either way.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <strong>No hace falta ICMP.</strong> El escaneo corre con <code>-Pn</code> (se salta el descubrimiento por ping), así que el firewall del target no necesita permitir ICMP echo para que se detecten sus puertos — los probes TCP/UDP salen directo de todos modos.
+      <strong>No hace falta ICMP (modo Target).</strong> El escaneo corre con <code>-Pn</code> (se salta el descubrimiento por ping), así que el firewall del target no necesita permitir ICMP echo para que se detecten sus puertos — los probes TCP/UDP salen directo de todos modos.
     </td>
   </tr>
 </table>
@@ -516,6 +519,21 @@ sudo /var/www/netwatch/tools/netwatchports.sh list
 | `Scanning ports. Wait...` | Right after clicking Apply, until the first row for the new mode/target arrives. |
 | `No ports observed yet in this mode` | Table is empty and no mode/target was just applied (e.g. reloading the page on a mode that hasn't been polled yet). |
 | `No ports match the current filters` | There is data, but the search box or Status/Protocol filters exclude every row. |
+
+##### Ports Displayed
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Open ports, plus recently closed:</strong> <code>listPorts</code> returns currently <strong>open</strong> ports plus <strong>closed</strong> ones from the last 6h — the same window <code>netwatchports.sh</code> uses to purge old closed rows (<code>PURGE_CLOSED_AFTER_HOURS</code>), so the <code>Closed</code> filter in the UI always matches what's actually still in <code>port_scan_state</code>, never an empty or stale result. Without this bound, Server mode's polling can accumulate thousands of one-shot ephemeral ports per day (mDNS/SSDP discovery, browser helper processes, even this project's own <code>nbtscan</code> calls), which is what made the Ports tab take several seconds just to build the table. Anything older stays out of this view but remains queryable in <code>port_events</code>.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Puertos abiertos, más cerrados recientes:</strong> <code>listPorts</code> devuelve puertos actualmente <strong>abiertos</strong> más los <strong>cerrados</strong> de las últimas 6h — la misma ventana que usa <code>netwatchports.sh</code> para purgar filas cerradas viejas (<code>PURGE_CLOSED_AFTER_HOURS</code>), así el filtro <code>Closed</code> de la interfaz siempre coincide con lo que realmente sigue en <code>port_scan_state</code>, nunca vacío ni desincronizado. Sin este límite, el sondeo del modo Server puede acumular miles de puertos efímeros de un solo uso por día (descubrimiento mDNS/SSDP, procesos auxiliares del navegador, incluso llamadas a <code>nbtscan</code> del propio proyecto), que fue justo lo que hacía que la pestaña Ports tardara varios segundos en construir la tabla. Lo más viejo queda fuera de esta vista pero sigue disponible consultando <code>port_events</code>.
+    </td>
+  </tr>
+</table>
+
+##### Target Mode Authorization
 
 <table width="100%">
   <tr>

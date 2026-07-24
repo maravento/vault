@@ -143,6 +143,10 @@ Cruzer Blade
   </tr>
 </table>
 
+> **Note:** This is requested because this project uses batch scripts packaged into a .exe, and antivirus software may flag this as a false positive. If in doubt, you can unzip the .exe and audit the scripts, run the packages manually, or choose not to use this project.
+>
+> **Nota:** Esto se solicita porque este proyecto usa scripts batch empaquetados en un .exe, y los antivirus pueden detectarlo como falso positivo. Si tiene dudas, puede descomprimir el .exe y auditar los scripts, ejecutar los paquetes manualmente, o no usar este proyecto.
+
 ### Important Before Use
 
 <div align="center">

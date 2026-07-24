@@ -180,6 +180,23 @@ select_scan_interfaces() {
     echo "Scanning interfaces: $LAN_IFACES"
 }
 
+# Computes the actual network address for an "ip/prefix" pair (e.g.
+# 192.168.1.24/24 -> 192.168.1.0/24) by zeroing the host bits -- `ip addr
+# show` reports the interface's own host address with its prefix length,
+# not the network address, and NET_CIDR (used as the Apache "Require ip"
+# argument and stored in netwatch.env) is supposed to be the latter.
+compute_network_cidr() {
+    local ip_prefix="$1"
+    local ip="${ip_prefix%/*}" prefix="${ip_prefix#*/}"
+    local i1 i2 i3 i4
+    IFS=. read -r i1 i2 i3 i4 <<< "$ip"
+    local ip_int=$(( (i1<<24) + (i2<<16) + (i3<<8) + i4 ))
+    local mask_int
+    if [ "$prefix" -eq 0 ]; then mask_int=0; else mask_int=$(( (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF )); fi
+    local net_int=$(( ip_int & mask_int ))
+    printf '%d.%d.%d.%d/%s' $(( (net_int>>24)&255 )) $(( (net_int>>16)&255 )) $(( (net_int>>8)&255 )) $(( net_int&255 )) "$prefix"
+}
+
 # The web panel's IP allowlist (netwatchapi.php) is tied to a single
 # management interface, kept separate from the (possibly multiple) scan
 # interfaces so the panel is never accidentally exposed over a WAN NIC.
@@ -198,7 +215,9 @@ select_management_interface() {
         MGMT_IFACE="${CAND_NAMES[$((idx - 1))]}"
         break
     done
-    NET_CIDR=$(ip -4 addr show dev "$MGMT_IFACE" scope global | sed -n 's/.*inet \([0-9.]\{1,\}\/[0-9]\{1,\}\).*/\1/p' | head -n1)
+    local ip_with_prefix
+    ip_with_prefix=$(ip -4 addr show dev "$MGMT_IFACE" scope global | sed -n 's/.*inet \([0-9.]\{1,\}\/[0-9]\{1,\}\).*/\1/p' | head -n1)
+    NET_CIDR=$(compute_network_cidr "$ip_with_prefix")
     SERVER_IP=$(ip -4 addr show dev "$MGMT_IFACE" scope global | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
     echo "Management interface : $MGMT_IFACE"
     echo "Network : $NET_CIDR"
@@ -370,8 +389,15 @@ do_install() {
 
     init_schema
     chown -R www-data:www-data "$NETWATCH_DATA"
-    chmod 664 "$DB_FILE"
     chmod 775 "$NETWATCH_DATA"
+    # netwatch.db itself is read-only for the web-facing PHP process --
+    # netwatchapi.php only ever runs SELECT queries against it, it never
+    # writes. root:www-data 640 (overriding the directory-wide www-data
+    # ownership above) gives root -- who the netwatchlan.sh/netwatchports.sh
+    # daemons always run as -- full read/write, and www-data read-only, so a
+    # compromised PHP process can't tamper with LAN/port history directly.
+    chown root:www-data "$DB_FILE"
+    chmod 640 "$DB_FILE"
 
     # Config dir /etc/netwatch: same model as proxymon's /etc/proxymon --
     # root:www-data 750, holds only read-only config (netwatch.env). The
@@ -390,22 +416,30 @@ PMODE
     chmod 664 "$PORTS_MODE_FILE"
 
     # apache vhost
+    # SERVER_IP is already known at this point (detected earlier in this
+    # same install run) -- apply the final Listen restriction directly and
+    # restart once, instead of opening on 0.0.0.0 first and narrowing it in
+    # a second restart. That two-step version left a real window where the
+    # panel was reachable from every interface, including the public one,
+    # between the two restarts.
     cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
     sed -i "/^Listen .*:${VHOST_PORT}\$/d" /etc/apache2/ports.conf
-    echo "Listen 0.0.0.0:${VHOST_PORT}" | tee -a /etc/apache2/ports.conf
-    cp -f "$WEB_DIR/netwatch.conf" /etc/apache2/sites-available/netwatch.conf
+    if [ -n "$SERVER_IP" ]; then
+        printf 'Listen %s:%s\nListen 127.0.0.1:%s\n' "$SERVER_IP" "$VHOST_PORT" "$VHOST_PORT" | tee -a /etc/apache2/ports.conf
+    else
+        log "WARNING: Could not detect server IP. Web panel will listen on all interfaces (0.0.0.0:${VHOST_PORT})."
+        echo "Listen 0.0.0.0:${VHOST_PORT}" | tee -a /etc/apache2/ports.conf
+    fi
+    if [ -n "$NET_CIDR" ]; then
+        sed "s|192.168.0.0/24|${NET_CIDR}|" "$WEB_DIR/netwatch.conf" > /etc/apache2/sites-available/netwatch.conf
+    else
+        log "WARNING: Could not detect LAN CIDR. netwatch.conf keeps the example 192.168.0.0/24 -- edit it manually."
+        cp -f "$WEB_DIR/netwatch.conf" /etc/apache2/sites-available/netwatch.conf
+    fi
     a2ensite -q netwatch.conf
 
     systemctl daemon-reload
     systemctl restart apache2
-
-    # narrow Listen down to LAN IP + loopback now that SERVER_IP is known
-    if [ -n "$SERVER_IP" ]; then
-        sed -i "s|^Listen 0.0.0.0:${VHOST_PORT}\$|Listen ${SERVER_IP}:${VHOST_PORT}\nListen 127.0.0.1:${VHOST_PORT}|" /etc/apache2/ports.conf
-        systemctl restart apache2
-    else
-        log "WARNING: Could not detect server IP. Web panel keeps listening on all interfaces (0.0.0.0:${VHOST_PORT})."
-    fi
 
     # save install config; poll intervals are left unset here and get their
     # defaults/first-run prompt from the daemons themselves (see LAN_POLL_INTERVAL,
@@ -507,6 +541,15 @@ CREATE INDEX IF NOT EXISTS idx_port_scan_state_status ON port_scan_state(status)
 COMMIT;
 SQL
         fi
+
+        # Self-heal permissions on installs from before this was tightened:
+        # netwatch.db was previously www-data:www-data 664 (web-writable),
+        # even though netwatchapi.php only ever runs SELECT against it.
+        # root:www-data 640 keeps read access for the web panel and full
+        # access for the daemons (which always run as root) while removing
+        # write access from a potentially-compromised PHP process.
+        chown root:www-data "$DB_FILE"
+        chmod 640 "$DB_FILE"
     fi
 
     "$NETWATCH_TOOLS/netwatchlan.sh" stop 2>/dev/null || true
@@ -544,6 +587,21 @@ SQL
 
 ### UNINSTALL
 do_uninstall() {
+    # Confirm before the rm -rf below, which destroys the LAN/port history
+    # database along with everything else -- but only when actually
+    # attached to a terminal. A non-interactive invocation (cron, a script,
+    # CI) has no one to prompt and would otherwise just hang forever
+    # waiting for input that will never come, so it proceeds exactly as
+    # before (no behavior change there).
+    if [ -t 0 ]; then
+        local confirm
+        read -r -p "This will permanently remove NetWatch and its data (LAN/port history). Continue? (y/N): " confirm
+        case "$confirm" in
+            [Yy]|[Yy][Ee][Ss]) ;;
+            *) echo "Aborted."; exit 1 ;;
+        esac
+    fi
+
     log "netwatchinstall start (uninstall)..."
 
     "$NETWATCH_TOOLS/netwatchlan.sh" stop 2>/dev/null || true

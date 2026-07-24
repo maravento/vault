@@ -88,11 +88,15 @@ load_env
 
 set_env_var() {
     local key="$1" val="$2"
-    local esc_val
+    local esc_val esc_key
     val=$(printf '%s' "$val" | tr -d '\r\n')
     esc_val=$(printf '%s' "$val" | sed -e 's/[\&|]/\\&/g')
-    if grep -q "^${key}=" "$NETWATCH_ENV"; then
-        sed -i "s|^${key}=.*|${key}=\"${esc_val}\"|" "$NETWATCH_ENV"
+    # $key is always a fixed constant from call sites in this script today
+    # (never external input), but escape it for grep/sed's regex metachars
+    # anyway rather than assume that stays true.
+    esc_key=$(printf '%s' "$key" | sed 's/[.[\*^$]/\\&/g')
+    if grep -q "^${esc_key}=" "$NETWATCH_ENV"; then
+        sed -i "s|^${esc_key}=.*|${key}=\"${esc_val}\"|" "$NETWATCH_ENV"
     else
         echo "${key}=\"${val}\"" >> "$NETWATCH_ENV"
     fi
@@ -306,13 +310,19 @@ start() {
     wait_for_interfaces
 
     ### CHECK AND SET LAN_POLL_INTERVAL
-    if [ -z "${LAN_POLL_INTERVAL:-}" ]; then
+    # A non-numeric value here (e.g. hand-edited netwatch.env) would make
+    # `sleep "$LAN_POLL_INTERVAL"` fail every cycle without actually
+    # sleeping, turning the loop into a busy-spin -- fall back to the
+    # default instead of just checking for empty.
+    if [ -z "${LAN_POLL_INTERVAL:-}" ] || ! [[ "$LAN_POLL_INTERVAL" =~ ^[0-9]+$ ]]; then
+        [ -n "${LAN_POLL_INTERVAL:-}" ] && log "WARNING: LAN_POLL_INTERVAL='$LAN_POLL_INTERVAL' is not a valid number, defaulting to 60"
         LAN_POLL_INTERVAL=60
         set_env_var "LAN_POLL_INTERVAL" "$LAN_POLL_INTERVAL"
     fi
 
     ### CHECK AND SET LAN_OFFLINE_GRACE
-    if [ -z "${LAN_OFFLINE_GRACE:-}" ]; then
+    if [ -z "${LAN_OFFLINE_GRACE:-}" ] || ! [[ "$LAN_OFFLINE_GRACE" =~ ^[0-9]+$ ]]; then
+        [ -n "${LAN_OFFLINE_GRACE:-}" ] && log "WARNING: LAN_OFFLINE_GRACE='$LAN_OFFLINE_GRACE' is not a valid number, defaulting to 3"
         LAN_OFFLINE_GRACE=3
         set_env_var "LAN_OFFLINE_GRACE" "$LAN_OFFLINE_GRACE"
     fi
@@ -334,7 +344,14 @@ start() {
     # every line to $log_file itself via `tee -a`, so redirecting the
     # subshell's inherited stdout there too would double-write each line
     # (tee's own stdout copy landing back in the same file a second time).
+    # The child writes its own PID (via $BASHPID) as its very first action,
+    # before entering the loop -- not the parent writing $! after
+    # backgrounding. That used to leave a window where the daemon was
+    # already running but PIDFILE didn't exist yet (stop()/status() would
+    # report it as not running).
+    rm -f "$PIDFILE"
     (
+        echo "$BASHPID" > "$PIDFILE"
         while true; do
             run_scan
             sleep "$LAN_POLL_INTERVAL"
@@ -342,8 +359,12 @@ start() {
     ) </dev/null >/dev/null 2>&1 &
     disown
 
-    echo $! > "$PIDFILE"
-    log "netwatchlan started with PID $(cat "$PIDFILE")"
+    # Wait (briefly) for the child to have written its PID before logging it.
+    for _ in $(seq 1 20); do
+        [ -s "$PIDFILE" ] && break
+        sleep 0.05
+    done
+    log "netwatchlan started with PID $(cat "$PIDFILE" 2>/dev/null)"
 
     # add @reboot cron entry if not already present
     if ! crontab -l 2>/dev/null | grep -qF "netwatchlan.sh start"; then
