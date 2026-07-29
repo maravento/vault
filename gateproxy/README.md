@@ -88,10 +88,10 @@ Localnet (`192.168.0.0`) and Broadcast (`192.168.0.255`) are derived automatical
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     The script saves the network answers to <code>/etc/gateproxy/network.env</code> after collecting them. On the next run — whether the previous one was interrupted or completed successfully — it asks whether to reuse them, skipping the questions above; answering no discards them and asks again, saving fresh values. The file is not deleted automatically.
+     The script saves the network answers to <code>/etc/gateproxy/network.env</code> after collecting them — scratch space for this installer only. From it, a persistent copy is written to <code>iptables.env</code> (in <code>$SCR_PATH</code>, alongside the deployed <code>iptables.sh</code>) for the firewall script to read at any time afterward. <code>/etc/gateproxy</code> itself is removed at the end of a successful install; there is no "reuse previous answers" step — each run asks fresh.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     El script guarda las respuestas de red en <code>/etc/gateproxy/network.env</code> después de recolectarlas. En la siguiente corrida —se haya interrumpido o completado exitosamente la anterior— pregunta si quiere reusarlos, saltando las preguntas anteriores; responder que no descarta esos valores y vuelve a preguntar, guardando los nuevos. El archivo no se borra automáticamente.
+     El script guarda las respuestas de red en <code>/etc/gateproxy/network.env</code> después de recolectarlas — espacio temporal sólo para este instalador. A partir de ahí, se escribe una copia persistente en <code>iptables.env</code> (en <code>$SCR_PATH</code>, junto al <code>iptables.sh</code> desplegado) para que el script de firewall la lea en cualquier momento después. <code>/etc/gateproxy</code> se elimina al final de una instalación exitosa; no existe un paso de "reusar respuestas anteriores" — cada corrida pregunta de nuevo.
     </td>
   </tr>
 </table>

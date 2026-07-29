@@ -65,17 +65,15 @@ is_valid_ip() {
     [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]
 }
 
-# network config written by gateproxy.sh at install time
-NETWORK_ENV="/etc/gateproxy/network.env"
-if [ ! -f "$NETWORK_ENV" ]; then
-    log "ERROR: $NETWORK_ENV not found. Run gateproxy.sh first."
-    exit 1
-fi
+# Network config -- gateproxy.sh's own persistent copy of network.env,
+# deployed alongside this script. Safe key=value parsing (file is never
+# sourced) with built-in defaults if the file is missing or a key wasn't
+# set, so a stale/partial config never blocks the firewall from loading.
+IPTABLES_ENV="$(dirname "$(readlink -f "$0")")/iptables.env"
 
-# Load only known KEY=VALUE pairs from NETWORK_ENV instead of sourcing it,
-# so a tampered or maliciously replaced env file cannot execute code.
 load_env_file() {
     local file="$1" line key value
+    [[ ! -f "$file" ]] && { log "WARNING: $file not found -- using built-in defaults"; return 1; }
     while IFS= read -r line || [ -n "$line" ]; do
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
         [[ "$line" =~ ^[[:space:]]*$ ]] && continue
@@ -94,21 +92,21 @@ load_env_file() {
         esac
     done < "$file"
 }
-load_env_file "$NETWORK_ENV"
+load_env_file "$IPTABLES_ENV"
 
-# paths (ACL_PATH comes from $NETWORK_ENV)
-acl_mac_path="$ACL_PATH/acl_mac"
-acl_ipt_path="$ACL_PATH/acl_ipt"
+# paths (ACL_PATH comes from $IPTABLES_ENV)
+acl_mac_path="${ACL_PATH:-/etc/acl}/acl_mac"
+acl_ipt_path="${ACL_PATH:-/etc/acl}/acl_ipt"
 # interfaces
-wan="$WAN_IF"
-lan="$LAN_IF"
+wan="${WAN_IF:-eth0}"
+lan="${LAN_IF:-eth1}"
 # LAN localnet/netmask
-localnet="$SERV_SUBNET"
-netmask="$MASKNEW2"
+localnet="${SERV_SUBNET:-192.168.0.0}"
+netmask="${MASKNEW2:-24}"
 # server IP
-serverip="$SERVER_IP"
+serverip="${SERVER_IP:-192.168.0.10}"
 # squid proxy port
-squid_port="$PORTNEW"
+squid_port="${PORTNEW:-3128}"
 
 # ACL/config files used by this script (existence verified below)
 mac_proxy_file="$acl_mac_path/mac-proxy.txt"

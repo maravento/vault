@@ -337,36 +337,6 @@ function is_interfaces() {
 
 NETWORK_ENV="/etc/gateproxy/network.env"
 mkdir -p /etc/gateproxy &>/dev/null
-REUSE_NETWORK=false
-if [ -f "$NETWORK_ENV" ]; then
-    while true; do
-        read -r -p "Reuse network data from a previous run? (y/n): " reuse_ans
-        case "$reuse_ans" in
-            [Yy]*) REUSE_NETWORK=true; break ;;
-            [Nn]*) REUSE_NETWORK=false; break ;;
-            *) log "Answer: YES (y) or NO (n)" ;;
-        esac
-    done
-fi
-
-if [ "$REUSE_NETWORK" = true ]; then
-    source "$NETWORK_ENV"
-    export LAN_IF
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$WAN_IF:g" "{}"
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$LAN_IF:g" "{}"
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.10:$SERVER_IP:g" "{}"
-    find "$gp_path/acl" -type f -name "mac-*" -exec sed -i "s:192.168.0\.:$(echo "$SERVER_IP" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
-    find "$gp_path/acl/acl_dhcp" -type f -name "blockdhcp*" -exec sed -i "s:192.168.0\.:$(echo "$SERVER_IP" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$SERV_SUBNET:g" "{}"
-    sed -i "s:192\.168\.0\.\*:$(echo "$SERV_SUBNET" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/server/wpad.pac"
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.255:$SERV_BROADCAST:g" "{}"
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:255.255.255.0:$SERV_MASK:g" "{}"
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:/24:/$MASKNEW2:g" "{}"
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.8.8:$DNSNEW1:g" "{}"
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.4.4:$DNSNEW2:g" "{}"
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:3128:$PORTNEW:g" "{}"
-    log "Reusing saved data: $LAN_IF / $SERVER_IP"
-else
 
 is_interfaces
 
@@ -584,13 +554,15 @@ ENVEOF
 chown root:root "$NETWORK_ENV"
 chmod 600 "$NETWORK_ENV"
 
-fi
+# iptables.sh's own persistent config -- network.env itself is only scratch
+# space for this installer (removed at the end of the run), so iptables.sh
+# gets a full copy of it, in the same directory it's deployed to.
+mkdir -p "$SCR_PATH" &>/dev/null
+cp -f "$NETWORK_ENV" "$SCR_PATH/iptables.env"
+chown root:root "$SCR_PATH/iptables.env"
+chmod 600 "$SCR_PATH/iptables.env"
 
 ### NETPLAN
-if [ "$REUSE_NETWORK" = true ] && ip -4 addr show "$LAN_IF" 2>/dev/null | grep -qF "inet $SERVER_IP/"; then
-    log "Network already configured: $LAN_IF has $SERVER_IP"
-else
-
 echo -e "\n"
 log "Applying network configuration..."
 find /etc/netplan -maxdepth 1 -type f -name '*.yaml' -not -name '*.yaml.bak' -exec mv -- {} {}.bak \; 2>/dev/null
@@ -621,8 +593,6 @@ until ip -4 addr show "$LAN_IF" 2>/dev/null | grep -qF "inet $SERVER_IP/"; do
     NETPLAN_WAIT=$((NETPLAN_WAIT + 1))
 done
 log "Network OK: $LAN_IF has $SERVER_IP"
-
-fi
 
 ### ESSENTIAL
 clear
@@ -1402,6 +1372,9 @@ a2query -s || true
 #dpkg -l | grep "^rc" | cut -d " " -f 3 | xargs dpkg --purge &> /dev/null # optional
 rm -f gitfolder.py
 rm -rf "$gp_path"
+# /etc/gateproxy/network.env was only scratch space for this installer --
+# iptables.sh now has its own persistent config (see $SCR_PATH/iptables.env).
+rm -rf /etc/gateproxy
 (sleep 2 && rm -- "$SCRIPT_PATH") &
 
 log "gateproxy done at: $(date)"
