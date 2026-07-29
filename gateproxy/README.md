@@ -154,7 +154,13 @@ Webmin is installed with the following modules / Webmin se instala con los sigui
 | :--- | :--- | :--- |
 | **pydhcp** | `/etc/pydhcp/pydhcpd.conf` | Python-based DHCP server; default pool range 220–235 |
 
-Pool range and other DHCP settings can be changed in `/etc/pydhcp/pydhcpd.env` after installation / El rango del pool y otros parámetros DHCP pueden modificarse en `/etc/pydhcp/pydhcpd.env` luego de la instalación.
+Pool range and other DHCP settings can be changed in `/etc/pydhcp/pydhcp.env` after installation / El rango del pool y otros parámetros DHCP pueden modificarse en `/etc/pydhcp/pydhcp.env` luego de la instalación.
+
+### DNS
+
+| Component | Config | Notes |
+| :--- | :--- | :--- |
+| **Unbound** | `/etc/unbound/unbound.conf.d/forward.conf` | Forwarding resolver (not recursive/iterative); listens on `127.0.0.1` and the server IP; forwards to `1.1.1.1`/`8.8.8.8`. DHCP clients receive the server IP as their DNS server. |
 
 ### Firewall
 
@@ -213,6 +219,7 @@ gateproxy/
 │   │   ├── 000-default.conf        # Apache default site
 │   │   ├── 00-networkd.yaml        # Netplan configuration
 │   │   ├── dir.conf                # Apache directory index config
+│   │   ├── forward.conf            # Unbound DNS forwarder configuration
 │   │   ├── hosts.txt               # /etc/hosts additions
 │   │   ├── security.conf           # Apache security hardening
 │   │   ├── servername.conf         # Apache ServerName config
@@ -414,7 +421,6 @@ The installer also downloads the following scripts from external repositories / 
 | Script | Trigger | Purpose |
 | :--- | :--- | :--- |
 | `hwclock.sh` | `@reboot` | Sync hardware clock |
-| `lock.sh` | `@reboot` | Screen lock policy |
 | `blackusb.sh` | `@reboot` | USB device access control |
 | `cleaner.sh` | `@weekly` | System cleanup |
 | `ffsupdate.sh` | `@weekly` | Update FreeFileSync |

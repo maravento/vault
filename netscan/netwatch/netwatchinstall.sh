@@ -313,6 +313,16 @@ check_already_installed() {
     fi
 }
 
+# add a single @reboot cron entry running both daemons in sequence, so
+# they never race each other (or other @reboot jobs) at boot
+add_reboot_cron() {
+    if ! crontab -l 2>/dev/null | grep -qF "$NETWATCH_TOOLS/netwatchlan.sh start"; then
+        crontab -l 2>/dev/null > "/var/www/netwatch/tools/crontab-$(date +%Y%m%d%H%M%S).bak" || true
+        (crontab -l 2>/dev/null; echo "@reboot $NETWATCH_TOOLS/netwatchlan.sh start && $NETWATCH_TOOLS/netwatchports.sh start") | crontab -
+        log "Added to cron @reboot"
+    fi
+}
+
 do_install() {
     log "netwatchinstall start (install)..."
 
@@ -472,6 +482,7 @@ EOF
     # they auto-start right after install.
     "$NETWATCH_TOOLS/netwatchlan.sh" start
     "$NETWATCH_TOOLS/netwatchports.sh" start
+    add_reboot_cron
 
     echo ""
     echo "LAN tab : http://localhost:${VHOST_PORT}/?tab=lan"
@@ -579,6 +590,7 @@ SQL
 
     "$NETWATCH_TOOLS/netwatchlan.sh" start
     "$NETWATCH_TOOLS/netwatchports.sh" start
+    add_reboot_cron
 
     systemctl restart apache2
 

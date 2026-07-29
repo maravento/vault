@@ -46,13 +46,6 @@ fi
 # Start
 log "killswitch start..."
 
-### VARIABLES
-# interfaces
-wan="eth0"
-lan="eth1"
-# IP/Netmask
-local="192.168.0.0"
-netmask="24"
 ####################
 ### KERNEL RULES ###
 ####################

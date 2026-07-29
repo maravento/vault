@@ -65,20 +65,50 @@ is_valid_ip() {
     [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]
 }
 
-# paths
-acl_path="/etc/acl"
-acl_mac_path="$acl_path/acl_mac"
-acl_ipt_path="$acl_path/acl_ipt"
+# network config written by gateproxy.sh at install time
+NETWORK_ENV="/etc/gateproxy/network.env"
+if [ ! -f "$NETWORK_ENV" ]; then
+    log "ERROR: $NETWORK_ENV not found. Run gateproxy.sh first."
+    exit 1
+fi
+
+# Load only known KEY=VALUE pairs from NETWORK_ENV instead of sourcing it,
+# so a tampered or maliciously replaced env file cannot execute code.
+load_env_file() {
+    local file="$1" line key value
+    while IFS= read -r line || [ -n "$line" ]; do
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+        key="${line%%=*}"
+        value="${line#*=}"
+        if [[ "$value" == \"*\" && "$value" == *\" && ${#value} -ge 2 ]]; then
+            value="${value:1:$((${#value}-2))}"
+        fi
+        case "$key" in
+            WAN_IF|LAN_IF|SERVER_IP|SERV_SUBNET|SERV_BROADCAST|SERV_MASK|MASKNEW2|\
+            SERV_DNS|PORTNEW|LOCAL_USER|ACL_PATH|SCR_PATH|ZONE_PATH)
+                printf -v "$key" '%s' "$value"
+                ;;
+            *)
+                ;;
+        esac
+    done < "$file"
+}
+load_env_file "$NETWORK_ENV"
+
+# paths (ACL_PATH comes from $NETWORK_ENV)
+acl_mac_path="$ACL_PATH/acl_mac"
+acl_ipt_path="$ACL_PATH/acl_ipt"
 # interfaces
-wan=eth0
-lan=eth1
+wan="$WAN_IF"
+lan="$LAN_IF"
 # LAN localnet/netmask
-localnet=192.168.0.0
-netmask=24
+localnet="$SERV_SUBNET"
+netmask="$MASKNEW2"
 # server IP
-# Command to get active interfaces (except lo) (Name/IPv4/MAC) (Replace with your server IPv4/MAC):
-# join <(ip -o -br link | sort) <(ip -o -br addr | sort) | awk '$2=="UP" {print $1,$6,$3}' | sed -Ee 's./[0-9]+..'
-serverip=192.168.0.10
+serverip="$SERVER_IP"
+# squid proxy port
+squid_port="$PORTNEW"
 
 # ACL/config files used by this script (existence verified below)
 mac_proxy_file="$acl_mac_path/mac-proxy.txt"
@@ -363,7 +393,7 @@ iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macunlimited src -
 # Unlimited devices never use the proxy -- block PAC access so DHCP option 252
 # (WPAD, if enabled) has no effect on them, since pydhcpd is ACL-agnostic and
 # sends it to every client regardless of classification.
-iptables -A INPUT -i "$lan" -p tcp -m multiport --dports 3128,18100 -m set --match-set macunlimited src -j DROP
+iptables -A INPUT -i "$lan" -p tcp -m multiport --dports $squid_port,18100 -m set --match-set macunlimited src -j DROP
 for chain in INPUT FORWARD; do
     iptables -A "$chain" -i "$lan" -m set --match-set macunlimited src -j ACCEPT
 done
@@ -471,15 +501,14 @@ for mac in $(awk -F";" '$2 != "" {print $2}' "$acl_mac_path"/mac-* 2>/dev/null);
 done
 
 # DNS
-dns="8.8.8.8 1.1.1.1"
-for dnsip in $dns; do
-    iptables -A FORWARD -i "$lan" -o "$wan" -m set --match-set macports src -d "$dnsip" -p udp --dport 53 -j ACCEPT
-    iptables -A FORWARD -i "$lan" -o "$wan" -m set --match-set macports src -d "$dnsip" -p tcp --dport 53 -j ACCEPT
-    iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macports src -d "$dnsip" -p udp --dport 53 -j ACCEPT
-    iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macports src -d "$dnsip" -p tcp --dport 53 -j ACCEPT
+for dnsip in ${SERV_DNS//,/ }; do
+    for protocol in tcp udp; do
+         iptables -A INPUT -i "$lan" -m set --match-set macports src -d "$dnsip" -p "$protocol" --dport 53 -j ACCEPT
+    done
 done
-iptables -A FORWARD -i "$lan" -o "$wan" -p udp --dport 53 -j DROP
-iptables -A FORWARD -i "$lan" -o "$wan" -p tcp --dport 53 -j DROP
+for protocol in tcp udp; do
+    iptables -A FORWARD -i "$lan" -p "$protocol" --dport 53 -j DROP
+done
 
 # PRINTERS
 for chain in INPUT FORWARD; do
@@ -608,9 +637,9 @@ for mac in $(awk -F";" '$2 != "" {print $2}' "$mac_proxy_file" 2>/dev/null); do
     is_valid_mac "$mac" && ipset add macproxy "$mac" -exist
 done
 iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macproxy src -p tcp -m multiport --dports 18100,80 -j ACCEPT
-iptables -t nat -A PREROUTING -i "$lan" -p tcp --dport 80 -m set --match-set macproxy src -j REDIRECT --to-port 3128
+iptables -t nat -A PREROUTING -i "$lan" -p tcp --dport 80 -m set --match-set macproxy src -j REDIRECT --to-port $squid_port
 for chain in INPUT FORWARD; do
-    iptables -A "$chain" -i "$lan" -p tcp -m multiport --dports 18100,3128 -m set --match-set macproxy src -j ACCEPT
+    iptables -A "$chain" -i "$lan" -p tcp -m multiport --dports 18100,$squid_port -m set --match-set macproxy src -j ACCEPT
 done
 
 ## END ##

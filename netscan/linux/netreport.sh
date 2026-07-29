@@ -400,14 +400,27 @@ show_spinner_for_pid() {
   local pid=$1
   local spin='|/-\\'
   local i=0
+  local exit_code
   printf "[-] Working..."
   while kill -0 "$pid" 2>/dev/null; do
     i=$(( (i+1) %4 ))
     printf "\r[-] Working... %s" "${spin:$i:1}"
     sleep 0.2
   done
-  wait "$pid" || true
+  # `if wait ...; then/else` (not a bare `wait "$pid"; exit_code=$?`) --
+  # this script runs under `set -e`, and a bare failing command would abort
+  # the whole script right here instead of reaching the die/file-existence
+  # checks callers already rely on further down.
+  if wait "$pid"; then
+    exit_code=0
+  else
+    exit_code=$?
+  fi
   printf "\r[-] Done. \n"
+  # Logged only, not propagated: callers already verify success independently
+  # via the XML/HTML output files (die on missing/empty), so surfacing this
+  # here is purely a diagnostic aid, not a new failure path.
+  [ "$exit_code" -ne 0 ] && warn "Background command (PID $pid) exited with code $exit_code"
 }
 
 # convert XML -> HTML with improved error handling
@@ -663,12 +676,16 @@ case "$opt" in
       # Check if .nmap file exists as fallback
       if [ -f "${base}.nmap" ]; then
         warn "Found .nmap file, converting to HTML..."
+        # HTML-escape $target before embedding it: the format validation above
+        # already blocks <>"', but output encoding shouldn't depend solely on
+        # input validation holding forever.
+        target_html=$(printf '%s' "$target" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
         {
           echo '<!DOCTYPE html>'
           echo '<html><head><meta charset="UTF-8">'
-          echo '<title>Nmap Scan Report - '$target'</title>'
+          echo '<title>Nmap Scan Report - '"$target_html"'</title>'
           echo '<style>body{font-family:monospace;padding:20px;background:#f5f5f5}pre{background:#fff;padding:15px;border:1px solid #ddd;overflow:auto;line-height:1.4}</style>'
-          echo '</head><body><h1>Nmap Scan Report: '$target'</h1>'
+          echo '</head><body><h1>Nmap Scan Report: '"$target_html"'</h1>'
           echo '<p><strong>Note:</strong> XML output not available, displaying text format.</p><pre>'
           cat "${base}.nmap"
           echo '</pre></body></html>'

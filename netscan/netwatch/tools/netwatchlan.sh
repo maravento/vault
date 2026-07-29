@@ -365,13 +365,6 @@ start() {
         sleep 0.05
     done
     log "netwatchlan started with PID $(cat "$PIDFILE" 2>/dev/null)"
-
-    # add @reboot cron entry if not already present
-    if ! crontab -l 2>/dev/null | grep -qF "netwatchlan.sh start"; then
-        crontab -l 2>/dev/null > "/var/www/netwatch/tools/crontab-$(date +%Y%m%d%H%M%S).bak" || true
-        (crontab -l 2>/dev/null; echo "@reboot /var/www/netwatch/tools/netwatchlan.sh start") | crontab -
-        log "Added to cron @reboot"
-    fi
 }
 
 ### STOP

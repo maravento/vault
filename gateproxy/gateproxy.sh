@@ -73,6 +73,7 @@ retry_cmd() {
 
 log "Checking for conflicting pre-installed packages..."
 check_conflicts "DHCP server" isc-dhcp-server dnsmasq
+check_conflicts "DNS server"  bind9 named pdns-recursor
 check_conflicts "proxy"       squid squid3 tinyproxy privoxy 3proxy
 check_conflicts "web server"  nginx lighttpd caddy
 check_conflicts "syslog"      syslog-ng
@@ -117,11 +118,11 @@ detect_local_user() {
     echo "$best_user"
 }
 
-if ! local_user=$(detect_local_user); then
+if ! LOCAL_USER=$(detect_local_user); then
     log "ERROR: No valid local user found. Create one with sudo access."
     exit 1
 fi
-log "Using local user: $local_user"
+log "Using local user: $LOCAL_USER"
 
 ### CHECK SO & DESKTOP
 log "Check System..."
@@ -150,12 +151,12 @@ rm -f /var/cache/apt/archives/*.deb 2>/dev/null || true
 ### VARIABLES
 SCRIPT_PATH="$(realpath "$0")"
 gp_path=$(pwd)/gateproxy
-zone_path=/etc/zones
-mkdir -p "$zone_path" &>/dev/null
-acl_path=/etc/acl
-mkdir -p "$acl_path" &>/dev/null
-scr_path=/etc/scr
-mkdir -p "$scr_path" &>/dev/null
+ZONE_PATH=/etc/zones
+mkdir -p "$ZONE_PATH" &>/dev/null
+ACL_PATH=/etc/acl
+mkdir -p "$ACL_PATH" &>/dev/null
+SCR_PATH=/etc/scr
+mkdir -p "$SCR_PATH" &>/dev/null
 
 # PPA
 file="/etc/apt/sources.list.d/ubuntu.sources"
@@ -289,14 +290,14 @@ echo -e "\n"
 hostnamectl set-hostname "$HOSTNAME"
 find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:gateproxy:$HOSTNAME:g" "{}"
 # changing name user account in config files
-find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_user:$local_user:g" "{}"
+find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_user:$LOCAL_USER:g" "{}"
 
 # public interface
 function public_interface() {
     while true; do
-        read -r -p "Enter Public Network Interface (Internet) (e.g. enpXsX): " ETH0
-        if [[ "$ETH0" =~ ^[a-z][a-z0-9]{1,13}[0-9]+$ ]]; then
-            find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$ETH0:g" "{}"
+        read -r -p "Enter Public Network Interface (Internet) (e.g. enpXsX): " WAN_IF
+        if [[ "$WAN_IF" =~ ^[a-z][a-z0-9]{1,13}[0-9]+$ ]]; then
+            find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$WAN_IF:g" "{}"
             break
         else
             log "Invalid interface name. Try again."
@@ -310,7 +311,7 @@ function local_interface() {
         read -r -p "Enter Local Network Interface (e.g. enpXsX): " ETH1
         if [[ "$ETH1" =~ ^[a-z][a-z0-9]{1,13}[0-9]+$ ]]; then
             find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
-            export LAN_INTERFACE="$ETH1"
+            export LAN_IF="$ETH1"
             break
         else
             log "Invalid interface name. Try again."
@@ -350,21 +351,21 @@ fi
 
 if [ "$REUSE_NETWORK" = true ]; then
     source "$NETWORK_ENV"
-    export LAN_INTERFACE
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$ETH0:g" "{}"
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$LAN_INTERFACE:g" "{}"
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.10:$serverip:g" "{}"
-    find "$gp_path/acl" -type f -name "mac-*" -exec sed -i "s:192.168.0\.:$(echo "$serverip" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
-    find "$gp_path/acl/acl_dhcp" -type f -name "blockdhcp*" -exec sed -i "s:192.168.0\.:$(echo "$serverip" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$LOCALNETNEW:g" "{}"
-    sed -i "s:192\.168\.0\.\*:$(echo "$LOCALNETNEW" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/server/wpad.pac"
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.255:$BROADCASTNEW:g" "{}"
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:255.255.255.0:$MASKNEW1:g" "{}"
+    export LAN_IF
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$WAN_IF:g" "{}"
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$LAN_IF:g" "{}"
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.10:$SERVER_IP:g" "{}"
+    find "$gp_path/acl" -type f -name "mac-*" -exec sed -i "s:192.168.0\.:$(echo "$SERVER_IP" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
+    find "$gp_path/acl/acl_dhcp" -type f -name "blockdhcp*" -exec sed -i "s:192.168.0\.:$(echo "$SERVER_IP" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$SERV_SUBNET:g" "{}"
+    sed -i "s:192\.168\.0\.\*:$(echo "$SERV_SUBNET" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/server/wpad.pac"
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.255:$SERV_BROADCAST:g" "{}"
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:255.255.255.0:$SERV_MASK:g" "{}"
     find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:/24:/$MASKNEW2:g" "{}"
     find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.8.8:$DNSNEW1:g" "{}"
     find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.4.4:$DNSNEW2:g" "{}"
     find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:3128:$PORTNEW:g" "{}"
-    log "Reusing saved data: $LAN_INTERFACE / $serverip"
+    log "Reusing saved data: $LAN_IF / $SERVER_IP"
 else
 
 is_interfaces
@@ -394,7 +395,7 @@ while true; do
                 read -r -p "Enter IP (e.g. 192.168.0.10): " input_ip
                 serveripNEW=$(echo "$input_ip" | grep -E '^(([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])$')
                 if [ "$serveripNEW" ]; then
-                    serverip="$serveripNEW"
+                    SERVER_IP="$serveripNEW"
 
                     find "$gp_path/conf" -type f -print0 | while IFS= read -r -d '' file; do
                         sed -i "s:192.168.0.10:$serveripNEW:g" "$file"
@@ -404,7 +405,7 @@ while true; do
 
                     find "$gp_path/acl/acl_dhcp" -type f -name "blockdhcp*" -exec sed -i "s:192.168.0\.:$(echo "$serveripNEW" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
 
-                    log "You have entered IP $serverip :OK"
+                    log "You have entered IP $SERVER_IP :OK"
                     break
                 else
                     log "You have entered IP incorrect"
@@ -413,8 +414,8 @@ while true; do
             break
             ;;
         [Nn]*)
-            serverip="192.168.0.10"
-            log "Default IP: $serverip"
+            SERVER_IP="192.168.0.10"
+            log "Default IP: $SERVER_IP"
             break
             ;;
         *)
@@ -423,18 +424,18 @@ while true; do
     esac
 done
 
-LOCALNETNEW="$(echo "$serverip" | awk -F '.' '{OFS="."; $4="0"; print $0}')"
-if [ "$LOCALNETNEW" != "192.168.0.0" ]; then
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$LOCALNETNEW:g" "{}"
-    sed -i "s:192\.168\.0\.\*:$(echo "$LOCALNETNEW" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/server/wpad.pac"
+SERV_SUBNET="$(echo "$SERVER_IP" | awk -F '.' '{OFS="."; $4="0"; print $0}')"
+if [ "$SERV_SUBNET" != "192.168.0.0" ]; then
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$SERV_SUBNET:g" "{}"
+    sed -i "s:192\.168\.0\.\*:$(echo "$SERV_SUBNET" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/server/wpad.pac"
 fi
-log "Localnet: $LOCALNETNEW (from Server IP)"
+log "Localnet: $SERV_SUBNET (from Server IP)"
 
-BROADCASTNEW="$(echo "$serverip" | awk -F '.' '{OFS="."; $4="255"; print $0}')"
-if [ "$BROADCASTNEW" != "192.168.0.255" ]; then
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.255:$BROADCASTNEW:g" "{}"
+SERV_BROADCAST="$(echo "$SERVER_IP" | awk -F '.' '{OFS="."; $4="255"; print $0}')"
+if [ "$SERV_BROADCAST" != "192.168.0.255" ]; then
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.255:$SERV_BROADCAST:g" "{}"
 fi
-log "Broadcast: $BROADCASTNEW (from Server IP)"
+log "Broadcast: $SERV_BROADCAST (from Server IP)"
 
 ### PARAMETERS
 is_ask() {
@@ -469,19 +470,19 @@ is_ask() {
 }
 
 # netmask
-MASKNEW1="255.255.255.0"
+SERV_MASK="255.255.255.0"
 MASKNEW2="24"
 
 # netmask
 function is_mask1() {
     read -r -p "Enter Netmask (e.g. 255.255.255.0): " MASK1
-    MASKNEW1=$(echo "$MASK1" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
-    if [ "$MASKNEW1" ]; then
-        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:255.255.255.0:$MASKNEW1:g" "{}"
+    SERV_MASK=$(echo "$MASK1" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
+    if [ "$SERV_MASK" ]; then
+        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:255.255.255.0:$SERV_MASK:g" "{}"
         log "You have entered Netmask $MASK1 :OK"
         return 0
     else
-        MASKNEW1="255.255.255.0"
+        SERV_MASK="255.255.255.0"
         return 1
     fi
 }
@@ -565,26 +566,29 @@ Mask 255.255.255.0, Network /24, DNS 8.8.8.8 8.8.4.4, Proxy Port 3128
     esac
 done
 
-cat > "$NETWORK_ENV" <<EOF
-ETH0="$ETH0"
-LAN_INTERFACE="$LAN_INTERFACE"
-serverip="$serverip"
-LOCALNETNEW="$LOCALNETNEW"
-BROADCASTNEW="$BROADCASTNEW"
-MASKNEW1="$MASKNEW1"
+cat > "$NETWORK_ENV" << ENVEOF
+WAN_IF="$WAN_IF"
+LAN_IF="$LAN_IF"
+SERVER_IP="$SERVER_IP"
+SERV_SUBNET="$SERV_SUBNET"
+SERV_BROADCAST="$SERV_BROADCAST"
+SERV_MASK="$SERV_MASK"
 MASKNEW2="$MASKNEW2"
-DNSNEW1="${DNSNEW1:-8.8.8.8}"
-DNSNEW2="${DNSNEW2:-8.8.4.4}"
+SERV_DNS="${DNSNEW1:-8.8.8.8},${DNSNEW2:-8.8.4.4}"
 PORTNEW="${PORTNEW:-3128}"
-EOF
+LOCAL_USER="$LOCAL_USER"
+ACL_PATH="$ACL_PATH"
+SCR_PATH="$SCR_PATH"
+ZONE_PATH="$ZONE_PATH"
+ENVEOF
 chown root:root "$NETWORK_ENV"
 chmod 600 "$NETWORK_ENV"
 
 fi
 
 ### NETPLAN
-if [ "$REUSE_NETWORK" = true ] && ip -4 addr show "$LAN_INTERFACE" 2>/dev/null | grep -qF "inet $serverip/"; then
-    log "Network already configured: $LAN_INTERFACE has $serverip"
+if [ "$REUSE_NETWORK" = true ] && ip -4 addr show "$LAN_IF" 2>/dev/null | grep -qF "inet $SERVER_IP/"; then
+    log "Network already configured: $LAN_IF has $SERVER_IP"
 else
 
 echo -e "\n"
@@ -604,19 +608,19 @@ if ! netplan apply 2>&1 | tee -a "$log_file"; then
     exit 1
 fi
 
-log "Waiting for $LAN_INTERFACE to come up with $serverip..."
+log "Waiting for $LAN_IF to come up with $SERVER_IP..."
 NETPLAN_WAIT=0
 NETPLAN_WAIT_LIMIT=30
-until ip -4 addr show "$LAN_INTERFACE" 2>/dev/null | grep -qF "inet $serverip/"; do
+until ip -4 addr show "$LAN_IF" 2>/dev/null | grep -qF "inet $SERVER_IP/"; do
     if [ "$NETPLAN_WAIT" -ge "$NETPLAN_WAIT_LIMIT" ]; then
-        log "ERROR: $LAN_INTERFACE did not come up with an IP."
+        log "ERROR: $LAN_IF did not come up with an IP."
         log "Wait a few minutes and run: sudo bash gateproxy.sh"
         exit 1
     fi
     sleep 2
     NETPLAN_WAIT=$((NETPLAN_WAIT + 1))
 done
-log "Network OK: $LAN_INTERFACE has $serverip"
+log "Network OK: $LAN_IF has $SERVER_IP"
 
 fi
 
@@ -681,6 +685,16 @@ retry_cmd nala install -y javascript-common libjs-jquery xsltproc
 # NETWORK & CONNECTIVITY
 retry_cmd nala install -y wget bind9-dnsutils conntrack i2c-tools wsdd ipset
 
+# DNS
+retry_cmd nala install -y unbound
+cp -f "$gp_path/conf/server/forward.conf" /etc/unbound/unbound.conf.d/forward.conf
+tee /etc/default/unbound >/dev/null <<'EOF'
+DAEMON_OPTS=""
+EOF
+unbound-checkconf || log "Warning: Unbound Conf Fail"
+systemctl daemon-reload
+systemctl enable --now unbound
+
 # GEOLOCATION DATABASES
 retry_cmd nala install -y geoip-database
 
@@ -718,14 +732,14 @@ else
     cat "$gp_path/conf/server/hosts.txt" >> /etc/hosts
 fi
 sed -i '/^\s*\(fe00::\|ff00::\|ff02::\)/ s/^/#/' /etc/hosts
-grep -q "ipv6.msftncsi.com" /etc/hosts || echo "$serverip ipv6.msftncsi.com ipv6.msftconnecttest.com" | tee -a /etc/hosts >/dev/null
+grep -q "ipv6.msftncsi.com" /etc/hosts || echo "$SERVER_IP ipv6.msftncsi.com ipv6.msftconnecttest.com" | tee -a /etc/hosts >/dev/null
 
 # ACLs SECTION
-acl_mac_path="$acl_path/acl_mac"
-acl_dhcp_path="$acl_path/acl_dhcp"
-acl_squid_path="$acl_path/acl_squid"
-acl_ipt_path="$acl_path/acl_ipt"
-cp -rf "$gp_path/acl/." "$acl_path/"
+acl_mac_path="$ACL_PATH/acl_mac"
+acl_dhcp_path="$ACL_PATH/acl_dhcp"
+acl_squid_path="$ACL_PATH/acl_squid"
+acl_ipt_path="$ACL_PATH/acl_ipt"
+cp -rf "$gp_path/acl/." "$ACL_PATH/"
 # DHCP ACL files
 chmod 600 "$acl_mac_path"/mac-*.txt "$acl_dhcp_path/blockdhcp.txt"
 chown root:root "$acl_mac_path"/mac-*.txt "$acl_dhcp_path/blockdhcp.txt"
@@ -875,17 +889,17 @@ spawn ./proxymon.sh install
 interact {
     -o
     "LAN interface (default:" {
-        send "$LAN_INTERFACE\r"
+        send "$LAN_IF\r"
     }
     "Server IP for LAN (default:" {
-        send "$serverip\r"
+        send "$SERVER_IP\r"
     }
 }
 catch wait result
 exit [lindex \$result 3]
 EOF
             if expect -f "$PROXYMON_EXPECT"; then
-                log "Sent to proxymon: serverip=$serverip lan_interface=$LAN_INTERFACE"
+                log "Sent to proxymon: SERVER_IP=$SERVER_IP lan_interface=$LAN_IF"
             else
                 log "WARNING: proxymon.sh install failed. Skipping installation."
             fi
@@ -911,16 +925,18 @@ if (cd "$gp_path" && git clone https://github.com/maravento/pydhcp); then
             PYDHCP_EXPECT=$(mktemp)
             cat > "$PYDHCP_EXPECT" <<EOF
 spawn bash pyinstall.sh
-expect -re {\[([0-9]+)\][ \t]+$LAN_INTERFACE[ \t(]}
+expect -re {\[([0-9]+)\][ \t]+$LAN_IF[ \t(]}
 send "\$expect_out(1,string)\r"
 expect "Enter DHCP server IP"
-send "$serverip\r"
+send "$SERVER_IP\r"
 expect "Enter netmask"
-send "$MASKNEW1\r"
+send "$SERV_MASK\r"
 expect "Enter pool start"
 send "\r"
 expect "Enter pool end"
 send "\r"
+expect "Enter DNS server"
+send "$SERVER_IP\r"
 expect eof
 catch wait result
 exit [lindex \$result 3]
@@ -929,7 +945,8 @@ EOF
             rm -f "$PYDHCP_EXPECT"
 
             cd "$gp_path"
-            log "DHCP pool range: 220-235 (default). To modify edit /etc/pydhcp/pydhcpd.env"
+            log "DHCP pool range: 220-235 (default). To modify edit /etc/pydhcp/pydhcp.env"
+            log "DHCP clients will use $SERVER_IP (unbound) as DNS"
         else
             log "WARNING: Cannot enter pydhcp directory. Skipping pydhcp installation."
         fi
@@ -947,7 +964,7 @@ chown root:root /var/log
 retry_cmd nala install -y ulogd2
 mkdir -p /var/log/ulog &>/dev/null
 touch /var/log/ulog/syslogemu.log &>/dev/null
-usermod -a -G ulog "$local_user"
+usermod -a -G ulog "$LOCAL_USER"
 (crontab -l 2>/dev/null || true; echo "#*/10 * * * * /etc/scr/banip.sh") | crontab -
 log "Ulog Access: /var/log/ulog/syslogemu.log"
 # rsyslog
@@ -978,7 +995,7 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         retry_cmd nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
         retry_cmd nala install -y fping              # Net diagnostics: fping -a -g 192.168.1.0/24
         retry_cmd nala install -y ethtool            # Net config: ethtool eth0
-        # Net test: On server: iperf3 -s | On client: iperf3 -c serverip
+        # Net test: On server: iperf3 -s | On client: iperf3 -c SERVER_IP
         DEBIAN_FRONTEND=noninteractive retry_cmd nala install -y iperf3  2>/dev/null
         # Net Scanning (Replace NIC and IP/CIDR)
         retry_cmd nala install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
@@ -1010,13 +1027,13 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         # ttyd (web terminal)
         retry_cmd nala install -y ttyd
         cp -f "$gp_path/conf/pack/ttyd.service" /etc/systemd/system/ttyd.service
-        sed -i "s/your_user/$local_user/g" /etc/systemd/system/ttyd.service
+        sed -i "s/your_user/$LOCAL_USER/g" /etc/systemd/system/ttyd.service
         systemctl daemon-reload
         systemctl enable ttyd.service
         log "ttyd Access: http://localhost:7681"
         # suricata install
         retry_cmd nala install -y suricata suricata-update jq
-        sed -i "s/interface: eth[0-9]/interface: $LAN_INTERFACE/g" /etc/suricata/suricata.yaml
+        sed -i "s/interface: eth[0-9]/interface: $LAN_IF/g" /etc/suricata/suricata.yaml
         if grep -q "community-id: false" /etc/suricata/suricata.yaml; then
             sed -i 's/community-id: false/community-id: true/' /etc/suricata/suricata.yaml
             log "OK: Community-ID enabled"
@@ -1098,10 +1115,10 @@ spawn bash smbinstall.sh --install
 interact {
     -o
     "Enter Samba server IP/network (e.g. 192.168.1.0/24): " {
-        send "$LOCALNETNEW/$MASKNEW2\r"
+        send "$SERV_SUBNET/$MASKNEW2\r"
     }
     "Enter network interface: " {
-        send "$LAN_INTERFACE\r"
+        send "$LAN_IF\r"
     }
 }
 catch wait result
@@ -1145,20 +1162,20 @@ upgrade
 echo -e "\n"
 log "Downloading ACLs..."
 # Allow IP
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O "$acl_path/acl_squid/allowip.txt" || true
-if [ ! -s "$acl_path/acl_squid/allowip.txt" ]; then
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O "$ACL_PATH/acl_squid/allowip.txt" || true
+if [ ! -s "$ACL_PATH/acl_squid/allowip.txt" ]; then
     log "WARNING: allowip.txt download failed"
 fi
 
 # Block Patterns
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/source/squid/blockpatterns.txt -O "$acl_path/acl_squid/blockpatterns.txt" || true
-if [ ! -s "$acl_path/acl_squid/blockpatterns.txt" ]; then
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/source/squid/blockpatterns.txt -O "$ACL_PATH/acl_squid/blockpatterns.txt" || true
+if [ ! -s "$ACL_PATH/acl_squid/blockpatterns.txt" ]; then
     log "WARNING: blockpatterns.txt download failed"
 fi
 
 # Block TLDs
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O "$acl_path/acl_squid/blocktlds.txt" || true
-if [ ! -s "$acl_path/acl_squid/blocktlds.txt" ]; then
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O "$ACL_PATH/acl_squid/blocktlds.txt" || true
+if [ ! -s "$ACL_PATH/acl_squid/blocktlds.txt" ]; then
     log "WARNING: blocktlds.txt download failed, disabling ACL in squid.conf"
     sed -i '/^acl blocktlds /s/^/#/; /^http_access deny workdays blocktlds/s/^/#/' "$gp_path/conf/server/squid.conf"
 fi
@@ -1166,7 +1183,7 @@ fi
 # Blackweb
 if (cd "$gp_path" && wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/blackweb.tar.gz && [ -f blackweb.tar.gz ]); then
     (cd "$gp_path" && cat blackweb.tar.gz* | tar xzf -)
-    cp "$gp_path/blackweb.txt" "$acl_path/acl_squid/blackweb.txt"
+    cp "$gp_path/blackweb.txt" "$ACL_PATH/acl_squid/blackweb.txt"
 else
     log "WARNING: blackweb.tar.gz download failed"
 fi
@@ -1190,7 +1207,6 @@ scripts=(
     "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/cleaner.sh"
     "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/filereport.sh"
     "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/hwclock.sh"
-    "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/lock.sh"
 )
 for url in "${scripts[@]}"; do
     fname=$(basename "$url")
@@ -1203,9 +1219,9 @@ for url in "${scripts[@]}"; do
 done
 
 # scripts
-cp -fr "$gp_path/conf/scr/"* "$scr_path"
-chown -R root:root "$scr_path"/*
-find "$scr_path" -name "*.sh" -exec chmod +x {} \;
+cp -fr "$gp_path/conf/scr/"* "$SCR_PATH"
+chown -R root:root "$SCR_PATH"/*
+find "$SCR_PATH" -name "*.sh" -exec chmod +x {} \;
 # Choose your security level: "Secure Share Memory" (optional)
 #echo 'none /run/shm tmpfs defaults,ro 0 0' | tee -a /etc/fstab &> /dev/null
 #echo 'tmpfs /tmp tmpfs defaults,size=30%,nofail,noatime,mode=1777 0 0' | tee -a /etc/fstab &> /dev/null
@@ -1234,9 +1250,9 @@ chmod 644 /var/www/wpad/wpad.pac
 cp -f "$gp_path/conf/server/wpad.conf" /etc/apache2/sites-available/wpad.conf
 chmod 644 /etc/apache2/sites-available/wpad.conf
 a2ensite -q wpad.conf
-grep -qxF "Listen $serverip:18100" /etc/apache2/ports.conf || grep -qxF 'Listen 18100' /etc/apache2/ports.conf || echo "Listen $serverip:18100" >> /etc/apache2/ports.conf
+grep -qxF "Listen $SERVER_IP:18100" /etc/apache2/ports.conf || grep -qxF 'Listen 18100' /etc/apache2/ports.conf || echo "Listen $SERVER_IP:18100" >> /etc/apache2/ports.conf
 apachectl -t -D DUMP_INCLUDES -S || true
-log "WPAD-PAC: http://$serverip:18100/wpad.pac"
+log "WPAD-PAC: http://$SERVER_IP:18100/wpad.pac"
 log "OK"
 sleep 1
 
@@ -1317,7 +1333,7 @@ sleep 1
 echo -e "\n"
 log "Create Apache Password: /var/www/..."
 echo -e "\n"
-until htpasswd -c /etc/apache2/.htpasswd "$local_user"; do
+until htpasswd -c /etc/apache2/.htpasswd "$LOCAL_USER"; do
     log "Passwords did not match or were empty. Try again."
 done
 
@@ -1332,10 +1348,7 @@ sleep 1
 # CRONTAB
 echo -e "\n"
 log "Add Crontab Tasks..."
-(crontab -l 2>/dev/null || true; echo "@reboot systemctl daemon-reload
-@reboot /etc/scr/hwclock.sh
-@reboot /etc/scr/lock.sh
-@reboot /etc/scr/blackusb.sh off
+(crontab -l 2>/dev/null || true; echo "@reboot systemctl daemon-reload && /etc/scr/hwclock.sh && /etc/scr/blackusb.sh off
 */5 * * * * /etc/scr/serviceswatch.sh
 @weekly /etc/scr/cleaner.sh") | sort -u | crontab -
 log "OK"
@@ -1354,9 +1367,9 @@ systemctl daemon-reexec &>/dev/null
 # Update initramfs (optional)
 #update-initramfs -u -k all
 # create alias "upgrade"
-sudo -u "$local_user" bash -c "printf '%s\n' 'alias upgrade=\"sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo systemctl daemon-reload && sudo updatedb && sudo update-desktop-database && sudo snap refresh\"' >> /home/${local_user}/.bashrc"
-sudo -u "$local_user" bash -c "printf '%s\n' 'alias server=\"sudo /etc/scr/serverboot.sh\"' >> /home/${local_user}/.bashrc"
-sudo -u "$local_user" bash -c "printf '%s\n' 'alias cleaner=\"sudo /etc/scr/cleaner.sh\"' >> /home/${local_user}/.bashrc"
+sudo -u "$LOCAL_USER" bash -c "printf '%s\n' 'alias upgrade=\"sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo systemctl daemon-reload && sudo updatedb && sudo update-desktop-database && sudo snap refresh\"' >> /home/${LOCAL_USER}/.bashrc"
+sudo -u "$LOCAL_USER" bash -c "printf '%s\n' 'alias server=\"sudo /etc/scr/serverboot.sh\"' >> /home/${LOCAL_USER}/.bashrc"
+sudo -u "$LOCAL_USER" bash -c "printf '%s\n' 'alias cleaner=\"sudo /etc/scr/cleaner.sh\"' >> /home/${LOCAL_USER}/.bashrc"
 # IPv4 priority
 sed -i 's/^#\s*precedence ::ffff:0:0\/96\s\+100/precedence ::ffff:0:0\/96  100/' /etc/gai.conf
 # snap
