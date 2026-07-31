@@ -21,8 +21,18 @@
 
 **⚠️ WARNING:** Only tested on Ubuntu 24.04 LTS. Other versions or distros not tested, use at your own risk.
 
+### Mandatory (for `blackshield.sh`)
+
 ```bash
-bash samba squid iptables ulogd2 ipset perl
+apt install -y wget grep sed gawk coreutils util-linux
+```
+
+### Optional (to consume the generated lists)
+
+`blackshield.sh` only updates and exposes the lists — it does not deploy or enforce them. The following are only needed if you actually use the generated lists with the corresponding tool:
+
+```bash
+samba squid iptables ulogd2 ipset perl
 ```
 
 ## DOWNLOAD PROJECT
@@ -199,14 +209,14 @@ http_access deny all
       Important:
       <ul>
         <li>You cannot include more than one list in <code>smb.conf</code> for the <code>veto files</code> directive.</li>
-        <li><code>vetofiles.txt</code> is generated automatically by <code>blackshield.sh</code>, merging <code>ransom_veto.txt</code> (updated dynamically) and <code>common_veto.txt</code> (static. You can add or remove extensions manually).</li>
+        <li><code>smbveto.txt</code> is generated automatically by <code>blackshield.sh</code> from the aggregated external sources plus your own <code>rw.txt</code> (updated dynamically). <code>commonveto.txt</code> is a separate, static, manually-editable list not touched by the script.</li>
       </ul>
     </td>
     <td style="width: 50%; vertical-align: top;">
       Importante:
       <ul>
         <li>No puede incluir más de una lista en <code>smb.conf</code> para la directiva <code>veto files</code>.</li>
-        <li><code>vetofiles.txt</code> se genera automáticamente con <code>blackshield.sh</code>, unificando <code>ransom_veto.txt</code> (se actualiza dinámicamente) y <code>common_veto.txt</code> (estática. Puede agregar o quitar extensiones manualmente).</li>
+        <li><code>smbveto.txt</code> se genera automáticamente con <code>blackshield.sh</code> a partir de las fuentes externas agregadas más su propio <code>rw.txt</code> (se actualiza dinámicamente). <code>commonveto.txt</code> es una lista estática separada, editable manualmente, que el script no toca.</li>
       </ul>
     </td>
   </tr>

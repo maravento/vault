@@ -820,7 +820,7 @@ ICONEOF
     chmod 644 "$MODDIR/images/"* 2>/dev/null || true
 
     if [ -f /etc/webmin/webmin.acl ]; then
-        if ! grep -q "servicemon" /etc/webmin/webmin.acl 2>/dev/null; then
+        if ! grep -qE "^root:.*\bservicemon\b" /etc/webmin/webmin.acl 2>/dev/null; then
             sed -i.bak 's/\(^root:.*\)/\1 servicemon/' /etc/webmin/webmin.acl
             rm -f /etc/webmin/webmin.acl.bak
             echo "Module added to webmin.acl"

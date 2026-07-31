@@ -350,6 +350,10 @@ else
 fi
 iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set bogons src -j DROP
 iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set bogons dst -j DROP
+# WAN ingress: drop spoofed traffic claiming a reserved/private source address.
+# dst intentionally omitted -- this host may itself sit behind CGNAT/double-NAT
+# on a private WAN address, which a dst check would wrongly match and drop.
+iptables -t mangle -A PREROUTING -i "$wan" -m set --match-set bogons src -j DROP
 
 # MASQUERADE: NAT for LAN to share dynamic WAN IP
 iptables -t nat -A POSTROUTING -s "$localnet/$netmask" -o "$wan" -j MASQUERADE
@@ -365,6 +369,38 @@ iptables -A OUTPUT -m conntrack --ctstate NEW,ESTABLISHED,RELATED -j ACCEPT
 # Squid proxy outbound traffic
 iptables -A OUTPUT -o "$wan" -m owner --uid-owner proxy -j ACCEPT
 
+# Invalid and fragmented packets
+iptables -A INPUT -m conntrack --ctstate INVALID -j DROP
+iptables -A FORWARD -m conntrack --ctstate INVALID -j DROP
+iptables -A FORWARD -f -j DROP
+# TCP scans / malformed packets
+iptables -A INPUT -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
+iptables -A INPUT -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
+iptables -A FORWARD -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
+iptables -A FORWARD -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
+# Invalid NEW connections with SYN+ACK
+iptables -A INPUT -p tcp --tcp-flags SYN,ACK SYN,ACK -m conntrack --ctstate NEW -j DROP
+iptables -A FORWARD -p tcp --tcp-flags SYN,ACK SYN,ACK -m conntrack --ctstate NEW -j DROP
+
+# DNS (Global Policy)
+# Applies to all lan sources regardless of MAC list -- no list gets a free
+# pass on bypassing the resolver or flooding it. Placed before MACUNLIMITED's
+# blanket ACCEPT-all further down, so that rule never gets a chance to
+# short-circuit this one.
+# Burst limit
+iptables -A FORWARD -i "$lan" -p udp --dport 53 -m state --state NEW -m recent --set --name DNS_DROPPER
+iptables -A FORWARD -i "$lan" -p udp --dport 53 -m state --state NEW -m recent --update --seconds 1 --hitcount 15 --name DNS_DROPPER -j DROP
+for dnsip in ${SERV_DNS//,/ }; do
+    for protocol in tcp udp; do
+        iptables -A INPUT -i "$lan" -d "$dnsip" -p "$protocol" --dport 53 -j ACCEPT
+        iptables -A FORWARD -i "$lan" -d "$dnsip" -p "$protocol" --dport 53 -j ACCEPT
+    done
+done
+for protocol in tcp udp; do
+    iptables -A FORWARD -i "$lan" -p "$protocol" --dport 53 -m hashlimit --hashlimit-name dns-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip -j NFLOG --nflog-prefix "DNS-DROP: "
+    iptables -A FORWARD -i "$lan" -p "$protocol" --dport 53 -j DROP
+done
+
 # DHCP
 iptables -t mangle -A PREROUTING -i "$lan" -p udp --dport 67 -j ACCEPT
 iptables -A OUTPUT -o "$wan" -p udp --sport 68 --dport 67 -j ACCEPT
@@ -379,19 +415,6 @@ iptables -A FORWARD -i "$lan" -p udp --dport 123 -s "$localnet/$netmask" -j ACCE
 # WARNING PAGE HTTP FOR BANDATA (TCP 18081)
 # https://github.com/maravento/proxymon
 iptables -A INPUT -i "$lan" -p tcp --dport 18081 -j ACCEPT
-
-# Invalid and fragmented packets
-iptables -A INPUT -m conntrack --ctstate INVALID -j DROP
-iptables -A FORWARD -m conntrack --ctstate INVALID -j DROP
-iptables -A FORWARD -f -j DROP
-# TCP scans / malformed packets
-iptables -A INPUT -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
-iptables -A INPUT -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
-iptables -A FORWARD -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
-iptables -A FORWARD -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
-# Invalid NEW connections with SYN+ACK
-iptables -A INPUT -p tcp --tcp-flags SYN,ACK SYN,ACK -m conntrack --ctstate NEW -j DROP
-iptables -A FORWARD -p tcp --tcp-flags SYN,ACK SYN,ACK -m conntrack --ctstate NEW -j DROP
 
 # MACUNLIMITED (MAC + IP for Access Points, Switch, etc.)
 if ! ipset list macunlimited &>/dev/null; then
@@ -459,6 +482,16 @@ if [ -n "$mac2ip" ]; then
     create_acl "${mac2ip_args[@]}"
     iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macip src,src -j ACCEPT
     iptables -t mangle -A PREROUTING -i "$lan" -j DROP
+
+    # ARP binding: drop ARP claiming a registered static IP from any MAC other
+    # than the one it's leased to. iptables/ipset only see the IP layer, not
+    # how that IP got resolved to a MAC on the wire -- this closes that gap.
+    for ((_arp_i=0; _arp_i<${#mac2ip_args[@]}; _arp_i+=2)); do
+        _arp_mac="${mac2ip_args[_arp_i]}"
+        _arp_ip="${mac2ip_args[_arp_i+1]}"
+        is_valid_mac "$_arp_mac" && is_valid_ip "$_arp_ip" && \
+            arptables -A INPUT -i "$lan" --source-ip "$_arp_ip" ! --source-mac "$_arp_mac" -j DROP
+    done
 else
     log "WARNING: No static DHCP entries found in $dhcp_conf; macip binding skipped"
 fi
@@ -522,16 +555,6 @@ else
 fi
 for mac in $(awk -F";" '$1 == "a" && $2 != "" {print $2}' "$acl_mac_path"/mac-*.txt 2>/dev/null); do
     is_valid_mac "$mac" && ipset add macports "$mac" -exist
-done
-
-# DNS
-for dnsip in ${SERV_DNS//,/ }; do
-    for protocol in tcp udp; do
-         iptables -A INPUT -i "$lan" -m set --match-set macports src -d "$dnsip" -p "$protocol" --dport 53 -j ACCEPT
-    done
-done
-for protocol in tcp udp; do
-    iptables -A FORWARD -i "$lan" -p "$protocol" --dport 53 -j DROP
 done
 
 # PRINTERS

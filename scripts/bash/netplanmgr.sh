@@ -1082,7 +1082,7 @@ ICONEOF
     # Register in Webmin ACL
     # ============================================================
     if [ -f /etc/webmin/webmin.acl ]; then
-        if ! grep -q "$MODNAME" /etc/webmin/webmin.acl 2>/dev/null; then
+        if ! grep -qE "^root:.*\b${MODNAME}\b" /etc/webmin/webmin.acl 2>/dev/null; then
             sed -i.bak 's/\(^root:.*\)/\1 '"$MODNAME"'/' /etc/webmin/webmin.acl
             rm -f /etc/webmin/webmin.acl.bak
             echo "Module added to webmin.acl"

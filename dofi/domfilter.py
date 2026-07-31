@@ -196,11 +196,15 @@ def process_domains(input_file: str, tlds: set, output_file: str = None, removed
 # MAIN
 def main():
     parser = argparse.ArgumentParser(description="Generate TLD list and filter domains.")
-    parser.add_argument('--input', required=True, help="Path to the capture file.")
+    parser.add_argument('--input', required=False, default=None, help="Path to the capture file.")
     parser.add_argument('--output', help="Path to the output file (optional).", default="output.txt", type=str)
     parser.add_argument('--removed', help="Path to the output file for removed domains (optional).", default="removed.txt", type=str)
     parser.add_argument('--no-verify-ssl', action='store_true', help="Disable SSL verification when downloading TLD sources (not recommended).")
     args = parser.parse_args()
+
+    if not args.input:
+        print("WARNING: --input is required. Usage: domfilter.py --input <file>")
+        sys.exit(1)
 
     verify_ssl = not args.no_verify_ssl
     if not verify_ssl:

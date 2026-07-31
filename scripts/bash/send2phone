@@ -35,11 +35,11 @@ for pkg in kdeconnect-cli; do
 done
 
 files=()
-if [ -n "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS" ]; then
+if [ -n "${NAUTILUS_SCRIPT_SELECTED_FILE_PATHS:-}" ]; then
     IFS=$'\n' read -d '' -r -a files <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
-elif [ -n "$THUNAR_SELECTION" ]; then
+elif [ -n "${THUNAR_SELECTION:-}" ]; then
     IFS=$'\n' read -d '' -r -a files <<< "$THUNAR_SELECTION"
-elif [ -n "$NEMO_SCRIPT_SELECTED_FILE_PATHS" ]; then
+elif [ -n "${NEMO_SCRIPT_SELECTED_FILE_PATHS:-}" ]; then
     IFS=$'\n' read -d '' -r -a files <<< "$NEMO_SCRIPT_SELECTED_FILE_PATHS"
 elif [ "$#" -gt 0 ]; then
     files=("$@")

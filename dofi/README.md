@@ -33,10 +33,13 @@
 wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
 chmod +x gitfolder.py
 python3 gitfolder.py https://github.com/maravento/vault/dofi
-
-# Install
 cd dofi
-python domfilter.py
+```
+
+`domfilter.py` has no separate install step -- it only runs on demand with `--input` (see [Using Python Script](#using-python-script) below):
+
+```bash
+python domfilter.py --input mylst.txt
 ```
 
 ### Important before use
@@ -135,13 +138,11 @@ ccTLDs, gTLDs, sTLDs, eTLDs, and 4LDs (file: `tlds.txt`)
       This script checks if each domain exists, using the host command, and cleans the input list, separating the output as follows:<br>
       - <code>hit.txt</code>: existing domains from your list.<br>
       - <code>fault.txt</code>: non-existent domains removed.<br>
-      - <code>outdiff.txt</code>: Difference between input and output.<br>
     </td>
     <td style="width: 50%; vertical-align: top;">
       Este script verifica si cada dominio existe, con el comando host y limpia la lista de entrada, separando la salida de la siguiente manera:<br>
       - <code>hit.txt</code>: dominios existentes de su lista.<br>
       - <code>fault.txt</code>: dominios inexistentes eliminados.<br>
-      - <code>outdiff.txt</code>: diferencia entre entrada y salida.<br>
     </td>
   </tr>
 </table>

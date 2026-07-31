@@ -260,10 +260,10 @@ Package: NetScan
 
 **⚠️ WARNING:** Only tested on Ubuntu 24.04 LTS. Other versions or distros not tested, use at your own risk.
 
-- nmap, xsltproc
+- nmap, xsltproc, iproute2
 
 ```bash
-apt-get install -y nmap xsltproc
+apt-get install -y nmap xsltproc iproute2
 ```
 
 <table width="100%">
@@ -336,10 +336,10 @@ sudo ./netreport.sh
 **⚠️ WARNING:** Only tested on Ubuntu 24.04 LTS. Other versions or distros not tested, use at your own risk.
 
 - Apache2 with mod_php (not PHP-FPM — the vhost uses `SetHandler application/x-httpd-php`)
-- arp-scan, sqlite3, php-sqlite3, nmap, iproute2 (`ss`), logrotate
+- arp-scan, sqlite3, php-sqlite3, php-cli, nmap, iproute2 (`ss`), logrotate
 
 ```bash
-apt-get install -y apache2 libapache2-mod-php
+apt-get install -y apache2 libapache2-mod-php php-cli
 apt-get install -y arp-scan sqlite3 php-sqlite3 nmap iproute2 logrotate
 ```
 

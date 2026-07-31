@@ -674,6 +674,7 @@ WISENutbot
 Wonderbot
 Woobot
 Wotbox
+wp2shell
 Wprecon
 WPScan
 WWW-Collector-E

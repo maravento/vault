@@ -10,7 +10,7 @@
 #
 # Requirements:
 # - Run as root (sudo) because scans use -sS and -O.
-# - Packages: nmap, xsltproc (script will check if missing).
+# - Packages: nmap, xsltproc, iproute2 (script will check if missing).
 #
 # Outputs:
 # - /home/<user>/Report/scan_TIMESTAMP.html

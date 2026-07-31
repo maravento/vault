@@ -23,7 +23,7 @@
 
 **⚠️ WARNING:** Only tested on Ubuntu 24.04 LTS. Other versions or distros not tested, use at your own risk.
 
-`bash`, `udev`, `usbutils`
+`bash`, `udev`, `util-linux`
 
 <table width="100%">
   <tr>
@@ -74,6 +74,7 @@ sudo /path_to/blackusb.sh s
 |off|x|Temporarily deactivate blackusb / Desactiva temporalmente blackusb|
 |gen|g|Generate or refresh whitelist udev rules file / Genera o refresca lista blanca de dispositivos lista udev usb|
 |del|d|Delete udev rules file contain white list usb devices / Elimina archivo udev que contiene lista blanca de dispositivos usb|
+|trigger|t|Trigger event on insertion or removal / Dispara el evento de inserción o remoción|
 |edit|e|Edit udev rules file manually / Edita manualmente las reglas udev|
 
 ### Paranoic Mode

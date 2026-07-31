@@ -721,7 +721,7 @@ chmod 644 "$acl_ipt_path"/*.txt
 chown root:root "$acl_ipt_path"/*.txt
 
 # PHP
-retry_cmd nala install -y php libapache2-mod-php php-cli php-curl
+retry_cmd nala install -y php libapache2-mod-php php-cli php-curl php-sqlite3
 
 # Detect PHP version
 if command -v php &>/dev/null; then

@@ -1954,7 +1954,7 @@ ICONEOF
     # ============================================================
     # 18. Register module in Webmin ACL
     # ============================================================
-    if [[ -f /etc/webmin/webmin.acl ]] && ! grep -q "squidmon" /etc/webmin/webmin.acl; then
+    if [[ -f /etc/webmin/webmin.acl ]] && ! grep -qE "^root:.*\bsquidmon\b" /etc/webmin/webmin.acl; then
         sed -i.bak 's/\(^root:.*\)/\1 squidmon/' /etc/webmin/webmin.acl
         rm -f /etc/webmin/webmin.acl.bak
         echo "Module added to webmin.acl"

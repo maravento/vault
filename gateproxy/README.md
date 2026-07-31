@@ -49,10 +49,10 @@ wget -qO gateproxy.sh https://raw.githubusercontent.com/maravento/vault/master/g
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     Before installing anything, the script checks for conflicting software already on the system: <code>isc-dhcp-server</code>/<code>dnsmasq</code> (DHCP), <code>squid</code>/<code>squid3</code>/<code>tinyproxy</code>/<code>privoxy</code>/<code>3proxy</code> (proxy), <code>nginx</code>/<code>lighttpd</code>/<code>caddy</code> (web server), <code>syslog-ng</code>, <code>firewalld</code>, <code>snort</code>, or an active <code>ufw</code>. If any of these are present, the installer aborts with instructions to remove them first.
+     Before installing anything, the script checks for conflicting software already on the system: <code>isc-dhcp-server</code>/<code>dnsmasq</code> (DHCP), <code>squid</code>/<code>squid3</code>/<code>tinyproxy</code>/<code>privoxy</code>/<code>3proxy</code> (proxy), <code>nginx</code>/<code>lighttpd</code>/<code>caddy</code> (web server), <code>bind9</code>/<code>named</code>/<code>pdns-recursor</code> (DNS server), <code>syslog-ng</code>, <code>firewalld</code>, <code>snort</code>, or an active <code>ufw</code>. If any of these are present, the installer aborts with instructions to remove them first.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Antes de instalar nada, el script verifica que no haya software en conflicto ya presente: <code>isc-dhcp-server</code>/<code>dnsmasq</code> (DHCP), <code>squid</code>/<code>squid3</code>/<code>tinyproxy</code>/<code>privoxy</code>/<code>3proxy</code> (proxy), <code>nginx</code>/<code>lighttpd</code>/<code>caddy</code> (servidor web), <code>syslog-ng</code>, <code>firewalld</code>, <code>snort</code>, o un <code>ufw</code> activo. Si detecta alguno, el instalador aborta con instrucciones para removerlo primero.
+     Antes de instalar nada, el script verifica que no haya software en conflicto ya presente: <code>isc-dhcp-server</code>/<code>dnsmasq</code> (DHCP), <code>squid</code>/<code>squid3</code>/<code>tinyproxy</code>/<code>privoxy</code>/<code>3proxy</code> (proxy), <code>nginx</code>/<code>lighttpd</code>/<code>caddy</code> (servidor web), <code>bind9</code>/<code>named</code>/<code>pdns-recursor</code> (servidor DNS), <code>syslog-ng</code>, <code>firewalld</code>, <code>snort</code>, o un <code>ufw</code> activo. Si detecta alguno, el instalador aborta con instrucciones para removerlo primero.
     </td>
   </tr>
 </table>
@@ -206,8 +206,8 @@ gateproxy/
 │   │   ├── evebox.service          # EveBox systemd unit
 │   │   ├── evebox.yaml             # EveBox configuration
 │   │   ├── jail.local              # fail2ban jail config
-│   │   ├── suricata-clean.sh       # Suricata log cleanup
-│   │   └── suricata-update.sh      # Suricata rules update
+│   │   ├── suricataclean.sh        # Suricata log cleanup
+│   │   └── suricataupdate.sh       # Suricata rules update
 │   ├── scr/                    # Scripts (deployed to /etc/scr/)
 │   │   ├── bkconf.sh               # Backup configuration files
 │   │   ├── iptables.sh             # Firewall rules and ipsets
