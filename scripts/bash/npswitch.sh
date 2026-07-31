@@ -38,6 +38,14 @@ if ! flock -n 200; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in netplan.io iproute2 systemd network-manager; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -50,19 +58,6 @@ NC='\033[0m' # No Color
 # Paths
 NETPLAN_DIR="/etc/netplan"
 NETWORKD_FILE="$NETPLAN_DIR/00-networkd.yaml"
-
-# Check dependencies
-check_dependencies() {
-    if ! command -v netplan &>/dev/null; then
-        echo -e "${RED}Error: netplan command not found${NC}"
-        exit 1
-    fi
-
-    if ! command -v ip &>/dev/null; then
-        echo -e "${RED}Error: ip command not found${NC}"
-        exit 1
-    fi
-}
 
 # Detect current renderer
 detect_current_renderer() {
@@ -464,12 +459,6 @@ switch_to_nm() {
     echo -e "${YELLOW}================================================${NC}"
     echo ""
 
-    if ! command -v nmcli &>/dev/null; then
-        echo -e "${RED}Error: NetworkManager is not installed${NC}"
-        echo "Install it with: apt install network-manager"
-        exit 1
-    fi
-
     analysis=$(detect_and_classify_interfaces)
     echo ""
 
@@ -684,8 +673,6 @@ show_menu() {
 }
 
 # Main execution
-check_dependencies
-
 if [ $# -eq 0 ]; then
     show_menu
 else

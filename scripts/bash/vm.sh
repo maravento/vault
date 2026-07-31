@@ -56,6 +56,12 @@ if ! local_user=$(detect_local_user); then
 fi
 echo "Using local user: $local_user"
 
+# DEPENDENCIES (version-variable package)
+if ! command -v VBoxManage &>/dev/null; then
+    echo "ERROR: VirtualBox (VBoxManage) is not installed." >&2
+    exit 1
+fi
+
 echo "Virtualbox Starting. Wait..."
 
 ### VARIABLES

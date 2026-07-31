@@ -110,7 +110,6 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 - [Kill Process By Name](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/pskill.sh)
 - [Kworker Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/kworker.sh)
 - [Limit processes with CPU Limit (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cpulimit.sh)
-- [Lock Scripts (Randomized delayed self-rescheduling via at)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/lock.sh)
 - [Realtek Linux drivers](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/realtekdrv.sh)
 - [Winpower UPS (install|remove|start|stop|status|restart)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/winpower.sh)
 

@@ -24,6 +24,14 @@ if ! flock -n 200; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in openssl; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
+
 echo "Squid SSL-Bump. Wait..."
 
 CA_CERT_D=/usr/local/share/ca-certificates
@@ -93,13 +101,6 @@ ssl_bump_setup() {
         exit 1
     fi
 }
-
-for dep in openssl update-ca-certificates; do
-    if ! command -v "$dep" &>/dev/null; then
-        echo "ERROR: '$dep' is not installed. Run: sudo apt install ca-certificates openssl"
-        exit 1
-    fi
-done
 
 # Check if squid is installed
 if ! dpkg -l | grep -qw squid; then

@@ -30,6 +30,14 @@ if [ "$(id -u)" == "0" ]; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in iperf3 iputils-ping iproute2 gawk coreutils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "[ERROR] Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
+
 # --- Configuration ----------------------------------------------------------
 DURATION=30
 PARALLEL=4
@@ -55,11 +63,6 @@ warn() { echo -e "${YLW}[WARN]${NC} $*"; }
 hdr() { echo -e "\n${CYN}--------------------------------------------------${NC}"; \
          echo -e "${CYN} $*${NC}"; \
          echo -e "${CYN}--------------------------------------------------${NC}"; }
-
-# --- Dependencies -----------------------------------------------------------
-check_deps() {
-    command -v iperf3 &>/dev/null || die "iperf3 not found. Install with: sudo apt install iperf3"
-}
 
 # --- Detect active local interfaces -----------------------------------------
 get_interfaces() {
@@ -184,7 +187,6 @@ run_tests() {
 
 # --- Main --------------------------------------------------------------------
 main() {
-    check_deps
     mkdir -p "$LOG_DIR"
 
     hdr "iperf3 LAN Performance Test"

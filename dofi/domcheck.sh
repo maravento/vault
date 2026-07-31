@@ -42,6 +42,14 @@ if ! flock -n 200; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in bind9-dnsutils findutils coreutils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        log "[ERROR] Required dependency '$dep' is not installed."
+        exit 1
+    fi
+done
+
 # parallel_processes
 if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
     log "Use: $0 <file_name> [parallel_processes]"
@@ -62,11 +70,6 @@ else
     if [ "$PROCS" -gt "$MAX_PROCS" ]; then
         PROCS="$MAX_PROCS"
     fi
-fi
-
-if ! command -v host >/dev/null 2>&1; then
-    log "Error: 'host' command not found. Please install it (e.g., dnsutils/bind-tools)."
-    exit 1
 fi
 
 if [ ! -f "$infile" ]; then

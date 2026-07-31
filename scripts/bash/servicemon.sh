@@ -51,6 +51,14 @@ if ! flock -n 200; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in coreutils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
+
 MODNAME="servicemon"
 MODDIR="/usr/share/webmin/$MODNAME"
 ETCDIR="/etc/webmin/$MODNAME"
@@ -61,9 +69,6 @@ install_module() {
     echo "Installing Services Monitor Module"
     echo "=========================================="
     echo ""
-
-    echo "Checking dependencies..."
-    echo "Dependencies checked"
 
     echo "Creating Services Monitor module structure..."
 

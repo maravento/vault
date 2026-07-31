@@ -69,6 +69,14 @@ if ! local_user=$(detect_local_user); then
 fi
 log "Using local user: $local_user"
 
+# DEPENDENCIES
+for dep in zip gawk coreutils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        log "ERROR: Required dependency '$dep' is not installed."
+        exit 1
+    fi
+done
+
 ### VARIABLES
 # path to cloud
 bkconfig="/home/$local_user/bkconf"

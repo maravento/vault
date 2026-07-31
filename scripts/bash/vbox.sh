@@ -62,6 +62,14 @@ if ! local_user=$(detect_local_user); then
 fi
 echo "Using local user: $local_user"
 
+# DEPENDENCIES
+for dep in wget gnupg lsb-release psmisc procps findutils gawk; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
+
 echo "Virtualbox Install | Remove Starting. Wait..."
 
 ### FUNCTIONS

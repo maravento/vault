@@ -75,23 +75,19 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# check dependencies
-# Check if Squid (basic or OpenSSL version) is installed
-if ! dpkg -s squid &>/dev/null && ! dpkg -s squid-openssl &>/dev/null; then
-  echo "'Squid (basic or OpenSSL version)' is not installed. Run:"
-  echo "sudo apt install squid or sudo apt install squid-openssl"
-  exit 1
-fi
-
-# Check other dependencies
-DEPENDENCIES="perl gawk"
-for pkg in $DEPENDENCIES; do
-  if ! dpkg -s "$pkg" &>/dev/null; then
-    echo "'$pkg' is not installed. Run:"
-    echo "sudo apt install $pkg"
-    exit 1
-  fi
+# DEPENDENCIES
+for dep in perl gawk gzip; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
 done
+
+# DEPENDENCIES (squid or squid-openssl)
+if ! dpkg -s squid &>/dev/null && ! dpkg -s squid-openssl &>/dev/null; then
+    echo "ERROR: 'squid' or 'squid-openssl' is not installed." >&2
+    exit 1
+fi
 
 # LOG FILE CHECK
 # Modified to include all log files (current and rotated)

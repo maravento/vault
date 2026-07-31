@@ -115,20 +115,12 @@ chmod 0755 "$report_dir"
 SCRIPT_TMPDIR=$(mktemp -d)
 trap 'rm -rf "$SCRIPT_TMPDIR"' EXIT
 
-# === Check dependencies once at start ===
-required=(nmap xsltproc)
-missing=()
-for pkg in "${required[@]}"; do
-    if ! command -v "$pkg" &>/dev/null; then
-        missing+=("$pkg")
+# DEPENDENCIES
+for dep in nmap xsltproc iproute2; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        die "Required dependency '$dep' is not installed."
     fi
 done
-
-if [ "${#missing[@]}" -gt 0 ]; then
-    die "Missing packages: ${missing[*]}. Please install them first."
-else
-    log "Dependencies OK"
-fi
 
 # Create embedded custom XSL stylesheet
 create_custom_xsl() {

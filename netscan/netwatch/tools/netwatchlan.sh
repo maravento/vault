@@ -60,12 +60,12 @@ NETWATCH_ENV="/etc/netwatch/netwatch.env"
 DB_FILE="/var/www/netwatch/data/netwatch.db"
 PIDFILE="/var/run/netwatchlan.pid"
 
-### CHECK DEPENDENCIES
-for pkg in arp-scan sqlite3; do
-    command -v "$pkg" >/dev/null 2>&1 || {
-        log "ERROR: '$pkg' is missing. Run: sudo apt install $pkg"
+### DEPENDENCIES
+for dep in arp-scan sqlite3 iproute2 procps gawk coreutils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        log "ERROR: Required dependency '$dep' is not installed."
         exit 1
-    }
+    fi
 done
 
 ### LOAD ENV

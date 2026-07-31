@@ -29,6 +29,14 @@ if ! flock -n 200; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in util-linux coreutils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
+
 echo "Update HWClock. Wait..."
 
 hwclock -w || echo "WARNING: hwclock -w failed (VM or container?)"

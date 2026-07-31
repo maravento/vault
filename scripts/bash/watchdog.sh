@@ -40,11 +40,13 @@ if [ "$(id -u)" == "0" ]; then
     exit 1
 fi
 
-# check dependencies
-if ! command -v notify-send &>/dev/null; then
-    echo "libnotify-bin is not installed. Run: sudo apt install libnotify-bin"
-    exit 1
-fi
+# DEPENDENCIES
+for dep in libnotify-bin iputils-ping gawk; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "[ERROR] Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
 
 # Desktop notification helper (X11 and Wayland, silent if no desktop session)
 current_uid=$(id -u)

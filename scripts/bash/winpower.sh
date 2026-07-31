@@ -37,19 +37,13 @@ SCRIPT_PATH=$(readlink -f "$0")
 DOWNLOAD_URL="https://d7rh5s3nxmpy4.cloudfront.net/CMP1313/files/4/Winpower_setup_LinuxAMD64.tar.gz"
 TEMP_DIR=$(mktemp -d /tmp/winpower_install.XXXXXX)
 
-# Check for required dependencies
-echo "-> Checking dependencies..."
-if ! command -v wget &> /dev/null; then
-    echo "wget is required but not installed"
-    echo "Install with: apt-get install wget (Debian/Ubuntu)"
-    echo "or: yum install wget (RHEL/CentOS)"
-    exit 1
-fi
-
-if ! command -v tar &> /dev/null; then
-    echo "tar is required but not installed"
-    exit 1
-fi
+# DEPENDENCIES
+for dep in wget tar procps coreutils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
 
 # Function to show menu
 show_menu() {

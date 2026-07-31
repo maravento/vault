@@ -72,6 +72,7 @@ check_dependencies() {
     missing=()
     command -v curl &>/dev/null || missing+=("curl")
     command -v jq &>/dev/null || missing+=("jq")
+    command -v lsof &>/dev/null || missing+=("lsof")
 
     if [ ${#missing[@]} -gt 0 ]; then
         echo "INFO: Installing missing dependencies: ${missing[*]}"

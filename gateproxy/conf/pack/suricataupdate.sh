@@ -34,6 +34,22 @@ if ! flock -n 200; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in suricata suricata-update systemd; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        log "ERROR: Required dependency '$dep' is not installed."
+        exit 1
+    fi
+done
+
+# DEPENDENCIES (external repo)
+for dep in evebox; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        log "ERROR: Required dependency '$dep' is not installed."
+        exit 1
+    fi
+done
+
 log "suricataupdate start.."
 
 if suricata-update --disable-conf=/etc/suricata/disable.conf \

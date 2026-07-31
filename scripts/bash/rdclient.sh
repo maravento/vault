@@ -93,7 +93,7 @@ check_dependencies() {
         fi
     fi
 
-    pkgs='libclang-dev ninja-build libayatana-appindicator3-1 libgstreamer1.0-dev libayatana-appindicator3-dev'
+    pkgs='libclang-dev ninja-build libayatana-appindicator3-1 libgstreamer1.0-dev libayatana-appindicator3-dev wget'
     missing=()
     for p in $pkgs; do
         dpkg -s "$p" &>/dev/null || missing+=("$p")

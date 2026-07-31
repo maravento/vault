@@ -41,35 +41,13 @@ fi
 # Start
 log "ffsupdate start..."
 
-pkgs='expect tcl-expect'
-missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done | xargs)
-unavailable=""
-for p in $missing; do
-    apt-cache show "$p" &>/dev/null || unavailable+=" $p"
-done
-if [ -n "$unavailable" ]; then
-    log "ERROR: Missing dependencies not found in APT:$unavailable"
-    exit 1
-fi
-if [ -n "$missing" ]; then
-    APT_LOCK_TIMEOUT=120
-    APT_LOCK_ELAPSED=0
-    APT_LOCK_FILES="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
-    while lsof $APT_LOCK_FILES >/dev/null 2>&1; do
-        if [ "$APT_LOCK_ELAPSED" -ge "$APT_LOCK_TIMEOUT" ]; then
-            log "ERROR: APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
-            exit 1
-        fi
-        sleep 5
-        APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
-    done
-    dpkg --configure -a
-    apt-get -qq update
-    if ! apt-get -y install $missing; then
-        log "ERROR: Error installing: $missing"
+# DEPENDENCIES
+for dep in expect tcl-expect wget tar coreutils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        log "ERROR: Required dependency '$dep' is not installed."
         exit 1
     fi
-fi
+done
 
 ffsfile="FreeFileSync.tar.gz"
 ffsrun="FreeFileSync.run"

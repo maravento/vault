@@ -32,6 +32,14 @@ if ! flock -n $LOCK_FD; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in findutils coreutils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
+
 echo "Start Cleaner. Wait..."
 
 start=$(date +%s)

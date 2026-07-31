@@ -34,6 +34,14 @@ if ! flock -n 200; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in systemd coreutils findutils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        log "ERROR: Required dependency '$dep' is not installed."
+        exit 1
+    fi
+done
+
 log "suricataclean start.."
 
 # Clean: Suricata Logs (stop first to avoid descriptor conflicts)

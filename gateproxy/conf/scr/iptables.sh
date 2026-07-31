@@ -52,6 +52,14 @@ if ! flock -n 200; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in iptables ipset arptables ebtables procps util-linux ulogd2; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        log "ERROR: Required dependency '$dep' is not installed."
+        exit 1
+    fi
+done
+
 log "Iptables Start..."
 
 ## VARIABLES ##
@@ -63,6 +71,10 @@ is_valid_mac() {
 
 is_valid_ip() {
     [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]
+}
+
+is_valid_port() {
+    [[ "$1" =~ ^[0-9]+$ ]] && (( $1 >= 0 && $1 <= 65535 ))
 }
 
 # Network config -- gateproxy.sh's own persistent copy of network.env,
@@ -174,128 +186,128 @@ ebtables -X 2>/dev/null || true
 
 # IPv4
 ##### SYSTEM OPTIMIZATION #####
-sysctl -w fs.file-max=2097152 >/dev/null 2>&1
-sysctl -w fs.inotify.max_user_watches=524288 >/dev/null 2>&1
-sysctl -w vm.overcommit_memory=1 >/dev/null 2>&1
-sysctl -w net.core.somaxconn=65535 >/dev/null 2>&1
+sysctl -w fs.file-max=2097152 >/dev/null 2>&1 || true
+sysctl -w fs.inotify.max_user_watches=524288 >/dev/null 2>&1 || true
+sysctl -w vm.overcommit_memory=1 >/dev/null 2>&1 || true
+sysctl -w net.core.somaxconn=65535 >/dev/null 2>&1 || true
 
 ##### CONNECTION TRACKING #####
 # Increase connection tracking table size for high concurrency
-sysctl -w net.netfilter.nf_conntrack_max=524288 >/dev/null 2>&1
-sysctl -w net.netfilter.nf_conntrack_buckets=131072 >/dev/null 2>&1
+sysctl -w net.netfilter.nf_conntrack_max=524288 >/dev/null 2>&1 || true
+sysctl -w net.netfilter.nf_conntrack_buckets=131072 >/dev/null 2>&1 || true
 
 ##### SECURITY & NETWORK HARDENING #####
 # Disable IP source routing (prevents IP spoofing and routing attacks)
-sysctl -w net.ipv4.conf.all.accept_source_route=0 >/dev/null 2>&1
-sysctl -w net.ipv4.conf.default.accept_source_route=0 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.all.accept_source_route=0 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.conf.default.accept_source_route=0 >/dev/null 2>&1 || true
 # Disable secure redirects (protects against malicious router advertisements)
 # If you experience LAN routing issues, you can temporarily set this to 1.
-sysctl -w net.ipv4.conf.all.secure_redirects=0 >/dev/null 2>&1
-sysctl -w net.ipv4.conf.default.secure_redirects=0 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.all.secure_redirects=0 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.conf.default.secure_redirects=0 >/dev/null 2>&1 || true
 # Log packets with impossible or spoofed source addresses ("martians")
-sysctl -w net.ipv4.conf.all.log_martians=1 >/dev/null 2>&1
-sysctl -w net.ipv4.conf.default.log_martians=1 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.all.log_martians=1 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.conf.default.log_martians=1 >/dev/null 2>&1 || true
 # Enable strict reverse path filtering (drops packets with spoofed source IPs)
-sysctl -w net.ipv4.conf.all.rp_filter=1 >/dev/null 2>&1
-sysctl -w net.ipv4.conf.default.rp_filter=1 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.all.rp_filter=1 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.conf.default.rp_filter=1 >/dev/null 2>&1 || true
 
 ##### NETWORK PERFORMANCE & TCP PROTECTION #####
 # Optimized TCP/IP parameters for high-performance and secure routing
 # Enable TCP SYN cookies (protects against SYN flood attacks)
-sysctl -w net.ipv4.tcp_syncookies=1 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_syncookies=1 >/dev/null 2>&1 || true
 # Increase SYN backlog queue and tune retries (helps prevent SYN flood)
-sysctl -w net.ipv4.tcp_max_syn_backlog=20000 >/dev/null 2>&1
-sysctl -w net.ipv4.tcp_syn_retries=2 >/dev/null 2>&1
-sysctl -w net.ipv4.tcp_synack_retries=2 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_max_syn_backlog=20000 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.tcp_syn_retries=2 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.tcp_synack_retries=2 >/dev/null 2>&1 || true
 # Enable RFC1337 fix (protects against TCP TIME-WAIT assassination)
-sysctl -w net.ipv4.tcp_rfc1337=1 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_rfc1337=1 >/dev/null 2>&1 || true
 # Expand available local port range (default: 32768-60999)
-sysctl -w net.ipv4.ip_local_port_range="10000 65535" >/dev/null 2>&1
+sysctl -w net.ipv4.ip_local_port_range="10000 65535" >/dev/null 2>&1 || true
 # Reduce TCP FIN timeout (faster cleanup for orphaned sockets)
-sysctl -w net.ipv4.tcp_fin_timeout=30 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_fin_timeout=30 >/dev/null 2>&1 || true
 # TCP keepalive settings (balance connection stability and resource usage)
-sysctl -w net.ipv4.tcp_keepalive_time=300 >/dev/null 2>&1
-sysctl -w net.ipv4.tcp_keepalive_intvl=15 >/dev/null 2>&1
-sysctl -w net.ipv4.tcp_keepalive_probes=5 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_keepalive_time=300 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.tcp_keepalive_intvl=15 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.tcp_keepalive_probes=5 >/dev/null 2>&1 || true
 # Enable TCP Fast Open (reduces latency for repeated connections)
-sysctl -w net.ipv4.tcp_fastopen=3 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_fastopen=3 >/dev/null 2>&1 || true
 # Enable TCP performance features
-sysctl -w net.ipv4.tcp_window_scaling=1 >/dev/null 2>&1
-sysctl -w net.ipv4.tcp_timestamps=1 >/dev/null 2>&1
-sysctl -w net.ipv4.tcp_sack=1 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_window_scaling=1 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.tcp_timestamps=1 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.tcp_sack=1 >/dev/null 2>&1 || true
 # Increase socket buffers
-sysctl -w net.core.rmem_max=16777216 >/dev/null 2>&1
-sysctl -w net.core.wmem_max=16777216 >/dev/null 2>&1
-sysctl -w net.core.rmem_default=262144 >/dev/null 2>&1
-sysctl -w net.core.wmem_default=262144 >/dev/null 2>&1
+sysctl -w net.core.rmem_max=16777216 >/dev/null 2>&1 || true
+sysctl -w net.core.wmem_max=16777216 >/dev/null 2>&1 || true
+sysctl -w net.core.rmem_default=262144 >/dev/null 2>&1 || true
+sysctl -w net.core.wmem_default=262144 >/dev/null 2>&1 || true
 # TCP buffer auto-tuning
-sysctl -w net.ipv4.tcp_rmem="4096 87380 16777216" >/dev/null 2>&1
-sysctl -w net.ipv4.tcp_wmem="4096 65536 16777216" >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_rmem="4096 87380 16777216" >/dev/null 2>&1 || true
+sysctl -w net.ipv4.tcp_wmem="4096 65536 16777216" >/dev/null 2>&1 || true
 # Enable PMTU discovery (recommended: automatic MTU adjustment)
-sysctl -w net.ipv4.ip_no_pmtu_disc=0 >/dev/null 2>&1
-sysctl -w net.ipv4.tcp_mtu_probing=1 >/dev/null 2>&1
+sysctl -w net.ipv4.ip_no_pmtu_disc=0 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.tcp_mtu_probing=1 >/dev/null 2>&1 || true
 # Increase network queue size (handles bursts of incoming packets)
-sysctl -w net.core.netdev_max_backlog=20000 >/dev/null 2>&1
+sysctl -w net.core.netdev_max_backlog=20000 >/dev/null 2>&1 || true
 # Increase TIME_WAIT socket capacity (important for busy NAT or proxy servers)
-sysctl -w net.ipv4.tcp_max_tw_buckets=1000000 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_max_tw_buckets=1000000 >/dev/null 2>&1 || true
 # Allow safe TIME_WAIT socket reuse (improves connection efficiency)
-sysctl -w net.ipv4.tcp_tw_reuse=1 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_tw_reuse=1 >/dev/null 2>&1 || true
 
 ##### ROUTING & FORWARDING #####
 # Enable packet forwarding (required for NAT/routing)
-sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1
+sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
 
 ##### ARP OPTIMIZATION #####
 # Enable ARP filtering (prevents incorrect replies when multiple interfaces exist)
-sysctl -w net.ipv4.conf.all.arp_filter=1 >/dev/null 2>&1
-sysctl -w net.ipv4.conf.default.arp_filter=1 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.all.arp_filter=1 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.conf.default.arp_filter=1 >/dev/null 2>&1 || true
 # ARP announce mode - only reply for local addresses
-sysctl -w net.ipv4.conf.all.arp_announce=2 >/dev/null 2>&1
-sysctl -w net.ipv4.conf.default.arp_announce=2 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.all.arp_announce=2 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.conf.default.arp_announce=2 >/dev/null 2>&1 || true
 # ARP ignore mode - only respond to ARPs for IPs on receiving interface
-sysctl -w net.ipv4.conf.all.arp_ignore=1 >/dev/null 2>&1
-sysctl -w net.ipv4.conf.default.arp_ignore=1 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.all.arp_ignore=1 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.conf.default.arp_ignore=1 >/dev/null 2>&1 || true
 # ARP cache tuning: reduce broadcast frequency and improve efficiency
-sysctl -w net.ipv4.neigh.default.gc_stale_time=300 >/dev/null 2>&1
-sysctl -w net.ipv4.neigh.default.gc_thresh1=128 >/dev/null 2>&1
-sysctl -w net.ipv4.neigh.default.gc_thresh2=512 >/dev/null 2>&1
-sysctl -w net.ipv4.neigh.default.gc_thresh3=1024 >/dev/null 2>&1
+sysctl -w net.ipv4.neigh.default.gc_stale_time=300 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.neigh.default.gc_thresh1=128 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.neigh.default.gc_thresh2=512 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.neigh.default.gc_thresh3=1024 >/dev/null 2>&1 || true
 # Reduce ARP broadcast retries (limits ARP noise in large LANs)
-sysctl -w net.ipv4.neigh.default.ucast_solicit=3 >/dev/null 2>&1
-sysctl -w net.ipv4.neigh.default.mcast_solicit=2 >/dev/null 2>&1
+sysctl -w net.ipv4.neigh.default.ucast_solicit=3 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.neigh.default.mcast_solicit=2 >/dev/null 2>&1 || true
 # Base reachable time for neighbor entries
-sysctl -w net.ipv4.neigh.default.base_reachable_time_ms=300000 >/dev/null 2>&1
+sysctl -w net.ipv4.neigh.default.base_reachable_time_ms=300000 >/dev/null 2>&1 || true
 
 ##### KERNEL & FILESYSTEM HARDENING #####
 # Enable full ASLR (Address Space Layout Randomization)
-sysctl -w kernel.randomize_va_space=2 >/dev/null 2>&1
+sysctl -w kernel.randomize_va_space=2 >/dev/null 2>&1 || true
 # Protect hardlinks (prevents privilege escalation attacks)
-sysctl -w fs.protected_hardlinks=1 >/dev/null 2>&1
+sysctl -w fs.protected_hardlinks=1 >/dev/null 2>&1 || true
 # Protect symlinks (prevents unauthorized link access in shared directories)
-sysctl -w fs.protected_symlinks=1 >/dev/null 2>&1
+sysctl -w fs.protected_symlinks=1 >/dev/null 2>&1 || true
 
 ##### ICMP #####
 # Disable sending ICMP redirects (prevents MITM via route manipulation)
-sysctl -w net.ipv4.conf.all.send_redirects=0 >/dev/null 2>&1
-sysctl -w net.ipv4.conf.default.send_redirects=0 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.all.send_redirects=0 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.conf.default.send_redirects=0 >/dev/null 2>&1 || true
 # Disable accepting ICMP redirects from other hosts (security hardening)
-sysctl -w net.ipv4.conf.all.accept_redirects=0 >/dev/null 2>&1
-sysctl -w net.ipv4.conf.default.accept_redirects=0 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.all.accept_redirects=0 >/dev/null 2>&1 || true
+sysctl -w net.ipv4.conf.default.accept_redirects=0 >/dev/null 2>&1 || true
 # Allow normal ICMP echo requests (ping)
-sysctl -w net.ipv4.icmp_echo_ignore_all=0 >/dev/null 2>&1
+sysctl -w net.ipv4.icmp_echo_ignore_all=0 >/dev/null 2>&1 || true
 # Ignore ICMP echo requests sent to broadcast addresses (Smurf attack prevention)
-sysctl -w net.ipv4.icmp_echo_ignore_broadcasts=1 >/dev/null 2>&1
+sysctl -w net.ipv4.icmp_echo_ignore_broadcasts=1 >/dev/null 2>&1 || true
 # Ignore bogus or malformed ICMP error responses
-sysctl -w net.ipv4.icmp_ignore_bogus_error_responses=1 >/dev/null 2>&1
+sysctl -w net.ipv4.icmp_ignore_bogus_error_responses=1 >/dev/null 2>&1 || true
 # Rate limit ICMP message generation (100 ms minimum interval)
-sysctl -w net.ipv4.icmp_ratelimit=100 >/dev/null 2>&1
+sysctl -w net.ipv4.icmp_ratelimit=100 >/dev/null 2>&1 || true
 
 # IPv6
-sysctl -w net.ipv6.conf.all.disable_ipv6=0 >/dev/null 2>&1
-sysctl -w net.ipv6.conf.default.disable_ipv6=0 >/dev/null 2>&1
-sysctl -w net.ipv6.conf.lo.disable_ipv6=0 >/dev/null 2>&1
+sysctl -w net.ipv6.conf.all.disable_ipv6=0 >/dev/null 2>&1 || true
+sysctl -w net.ipv6.conf.default.disable_ipv6=0 >/dev/null 2>&1 || true
+sysctl -w net.ipv6.conf.lo.disable_ipv6=0 >/dev/null 2>&1 || true
 # LAN IPv6
-sysctl -w "net.ipv6.conf.${lan}.disable_ipv6=1" >/dev/null 2>&1
+sysctl -w "net.ipv6.conf.${lan}.disable_ipv6=1" >/dev/null 2>&1 || true
 # ICMPv6 esencial (NDP, SLAAC, Path MTU)
 ip6tables -A OUTPUT -o "$wan" -p ipv6-icmp -j ACCEPT
 # DHCPv6
@@ -323,15 +335,19 @@ ip6tables -A OUTPUT -o lo -j ACCEPT
 iptables -A INPUT -s 127.0.0.0/8 ! -i lo -j DROP
 
 # BOGONS
-bogonslst=/etc/acl/acl_ipt/bogons.txt
+bogonslst="$acl_ipt_path/bogons.txt"
 if ! ipset list bogons &>/dev/null; then
     ipset create bogons hash:net -exist
 else
     ipset flush bogons
 fi
-for bogonscidr in $(grep -vE '^\s*#|^\s*$' "$bogonslst" | awk '{print $1}' | sort -V -u 2>/dev/null); do
-    ipset add bogons "$bogonscidr" -exist
-done
+if [ -f "$bogonslst" ]; then
+    for bogonscidr in $(grep -vE '^\s*#|^\s*$' "$bogonslst" | awk '{print $1}' | sort -V -u 2>/dev/null); do
+        ipset add bogons "$bogonscidr" -exist
+    done
+else
+    log "WARNING: $bogonslst not found -- skipping bogons"
+fi
 iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set bogons src -j DROP
 iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set bogons dst -j DROP
 
@@ -383,7 +399,7 @@ if ! ipset list macunlimited &>/dev/null; then
 else
     ipset flush macunlimited
 fi
-for mac in $(awk -F";" '$2 != "" {print $2}' "$mac_unlimited_file" 2>/dev/null); do
+for mac in $(awk -F";" '$1 == "a" && $2 != "" {print $2}' "$mac_unlimited_file" 2>/dev/null); do
     is_valid_mac "$mac" && ipset add macunlimited "$mac" -exist
 done
 iptables -t nat -A PREROUTING -i "$lan" -m set --match-set macunlimited src -j ACCEPT
@@ -430,7 +446,17 @@ create_acl() {
     echo -e "$macs" > "$path_macs"
 }
 if [ -n "$mac2ip" ]; then
-    create_acl $mac2ip
+    # create_acl expects a flat MAC IP MAC IP ... arg list (it shifts two at a
+    # time). $mac2ip is one "mac ip" pair per line, so it must still be split
+    # into individual args -- but building that list explicitly (instead of
+    # relying on bare unquoted word-splitting) avoids any accidental glob
+    # expansion of a token.
+    mac2ip_args=()
+    while IFS=' ' read -r _m2i_mac _m2i_ip; do
+        [[ -n "$_m2i_mac" ]] && mac2ip_args+=("$_m2i_mac")
+        [[ -n "$_m2i_ip" ]] && mac2ip_args+=("$_m2i_ip")
+    done <<< "$mac2ip"
+    create_acl "${mac2ip_args[@]}"
     iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macip src,src -j ACCEPT
     iptables -t mangle -A PREROUTING -i "$lan" -j DROP
 else
@@ -482,7 +508,7 @@ else
     ipset flush blockports
 fi
 for blports in $(sort -V -u "$blockports_file" 2>/dev/null); do
-    ipset add blockports "$blports" -exist
+    is_valid_port "$blports" && ipset add blockports "$blports" -exist
 done
 for proto in tcp udp; do
     iptables -t mangle -A PREROUTING -i "$lan" -p "$proto" -m set --match-set blockports dst -j DROP
@@ -494,7 +520,7 @@ if ! ipset list macports &>/dev/null; then
 else
     ipset flush macports
 fi
-for mac in $(awk -F";" '$2 != "" {print $2}' "$acl_mac_path"/mac-* 2>/dev/null); do
+for mac in $(awk -F";" '$1 == "a" && $2 != "" {print $2}' "$acl_mac_path"/mac-*.txt 2>/dev/null); do
     is_valid_mac "$mac" && ipset add macports "$mac" -exist
 done
 
@@ -631,7 +657,7 @@ if ! ipset list macproxy &>/dev/null; then
 else
     ipset flush macproxy
 fi
-for mac in $(awk -F";" '$2 != "" {print $2}' "$mac_proxy_file" 2>/dev/null); do
+for mac in $(awk -F";" '$1 == "a" && $2 != "" {print $2}' "$mac_proxy_file" 2>/dev/null); do
     is_valid_mac "$mac" && ipset add macproxy "$mac" -exist
 done
 iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macproxy src -p tcp -m multiport --dports 18100,80 -j ACCEPT

@@ -66,6 +66,14 @@ if ! local_user=$(detect_local_user); then
 fi
 echo "Using local user: $local_user"
 
+# DEPENDENCIES
+for dep in findutils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
+
 echo "File Extensions Report Start. Wait..."
 
 ### VARIABLES

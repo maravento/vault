@@ -52,6 +52,14 @@ if ! flock -n 200; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in coreutils systemd netplan.io; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
+
 MODNAME="netplanmgr"
 if ! [[ "$MODNAME" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     echo "ERROR: MODNAME contains invalid characters"
@@ -69,14 +77,6 @@ install_module() {
     echo "Installing Netplan Manager Module"
     echo "=========================================="
     echo ""
-
-    # Check dependencies
-    echo "Checking dependencies..."
-    if ! command -v netplan &>/dev/null; then
-        echo "Warning: 'netplan' command not found. Module will still be installed,"
-        echo "but Netplan operations will fail until netplan is present on the system."
-    fi
-    echo "Dependencies checked"
 
     echo "Creating Netplan Manager module structure..."
 

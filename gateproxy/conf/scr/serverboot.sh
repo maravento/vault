@@ -31,6 +31,14 @@ if ! flock -n 200; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in iproute2 systemd squid-openssl apache2 samba winbind rsyslog; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        log "ERROR: Required dependency '$dep' is not installed."
+        exit 1
+    fi
+done
+
 log "===================================================="
 log "serverboot start.."
 

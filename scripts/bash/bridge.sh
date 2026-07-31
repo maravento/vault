@@ -29,30 +29,18 @@ if ! flock -n 200; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in iproute2 bridge-utils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
+
 # VARIABLES
 BRIDGE_NAME="br0"
 BRIDGE_SLAVE="${BRIDGE_NAME}-slave"
 INTERFACE=""
-
-check_dependencies() {
-    local missing=0
-    if ! command -v nmcli &> /dev/null; then
-        echo "NetworkManager is not installed" >&2
-        missing=1
-    fi
-    if ! command -v ip &> /dev/null; then
-        echo "iproute2 is not installed" >&2
-        missing=1
-    fi
-    if [ $missing -eq 1 ]; then
-        echo "" >&2
-        echo "Install dependencies with:" >&2
-        echo "sudo apt-get install network-manager iproute2" >&2
-        return 1
-    fi
-    echo "All dependencies are installed"
-    return 0
-}
 
 detect_ethernet_interface() {
     local wifi_interfaces
@@ -321,9 +309,6 @@ restore_normal_network() {
 # Main
 case "${1:-}" in
     on)
-        echo "Verifying dependencies..."
-        check_dependencies || exit 1
-
         echo "Scanning for active Ethernet interface..."
         INTERFACE=$(detect_ethernet_interface) || exit 1
         echo "Found active Ethernet interface: $INTERFACE"

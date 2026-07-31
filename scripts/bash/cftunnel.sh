@@ -26,6 +26,14 @@ if [ "$(id -u)" == "0" ]; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in cloudflared curl gawk cron procps; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "[ERROR] Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
+
 ### --- CONFIGURATION --- ###
 
 _resolve_user_home() {
@@ -49,11 +57,6 @@ fi
 
 CONFIG_DIR="$USER_HOME/.cloudflared"
 CLOUDFLARED_BIN="$(command -v cloudflared)"
-
-if [[ ! -x "$CLOUDFLARED_BIN" ]]; then
-    echo "[ERROR] cloudflared is not installed or not in PATH."
-    exit 1
-fi
 mkdir -p "$CONFIG_DIR"
 
 ### --- FUNCTIONS --- ###

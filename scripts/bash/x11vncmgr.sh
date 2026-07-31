@@ -63,6 +63,14 @@ if ! flock -n 200; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in iproute2; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        log "ERROR: Required dependency '$dep' is not installed."
+        exit 1
+    fi
+done
+
 check_password_exists() {
     if [ ! -f "$VNC_PASSWD" ]; then
         x11vnc -storepasswd "$VNC_PASSWD"

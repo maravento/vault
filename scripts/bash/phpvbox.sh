@@ -95,7 +95,7 @@ retry_cmd() {
 }
 
 # check dependencies
-pkgs=(bsdutils lsof unzip apache2 libapache2-mod-php php php-soap php-xml)
+pkgs=(bsdutils lsof unzip apache2 libapache2-mod-php php php-soap php-xml wget procps cron)
 missing=()
 for p in "${pkgs[@]}"; do
     dpkg -s "$p" &>/dev/null || missing+=("$p")

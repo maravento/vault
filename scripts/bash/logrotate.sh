@@ -29,15 +29,13 @@ fi
 
 echo "Force Log Rotate Start. Wait..."
 
-if ! command -v logrotate >/dev/null 2>&1; then
-    echo "logrotate not found. Installing..."
-    apt-get -qq update
-    if ! apt-get -qq install -y logrotate; then
-        echo "Failed to install logrotate" >&2
+# DEPENDENCIES
+for dep in logrotate bsdutils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "ERROR: Required dependency '$dep' is not installed." >&2
         exit 1
     fi
-    echo "logrotate installed successfully"
-fi
+done
 
 LOGROTATE_BIN=$(command -v logrotate)
 

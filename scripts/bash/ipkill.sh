@@ -15,10 +15,13 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
-if ! command -v tcpkill &>/dev/null; then
-    echo "'tcpkill' is not installed. Run: sudo apt install dsniff"
-    exit 1
-fi
+# DEPENDENCIES
+for dep in dsniff iproute2 gawk bsdutils coreutils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
 
 sleep_time="10"
 

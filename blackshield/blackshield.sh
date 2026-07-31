@@ -103,6 +103,14 @@ if ! flock -n 200; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in wget grep sed gawk coreutils util-linux; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        log "[ERROR] Required dependency '$dep' is not installed."
+        exit 1
+    fi
+done
+
 # Start
 log "blackshield start..."
 

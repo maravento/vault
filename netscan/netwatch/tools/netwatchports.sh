@@ -68,12 +68,12 @@ DB_FILE="/var/www/netwatch/data/netwatch.db"
 PORTS_MODE_FILE="/var/www/netwatch/data/ports_mode.conf"
 PIDFILE="/var/run/netwatchports.pid"
 
-### CHECK DEPENDENCIES
-for pkg in sqlite3 nmap ss; do
-    command -v "$pkg" >/dev/null 2>&1 || {
-        log "ERROR: '$pkg' is missing. Run: sudo apt install sqlite3 nmap iproute2"
+### DEPENDENCIES
+for dep in sqlite3 nmap iproute2 procps gawk coreutils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        log "ERROR: Required dependency '$dep' is not installed."
         exit 1
-    }
+    fi
 done
 
 ### LOAD ENV

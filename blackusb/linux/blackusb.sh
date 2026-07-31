@@ -24,6 +24,14 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
+# DEPENDENCIES
+for dep in udev systemd util-linux; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
+
 echo "BlackUSB Start. Wait..."
 
 # How to Use:

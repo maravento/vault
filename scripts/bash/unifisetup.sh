@@ -126,7 +126,7 @@ arch_check() {
 
 ensure_prereqs() {
     local missing=()
-    for pkg in curl gnupg jq ca-certificates apt-transport-https; do
+    for pkg in curl gnupg jq ca-certificates apt-transport-https iproute2 util-linux; do
         dpkg -s "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
     done
 

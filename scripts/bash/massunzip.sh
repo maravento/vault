@@ -32,11 +32,13 @@ if ! apt-cache policy | grep -qE '/multiverse'; then
     exit 1
 fi
 
-if ! command -v 7z >/dev/null 2>&1; then
-    echo "7z is not installed. Run:"
-    echo "sudo apt install p7zip-full p7zip-rar"
-    exit 1
-fi
+# DEPENDENCIES
+for dep in p7zip-full p7zip-rar; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "[ERROR] Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
 
 ### PASSWORDS
 # add and replace "passfoo, passbar, etc" with the passwords of your files to unzip

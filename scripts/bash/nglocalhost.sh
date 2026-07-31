@@ -21,11 +21,13 @@ fi
 
 echo "ngLocalhost Tunnel Starting. Wait..."
 
-if ! command -v ssh >/dev/null 2>&1; then
-    echo "SSH is not installed"
-    echo "run: sudo apt install openssh-server"
-    exit 1
-fi
+# DEPENDENCIES
+for dep in openssh-client netcat-openbsd procps iproute2 coreutils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
 
 if ! nc -z -w 5 nglocalhost.com 22; then
     echo "ngLocalhost Offline"

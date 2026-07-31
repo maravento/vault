@@ -115,6 +115,14 @@ detect_local_user() {
     echo "$best_user"
 }
 
+# DEPENDENCIES
+for dep in systemd apache2 libapache2-mod-php php-cli php-sqlite3 arp-scan sqlite3 nmap iproute2 logrotate cron gawk procps coreutils findutils; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        log "ERROR: Required dependency '$dep' is not installed."
+        exit 1
+    fi
+done
+
 ### INTERFACE / NETWORK SELECTION
 # Virtual/loopback interfaces are never useful arp-scan targets and are
 # hidden from every selector below (both the scan-interfaces prompt and the
@@ -340,14 +348,6 @@ do_install() {
         exit 1
     fi
 
-    for cmd in apache2 a2ensite a2dissite a2enmod php; do
-        if ! command -v "$cmd" &>/dev/null; then
-            log "ERROR: $cmd not found. Run first:"
-            log "apt-get install -y apache2 libapache2-mod-php"
-            exit 1
-        fi
-    done
-
     if ! systemctl is-active --quiet apache2; then
         log "ERROR: apache2 is not running. Start it first: systemctl start apache2"
         exit 1
@@ -363,23 +363,6 @@ do_install() {
         log "apt-get install -y libapache2-mod-php"
         log "a2enmod php$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null)"
         log "systemctl restart apache2"
-        exit 1
-    fi
-
-    for pkg in arp-scan sqlite3 nmap ss; do
-        if ! command -v "$pkg" &>/dev/null; then
-            log "ERROR: $pkg not found. Run first: apt-get install -y arp-scan sqlite3 php-sqlite3 nmap iproute2"
-            exit 1
-        fi
-    done
-
-    if ! php -m 2>/dev/null | grep -qi '^sqlite3$'; then
-        log "ERROR: PHP sqlite3 extension not found. Run first: apt-get install -y php-sqlite3"
-        exit 1
-    fi
-
-    if ! command -v logrotate &>/dev/null; then
-        log "ERROR: logrotate not found. Install it first: apt-get install -y logrotate"
         exit 1
     fi
 

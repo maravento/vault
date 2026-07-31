@@ -894,7 +894,7 @@ if (cd "$gp_path" && git clone https://github.com/maravento/pydhcp); then
         if cd "$pydhcp_path"; then
             PYDHCP_EXPECT=$(mktemp)
             cat > "$PYDHCP_EXPECT" <<EOF
-spawn bash pyinstall.sh
+spawn bash pysetup.sh
 expect -re {\[([0-9]+)\][ \t]+$LAN_IF[ \t(]}
 send "\$expect_out(1,string)\r"
 expect "Enter DHCP server IP"

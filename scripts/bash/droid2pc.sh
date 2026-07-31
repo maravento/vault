@@ -32,10 +32,13 @@ if [ "$(id -u)" == "0" ]; then
     exit 1
 fi
 
-if ! command -v zenity &>/dev/null; then
-    echo "Error: zenity is required but not installed."
-    exit 1
-fi
+# DEPENDENCIES
+for dep in zenity adb scrcpy procps; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "[ERROR] Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
 
 show_error() {
     echo -e "$1"
@@ -47,13 +50,6 @@ show_info() {
     echo -e "$1"
     zenity --info --title="droid2pc" --text="$1" --timeout=5 2>/dev/null
 }
-
-pkgs='adb scrcpy'
-for pkg in $pkgs; do
-    dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {
-        show_error "'$pkg' is not installed.\n\nRun: sudo apt install adb scrcpy"
-    }
-done
 
 PIDFILE="/run/user/$(id -u)/scrcpy.pid"
 

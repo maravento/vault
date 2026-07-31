@@ -94,6 +94,21 @@ if ! local_user=$(detect_local_user); then
 fi
 echo "Using local user: $local_user"
 
+# DEPENDENCIES
+for dep in fuse3 curl; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
+done
+
+# DEPENDENCIES (curl install)
+if ! command -v rclone &>/dev/null; then
+    echo "ERROR: 'rclone' is not installed. Install it with:" >&2
+    echo "curl https://rclone.org/install.sh | sudo bash" >&2
+    exit 1
+fi
+
 # check internet with retry (essential for @reboot)
 check_internet() {
     echo "Checking internet connection..."
@@ -111,36 +126,6 @@ check_internet() {
         echo "Waiting for internet... attempt $attempt/$max_attempts"
         sleep 5
     done
-}
-
-# checking dependencies
-install_dependencies() {
-    if ! command -v rclone &>/dev/null; then
-        echo "Installing Rclone..."
-        local rclone_installer
-        rclone_installer="$(mktemp /tmp/rclone-install.XXXXXX.sh)"
-        if ! curl -fsSL https://rclone.org/install.sh -o "$rclone_installer"; then
-            echo "ERROR: Failed to download Rclone installer"
-            rm -f "$rclone_installer"
-            return 1
-        fi
-        bash "$rclone_installer"
-        rm -f "$rclone_installer"
-        if ! command -v rclone &>/dev/null; then
-            echo "ERROR: Failed to install Rclone"
-            return 1
-        fi
-        echo "Rclone installed successfully"
-    fi
-
-    local pkg='fuse3'
-    if ! dpkg -s "$pkg" &>/dev/null; then
-        echo "Installing $pkg..."
-        if ! apt-get -qq install -y $pkg; then
-            echo "ERROR: Failed to install $pkg"
-            return 1
-        fi
-    fi
 }
 
 # VARIABLES
@@ -278,13 +263,11 @@ run_mount() {
     case "${1:-}" in
     start)
         check_internet || exit 1
-        install_dependencies || exit 1
         mount_start
         ;;
     stop) mount_stop ;;
     restart)
         check_internet || exit 1
-        install_dependencies || exit 1
         mount_restart
         ;;
     status) mount_status ;;
@@ -354,7 +337,6 @@ run_sync() {
     case "${1:-}" in
     run)
         check_internet || exit 1
-        install_dependencies || exit 1
         sync_run
         ;;
     status) sync_status ;;

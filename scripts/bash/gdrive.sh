@@ -34,15 +34,22 @@ echo "Using local user: $local_user"
 
 echo "Gdrive Starting. Wait..."
 
-# check dependencies
-pkgs='google-drive-ocamlfuse libcurl3-gnutls libfuse2 libsqlite3-0'
-for pkg in $pkgs; do
-    dpkg -s "$pkg" &>/dev/null || command -v "$pkg" &>/dev/null || {
-        echo "'$pkg' is not installed. Run:"
-        echo "sudo add-apt-repository -y ppa:alessandro-strada/ppa"
-        echo "sudo apt install $pkg"
+# DEPENDENCIES
+for dep in libcurl3-gnutls libfuse2t64 libsqlite3-0 fuse3 util-linux; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "[ERROR] Required dependency '$dep' is not installed." >&2
         exit 1
-    }
+    fi
+done
+
+# DEPENDENCIES (external repo)
+for dep in google-drive-ocamlfuse; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "[ERROR] 'google-drive-ocamlfuse' is not installed. Run:" >&2
+        echo "sudo add-apt-repository -y ppa:alessandro-strada/ppa" >&2
+        echo "sudo apt install google-drive-ocamlfuse" >&2
+        exit 1
+    fi
 done
 
 GD="/home/$local_user/gdrive"
