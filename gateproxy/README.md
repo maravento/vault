@@ -49,10 +49,10 @@ wget -qO gateproxy.sh https://raw.githubusercontent.com/maravento/vault/master/g
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     Before installing anything, the script checks for conflicting software already on the system: <code>isc-dhcp-server</code>/<code>dnsmasq</code> (DHCP), <code>squid</code>/<code>squid3</code>/<code>tinyproxy</code>/<code>privoxy</code>/<code>3proxy</code> (proxy), <code>nginx</code>/<code>lighttpd</code>/<code>caddy</code> (web server), <code>bind9</code>/<code>named</code>/<code>pdns-recursor</code> (DNS server), <code>syslog-ng</code>, <code>firewalld</code>, <code>snort</code>, or an active <code>ufw</code>. If any of these are present, the installer aborts with instructions to remove them first.
+     Before installing anything, the script checks for conflicting software already on the system: <code>isc-dhcp-server</code>/<code>dnsmasq</code> (DHCP), <code>squid</code>/<code>squid3</code>/<code>tinyproxy</code>/<code>privoxy</code>/<code>3proxy</code> (proxy), <code>nginx</code>/<code>lighttpd</code>/<code>caddy</code> (web server), <code>bind9</code>/<code>pdns-recursor</code> (DNS server), <code>syslog-ng</code>, <code>firewalld</code>, <code>snort</code>, or an active <code>ufw</code>. If any of these are present, the installer aborts with instructions to remove them first.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Antes de instalar nada, el script verifica que no haya software en conflicto ya presente: <code>isc-dhcp-server</code>/<code>dnsmasq</code> (DHCP), <code>squid</code>/<code>squid3</code>/<code>tinyproxy</code>/<code>privoxy</code>/<code>3proxy</code> (proxy), <code>nginx</code>/<code>lighttpd</code>/<code>caddy</code> (servidor web), <code>bind9</code>/<code>named</code>/<code>pdns-recursor</code> (servidor DNS), <code>syslog-ng</code>, <code>firewalld</code>, <code>snort</code>, o un <code>ufw</code> activo. Si detecta alguno, el instalador aborta con instrucciones para removerlo primero.
+     Antes de instalar nada, el script verifica que no haya software en conflicto ya presente: <code>isc-dhcp-server</code>/<code>dnsmasq</code> (DHCP), <code>squid</code>/<code>squid3</code>/<code>tinyproxy</code>/<code>privoxy</code>/<code>3proxy</code> (proxy), <code>nginx</code>/<code>lighttpd</code>/<code>caddy</code> (servidor web), <code>bind9</code>/<code>pdns-recursor</code> (servidor DNS), <code>syslog-ng</code>, <code>firewalld</code>, <code>snort</code>, o un <code>ufw</code> activo. Si detecta alguno, el instalador aborta con instrucciones para removerlo primero.
     </td>
   </tr>
 </table>
@@ -77,21 +77,24 @@ wget -qO gateproxy.sh https://raw.githubusercontent.com/maravento/vault/master/g
 | WAN Interface | `eth0` | Public/internet-facing NIC / NIC pública (Internet) |
 | LAN Interface | `eth1` | Local network NIC / NIC de red local |
 | Server IP | `192.168.0.10` | Gateway IP assigned to this server / IP del servidor en la LAN |
-| Netmask | `255.255.255.0` | Subnet mask / Máscara de subred |
-| Subnet (CIDR) | `/24` | CIDR prefix length / Prefijo CIDR |
+| Netmask | `255.255.255.0` | Subnet mask; CIDR prefix (`/24`) is derived from this automatically, not asked separately / Máscara de subred; el prefijo CIDR (`/24`) se calcula automáticamente a partir de esto, no se pregunta por separado |
 | DNS Primary | `8.8.8.8` | Primary DNS server / DNS primario |
 | DNS Secondary | `8.8.4.4` | Secondary DNS server / DNS secundario |
 | Proxy Port | `3128` | Squid proxy port / Puerto del proxy Squid |
 
 Localnet (`192.168.0.0`) and Broadcast (`192.168.0.255`) are derived automatically from the Server IP, not asked separately / Localnet (`192.168.0.0`) y Broadcast (`192.168.0.255`) se derivan automáticamente del Server IP, no se preguntan por separado.
 
+DNS Primary/Secondary above only configure Unbound's own forwarders (`conf/server/forward.conf`) — where Unbound sends queries it can't answer locally. They do **not** control which DNS server LAN clients are allowed to query directly; that is pydhcp's own `SERV_DNS` key in `pydhcp.env` (the same value pydhcp hands out via DHCP), which `iptables.sh` reads to open the matching firewall access — no separate gateproxy key to keep in sync by hand. It defaults to the Server IP (Unbound); leaving it unset or empty falls back to the Server IP as well, never to `8.8.8.8`/`8.8.4.4`. To have clients use and reach external DNS directly instead of Unbound, edit `SERV_DNS` in `pydhcp.env` by hand, regenerate `pydhcpd.conf` with pydhcp's `pyleases.sh`, restart `pydhcpd`, and re-run `iptables.sh`.
+
+Los DNS Primario/Secundario de arriba sólo configuran los reenviadores propios de Unbound (`conf/server/forward.conf`) — a dónde manda Unbound las consultas que no puede resolver localmente. **No** controlan a qué servidor DNS pueden consultar directamente los clientes de la LAN; eso lo controla la propia clave `SERV_DNS` de pydhcp en `pydhcp.env` (el mismo valor que pydhcp entrega por DHCP), que `iptables.sh` lee para abrir el acceso correspondiente en el firewall — no hay una clave aparte de gateproxy que sincronizar a mano. Por defecto es el Server IP (Unbound); dejarla sin definir o vacía también cae en el Server IP, nunca en `8.8.8.8`/`8.8.4.4`. Para que los clientes usen y puedan alcanzar DNS externo en vez de Unbound, hay que editar `SERV_DNS` a mano en `pydhcp.env`, regenerar `pydhcpd.conf` con `pyleases.sh` de pydhcp, reiniciar `pydhcpd`, y volver a correr `iptables.sh`.
+
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     The script saves the network answers to <code>/etc/gateproxy/network.env</code> after collecting them — scratch space for this installer only. From it, a persistent copy is written to <code>iptables.env</code> (in <code>$SCR_PATH</code>, alongside the deployed <code>iptables.sh</code>) for the firewall script to read at any time afterward. <code>/etc/gateproxy</code> itself is removed at the end of a successful install; there is no "reuse previous answers" step — each run asks fresh.
+     Once pydhcp is installed, the script appends its own values (interfaces, mask, DNS fallback, proxy ports, paths) to <code>/etc/pydhcp/pydhcp.env</code> — pydhcp's own persistent config file, in a "GATEPROXY CUSTOM VALUES" block after pydhcp's own section. <code>iptables.sh</code> reads that same file at any time afterward. There is no "reuse previous answers" step — each run asks fresh.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     El script guarda las respuestas de red en <code>/etc/gateproxy/network.env</code> después de recolectarlas — espacio temporal sólo para este instalador. A partir de ahí, se escribe una copia persistente en <code>iptables.env</code> (en <code>$SCR_PATH</code>, junto al <code>iptables.sh</code> desplegado) para que el script de firewall la lea en cualquier momento después. <code>/etc/gateproxy</code> se elimina al final de una instalación exitosa; no existe un paso de "reusar respuestas anteriores" — cada corrida pregunta de nuevo.
+     Una vez instalado pydhcp, el script agrega sus propios valores (interfaces, máscara, DNS de respaldo, puertos del proxy, rutas) a <code>/etc/pydhcp/pydhcp.env</code> — el archivo de configuración persistente propio de pydhcp, en un bloque "GATEPROXY CUSTOM VALUES" después de la sección propia de pydhcp. <code>iptables.sh</code> lee ese mismo archivo en cualquier momento después. No existe un paso de "reusar respuestas anteriores" — cada corrida pregunta de nuevo.
     </td>
   </tr>
 </table>
@@ -130,7 +133,8 @@ join <(ip -o -br link | sort) <(ip -o -br addr | sort) | awk '$2=="UP" {print $1
 
 | Component | Port | Notes |
 | :--- | :---: | :--- |
-| **Squid** (squid-openssl) | `3128` | Transparent + explicit proxy with rock/ufs cache |
+| **Squid** (squid-openssl) | `3128` | Explicit proxy with rock/ufs cache |
+| **Squid** (squid-openssl) | `3129` | Intercept port — catches captive-portal probes and any client not using the PAC, filtered by the same ACLs as the explicit proxy |
 | **WPAD/PAC** (Apache2) | `18100` | Proxy auto-config served via `wpad.pac` |
 | **Proxymon** | `18080` | Bandwidth monitoring dashboard |
 | **Proxymon** | `18081` | Bandwidth quota warning page (bandata redirect) |
@@ -182,32 +186,22 @@ Pool range and other DHCP settings can be changed in `/etc/pydhcp/pydhcp.env` af
 
 ```
 gateproxy/
-├── acl/                        # Default ACL files (deployed to /etc/acl/)
-│   ├── acl_dhcp/
-│   │   └── blockdhcp.txt
-│   ├── acl_ipt/
-│   │   ├── blockports.txt
-│   │   ├── bogons.txt
-│   │   ├── dhcp_ip.txt
-│   │   └── dhcp_mac.txt
-│   ├── acl_mac/
-│   │   ├── mac-proxy.txt
-│   │   └── mac-unlimited.txt
-│   └── acl_squid/
-│       ├── aipextra.txt
-│       ├── allowdomains.txt
-│       ├── blockdomains.txt
-│       ├── blockext.txt
-│       └── blockmime.txt
+├── acl/                        # Default ACL files (deployed to /etc/acl/, see ACL STRUCTURE)
 ├── conf/
-│   ├── pack/                   # Optional package configs
-│   │   ├── disable.conf            # Suricata disabled rules
-│   │   ├── drop.conf               # Suricata drop rules
-│   │   ├── evebox.service          # EveBox systemd unit
-│   │   ├── evebox.yaml             # EveBox configuration
-│   │   ├── jail.local              # fail2ban jail config
-│   │   ├── suricataclean.sh        # Suricata log cleanup
-│   │   └── suricataupdate.sh       # Suricata rules update
+│   ├── pack/                   # Optional package configs, one subfolder per project
+│   │   ├── evebox/
+│   │   │   ├── evebox.service      # EveBox systemd unit
+│   │   │   └── evebox.yaml         # EveBox configuration
+│   │   ├── fail2ban/
+│   │   │   └── jail.local          # fail2ban jail config
+│   │   ├── suricata/
+│   │   │   ├── disable.conf        # Suricata disabled rules
+│   │   │   ├── drop.conf           # Suricata drop rules (converted alert->drop by suricata-update)
+│   │   │   ├── suricataclean.sh    # Suricata log cleanup
+│   │   │   ├── suricataupdate.sh   # Suricata rules update
+│   │   │   └── suridata.sh         # Captures dest_ip from drop.conf-matched alerts into suridata.txt
+│   │   └── ttyd/
+│   │       └── ttyd.service        # ttyd (web terminal) systemd unit
 │   ├── scr/                    # Scripts (deployed to /etc/scr/)
 │   │   ├── bkconf.sh               # Backup configuration files
 │   │   ├── iptables.sh             # Firewall rules and ipsets
@@ -255,27 +249,29 @@ gateproxy/
 │   ├── mac-proxy.txt           # MACs routed through Squid (port 3128)
 │   └── mac-unlimited.txt       # MACs with unrestricted access (APs, switches)
 ├── acl_dhcp/               # DHCP access control
-│   └── blockdhcp.txt           # MACs blocked from receiving a DHCP lease
+│   └── blockdhcp.txt           # MACs blocked from a DHCP lease (empty seed, populated/managed by pydhcp's pyleases.sh)
 ├── acl_squid/              # Squid proxy ACLs
 │   ├── aipextra.txt            # Additional allowed IPs (bypass blacklist)
 │   ├── allowdomains.txt        # Allowed domains (whitelist)
 │   ├── blockdomains.txt        # Blocked domains (blacklist)
 │   ├── blockext.txt            # Blocked file extensions
-│   └── blockmime.txt           # Blocked MIME types
+│   ├── blockmime.txt           # Blocked MIME types
+│   └── blockpatterns.txt       # Blocked URL patterns (BitTorrent, scrapers…)
 └── acl_ipt/                # iptables ACLs
     ├── blockports.txt          # Blocked port ranges (VPN, P2P, cryptomining…)
     ├── bogons.txt              # Bogon/unroutable IP ranges
-    ├── dhcp_ip.txt             # IP list derived from DHCP leases (auto-generated)
-    └── dhcp_mac.txt            # MAC list derived from DHCP leases (auto-generated)
+    ├── dhcp_ip.txt             # IP list derived from DHCP leases (auto-generated by iptables.sh)
+    ├── dhcp_mac.txt            # MAC list derived from DHCP leases (auto-generated by iptables.sh)
+    └── suridata.txt            # Dest IPs from Suricata alerts (auto-generated by suridata.sh)
 ```
 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     MAC list files use semicolon-separated format: <code>description;MAC_ADDRESS</code>. Lines with an empty MAC field are ignored by the firewall.
+     MAC list files use pydhcp's own entry format: <code>a;MAC;IP;HOSTNAME;</code>. The leading <code>a</code> marks an active entry — <code>iptables.sh</code> only reads lines starting with <code>a;</code> and a non-empty MAC field; anything else (including a different leading character or a commented-out <code>#a;...</code> line) is ignored.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Los archivos de listas MAC usan formato separado por punto y coma: <code>descripcion;DIRECCION_MAC</code>. Las líneas con el campo MAC vacío son ignoradas por el firewall.
+     Los archivos de listas MAC usan el mismo formato de entrada que pydhcp: <code>a;MAC;IP;HOSTNAME;</code>. La `a` inicial marca una entrada activa — <code>iptables.sh</code> sólo lee líneas que empiecen con <code>a;</code> y tengan el campo MAC no vacío; cualquier otra cosa (incluido un carácter inicial distinto o una línea comentada <code>#a;...</code>) se ignora.
     </td>
   </tr>
 </table>
@@ -299,12 +295,15 @@ gateproxy/
 
 | ipset | Type | Purpose |
 | :--- | :--- | :--- |
-| `macunlimited` | `hash:mac` | Full bypass — APs, managed switches, and similar infrastructure devices |
-| `macproxy` | `hash:mac` | HTTP transparent redirect to Squid (port 3128); PAC served on port 18100 |
-| `macports` | `hash:mac` | Registered devices with controlled port access (DNS, printing, email, STUN, etc.) |
-| `macip` | `hash:ip,mac` | MAC+IP binding — drops spoofed source addresses |
+| `macunlimited` | `hash:mac` | Full bypass — APs, managed switches, and similar infrastructure devices. **Requires a matching static reservation in `pydhcpd.conf`** in addition to being listed here — `MACCHECK` (see below) checks `macip`, not this list directly. Run pydhcp's `pyleases.sh` after editing this file, or add the reservation by hand |
+| `macproxy` | `hash:mac` | Routed through Squid: explicit via PAC (port 3128, served on port 18100) for compliant clients, or intercepted (port 3129) for direct/non-PAC HTTP. Same `pydhcpd.conf` reservation requirement as `macunlimited` above |
+| `macports` | `hash:mac` | Registered devices with controlled port access (DNS, printing, email, STUN, etc.). Same `pydhcpd.conf` reservation requirement as `macunlimited` above |
+| `macip` | `hash:ip,mac` | MAC+IP binding, parsed from `pydhcpd.conf`. Gatekeeper for every other list below — a device not in `macip` is dropped before `macunlimited`/`macproxy`/`macports` are ever evaluated |
 | `blockports` | `bitmap:port` | Blocked port ranges (VPN tunnels, P2P, cryptomining, legacy protocols) |
-| `bandata` | `hash:ip` | IPs over bandwidth quota — DNS and port 80 only, redirected to warning page |
+| `suridata` | `hash:ip` | Dest IPs flagged by Suricata alerts matching a `drop.conf` signature — silent `DROP`, see below |
+| `bandata` | `hash:ip` | IPs over bandwidth quota — DNS and port 80 only, redirected to warning page. Created and populated by Proxymon, not by `iptables.sh` — Proxymon is installed by `gateproxy.sh` as a bundled optional component (see Optional Packages); `iptables.sh` only opens the warning-page port (18081) for it |
+
+`macip` is built from `pydhcpd.conf`'s static `host {}` blocks, not from `mac-*.txt` directly. Adding a MAC to `mac-unlimited.txt`/`mac-proxy.txt` classifies it, but does **not** by itself grant it network access — it still needs a matching static reservation in `pydhcpd.conf`, or the firewall's `MACCHECK` step drops its traffic regardless of classification. pydhcp ships an optional tool, `tools/pyleases.sh`, that generates those reservations from the same `mac-*.txt` files — run it after editing any of them (it is not scheduled automatically by any installer, see the Scripts section below).
 
 ### Blocked Ports (`blockports.txt`)
 
@@ -323,33 +322,45 @@ gateproxy/
 - **P2P / Bittorrent** — ports 6881–6889, 6969, 58251, 58252, 58687
 - **Cryptomining** — ports 3333, 5555, 6666, 7777, 8848, 9999, 14433, 14444, 45560
 - **Tor** — ports 9001–9004, 9030, 9031, 9050, 9090, 9101–9103, 9150
-- **Alternate proxies** — ports 8080, 8000, 3129, 3130
-- **Legacy / risky** — FTP (20–21), Telnet (23), Finger (79), IRC (6660–6669), CHARGEN (19), Echo (7), WINS (42), IPP (631), BTC/ETH (8332, 8333, 8545, 30303)
+- **Alternate proxies** — ports 8000, 3130
+- **Legacy / risky** — FTP (20–21), SSH (22), Finger (79), IRC (6660–6669), CHARGEN (19), Echo (7), WINS (42), IPP (631), BTC/ETH (8332, 8333, 8545, 30303)
+
+### Suricata-driven IP Blocking (`suridata`)
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+     Suricata runs passive (AF-PACKET, IDS mode) — it can never block traffic on its own, regardless of what <code>drop.conf</code> says. <code>suridata.sh</code> (cron, every 5 minutes) is what turns a <code>drop.conf</code> match into a real block: it reads the SIDs <code>suricata-update</code> already resolved to <code>drop</code> action in <code>suricata.rules</code> (covers both literal SIDs and <code>re:</code> message-regex entries in <code>drop.conf</code>), tails only the new lines of <code>eve.json</code> since its last run, and for every alert whose <code>signature_id</code> matches, appends the flow's <code>dest_ip</code> to <code>suridata.txt</code>. <code>iptables.sh</code> loads that file into the <code>suridata</code> ipset and drops matching destinations at <code>mangle PREROUTING</code> — silently, no warning page (unlike <code>bandata</code>, this blocks a destination, not a client). No expiry: entries are removed by hand, same model as <code>blockports.txt</code>. <code>macunlimited</code> members (APs, switches) are exempt, same as <code>blockports</code>.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+     Suricata corre en modo pasivo (AF-PACKET, IDS) — nunca puede bloquear tráfico por sí solo, sin importar lo que diga <code>drop.conf</code>. <code>suridata.sh</code> (cron, cada 5 minutos) es lo que convierte un match de <code>drop.conf</code> en un bloqueo real: lee los SIDs que <code>suricata-update</code> ya resolvió a acción <code>drop</code> en <code>suricata.rules</code> (cubre tanto SIDs literales como entradas <code>re:</code> de regex de mensaje en <code>drop.conf</code>), lee solo las líneas nuevas de <code>eve.json</code> desde su última corrida, y por cada alerta cuyo <code>signature_id</code> coincide, agrega el <code>dest_ip</code> del flujo a <code>suridata.txt</code>. <code>iptables.sh</code> carga ese archivo al ipset <code>suridata</code> y bloquea los destinos que coincidan en <code>mangle PREROUTING</code> — de forma silenciosa, sin página de aviso (a diferencia de <code>bandata</code>, esto bloquea un destino, no un cliente). Sin expiración: las entradas se retiran a mano, mismo modelo que <code>blockports.txt</code>. Los miembros de <code>macunlimited</code> (APs, switches) quedan exentos, igual que con <code>blockports</code>.
+    </td>
+  </tr>
+</table>
 
 ### Security Rules
 
 - SYN flood protection via rate-limited `syn_flood` chain
 - TCP scan / malformed packet drops (SYN+FIN, SYN+RST, NEW with SYN+ACK)
-- Bittorrent and Tor protocol detection via hex string matching (`NFLOG` + `DROP`)
+- Bittorrent/Tor and other protocol-level detection is handled by Suricata (see Optional Packages below), not by hex-string matching in `iptables.sh`
 - GRE (protocol 47) and 6to4 (protocol 41) blocked from LAN
 - Windows ICS network range (192.168.137.0/24) blocked
 - NetBIOS NMBD (137–139), CoAP (5683–5684), mDNS noise, WUDO WAN traffic blocked
-- Private RFC-1918 ranges dropped on WAN input
+- Bogon/reserved-range filtering (RFC1918, link-local, test-nets, etc.) is available in `iptables.sh` but **disabled by default** — enabling it blindly can lock the LAN out of its own network if the server's subnet falls inside a blocked RFC1918 range; see the comment above the `BOGONS` block before enabling it
 
 ### Allowed LAN Services (`macports`)
 
 Devices registered in `macports` have access to the following / Los dispositivos registrados en `macports` tienen acceso a los siguientes servicios:
 
-- **DNS** — UDP/TCP 53 (to configured DNS servers only)
 - **Printing** — JetDirect/RAW (9100), SNMP (161, 162), prnrequest/prnstatus (3910, 3911)
 - **Email** — SMTP (465, 587), IMAP (993), POP3 (995), STARTTLS (143, 110)
 - **Messaging / XMPP** — ports 5222, 5223, 5228, 5269
 - **WebRTC / STUN-TURN** — UDP 3478–3481, 19302–19309; TCP 3478, 5349
 - **Samba / SMB** — TCP 445, 3092
 - **LAN discovery** — mDNS (5353), LLMNR (5355), SSDP/UPnP (1900), WSD (3702), IGMP
-- **Remote support** — RustDesk (21114–21119), AnyDesk (6568, 7070)
 - **KMS** — Windows activation (1688)
-- **Localsend** — TCP 53317
+
+DNS (UDP/TCP 53) is a global rule applied to all LAN traffic, not a `macports`-specific privilege — see `SERV_DNS` above / DNS (UDP/TCP 53) es una regla global aplicada a todo el tráfico LAN, no un privilegio específico de `macports` — ver `SERV_DNS` arriba.
 
 ## OPTIONAL PACKAGES
 
@@ -374,6 +385,7 @@ Devices registered in `macports` have access to the following / Los dispositivos
 - **fsearch** — fast file search (GUI)
 - **ttyd** — web terminal, loopback-only (`http://localhost:7681`)
 - **Suricata IDS** — network intrusion detection in AF-PACKET mode with auto-update rules; community-id enabled
+- **suridata** — turns `drop.conf` matches into real blocks via the `suridata` ipset (see [FIREWALL](#firewall)); cron every 5 minutes
 - **EveBox** — Suricata event browser (`http://localhost:5636`)
 
 ### Optional Pack: Samba
@@ -381,10 +393,10 @@ Devices registered in `macports` have access to the following / Los dispositivos
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     Installs <b>smbstack</b> — a Samba server with a shared folder, Recycle Bin, and audit logging configured out of the box.
+     Installs <b>smbstack</b> — a Samba server with a shared folder, Recycle Bin, and audit logging configured out of the box. <code>smbstack</code> manages its own veto list for common unwanted file types (<code>/etc/samba/acl/commonveto.txt</code>, active by default) — not gateproxy's responsibility.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Instala <b>smbstack</b> — un servidor Samba con carpeta compartida, Papelera de Reciclaje y registro de auditoría configurados de fábrica.
+     Instala <b>smbstack</b> — un servidor Samba con carpeta compartida, Papelera de Reciclaje y registro de auditoría configurados de fábrica. <code>smbstack</code> gestiona su propia lista veto de tipos de archivo comunes no deseados (<code>/etc/samba/acl/commonveto.txt</code>, activa por defecto) — no es responsabilidad de gateproxy.
     </td>
   </tr>
 </table>

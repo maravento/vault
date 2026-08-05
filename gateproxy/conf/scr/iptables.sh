@@ -70,18 +70,24 @@ is_valid_mac() {
 }
 
 is_valid_ip() {
-    [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]
+    local octet
+    [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
+    for octet in ${1//./ }; do
+        (( octet <= 255 )) || return 1
+    done
 }
 
 is_valid_port() {
     [[ "$1" =~ ^[0-9]+$ ]] && (( $1 >= 0 && $1 <= 65535 ))
 }
 
-# Network config -- gateproxy.sh's own persistent copy of network.env,
-# deployed alongside this script. Safe key=value parsing (file is never
-# sourced) with built-in defaults if the file is missing or a key wasn't
-# set, so a stale/partial config never blocks the firewall from loading.
-IPTABLES_ENV="$(dirname "$(readlink -f "$0")")/iptables.env"
+# Network config -- pydhcp.env is the single persistent source of truth for
+# both pydhcp's own values and gateproxy's (appended by gateproxy.sh after
+# pydhcp installs; see pysetup.sh:470-476 -- pydhcp.env is never overwritten
+# once created). Safe key=value parsing (file is never sourced) with
+# built-in defaults if the file is missing or a key wasn't set, so a
+# stale/partial config never blocks the firewall from loading.
+PYDHCP_ENV="/etc/pydhcp/pydhcp.env"
 
 load_env_file() {
     local file="$1" line key value
@@ -95,8 +101,8 @@ load_env_file() {
             value="${value:1:$((${#value}-2))}"
         fi
         case "$key" in
-            WAN_IF|LAN_IF|SERVER_IP|SERV_SUBNET|SERV_BROADCAST|SERV_MASK|MASKNEW2|\
-            SERV_DNS|PORTNEW|LOCAL_USER|ACL_PATH|SCR_PATH|ZONE_PATH)
+            WAN_IF|INTERFACESv4|SERVER_IP|SERV_SUBNET|SERV_BROADCAST|SERV_MASK|\
+            SERV_DNS|SQUID_PORT|SQUID_INTERCEPT_PORT|LOCAL_USER|ACL_PATH|SCR_PATH|ZONE_PATH)
                 printf -v "$key" '%s' "$value"
                 ;;
             *)
@@ -104,21 +110,26 @@ load_env_file() {
         esac
     done < "$file"
 }
-load_env_file "$IPTABLES_ENV"
+load_env_file "$PYDHCP_ENV" || true
 
-# paths (ACL_PATH comes from $IPTABLES_ENV)
+# paths (ACL_PATH comes from $PYDHCP_ENV)
 acl_mac_path="${ACL_PATH:-/etc/acl}/acl_mac"
 acl_ipt_path="${ACL_PATH:-/etc/acl}/acl_ipt"
 # interfaces
 wan="${WAN_IF:-eth0}"
-lan="${LAN_IF:-eth1}"
-# LAN localnet/netmask
+lan="${INTERFACESv4:-eth1}"
+# LAN localnet/netmask (CIDR prefix derived from pydhcp's own SERV_MASK,
+# no separate gateproxy key to keep in sync by hand)
 localnet="${SERV_SUBNET:-192.168.0.0}"
-netmask="${MASKNEW2:-24}"
+netmask=$(python3 -c \
+    "import ipaddress; print(ipaddress.IPv4Network('0.0.0.0/${SERV_MASK:-255.255.255.0}').prefixlen)" \
+    2>/dev/null || echo "24")
 # server IP
 serverip="${SERVER_IP:-192.168.0.10}"
 # squid proxy port
-squid_port="${PORTNEW:-3128}"
+squid_port="${SQUID_PORT:-3128}"
+# squid intercept port (NAT-redirected HTTP, not exposed to explicit proxy clients)
+squid_intercept_port="${SQUID_INTERCEPT_PORT:-3129}"
 
 # ACL/config files used by this script (existence verified below)
 mac_proxy_file="$acl_mac_path/mac-proxy.txt"
@@ -157,6 +168,7 @@ EOF
 fi
 
 ## KERNEL RULES ##
+
 # Zero all packets and counters
 # Reset tables
 iptables -F
@@ -309,11 +321,11 @@ sysctl -w net.ipv6.conf.lo.disable_ipv6=0 >/dev/null 2>&1 || true
 # LAN IPv6
 sysctl -w "net.ipv6.conf.${lan}.disable_ipv6=1" >/dev/null 2>&1 || true
 # ICMPv6 esencial (NDP, SLAAC, Path MTU)
-ip6tables -A OUTPUT -o "$wan" -p ipv6-icmp -j ACCEPT
+ip6tables -A OUTPUT -o "$wan" -p ipv6-icmp -j ACCEPT || true
 # DHCPv6
-ip6tables -A OUTPUT -o "$wan" -p udp --sport 546 --dport 547 -j ACCEPT
+ip6tables -A OUTPUT -o "$wan" -p udp --sport 546 --dport 547 -j ACCEPT || true
 # Established traffic
-ip6tables -A INPUT -i "$wan" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+ip6tables -A INPUT -i "$wan" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT || true
 
 ## GLOBAL RULES ##
 
@@ -323,37 +335,52 @@ iptables -P FORWARD ACCEPT
 iptables -P OUTPUT ACCEPT
 
 # Global Policies IPv6 (cerrado por defecto)
-ip6tables -P INPUT DROP
-ip6tables -P FORWARD DROP
-ip6tables -P OUTPUT DROP
+ip6tables -P INPUT DROP || true
+ip6tables -P FORWARD DROP || true
+ip6tables -P OUTPUT DROP || true
 
 # LOOPBACK
 iptables -A INPUT -i lo -j ACCEPT
 iptables -A OUTPUT -o lo -j ACCEPT
-ip6tables -A INPUT -i lo -j ACCEPT
-ip6tables -A OUTPUT -o lo -j ACCEPT
+ip6tables -A INPUT -i lo -j ACCEPT || true
+ip6tables -A OUTPUT -o lo -j ACCEPT || true
 iptables -A INPUT -s 127.0.0.0/8 ! -i lo -j DROP
 
-# BOGONS
-bogonslst="$acl_ipt_path/bogons.txt"
-if ! ipset list bogons &>/dev/null; then
-    ipset create bogons hash:net -exist
-else
-    ipset flush bogons
-fi
-if [ -f "$bogonslst" ]; then
-    for bogonscidr in $(grep -vE '^\s*#|^\s*$' "$bogonslst" | awk '{print $1}' | sort -V -u 2>/dev/null); do
-        ipset add bogons "$bogonscidr" -exist
-    done
-else
-    log "WARNING: $bogonslst not found -- skipping bogons"
-fi
-iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set bogons src -j DROP
-iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set bogons dst -j DROP
+# BOGONS (disabled by default -- opt-in)
+# acl/acl_ipt/bogons.txt includes the RFC1918 private ranges (10.0.0.0/8,
+# 172.16.0.0/12, 192.168.0.0/16). Those are also exactly the ranges a LAN
+# can legitimately use, so blindly loading this list applies to both the
+# LAN and WAN rules below and can lock the LAN out of its own network if
+# the chosen Server IP/subnet falls inside one of them.
+# Before uncommenting this block: open bogons.txt and comment out (or
+# choose ranges that avoid) whatever CIDR contains this server's own LAN
+# subnet, then verify the remaining entries are still what you want blocked.
+#bogonslst="$acl_ipt_path/bogons.txt"
+#if ! ipset list bogons &>/dev/null; then
+#    ipset create bogons hash:net -exist
+#else
+#    ipset flush bogons
+#fi
+#if [ -f "$bogonslst" ]; then
+#    for bogonscidr in $(grep -vE '^\s*#|^\s*$' "$bogonslst" | awk '{print $1}' | sort -V -u 2>/dev/null); do
+#        ipset add bogons "$bogonscidr" -exist
+#    done
+#else
+#    log "WARNING: $bogonslst not found -- skipping bogons"
+#fi
+#iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set bogons src -j DROP
+#iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set bogons dst -j DROP
 # WAN ingress: drop spoofed traffic claiming a reserved/private source address.
 # dst intentionally omitted -- this host may itself sit behind CGNAT/double-NAT
 # on a private WAN address, which a dst check would wrongly match and drop.
-iptables -t mangle -A PREROUTING -i "$wan" -m set --match-set bogons src -j DROP
+#iptables -t mangle -A PREROUTING -i "$wan" -m set --match-set bogons src -j DROP
+
+# DHCP
+iptables -t mangle -A PREROUTING -i "$lan" -p udp --dport 67 -j ACCEPT
+iptables -A OUTPUT -o "$wan" -p udp --sport 68 --dport 67 -j ACCEPT
+iptables -A INPUT -i "$wan" -p udp --sport 67 --dport 68 -j ACCEPT
+iptables -A INPUT -i "$lan" -p udp --sport 68 --dport 67 -j ACCEPT
+iptables -A OUTPUT -o "$lan" -p udp --sport 67 --dport 68 -j ACCEPT
 
 # MASQUERADE: NAT for LAN to share dynamic WAN IP
 iptables -t nat -A POSTROUTING -s "$localnet/$netmask" -o "$wan" -j MASQUERADE
@@ -390,6 +417,7 @@ iptables -A FORWARD -p tcp --tcp-flags SYN,ACK SYN,ACK -m conntrack --ctstate NE
 # Burst limit
 iptables -A FORWARD -i "$lan" -p udp --dport 53 -m state --state NEW -m recent --set --name DNS_DROPPER
 iptables -A FORWARD -i "$lan" -p udp --dport 53 -m state --state NEW -m recent --update --seconds 1 --hitcount 15 --name DNS_DROPPER -j DROP
+SERV_DNS="${SERV_DNS:-$serverip}"
 for dnsip in ${SERV_DNS//,/ }; do
     for protocol in tcp udp; do
         iptables -A INPUT -i "$lan" -d "$dnsip" -p "$protocol" --dport 53 -j ACCEPT
@@ -399,40 +427,6 @@ done
 for protocol in tcp udp; do
     iptables -A FORWARD -i "$lan" -p "$protocol" --dport 53 -m hashlimit --hashlimit-name dns-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip -j NFLOG --nflog-prefix "DNS-DROP: "
     iptables -A FORWARD -i "$lan" -p "$protocol" --dport 53 -j DROP
-done
-
-# DHCP
-iptables -t mangle -A PREROUTING -i "$lan" -p udp --dport 67 -j ACCEPT
-iptables -A OUTPUT -o "$wan" -p udp --sport 68 --dport 67 -j ACCEPT
-iptables -A INPUT -i "$wan" -p udp --sport 67 --dport 68 -j ACCEPT
-iptables -A INPUT -i "$lan" -p udp --sport 68 --dport 67 -j ACCEPT
-iptables -A OUTPUT -o "$lan" -p udp --sport 67 --dport 68 -j ACCEPT
-
-# NTP
-iptables -A INPUT -i "$lan" -p udp --dport 123 -s "$localnet/$netmask" -j ACCEPT
-iptables -A FORWARD -i "$lan" -p udp --dport 123 -s "$localnet/$netmask" -j ACCEPT
-
-# WARNING PAGE HTTP FOR BANDATA (TCP 18081)
-# https://github.com/maravento/proxymon
-iptables -A INPUT -i "$lan" -p tcp --dport 18081 -j ACCEPT
-
-# MACUNLIMITED (MAC + IP for Access Points, Switch, etc.)
-if ! ipset list macunlimited &>/dev/null; then
-    ipset create macunlimited hash:mac -exist
-else
-    ipset flush macunlimited
-fi
-for mac in $(awk -F";" '$1 == "a" && $2 != "" {print $2}' "$mac_unlimited_file" 2>/dev/null); do
-    is_valid_mac "$mac" && ipset add macunlimited "$mac" -exist
-done
-iptables -t nat -A PREROUTING -i "$lan" -m set --match-set macunlimited src -j ACCEPT
-iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macunlimited src -j ACCEPT
-# Unlimited devices never use the proxy -- block PAC access so DHCP option 252
-# (WPAD, if enabled) has no effect on them, since pydhcpd is ACL-agnostic and
-# sends it to every client regardless of classification.
-iptables -A INPUT -i "$lan" -p tcp -m multiport --dports $squid_port,18100 -m set --match-set macunlimited src -j DROP
-for chain in INPUT FORWARD; do
-    iptables -A "$chain" -i "$lan" -m set --match-set macunlimited src -j ACCEPT
 done
 
 # mac2ip
@@ -445,6 +439,9 @@ mac2ip=$(awk '
         in_block=0
     }
 ' "$dhcp_conf")
+# Lowercase MAC-only view of mac2ip, for the classified-MAC diagnostic below
+# (has no static reservation, distinct from the ip,mac pairs macip itself uses).
+mac2ip_macs=$(awk '{print tolower($1)}' <<< "$mac2ip")
 # rule mac2ip
 if ! ipset list macip &>/dev/null; then
     ipset create macip hash:ip,mac -exist
@@ -480,8 +477,11 @@ if [ -n "$mac2ip" ]; then
         [[ -n "$_m2i_ip" ]] && mac2ip_args+=("$_m2i_ip")
     done <<< "$mac2ip"
     create_acl "${mac2ip_args[@]}"
-    iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macip src,src -j ACCEPT
-    iptables -t mangle -A PREROUTING -i "$lan" -j DROP
+    iptables -t mangle -N MACCHECK 2>/dev/null
+    iptables -t mangle -F MACCHECK
+    iptables -t mangle -A PREROUTING -i "$lan" -j MACCHECK
+    iptables -t mangle -A MACCHECK -m set --match-set macip src,src -j RETURN
+    iptables -t mangle -A MACCHECK -j DROP
 
     # ARP binding: drop ARP claiming a registered static IP from any MAC other
     # than the one it's leased to. iptables/ipset only see the IP layer, not
@@ -490,13 +490,32 @@ if [ -n "$mac2ip" ]; then
         _arp_mac="${mac2ip_args[_arp_i]}"
         _arp_ip="${mac2ip_args[_arp_i+1]}"
         is_valid_mac "$_arp_mac" && is_valid_ip "$_arp_ip" && \
-            arptables -A INPUT -i "$lan" --source-ip "$_arp_ip" ! --source-mac "$_arp_mac" -j DROP
+            { arptables -A INPUT -i "$lan" --source-ip "$_arp_ip" ! --source-mac "$_arp_mac" -j DROP || true; }
     done
 else
     log "WARNING: No static DHCP entries found in $dhcp_conf; macip binding skipped"
 fi
 
-## PORT RULES ##
+# MACUNLIMITED (MAC + IP for Access Points, Switch, etc.)
+if ! ipset list macunlimited &>/dev/null; then
+    ipset create macunlimited hash:mac -exist
+else
+    ipset flush macunlimited
+fi
+for mac in $(awk -F";" '$1 == "a" && $2 != "" {print $2}' "$mac_unlimited_file" 2>/dev/null); do
+    is_valid_mac "$mac" && ipset add macunlimited "$mac" -exist
+done
+iptables -t nat -A PREROUTING -i "$lan" -m set --match-set macunlimited src -j ACCEPT
+iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macunlimited src -j ACCEPT
+# Unlimited devices never use the proxy -- block PAC access so DHCP option 252
+# (WPAD, if enabled) has no effect on them, since pydhcpd is ACL-agnostic and
+# sends it to every client regardless of classification.
+iptables -A INPUT -i "$lan" -p tcp -m multiport --dports $squid_port,18100 -m set --match-set macunlimited src -j DROP
+for chain in INPUT FORWARD; do
+    iptables -A "$chain" -i "$lan" -m set --match-set macunlimited src -j ACCEPT
+done
+
+## SECURITY RULES ##
 
 # BLOCKPORTS
 # path: /etc/acl/acl_ipt/blockports.txt
@@ -513,7 +532,7 @@ fi
 # - WireGuard (51820) - UDP
 # - SOCKS5 proxies (1080) - TCP
 # - Shadowsocks (7300) - TCP/UDP
-# - HTTP-Proxy Alternative (8080,8000,3129,3130) - TCP
+# - HTTP-Proxy Alternative (8080,8000,3130) - TCP
 # - Spotify (4070) - TCP
 #
 # Block legacy, risky or potentially abusive services:
@@ -547,57 +566,23 @@ for proto in tcp udp; do
     iptables -t mangle -A PREROUTING -i "$lan" -p "$proto" -m set --match-set blockports dst -j DROP
 done
 
-# MAC Ports
-if ! ipset list macports &>/dev/null; then
-    ipset create macports hash:mac -exist
+# SURIDATA
+suridatalst="$acl_ipt_path/suridata.txt"
+if ! ipset list suridata &>/dev/null; then
+    ipset create suridata hash:ip -exist
 else
-    ipset flush macports
+    ipset flush suridata
 fi
-for mac in $(awk -F";" '$1 == "a" && $2 != "" {print $2}' "$acl_mac_path"/mac-*.txt 2>/dev/null); do
-    is_valid_mac "$mac" && ipset add macports "$mac" -exist
-done
+if [ -f "$suridatalst" ]; then
+    for suridataip in $(grep -vE '^\s*#|^\s*$' "$suridatalst" | sort -u 2>/dev/null); do
+        is_valid_ip "$suridataip" && ipset add suridata "$suridataip" -exist
+    done
+else
+    log "WARNING: $suridatalst not found -- skipping suridata"
+fi
+iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set suridata dst -j NFLOG --nflog-prefix "SURIDATA DROP: "
+iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set suridata dst -j DROP
 
-# PRINTERS
-for chain in INPUT FORWARD; do
-    # PRINTERS & SCANNERS UDP: SNMP (161,162) + prnrequest/prnstatus (3910/3911)
-    iptables -A "$chain" -i "$lan" -p udp -m multiport --dports 161,162,3910,3911 -m set --match-set macports src -j ACCEPT
-    # PRINTERS & SCANNERS TCP: JetDirect/RAW (9100) + prnrequest/prnstatus (3910/3911)
-    iptables -A "$chain" -i "$lan" -p tcp -m multiport --dports 9100,3910,3911 -m set --match-set macports src -j ACCEPT
-done
-# STUN/TURN (WebRTC, Teams, Meet, Zoom)
-iptables -A FORWARD -i "$lan" -o "$wan" -p udp -m multiport --dports 3478:3481 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i "$lan" -o "$wan" -p tcp -m multiport --dports 3478,5349 -m set --match-set macports src -j ACCEPT
-# Google STUN
-iptables -A FORWARD -i "$lan" -o "$wan" -p udp -m multiport --dports 19302:19309 -m set --match-set macports src -j ACCEPT
-# FILE SHARING SAMBA (SMB)
-iptables -A INPUT -i "$lan" -p tcp -m multiport --dports 445,3092 -m set --match-set macports src -j ACCEPT
-# EMAIL (SMTP, IMAP, POP3)
-iptables -A FORWARD -i "$lan" -p tcp -m multiport --dports 110,143,465,587,993,995 -m set --match-set macports src -j ACCEPT
-# MESSAGING & XMPP (Jabber, FCM)
-iptables -A FORWARD -i "$lan" -p tcp -m multiport --dports 5222,5223,5228,5269 -m set --match-set macports src -j ACCEPT
-# WSD (Web Services Discovery) - TCP
-iptables -A FORWARD -i "$lan" -p tcp -m multiport --dports 5357,5358 -m set --match-set macports src -j ACCEPT
-# mDNS LAN noise
-iptables -A INPUT -i "$lan" -d 224.0.0.251 -p udp --dport 5353 -j DROP
-# Drop local multicast (collaboration tools, discovery, etc.)
-iptables -A INPUT -i "$lan" -d 239.255.0.0/16 -j DROP
-# LAN traffic: discovery, printing, collaboration
-# mDNS / Bonjour / AirPrint
-iptables -A FORWARD -i "$lan" -o "$lan" -d 224.0.0.251 -p udp --dport 5353 -m set --match-set macports src -j ACCEPT
-# LLMNR
-iptables -A FORWARD -i "$lan" -o "$lan" -d 224.0.0.252 -p udp --dport 5355 -m set --match-set macports src -j ACCEPT
-# SSDP / UPnP
-iptables -A FORWARD -i "$lan" -o "$lan" -d 239.255.255.250 -p udp --dport 1900 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i "$lan" -o "$lan" -p udp --dport 5000 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i "$lan" -p udp -m multiport --dports 1900,5000 -m set --match-set macports src -j DROP
-# WSD
-iptables -A FORWARD -i "$lan" -o "$lan" -d 239.255.255.250 -p udp --dport 3702 -m set --match-set macports src -j ACCEPT
-# Multimedia & Streaming
-iptables -A FORWARD -i "$lan" -o "$lan" -p tcp -m multiport --dports 2869,8200 -m set --match-set macports src -j ACCEPT
-# IGMP (required for multicast group management)
-iptables -A FORWARD -i "$lan" -o "$lan" -p igmp -m set --match-set macports src -j ACCEPT
-
-## SECURITY RULES ##
 # Block 6to4 (IPv6-in-IPv4 tunneling) - prevents LAN clients from bypassing
 # IPv4-based firewall rules via IPv6 tunnel encapsulation
 iptables -A FORWARD -i "$lan" -p 41 -j DROP
@@ -653,15 +638,6 @@ iptables -A INPUT -i "$lan" -p udp --dport 3289 -j DROP
 # Dropbox LAN sync broadcast noise
 iptables -A INPUT -i "$lan" -p udp --dport 17500 -j DROP
 
-protocols=(
- "torrent:|426974546f7272656e742070726f746f636f6c|"
- "tor:|1cc02bc02fc02cc030c00ac009c013c01400330039002f0035000a00ff01|"
-)
-for p in "${protocols[@]}"; do
-    iptables -A FORWARD -i "$lan" -m string --hex-string "${p#*:}" --algo bm -j NFLOG --nflog-prefix "${p%%:*}: "
-    iptables -A FORWARD -i "$lan" -m string --hex-string "${p#*:}" --algo bm -j DROP
-done
-
 # ICMP (ping) (Optional)
 # WARNING:
 # You need to change the following kernel parameter in the header of this script:
@@ -673,8 +649,66 @@ done
 # Silence ICMP forward noise
 iptables -A FORWARD -i "$lan" -o "$wan" -p icmp -j DROP
 
+## MAC Ports ##
+
+if ! ipset list macports &>/dev/null; then
+    ipset create macports hash:mac -exist
+else
+    ipset flush macports
+fi
+for mac in $(awk -F";" '$1 == "a" && $2 != "" {print $2}' "$acl_mac_path"/mac-*.txt 2>/dev/null); do
+    is_valid_mac "$mac" && ipset add macports "$mac" -exist
+done
+
+# WARNING PAGE HTTP FOR BANDATA (TCP 18081)
+# https://github.com/maravento/proxymon
+iptables -A INPUT -i "$lan" -p tcp --dport 18081 -m set --match-set macports src -j ACCEPT
+# PRINTERS
+for chain in INPUT FORWARD; do
+    # PRINTERS & SCANNERS UDP: SNMP (161,162) + prnrequest/prnstatus (3910/3911)
+    iptables -A "$chain" -i "$lan" -p udp -m multiport --dports 161,162,3910,3911 -m set --match-set macports src -j ACCEPT
+    # PRINTERS & SCANNERS TCP: JetDirect/RAW (9100) + prnrequest/prnstatus (3910/3911)
+    iptables -A "$chain" -i "$lan" -p tcp -m multiport --dports 9100,3910,3911 -m set --match-set macports src -j ACCEPT
+done
+# STUN/TURN (WebRTC, Teams, Meet, Zoom)
+iptables -A FORWARD -i "$lan" -o "$wan" -p udp -m multiport --dports 3478:3481 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -o "$wan" -p tcp -m multiport --dports 3478,5349 -m set --match-set macports src -j ACCEPT
+# Google STUN
+iptables -A FORWARD -i "$lan" -o "$wan" -p udp -m multiport --dports 19302:19309 -m set --match-set macports src -j ACCEPT
+# FILE SHARING SAMBA (SMB)
+iptables -A INPUT -i "$lan" -p tcp -m multiport --dports 445,3092 -m set --match-set macports src -j ACCEPT
+# EMAIL (SMTP, IMAP, POP3)
+iptables -A FORWARD -i "$lan" -p tcp -m multiport --dports 110,143,465,587,993,995 -m set --match-set macports src -j ACCEPT
+# MESSAGING & XMPP (Jabber, FCM)
+iptables -A FORWARD -i "$lan" -p tcp -m multiport --dports 5222,5223,5228,5269 -m set --match-set macports src -j ACCEPT
+# WSD (Web Services Discovery) - TCP
+iptables -A FORWARD -i "$lan" -p tcp -m multiport --dports 5357,5358 -m set --match-set macports src -j ACCEPT
+# mDNS LAN noise
+iptables -A INPUT -i "$lan" -d 224.0.0.251 -p udp --dport 5353 -j DROP
+# Drop local multicast (collaboration tools, discovery, etc.)
+iptables -A INPUT -i "$lan" -d 239.255.0.0/16 -j DROP
+# LAN traffic: discovery, printing, collaboration
+# mDNS / Bonjour / AirPrint
+iptables -A FORWARD -i "$lan" -o "$lan" -d 224.0.0.251 -p udp --dport 5353 -m set --match-set macports src -j ACCEPT
+# LLMNR
+iptables -A FORWARD -i "$lan" -o "$lan" -d 224.0.0.252 -p udp --dport 5355 -m set --match-set macports src -j ACCEPT
+# SSDP / UPnP
+iptables -A FORWARD -i "$lan" -o "$lan" -d 239.255.255.250 -p udp --dport 1900 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -o "$lan" -p udp --dport 5000 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -p udp -m multiport --dports 1900,5000 -m set --match-set macports src -j DROP
+# WSD
+iptables -A FORWARD -i "$lan" -o "$lan" -d 239.255.255.250 -p udp --dport 3702 -m set --match-set macports src -j ACCEPT
+# Multimedia & Streaming
+iptables -A FORWARD -i "$lan" -o "$lan" -p tcp -m multiport --dports 2869,8200 -m set --match-set macports src -j ACCEPT
+# IGMP (required for multicast group management)
+iptables -A FORWARD -i "$lan" -o "$lan" -p igmp -m set --match-set macports src -j ACCEPT
+# NTP
+iptables -A INPUT -i "$lan" -p udp --dport 123 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$lan" -p udp --dport 123 -m set --match-set macports src -j ACCEPT
+
 ## MAC RULES ##
-# MACPROXY (PAC 18100 - Opcion 252 DHCP, HTTP 80 to 3128)
+
+# MACPROXY (PAC 18100 - Opcion 252 DHCP, HTTP 80 -> Squid intercept port)
 if ! ipset list macproxy &>/dev/null; then
     ipset create macproxy hash:mac -exist
 else
@@ -683,10 +717,22 @@ fi
 for mac in $(awk -F";" '$1 == "a" && $2 != "" {print $2}' "$mac_proxy_file" 2>/dev/null); do
     is_valid_mac "$mac" && ipset add macproxy "$mac" -exist
 done
-iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macproxy src -p tcp -m multiport --dports 18100,80 -j ACCEPT
-iptables -t nat -A PREROUTING -i "$lan" -p tcp --dport 80 -m set --match-set macproxy src -j REDIRECT --to-port $squid_port
-for chain in INPUT FORWARD; do
-    iptables -A "$chain" -i "$lan" -p tcp -m multiport --dports 18100,$squid_port -m set --match-set macproxy src -j ACCEPT
+iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macproxy src -p tcp -m multiport --dports 18100,80,$squid_port -j ACCEPT
+iptables -t nat -A PREROUTING -i "$lan" -p tcp --dport 80 -m set --match-set macproxy src -j REDIRECT --to-port "$squid_intercept_port"
+iptables -A INPUT -i "$lan" -p tcp --dport "$squid_intercept_port" -m set --match-set macproxy src -m conntrack --ctstate DNAT -j ACCEPT
+iptables -A INPUT -i "$lan" -p tcp -m multiport --dports 18100,$squid_port -m set --match-set macproxy src -j ACCEPT
+
+# Diagnostic only: warn about classified MACs with no static reservation in
+# pydhcpd.conf -- MACCHECK drops their traffic regardless of classification.
+for _cf in "$acl_mac_path"/mac-*.txt; do
+    [ -f "$_cf" ] || continue
+    while IFS=';' read -r _cstatus _cmac _crest; do
+        [ "$_cstatus" = "a" ] || continue
+        is_valid_mac "$_cmac" || continue
+        _cmac_lc=$(tr 'A-F' 'a-f' <<< "$_cmac")
+        grep -qxF "$_cmac_lc" <<< "$mac2ip_macs" || \
+            log "WARNING: $_cmac ($(basename "$_cf")) has no static reservation in pydhcpd.conf -- MACCHECK will drop its traffic until pyleases.sh runs or the reservation is added manually"
+    done < "$_cf"
 done
 
 ## END ##

@@ -1,10 +1,11 @@
-# Let NetworkManager manage all devices on this system (networkd)
+# Let systemd-networkd manage all devices on this system
 # check your .yaml http://www.yamllint.com/
 # To apply changes: sudo netplan apply
 network:
   version: 2
-# change to "networkd" if you don't want to use NetworkManager
-  renderer: NetworkManager
+# change to "NetworkManager" if you installed it and want to use it instead
+# (not installed by this project's dependencies)
+  renderer: networkd
   ethernets:
     eth0:
 # change dhcp4 to "no" (yes/no) or "false" (true/false) if you want to use static IP. See http://yaml.org/type/bool.html

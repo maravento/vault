@@ -72,7 +72,6 @@ python3 gitfolder.py https://github.com/maravento/vault/project_name
 
 ---
 
-- [blackshield](https://github.com/maravento/vault/tree/master/blackshield)
 - [blackusb](https://github.com/maravento/vault/tree/master/blackusb)
 - [dofi](https://github.com/maravento/vault/tree/master/dofi)
 - [gateproxy](https://github.com/maravento/vault/tree/master/gateproxy)

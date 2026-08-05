@@ -31,8 +31,8 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# DEPENDENCIES
-for dep in iproute2 systemd squid-openssl apache2 samba winbind rsyslog; do
+# DEPENDENCIES (samba/winbind excluded -- Samba install is optional in gateproxy.sh)
+for dep in iproute2 systemd squid-openssl apache2 rsyslog; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: Required dependency '$dep' is not installed."
         exit 1
@@ -121,12 +121,16 @@ sleep 5
 log "Apache2 Restart..."
 systemctl restart apache2.service
 sleep 5
-log "Samba Restart..."
-systemctl restart smbd.service
-sleep 5
-log "Winbind Reload..."
-systemctl restart winbind.service
-sleep 5
+if systemctl list-unit-files smbd.service &>/dev/null; then
+    log "Samba Restart..."
+    systemctl restart smbd.service
+    sleep 5
+fi
+if systemctl list-unit-files winbind.service &>/dev/null; then
+    log "Winbind Reload..."
+    systemctl restart winbind.service
+    sleep 5
+fi
 log "Rsyslog Reload..."
 systemctl restart syslog.socket rsyslog.service
 sleep 5

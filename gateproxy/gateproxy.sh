@@ -73,7 +73,7 @@ retry_cmd() {
 
 log "Checking for conflicting pre-installed packages..."
 check_conflicts "DHCP server" isc-dhcp-server dnsmasq
-check_conflicts "DNS server"  bind9 named pdns-recursor
+check_conflicts "DNS server"  bind9 pdns-recursor
 check_conflicts "proxy"       squid squid3 tinyproxy privoxy 3proxy
 check_conflicts "web server"  nginx lighttpd caddy
 check_conflicts "syslog"      syslog-ng
@@ -126,6 +126,9 @@ log "Using local user: $LOCAL_USER"
 
 ### CHECK SO & DESKTOP
 log "Check System..."
+# lsb_release (lsb-release package) is used below but the DEPENDENCIES block
+# hasn't run yet at this point in the script -- ensure it exists here instead.
+command -v lsb_release &>/dev/null || apt-get install -y lsb-release
 # Get the current desktop environment in lowercase
 DESKTOP_ENV=$(echo "${XDG_CURRENT_DESKTOP:-}" | tr '[:upper:]' '[:lower:]')
 # Get the Ubuntu version number (e.g., 22.04, 24.04)
@@ -194,7 +197,7 @@ else
 fi
 
 # DEPENDENCIES
-pkgs='nala curl software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 p7zip-full p7zip-rar rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3'
+pkgs='nala curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 p7zip-full p7zip-rar rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3'
 missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
 unavailable=""
 for p in $missing; do
@@ -268,7 +271,8 @@ function upgrade() {
     systemctl daemon-reload
     sync
     updatedb
-    update-desktop-database
+    command -v update-desktop-database &>/dev/null && update-desktop-database
+    true
 }
 
 upgrade
@@ -288,16 +292,16 @@ retry_cmd python3 gitfolder.py https://github.com/maravento/vault/gateproxy
 ### CONFIG
 echo -e "\n"
 hostnamectl set-hostname "$HOSTNAME"
-find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:gateproxy:$HOSTNAME:g" "{}"
+find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:gateproxy:$HOSTNAME:g" "{}"
 # changing name user account in config files
-find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_user:$LOCAL_USER:g" "{}"
+find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:your_user:$LOCAL_USER:g" "{}"
 
 # public interface
 function public_interface() {
     while true; do
         read -r -p "Enter Public Network Interface (Internet) (e.g. enpXsX): " WAN_IF
         if [[ "$WAN_IF" =~ ^[a-z][a-z0-9]{1,13}[0-9]+$ ]]; then
-            find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$WAN_IF:g" "{}"
+            find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$WAN_IF:g" "{}"
             break
         else
             log "Invalid interface name. Try again."
@@ -310,7 +314,7 @@ function local_interface() {
     while true; do
         read -r -p "Enter Local Network Interface (e.g. enpXsX): " ETH1
         if [[ "$ETH1" =~ ^[a-z][a-z0-9]{1,13}[0-9]+$ ]]; then
-            find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
+            find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
             export LAN_IF="$ETH1"
             break
         else
@@ -334,9 +338,6 @@ function is_interfaces() {
         log "OK"
     fi
 }
-
-NETWORK_ENV="/etc/gateproxy/network.env"
-mkdir -p /etc/gateproxy &>/dev/null
 
 is_interfaces
 
@@ -363,27 +364,39 @@ while true; do
         [Yy]*)
             while true; do
                 read -r -p "Enter IP (e.g. 192.168.0.10): " input_ip
-                serveripNEW=$(echo "$input_ip" | grep -E '^(([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])$')
-                if [ "$serveripNEW" ]; then
-                    SERVER_IP="$serveripNEW"
-
-                    find "$gp_path/conf" -type f -print0 | while IFS= read -r -d '' file; do
-                        sed -i "s:192.168.0.10:$serveripNEW:g" "$file"
-                    done
-
-                    find "$gp_path/acl" -type f -name "mac-*" -exec sed -i "s:192.168.0\.:$(echo "$serveripNEW" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
-
-                    find "$gp_path/acl/acl_dhcp" -type f -name "blockdhcp*" -exec sed -i "s:192.168.0\.:$(echo "$serveripNEW" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
-
-                    log "You have entered IP $SERVER_IP :OK"
+                if [ -z "$input_ip" ]; then
+                    SERVER_IP="192.168.0.10"
+                    log "Using default IP $SERVER_IP"
                     break
-                else
-                    log "You have entered IP incorrect"
                 fi
+                serveripNEW=$(echo "$input_ip" | grep -E '^(([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])$')
+                if [ -z "$serveripNEW" ]; then
+                    log "You have entered IP incorrect"
+                    continue
+                fi
+                # 192.168.137.0/24 is reserved by iptables.sh for the Windows ICS block
+                # rule (see "Block Windows ICS network range"); a server IP in that
+                # range would have its own LAN traffic dropped by that rule.
+                if [[ "$serveripNEW" == 192.168.137.* ]]; then
+                    log "IP $serveripNEW is in 192.168.137.0/24, reserved for the Windows ICS block rule -- choose a different range"
+                    continue
+                fi
+                SERVER_IP="$serveripNEW"
+
+                find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | while IFS= read -r -d '' file; do
+                    sed -i "s:192.168.0.10:$serveripNEW:g" "$file"
+                done
+
+                find "$gp_path/acl" -type f -name "mac-*" -exec sed -i "s:192.168.0\.:$(echo "$serveripNEW" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
+
+                find "$gp_path/acl/acl_dhcp" -type f -name "blockdhcp*" -exec sed -i "s:192.168.0\.:$(echo "$serveripNEW" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
+
+                log "You have entered IP $SERVER_IP :OK"
+                break
             done
             break
             ;;
-        [Nn]*)
+        [Nn]*|"")
             SERVER_IP="192.168.0.10"
             log "Default IP: $SERVER_IP"
             break
@@ -396,15 +409,12 @@ done
 
 SERV_SUBNET="$(echo "$SERVER_IP" | awk -F '.' '{OFS="."; $4="0"; print $0}')"
 if [ "$SERV_SUBNET" != "192.168.0.0" ]; then
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$SERV_SUBNET:g" "{}"
+    find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$SERV_SUBNET:g" "{}"
     sed -i "s:192\.168\.0\.\*:$(echo "$SERV_SUBNET" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/server/wpad.pac"
 fi
 log "Localnet: $SERV_SUBNET (from Server IP)"
 
 SERV_BROADCAST="$(echo "$SERVER_IP" | awk -F '.' '{OFS="."; $4="255"; print $0}')"
-if [ "$SERV_BROADCAST" != "192.168.0.255" ]; then
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.255:$SERV_BROADCAST:g" "{}"
-fi
 log "Broadcast: $SERV_BROADCAST (from Server IP)"
 
 ### PARAMETERS
@@ -426,8 +436,8 @@ is_ask() {
             done
             break
             ;;
-        [Nn]*)
-            # execute command no
+        [Nn]*|"")
+            # execute command no (default on empty ENTER)
             log "NO"
             break
             ;;
@@ -443,38 +453,40 @@ is_ask() {
 SERV_MASK="255.255.255.0"
 MASKNEW2="24"
 
-# netmask
+# netmask -- CIDR prefix (MASKNEW2) is derived from this, not asked
+# separately, so the two can never contradict each other.
 function is_mask1() {
     read -r -p "Enter Netmask (e.g. 255.255.255.0): " MASK1
-    SERV_MASK=$(echo "$MASK1" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
-    if [ "$SERV_MASK" ]; then
-        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:255.255.255.0:$SERV_MASK:g" "{}"
-        log "You have entered Netmask $MASK1 :OK"
-        return 0
-    else
+    if [ -z "$MASK1" ]; then
         SERV_MASK="255.255.255.0"
-        return 1
-    fi
-}
-
-function is_mask2() {
-    read -r -p "Enter Subnet-Mask (e.g. 24): " MASK2
-    MASKNEW2=$(echo "$MASK2" | grep -E '^([1-9]|[12][0-9]|3[0-2])$')
-    if [ "$MASKNEW2" ]; then
-        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:/24:/$MASKNEW2:g" "{}"
-        log "You have entered Subnet-Mask $MASK2 :OK"
-        return 0
+        log "Using default Netmask $SERV_MASK"
     else
-        return 1
+        SERV_MASK=$(echo "$MASK1" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
+        if [ -z "$SERV_MASK" ]; then
+            SERV_MASK="255.255.255.0"
+            return 1
+        fi
+        log "You have entered Netmask $MASK1 :OK"
     fi
+    MASKNEW2=$(python3 -c \
+        "import ipaddress; print(ipaddress.IPv4Network('0.0.0.0/${SERV_MASK}').prefixlen)" \
+        2>/dev/null || echo "24")
+    find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:/24:/$MASKNEW2:g" "{}"
+    log "Subnet-Mask derived from Netmask: /$MASKNEW2"
+    return 0
 }
 
 # dns primary
 function is_dns1() {
     read -r -p "Enter DNS1 (e.g. 8.8.8.8): " DNS1
+    if [ -z "$DNS1" ]; then
+        DNSNEW1="8.8.8.8"
+        log "Using default DNS1 $DNSNEW1"
+        return 0
+    fi
     DNSNEW1=$(echo "$DNS1" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$DNSNEW1" ]; then
-        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.8.8:$DNSNEW1:g" "{}"
+        sed -i "s:8.8.8.8:$DNSNEW1:g" "$gp_path/conf/server/forward.conf"
         log "You have entered DNS1 $DNS1 :OK"
         return 0
     else
@@ -485,9 +497,14 @@ function is_dns1() {
 # dns secondary
 function is_dns2() {
     read -r -p "Enter DNS2 (e.g. 8.8.4.4): " DNS2
+    if [ -z "$DNS2" ]; then
+        DNSNEW2="8.8.4.4"
+        log "Using default DNS2 $DNSNEW2"
+        return 0
+    fi
     DNSNEW2=$(echo "$DNS2" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
     if [ "$DNSNEW2" ]; then
-        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:8.8.4.4:$DNSNEW2:g" "{}"
+        sed -i "s:8.8.4.4:$DNSNEW2:g" "$gp_path/conf/server/forward.conf"
         log "You have entered DNS2 $DNS2 :OK"
         return 0
     else
@@ -498,9 +515,14 @@ function is_dns2() {
 # squid port
 function is_port() {
     read -r -p "Enter Proxy Port (e.g. 3128): " PORT
+    if [ -z "$PORT" ]; then
+        PORTNEW="3128"
+        log "Using default Proxy Port $PORTNEW"
+        return 0
+    fi
     PORTNEW=$(echo "$PORT" | grep -E '^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$')
     if [ "$PORTNEW" ]; then
-        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:3128:$PORTNEW:g" "{}"
+        find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:3128:$PORTNEW:g" "{}"
         log "You have entered Proxy Port $PORT :OK"
         return 0
     else
@@ -511,21 +533,20 @@ function is_port() {
 echo -e "\n"
 while true; do
     read -r -p "Server settings:
-Mask 255.255.255.0, Network /24, DNS 8.8.8.8 8.8.4.4, Proxy Port 3128
+Mask 255.255.255.0 (CIDR derived automatically), DNS 8.8.8.8 8.8.4.4, Proxy Port 3128
     Do you want to change? (y/n)" answer
     case "$answer" in
     [Yy]*)
         # execute command yes
         is_ask "Do you want to change? Mask 255.255.255.0? (y/n)" "You have entered Mask incorrect" is_mask1
-        is_ask "Do you want to change? Sub-Mask /24? (y/n)" "You have entered Sub-Mask incorrect" is_mask2
         is_ask "Do you want to change? DNS1 8.8.8.8? (y/n)" "You have entered DNS1 incorrect" is_dns1
         is_ask "Do you want to change? DNS2 8.8.4.4? (y/n)" "You have entered DNS2 incorrect" is_dns2
         is_ask "Do you want to change? Proxy Port Default 3128? (y/n)" "You have entered Proxy Port incorrect" is_port
         log "OK"
         break
         ;;
-    [Nn]*)
-        # execute command no
+    [Nn]*|"")
+        # execute command no (default on empty ENTER)
         log "NO"
         break
         ;;
@@ -536,31 +557,14 @@ Mask 255.255.255.0, Network /24, DNS 8.8.8.8 8.8.4.4, Proxy Port 3128
     esac
 done
 
-cat > "$NETWORK_ENV" << ENVEOF
-WAN_IF="$WAN_IF"
-LAN_IF="$LAN_IF"
-SERVER_IP="$SERVER_IP"
-SERV_SUBNET="$SERV_SUBNET"
-SERV_BROADCAST="$SERV_BROADCAST"
-SERV_MASK="$SERV_MASK"
-MASKNEW2="$MASKNEW2"
-SERV_DNS="${DNSNEW1:-8.8.8.8},${DNSNEW2:-8.8.4.4}"
-PORTNEW="${PORTNEW:-3128}"
-LOCAL_USER="$LOCAL_USER"
-ACL_PATH="$ACL_PATH"
-SCR_PATH="$SCR_PATH"
-ZONE_PATH="$ZONE_PATH"
-ENVEOF
-chown root:root "$NETWORK_ENV"
-chmod 600 "$NETWORK_ENV"
-
-# iptables.sh's own persistent config -- network.env itself is only scratch
-# space for this installer (removed at the end of the run), so iptables.sh
-# gets a full copy of it, in the same directory it's deployed to.
-mkdir -p "$SCR_PATH" &>/dev/null
-cp -f "$NETWORK_ENV" "$SCR_PATH/iptables.env"
-chown root:root "$SCR_PATH/iptables.env"
-chmod 600 "$SCR_PATH/iptables.env"
+# Network values collected above (WAN_IF, SERVER_IP, SERV_SUBNET,
+# SERV_BROADCAST, SERV_MASK, PORTNEW, LOCAL_USER) are appended to
+# /etc/pydhcp/pydhcp.env once pydhcp is installed, below -- it is the single
+# persistent source of truth these scripts read from. DNSNEW1/2 only feed
+# forward.conf (Unbound). iptables.sh reads pydhcp's own SERV_DNS (DNS
+# pydhcp hands out via DHCP), INTERFACESv4 (LAN interface) and derives its
+# CIDR prefix from SERV_MASK -- no separate gateproxy keys for these,
+# so there is nothing to keep in sync by hand.
 
 ### NETPLAN
 echo -e "\n"
@@ -917,6 +921,29 @@ EOF
             cd "$gp_path"
             log "DHCP pool range: 220-235 (default). To modify edit /etc/pydhcp/pydhcp.env"
             log "DHCP clients will use $SERVER_IP (unbound) as DNS"
+
+            # gateproxy's own config values, appended to pydhcp.env so it stays
+            # the single persistent source of truth (pydhcp.env is never
+            # overwritten by pysetup.sh once created -- see pysetup.sh:470-476).
+            PYDHCP_ENV="/etc/pydhcp/pydhcp.env"
+            if [ -f "$PYDHCP_ENV" ]; then
+                cat >> "$PYDHCP_ENV" << ENVEOF
+
+# =============================================================================
+# GATEPROXY CUSTOM VALUES
+# =============================================================================
+WAN_IF="$WAN_IF"
+SQUID_PORT=${PORTNEW:-3128}
+SQUID_INTERCEPT_PORT=3129
+LOCAL_USER="$LOCAL_USER"
+SCR_PATH=$SCR_PATH
+ZONE_PATH=$ZONE_PATH
+# =============================================================================
+ENVEOF
+                log "gateproxy config values appended to $PYDHCP_ENV"
+            else
+                log "WARNING: $PYDHCP_ENV not found -- gateproxy config values not persisted"
+            fi
         else
             log "WARNING: Cannot enter pydhcp directory. Skipping pydhcp installation."
         fi
@@ -935,7 +962,6 @@ retry_cmd nala install -y ulogd2
 mkdir -p /var/log/ulog &>/dev/null
 touch /var/log/ulog/syslogemu.log &>/dev/null
 usermod -a -G ulog "$LOCAL_USER"
-(crontab -l 2>/dev/null || true; echo "#*/10 * * * * /etc/scr/banip.sh") | crontab -
 log "Ulog Access: /var/log/ulog/syslogemu.log"
 # rsyslog
 # in case fails: nala install -y libfastjson4
@@ -981,7 +1007,7 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         retry_cmd nala install -y mtr-tiny           # mtr google.com
         # fail2ban
         retry_cmd nala install -y fail2ban
-        cp "$gp_path/conf/pack/jail.local" /etc/fail2ban/jail.local
+        cp "$gp_path/conf/pack/fail2ban/jail.local" /etc/fail2ban/jail.local
         sed -i 's/^#\?allowipv6 *= *.*/allowipv6 = 0/' /etc/fail2ban/fail2ban.conf
         systemctl enable fail2ban.service
         log "Check: sudo fail2ban-client status <jail_name>"
@@ -996,8 +1022,7 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         nala install -y fsearch || true
         # ttyd (web terminal)
         retry_cmd nala install -y ttyd
-        cp -f "$gp_path/conf/pack/ttyd.service" /etc/systemd/system/ttyd.service
-        sed -i "s/your_user/$LOCAL_USER/g" /etc/systemd/system/ttyd.service
+        cp -f "$gp_path/conf/pack/ttyd/ttyd.service" /etc/systemd/system/ttyd.service
         systemctl daemon-reload
         systemctl enable ttyd.service
         log "ttyd Access: http://localhost:7681"
@@ -1009,7 +1034,7 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
             log "OK: Community-ID enabled"
         fi
         # suricata disable and drop
-        cp -f "$gp_path/conf/pack/"{disable,drop}.conf /etc/suricata/
+        cp -f "$gp_path/conf/pack/suricata/"{disable,drop}.conf /etc/suricata/
         chown root:root /etc/suricata/{disable,drop}.conf
         chmod 644 /etc/suricata/{disable,drop}.conf
         # suricata update & clean
@@ -1018,8 +1043,8 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
             chown root:root /var/log/suricata/suricatacron.log
             chmod 640 /var/log/suricata/suricatacron.log
         fi        
-        cp -f "$gp_path/conf/pack/"{suricataupdate,suricataclean}.sh /etc/suricata/
-        chmod +x /etc/suricata/{suricataupdate,suricataclean}.sh
+        cp -f "$gp_path/conf/pack/suricata/"{suricataupdate,suricataclean,suridata}.sh /etc/suricata/
+        chmod +x /etc/suricata/{suricataupdate,suricataclean,suridata}.sh
         # suricata ratio
         if ! grep -q "detect-thread-ratio: 0.5" /etc/suricata/suricata.yaml; then
             sed -i 's/detect-thread-ratio: 1.0/detect-thread-ratio: 0.5/' /etc/suricata/suricata.yaml
@@ -1027,6 +1052,7 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         # suricata cron
         (crontab -l 2>/dev/null || true; echo "0 2 * * * /etc/suricata/suricataupdate.sh >/dev/null 2>&1") | crontab -
         (crontab -l 2>/dev/null || true; echo "@monthly /etc/suricata/suricataclean.sh >/dev/null 2>&1") | crontab -
+        (crontab -l 2>/dev/null || true; echo "*/5 * * * * /etc/suricata/suridata.sh >/dev/null 2>&1") | crontab -
         # suricata check IDS
         SURICATA_SERVICE="/usr/lib/systemd/system/suricata.service"
         CORRECT_EXECSTART="ExecStart=/usr/bin/suricata -D --af-packet -c /etc/suricata/suricata.yaml --pidfile /run/suricata.pid"
@@ -1044,15 +1070,15 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         upgrade
         retry_cmd nala install -y evebox
         # Configure
-        cp -f "$gp_path/conf/pack/evebox.yaml" /etc/evebox/evebox.yaml
-        cp -f "$gp_path/conf/pack/evebox.service" /etc/systemd/system/evebox.service
+        cp -f "$gp_path/conf/pack/evebox/evebox.yaml" /etc/evebox/evebox.yaml
+        cp -f "$gp_path/conf/pack/evebox/evebox.service" /etc/systemd/system/evebox.service
         systemctl daemon-reload
         systemctl enable suricata evebox
         log "EVEBox: http://localhost:5636"
         break
         ;;
-    [Nn]*)
-        # execute command no
+    [Nn]*|"")
+        # execute command no (default on empty ENTER)
         log "NO"
         break
         ;;
@@ -1113,7 +1139,8 @@ EOF
         break
         ;;
 
-    [Nn]*)
+    [Nn]*|"")
+        # default on empty ENTER
         log "NO"
         break
         ;;
@@ -1137,17 +1164,33 @@ if [ ! -s "$ACL_PATH/acl_squid/allowip.txt" ]; then
     log "WARNING: allowip.txt download failed"
 fi
 
-# Block Patterns
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/vault/refs/heads/master/blackshield/acl/source/squid/blockpatterns.txt -O "$ACL_PATH/acl_squid/blockpatterns.txt" || true
-if [ ! -s "$ACL_PATH/acl_squid/blockpatterns.txt" ]; then
-    log "WARNING: blockpatterns.txt download failed"
-fi
-
 # Block TLDs
 wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O "$ACL_PATH/acl_squid/blocktlds.txt" || true
 if [ ! -s "$ACL_PATH/acl_squid/blocktlds.txt" ]; then
     log "WARNING: blocktlds.txt download failed, disabling ACL in squid.conf"
     sed -i '/^acl blocktlds /s/^/#/; /^http_access deny workdays blocktlds/s/^/#/' "$gp_path/conf/server/squid.conf"
+fi
+
+# Ransomware Extensions (Squid, optional)
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/fpack/rw/rwext.txt -O "$ACL_PATH/acl_squid/rwext.txt" || true
+if [ ! -s "$ACL_PATH/acl_squid/rwext.txt" ]; then
+    log "WARNING: rwext.txt download failed"
+fi
+
+# Bad User-Agents (Squid, optional)
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/fpack/ua/blockua.txt -O "$ACL_PATH/acl_squid/blockua.txt" || true
+if [ ! -s "$ACL_PATH/acl_squid/blockua.txt" ]; then
+    log "WARNING: blockua.txt download failed"
+fi
+
+# Web3 Domains/TLDs (Squid, optional)
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3domains.txt -O "$ACL_PATH/acl_squid/web3domains.txt" || true
+if [ ! -s "$ACL_PATH/acl_squid/web3domains.txt" ]; then
+    log "WARNING: web3domains.txt download failed"
+fi
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3tld.txt -O "$ACL_PATH/acl_squid/web3tld.txt" || true
+if [ ! -s "$ACL_PATH/acl_squid/web3tld.txt" ]; then
+    log "WARNING: web3tld.txt download failed"
 fi
 
 # Blackweb
@@ -1370,11 +1413,9 @@ journalctl --vacuum-size=50M
 a2query -s || true
 #apt -qq -y remove --purge `deborphan --guess-all` # optional
 #dpkg -l | grep "^rc" | cut -d " " -f 3 | xargs dpkg --purge &> /dev/null # optional
+cd ..
 rm -f gitfolder.py
 rm -rf "$gp_path"
-# /etc/gateproxy/network.env was only scratch space for this installer --
-# iptables.sh now has its own persistent config (see $SCR_PATH/iptables.env).
-rm -rf /etc/gateproxy
 (sleep 2 && rm -- "$SCRIPT_PATH") &
 
 log "gateproxy done at: $(date)"

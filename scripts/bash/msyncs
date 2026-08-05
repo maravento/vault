@@ -126,7 +126,7 @@ frun () {
             # Launch each instance in its corresponding folder
             for d in "$REALHOME/$MEGADIR"/*/ ; do
                 echo "Launching $(basename "$d")"
-                (export HOME="$d"; nohup megasync >/dev/null 2>&1 &)
+                (exec 200>&-; export HOME="$d"; nohup megasync >/dev/null 2>&1 &)
             done
             exit 0
         fi
@@ -175,7 +175,7 @@ frun () {
     export QT_QPA_PLATFORMTHEME="gtk2"
 
     for (( i=1; i<=INSTNUM; i++ )); do
-        (export HOME="$REALHOME/$MEGADIR/${ARRAY[$i]}"; nohup megasync >/dev/null 2>&1 &)
+        (exec 200>&-; export HOME="$REALHOME/$MEGADIR/${ARRAY[$i]}"; nohup megasync >/dev/null 2>&1 &)
         sleep 2
         zenity --warning --width=400 \
             --text=" INSTANCE ${ARRAY[$i]} ($i/$INSTNUM) \n\n--------------------------------\nDO NOT CLICK OK UNTIL YOU HAVE\nFINISHED CONFIGURING THIS ACCOUNT\nOR IT WILL BE CLOSED AND LOST\n--------------------------------\n\nLog in to your MEGA account\nComplete the configuration\nClose MEGAsync\nTHEN click OK to continue"

@@ -1,0 +1,3 @@
+# dest IPs identified by Suricata alerts matching a drop.conf signature
+# (see conf/pack/suricata/suridata.sh). One IP per line, no expiry --
+# same manual-curation model as blockports.txt.
