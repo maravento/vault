@@ -23,6 +23,12 @@
 # to re-implement regex expansion itself, and stays in sync automatically
 # whenever suricataupdate.sh runs.
 #
+# BACKFILL: suricataupdate.sh runs once a day, so a SID can generate alerts
+# for hours before it's converted to drop. On the run right after a SID
+# newly becomes drop (tracked via suridata.sids), this script does a one-time
+# full eve.json scan for just that SID to catch anything already logged --
+# the normal tail-from-offset logic below only sees NEW alerts.
+#
 # No expiry: once an IP is added, it stays -- same model as blockports.txt
 # (manually curated, never auto-pruned). If a false positive slips in,
 # remove it by hand from suridata.txt and re-run this script.
@@ -70,6 +76,7 @@ log "suridata start..."
 RULES_FILE="/var/lib/suricata/rules/suricata.rules"
 EVE_LOG="/var/log/suricata/eve.json"
 OFFSET_FILE="/var/lib/suricata/suridata.offset"
+SIDS_FILE="/var/lib/suricata/suridata.sids"
 ACL_IPT_PATH="/etc/acl/acl_ipt"
 OUT_FILE="$ACL_IPT_PATH/suridata.txt"
 
@@ -92,7 +99,46 @@ if [ "${#DROP_SIDS[@]}" -eq 0 ]; then
     log "WARNING: no drop-action SIDs found in $RULES_FILE -- nothing to match, skipping this run"
     exit 0
 fi
-sid_set=$(printf '%s\n' "${DROP_SIDS[@]}" | jq -R 'select(length>0)' | jq -s 'map({(.): true}) | add')
+
+# SID maps are passed to jq via --slurpfile (file), never --argjson (argv):
+# drop.conf's broad re: categories (ET MALWARE, ET PHISHING, ...) resolve to
+# tens of thousands of SIDs, and that JSON blob blows past the shell's
+# argument-length limit -- jq fails with "argument list too long" and, since
+# earlier versions of this script piped stderr to /dev/null, that failure
+# was silent and every run just logged "No new IPs this run".
+SID_MAP_FILE=$(mktemp)
+NEW_SID_MAP_FILE=$(mktemp)
+SID_GREP_FILE=$(mktemp)
+trap 'rm -f "$SID_MAP_FILE" "$NEW_SID_MAP_FILE" "$SID_GREP_FILE"' EXIT
+printf '%s\n' "${DROP_SIDS[@]}" | jq -R 'select(length>0)' | jq -s 'map({(.): true}) | add' > "$SID_MAP_FILE"
+
+# -- Step 1b: SIDs newly resolved to drop since the last run -----------------
+# suricataupdate.sh runs once a day; any alert for a SID that already
+# happened before its conversion to drop would otherwise be lost forever,
+# since Step 2 below only tails NEW eve.json content. Backfill by doing a
+# one-time full scan restricted to just the newly-dropped SIDs.
+touch "$SIDS_FILE"
+mapfile -t NEW_SIDS < <(comm -23 <(printf '%s\n' "${DROP_SIDS[@]}") <(sort -un "$SIDS_FILE"))
+printf '%s\n' "${DROP_SIDS[@]}" > "$SIDS_FILE"
+
+backfill_ips=""
+if [ "${#NEW_SIDS[@]}" -gt 0 ]; then
+    log "INFO: ${#NEW_SIDS[@]} SID(s) newly resolved to drop -- rescanning full eve.json for them"
+    printf '%s\n' "${NEW_SIDS[@]}" | jq -R 'select(length>0)' | jq -s 'map({(.): true}) | add' > "$NEW_SID_MAP_FILE"
+    # Cheap text pre-filter before the expensive JSON parse: grep -F over
+    # the whole file is far faster than jq parsing every line, and it's
+    # safe to over-match (e.g. SID 201787 also matches inside 2017871) --
+    # jq's exact-key lookup below still discards anything that isn't a
+    # real match, this step only cuts down how much jq has to parse.
+    printf '"signature_id":%s\n' "${NEW_SIDS[@]}" > "$SID_GREP_FILE"
+    backfill_ips=$(grep -aF -f "$SID_GREP_FILE" "$EVE_LOG" | jq -r --slurpfile sids "$NEW_SID_MAP_FILE" '
+        select(.event_type=="alert")
+        | select(.alert.signature_id != null)
+        | select($sids[0][(.alert.signature_id|tostring)] == true)
+        | .dest_ip
+    ' 2>>"$log_file")
+    backfill_ips=$(printf '%s' "$backfill_ips" | sort -u)
+fi
 
 # -- Step 2: read only what's new in eve.json since the last run -------------
 current_size=$(stat -c%s "$EVE_LOG" 2>/dev/null || echo 0)
@@ -102,20 +148,22 @@ if [ -f "$OFFSET_FILE" ]; then
     [[ "$last_offset" =~ ^[0-9]+$ ]] || last_offset=0
 fi
 if (( last_offset > current_size )); then
-    log "INFO: eve.json is smaller than last offset (rotated/truncated by suricataclean.sh) -- restarting from 0"
+    log "INFO: eve.json truncated -- offset reset to 0"
     last_offset=0
 fi
 
 new_ips=""
 if (( current_size > last_offset )); then
-    new_ips=$(tail -c "+$((last_offset + 1))" "$EVE_LOG" 2>/dev/null | jq -r --argjson sids "$sid_set" '
+    new_ips=$(tail -c "+$((last_offset + 1))" "$EVE_LOG" 2>/dev/null | jq -r --slurpfile sids "$SID_MAP_FILE" '
         select(.event_type=="alert")
         | select(.alert.signature_id != null)
-        | select($sids[(.alert.signature_id|tostring)] == true)
+        | select($sids[0][(.alert.signature_id|tostring)] == true)
         | .dest_ip
-    ' 2>/dev/null | sort -u)
+    ' 2>>"$log_file" | sort -u)
 fi
 echo "$current_size" > "$OFFSET_FILE"
+
+new_ips=$(printf '%s\n%s\n' "$new_ips" "$backfill_ips" | sed '/^$/d' | sort -u)
 
 # -- Step 3: append new, valid, not-yet-listed IPs ----------------------------
 added=0

@@ -64,17 +64,25 @@ log "Iptables Start..."
 
 ## VARIABLES ##
 
+# OCTET VALIDATION
+# _UH_OCT accepts 0-255 with no leading zeros, so any value that passes is
+# already canonical decimal and never needs a "10#" prefix downstream.
+# Use uh_valid_ipv4/uh_valid_octet to VALIDATE a value; never use _UH_IPV4 to
+# EXTRACT one from free text -- an anchorless match would silently return a
+# truncated address (e.g. "192.168.0.010" -> "192.168.0.0"). Extract with a
+# permissive pattern, then validate the result.
+_UH_OCT='(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])'
+_UH_IPV4="^${_UH_OCT}(\.${_UH_OCT}){3}$"
+uh_valid_ipv4() { [[ "$1" =~ $_UH_IPV4 ]]; }
+uh_valid_octet() { [[ "$1" =~ ^${_UH_OCT}$ ]]; }
+
 # MAC/IP validation before feeding external ACL data into ipset
 is_valid_mac() {
     [[ "$1" =~ ^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$ ]]
 }
 
 is_valid_ip() {
-    local octet
-    [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
-    for octet in ${1//./ }; do
-        (( octet <= 255 )) || return 1
-    done
+    uh_valid_ipv4 "$1"
 }
 
 is_valid_port() {
@@ -170,29 +178,31 @@ fi
 ## KERNEL RULES ##
 
 # Zero all packets and counters
-# Reset tables
-iptables -F
-iptables -X
-iptables -t nat -F
-iptables -t nat -X
-iptables -t mangle -F
-iptables -t mangle -X
-iptables -t raw -F
-iptables -t raw -X
-iptables -t security -F
-iptables -t security -X
-# Reset counters
-iptables -Z
-iptables -t nat -Z
-iptables -t mangle -Z
+# Reset tables (IPv4)
+iptables -F 2>/dev/null || true
+iptables -X 2>/dev/null || true
+iptables -t nat -F 2>/dev/null || true
+iptables -t nat -X 2>/dev/null || true
+iptables -t mangle -F 2>/dev/null || true
+iptables -t mangle -X 2>/dev/null || true
+iptables -t raw -F 2>/dev/null || true
+iptables -t raw -X 2>/dev/null || true
+iptables -t security -F 2>/dev/null || true
+iptables -t security -X 2>/dev/null || true
+# Reset counters (IPv4)
+iptables -Z 2>/dev/null || true
+iptables -t nat -Z 2>/dev/null || true
+iptables -t mangle -Z 2>/dev/null || true
+# Reset tables (IPv6)
+ip6tables -F 2>/dev/null || true
+ip6tables -X 2>/dev/null || true
+# Reset counters (IPv6)
+ip6tables -Z 2>/dev/null || true
 # Clear ARP and bridge
 arptables -F 2>/dev/null || true
 arptables -X 2>/dev/null || true
 ebtables -F 2>/dev/null || true
 ebtables -X 2>/dev/null || true
-# Flush routing cache and blackhole (Optional)
-#ip route flush cache
-#ip route del blackhole 0.0.0.0/0 2>/dev/null || true
 # Conntrack (Optional)
 #conntrack -F 2>/dev/null || true
 
@@ -345,6 +355,7 @@ iptables -A OUTPUT -o lo -j ACCEPT
 ip6tables -A INPUT -i lo -j ACCEPT || true
 ip6tables -A OUTPUT -o lo -j ACCEPT || true
 iptables -A INPUT -s 127.0.0.0/8 ! -i lo -j DROP
+iptables -A FORWARD -s 127.0.0.0/8 ! -i lo -j DROP
 
 # BOGONS (disabled by default -- opt-in)
 # acl/acl_ipt/bogons.txt includes the RFC1918 private ranges (10.0.0.0/8,
@@ -601,6 +612,8 @@ done
 iptables -N syn_flood
 iptables -A INPUT -i "$wan" -p tcp --tcp-flags FIN,SYN,RST,ACK SYN -j syn_flood
 iptables -A INPUT -i "$lan" -p tcp --tcp-flags FIN,SYN,RST,ACK SYN -j syn_flood
+iptables -A FORWARD -i "$wan" -p tcp --tcp-flags FIN,SYN,RST,ACK SYN -j syn_flood
+iptables -A FORWARD -i "$lan" -p tcp --tcp-flags FIN,SYN,RST,ACK SYN -j syn_flood
 iptables -A syn_flood -i "$wan" -m limit --limit 50/s --limit-burst 200 -j RETURN
 iptables -A syn_flood -i "$lan" -m limit --limit 200/s --limit-burst 500 -j RETURN
 iptables -A syn_flood -m limit --limit 1/min -j NFLOG --nflog-prefix "SYNFLOOD: "
