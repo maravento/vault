@@ -203,6 +203,15 @@ unavailable=""
 for p in $missing; do
     apt-cache show "$p" &>/dev/null || unavailable+=" $p"
 done
+
+# VALIDATION -- one variable per thing validated; use directly with =~
+_UH_OCT='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+_UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+_UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
+_UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
+_UH_DNS='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(,(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9]))*$'
+_UH_UINT='^(0|[1-9][0-9]*)$'
+_UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5 252.0.0.0:6 254.0.0.0:7 255.0.0.0:8 255.128.0.0:9 255.192.0.0:10 255.224.0.0:11 255.240.0.0:12 255.248.0.0:13 255.252.0.0:14 255.254.0.0:15 255.255.0.0:16 255.255.128.0:17 255.255.192.0:18 255.255.224.0:19 255.255.240.0:20 255.255.248.0:21 255.255.252.0:22 255.255.254.0:23 255.255.255.0:24 255.255.255.128:25 255.255.255.192:26 255.255.255.224:27 255.255.255.240:28 255.255.255.248:29 255.255.255.252:30 255.255.255.254:31 255.255.255.255:32'
 if [ -n "$unavailable" ]; then
     log "Missing dependencies not found in APT:"
     for u in $unavailable; do log "   - $u"; done
@@ -369,7 +378,7 @@ while true; do
                     log "Using default IP $SERVER_IP"
                     break
                 fi
-                serveripNEW=$(echo "$input_ip" | grep -E '^(([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])$')
+                serveripNEW=$(printf '%s' "$input_ip" | { [[ "$input_ip" =~ $_UH_IPV4 ]] && cat || true; })
                 if [ -z "$serveripNEW" ]; then
                     log "You have entered IP incorrect"
                     continue
@@ -461,16 +470,19 @@ function is_mask1() {
         SERV_MASK="255.255.255.0"
         log "Using default Netmask $SERV_MASK"
     else
-        SERV_MASK=$(echo "$MASK1" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
+        SERV_MASK=$(printf '%s' "$MASK1" | { [[ "$MASK1" =~ $_UH_NETMASK ]] && cat || true; })
         if [ -z "$SERV_MASK" ]; then
             SERV_MASK="255.255.255.0"
             return 1
         fi
         log "You have entered Netmask $MASK1 :OK"
     fi
-    MASKNEW2=$(python3 -c \
-        "import ipaddress; print(ipaddress.IPv4Network('0.0.0.0/${SERV_MASK}').prefixlen)" \
-        2>/dev/null || echo "24")
+    if [[ " $_UH_PREFIX " =~ [[:space:]]${SERV_MASK//./\\.}:([0-9]+)[[:space:]] ]]; then
+        MASKNEW2="${BASH_REMATCH[1]}"
+    else
+        log "WARNING: SERV_MASK '$SERV_MASK' not a valid netmask -- keeping default /24"
+        MASKNEW2=24
+    fi
     find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:/24:/$MASKNEW2:g" "{}"
     log "Subnet-Mask derived from Netmask: /$MASKNEW2"
     return 0
@@ -484,7 +496,7 @@ function is_dns1() {
         log "Using default DNS1 $DNSNEW1"
         return 0
     fi
-    DNSNEW1=$(echo "$DNS1" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
+    DNSNEW1=$(printf '%s' "$DNS1" | { [[ "$DNS1" =~ $_UH_DNS ]] && cat || true; })
     if [ "$DNSNEW1" ]; then
         sed -i "s:8.8.8.8:$DNSNEW1:g" "$gp_path/conf/server/forward.conf"
         log "You have entered DNS1 $DNS1 :OK"
@@ -502,7 +514,7 @@ function is_dns2() {
         log "Using default DNS2 $DNSNEW2"
         return 0
     fi
-    DNSNEW2=$(echo "$DNS2" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
+    DNSNEW2=$(printf '%s' "$DNS2" | { [[ "$DNS2" =~ $_UH_DNS ]] && cat || true; })
     if [ "$DNSNEW2" ]; then
         sed -i "s:8.8.4.4:$DNSNEW2:g" "$gp_path/conf/server/forward.conf"
         log "You have entered DNS2 $DNS2 :OK"
@@ -597,6 +609,15 @@ until ip -4 addr show "$LAN_IF" 2>/dev/null | grep -qF "inet $SERVER_IP/"; do
     NETPLAN_WAIT=$((NETPLAN_WAIT + 1))
 done
 log "Network OK: $LAN_IF has $SERVER_IP"
+
+### AVAHI
+avahi_conf="/etc/avahi/avahi-daemon.conf"
+if command -v avahi-daemon &>/dev/null && [ -f "$avahi_conf" ]; then
+    log "Restricting avahi-daemon to $LAN_IF..."
+    sed -i "s/^use-ipv6=yes/use-ipv6=no/" "$avahi_conf"
+    sed -i "s/^#allow-interfaces=.*/allow-interfaces=$LAN_IF/" "$avahi_conf"
+    systemctl restart avahi-daemon &>/dev/null || log "WARNING: avahi-daemon restart failed"
+fi
 
 ### ESSENTIAL
 clear

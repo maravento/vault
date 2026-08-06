@@ -11,6 +11,7 @@ info_hash
 iptv
 jndi:
 magnet:
+mtc1
 nopor
 \.onion
 peer_id=
@@ -23,3 +24,4 @@ Transmission
 ultrasurf
 \.utorrent
 XBT
+

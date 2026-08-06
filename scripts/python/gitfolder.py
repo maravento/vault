@@ -14,7 +14,7 @@ import os
 from urllib.parse import urlparse
 import sys
 
-GITHUB_TOKEN = ""
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 REQUEST_TIMEOUT = 15
 HEADERS = {
     "User-Agent": "gitfolder/1.0",
@@ -37,57 +37,82 @@ def sanitize_output_dir(path):
     return os.path.join(*parts) if parts else "."
 
 
+def fetch_all_pages(url):
+    """Fetch every page of a GitHub Contents API listing (max 1000 entries
+    per page), following the Link: rel="next" header. Returns (items, ok)."""
+    items = []
+    next_url = url
+    while next_url:
+        try:
+            response = requests.get(next_url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+        except requests.exceptions.RequestException as e:
+            print(f"Request error: {next_url} → {e}")
+            return items, False
+        if response.status_code != 200:
+            print(f"Failed to retrieve folder contents [{response.status_code}]: {next_url}")
+            return items, False
+        page = response.json()
+        if isinstance(page, dict):
+            # single-file response, not a paginated listing
+            return page, True
+        items.extend(page)
+        next_url = response.links.get("next", {}).get("url")
+    return items, True
+
+
 def download_folder_from_github(repo_owner, repo_name, folder_path, output_dir, branch=""):
-    os.makedirs(output_dir, exist_ok=True)
     ref_param = f"?ref={branch}" if branch else ""
     url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{folder_path}{ref_param}"
-    try:
-        response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
-    except requests.exceptions.RequestException as e:
-        print(f"Request error: {url} → {e}")
-        return
-    if response.status_code == 200:
-        contents = response.json()
-        if isinstance(contents, dict) and contents.get("type") == "file":
-            download_item(contents, output_dir)
-            return
-        for item in contents:
-            if item["type"] == "file":
-                download_item(item, output_dir)
-            elif item["type"] == "dir":
-                safe_name = sanitize_path_component(item["name"])
-                if not safe_name:
-                    print(f"Skipped unsafe directory name: {item['name']!r}")
-                    continue
-                subfolder_path = folder_path + '/' + item["name"]
-                subfolder_output_dir = os.path.join(output_dir, safe_name)
-                download_folder_from_github(repo_owner, repo_name, subfolder_path, subfolder_output_dir, branch)
-    else:
-        print(f"Failed to retrieve folder contents [{response.status_code}]: {url}")
+    contents, fetch_ok = fetch_all_pages(url)
+    if not fetch_ok and not contents:
+        return False
+    os.makedirs(output_dir, exist_ok=True)
+    if isinstance(contents, dict) and contents.get("type") == "file":
+        return download_item(contents, output_dir) and fetch_ok
+    ok = fetch_ok
+    for item in contents:
+        if item["type"] == "file":
+            ok = download_item(item, output_dir) and ok
+        elif item["type"] == "dir":
+            safe_name = sanitize_path_component(item["name"])
+            if not safe_name:
+                print(f"Skipped unsafe directory name: {item['name']!r}")
+                ok = False
+                continue
+            subfolder_path = folder_path + '/' + item["name"]
+            subfolder_output_dir = os.path.join(output_dir, safe_name)
+            ok = download_folder_from_github(repo_owner, repo_name, subfolder_path, subfolder_output_dir, branch) and ok
+        else:
+            print(f"Skipped unsupported type '{item['type']}': {item['name']}")
+            ok = False
+    return ok
 
 
 def download_item(item, output_dir):
     file_url = item.get("download_url")
     if not file_url:
         print(f"Skipped (no download_url): {item.get('name', '?')}")
-        return
+        return False
     safe_name = sanitize_path_component(item["name"])
     if not safe_name:
         print(f"Skipped unsafe filename: {item.get('name', '?')!r}")
-        return
-    os.makedirs(output_dir, exist_ok=True)
-    file_path = os.path.join(output_dir, safe_name)
+        return False
     try:
         response = requests.get(file_url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
     except requests.exceptions.RequestException as e:
         print(f"Request error: {file_url} → {e}")
-        return
-    if response.status_code == 200:
-        with open(file_path, "wb") as file:
-            file.write(response.content)
-            print(f"Downloaded file: {file_path}")
-    else:
+        return False
+    if response.status_code != 200:
         print(f"Failed to download file [{response.status_code}]: {file_url}")
+        return False
+    os.makedirs(output_dir, exist_ok=True)
+    file_path = os.path.join(output_dir, safe_name)
+    tmp_path = file_path + ".part"
+    with open(tmp_path, "wb") as file:
+        file.write(response.content)
+    os.replace(tmp_path, file_path)
+    print(f"Downloaded file: {file_path}")
+    return True
 
 
 if __name__ == "__main__":
@@ -127,4 +152,5 @@ if __name__ == "__main__":
           Branch: {branch or "(default)"}
           Directory: {folder_path or "(root)"}
     """)
-    download_folder_from_github(repo_owner, repo_name, folder_path, output_dir, branch)
+    if not download_folder_from_github(repo_owner, repo_name, folder_path, output_dir, branch):
+        sys.exit(1)

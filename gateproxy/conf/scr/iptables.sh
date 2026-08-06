@@ -64,17 +64,22 @@ log "Iptables Start..."
 
 ## VARIABLES ##
 
+# VALIDATION -- one variable per thing validated; use directly with =~
+_UH_OCT='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+_UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+_UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
+_UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
+_UH_DNS='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(,(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9]))*$'
+_UH_UINT='^(0|[1-9][0-9]*)$'
+_UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5 252.0.0.0:6 254.0.0.0:7 255.0.0.0:8 255.128.0.0:9 255.192.0.0:10 255.224.0.0:11 255.240.0.0:12 255.248.0.0:13 255.252.0.0:14 255.254.0.0:15 255.255.0.0:16 255.255.128.0:17 255.255.192.0:18 255.255.224.0:19 255.255.240.0:20 255.255.248.0:21 255.255.252.0:22 255.255.254.0:23 255.255.255.0:24 255.255.255.128:25 255.255.255.192:26 255.255.255.224:27 255.255.255.240:28 255.255.255.248:29 255.255.255.252:30 255.255.255.254:31 255.255.255.255:32'
+
 # MAC/IP validation before feeding external ACL data into ipset
 is_valid_mac() {
     [[ "$1" =~ ^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$ ]]
 }
 
 is_valid_ip() {
-    local octet
-    [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
-    for octet in ${1//./ }; do
-        (( octet <= 255 )) || return 1
-    done
+    [[ "$1" =~ $_UH_IPV4 ]]
 }
 
 is_valid_port() {
@@ -121,9 +126,13 @@ lan="${INTERFACESv4:-eth1}"
 # LAN localnet/netmask (CIDR prefix derived from pydhcp's own SERV_MASK,
 # no separate gateproxy key to keep in sync by hand)
 localnet="${SERV_SUBNET:-192.168.0.0}"
-netmask=$(python3 -c \
-    "import ipaddress; print(ipaddress.IPv4Network('0.0.0.0/${SERV_MASK:-255.255.255.0}').prefixlen)" \
-    2>/dev/null || echo "24")
+_uh_mask="${SERV_MASK:-255.255.255.0}"
+if [[ " $_UH_PREFIX " =~ [[:space:]]${_uh_mask//./\\.}:([0-9]+)[[:space:]] ]]; then
+    netmask="${BASH_REMATCH[1]}"
+else
+    log "ERROR: SERV_MASK is not a valid netmask: '$_uh_mask'"
+    exit 1
+fi
 # server IP
 serverip="${SERVER_IP:-192.168.0.10}"
 # squid proxy port
@@ -170,29 +179,31 @@ fi
 ## KERNEL RULES ##
 
 # Zero all packets and counters
-# Reset tables
-iptables -F
-iptables -X
-iptables -t nat -F
-iptables -t nat -X
-iptables -t mangle -F
-iptables -t mangle -X
-iptables -t raw -F
-iptables -t raw -X
-iptables -t security -F
-iptables -t security -X
-# Reset counters
-iptables -Z
-iptables -t nat -Z
-iptables -t mangle -Z
+# Reset tables (IPv4)
+iptables -F 2>/dev/null || true
+iptables -X 2>/dev/null || true
+iptables -t nat -F 2>/dev/null || true
+iptables -t nat -X 2>/dev/null || true
+iptables -t mangle -F 2>/dev/null || true
+iptables -t mangle -X 2>/dev/null || true
+iptables -t raw -F 2>/dev/null || true
+iptables -t raw -X 2>/dev/null || true
+iptables -t security -F 2>/dev/null || true
+iptables -t security -X 2>/dev/null || true
+# Reset counters (IPv4)
+iptables -Z 2>/dev/null || true
+iptables -t nat -Z 2>/dev/null || true
+iptables -t mangle -Z 2>/dev/null || true
+# Reset tables (IPv6)
+ip6tables -F 2>/dev/null || true
+ip6tables -X 2>/dev/null || true
+# Reset counters (IPv6)
+ip6tables -Z 2>/dev/null || true
 # Clear ARP and bridge
 arptables -F 2>/dev/null || true
 arptables -X 2>/dev/null || true
 ebtables -F 2>/dev/null || true
 ebtables -X 2>/dev/null || true
-# Flush routing cache and blackhole (Optional)
-#ip route flush cache
-#ip route del blackhole 0.0.0.0/0 2>/dev/null || true
 # Conntrack (Optional)
 #conntrack -F 2>/dev/null || true
 
@@ -345,6 +356,7 @@ iptables -A OUTPUT -o lo -j ACCEPT
 ip6tables -A INPUT -i lo -j ACCEPT || true
 ip6tables -A OUTPUT -o lo -j ACCEPT || true
 iptables -A INPUT -s 127.0.0.0/8 ! -i lo -j DROP
+iptables -A FORWARD -s 127.0.0.0/8 ! -i lo -j DROP
 
 # BOGONS (disabled by default -- opt-in)
 # acl/acl_ipt/bogons.txt includes the RFC1918 private ranges (10.0.0.0/8,
@@ -601,6 +613,8 @@ done
 iptables -N syn_flood
 iptables -A INPUT -i "$wan" -p tcp --tcp-flags FIN,SYN,RST,ACK SYN -j syn_flood
 iptables -A INPUT -i "$lan" -p tcp --tcp-flags FIN,SYN,RST,ACK SYN -j syn_flood
+iptables -A FORWARD -i "$wan" -p tcp --tcp-flags FIN,SYN,RST,ACK SYN -j syn_flood
+iptables -A FORWARD -i "$lan" -p tcp --tcp-flags FIN,SYN,RST,ACK SYN -j syn_flood
 iptables -A syn_flood -i "$wan" -m limit --limit 50/s --limit-burst 200 -j RETURN
 iptables -A syn_flood -i "$lan" -m limit --limit 200/s --limit-burst 500 -j RETURN
 iptables -A syn_flood -m limit --limit 1/min -j NFLOG --nflog-prefix "SYNFLOOD: "
