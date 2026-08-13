@@ -1377,7 +1377,6 @@ _opencode_desktop_resolve_release() {
     echo "$url"
 }
 
-
 # Map uname -m to the canonical architecture name (used for display and the
 # "unsupported architecture" check).
 _opencode_desktop_arch() {
@@ -1745,7 +1744,6 @@ uninstall_opencode_desktop() {
 
     rm -f "$OPENCODE_DESKTOP_STATE_FILE"
 }
-
 
 # ------------------------------------------------------------------------------
 # UNINSTALL FUNCTIONS (Individual components)
@@ -2355,7 +2353,6 @@ menu_lmstudio() {
         *) warn "Invalid option" ;;
     esac
 }
-
 
 # -- Main Menu ------------------------------------------------------------------
 menu_main() {

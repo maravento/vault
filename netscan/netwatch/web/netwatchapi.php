@@ -30,6 +30,7 @@ function ensure_session() {
 
 $server_ip = '';
 $net_cidr  = '';
+$purge_closed_after_hours = 6;
 $env_file  = '/etc/netwatch/netwatch.env';
 if (file_exists($env_file)) {
     foreach (file($env_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
@@ -37,6 +38,11 @@ if (file_exists($env_file)) {
             $server_ip = str_replace(array('"', "'"), '', trim(substr($line, strlen('SERVER_IP='))));
         } elseif (strpos($line, 'NET_CIDR=') === 0) {
             $net_cidr = str_replace(array('"', "'"), '', trim(substr($line, strlen('NET_CIDR='))));
+        } elseif (strpos($line, 'PURGE_CLOSED_AFTER_HOURS=') === 0) {
+            $raw = str_replace(array('"', "'"), '', trim(substr($line, strlen('PURGE_CLOSED_AFTER_HOURS='))));
+            if (ctype_digit($raw)) {
+                $purge_closed_after_hours = (int)$raw;
+            }
         }
     }
 }
@@ -191,15 +197,6 @@ try {
             json_out(['success' => true, 'data' => $rows, 'count' => count($rows)]);
             break;
 
-        case 'deviceEvents':
-            $limit = min(max((int)($_GET['limit'] ?? 100), 1), 1000);
-            $stmt = $pdo->prepare('SELECT mac, ip, event_type, event_time FROM device_events ORDER BY event_time DESC, id DESC LIMIT :limit');
-            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-            $stmt->execute();
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            json_out(['success' => true, 'data' => $rows, 'count' => count($rows)]);
-            break;
-
         case 'getPortsMode':
             $pm = read_ports_mode();
             $pm['server_ip'] = $server_ip;
@@ -236,34 +233,15 @@ try {
             $pm = read_ports_mode();
             $host = $pm['mode'] === 'target' ? $pm['target_ip'] : ($server_ip ?: 'localhost');
             // 'open' ports plus 'closed' ones still within netwatchports.sh's
-            // own purge window (PURGE_CLOSED_AFTER_HOURS, 6h) -- kept in sync
-            // with that constant so the UI's 'Closed' filter always reflects
-            // exactly what's actually still in the table, never a stale
-            // in-between window. A host with lots of one-shot ephemeral ports
-            // (mDNS/SSDP discovery, LAN-discovery apps, etc.) can otherwise
-            // accumulate thousands of closed rows per day, which is what
-            // made the Ports tab take several seconds just to build the
-            // table -- bounding both this query and the purge to the same 6h
-            // keeps it fast while the 'Closed' filter still shows the recent
-            // ones. Full history, including anything older, stays in
-            // port_events.
-            $stmt = $pdo->prepare("SELECT host, port, proto, service, status, last_checked, last_changed FROM port_scan_state WHERE source = :source AND host = :host AND (status = 'open' OR julianday(last_changed) >= julianday('now', '-6 hours')) ORDER BY port");
-            $stmt->execute([':source' => $pm['mode'], ':host' => $host]);
+            // own purge window (PURGE_CLOSED_AFTER_HOURS, read from
+            // netwatch.env above) so the UI's 'Closed' filter always matches
+            // what's actually still in the table. Full history, including
+            // anything older, stays in port_events.
+            $purge_modifier = '-' . $purge_closed_after_hours . ' hours';
+            $stmt = $pdo->prepare("SELECT host, port, proto, service, status, last_checked, last_changed FROM port_scan_state WHERE source = :source AND host = :host AND (status = 'open' OR julianday(last_changed) >= julianday('now', :purge_modifier)) ORDER BY port");
+            $stmt->execute([':source' => $pm['mode'], ':host' => $host, ':purge_modifier' => $purge_modifier]);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             json_out(['success' => true, 'data' => $rows, 'count' => count($rows), 'mode' => $pm['mode'], 'host' => $host]);
-            break;
-
-        case 'portEvents':
-            $pm = read_ports_mode();
-            $host = $pm['mode'] === 'target' ? $pm['target_ip'] : ($server_ip ?: 'localhost');
-            $limit = min(max((int)($_GET['limit'] ?? 100), 1), 1000);
-            $stmt = $pdo->prepare('SELECT host, port, event_type, event_time FROM port_events WHERE source = :source AND host = :host ORDER BY event_time DESC, id DESC LIMIT :limit');
-            $stmt->bindValue(':source', $pm['mode'], PDO::PARAM_STR);
-            $stmt->bindValue(':host', $host, PDO::PARAM_STR);
-            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-            $stmt->execute();
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            json_out(['success' => true, 'data' => $rows, 'count' => count($rows)]);
             break;
 
         default:

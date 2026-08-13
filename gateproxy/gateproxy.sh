@@ -122,7 +122,12 @@ if ! LOCAL_USER=$(detect_local_user); then
     log "ERROR: No valid local user found. Create one with sudo access."
     exit 1
 fi
-log "Using local user: $LOCAL_USER"
+LOCAL_HOME=$(getent passwd "$LOCAL_USER" | cut -d: -f6)
+if [ -z "$LOCAL_HOME" ] || [ ! -d "$LOCAL_HOME" ]; then
+    log "ERROR: Home directory not found for user $LOCAL_USER"
+    exit 1
+fi
+log "Using local user: $LOCAL_USER ($LOCAL_HOME)"
 
 ### CHECK SO & DESKTOP
 log "Check System..."
@@ -154,8 +159,6 @@ rm -f /var/cache/apt/archives/*.deb 2>/dev/null || true
 ### VARIABLES
 SCRIPT_PATH="$(realpath "$0")"
 gp_path=$(pwd)/gateproxy
-ZONE_PATH=/etc/zones
-mkdir -p "$ZONE_PATH" &>/dev/null
 ACL_PATH=/etc/acl
 mkdir -p "$ACL_PATH" &>/dev/null
 SCR_PATH=/etc/scr
@@ -304,32 +307,72 @@ hostnamectl set-hostname "$HOSTNAME"
 find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:gateproxy:$HOSTNAME:g" "{}"
 # changing name user account in config files
 find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:your_user:$LOCAL_USER:g" "{}"
+# changing user home path in config files
+find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:your_home:$LOCAL_HOME:g" "{}"
+
+# detect interfaces
+mapfile -t IFACES < <(ip -br link show | awk '$1 != "lo" {sub(/@.*/, "", $1); print $1}')
+DEFAULT_ROUTE_IF="$(ip route show default 2>/dev/null | awk '/^default/ {print $5; exit}')"
+
+# print interface list, flagging the current default-route interface as a hint only
+function print_interfaces() {
+    echo "Available network interfaces:"
+    for i in "${!IFACES[@]}"; do
+        if [ -n "$DEFAULT_ROUTE_IF" ] && [ "${IFACES[$i]}" = "$DEFAULT_ROUTE_IF" ]; then
+            printf " [%d] %s (current default route -- likely WAN)\n" "$((i+1))" "${IFACES[$i]}"
+        else
+            printf " [%d] %s\n" "$((i+1))" "${IFACES[$i]}"
+        fi
+    done
+}
 
 # public interface
 function public_interface() {
     while true; do
-        read -r -p "Enter Public Network Interface (Internet) (e.g. enpXsX): " WAN_IF
-        if [[ "$WAN_IF" =~ ^[a-z][a-z0-9]{1,13}[0-9]+$ ]]; then
-            find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$WAN_IF:g" "{}"
-            break
+        print_interfaces
+        read -r -p "Select Public Network Interface (Internet) [1-${#IFACES[@]}]: " SEL
+        if [[ "$SEL" =~ ^[1-9][0-9]*$ ]] && (( SEL >= 1 && SEL <= ${#IFACES[@]} )); then
+            CANDIDATE="${IFACES[$((SEL-1))]}"
+            while true; do
+                read -r -p "Confirm WAN (Internet) interface is '$CANDIDATE'? (y/n): " CONFIRM
+                case "$CONFIRM" in
+                    [Yy]) WAN_IF="$CANDIDATE"; break 2 ;;
+                    [Nn]) break ;;
+                    *) log "Answer: YES (y) or NO (n)" ;;
+                esac
+            done
         else
-            log "Invalid interface name. Try again."
+            log "Invalid selection. Try again."
         fi
     done
+    find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$WAN_IF:g" "{}"
 }
 
 # local interface
 function local_interface() {
     while true; do
-        read -r -p "Enter Local Network Interface (e.g. enpXsX): " ETH1
-        if [[ "$ETH1" =~ ^[a-z][a-z0-9]{1,13}[0-9]+$ ]]; then
-            find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
-            export LAN_IF="$ETH1"
-            break
+        print_interfaces
+        read -r -p "Select Local Network Interface [1-${#IFACES[@]}]: " SEL
+        if [[ "$SEL" =~ ^[1-9][0-9]*$ ]] && (( SEL >= 1 && SEL <= ${#IFACES[@]} )); then
+            CANDIDATE="${IFACES[$((SEL-1))]}"
+            if [ "$CANDIDATE" = "$WAN_IF" ]; then
+                log "That interface is already assigned to WAN. Choose a different one."
+                continue
+            fi
+            while true; do
+                read -r -p "Confirm LAN interface is '$CANDIDATE'? (y/n): " CONFIRM
+                case "$CONFIRM" in
+                    [Yy]) ETH1="$CANDIDATE"; break 2 ;;
+                    [Nn]) break ;;
+                    *) log "Answer: YES (y) or NO (n)" ;;
+                esac
+            done
         else
-            log "Invalid interface name. Try again."
+            log "Invalid selection. Try again."
         fi
     done
+    find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
+    export LAN_IF="$ETH1"
 }
 
 function is_interfaces() {
@@ -338,10 +381,11 @@ function is_interfaces() {
         log "Aborted installation. Check the Minimum Requirements"
         rm -rf "$gp_path" &>/dev/null
         exit
+    elif [ "${#IFACES[@]}" -eq 0 ]; then
+        log "ERROR: No network interfaces found"
+        exit 1
     else
         log "Check Net Interfaces: OK"
-        log "List of Network Interfaces Detected:"
-        ip -o link | awk '$2 != "lo:" {print $2, $(NF-2)}' | sed 's_: _ _'
         public_interface
         local_interface
         log "OK"
@@ -415,16 +459,6 @@ while true; do
             ;;
     esac
 done
-
-SERV_SUBNET="$(echo "$SERVER_IP" | awk -F '.' '{OFS="."; $4="0"; print $0}')"
-if [ "$SERV_SUBNET" != "192.168.0.0" ]; then
-    find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$SERV_SUBNET:g" "{}"
-    sed -i "s:192\.168\.0\.\*:$(echo "$SERV_SUBNET" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/server/wpad.pac"
-fi
-log "Localnet: $SERV_SUBNET (from Server IP)"
-
-SERV_BROADCAST="$(echo "$SERVER_IP" | awk -F '.' '{OFS="."; $4="255"; print $0}')"
-log "Broadcast: $SERV_BROADCAST (from Server IP)"
 
 ### PARAMETERS
 is_ask() {
@@ -569,9 +603,21 @@ Mask 255.255.255.0 (CIDR derived automatically), DNS 8.8.8.8 8.8.4.4, Proxy Port
     esac
 done
 
-# Network values collected above (WAN_IF, SERVER_IP, SERV_SUBNET,
-# SERV_BROADCAST, SERV_MASK, PORTNEW, LOCAL_USER) are appended to
-# /etc/pydhcp/pydhcp.env once pydhcp is installed, below -- it is the single
+SERV_SUBNET="$(python3 -c "
+import ipaddress, sys
+print(ipaddress.IPv4Network(f'{sys.argv[1]}/{sys.argv[2]}', strict=False).network_address)
+" "$SERVER_IP" "$SERV_MASK")"
+log "Localnet: $SERV_SUBNET (from Server IP and Netmask)"
+
+if [ "$SERV_SUBNET" != "192.168.0.0" ]; then
+    find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$SERV_SUBNET:g" "{}"
+    sed -i "s:192\.168\.0\.\*:$(echo "$SERV_SUBNET" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/server/wpad.pac"
+fi
+
+# WAN_IF, PORTNEW (as SQUID_PORT) and LOCAL_USER are appended to
+# /etc/pydhcp/pydhcp.env below, once pydhcp is installed. SERVER_IP,
+# SERV_SUBNET and SERV_MASK are written instead by pydhcp's own pysetup.sh,
+# from the values gateproxy passes it via expect -- pydhcp.env is the single
 # persistent source of truth these scripts read from. DNSNEW1/2 only feed
 # forward.conf (Unbound). iptables.sh reads pydhcp's own SERV_DNS (DNS
 # pydhcp hands out via DHCP), INTERFACESv4 (LAN interface) and derives its
@@ -678,7 +724,7 @@ retry_cmd nala install -y rubygems-integration rake ruby ruby-did-you-mean ruby-
 retry_cmd nala install -y javascript-common libjs-jquery xsltproc
 
 # NETWORK & CONNECTIVITY
-retry_cmd nala install -y wget bind9-dnsutils conntrack i2c-tools wsdd ipset
+retry_cmd nala install -y wget bind9-dnsutils conntrack i2c-tools wsdd ipset arptables ebtables
 
 # DNS
 retry_cmd nala install -y unbound
@@ -958,7 +1004,6 @@ SQUID_PORT=${PORTNEW:-3128}
 SQUID_INTERCEPT_PORT=3129
 LOCAL_USER="$LOCAL_USER"
 SCR_PATH=$SCR_PATH
-ZONE_PATH=$ZONE_PATH
 # =============================================================================
 ENVEOF
                 log "gateproxy config values appended to $PYDHCP_ENV"
@@ -1401,9 +1446,9 @@ systemctl daemon-reexec &>/dev/null
 # Update initramfs (optional)
 #update-initramfs -u -k all
 # create alias "upgrade"
-sudo -u "$LOCAL_USER" bash -c "printf '%s\n' 'alias upgrade=\"sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo systemctl daemon-reload && sudo updatedb && sudo update-desktop-database && sudo snap refresh\"' >> /home/${LOCAL_USER}/.bashrc"
-sudo -u "$LOCAL_USER" bash -c "printf '%s\n' 'alias server=\"sudo /etc/scr/serverboot.sh\"' >> /home/${LOCAL_USER}/.bashrc"
-sudo -u "$LOCAL_USER" bash -c "printf '%s\n' 'alias cleaner=\"sudo /etc/scr/cleaner.sh\"' >> /home/${LOCAL_USER}/.bashrc"
+sudo -u "$LOCAL_USER" bash -c "printf '%s\n' 'alias upgrade=\"sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo systemctl daemon-reload && sudo updatedb && sudo update-desktop-database && sudo snap refresh\"' >> ${LOCAL_HOME}/.bashrc"
+sudo -u "$LOCAL_USER" bash -c "printf '%s\n' 'alias server=\"sudo /etc/scr/serverboot.sh\"' >> ${LOCAL_HOME}/.bashrc"
+sudo -u "$LOCAL_USER" bash -c "printf '%s\n' 'alias cleaner=\"sudo /etc/scr/cleaner.sh\"' >> ${LOCAL_HOME}/.bashrc"
 # IPv4 priority
 sed -i 's/^#\s*precedence ::ffff:0:0\/96\s\+100/precedence ::ffff:0:0\/96  100/' /etc/gai.conf
 # snap
@@ -1434,8 +1479,8 @@ journalctl --vacuum-size=50M
 a2query -s || true
 #apt -qq -y remove --purge `deborphan --guess-all` # optional
 #dpkg -l | grep "^rc" | cut -d " " -f 3 | xargs dpkg --purge &> /dev/null # optional
-cd ..
-rm -f gitfolder.py
+cd /
+rm -f "$(dirname "$gp_path")/gitfolder.py"
 rm -rf "$gp_path"
 (sleep 2 && rm -- "$SCRIPT_PATH") &
 

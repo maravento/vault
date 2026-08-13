@@ -91,9 +91,6 @@ set_env_var() {
     local esc_val esc_key
     val=$(printf '%s' "$val" | tr -d '\r\n')
     esc_val=$(printf '%s' "$val" | sed -e 's/[\&|]/\\&/g')
-    # $key is always a fixed constant from call sites in this script today
-    # (never external input), but escape it for grep/sed's regex metachars
-    # anyway rather than assume that stays true.
     esc_key=$(printf '%s' "$key" | sed 's/[.[\*^$]/\\&/g')
     if grep -q "^${esc_key}=" "$NETWATCH_ENV"; then
         sed -i "s|^${esc_key}=.*|${key}=\"${esc_val}\"|" "$NETWATCH_ENV"
@@ -211,10 +208,7 @@ run_scan() {
             continue
         fi
 
-        # arp-scan plain output, tab-separated: IP<TAB>MAC<TAB>Vendor.
-        # -q (--quiet) is deliberately NOT used here -- it strips the vendor
-        # field entirely ("Only the IP address and MAC address are
-        # displayed"), which is why every row showed a blank Vendor column.
+        # arp-scan -x -g: plain tab-separated output, without -q (-q strips vendor).
         local scan_out
         scan_out=$(arp-scan --interface="$iface" --localnet -x -g 2>>"$log_file") || true
 
@@ -310,10 +304,6 @@ start() {
     wait_for_interfaces
 
     ### CHECK AND SET LAN_POLL_INTERVAL
-    # A non-numeric value here (e.g. hand-edited netwatch.env) would make
-    # `sleep "$LAN_POLL_INTERVAL"` fail every cycle without actually
-    # sleeping, turning the loop into a busy-spin -- fall back to the
-    # default instead of just checking for empty.
     if [ -z "${LAN_POLL_INTERVAL:-}" ] || ! [[ "$LAN_POLL_INTERVAL" =~ ^[0-9]+$ ]]; then
         [ -n "${LAN_POLL_INTERVAL:-}" ] && log "WARNING: LAN_POLL_INTERVAL='$LAN_POLL_INTERVAL' is not a valid number, defaulting to 60"
         LAN_POLL_INTERVAL=60
@@ -334,21 +324,6 @@ start() {
     log "Database : $DB_FILE"
     log "Log : $log_file"
 
-    # Fork the loop (keeps this function's variables/functions in scope,
-    # unlike a re-exec'd `bash -c`), but explicitly detach it from the
-    # controlling terminal: redirect all three fds away from the tty and
-    # disown the job. A bare `(...) &` still inherits stdin/stdout/stderr,
-    # which is why a foreground `./netwatchlan.sh start` never returned
-    # control -- the shell/terminal waits for those fds to close.
-    # stdout/stderr go to /dev/null, not $log_file: log() already appends
-    # every line to $log_file itself via `tee -a`, so redirecting the
-    # subshell's inherited stdout there too would double-write each line
-    # (tee's own stdout copy landing back in the same file a second time).
-    # The child writes its own PID (via $BASHPID) as its very first action,
-    # before entering the loop -- not the parent writing $! after
-    # backgrounding. That used to leave a window where the daemon was
-    # already running but PIDFILE didn't exist yet (stop()/status() would
-    # report it as not running).
     rm -f "$PIDFILE"
     (
         echo "$BASHPID" > "$PIDFILE"
@@ -371,15 +346,10 @@ start() {
 stop() {
     log "Stopping netwatchlan..."
     if [ -f "$PIDFILE" ]; then
-        local PID PGID
+        local PID
         PID=$(cat "$PIDFILE")
         if kill -0 "$PID" 2>/dev/null; then
-            PGID=$(ps -o pgid= -p "$PID" 2>/dev/null | tr -d ' ')
-            if [ -n "$PGID" ]; then
-                kill -- "-$PGID" 2>/dev/null
-            else
-                kill "$PID" 2>/dev/null
-            fi
+            kill "$PID" 2>/dev/null
             log "netwatchlan stopped (PID $PID)"
         else
             log "netwatchlan was not running (stale PID file removed)"

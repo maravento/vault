@@ -67,7 +67,6 @@ remove_and_install_squid_openssl() {
     systemctl enable squid.service
 }
 
-
 # Function: Configure SSL-Bump
 ssl_bump_setup() {
     CERT_D=/etc/squid/cert
@@ -124,7 +123,6 @@ else
         exit 0
     fi
 fi
-
 
 # Run SSL-Bump configuration
 ssl_bump_setup

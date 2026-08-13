@@ -74,15 +74,15 @@ wget -qO gateproxy.sh https://raw.githubusercontent.com/maravento/vault/master/g
 
 | Parameter | Default | Description / Descripción |
 | :--- | :---: | :--- |
-| WAN Interface | `eth0` | Public/internet-facing NIC / NIC pública (Internet) |
-| LAN Interface | `eth1` | Local network NIC / NIC de red local |
+| WAN Interface | none (required) | Chosen from a numbered list of detected interfaces, with explicit `y/n` confirmation before continuing -- no typing, no silent default / Se elige de una lista numerada de interfaces detectadas, con confirmación explícita `y/n` antes de continuar -- no se escribe, no hay default silencioso |
+| LAN Interface | none (required) | Same numbered-list + confirmation flow as WAN Interface; cannot be the same interface already assigned to WAN / Mismo flujo de lista numerada + confirmación que WAN Interface; no puede ser la misma interfaz ya asignada a WAN |
 | Server IP | `192.168.0.10` | Gateway IP assigned to this server / IP del servidor en la LAN |
 | Netmask | `255.255.255.0` | Subnet mask; CIDR prefix (`/24`) is derived from this automatically, not asked separately / Máscara de subred; el prefijo CIDR (`/24`) se calcula automáticamente a partir de esto, no se pregunta por separado |
 | DNS Primary | `8.8.8.8` | Primary DNS server / DNS primario |
 | DNS Secondary | `8.8.4.4` | Secondary DNS server / DNS secundario |
 | Proxy Port | `3128` | Squid proxy port / Puerto del proxy Squid |
 
-Localnet (`192.168.0.0`) and Broadcast (`192.168.0.255`) are derived automatically from the Server IP, not asked separately / Localnet (`192.168.0.0`) y Broadcast (`192.168.0.255`) se derivan automáticamente del Server IP, no se preguntan por separado.
+Localnet (`192.168.0.0`) is derived automatically from the Server IP and Netmask together, not asked separately / Localnet (`192.168.0.0`) se deriva automáticamente del Server IP y la Netmask en conjunto, no se pregunta por separado.
 
 DNS Primary/Secondary above only configure Unbound's own forwarders (`conf/server/forward.conf`) — where Unbound sends queries it can't answer locally. They do **not** control which DNS server LAN clients are allowed to query directly; that is pydhcp's own `SERV_DNS` key in `pydhcp.env` (the same value pydhcp hands out via DHCP), which `iptables.sh` reads to open the matching firewall access — no separate gateproxy key to keep in sync by hand. It defaults to the Server IP (Unbound); leaving it unset or empty falls back to the Server IP as well, never to `8.8.8.8`/`8.8.4.4`. To have clients use and reach external DNS directly instead of Unbound, edit `SERV_DNS` in `pydhcp.env` by hand, regenerate `pydhcpd.conf` with pydhcp's `pyleases.sh`, restart `pydhcpd`, and re-run `iptables.sh`.
 
@@ -91,10 +91,10 @@ Los DNS Primario/Secundario de arriba sólo configuran los reenviadores propios 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     Once pydhcp is installed, the script appends its own values (interfaces, mask, DNS fallback, proxy ports, paths) to <code>/etc/pydhcp/pydhcp.env</code> — pydhcp's own persistent config file, in a "GATEPROXY CUSTOM VALUES" block after pydhcp's own section. <code>iptables.sh</code> reads that same file at any time afterward. There is no "reuse previous answers" step — each run asks fresh.
+     Once pydhcp is installed, the script appends its own values (WAN interface, proxy ports, path) to <code>/etc/pydhcp/pydhcp.env</code> — pydhcp's own persistent config file, in a "GATEPROXY CUSTOM VALUES" block after pydhcp's own section. LAN interface, IP, netmask and DNS are written instead by pydhcp's own <code>pysetup.sh</code>, from the values gateproxy passes it via <code>expect</code>. <code>iptables.sh</code> reads that same file at any time afterward. There is no "reuse previous answers" step — each run asks fresh.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Una vez instalado pydhcp, el script agrega sus propios valores (interfaces, máscara, DNS de respaldo, puertos del proxy, rutas) a <code>/etc/pydhcp/pydhcp.env</code> — el archivo de configuración persistente propio de pydhcp, en un bloque "GATEPROXY CUSTOM VALUES" después de la sección propia de pydhcp. <code>iptables.sh</code> lee ese mismo archivo en cualquier momento después. No existe un paso de "reusar respuestas anteriores" — cada corrida pregunta de nuevo.
+     Una vez instalado pydhcp, el script agrega sus propios valores (interfaz WAN, puertos del proxy, ruta) a <code>/etc/pydhcp/pydhcp.env</code> — el archivo de configuración persistente propio de pydhcp, en un bloque "GATEPROXY CUSTOM VALUES" después de la sección propia de pydhcp. La interfaz LAN, la IP, la máscara y el DNS los escribe en cambio el propio <code>pysetup.sh</code> de pydhcp, con los valores que gateproxy le pasa por <code>expect</code>. <code>iptables.sh</code> lee ese mismo archivo en cualquier momento después. No existe un paso de "reusar respuestas anteriores" — cada corrida pregunta de nuevo.
     </td>
   </tr>
 </table>
@@ -210,12 +210,9 @@ gateproxy/
 │   │   └── serviceswatch.sh        # Service watchdog
 │   ├── server/                 # Server configuration files
 │   │   ├── 000-add.txt             # Apache VirtualHost additions
-│   │   ├── 000-default.conf        # Apache default site
 │   │   ├── 00-networkd.yaml        # Netplan configuration
-│   │   ├── dir.conf                # Apache directory index config
 │   │   ├── forward.conf            # Unbound DNS forwarder configuration
 │   │   ├── hosts.txt               # /etc/hosts additions
-│   │   ├── security.conf           # Apache security hardening
 │   │   ├── servername.conf         # Apache ServerName config
 │   │   ├── squid.conf              # Squid proxy configuration
 │   │   ├── wpad.conf               # Apache WPAD virtual host

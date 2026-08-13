@@ -31,11 +31,6 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
-# Enforce perms unconditionally, same as netwatchlan.sh/netwatchports.sh do
-# in their own start() -- this script is always the first of the three to
-# run (--install), so without this the log would be created with whatever
-# the umask dictates (often 644, world-readable) until a daemon later fixes
-# it, instead of the documented root:root 640 from the very first write.
 touch "$log_file"
 chmod 640 "$log_file"
 chown root:root "$log_file"
@@ -129,6 +124,9 @@ done
 # management-interface prompt).
 VIRTUAL_IFACE_PATTERN='^(lo|docker.*|br-.*|veth.*|virbr.*|tun.*|tap.*|wg.*)$'
 
+# VALIDATION -- one variable per thing validated; use directly with =~
+_UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
+
 CAND_NAMES=()
 CAND_ADDRS=()
 list_candidate_interfaces() {
@@ -162,13 +160,12 @@ select_scan_interfaces() {
     echo "Available network interfaces (virtual/loopback interfaces are hidden):"
     print_candidate_interfaces
     echo ""
+    local all_idxs
+    all_idxs=$(seq -s, 1 "${#CAND_NAMES[@]}")
     while true; do
-        read -rp "Select interface(s) to scan -- comma-separated numbers (e.g. 1,2): " sel
+        read -rp "Select interface(s) to scan -- comma-separated numbers (default: $all_idxs): " sel
         sel="${sel//[[:space:]]/}"
-        if [ -z "$sel" ]; then
-            echo "ERROR: No interfaces specified. Try again."
-            continue
-        fi
+        sel="${sel:-$all_idxs}"
         local idxs chosen idx ok
         IFS=',' read -ra idxs <<< "$sel"
         chosen=()
@@ -225,6 +222,10 @@ select_management_interface() {
     done
     local ip_with_prefix
     ip_with_prefix=$(ip -4 addr show dev "$MGMT_IFACE" scope global | sed -n 's/.*inet \([0-9.]\{1,\}\/[0-9]\{1,\}\).*/\1/p' | head -n1)
+    if ! [[ "$ip_with_prefix" =~ $_UH_CIDR ]]; then
+        log "ERROR: Could not read a valid IPv4/CIDR address from '$MGMT_IFACE'."
+        exit 1
+    fi
     NET_CIDR=$(compute_network_cidr "$ip_with_prefix")
     SERVER_IP=$(ip -4 addr show dev "$MGMT_IFACE" scope global | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
     echo "Management interface : $MGMT_IFACE"
@@ -325,7 +326,7 @@ check_already_installed() {
 # they never race each other (or other @reboot jobs) at boot
 add_reboot_cron() {
     if ! crontab -l 2>/dev/null | grep -qF "$NETWATCH_TOOLS/netwatchlan.sh start"; then
-        crontab -l 2>/dev/null > "/var/www/netwatch/tools/crontab-$(date +%Y%m%d%H%M%S).bak" || true
+        crontab -l 2>/dev/null > "$NETWATCH_TOOLS/crontab-$(date +%Y%m%d%H%M%S).bak" || true
         (crontab -l 2>/dev/null; echo "@reboot $NETWATCH_TOOLS/netwatchlan.sh start && $NETWATCH_TOOLS/netwatchports.sh start") | crontab -
         log "Added to cron @reboot"
     fi
@@ -353,11 +354,7 @@ do_install() {
         exit 1
     fi
 
-    # The vhost relies on mod_php (SetHandler application/x-httpd-php) to
-    # execute .php files, not PHP-FPM -- the `php` CLI check above only
-    # confirms the interpreter exists, not that Apache can hand requests to
-    # it. Without this module loaded, install would "succeed" but every
-    # .php file would be served as plain text/downloaded instead of run.
+    # The vhost needs mod_php (SetHandler application/x-httpd-php), not PHP-FPM.
     if ! apache2ctl -M 2>/dev/null | grep -qi 'php_module'; then
         log "ERROR: Apache mod_php is not loaded. Run first:"
         log "apt-get install -y libapache2-mod-php"
@@ -383,12 +380,7 @@ do_install() {
     init_schema
     chown -R www-data:www-data "$NETWATCH_DATA"
     chmod 775 "$NETWATCH_DATA"
-    # netwatch.db itself is read-only for the web-facing PHP process --
-    # netwatchapi.php only ever runs SELECT queries against it, it never
-    # writes. root:www-data 640 (overriding the directory-wide www-data
-    # ownership above) gives root -- who the netwatchlan.sh/netwatchports.sh
-    # daemons always run as -- full read/write, and www-data read-only, so a
-    # compromised PHP process can't tamper with LAN/port history directly.
+    # netwatch.db: root:www-data 640 -- daemons (root) read/write, web reads only.
     chown root:www-data "$DB_FILE"
     chmod 640 "$DB_FILE"
 
@@ -409,12 +401,6 @@ PMODE
     chmod 664 "$PORTS_MODE_FILE"
 
     # apache vhost
-    # SERVER_IP is already known at this point (detected earlier in this
-    # same install run) -- apply the final Listen restriction directly and
-    # restart once, instead of opening on 0.0.0.0 first and narrowing it in
-    # a second restart. That two-step version left a real window where the
-    # panel was reachable from every interface, including the public one,
-    # between the two restarts.
     cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
     sed -i "/^Listen .*:${VHOST_PORT}\$/d" /etc/apache2/ports.conf
     if [ -n "$SERVER_IP" ]; then
@@ -435,8 +421,8 @@ PMODE
     systemctl restart apache2
 
     # save install config; poll intervals are left unset here and get their
-    # defaults/first-run prompt from the daemons themselves (see LAN_POLL_INTERVAL,
-    # LAN_OFFLINE_GRACE, PORT_POLL_INTERVAL, PORT_CONNECT_TIMEOUT).
+    # defaults from the daemons themselves (see LAN_POLL_INTERVAL,
+    # LAN_OFFLINE_GRACE, PORT_POLL_INTERVAL, PURGE_CLOSED_AFTER_HOURS).
     cat > "$NETWATCH_ENV" <<ENV
 LOCAL_USER="$local_user"
 LAN_IFACES="$LAN_IFACES"
@@ -482,11 +468,7 @@ EOF
 do_update() {
     log "netwatchinstall start (update)..."
 
-    # One-time migration: installs from before netwatch.env moved to
-    # /etc/netwatch (it used to live at $NETWATCH_WWW/netwatch.env) would
-    # otherwise hit a dead end here -- --update thinks it's not installed
-    # while --install thinks it already is (the vhost is still there).
-    # Detect and migrate automatically instead of forcing a manual fix.
+    # Migration: netwatch.env from $NETWATCH_WWW to /etc/netwatch
     local legacy_env="$NETWATCH_WWW/netwatch.env"
     if [ ! -f "$NETWATCH_ENV" ] && [ -f "$legacy_env" ]; then
         log "Migrating netwatch.env from $legacy_env to $NETWATCH_ENV"
@@ -503,10 +485,7 @@ do_update() {
         exit 1
     fi
 
-    # One-time migration: installs from before UDP support had
-    # UNIQUE(source, host, port) on port_scan_state, which would collide
-    # tcp/80 and udp/80 into a single row. Recreate the table with proto
-    # added to the constraint, preserving existing data.
+    # Migration: add proto to the port_scan_state UNIQUE constraint
     if [ -f "$DB_FILE" ]; then
         local current_schema
         current_schema=$(sqlite3 "$DB_FILE" "SELECT sql FROM sqlite_master WHERE type='table' AND name='port_scan_state';" 2>/dev/null)
@@ -536,12 +515,6 @@ COMMIT;
 SQL
         fi
 
-        # Self-heal permissions on installs from before this was tightened:
-        # netwatch.db was previously www-data:www-data 664 (web-writable),
-        # even though netwatchapi.php only ever runs SELECT against it.
-        # root:www-data 640 keeps read access for the web panel and full
-        # access for the daemons (which always run as root) while removing
-        # write access from a potentially-compromised PHP process.
         chown root:www-data "$DB_FILE"
         chmod 640 "$DB_FILE"
     fi
@@ -582,12 +555,7 @@ SQL
 
 ### UNINSTALL
 do_uninstall() {
-    # Confirm before the rm -rf below, which destroys the LAN/port history
-    # database along with everything else -- but only when actually
-    # attached to a terminal. A non-interactive invocation (cron, a script,
-    # CI) has no one to prompt and would otherwise just hang forever
-    # waiting for input that will never come, so it proceeds exactly as
-    # before (no behavior change there).
+    # Confirm before the rm -rf below (interactive runs only)
     if [ -t 0 ]; then
         local confirm
         read -r -p "This will permanently remove NetWatch and its data (LAN/port history). Continue? (y/N): " confirm
@@ -611,9 +579,7 @@ do_uninstall() {
 
     rm -f /etc/logrotate.d/netwatch /etc/logrotate.d/netwatch.bak
 
-    # cron entries -- anchored to the exact lines the daemons add (full
-    # command/path), not bare substrings, so unrelated user cron jobs
-    # aren't swept away too.
+    # cron entries -- matched by full command/path, not bare substrings
     crontab -l 2>/dev/null > "/root/crontab-uninstall-$(date +%Y%m%d%H%M%S).bak" || true
     cron_tmp=$(mktemp)
     crontab -l 2>/dev/null > "$cron_tmp" || true
@@ -695,7 +661,8 @@ show_menu() {
     echo "4) Status"
     echo "5) Exit"
     echo ""
-    read -p "Select option: " opt
+    read -p "Select option (default: 5): " opt
+    opt="${opt:-5}"
     case "$opt" in
         1) do_install ;;
         2) do_update ;;

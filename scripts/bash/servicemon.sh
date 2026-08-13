@@ -523,7 +523,6 @@ sub check_service_status {
     return 'stopped';
 }
 
-
 INDEXCGI
 
     chmod +x "$MODDIR/index.cgi"

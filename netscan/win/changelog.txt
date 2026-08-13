@@ -1,4 +1,4 @@
-﻿## CHANGELOG
+## CHANGELOG
 # NetScan
 # maravento.com
 

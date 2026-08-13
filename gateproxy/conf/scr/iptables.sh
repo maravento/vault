@@ -83,7 +83,7 @@ is_valid_ip() {
 }
 
 is_valid_port() {
-    [[ "$1" =~ ^[0-9]+$ ]] && (( $1 >= 0 && $1 <= 65535 ))
+    [[ "$1" =~ $_UH_UINT ]] && (( $1 <= 65535 ))
 }
 
 # Network config -- pydhcp.env is the single persistent source of truth for
@@ -106,8 +106,8 @@ load_env_file() {
             value="${value:1:$((${#value}-2))}"
         fi
         case "$key" in
-            WAN_IF|INTERFACESv4|SERVER_IP|SERV_SUBNET|SERV_BROADCAST|SERV_MASK|\
-            SERV_DNS|SQUID_PORT|SQUID_INTERCEPT_PORT|LOCAL_USER|ACL_PATH|SCR_PATH|ZONE_PATH)
+            WAN_IF|INTERFACESv4|SERVER_IP|SERV_SUBNET|SERV_MASK|\
+            SERV_DNS|SQUID_PORT|SQUID_INTERCEPT_PORT|LOCAL_USER|ACL_PATH|SCR_PATH)
                 printf -v "$key" '%s' "$value"
                 ;;
             *)

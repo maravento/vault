@@ -16,6 +16,9 @@
 # - /home/<user>/Report/scan_TIMESTAMP.html
 # - Only .html files remain in Report (script deletes intermediate .xml/.nmap/.gnmap).
 #
+# Log file:
+# /var/log/netreport.log -- truncated on every run (single-run tool, no rotation).
+#
 # Menu options:
 # 1) LAN Scan
 # Lists available interfaces and asks user to select one.
@@ -63,6 +66,10 @@ exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
     die "Script $(basename "$0") is already running"
 fi
+
+# Single-run tool, not a daemon -- the log only ever needs to hold the
+# current execution, so it is truncated on every start instead of rotated.
+truncate -s 0 "$log_file" 2>/dev/null || true
 
 # LOCAL USER detection
 detect_local_user() {
@@ -399,20 +406,16 @@ show_spinner_for_pid() {
     printf "\r[-] Working... %s" "${spin:$i:1}"
     sleep 0.2
   done
-  # `if wait ...; then/else` (not a bare `wait "$pid"; exit_code=$?`) --
-  # this script runs under `set -e`, and a bare failing command would abort
-  # the whole script right here instead of reaching the die/file-existence
-  # checks callers already rely on further down.
   if wait "$pid"; then
     exit_code=0
   else
     exit_code=$?
   fi
   printf "\r[-] Done. \n"
-  # Logged only, not propagated: callers already verify success independently
-  # via the XML/HTML output files (die on missing/empty), so surfacing this
-  # here is purely a diagnostic aid, not a new failure path.
-  [ "$exit_code" -ne 0 ] && warn "Background command (PID $pid) exited with code $exit_code"
+  if [ "$exit_code" -ne 0 ]; then
+    warn "Background command (PID $pid) exited with code $exit_code"
+  fi
+  return 0
 }
 
 # convert XML -> HTML with improved error handling
@@ -421,6 +424,7 @@ xml_to_html() {
   local html="$2"
   local xsl="$SCRIPT_TMPDIR/netreport-custom.xsl"
   local xsl_error="$SCRIPT_TMPDIR/xsltproc_error.log"
+  local default_xsl="/usr/share/nmap/nmap.xsl"
 
   log "Converting XML to HTML: $xml -> $html"
 
@@ -453,7 +457,6 @@ xml_to_html() {
   fi
 
   # Fallback: try default nmap XSL
-  default_xsl="/usr/share/nmap/nmap.xsl"
   if [ -f "$default_xsl" ]; then
     log "Attempting conversion with default nmap XSL..."
     if xsltproc -o "$html" "$default_xsl" "$xml" 2>"$xsl_error"; then
@@ -535,8 +538,10 @@ select_interface() {
   fi
   echo "$iface_list"
   echo ""
+  DEFAULT_IFACE=$(printf '%s\n' "$iface_list" | awk 'NR==1{print $1}')
   while true; do
-    read -rp "Select interface: " SEL_IFACE
+    read -rp "Select interface (default: ${DEFAULT_IFACE}): " SEL_IFACE
+    SEL_IFACE="${SEL_IFACE:-$DEFAULT_IFACE}"
     SEL_IFACE="${SEL_IFACE#"${SEL_IFACE%%[![:space:]]*}"}"
     SEL_IFACE="${SEL_IFACE%"${SEL_IFACE##*[![:space:]]}"}"
     [ -n "$SEL_IFACE" ] || { warn "No interface specified. Try again."; continue; }
@@ -566,7 +571,8 @@ echo "3) IP/Host Scan"
 echo "4) Exit"
 echo ""
 while true; do
-  read -rp "Select [1-4]: " opt
+  read -rp "Select [1-4] (default: 4): " opt
+  opt="${opt:-4}"
   [[ "$opt" =~ ^[1-4]$ ]] && break
   warn "Invalid option '$opt'. Enter a number between 1 and 4."
 done
@@ -668,9 +674,6 @@ case "$opt" in
       # Check if .nmap file exists as fallback
       if [ -f "${base}.nmap" ]; then
         warn "Found .nmap file, converting to HTML..."
-        # HTML-escape $target before embedding it: the format validation above
-        # already blocks <>"', but output encoding shouldn't depend solely on
-        # input validation holding forever.
         target_html=$(printf '%s' "$target" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
         {
           echo '<!DOCTYPE html>'

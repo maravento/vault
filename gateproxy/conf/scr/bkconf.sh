@@ -67,7 +67,12 @@ if ! local_user=$(detect_local_user); then
     log "ERROR: No valid local user found. Create one with sudo access."
     exit 1
 fi
-log "Using local user: $local_user"
+local_home=$(getent passwd "$local_user" | cut -d: -f6)
+if [ -z "$local_home" ] || [ ! -d "$local_home" ]; then
+    log "ERROR: Home directory not found for user $local_user"
+    exit 1
+fi
+log "Using local user: $local_user ($local_home)"
 
 # DEPENDENCIES
 for dep in zip gawk coreutils; do
@@ -79,7 +84,7 @@ done
 
 ### VARIABLES
 # path to cloud
-bkconfig="/home/$local_user/bkconf"
+bkconfig="$local_home/bkconf"
 mkdir -p "$bkconfig" >/dev/null 2>&1
 
 log "bkconfig start..."

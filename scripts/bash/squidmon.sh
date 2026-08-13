@@ -1145,7 +1145,6 @@ function filterByACL() {
 </script>
 ENDJS2
 
-
 print "</div>"; # End dashboard-container
 
 # Auto-refresh JavaScript

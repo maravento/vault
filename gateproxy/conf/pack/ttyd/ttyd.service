@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 User=your_user
-WorkingDirectory=/home/your_user
+WorkingDirectory=your_home
 ExecStart=/usr/bin/ttyd -i lo -p 7681 -W bash
 Restart=on-failure
 RestartSec=5

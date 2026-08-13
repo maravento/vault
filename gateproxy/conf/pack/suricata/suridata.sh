@@ -103,7 +103,7 @@ mkdir -p "$ACL_IPT_PATH" &>/dev/null
 touch "$OUT_FILE"
 
 # -- Step 1: SIDs currently resolved to "drop" by suricata-update ------------
-mapfile -t DROP_SIDS < <(grep '^drop ' "$RULES_FILE" 2>/dev/null | grep -oP 'sid:\K\d+' | sort -un)
+mapfile -t DROP_SIDS < <(grep '^drop ' "$RULES_FILE" 2>/dev/null | grep -oP 'sid:\K\d+' | sort -u)
 if [ "${#DROP_SIDS[@]}" -eq 0 ]; then
     log "WARNING: no drop-action SIDs found in $RULES_FILE -- nothing to match, skipping this run"
     exit 0
@@ -127,7 +127,7 @@ printf '%s\n' "${DROP_SIDS[@]}" | jq -R 'select(length>0)' | jq -s 'map({(.): tr
 # since Step 2 below only tails NEW eve.json content. Backfill by doing a
 # one-time full scan restricted to just the newly-dropped SIDs.
 touch "$SIDS_FILE"
-mapfile -t NEW_SIDS < <(comm -23 <(printf '%s\n' "${DROP_SIDS[@]}") <(sort -un "$SIDS_FILE"))
+mapfile -t NEW_SIDS < <(comm -23 <(printf '%s\n' "${DROP_SIDS[@]}") <(sort -u "$SIDS_FILE"))
 printf '%s\n' "${DROP_SIDS[@]}" > "$SIDS_FILE"
 
 backfill_ips=""

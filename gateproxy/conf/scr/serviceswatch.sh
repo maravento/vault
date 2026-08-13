@@ -6,7 +6,7 @@
 # Services Watchdog
 #
 # NOTE on logging:
-# - Writes to /var/log/serviceswatch.log (shared with conf/scr/serviceswatch.sh).
+# - Writes to /var/log/serviceswatch.log (own log, not shared).
 #
 ################################################################################
 
@@ -38,7 +38,15 @@ if ! flock -n 200; then
 fi
 
 # DEPENDENCIES
-for dep in procps systemd apache2 squid-openssl rsyslog webmin; do
+for dep in procps systemd apache2 squid-openssl rsyslog; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        log "ERROR: Required dependency '$dep' is not installed."
+        exit 1
+    fi
+done
+
+# DEPENDENCIES (external repo)
+for dep in webmin; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: Required dependency '$dep' is not installed."
         exit 1

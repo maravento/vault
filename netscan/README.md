@@ -32,7 +32,7 @@ netscan/
 └── netwatch/                  # WEB — live web dashboard
     ├── netwatchinstall.sh     # Installer: --install|--update|--uninstall|--status
     ├── web/                   # Deployed to /var/www/netwatch/web/
-    │   ├── netwatch.conf       # Apache vhost (:3126/?tab=lan and :3126/?tab=ports)
+    │   ├── netwatch.conf       # Apache vhost -> /etc/apache2/sites-available/netwatch.conf (:3126/?tab=lan and :3126/?tab=ports)
     │   ├── index.php           # Main page (LAN / Ports tabs)
     │   ├── lan.html            # LAN devices viewer
     │   ├── ports.html          # Ports viewer + Server/Target mode selector
@@ -202,7 +202,7 @@ netscan/
 
 ```bash
 Package Installation
-Hostname=DESKTOP-AJ4JSC8
+Hostname=DESKTOP-XXXXXXX
 User=User
 Date=mié. 13/11/2024 Time= 6:44:17,39
 Status=Installed
@@ -329,6 +329,9 @@ sudo ./netreport.sh
 
 /var/log/netwatch.log               # Shared by the installer and both daemons
 /etc/logrotate.d/netwatch           # Weekly rotation for the shared log
+
+/var/www/netwatch/backups/          # .bak of web files and tools, one per --update
+/var/www/netwatch/tools/crontab-*.bak  # crontab backup, written before each cron edit
 ```
 
 #### Requirements
