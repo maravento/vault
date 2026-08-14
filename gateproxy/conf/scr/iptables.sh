@@ -48,7 +48,7 @@ SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 (umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    log "Script $(basename "$0") is already running"
+    log "WARNING: script $(basename "$0") is already running"
     exit 1
 fi
 
@@ -489,7 +489,7 @@ if [ -n "$mac2ip" ]; then
         [[ -n "$_m2i_ip" ]] && mac2ip_args+=("$_m2i_ip")
     done <<< "$mac2ip"
     create_acl "${mac2ip_args[@]}"
-    iptables -t mangle -N MACCHECK 2>/dev/null
+    iptables -t mangle -N MACCHECK 2>/dev/null || true
     iptables -t mangle -F MACCHECK
     iptables -t mangle -A PREROUTING -i "$lan" -j MACCHECK
     iptables -t mangle -A MACCHECK -m set --match-set macip src,src -j RETURN
@@ -610,7 +610,7 @@ for chain in INPUT FORWARD; do
 done
 
 # syncflood
-iptables -N syn_flood
+iptables -N syn_flood 2>/dev/null || true
 iptables -A INPUT -i "$wan" -p tcp --tcp-flags FIN,SYN,RST,ACK SYN -j syn_flood
 iptables -A INPUT -i "$lan" -p tcp --tcp-flags FIN,SYN,RST,ACK SYN -j syn_flood
 iptables -A FORWARD -i "$wan" -p tcp --tcp-flags FIN,SYN,RST,ACK SYN -j syn_flood
@@ -722,7 +722,7 @@ iptables -A FORWARD -i "$lan" -p udp --dport 123 -m set --match-set macports src
 
 ## MAC RULES ##
 
-# MACPROXY (PAC 18100 - Opcion 252 DHCP, HTTP 80 -> Squid intercept port)
+# MACPROXY (PAC 18100 - DHCP option 252, HTTP 80 -> Squid intercept port)
 if ! ipset list macproxy &>/dev/null; then
     ipset create macproxy hash:mac -exist
 else

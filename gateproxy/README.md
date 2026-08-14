@@ -7,10 +7,10 @@
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     <b>Gateproxy</b> is a simple proxy/firewall server for managing Pyme's LAN networks. The installation and configuration script is fully automated and customizable according to the needs of the administrator or organization, with minimal interaction during the process. It can be implemented in physical servers or VMs, for greater flexibility and portability.
+     <b>Gateproxy</b> is a modular ecosystem for the administration and management of LAN environments in small and medium-sized businesses, comprising independent projects and components that can be used autonomously but are designed to interoperate within the same environment. Its architecture integrates tools and services such as Proxymon, pydhcp, smbstack, uhm, Apache2, iptables/ipset, suricata, unbound, among others, providing proxy, firewall, DHCP, traffic control and management, web services, and other resources required for network operation. The installation and configuration script automates the deployment of these components and can be adapted to the needs of the administrator or organization, requiring minimal interaction during the process. Some projects are included as part of the base configuration, while others are offered as optional installations. Gateproxy can be deployed on both physical servers and virtual machines, providing flexibility and portability for different infrastructure environments.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     <b>Gateproxy</b> es un sencillo servidor proxy/firewall para administrar redes Pyme's LAN. El script de instalación y configuración es totalmente automatizado y personalizable, de acuerdo a las necesidades del administrador u organización, con una interacción mínima durante proceso. Puede ser implementado en servidores físicos o VMs, para mayor flexibilidad y portabilidad.
+     <b>Gateproxy</b> es un ecosistema modular para la administración y gestión de redes LAN de pequeñas y medianas empresas, compuesto por proyectos y componentes independientes que pueden utilizarse de forma autónoma, pero que pueden interoperar dentro de un mismo entorno. Su arquitectura integra herramientas y servicios como Proxymon, pydhcp, smbstack, uhm, Apache2, iptables/ipset, suricata, unbound, entre otros, proporcionando funciones de proxy, firewall, DHCP, control y administración del tráfico, servicios web y otros recursos necesarios para la operación de la red. El script de instalación y configuración automatiza el despliegue de estos componentes y puede adaptarse a las necesidades del administrador u organización, procurando una interacción mínima durante el proceso. Algunos proyectos forman parte de la configuración base, mientras que otros se ofrecen como instalaciones opcionales. Puede implementarse tanto en servidores físicos como en máquinas virtuales, proporcionando flexibilidad y portabilidad para diferentes escenarios de infraestructura.
     </td>
   </tr>
 </table>
@@ -370,10 +370,10 @@ DNS (UDP/TCP 53) is a global rule applied to all LAN traffic, not a `macports`-s
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     The installer offers two optional installation prompts at the end of the base setup.
+     The installer offers three optional installation prompts at the end of the base setup.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     El instalador ofrece dos prompts de instalación opcionales al final de la configuración base.
+     El instalador ofrece tres prompts de instalación opcionales al final de la configuración base.
     </td>
   </tr>
 </table>
@@ -398,6 +398,19 @@ DNS (UDP/TCP 53) is a global rule applied to all LAN traffic, not a `macports`-s
     </td>
     <td style="width: 50%; vertical-align: top;">
      Instala <b>smbstack</b> — un servidor Samba con carpeta compartida, Papelera de Reciclaje y registro de auditoría configurados de fábrica. <code>smbstack</code> gestiona su propia lista veto de tipos de archivo comunes no deseados (<code>/etc/samba/acl/commonveto.txt</code>, activa por defecto) — no es responsabilidad de gateproxy.
+    </td>
+  </tr>
+</table>
+
+### Optional Pack: UHM
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+     This prompt only appears if a local UniFi Network controller is detected first — classic (<code>dpkg</code> package <code>unifi</code>) or unifi-os (<code>/var/lib/uosserver/server.conf</code>, podman-based). If neither is found, the prompt is skipped entirely — gateproxy does not install UniFi or podman itself. To install UniFi Network self-hosted / UniFi OS Server first, use <a href="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/unifisetup.sh"><code>unifisetup.sh</code></a>, then re-run gateproxy (or run <code>uhmsetup.sh</code> from the <a href="https://github.com/maravento/uhm">uhm</a> repo directly). Installs <b>uhm</b> (UniFi Hotspot Manager), which requires pydhcp already installed and running — a requirement gateproxy's own base setup already satisfies. <code>uhm</code> runs its own interactive installer (<code>uhmsetup.sh</code>): it reads pydhcp's network values from <code>pydhcp.env</code> automatically, then prompts for its own UniFi-specific settings (controller credentials, SSID, etc.) directly.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+     Este prompt sólo aparece si primero se detecta un controlador UniFi Network local — classic (paquete <code>dpkg</code> <code>unifi</code>) o unifi-os (<code>/var/lib/uosserver/server.conf</code>, basado en podman). Si no se detecta ninguno, el prompt se omite por completo — gateproxy no instala UniFi ni podman por sí mismo. Para instalar primero UniFi Network self-hosted / UniFi OS Server, use <a href="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/unifisetup.sh"><code>unifisetup.sh</code></a>, y luego vuelva a ejecutar gateproxy (o ejecute <code>uhmsetup.sh</code> directamente desde el repo de <a href="https://github.com/maravento/uhm">uhm</a>). Instala <b>uhm</b> (UniFi Hotspot Manager), que requiere tener pydhcp ya instalado y corriendo — requisito que la configuración base de gateproxy ya satisface. <code>uhm</code> ejecuta su propio instalador interactivo (<code>uhmsetup.sh</code>): lee automáticamente los valores de red de pydhcp desde <code>pydhcp.env</code>, y luego pregunta directamente por sus propios parámetros específicos de UniFi (credenciales del controlador, SSID, etc.).
     </td>
   </tr>
 </table>

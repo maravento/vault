@@ -6,16 +6,82 @@
 # Cloudflare Tunnel Service Manager (cftunnel)
 # Unified control script for multiple Cloudflare Tunnels
 #
-# Usage: cftunnel.sh {create|start|startall|stop|status}
+# Usage: cftunnel.sh {create|start|startall|stop|status|delete}
 #
 #   create     Create a new tunnel interactively (login, name, hostname, service)
 #   start      Start tunnels interactively (asks per tunnel)
 #   startall   Start all configured tunnels without prompts + enable cron autostart
 #   stop       Stop all running tunnels + remove cron autostart entry
 #   status     List active/inactive tunnels
+#   delete     Stop and permanently delete a tunnel (Cloudflare side + local config)
+#
+# FILE STRUCTURE:
+# ===============
+# ~/.cloudflared/
+#   ├── cert.pem                 # Authentication certificate
+#   ├── tunnel1.yml              # Tunnel configuration file
+#   ├── tunnel2.yml              # Another tunnel configuration
+#   ├── TUNNEL-ID.json           # Tunnel credentials
+#   ├── tunnel1.pid              # PID file for tunnel1
+#   ├── tunnel2.pid              # PID file for tunnel2
+#   └── tunnel1.log              # Log file for tunnel1
+#
+# PREREQUISITES:
+# ==============
+# 1. Install cloudflared (Debian/Ubuntu):
+#    sudo mkdir -p --mode=0755 /usr/share/keyrings
+#    curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+#    echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' | sudo tee /etc/apt/sources.list.d/cloudflared.list
+#    sudo apt-get update && sudo apt-get install cloudflared
+#
+# 2. Authenticate once (downloads cert.pem to ~/.cloudflared/):
+#    cloudflared tunnel login
+#
+# API TOKEN (optional, only needed to auto-remove DNS records on delete):
+# =========================================================================
+# cloudflared has no CLI command to delete a DNS route, so removing the
+# record left behind by 'cloudflared tunnel route dns' requires a scoped
+# Cloudflare API Token instead of cert.pem:
+#   1. dash.cloudflare.com -> profile icon -> My Profile -> API Tokens
+#   2. Create Token -> Create Custom Token
+#   3. Permissions: Zone -> DNS -> Edit
+#   4. Zone Resources: Include -> Specific zone -> your domain only
+#   5. (Recommended) set a TTL / client IP filter
+#   6. Create Token and copy it -> it is shown only once
+#   7. Paste it into the 'token_cloudflare' variable below (USER CONFIGURATION)
+#
+# USEFUL COMMANDS:
+# ================
+# cloudflared tunnel login                              # First-time authentication
+# cloudflared tunnel list                               # List all tunnels
+# cloudflared tunnel create TUNNEL_NAME                 # Create new tunnel
+# cloudflared tunnel run TUNNEL_NAME                    # Start specific tunnel
+# cloudflared tunnel route dns TUNNEL_NAME SUBDOMAIN    # Route DNS to tunnel
+# cloudflared tunnel cleanup TUNNEL_NAME                # Cleanup tunnel connections
+# cloudflared tunnel delete TUNNEL_NAME                 # Delete tunnel permanently
+#
+# RECOMMENDATION:
+# ===============
+# Use permanent tunnels for production services and temporary tunnels
+# only for quick testing and development purposes.
+#
+# Always protect every tunnel hostname (HTTP or 'tcp://' ingress alike)
+# with a Cloudflare Zero Trust Access Application + policy. Without it,
+# anyone who discovers the hostname can reach the exposed service — the
+# tunnel alone does not authenticate connections.
+#
+# Zero Trust -> Access Control -> Applications -> Create New Application
+#
+# For more information:
+# https://developers.cloudflare.com/cloudflare-one/connections/connect-apps
 ################################################################################
 
 set -uo pipefail
+
+### --- USER CONFIGURATION --- ###
+# Cloudflare API Token (Zone:DNS:Edit permission), only needed for 'delete'
+# to auto-remove the DNS record. Leave empty to skip automatic DNS deletion.
+token_cloudflare=""
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -117,6 +183,75 @@ get_tunnel_id() {
 _pid_is_valid() {
     local pid="$1"
     [[ -n "$pid" && "$pid" =~ ^[0-9]+$ ]]
+}
+
+# Deletes the DNS record for $1 (hostname) via the Cloudflare API.
+# Requires the 'token_cloudflare' variable (Zone:DNS:Edit) set above. Never
+# aborts the caller: missing token, missing zone, or missing record are all
+# reported and skipped.
+delete_dns_record() {
+    local hostname="$1"
+
+    if [[ -z "$hostname" ]]; then
+        echo "[WARN] No hostname found in config; skipping DNS record deletion."
+        return 0
+    fi
+
+    if [[ -z "$token_cloudflare" ]]; then
+        echo "[WARN] 'token_cloudflare' is not set; skipping automatic DNS deletion."
+        echo "[NOTE] Remove the DNS record for '$hostname' manually from the Cloudflare dashboard."
+        return 0
+    fi
+
+    local api_token="$token_cloudflare"
+    local zones_response
+    zones_response=$(curl -sf -X GET "https://api.cloudflare.com/client/v4/zones?per_page=50" \
+        -H "Authorization: Bearer $api_token" -H "Content-Type: application/json") || {
+        echo "[WARN] Could not reach Cloudflare API to list zones; skipping automatic DNS deletion."
+        return 0
+    }
+
+    # pick the zone whose name is the longest suffix match of $hostname
+    local zone_id=""
+    local zone_name=""
+    local candidate
+    while IFS=$'\t' read -r candidate cid; do
+        [[ -z "$candidate" ]] && continue
+        if [[ "$hostname" == "$candidate" || "$hostname" == *".$candidate" ]]; then
+            if [[ ${#candidate} -gt ${#zone_name} ]]; then
+                zone_name="$candidate"
+                zone_id="$cid"
+            fi
+        fi
+    done < <(echo "$zones_response" | gawk 'match($0,/"id":"[a-f0-9]+"/){id=substr($0,RSTART+6,RLENGTH-7)} match($0,/"name":"[^"]+"/){name=substr($0,RSTART+8,RLENGTH-9); if(id!="") print name"\t"id; id=""}' RS='}' ORS='\n')
+
+    if [[ -z "$zone_id" ]]; then
+        echo "[WARN] No matching Cloudflare zone found for '$hostname'; skipping automatic DNS deletion."
+        return 0
+    fi
+
+    local records_response
+    records_response=$(curl -sf -X GET "https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records?name=${hostname}" \
+        -H "Authorization: Bearer $api_token" -H "Content-Type: application/json") || {
+        echo "[WARN] Could not query DNS records for '$hostname'; skipping automatic DNS deletion."
+        return 0
+    }
+
+    local record_id
+    record_id=$(echo "$records_response" | gawk 'match($0,/"id":"[a-f0-9]+"/){print substr($0,RSTART+6,RLENGTH-7); exit}')
+
+    if [[ -z "$record_id" ]]; then
+        echo "[OK] No DNS record found for '$hostname' (already removed or never created)."
+        return 0
+    fi
+
+    echo "Deleting DNS record for '$hostname' (zone: $zone_name)..."
+    if curl -sf -X DELETE "https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records/${record_id}" \
+        -H "Authorization: Bearer $api_token" -H "Content-Type: application/json" >/dev/null; then
+        echo "[OK] DNS record for '$hostname' deleted."
+    else
+        echo "[WARN] Failed to delete DNS record for '$hostname'; remove it manually from the dashboard."
+    fi
 }
 
 start_tunnel() {
@@ -343,7 +478,7 @@ create_tunnel() {
 
     local credentials_file="$CONFIG_DIR/${tunnel_id}.json"
 
-    local hostname service
+    local hostname service no_tls_verify
     read -r -p "Public hostname (e.g. sub.domain.com): " hostname
     read -r -p "Local service (e.g. http://localhost:8080): " service
 
@@ -352,14 +487,28 @@ create_tunnel() {
         return 1
     fi
 
-    cat > "$config_file" <<EOF
-tunnel: $tunnel_id
-credentials-file: $credentials_file
+    no_tls_verify=""
+    if [[ "$service" == https://* ]]; then
+        local tls_answer
+        read -r -p "Origin uses a self-signed certificate? [y/N]: " tls_answer
+        if [[ "$tls_answer" =~ ^[Yy]$ ]]; then
+            no_tls_verify="yes"
+        fi
+    fi
 
-ingress:
-  - hostname: $hostname
-    service: $service
-  - service: http_status:404
+    {
+        echo "tunnel: $tunnel_id"
+        echo "credentials-file: $credentials_file"
+        echo ""
+        echo "ingress:"
+        echo "  - hostname: $hostname"
+        echo "    service: $service"
+        if [[ "$no_tls_verify" == "yes" ]]; then
+            echo "    originRequest:"
+            echo "      noTLSVerify: true"
+        fi
+        echo "  - service: http_status:404"
+    } > "$config_file"
 EOF
 
     echo "[OK] Config file created: $config_file"
@@ -473,6 +622,75 @@ status_all_tunnels() {
     done
 }
 
+delete_tunnel() {
+    echo "Cloudflare Tunnel - Delete Tunnel"
+    echo "=================================="
+    echo ""
+
+    local tunnels=()
+    mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
+
+    if [[ ${#tunnels[@]} -eq 0 ]]; then
+        echo "[ERROR] No tunnel configuration files found in $CONFIG_DIR/"
+        return 1
+    fi
+
+    echo "Detected tunnel(s):"
+    for i in "${!tunnels[@]}"; do
+        echo "  $((i+1)). ${tunnels[i]}"
+    done
+    echo ""
+
+    local tunnel_name
+    read -r -p "Tunnel name or number to delete: " tunnel_name
+    if [[ -z "$tunnel_name" ]]; then
+        echo "[ERROR] Tunnel name cannot be empty."
+        return 1
+    fi
+
+    if [[ "$tunnel_name" =~ ^[0-9]+$ ]]; then
+        local index=$((tunnel_name - 1))
+        if [[ $index -lt 0 || $index -ge ${#tunnels[@]} ]]; then
+            echo "[ERROR] Invalid selection: $tunnel_name"
+            return 1
+        fi
+        tunnel_name="${tunnels[$index]}"
+    fi
+
+    local config_file="$CONFIG_DIR/${tunnel_name}.yml"
+    if [[ ! -f "$config_file" ]]; then
+        echo "[ERROR] Config file does not exist: $config_file"
+        return 1
+    fi
+
+    local confirm
+    echo "[WARNING] This will stop and permanently delete tunnel '$tunnel_name' (Cloudflare side + local config)."
+    read -r -p "Continue? (y/n): " confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "Aborted."
+        return 0
+    fi
+
+    local tunnel_id hostname
+    tunnel_id=$(get_tunnel_id "$config_file")
+    hostname=$(grep "hostname:" "$config_file" | head -1 | awk '{print $3}')
+
+    stop_tunnel "$tunnel_name"
+
+    echo "Running: cloudflared tunnel delete $tunnel_name"
+    if ! "$CLOUDFLARED_BIN" tunnel delete "$tunnel_name" 2>&1; then
+        echo "[WARN] 'cloudflared tunnel delete' failed. Retrying with --force..."
+        "$CLOUDFLARED_BIN" tunnel delete -f "$tunnel_name" 2>&1
+    fi
+
+    delete_dns_record "$hostname"
+
+    rm -f "$config_file" "$CONFIG_DIR/${tunnel_name}.pid" "$CONFIG_DIR/${tunnel_name}.log"
+    [[ -n "$tunnel_id" ]] && rm -f "$CONFIG_DIR/${tunnel_id}.json"
+
+    echo "[OK] Tunnel '$tunnel_name' deleted."
+}
+
 _cron_remove() {
     local script_path="$1"
     if crontab -l 2>/dev/null | grep -qF "$script_path"; then
@@ -525,8 +743,11 @@ case "$ACTION" in
     status)
         status_all_tunnels
         ;;
+    delete)
+        delete_tunnel
+        ;;
     *)
-        echo "Usage: $0 {create|start|startall|stop|status}"
+        echo "Usage: $0 {create|start|startall|stop|status|delete}"
         echo ""
         echo "Examples:"
         echo "  $0 create                   # Create a new tunnel interactively"
@@ -534,6 +755,7 @@ case "$ACTION" in
         echo "  $0 startall                 # Start all tunnels and enable autostart"
         echo "  $0 stop                     # Stop all tunnels and remove autostart"
         echo "  $0 status                   # Show status of all tunnels"
+        echo "  $0 delete                   # Delete a tunnel (stop + remove from Cloudflare + local config)"
         exit 1
         ;;
 esac

@@ -1221,6 +1221,72 @@ log "OK"
 
 upgrade
 
+### UHM ###
+# UniFi Hotspot Manager (optional, requires pydhcp already installed above).
+# Only prompted if a local UniFi Network controller is actually detected --
+# classic (dpkg package "unifi") or unifi-os (/var/lib/uosserver, podman-based).
+# gateproxy does not install UniFi/podman itself. To install UniFi Network
+# self-hosted / UniFi OS Server first, use unifisetup.sh:
+# https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/unifisetup.sh
+echo -e "\n"
+UNIFI_DETECTED_TYPE=""
+if dpkg-query -W -f='${Version}' unifi >/dev/null 2>&1; then
+    UNIFI_DETECTED_TYPE="classic"
+elif [ -f /var/lib/uosserver/server.conf ]; then
+    UNIFI_DETECTED_TYPE="unifi-os"
+fi
+
+if [ -n "$UNIFI_DETECTED_TYPE" ]; then
+    log "UniFi Network controller detected ($UNIFI_DETECTED_TYPE)."
+    while true; do
+        read -r -p "Se ha detectado UniFi ($UNIFI_DETECTED_TYPE). Desea instalar UniFi Hotspot Manager (uhm)? (y/n)" answer
+
+        case "$answer" in
+        [Yy]*)
+            if (cd "$gp_path" && git clone https://github.com/maravento/uhm); then
+                uhm_path="$gp_path/uhm"
+
+                if [ -d "$uhm_path" ]; then
+                    if cd "$uhm_path"; then
+                        log "Launching uhm installer (interactive)..."
+                        if bash uhmsetup.sh; then
+                            log "uhm installed OK"
+                        else
+                            log "WARNING: uhmsetup.sh failed. Skipping uhm installation."
+                        fi
+                        cd "$gp_path"
+                    else
+                        log "WARNING: Cannot enter uhm directory. Skipping uhm installation."
+                    fi
+                else
+                    log "WARNING: uhm directory not found. Skipping uhm installation."
+                fi
+            else
+                log "WARNING: Failed to clone uhm. Skipping uhm installation."
+            fi
+            break
+            ;;
+
+        [Nn]*|"")
+            # default on empty ENTER
+            log "NO"
+            break
+            ;;
+
+        *)
+            echo
+            log "Answer: YES (y) or NO (n)"
+            ;;
+        esac
+    done
+else
+    log "No UniFi Network controller detected (classic or unifi-os). Skipping uhm prompt."
+    log "To install UniFi Network self-hosted / UniFi OS Server first, use unifisetup.sh (see README)."
+fi
+log "OK"
+
+upgrade
+
 ### ACLs ###
 echo -e "\n"
 log "Downloading ACLs..."
