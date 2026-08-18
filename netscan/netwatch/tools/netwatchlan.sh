@@ -173,7 +173,7 @@ wait_for_interfaces() {
         sleep 5
     done
 
-    log "WARNING: not all interfaces came up after $max_attempts attempts, starting anyway"
+    log "WARNING: not all interfaces up after $max_attempts tries, continuing"
     return 0
 }
 
@@ -216,7 +216,7 @@ run_scan() {
         while IFS=$'\t' read -r ip mac vendor; do
             [ -z "$ip" ] && continue
             [ -z "$mac" ] && continue
-            mac=$(echo "$mac" | tr 'A-F' 'a-f')
+            mac="${mac,,}"
             # a device answering on more than one configured interface appears
             # once per interface: record it once per cycle (first one wins)
             [ -n "${seen_macs[$mac]:-}" ] && continue

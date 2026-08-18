@@ -296,7 +296,7 @@ poll_target() {
     ports_field=$(printf '%s\n' "$nmap_out" | grep '^Host:' | sed -n 's/.*Ports: //p')
 
     if [ -z "$ports_field" ]; then
-        log "WARNING: nmap returned no port data for target '$target' (host may be down/unreachable)"
+        log "WARNING: no port data for '$target' (host down/unreachable)"
         return
     fi
 

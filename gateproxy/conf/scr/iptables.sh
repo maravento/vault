@@ -71,16 +71,9 @@ _UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9
 _UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
 _UH_DNS='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(,(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9]))*$'
 _UH_UINT='^(0|[1-9][0-9]*)$'
+_UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+_UH_MAC='^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$'
 _UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5 252.0.0.0:6 254.0.0.0:7 255.0.0.0:8 255.128.0.0:9 255.192.0.0:10 255.224.0.0:11 255.240.0.0:12 255.248.0.0:13 255.252.0.0:14 255.254.0.0:15 255.255.0.0:16 255.255.128.0:17 255.255.192.0:18 255.255.224.0:19 255.255.240.0:20 255.255.248.0:21 255.255.252.0:22 255.255.254.0:23 255.255.255.0:24 255.255.255.128:25 255.255.255.192:26 255.255.255.224:27 255.255.255.240:28 255.255.255.248:29 255.255.255.252:30 255.255.255.254:31 255.255.255.255:32'
-
-# MAC/IP validation before feeding external ACL data into ipset
-is_valid_mac() {
-    [[ "$1" =~ ^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$ ]]
-}
-
-is_valid_ip() {
-    [[ "$1" =~ $_UH_IPV4 ]]
-}
 
 is_valid_port() {
     [[ "$1" =~ $_UH_UINT ]] && (( $1 <= 65535 ))
@@ -96,7 +89,7 @@ PYDHCP_ENV="/etc/pydhcp/pydhcp.env"
 
 load_env_file() {
     local file="$1" line key value
-    [[ ! -f "$file" ]] && { log "WARNING: $file not found -- using built-in defaults"; return 1; }
+    [[ ! -f "$file" ]] && { log "WARNING: $file not found -- using defaults"; return 1; }
     while IFS= read -r line || [ -n "$line" ]; do
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
         [[ "$line" =~ ^[[:space:]]*$ ]] && continue
@@ -150,7 +143,8 @@ path_macs="$acl_ipt_path/dhcp_mac.txt"
 
 for f in "$mac_proxy_file" "$mac_unlimited_file" "$blockports_file" "$dhcp_conf"; do
     if [ ! -f "$f" ]; then
-        log "ERROR: required file not found: $f"
+        log "ERROR: required file not found:"
+        log "ERROR: $f"
         exit 1
     fi
 done
@@ -470,7 +464,7 @@ create_acl() {
         ip="$1"
         shift
         # Add MAC+IP to set
-        is_valid_mac "$mac" && is_valid_ip "$ip" && ipset add macip "$ip,$mac" -exist
+        [[ "$mac" =~ $_UH_MAC ]] && [[ "$ip" =~ $_UH_IPV4 ]] && ipset add macip "$ip,$mac" -exist
         ips="$ips\n$ip"
         macs="$macs\n$mac"
     done
@@ -501,11 +495,12 @@ if [ -n "$mac2ip" ]; then
     for ((_arp_i=0; _arp_i<${#mac2ip_args[@]}; _arp_i+=2)); do
         _arp_mac="${mac2ip_args[_arp_i]}"
         _arp_ip="${mac2ip_args[_arp_i+1]}"
-        is_valid_mac "$_arp_mac" && is_valid_ip "$_arp_ip" && \
+        [[ "$_arp_mac" =~ $_UH_MAC ]] && [[ "$_arp_ip" =~ $_UH_IPV4 ]] && \
             { arptables -A INPUT -i "$lan" --source-ip "$_arp_ip" ! --source-mac "$_arp_mac" -j DROP || true; }
     done
 else
-    log "WARNING: No static DHCP entries found in $dhcp_conf; macip binding skipped"
+    log "WARNING: No static DHCP entries in $dhcp_conf"
+    log "WARNING: macip binding skipped"
 fi
 
 # MACUNLIMITED (MAC + IP for Access Points, Switch, etc.)
@@ -515,7 +510,7 @@ else
     ipset flush macunlimited
 fi
 for mac in $(awk -F";" '$1 == "a" && $2 != "" {print $2}' "$mac_unlimited_file" 2>/dev/null); do
-    is_valid_mac "$mac" && ipset add macunlimited "$mac" -exist
+    [[ "$mac" =~ $_UH_MAC ]] && ipset add macunlimited "$mac" -exist
 done
 iptables -t nat -A PREROUTING -i "$lan" -m set --match-set macunlimited src -j ACCEPT
 iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macunlimited src -j ACCEPT
@@ -587,10 +582,11 @@ else
 fi
 if [ -f "$suridatalst" ]; then
     for suridataip in $(grep -vE '^\s*#|^\s*$' "$suridatalst" | sort -u 2>/dev/null); do
-        is_valid_ip "$suridataip" && ipset add suridata "$suridataip" -exist
+        [[ "$suridataip" =~ $_UH_IPV4 ]] && ipset add suridata "$suridataip" -exist
     done
 else
-    log "WARNING: $suridatalst not found -- skipping suridata"
+    log "WARNING: $suridatalst not found"
+    log "WARNING: skipping suridata"
 fi
 iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set suridata dst -j NFLOG --nflog-prefix "SURIDATA DROP: "
 iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set suridata dst -j DROP
@@ -671,7 +667,7 @@ else
     ipset flush macports
 fi
 for mac in $(awk -F";" '$1 == "a" && $2 != "" {print $2}' "$acl_mac_path"/mac-*.txt 2>/dev/null); do
-    is_valid_mac "$mac" && ipset add macports "$mac" -exist
+    [[ "$mac" =~ $_UH_MAC ]] && ipset add macports "$mac" -exist
 done
 
 # WARNING PAGE HTTP FOR BANDATA (TCP 18081)
@@ -729,7 +725,7 @@ else
     ipset flush macproxy
 fi
 for mac in $(awk -F";" '$1 == "a" && $2 != "" {print $2}' "$mac_proxy_file" 2>/dev/null); do
-    is_valid_mac "$mac" && ipset add macproxy "$mac" -exist
+    [[ "$mac" =~ $_UH_MAC ]] && ipset add macproxy "$mac" -exist
 done
 iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macproxy src -p tcp -m multiport --dports 18100,80,$squid_port -j ACCEPT
 iptables -t nat -A PREROUTING -i "$lan" -p tcp --dport 80 -m set --match-set macproxy src -j REDIRECT --to-port "$squid_intercept_port"
@@ -742,10 +738,11 @@ for _cf in "$acl_mac_path"/mac-*.txt; do
     [ -f "$_cf" ] || continue
     while IFS=';' read -r _cstatus _cmac _crest; do
         [ "$_cstatus" = "a" ] || continue
-        is_valid_mac "$_cmac" || continue
-        _cmac_lc=$(tr 'A-F' 'a-f' <<< "$_cmac")
+        [[ "$_cmac" =~ $_UH_MAC ]] || continue
+        _cmac_lc="${_cmac,,}"
         grep -qxF "$_cmac_lc" <<< "$mac2ip_macs" || \
-            log "WARNING: $_cmac ($(basename "$_cf")) has no static reservation in pydhcpd.conf -- MACCHECK will drop its traffic until pyleases.sh runs or the reservation is added manually"
+            log "WARNING: $_cmac ($(basename "$_cf")) has no static reservation"
+            log "WARNING: MACCHECK drops it until pyleases.sh runs or it's added manually"
     done < "$_cf"
 done
 

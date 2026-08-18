@@ -104,7 +104,8 @@ done
 if ((net_ready)); then
     log "Network ready."
 else
-    log "WARNING: network not ready after 10 retries ($iface_count/$required interfaces UP) - aborting serverboot"
+    log "WARNING: network not ready after 10 retries"
+    log "WARNING: ($iface_count/$required interfaces UP) - aborting "
     while IFS= read -r iface; do
         [[ -n "$iface" ]] && log "$iface"
     done <<< "$iface_list"

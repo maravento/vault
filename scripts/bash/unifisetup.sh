@@ -93,15 +93,13 @@ os_check() {
     . /etc/os-release
 
     if [ "${ID:-}" != "ubuntu" ]; then
-        log "WARNING: This script targets Ubuntu (detected: ${ID:-unknown}) -- continuing at your own risk"
+        log "WARNING: This script targets Ubuntu (detected: ${ID:-unknown})"
+        log "WARNING: continuing at your own risk"
     fi
 
-    local version_major version_minor
-    version_major="$((10#$(echo "${VERSION_ID:-0}" | cut -d'.' -f1)))"
-    version_minor="$((10#$(echo "${VERSION_ID:-0}" | cut -d'.' -f2)))"
-
-    if [ "${version_major}" -lt "${MIN_MAJOR}" ] || { [ "${version_major}" -eq "${MIN_MAJOR}" ] && [ "${version_minor}" -lt "$((10#$MIN_MINOR))" ]; }; then
-        log "WARNING: Untested below Ubuntu ${MIN_MAJOR}.${MIN_MINOR} (detected ${VERSION_ID:-unknown}) -- continuing at your own risk"
+    if [ "$(printf '%s\n' "${VERSION_ID:-0}" "${MIN_MAJOR}.${MIN_MINOR}" | sort -V | head -n1)" != "${MIN_MAJOR}.${MIN_MINOR}" ]; then
+        log "WARNING: Untested below Ubuntu ${MIN_MAJOR}.${MIN_MINOR}"
+        log "WARNING: (detected ${VERSION_ID:-unknown}) continuing at your own risk"
     fi
 
     os_codename="${VERSION_CODENAME:-noble}"
@@ -371,7 +369,8 @@ action_update_network() {
         log "UniFi Network already up to date (v${installed_network_version})"
         return 0
     fi
-    log "Updating UniFi Network: ${installed_network_version} -> ${latest_network_version}"
+    log "Updating UniFi Network:"
+    log "${installed_network_version} -> ${latest_network_version}"
     install_network "${latest_network_version}" "${latest_network_url}"
 }
 

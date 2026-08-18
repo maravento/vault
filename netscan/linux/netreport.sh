@@ -656,7 +656,8 @@ case "$opt" in
     html_file="${report_dir}/scan_ip_${TS}.html"
 
     log "Starting IP/Host Scan on: $target"
-    log "This scan covers all ports and includes vulnerability detection. May take 20-30 minutes..."
+    log "This scan covers all ports and includes vulnerability detection."
+    log "May take 20-30 minutes..."
 
     # Full scan: all 65535 ports, OS detection, version intensity, vuln scripts and traceroute
     nmap -Pn -sS -T4 -p- -sV --version-intensity 8 -sC -O \

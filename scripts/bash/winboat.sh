@@ -113,7 +113,7 @@ install_winboat() {
 
     # Step 2: Install FreeRDP
     echo "[2/4] Installing FreeRDP3..."
-    
+
     # Check and remove Ubuntu repository version if installed (conflicts with Flatpak)
     if dpkg -l | grep -q freerdp3-x11; then
         echo "Found freerdp3-x11 from Ubuntu repository. Removing to avoid conflicts..."
@@ -121,16 +121,16 @@ install_winboat() {
         apt-get autoremove -y || true
         echo "Ubuntu repository version removed"
     fi
-    
+
     # Install FreeRDP from Flatpak (fixes bugs present in Ubuntu 24.04 repository version)
     if ! flatpak list 2>/dev/null | grep -q "com.freerdp.FreeRDP"; then
         echo "Installing Flatpak if not present..."
         apt-get update
         apt-get install -y flatpak
-        
+
         echo "Adding Flathub repository..."
         flatpak remote-add --if-not-exists --system flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
-        
+
         echo "Installing FreeRDP from Flatpak..."
         flatpak install --system -y flathub com.freerdp.FreeRDP
         echo "FreeRDP3 installed successfully from Flatpak"
@@ -144,7 +144,7 @@ install_winboat() {
     if ! command -v winboat &> /dev/null; then
         echo "Fetching latest Winboat release..."
         DEB_URL=$(curl -s https://api.github.com/repos/TibixDev/winboat/releases/latest | grep -oP '"browser_download_url": "\K[^"]*\.deb')
-        
+
         if [ -z "$DEB_URL" ]; then
             echo "Error: Could not fetch Winboat download URL"
             exit 1
@@ -153,12 +153,12 @@ install_winboat() {
         echo "Downloading Winboat..."
         WINBOAT_DEB=$(mktemp /tmp/winboat.XXXXXX.deb)
         wget -q --timeout=30 --show-progress "$DEB_URL" -O "$WINBOAT_DEB"
-        
+
         echo "Installing Winboat package..."
         dpkg -i "$WINBOAT_DEB"
         apt-get install -f -y
         rm -f "$WINBOAT_DEB"
-        
+
         echo "Winboat installed successfully!"
     else
         echo "Winboat is already installed. Skipping..."
@@ -184,7 +184,7 @@ install_winboat() {
 uninstall_winboat() {
     echo "=== Uninstalling Winboat ==="
     printf "\n"
-    
+
     echo "WARNING: This will remove:"
     echo "  - Winboat application"
     echo "  - Docker containers and volumes"
@@ -221,7 +221,7 @@ uninstall_winboat() {
     else
         echo "No Winboat containers found"
     fi
-    
+
     # Remove Winboat Docker volumes
     WINBOAT_VOLUMES=$(docker volume ls --format "{{.Name}}" 2>/dev/null | grep -i winboat)
     if [ -n "$WINBOAT_VOLUMES" ]; then
@@ -237,7 +237,7 @@ uninstall_winboat() {
         apt-get purge -y winboat || true
         apt-get autoremove -y || true
         apt-get clean || true
-        
+
         # Remove configuration files
         if [ -n "$local_user" ] && [ "$local_user" != "root" ]; then
             rm -rf "/home/$local_user/.config/winboat" || true
@@ -263,7 +263,7 @@ uninstall_winboat() {
     # Step 5: Ask to remove dependencies
     echo "[5/5] Cleaning up dependencies..."
     printf "\n"
-    
+
     read -p "Do you want to remove FreeRDP3? (y/n): " remove_freerdp
     case $remove_freerdp in
         [Yy]*)
@@ -295,7 +295,7 @@ uninstall_winboat() {
             ;;
     esac
     printf "\n"
-    
+
     echo "=== Winboat uninstallation completed ==="
 }
 

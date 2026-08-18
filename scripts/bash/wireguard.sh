@@ -106,7 +106,7 @@ PrivateKey = $SERVER_PRIVATE_KEY
 PostUp = iptables -I FORWARD -i wg0 -j ACCEPT; iptables -t nat -I POSTROUTING -o $public_eth -j MASQUERADE
 PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o $public_eth -j MASQUERADE
 
-# This is an example. Each client should add their own public key and IP address. 
+# This is an example. Each client should add their own public key and IP address.
 # Uncomment these lines for clients and replace the values
 #[Peer]
 # PublicKey = <Client's Public Key>
@@ -133,7 +133,7 @@ EOL
 
     # Enable WireGuard service
     systemctl enable wg-quick@wg0
-    
+
     # port
     if command -v ufw &>/dev/null; then
         ufw allow 51820/udp
@@ -210,7 +210,7 @@ uninstall_wireguard() {
 
     # Clean up unneeded packages
     apt autoremove -y
-    
+
     # Delete configuration files and keys
     rm -rf /etc/wireguard
 

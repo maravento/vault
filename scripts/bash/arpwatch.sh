@@ -6,9 +6,9 @@
 # ARP Watch
 # Usage: sudo ./arpwatch.sh start | stop | status
 # To exclude MAC addresses, list them in: /etc/arpwatch/exclude.txt
-# Global log (all interfaces, ignoring exclude.txt): 
+# Global log (all interfaces, ignoring exclude.txt):
 #   /var/log/arpwatch/arpwatch.log
-# To uninstall: 
+# To uninstall:
 #   sudo apt remove --purge arpwatch
 #   sudo rm -rf /etc/arpwatch /var/log/arpwatch
 #

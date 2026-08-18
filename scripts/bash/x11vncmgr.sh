@@ -4,7 +4,7 @@
 ################################################################################
 #
 # x11vncmgr.sh
-# Manages x11vnc as a systemd service: 
+# Manages x11vnc as a systemd service:
 # install, uninstall, start, stop, status, restart
 # Must be run as root (sudo)
 #

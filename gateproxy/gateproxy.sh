@@ -47,7 +47,8 @@ check_conflicts() {
     done
     if [ "${#found[@]}" -gt 0 ]; then
         log "ERROR: Conflicting $role package(s) already installed: ${found[*]}"
-        log "ERROR: gateproxy installs its own $role stack. Remove them first: apt purge -y ${found[*]}"
+        log "ERROR: gateproxy installs its own $role stack."
+        log "ERROR: Remove them first: apt purge -y ${found[*]}"
         exit 1
     fi
 }
@@ -147,7 +148,8 @@ if [ "$UBUNTU_ID" != "ubuntu" ]; then
     log "WARNING: Unsupported OS $UBUNTU_ID (Ubuntu only) -- continuing at your own risk"
 fi
 if [ "$(printf '%s\n' "$UBUNTU_VERSION" "24.04" | sort -V | head -n1)" != "24.04" ]; then
-    log "WARNING: Ubuntu $UBUNTU_VERSION below min supported 24.04 -- continuing at your own risk"
+    log "WARNING: Ubuntu $UBUNTU_VERSION"
+    log "WARNING: below min supported 24.04 continuing at your own risk"
 elif [ "$UBUNTU_VERSION" != "24.04" ]; then
     log "WARNING: Ubuntu $UBUNTU_VERSION untested (min: 24.04)"
 fi
@@ -431,7 +433,8 @@ while true; do
                 # rule (see "Block Windows ICS network range"); a server IP in that
                 # range would have its own LAN traffic dropped by that rule.
                 if [[ "$serveripNEW" == 192.168.137.* ]]; then
-                    log "IP $serveripNEW is in 192.168.137.0/24, reserved for the Windows ICS block rule -- choose a different range"
+                    log "IP $serveripNEW is in 192.168.137.0/24 (Windows ICS block range)"
+                    log "choose a different range"
                     continue
                 fi
                 SERVER_IP="$serveripNEW"
@@ -745,7 +748,7 @@ retry_cmd nala install -y mesa-utils libfontconfig1
 
 # RUNTIME LIBRARIES
 retry_cmd nala install -y libuser gir1.2-gtop-2.0
-    
+
 # MAIL
 service sendmail stop &>/dev/null || true
 update-rc.d -f sendmail remove &>/dev/null || true
@@ -757,7 +760,7 @@ retry_cmd nala install -y fonts-lato fonts-liberation fonts-dejavu
 echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
 retry_cmd nala install -y ttf-mscorefonts-installer fontconfig
 fc-cache -f
-    
+
 log "OK"
 sleep 1
 
@@ -826,7 +829,7 @@ sed -i \
   -e 's/^\s*;*\s*opcache.memory_consumption\s*=.*/opcache.memory_consumption = 256/' \
   -e 's/^\s*;*\s*realpath_cache_size\s*=.*/realpath_cache_size = 16M/' \
   /etc/php/$PHP_VERSION/apache2/php.ini
-  
+
 # HTTP SERVER SECTION
 # apache2
 retry_cmd nala install -y apache2 apache2-doc apache2-utils apache2-dev \
@@ -850,7 +853,7 @@ sed -i \
   -e 's/^\(MaxConnectionsPerChild[[:space:]]*\)0/\11000/' \
   /etc/apache2/mods-available/mpm_prefork.conf
 
-# Enable modules  
+# Enable modules
 a2dismod -q mpm_event || true
 a2enmod -q mpm_prefork || true
 a2enmod -q "php${PHP_VERSION}" || true
@@ -887,7 +890,7 @@ sed -i 's/rotate 2/rotate 7/' /etc/logrotate.d/squid
 sed -i 's/^	daily$/	monthly/' /etc/logrotate.d/squid
 # Let's Encrypt certificate for client to Squid proxy encryption (Optional)
 #nala install -y certbot python3-certbot-apache
-    
+
 # ADMIN SECTION
 # webmin
 # https://www.maravento.com/2019/06/instalar-modulo-webmin-por-linea-de.html
@@ -1020,7 +1023,7 @@ else
     log "WARNING: Failed to clone pydhcp. Skipping pydhcp installation."
 fi
 
-# LOGS SECTION 
+# LOGS SECTION
 # ulog2
 # https://www.maravento.com/2014/07/registros-iptables.html
 chown root:root /var/log
@@ -1033,8 +1036,8 @@ log "Ulog Access: /var/log/ulog/syslogemu.log"
 # in case fails: nala install -y libfastjson4
 retry_cmd nala install -y rsyslog
 systemctl enable rsyslog.service
-    
-# BACKUP SECTION 
+
+# BACKUP SECTION
 # Timeshift
 retry_cmd nala install -y timeshift
 # FreeFileSync
@@ -1108,7 +1111,7 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
             touch /var/log/suricata/suricatacron.log
             chown root:root /var/log/suricata/suricatacron.log
             chmod 640 /var/log/suricata/suricatacron.log
-        fi        
+        fi
         cp -f "$gp_path/conf/pack/suricata/"{suricataupdate,suricataclean,suridata}.sh /etc/suricata/
         chmod +x /etc/suricata/{suricataupdate,suricataclean,suridata}.sh
         # suricata ratio
@@ -1281,7 +1284,8 @@ if [ -n "$UNIFI_DETECTED_TYPE" ]; then
     done
 else
     log "No UniFi Network controller detected (classic or unifi-os). Skipping uhm prompt."
-    log "To install UniFi Network self-hosted / UniFi OS Server first, use unifisetup.sh (see README)."
+    log "To install UniFi Network self-hosted / UniFi OS Server first,"
+    log "use unifisetup.sh (check README)."
 fi
 log "OK"
 

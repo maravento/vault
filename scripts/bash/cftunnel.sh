@@ -125,6 +125,16 @@ CONFIG_DIR="$USER_HOME/.cloudflared"
 CLOUDFLARED_BIN="$(command -v cloudflared)"
 mkdir -p "$CONFIG_DIR"
 
+### --- VALIDATION --- ###
+# VALIDATION -- one variable per thing validated; use directly with =~
+_UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+_UH_UINT='^(0|[1-9][0-9]*)$'
+_UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+
+is_valid_port() {
+    [[ "$1" =~ $_UH_UINT ]] && (( $1 >= 1 && $1 <= 65535 ))
+}
+
 ### --- FUNCTIONS --- ###
 
 preflight_check() {
@@ -478,14 +488,45 @@ create_tunnel() {
 
     local credentials_file="$CONFIG_DIR/${tunnel_id}.json"
 
-    local hostname service no_tls_verify
-    read -r -p "Public hostname (e.g. sub.domain.com): " hostname
-    read -r -p "Local service (e.g. http://localhost:8080): " service
+    local hostname service no_tls_verify service_type svc_ip svc_port domain
+    while true; do
+        read -r -p "Public hostname (e.g. sub.domain.com): " hostname
+        if [[ -z "$hostname" ]]; then
+            echo "[ERROR] Hostname is required. Aborting."
+            return 1
+        fi
+        if [[ ! "$hostname" =~ $_UH_FQDN ]]; then
+            echo "[WARNING] Invalid hostname format: '$hostname'"
+            continue
+        fi
+        domain="${hostname#*.}"
+        if ! getent hosts "$domain" >/dev/null 2>&1; then
+            echo "[WARNING] Invalid domain: '$domain'"
+            continue
+        fi
+        break
+    done
 
-    if [[ -z "$hostname" || -z "$service" ]]; then
-        echo "[ERROR] Hostname and service are required."
-        return 1
-    fi
+    read -r -p "Service type (http/https/tcp): " service_type
+    case "$service_type" in
+        http|https|tcp)
+            read -r -p "Server IP: " svc_ip
+            if [[ ! "$svc_ip" =~ $_UH_IPV4 ]]; then
+                echo "[ERROR] Invalid IP: '$svc_ip'"
+                return 1
+            fi
+            read -r -p "Port: " svc_port
+            if ! is_valid_port "$svc_port"; then
+                echo "[ERROR] Invalid port: '$svc_port'"
+                return 1
+            fi
+            service="${service_type}://${svc_ip}:${svc_port}"
+            ;;
+        *)
+            echo "[ERROR] Invalid service type: $service_type"
+            return 1
+            ;;
+    esac
 
     no_tls_verify=""
     if [[ "$service" == https://* ]]; then
@@ -532,7 +573,7 @@ start_multiple_tunnels() {
     echo "Cloudflare Tunnel - Start Multiple Tunnels"
     echo "============================================"
     echo ""
-    
+
     if ! preflight_check; then
         return 1
     fi
@@ -701,7 +742,31 @@ _cron_remove() {
 }
 
 ### --- MAIN --- ###
-ACTION="$1"
+ACTION="${1:-}"
+
+if [[ -z "$ACTION" ]]; then
+    echo "Cloudflare Tunnel Service Manager (cftunnel)"
+    echo "============================================="
+    echo "  1. create    - Create a new tunnel interactively"
+    echo "  2. start     - Start tunnels interactively"
+    echo "  3. startall  - Start all tunnels and enable autostart"
+    echo "  4. stop      - Stop all tunnels and remove autostart"
+    echo "  5. status    - Show status of all tunnels"
+    echo "  6. delete    - Delete a tunnel"
+    echo "  0. exit"
+    echo ""
+    read -r -p "Select an option: " menu_choice
+    case "$menu_choice" in
+        1) ACTION="create" ;;
+        2) ACTION="start" ;;
+        3) ACTION="startall" ;;
+        4) ACTION="stop" ;;
+        5) ACTION="status" ;;
+        6) ACTION="delete" ;;
+        0) exit 0 ;;
+        *) echo "[ERROR] Invalid option: $menu_choice"; exit 1 ;;
+    esac
+fi
 
 case "$ACTION" in
     create)

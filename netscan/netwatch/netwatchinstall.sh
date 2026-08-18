@@ -406,13 +406,15 @@ PMODE
     if [ -n "$SERVER_IP" ]; then
         printf 'Listen %s:%s\nListen 127.0.0.1:%s\n' "$SERVER_IP" "$VHOST_PORT" "$VHOST_PORT" | tee -a /etc/apache2/ports.conf
     else
-        log "WARNING: Could not detect server IP. Web panel will listen on all interfaces (0.0.0.0:${VHOST_PORT})."
+        log "WARNING: Could not detect server IP."
+        log "WARNING: Web panel will listen on all interfaces (0.0.0.0:${VHOST_PORT})."
         echo "Listen 0.0.0.0:${VHOST_PORT}" | tee -a /etc/apache2/ports.conf
     fi
     if [ -n "$NET_CIDR" ]; then
         sed "s|192.168.0.0/24|${NET_CIDR}|" "$WEB_DIR/netwatch.conf" > /etc/apache2/sites-available/netwatch.conf
     else
-        log "WARNING: Could not detect LAN CIDR. netwatch.conf keeps the example 192.168.0.0/24 -- edit it manually."
+        log "WARNING: Could not detect LAN CIDR."
+        log "WARNING: netwatch.conf keeps 192.168.0.0/24, edit manually."
         cp -f "$WEB_DIR/netwatch.conf" /etc/apache2/sites-available/netwatch.conf
     fi
     a2ensite -q netwatch.conf

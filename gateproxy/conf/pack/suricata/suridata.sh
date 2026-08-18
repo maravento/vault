@@ -89,10 +89,6 @@ SIDS_FILE="/var/lib/suricata/suridata.sids"
 ACL_IPT_PATH="/etc/acl/acl_ipt"
 OUT_FILE="$ACL_IPT_PATH/suridata.txt"
 
-is_valid_ip() {
-    [[ "$1" =~ $_UH_IPV4 ]]
-}
-
 for f in "$RULES_FILE" "$EVE_LOG"; do
     if [ ! -f "$f" ]; then
         log "ERROR: required file not found: $f"
@@ -105,7 +101,8 @@ touch "$OUT_FILE"
 # -- Step 1: SIDs currently resolved to "drop" by suricata-update ------------
 mapfile -t DROP_SIDS < <(grep '^drop ' "$RULES_FILE" 2>/dev/null | grep -oP 'sid:\K\d+' | sort -u)
 if [ "${#DROP_SIDS[@]}" -eq 0 ]; then
-    log "WARNING: no drop-action SIDs found in $RULES_FILE -- nothing to match, skipping this run"
+    log "WARNING: no drop-action SIDs found in $RULES_FILE --"
+    log "WARNING: nothing to match, skipping this run"
     exit 0
 fi
 
@@ -132,7 +129,8 @@ printf '%s\n' "${DROP_SIDS[@]}" > "$SIDS_FILE"
 
 backfill_ips=""
 if [ "${#NEW_SIDS[@]}" -gt 0 ]; then
-    log "INFO: ${#NEW_SIDS[@]} SID(s) newly resolved to drop -- rescanning full eve.json for them"
+    log "INFO: ${#NEW_SIDS[@]} SID(s) newly resolved to drop --"
+    log "INFO: rescanning full eve.json for them"
     printf '%s\n' "${NEW_SIDS[@]}" | jq -R 'select(length>0)' | jq -s 'map({(.): true}) | add' > "$NEW_SID_MAP_FILE"
     # Cheap text pre-filter before the expensive JSON parse: grep -F over
     # the whole file is far faster than jq parsing every line, and it's
@@ -179,7 +177,7 @@ added=0
 if [ -n "$new_ips" ]; then
     while IFS= read -r ip; do
         [ -z "$ip" ] && continue
-        is_valid_ip "$ip" || continue
+        [[ "$ip" =~ $_UH_IPV4 ]] || continue
         grep -qxF "$ip" "$OUT_FILE" 2>/dev/null && continue
         echo "$ip" >> "$OUT_FILE"
         log "INFO: $ip added to suridata.txt"
@@ -201,7 +199,7 @@ fi
 if ipset list suridata &>/dev/null; then
     while IFS= read -r ip; do
         [[ "$ip" =~ ^#.*$ || -z "$ip" ]] && continue
-        is_valid_ip "$ip" && ipset add suridata "$ip" -exist
+        [[ "$ip" =~ $_UH_IPV4 ]] && ipset add suridata "$ip" -exist
     done < "$OUT_FILE"
 else
     log "INFO: ipset 'suridata' does not exist yet -- run iptables.sh once to create it"
