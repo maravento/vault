@@ -3,7 +3,6 @@
 [![status-maintained](https://img.shields.io/badge/status-maintained-purple.svg)](https://github.com/maravento/vault)
 [![last commit](https://img.shields.io/github/last-commit/maravento/vault)](https://github.com/maravento/vault)
 [![Stargazers](https://img.shields.io/github/stars/maravento/vault?label=Stargazers)](https://github.com/maravento/vault/stargazers)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/maravento/vault)
 [![Twitter Follow](https://img.shields.io/twitter/follow/maraventostudio.svg)](https://twitter.com/maraventostudio)
 
 <!-- markdownlint-disable MD033 -->
@@ -73,7 +72,6 @@ python3 gitfolder.py https://github.com/maravento/vault/project_name
 ---
 
 - [blackusb](https://github.com/maravento/vault/tree/master/blackusb)
-- [dofi](https://github.com/maravento/vault/tree/master/dofi)
 - [gateproxy](https://github.com/maravento/vault/tree/master/gateproxy)
 - [itsm](https://github.com/maravento/vault/tree/master/itsm)
 - [netscan](https://github.com/maravento/vault/tree/master/netscan)
@@ -129,8 +127,8 @@ python3 gitfolder.py https://github.com/maravento/vault/project_name
 
 | Content | Licensed Under |
 |---|---|
-|Scripts, Binaries, Infrastructure|[![GPL-3.0](https://img.shields.io/badge/Open_Core-GPLv3-blue.svg?style=for-the-badge&labelWidth=120&logoWidth=20)](https://www.gnu.org/licenses/gpl.txt)|
-|RAG, Workers, Specialized Modules, Docs|[![CC](https://img.shields.io/badge/Core_Engine-CC_BY--NC--ND_4.0-lightgrey.svg?style=for-the-badge&labelWidth=120&logoWidth=20)](https://creativecommons.org/licenses/by-nc-nd/4.0/)|
+|Scripts, Binaries, Infrastructure|[![GPL-3.0](https://img.shields.io/badge/Open_Core-GPLv3-blue.svg?style=for-the-badge&labelWidth=120&logoWidth=20)](LICENSE)|
+|RAG, Workers, Specialized Modules, Docs|[![CC](https://img.shields.io/badge/Core_Engine-CC_BY--NC--ND_4.0-lightgrey.svg?style=for-the-badge&labelWidth=120&logoWidth=20)](docs/LICENSE-CC-BY-NC-ND-4.0.md)|
 
 ## DISCLAIMER
 

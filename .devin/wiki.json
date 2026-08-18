@@ -1,0 +1,107 @@
+{
+  "repo_notes": [
+    {
+      "content": "Vault is a collection of independent, loosely-coupled tools by maravento: gateproxy, netscan, itsm, trek, winzenity, blackusb, and scripts (a folder of standalone bash/utility scripts). They are NOT sub-modules of a single unified product — do not invent an overarching product name or architecture connecting them beyond what each project's own README states.\n\nOnly document components, scripts, filenames, and features that are physically present in the repository or explicitly named in a README.md. Do not invent, infer, or generalize from similarly-named tools in other projects (e.g. do not assume DDoS-Deflate, fail2ban-style modules, or SIEM dashboards exist just because they are common in similar toolkits).\n\nSpecifically, do NOT document any of the following — they were fabricated in a prior wiki generation and do not exist in this repository: DDoS Protection / DDoS-Deflate / ddosinstall.sh / ddos.sh, a 'BlackShield' security framework, vetofiles.txt, ransom_veto.txt, rwext.txt, blockua.txt, web3domains.txt, web3tld.txt, tor.txt, torrent.txt, hexstring.txt, domfilter.py, domcheck.sh, simplecheck.sh, a 'DoFi' toolset, LightSquid, Sqstat, SquidAnalyzer, LogView, SquidAI, rkhunter, netdata, a standalone bandata.sh script, or a smbaudit web interface.
+
+If unsure whether a component exists, omit it rather than guess."
+    }
+  ],
+  "pages": [
+    {
+      "title": "Overview",
+      "purpose": "Introduce the Vault repository as a collection of independent tools for network infrastructure, security, and system administration by maravento: gateproxy, netscan, itsm, trek, winzenity, blackusb, and the scripts folder. Summarize each at a high level and link to child sections. Do not claim they form a single integrated product.",
+      "page_notes": [
+        { "content": "" }
+      ]
+    },
+    {
+      "title": "Gateproxy",
+      "purpose": "Document Gateproxy, an installer/configuration script that deploys an integrated proxy/firewall/DHCP/DNS stack for LAN administration. Cover gateproxy.sh, its interactive setup parameters, and the repository structure (acl/, conf/, img/). Overview page linking to child pages for each subsystem.",
+      "page_notes": [
+        { "content": "" }
+      ]
+    },
+    {
+      "title": "Gateproxy: Proxy and Web/Admin Components",
+      "purpose": "Document Squid (ports 3128 explicit, 3129 intercept), WPAD/PAC via Apache2 on 18100, and Proxymon (bandwidth dashboard on 18080, quota warning page on 18081). Document Apache2 (port 80) and Webmin (port 10000) with its three installed modules: Text Editor, Service Monitor (servicemon), and Netplan Manager (netplanmgr). Do not add monitoring modules beyond Proxymon/Squidmon/sarg unless found in gateproxy/README.md.",
+      "parent": "Gateproxy",
+      "page_notes": [
+        { "content": "" }
+      ]
+    },
+    {
+      "title": "Gateproxy: DHCP, DNS, and Firewall",
+      "purpose": "Document pydhcp (Python-based DHCP server, config at /etc/pydhcp/pydhcpd.conf and /etc/pydhcp/pydhcp.env), Unbound as a forwarding-only DNS resolver, and the iptables+ipset firewall (/etc/scr/iptables.sh) with ulogd2 packet logging via NFLOG.",
+      "parent": "Gateproxy",
+      "page_notes": [
+        { "content": "" }
+      ]
+    },
+    {
+      "title": "Gateproxy: ACL and Firewall Rules",
+      "purpose": "Document the ACL structure under acl/ (acl_squid, acl_ipt), including blockpatterns.txt (Squid) and blockports.txt (iptables/ipset). Document ipsets, Suricata-driven IP blocking via suridata.sh/suridata.txt/suridata ipset, and MAC-based access control (macports and related lists). Base this strictly on the gateproxy/README.md 'ACL STRUCTURE' and 'FIREWALL' sections.",
+      "parent": "Gateproxy",
+      "page_notes": [
+        { "content": "" }
+      ]
+    },
+    {
+      "title": "Gateproxy: Optional Packages",
+      "purpose": "Document the optional installer packs under conf/pack/: evebox (evebox.service, evebox.yaml), fail2ban (jail.local), suricata (drop.conf, disable.conf, suricataclean.sh, suricataupdate.sh, suridata.sh), and ttyd (web terminal). Also document the 'Net Tools + Security', 'Samba', and 'UHM' optional package groups exactly as named in gateproxy/README.md's OPTIONAL PACKAGES section.",
+      "parent": "Gateproxy",
+      "page_notes": [
+        { "content": "" }
+      ]
+    },
+    {
+      "title": "Gateproxy: Maintenance Scripts and Backup",
+      "purpose": "Document the /etc/scr/ maintenance scripts: bkconf.sh (backup configuration), iptables.sh (firewall rules), killswitch.sh (emergency traffic block), serverboot.sh (start/restart services), and serviceswatch.sh (service watchdog). Document the backup components Timeshift (system snapshots) and FreeFileSync (file mirror sync, auto-updated via ffsupdate.sh).",
+      "parent": "Gateproxy",
+      "page_notes": [
+        { "content": "" }
+      ]
+    },
+    {
+      "title": "NetScan",
+      "purpose": "Document the NetScan toolkit under netscan/: the Windows executable (win/), Linux scripts (linux/), and the NetWatch live dashboard (netwatch/), including netwatchinstall.sh, netwatchlan.sh, netwatchports.sh, and netwatchapi.php as found in the netwatch/ directory. Base scope strictly on netscan/README.md.",
+      "page_notes": [
+        { "content": "" }
+      ]
+    },
+    {
+      "title": "ITSM Installer",
+      "purpose": "Document the itsm/ installer for deploying ITSM platforms on Windows, including itopconf.ps1, based strictly on itsm/README.md.",
+      "page_notes": [
+        { "content": "" }
+      ]
+    },
+    {
+      "title": "Trek",
+      "purpose": "Document the Trek project (trek/) based strictly on trek/README.md and its status (check for a frozen/deprecated status badge before describing it as active).",
+      "page_notes": [
+        { "content": "" }
+      ]
+    },
+    {
+      "title": "WinZenity",
+      "purpose": "Document the WinZenity project (winzenity/) based strictly on winzenity/README.md.",
+      "page_notes": [
+        { "content": "" }
+      ]
+    },
+    {
+      "title": "BlackUSB",
+      "purpose": "Document BlackUSB (blackusb/), an experimental Linux bash script that whitelists USB/HID devices via udev rules to block unauthorized/unknown device insertion (e.g. BadUSB/USB Rubber Ducky). Note its status badge (frozen/experimental) from blackusb/README.md.",
+      "page_notes": [
+        { "content": "" }
+      ]
+    },
+    {
+      "title": "Utility Scripts",
+      "purpose": "Document the standalone scripts under scripts/bash/ (e.g. aistack.sh, docker.sh, arpwatch.sh, watchdog.sh, wireguard.sh, unifisetup.sh, servicemon.sh, squidmon.sh, netplanmgr.sh, and others actually present in that directory). List only scripts that exist in scripts/bash/ and scripts/ subfolders, grouped by purpose (system administration, networking, backup/cloud, VM/container management) based on their filenames and any accompanying README.",
+      "page_notes": [
+        { "content": "" }
+      ]
+    }
+  ]
+}
