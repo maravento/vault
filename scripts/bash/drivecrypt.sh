@@ -76,7 +76,7 @@ for dep in bindfs fuse3 software-properties-common; do
 done
 
 the_ppa="sebastian-stenzel/cryptomator"
-if ! grep -q "^deb .*$the_ppa" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
+if ! dpkg -s cryptomator &>/dev/null; then
     add-apt-repository -y "ppa:$the_ppa" >/dev/null 2>&1
     apt-get update -qq
     apt-get install -y cryptomator >/dev/null 2>&1

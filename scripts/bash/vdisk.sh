@@ -16,6 +16,14 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
+# prevent overlapping runs
+SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+exec 200>"$SCRIPT_LOCK"
+if ! flock -n 200; then
+    echo "Script $(basename "$0") is already running"
+    exit 1
+fi
+
 # LOCAL USER detection
 detect_local_user() {
     local uid_min uid_max
@@ -126,7 +134,7 @@ function create_img() {
     # create img
     dd if=/dev/zero | pv | dd of=$myimg iflag=fullblock bs=$vbs count=$vsize && sync
     printf "\n"
-    read -p "Enter File System (e.g. ntfs, fat32, ext4): " pset
+    read -r -p "Enter File System (e.g. ntfs, fat32, ext4): " pset
     if [ -z "$pset" ]; then
         echo "No file system selected. Exiting."
         exit 1
@@ -156,7 +164,7 @@ function mount_img() {
         echo "Select an operation loop: "
         echo "1. Mount"
         echo "2. Unmount"
-        read -p "Enter your choice (1 or 2): " choice
+        read -r -p "Enter your choice (1 or 2): " choice
 
         case "$choice" in
         1)
@@ -187,7 +195,7 @@ function mount_img_kpartx() {
         echo "Select an operation kpartx: "
         echo "1. Mount"
         echo "2. Umount"
-        read -p "Enter your choice (1 or 2): " choice
+        read -r -p "Enter your choice (1 or 2): " choice
 
         case "$choice" in
         1)
@@ -226,7 +234,7 @@ printf "\n"
 echo "Select a method for VHD image:"
 echo "1. With loop"
 echo "2. With kpartx"
-read -p "Choose an option (1 or 2): " choice
+read -r -p "Choose an option (1 or 2): " choice
 
 case "$choice" in
 1)

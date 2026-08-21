@@ -527,15 +527,15 @@ function is_mask1() {
 
 # dns primary
 function is_dns1() {
-    read -r -p "Enter DNS1 (e.g. 8.8.8.8): " DNS1
+    read -r -p "Enter DNS1 (e.g. 1.1.1.2): " DNS1
     if [ -z "$DNS1" ]; then
-        DNSNEW1="8.8.8.8"
+        DNSNEW1="1.1.1.2"
         log "Using default DNS1 $DNSNEW1"
         return 0
     fi
     DNSNEW1=$(printf '%s' "$DNS1" | { [[ "$DNS1" =~ $_UH_DNS ]] && cat || true; })
     if [ "$DNSNEW1" ]; then
-        sed -i "s:8.8.8.8:$DNSNEW1:g" "$gp_path/conf/server/forward.conf"
+        sed -i "s:1.1.1.2:$DNSNEW1:g" "$gp_path/conf/server/forward.conf"
         log "You have entered DNS1 $DNS1 :OK"
         return 0
     else
@@ -545,15 +545,15 @@ function is_dns1() {
 
 # dns secondary
 function is_dns2() {
-    read -r -p "Enter DNS2 (e.g. 8.8.4.4): " DNS2
+    read -r -p "Enter DNS2 (e.g. 1.0.0.2): " DNS2
     if [ -z "$DNS2" ]; then
-        DNSNEW2="8.8.4.4"
+        DNSNEW2="1.0.0.2"
         log "Using default DNS2 $DNSNEW2"
         return 0
     fi
     DNSNEW2=$(printf '%s' "$DNS2" | { [[ "$DNS2" =~ $_UH_DNS ]] && cat || true; })
     if [ "$DNSNEW2" ]; then
-        sed -i "s:8.8.4.4:$DNSNEW2:g" "$gp_path/conf/server/forward.conf"
+        sed -i "s:1.0.0.2:$DNSNEW2:g" "$gp_path/conf/server/forward.conf"
         log "You have entered DNS2 $DNS2 :OK"
         return 0
     else
@@ -582,14 +582,14 @@ function is_port() {
 echo -e "\n"
 while true; do
     read -r -p "Server settings:
-Mask 255.255.255.0 (CIDR derived automatically), DNS 8.8.8.8 8.8.4.4, Proxy Port 3128
+Mask 255.255.255.0 (CIDR derived automatically), DNS 1.1.1.2 1.0.0.2, Proxy Port 3128
     Do you want to change? (y/n)" answer
     case "$answer" in
     [Yy]*)
         # execute command yes
         is_ask "Do you want to change? Mask 255.255.255.0? (y/n)" "You have entered Mask incorrect" is_mask1
-        is_ask "Do you want to change? DNS1 8.8.8.8? (y/n)" "You have entered DNS1 incorrect" is_dns1
-        is_ask "Do you want to change? DNS2 8.8.4.4? (y/n)" "You have entered DNS2 incorrect" is_dns2
+        is_ask "Do you want to change? DNS1 1.1.1.2? (y/n)" "You have entered DNS1 incorrect" is_dns1
+        is_ask "Do you want to change? DNS2 1.0.0.2? (y/n)" "You have entered DNS2 incorrect" is_dns2
         is_ask "Do you want to change? Proxy Port Default 3128? (y/n)" "You have entered Proxy Port incorrect" is_port
         log "OK"
         break
@@ -769,7 +769,9 @@ upgrade
 ### SETUP ###
 echo -e "\n"
 log "Gateproxy Packages..."
-if grep -q "^127\.0\.1\.1" /etc/hosts; then
+if grep -qFf "$gp_path/conf/server/hosts.txt" /etc/hosts 2>/dev/null; then
+    log "NOTE: hosts.txt entry already present in /etc/hosts, skipping (re-run safe)"
+elif grep -q "^127\.0\.1\.1" /etc/hosts; then
     sed -i "/^127\.0\.1\.1/ r $gp_path/conf/server/hosts.txt" /etc/hosts
 else
     log "NOTE: /etc/hosts has no 127.0.1.1 line, appending hostname entry instead"
@@ -1418,7 +1420,7 @@ cp -f /etc/sysctl.conf{,.bak} &>/dev/null || true
 cp -f /etc/hosts{,.bak} &>/dev/null || true
 
 # adding parameters
-tee -a /etc/security/limits.conf >/dev/null <<EOT
+grep -qxF 'root    hard    nofile  65535' /etc/security/limits.conf || tee -a /etc/security/limits.conf >/dev/null <<EOT
 *       soft    nproc   65535
 *       hard    nproc   65535
 *       soft    nofile  65535
@@ -1428,13 +1430,13 @@ root    hard    nproc   65535
 root    soft    nofile  65535
 root    hard    nofile  65535
 EOT
-tee -a /etc/sysctl.conf >/dev/null <<EOT
+grep -qxF 'net.ipv4.tcp_congestion_control = bbr' /etc/sysctl.conf || tee -a /etc/sysctl.conf >/dev/null <<EOT
 # System optimization
 vm.swappiness = 10
 net.ipv4.tcp_congestion_control = bbr
 EOT
-echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/system.conf >/dev/null
-echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/user.conf >/dev/null
+grep -qxF "DefaultLimitNOFILE=65535" /etc/systemd/system.conf || echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/system.conf >/dev/null
+grep -qxF "DefaultLimitNOFILE=65535" /etc/systemd/user.conf || echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/user.conf >/dev/null
 sysctl -p || log "WARNING: some sysctl parameters failed to apply"
 
 log "Apache Config..."
@@ -1516,9 +1518,9 @@ systemctl daemon-reexec &>/dev/null
 # Update initramfs (optional)
 #update-initramfs -u -k all
 # create alias "upgrade"
-sudo -u "$LOCAL_USER" bash -c "printf '%s\n' 'alias upgrade=\"sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo systemctl daemon-reload && sudo updatedb && sudo update-desktop-database && sudo snap refresh\"' >> ${LOCAL_HOME}/.bashrc"
-sudo -u "$LOCAL_USER" bash -c "printf '%s\n' 'alias server=\"sudo /etc/scr/serverboot.sh\"' >> ${LOCAL_HOME}/.bashrc"
-sudo -u "$LOCAL_USER" bash -c "printf '%s\n' 'alias cleaner=\"sudo /etc/scr/cleaner.sh\"' >> ${LOCAL_HOME}/.bashrc"
+sudo -u "$LOCAL_USER" bash -c "grep -q '^alias upgrade=' '${LOCAL_HOME}/.bashrc' 2>/dev/null || printf '%s\n' 'alias upgrade=\"sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo systemctl daemon-reload && sudo updatedb && sudo update-desktop-database && sudo snap refresh\"' >> ${LOCAL_HOME}/.bashrc"
+sudo -u "$LOCAL_USER" bash -c "grep -q '^alias server=' '${LOCAL_HOME}/.bashrc' 2>/dev/null || printf '%s\n' 'alias server=\"sudo /etc/scr/serverboot.sh\"' >> ${LOCAL_HOME}/.bashrc"
+sudo -u "$LOCAL_USER" bash -c "grep -q '^alias cleaner=' '${LOCAL_HOME}/.bashrc' 2>/dev/null || printf '%s\n' 'alias cleaner=\"sudo /etc/scr/cleaner.sh\"' >> ${LOCAL_HOME}/.bashrc"
 # IPv4 priority
 sed -i 's/^#\s*precedence ::ffff:0:0\/96\s\+100/precedence ::ffff:0:0\/96  100/' /etc/gai.conf
 # snap

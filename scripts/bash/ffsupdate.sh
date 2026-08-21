@@ -55,7 +55,7 @@ url="https://www.freefilesync.org/download.php"
 
 trap 'rm -f "$ffsfile" "$ffsrun"; log "ERROR: Aborted. Temporary files cleaned up."; exit 1' ERR INT TERM
 
-link=$(wget -q "$url" -O - | grep -Pio '/download/[^"]+Linux[^"]+gz')
+link=$(wget -q "$url" -O - | grep -Pio '/download/[^"]+Linux[^"]+gz') || true
 if [ -z "$link" ]; then
     log "ERROR: Could not find download link. Site may have changed."
     exit 1

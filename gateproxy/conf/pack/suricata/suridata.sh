@@ -160,15 +160,20 @@ if (( last_offset > current_size )); then
 fi
 
 new_ips=""
+jq_failed=0
 if (( current_size > last_offset )); then
     new_ips=$(tail -c "+$((last_offset + 1))" "$EVE_LOG" 2>/dev/null | jq -r --slurpfile sids "$SID_MAP_FILE" '
         select(.event_type=="alert")
         | select(.alert.signature_id != null)
         | select($sids[0][(.alert.signature_id|tostring)] == true)
         | .dest_ip
-    ' 2>>"$log_file" | sort -u)
+    ' 2>>"$log_file" | sort -u) || jq_failed=1
 fi
-echo "$current_size" > "$OFFSET_FILE"
+if (( jq_failed )); then
+    log "WARNING: jq failed parsing new eve.json content -- offset NOT advanced, will retry this segment next run"
+else
+    echo "$current_size" > "$OFFSET_FILE"
+fi
 
 new_ips=$(printf '%s\n%s\n' "$new_ips" "$backfill_ips" | sed '/^$/d' | sort -u)
 

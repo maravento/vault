@@ -180,7 +180,7 @@ start() {
         echo "Background monitoring started for interface $iface with PID: $tail_pid"
     done
 
-    printf '%s\n' "${tail_pids[@]}" >> "$TAIL_PID"
+    printf '%s\n' "${tail_pids[@]}" > "$TAIL_PID"
 
     if [[ -s "$ARPWATCH_PIDS" ]]; then
         printf '%s\n' "${tail_pids[@]}" > "$PIDFILE"

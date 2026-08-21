@@ -60,6 +60,9 @@
 
 set -uo pipefail
 
+# VALIDATION -- one variable per thing validated; use directly with =~
+_UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+
 ## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
@@ -117,7 +120,8 @@ squid_filter() {
     read -p "Enter IP (e.g. 192.168.0.10) or leave empty: " IP
     read -p "Enter the word to search (e.g. google): " WORD
 
-    IPNEW=$(echo "$IP" | grep -E '^(([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])$')
+    IPNEW=""
+    [[ "$IP" =~ $_UH_IPV4 ]] && IPNEW="$IP"
 
     if [[ "$IPNEW" ]]; then
         zcat -f $ACCESS_LOG 2>/dev/null | perl -pe 's/^(\d+\.\d+)/localtime($1)/e' \
@@ -489,7 +493,7 @@ squid_ip_timeframe() {
     # 2. User Input & Validation
     # Prompt for IP and validate format
     read -p "Enter IP address (e.g. 192.168.10.42): " IP
-    [[ ! "$IP" =~ ^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}$ ]] && { echo "Invalid IP format"; return; }
+    [[ ! "$IP" =~ $_UH_IPV4 ]] && { echo "Invalid IP format"; return; }
 
     # Prompt for date, default to current system date if empty
     read -p "Date (YYYY-MM-DD, enter for today): " USER_DATE

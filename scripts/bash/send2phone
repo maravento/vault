@@ -58,15 +58,23 @@ if [[ -z "$devices" ]]; then
     echo "Make sure KDE Connect is running and your device is paired and reachable"
     exit 1
 fi
-phone_id="$(kdeconnect-cli -a --id-only 2>/dev/null | head -1)"
-if [[ -z "$phone_id" ]]; then
-    phone_id="$(echo "$devices" | grep -oP '(?<=: )[\w-]+(?= :)' | head -1)"
-fi
-if [[ -z "$phone_id" ]]; then
+mapfile -t phone_ids < <(kdeconnect-cli -a --id-only 2>/dev/null)
+if [ "${#phone_ids[@]}" -eq 0 ]; then
     echo "Could not determine phone ID"
     exit 1
+elif [ "${#phone_ids[@]}" -eq 1 ]; then
+    phone_id="${phone_ids[0]}"
+    echo "Using device: $phone_id"
+else
+    echo "Multiple devices found:"
+    echo "$devices"
+    printf "\n"
+    read -rp "Enter the device ID to use: " phone_id
+    if ! printf '%s\n' "${phone_ids[@]}" | grep -qxF "$phone_id"; then
+        echo "Invalid device ID"
+        exit 1
+    fi
 fi
-echo "Using device: $phone_id"
 printf "\n"
 total_files="${#files[@]}"
 current=0

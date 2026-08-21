@@ -123,9 +123,9 @@ else
     hash=""
     while IFS= read -r line; do
         [ -z "$line" ] && continue
-        line_file="${line:66}"
+        line_file="${line#* }"
         if [ "$(basename "$line_file")" = "$target_basename" ]; then
-            hash="${line:0:64}"
+            hash="${line%% *}"
             break
         fi
     done < "$checksum_file"

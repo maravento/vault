@@ -67,7 +67,11 @@ fi
 # below, and it recreates the schema/indexes/bookmark on next start.
 systemctl stop evebox &>/dev/null
 rm -f /var/lib/evebox/events.sqlite /var/lib/evebox/events.sqlite-wal /var/lib/evebox/events.sqlite-shm
-rm -f /var/lib/evebox/config.sqlite /var/lib/evebox/config.sqlite-wal /var/lib/evebox/config.sqlite-shm
+# Optional: config.sqlite holds EveBox's own settings (users, saved dashboards,
+# filters) -- unrelated to the events/bookmark cleanup above. Deleting it resets
+# the web UI to factory defaults on every cleanup run. Left commented out until
+# tested in production; uncomment only if that reset is actually desired.
+# rm -f /var/lib/evebox/config.sqlite /var/lib/evebox/config.sqlite-wal /var/lib/evebox/config.sqlite-shm
 rm -f /var/lib/evebox/*.bookmark
 log "EveBox database cleared"
 if systemctl start evebox; then

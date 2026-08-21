@@ -12,7 +12,7 @@
 # service in the `services` array below.
 #
 # MOUNT
-# Mounts each configured remote as a folder under /home/$local_user/cloud
+# Mounts each configured remote as a folder under /home/$local_user/rclone/cloud
 # (e.g. cloud/drive, cloud/dropbox) using rclone mount + fuse3.
 # sudo ./rclonemgr.sh mount start     mount all configured remotes
 # sudo ./rclonemgr.sh mount stop      unmount all
@@ -24,7 +24,7 @@
 # @reboot /etc/scr/rclonemgr.sh mount start
 #
 # SYNC
-# 2-way syncs local /home/$local_user/sync/<service>/{upload,download}
+# 2-way syncs local /home/$local_user/rclone/sync/<service>/{upload,download}
 # against the mounted cloud/<service>/{upload,download} folders, per
 # service, using `rclone sync`. Only acts on services that are both
 # configured in Rclone and currently mounted (run mount start first).
@@ -50,6 +50,26 @@ if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
     exit 1
 fi
+
+# prevent overlapping runs
+MOUNT_LOCK="/var/lock/$(basename "$0" .sh)-mount.lock"
+SYNC_LOCK="/var/lock/$(basename "$0" .sh)-sync.lock"
+
+lock_mount() {
+    exec 200>"$MOUNT_LOCK"
+    if ! flock -n 200; then
+        echo "ERROR: another mount operation is running, try again when it finishes"
+        exit 1
+    fi
+}
+
+lock_sync() {
+    exec 201>"$SYNC_LOCK"
+    if ! flock -n 201; then
+        echo "ERROR: a sync pass is running, try again when it finishes"
+        exit 1
+    fi
+}
 
 # LOG FILE for debugging
 SCRIPT_LOG="/var/log/rclonemgr.log"
@@ -129,9 +149,9 @@ check_internet() {
 }
 
 # VARIABLES
-cloud_path="/home/$local_user/cloud"
-sync_path="/home/$local_user/sync"
-mount_lock="/tmp/cloud_drive_mount.lock"
+rclone_path="/home/$local_user/rclone"
+cloud_path="$rclone_path/cloud"
+sync_path="$rclone_path/sync"
 
 # Log Level (INFO, DEBUG, NOTICE, ERROR)
 loglevel="DEBUG"
@@ -161,12 +181,6 @@ is_service_configured() {
 ##############################################
 
 mount_start() {
-    if [ -e "$mount_lock" ]; then
-        echo "WARNING: Lock file exists, script may already be running"
-        exit 1
-    fi
-    touch "$mount_lock"
-
     for service_name in "${services[@]}"; do
         local service_path="$cloud_path/$service_name"
         [ -d "$service_path" ] || sudo -u "$local_user" mkdir -p "$service_path"
@@ -183,12 +197,13 @@ mount_start() {
             continue
         fi
 
+        (exec 200>&- 201>&-
         sudo -u "$local_user" nohup rclone mount "$service_name:" "$service_path" \
-            --log-file "$cloud_path/rclone.log" \
+            --log-file "$rclone_path/rclone.log" \
             --log-level "$loglevel" \
             --vfs-cache-mode writes \
             --daemon \
-            >/dev/null 2>&1 &
+            >/dev/null 2>&1 &)
 
         sleep 2
 
@@ -203,10 +218,6 @@ mount_start() {
 }
 
 mount_stop() {
-    if [ ! -e "$mount_lock" ]; then
-        echo "WARNING: Mount is not running (no lock file)"
-    fi
-
     for service_name in "${services[@]}"; do
         local service_path="$cloud_path/$service_name"
         if mount | grep -q "$service_path"; then
@@ -223,7 +234,6 @@ mount_stop() {
         fi
     done
 
-    rm -f "$mount_lock"
     echo "Mount stopped"
 }
 
@@ -237,13 +247,6 @@ mount_restart() {
 mount_status() {
     echo "=== Rclone Mount Status ==="
 
-    if [ -e "$mount_lock" ]; then
-        echo "Lock file: EXISTS"
-    else
-        echo "Lock file: NOT FOUND"
-    fi
-
-    echo ""
     echo "Mount status:"
     for service_name in "${services[@]}"; do
         local service_path="$cloud_path/$service_name"
@@ -262,11 +265,18 @@ mount_status() {
 run_mount() {
     case "${1:-}" in
     start)
+        lock_mount
         check_internet || exit 1
         mount_start
         ;;
-    stop) mount_stop ;;
+    stop)
+        lock_mount
+        lock_sync
+        mount_stop
+        ;;
     restart)
+        lock_mount
+        lock_sync
         check_internet || exit 1
         mount_restart
         ;;
@@ -287,7 +297,7 @@ run_mount() {
 sync_transfer() {
     local direction="$1" service_name="$2" src="$3" dst="$4"
     echo "Sync $direction $service_name"
-    sudo -u "$local_user" bash -c "rclone sync '$src' '$dst' --update --modify-window 1h --skip-links --verbose --transfers 30 --checkers 8 --contimeout 60s --timeout 300s --retries 3 --low-level-retries 10 --stats 1s --stats-file-name-length 0 --log-file='$cloud_path/rsync.log'"
+    sudo -u "$local_user" bash -c "rclone sync '$src' '$dst' --update --modify-window 1h --skip-links --verbose --transfers 30 --checkers 8 --contimeout 60s --timeout 300s --retries 3 --low-level-retries 10 --stats 1s --stats-file-name-length 0 --log-file='$rclone_path/rsync.log'"
     echo "OK"
 }
 
@@ -336,6 +346,7 @@ sync_status() {
 run_sync() {
     case "${1:-}" in
     run)
+        lock_sync
         check_internet || exit 1
         sync_run
         ;;

@@ -39,7 +39,7 @@ done
 
 LOGROTATE_BIN=$(command -v logrotate)
 
-LOGROTATE_ERR=$("$LOGROTATE_BIN" /etc/logrotate.conf 2>&1 >/dev/null)
+LOGROTATE_ERR=$("$LOGROTATE_BIN" -f /etc/logrotate.conf 2>&1 >/dev/null)
 EXITVALUE=$?
 
 if [ "$EXITVALUE" -ne 0 ]; then

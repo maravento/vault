@@ -36,14 +36,12 @@ fi
 
 echo "Top 5 Crypto Price Notifier Starting. Wait..."
 
-# check dependencies
-pkgs='curl jq libnotify-bin'
-for pkg in $pkgs; do
-  if ! dpkg -s "$pkg" &>/dev/null; then
-    echo "'$pkg' is not installed. Run:"
-    echo "sudo apt install $pkg"
-    exit 1
-  fi
+# DEPENDENCIES
+for dep in curl jq libnotify-bin; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        echo "[ERROR] Required dependency '$dep' is not installed." >&2
+        exit 1
+    fi
 done
 
 current_uid=$(id -u)

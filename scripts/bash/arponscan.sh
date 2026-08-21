@@ -38,15 +38,39 @@ done
 mkdir -p /var/log/arpon
 touch /var/log/arpon/arpon.log
 
+# VALIDATION -- one variable per thing validated; use directly with =~
+_UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+
 ### VARIABLES
 # path mac addresses
-read -r -p "Enter the path for MAC addresses (e.g. /etc/acl): " acl_path
+while :; do
+    read -r -p "Enter the path for MAC addresses [/etc/acl]: " acl_path
+    acl_path="${acl_path:-/etc/acl}"
+    if [ -z "$acl_path" ] || ! compgen -G "$acl_path/mac*" >/dev/null; then
+        echo "ERROR: path does not exist or has no mac* files. Try again."
+        continue
+    fi
+    break
+done
 printf "\n"
 # local net interface
-read -r -p "Enter the local network interface (e.g. enp2s0): " lan
+while :; do
+    read -r -p "Enter the local network interface (e.g. enp2s0): " lan
+    if [ -z "$lan" ] || ! ip link show "$lan" &>/dev/null; then
+        echo "ERROR: interface does not exist. Try again."
+        continue
+    fi
+    break
+done
 printf "\n"
 # Local IP Server
-read -r -p "Enter the local IP server (e.g. 192.168.0.10): " localip
+while :; do
+    read -r -p "Enter the local IP server (e.g. 192.168.0.10): " localip
+    if [[ "$localip" =~ $_UH_IPV4 ]]; then
+        break
+    fi
+    echo "ERROR: invalid IPv4 address. Try again."
+done
 
 ARPSTATIC_FILE="$(dirname "$(realpath "$0")")/arpstatic"
 

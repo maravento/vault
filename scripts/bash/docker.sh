@@ -1,7 +1,11 @@
 #!/bin/bash
 # maravento.com
 #
+################################################################################
+#
 # Docker + Portainer (Install | Remove)
+#
+################################################################################
 
 set -uo pipefail
 
@@ -185,6 +189,7 @@ if [ $# -eq 0 ]; then
     echo "2) Uninstall Docker"
     echo "3) Exit"
     read -rp "Select an option (1, 2 or 3): " option
+    option="${option:-3}"
 
     case $option in
       1)

@@ -125,7 +125,11 @@ EOL
         echo "Error: /etc/sysctl.conf not found"
         exit 1
     fi
-    sed -i '/^#*net.ipv4.ip_forward/c\net.ipv4.ip_forward=1' /etc/sysctl.conf
+    if grep -q '^#*net.ipv4.ip_forward' /etc/sysctl.conf; then
+        sed -i '/^#*net.ipv4.ip_forward/c\net.ipv4.ip_forward=1' /etc/sysctl.conf
+    else
+        echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+    fi
     sysctl -p
 
     # Launch the WireGuard interface

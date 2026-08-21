@@ -63,7 +63,7 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 - [Android 2 PC via scrcpy (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/droid2pc.sh)
 - [ArpON table filter](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arponscan.sh)
 - [Arpwatch (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arpwatch.sh)
-- [Check Bandwidth (Set Minimum download|upload Value)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bandwidth.sh)
+- [Bandwidth Watchdog (bwmon - cron; alerts via syslog + desktop notification when below minimum download|upload)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bwmon.sh)
 - [Internet Watchdog (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/watchdog.sh)
 - [Iperf3 Client](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/iperf3.sh)
 - [Netplan Switch (--status|--to-networkd|--to-nm|--help)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/npswitch.sh)
@@ -99,12 +99,10 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 - [MEGAsync Instances (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/msyncs)
 - [NTFS Disk Drive (mount|umount with ntfs-3g)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ntfsdrive.sh)
 - [Rclone Manager (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - mount|umount and 2-way folder sync](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rclonemgr.sh)
-- [System Migration Tool](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/appbr.sh)
 - [TRIM for SSD/NVMe](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/trim.sh)
 
 #### System, Hardware & Monitoring
 
-- [Check Cron](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/checkcron.sh)
 - [Crypto Notify (Top 5)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cryptonotify.sh)
 - [Force Logrotate](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/logrotate.sh)
 - [Hardware Clock Sync](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/hwclock.sh)
@@ -112,7 +110,6 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 - [Kworker Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/kworker.sh)
 - [Limit processes with CPU Limit (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cpulimit.sh)
 - [Realtek Linux drivers](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/realtekdrv.sh)
-- [Winpower UPS (install|remove|start|stop|status|restart)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/winpower.sh)
 
 #### Webmin Module Installation Tools
 
@@ -133,6 +130,7 @@ Tested on: Windows 10/11 x64
 
 #### Networking & System
 
+- [Autorun Disable](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/autorun.bat)
 - [Net Reset (Proxy and NIC)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/netreset.bat)
 - [Non-Essential Services (disable|auto)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/nonservices.bat)
 - [SMB Config (Modify smb1|smb signing|insecure guest access)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/smbconf.bat)
@@ -141,13 +139,12 @@ Tested on: Windows 10/11 x64
 #### Hardware, Virtualization & Server
 
 - [FixPrint (Print Queue Cleaning)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/fixprint.bat)
-- [NVMeOptimizer (Add|Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/nvmeoptimizer.bat)
 - [Uniform Server (Change MySQL/Apache Ports - Set portable|permanent - Run With System)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/uzeroconf.bat)
 - [VTools QEMU/KVM (Spice, VirtIO, and WinFsp Setup as a Service)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/vtools.bat)
 
 ### Unifi Tools
 
-- [Unifi Setup for Windows](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/unifisetup.bat)
+- [Unifi Network Setup for Windows](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/unifisetup.bat)
 - [Unifi Setup for Ubuntu](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/unifisetup.sh)
 
 ### Python (Linux)
@@ -155,10 +152,6 @@ Tested on: Windows 10/11 x64
 - [Email Scan (Replaces: BASE_URL and TARGET_EMAIL)](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/emailscan.py)
 - [Git Folder Download](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py)
 - [Link Check - Broken Link Scanner (Replaces: BASE_URL)](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/linkcheck.py)
-
-### VBScript (Windows)
-
-- [Autorun Disable](https://raw.githubusercontent.com/maravento/vault/master/scripts/vbs/autorun.vbs)
 
 ## DISCLAIMER
 

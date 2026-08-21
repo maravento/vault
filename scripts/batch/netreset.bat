@@ -13,13 +13,6 @@ if %errorlevel% neq 0 (
 
 setlocal enabledelayedexpansion
 
-:: checking privileges
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-    powershell -command "Start-Process '%comspec%' -ArgumentList '/c \"%~dpnx0\"' -Verb RunAs"
-    exit /b
-)
-
 :: It asks if you want to continue with the reset
 echo.
 echo NET RESET

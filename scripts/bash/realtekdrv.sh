@@ -147,6 +147,9 @@ install_r8125() {
         exit 1
     fi
 
+    update-initramfs -u
+    depmod -a
+
     if ! grep -qF 'blacklist r8169' /etc/modprobe.d/blacklist-r8169.conf 2>/dev/null; then
         echo "blacklist r8169" >> /etc/modprobe.d/blacklist-r8169.conf
     fi

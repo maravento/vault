@@ -6,6 +6,9 @@
 # File Extensions Report
 # source: https://askubuntu.com/questions/844711/how-can-i-find-all-video-files-on-my-system
 #
+# Scans /home/<local_user>/filereport by default (created automatically if
+# missing). To scan a different folder, edit the targetfolder variable below.
+#
 ################################################################################
 
 set -uo pipefail
@@ -77,12 +80,10 @@ done
 echo "File Extensions Report Start. Wait..."
 
 ### VARIABLES
-# replace "myfolder" and "filereport.log" with yours
-targetfolder=/home/$local_user/myfolder
-if [ ! -d "$targetfolder" ]; then
-    echo "ERROR: $targetfolder does not exist. Edit targetfolder variable."
-    exit 1
-fi
+# default target folder (created automatically if missing); edit to scan
+# a different folder
+targetfolder="/home/$local_user/filereport"
+mkdir -p "$targetfolder"
 logreport=/var/log/filereport.log
 
 ### REPORT

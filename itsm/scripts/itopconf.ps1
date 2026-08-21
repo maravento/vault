@@ -199,12 +199,34 @@ switch ($choice) {
 					$requireRule = "Require local"
 				}
 
+				Create-Backup -configPath $vhostsPath
+
 				$vhostsContent = Get-Content $vhostsPath
-				$vhostsContentModified = $vhostsContent | ForEach-Object {
-					if ($_ -match "Require local") {
-						return $_ -replace "Require local", $requireRule
+
+				# Identify only the VirtualHost block(s) that reference iTop
+				$blockRanges = @()
+				$blockStart = -1
+				for ($i = 0; $i -lt $vhostsContent.Count; $i++) {
+					if ($vhostsContent[$i] -match "<VirtualHost") {
+						$blockStart = $i
 					}
-					return $_
+					if ($blockStart -ge 0 -and $vhostsContent[$i] -match "</VirtualHost>") {
+						$blockLines = $vhostsContent[$blockStart..$i]
+						if ($blockLines -match "(?i)itop") {
+							$blockRanges += ,@($blockStart, $i)
+						}
+						$blockStart = -1
+					}
+				}
+
+				$vhostsContentModified = for ($i = 0; $i -lt $vhostsContent.Count; $i++) {
+					$line = $vhostsContent[$i]
+					$inItopBlock = $blockRanges | Where-Object { $i -ge $_[0] -and $i -le $_[1] }
+					if ($inItopBlock -and $line -match "Require local") {
+						$line -replace "Require local", $requireRule
+					} else {
+						$line
+					}
 				}
 				$vhostsContentModified | Set-Content $vhostsPath
 				Write-Host "File modified: $vhostsPath"

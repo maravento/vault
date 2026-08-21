@@ -48,9 +48,11 @@ else
 fi
 
 SCRIPT_NAME=$(basename "$0")
-ACTIVE_FLAG="/tmp/${SCRIPT_NAME}_active"
-PID_FILE="/tmp/${SCRIPT_NAME}.pid"
-PORTS_FILE="/tmp/${SCRIPT_NAME}.${UID}.ports"
+RUN_DIR="/run/user/${UID}"
+mkdir -p "$RUN_DIR"
+ACTIVE_FLAG="${RUN_DIR}/${SCRIPT_NAME}_active"
+PID_FILE="${RUN_DIR}/${SCRIPT_NAME}.pid"
+PORTS_FILE="${RUN_DIR}/${SCRIPT_NAME}.ports"
 is_running() {
     if pgrep -f "ssh.*nglocalhost.com" > /dev/null || [ -f "$ACTIVE_FLAG" ]; then
         return 0
@@ -65,6 +67,7 @@ kill_all_tunnel_processes() {
 start() {
     # prevent overlapping runs
     SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+    (umask 077; : >> "$SCRIPT_LOCK")
     exec 200>"$SCRIPT_LOCK"
     if ! flock -n 200; then
         echo "[ERROR] Script $(basename "$0") is already running"
@@ -72,7 +75,7 @@ start() {
     fi
 
     kill_all_tunnel_processes
-    read -p "Enter port number(s) to expose: " ports
+    read -r -p "Enter port number(s) to expose: " ports
     if [ -z "$ports" ]; then
         echo "Error. You must enter at least one port."
         exit 1

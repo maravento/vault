@@ -1,3 +1,6 @@
+	ServerName gateproxy
+	ServerAlias 192.168.0.10
+
 	RequestHeader unset Proxy early
 
 	<Directory />

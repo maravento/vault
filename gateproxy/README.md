@@ -78,15 +78,15 @@ wget -qO gateproxy.sh https://raw.githubusercontent.com/maravento/vault/master/g
 | LAN Interface | none (required) | Same numbered-list + confirmation flow as WAN Interface; cannot be the same interface already assigned to WAN / Mismo flujo de lista numerada + confirmación que WAN Interface; no puede ser la misma interfaz ya asignada a WAN |
 | Server IP | `192.168.0.10` | Gateway IP assigned to this server / IP del servidor en la LAN |
 | Netmask | `255.255.255.0` | Subnet mask; CIDR prefix (`/24`) is derived from this automatically, not asked separately / Máscara de subred; el prefijo CIDR (`/24`) se calcula automáticamente a partir de esto, no se pregunta por separado |
-| DNS Primary | `8.8.8.8` | Primary DNS server / DNS primario |
-| DNS Secondary | `8.8.4.4` | Secondary DNS server / DNS secundario |
+| DNS Primary | `1.1.1.2` | Primary DNS server / DNS primario |
+| DNS Secondary | `1.0.0.2` | Secondary DNS server / DNS secundario |
 | Proxy Port | `3128` | Squid proxy port / Puerto del proxy Squid |
 
 Localnet (`192.168.0.0`) is derived automatically from the Server IP and Netmask together, not asked separately / Localnet (`192.168.0.0`) se deriva automáticamente del Server IP y la Netmask en conjunto, no se pregunta por separado.
 
-DNS Primary/Secondary above only configure Unbound's own forwarders (`conf/server/forward.conf`) — where Unbound sends queries it can't answer locally. They do **not** control which DNS server LAN clients are allowed to query directly; that is pydhcp's own `SERV_DNS` key in `pydhcp.env` (the same value pydhcp hands out via DHCP), which `iptables.sh` reads to open the matching firewall access — no separate gateproxy key to keep in sync by hand. It defaults to the Server IP (Unbound); leaving it unset or empty falls back to the Server IP as well, never to `8.8.8.8`/`8.8.4.4`. To have clients use and reach external DNS directly instead of Unbound, edit `SERV_DNS` in `pydhcp.env` by hand, regenerate `pydhcpd.conf` with pydhcp's `pyleases.sh`, restart `pydhcpd`, and re-run `iptables.sh`.
+DNS Primary/Secondary above only configure Unbound's own forwarders (`conf/server/forward.conf`) — where Unbound sends queries it can't answer locally. They do **not** control which DNS server LAN clients are allowed to query directly; that is pydhcp's own `SERV_DNS` key in `pydhcp.env` (the same value pydhcp hands out via DHCP), which `iptables.sh` reads to open the matching firewall access — no separate gateproxy key to keep in sync by hand. It defaults to the Server IP (Unbound); leaving it unset or empty falls back to the Server IP as well, never to `1.1.1.2`/`1.0.0.2`. To have clients use and reach external DNS directly instead of Unbound, edit `SERV_DNS` in `pydhcp.env` by hand, regenerate `pydhcpd.conf` with pydhcp's `pyleases.sh`, restart `pydhcpd`, and re-run `iptables.sh`.
 
-Los DNS Primario/Secundario de arriba sólo configuran los reenviadores propios de Unbound (`conf/server/forward.conf`) — a dónde manda Unbound las consultas que no puede resolver localmente. **No** controlan a qué servidor DNS pueden consultar directamente los clientes de la LAN; eso lo controla la propia clave `SERV_DNS` de pydhcp en `pydhcp.env` (el mismo valor que pydhcp entrega por DHCP), que `iptables.sh` lee para abrir el acceso correspondiente en el firewall — no hay una clave aparte de gateproxy que sincronizar a mano. Por defecto es el Server IP (Unbound); dejarla sin definir o vacía también cae en el Server IP, nunca en `8.8.8.8`/`8.8.4.4`. Para que los clientes usen y puedan alcanzar DNS externo en vez de Unbound, hay que editar `SERV_DNS` a mano en `pydhcp.env`, regenerar `pydhcpd.conf` con `pyleases.sh` de pydhcp, reiniciar `pydhcpd`, y volver a correr `iptables.sh`.
+Los DNS Primario/Secundario de arriba sólo configuran los reenviadores propios de Unbound (`conf/server/forward.conf`) — a dónde manda Unbound las consultas que no puede resolver localmente. **No** controlan a qué servidor DNS pueden consultar directamente los clientes de la LAN; eso lo controla la propia clave `SERV_DNS` de pydhcp en `pydhcp.env` (el mismo valor que pydhcp entrega por DHCP), que `iptables.sh` lee para abrir el acceso correspondiente en el firewall — no hay una clave aparte de gateproxy que sincronizar a mano. Por defecto es el Server IP (Unbound); dejarla sin definir o vacía también cae en el Server IP, nunca en `1.1.1.2`/`1.0.0.2`. Para que los clientes usen y puedan alcanzar DNS externo en vez de Unbound, hay que editar `SERV_DNS` a mano en `pydhcp.env`, regenerar `pydhcpd.conf` con `pyleases.sh` de pydhcp, reiniciar `pydhcpd`, y volver a correr `iptables.sh`.
 
 <table width="100%">
   <tr>
@@ -164,7 +164,7 @@ Pool range and other DHCP settings can be changed in `/etc/pydhcp/pydhcp.env` af
 
 | Component | Config | Notes |
 | :--- | :--- | :--- |
-| **Unbound** | `/etc/unbound/unbound.conf.d/forward.conf` | Forwarding resolver (not recursive/iterative); listens on `127.0.0.1` and the server IP; forwards to `1.1.1.1`/`8.8.8.8`. DHCP clients receive the server IP as their DNS server. |
+| **Unbound** | `/etc/unbound/unbound.conf.d/forward.conf` | Forwarding resolver (not recursive/iterative); listens on `127.0.0.1` and the server IP; forwards to `1.1.1.2`/`1.0.0.2`. DHCP clients receive the server IP as their DNS server. |
 
 ### Firewall
 

@@ -65,15 +65,15 @@ done
 
 list_drives() {
     echo "Connected Devices"
-    lsblk -o NAME,LABEL,UUID,SIZE,FSTYPE | grep -E "sd[b-z][0-9]?" | column -t
+    lsblk -o NAME,LABEL,UUID,SIZE,FSTYPE | grep -i ntfs | column -t
     echo ""
 }
 
 mount_drive() {
     list_drives
-    read -p "Enter the LABEL or UUID of the disk to be mounted ('exit' to exit): " DISKID
+    read -r -p "Enter the LABEL or UUID of the disk to be mounted ('exit' to exit): " DISKID
 
-    [ "$DISKID" == "exit" ] && echo "Exiting..." && return
+    [ -z "$DISKID" ] || [ "$DISKID" == "exit" ] && echo "Exiting..." && return
 
     DEVICE=$(lsblk -rn -o NAME,LABEL,UUID | awk -v id="$DISKID" '$2 == id || $3 == id {print "/dev/" $1}')
 
@@ -114,7 +114,7 @@ umount_drive() {
     echo "$MOUNT_POINTS"
     echo ""
 
-    read -p "Enter the name of the folder where the disk is mounted ('exit' to exit): " FOLDER
+    read -r -p "Enter the name of the folder where the disk is mounted ('exit' to exit): " FOLDER
     [ "$FOLDER" == "exit" ] && echo "Exiting..." && return
 
     if ! echo "$FOLDER" | grep -qE '^[a-zA-Z0-9_:@. -]+$'; then
@@ -122,7 +122,7 @@ umount_drive() {
         return
     fi
 
-    MOUNT_POINT=$(echo "$MOUNT_POINTS" | grep -F "/$FOLDER")
+    MOUNT_POINT=$(echo "$MOUNT_POINTS" | awk -F/ -v f="$FOLDER" '$NF == f')
 
     if [ -n "$MOUNT_POINT" ]; then
         echo "Unmounting $MOUNT_POINT..."

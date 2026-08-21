@@ -82,19 +82,19 @@ goto end
 
 :4
 REM Create the PowerShell file to activate SMB1
-echo Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart > %psScriptPath%
+echo Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart > "%psScriptPath%"
 call :RestartSMBService
 exit /b
 
 :5
 REM Create the PowerShell file to deactivate SMB1
-echo Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart > %psScriptPath%
+echo Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart > "%psScriptPath%"
 call :RestartSMBService
 exit /b
 
 :RestartSMBService
 REM Run the PowerShell file
-powershell -ExecutionPolicy Bypass -File %psScriptPath% >nul 2>&1
+powershell -ExecutionPolicy Bypass -File "%psScriptPath%" >nul 2>&1
 REM Pause before restarting the "Server" service
 timeout /t 5 >nul
 REM LanmanServer
@@ -120,7 +120,7 @@ for /l %%i in (1,1,3) do (
 echo Failed to restart LanmanServer service. Please restart the service manually
 :cleanup
 REM Delete the PowerShell file
-if exist %psScriptPath% del %psScriptPath%
+if exist "%psScriptPath%" del "%psScriptPath%"
 echo SMB1 completed
 echo Reboot to apply changes
 goto end

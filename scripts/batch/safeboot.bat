@@ -12,7 +12,7 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-setlocal
+setlocal enabledelayedexpansion
 REM safe with network/safe minimal/normal mode
 echo.
 echo Start PC in the following modes:
@@ -36,16 +36,46 @@ if "%choice%"=="1" (
 )
 
 :safe
+call :check_bitlocker
 bcdedit /set {default} safeboot minimal
+if errorlevel 1 (
+    echo [ERROR] bcdedit failed. Aborting reboot.
+    pause
+    goto exit
+)
 goto reboot
 
 :safenet
+call :check_bitlocker
 bcdedit /set {default} safeboot network
+if errorlevel 1 (
+    echo [ERROR] bcdedit failed. Aborting reboot.
+    pause
+    goto exit
+)
 goto reboot
 
 :normal
 bcdedit /deletevalue {default} safeboot
+if errorlevel 1 (
+    echo [ERROR] bcdedit failed. Aborting reboot.
+    pause
+    goto exit
+)
 goto reboot
+
+:check_bitlocker
+manage-bde -status %systemdrive% | find "Protection On" >nul 2>&1
+if not errorlevel 1 (
+    echo.
+    echo WARNING: BitLocker is ON for %systemdrive%.
+    echo Changing the boot entry can trigger BitLocker Recovery on next boot.
+    set /p bl_confirm="Suspend BitLocker protection for one reboot? (y/n): "
+    if /i "!bl_confirm!"=="y" (
+        manage-bde -protectors -disable %systemdrive% -RebootCount 1 >nul 2>&1
+    )
+)
+exit /b
 
 :reboot
 shutdown -r -f -t 4
