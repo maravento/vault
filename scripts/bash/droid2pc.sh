@@ -63,6 +63,7 @@ check_device() {
 start() {
     # prevent overlapping runs
     SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+    (umask 077; : >> "$SCRIPT_LOCK")
     exec 200>"$SCRIPT_LOCK"
     if ! flock -n 200; then
         echo "[ERROR] Script $(basename "$0") is already running"
@@ -73,7 +74,7 @@ start() {
     if pgrep -x scrcpy > /dev/null; then
         show_error "scrcpy is already running.\n\nClose the existing instance first."
     fi
-    nohup scrcpy --max-size 1024 > /dev/null 2>&1 &
+    nohup scrcpy --max-size 1024 > /dev/null 2>&1 200>&- &
     local new_pid=$!
     echo "$new_pid" > "$PIDFILE"
     sleep 1

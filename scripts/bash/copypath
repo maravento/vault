@@ -24,6 +24,8 @@ check_dependencies() {
     local clip_tools=0
     local notify_tools=0
 
+    command -v python3 &>/dev/null || missing+=("python3")
+
     # Check clipboard tools (at least one required)
     command -v xclip &>/dev/null && clip_tools=1
     command -v xsel &>/dev/null && clip_tools=1
@@ -49,6 +51,7 @@ check_dependencies() {
         done
         msg+="\nInstall with:\n"
 
+        command -v python3 &>/dev/null || msg+="sudo apt install python3\n"
         if [[ $clip_tools -eq 0 ]]; then
             msg+="sudo apt install xclip\n"
         fi

@@ -54,6 +54,7 @@ echo.
 :: SPICE
 echo Download latest Spice version...
 call :download "https://www.spice-space.org/download/windows/spice-guest-tools/spice-guest-tools-latest.exe" "spice-guest-tools-latest.exe"
+if errorlevel 1 exit /b 1
 
 echo Installing Spice and Red Hat drivers...
 start /wait "" "spice-guest-tools-latest.exe" /S
@@ -126,6 +127,7 @@ echo MSI file found: %msi_name%
 
 echo Downloading %msi_name%
 call :download "https://github.com/winfsp/winfsp/releases/download/%version%/%msi_name%" "%msi_name%"
+if errorlevel 1 exit /b 1
 
 echo Installing WinFsp...
 start /wait msiexec /i "%msi_name%" /quiet /norestart
@@ -135,6 +137,7 @@ echo.
 :: VirtIO
 echo Detecting latest VirtIO version...
 call :download "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/" "virtio.html"
+if errorlevel 1 exit /b 1
 
 set "PSFILE=%DIR%\get_latest_virtio.ps1"
 
@@ -161,6 +164,7 @@ echo Latest version found: !latest!
 
 set "virtio_url=https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/!latest!/virtio-win-guest-tools.exe"
 call :download "!virtio_url!" "virtio-win-guest-tools.exe"
+if errorlevel 1 exit /b 1
 
 echo Installing VirtIO tools...
 start /wait "" "virtio-win-guest-tools.exe" /quiet /norestart

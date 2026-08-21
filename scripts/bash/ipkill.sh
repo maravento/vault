@@ -9,6 +9,9 @@
 
 set -uo pipefail
 
+# VALIDATION -- one variable per thing validated; use directly with =~
+_UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+
 ## root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root"
@@ -42,11 +45,11 @@ fi
 
 read -r -p "Enter IP to close: " target_ip
 
-target_ip_validated=$(echo "$target_ip" | grep -E '^(([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]{1,2}|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$')
-if [ -z "$target_ip_validated" ]; then
+if ! [[ "$target_ip" =~ $_UH_IPV4 ]]; then
     echo "Invalid IP address: '$target_ip'"
     exit 1
 fi
+target_ip_validated="$target_ip"
 case "$target_ip_validated" in
     0.0.0.0|255.255.255.255|127.*|224.*|225.*|226.*|227.*|228.*|229.*|230.*|231.*|232.*|233.*|234.*|235.*|236.*|237.*|238.*|239.*)
         echo "Warning: '$target_ip_validated' is a special/reserved address. Continuing anyway."

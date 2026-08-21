@@ -54,6 +54,10 @@ goto :Menu
 call :StopServices
 echo Change MySQL port (Default is 3306)
 call :Port
+if ERRORLEVEL 1 (
+    call :StartServices
+    goto :ReturnToMenu
+)
 %winfnr% --cl --dir "%uzero%\home\us_config" --fileMask us_user.ini --useRegEx --find "MYSQL_TCP_PORT=3306" --replace "MYSQL_TCP_PORT=%port%"
 if ERRORLEVEL 1 goto :ErrorHandler
 echo MySQL port changed to %port%
@@ -73,6 +77,10 @@ goto :ReturnToMenu
 call :StopServices
 echo Change Apache port (Default is 80)
 call :Port
+if ERRORLEVEL 1 (
+    call :StartServices
+    goto :ReturnToMenu
+)
 %winfnr% --cl --dir "%uzero%\home\us_config" --fileMask us_user.ini --useRegEx --find "AP_PORT=80" --replace "AP_PORT=%port%"
 %winfnr% --cl --dir "%uzero%\home\us_pac" --fileMask proxy.pac --useRegEx --find "if \(shExpMatch\(host, ""\*localhost""\)\) return ""PROXY 127.0.0.1:80"";" --replace "if (shExpMatch(host, \"*localhost\")) return \"PROXY 127.0.0.1:%port%\";"
 if ERRORLEVEL 1 goto :ErrorHandler

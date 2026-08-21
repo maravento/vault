@@ -6,8 +6,6 @@
 :: Access:
 :: UniFi Network Controller
 :: ACCESS URL: https://localhost:8443
-:: Unifi OS server
-:: ACCESS URL: https://localhost:11443
 
 setlocal enabledelayedexpansion
 
@@ -86,38 +84,33 @@ echo UniFi Installation Manager
 echo Log file: %logfile%
 echo.
 echo 1. Install UniFi Network Controller (Runs as Windows Service)
-echo 2. Install UniFi OS Server (Does NOT run as Service - See Warning)
-echo 3. Backup Configuration
-echo 4. Remove UniFi + JRE
-echo 5. Add IPv4 address
-echo 6. Exit
+echo 2. Backup Configuration
+echo 3. Remove UniFi + JRE
+echo 4. Add IPv4 address
+echo 5. Exit
 echo.
-set /p "var=Write your number (1, 2, 3, 4, 5, 6) and Press ENTER: "
+set /p "var=Write your number (1, 2, 3, 4, 5) and Press ENTER: "
 if "%var%"=="1" (
     echo [%date% %time%] User selected: Install UniFi Network Controller >> "%logfile%"
     goto :install_network
 )
 if "%var%"=="2" (
-    echo [%date% %time%] User selected: Install UniFi OS Server >> "%logfile%"
-    goto :install_os
-)
-if "%var%"=="3" (
     echo [%date% %time%] User selected: Backup Configuration >> "%logfile%"
     goto :backup
 )
-if "%var%"=="4" (
+if "%var%"=="3" (
     echo [%date% %time%] User selected: Remove UniFi + JRE >> "%logfile%"
     goto :remove
 )
-if "%var%"=="5" (
+if "%var%"=="4" (
     echo [%date% %time%] User selected: Add IPv4 address >> "%logfile%"
     goto :ip
 )
-if "%var%"=="6" (
+if "%var%"=="5" (
     echo [%date% %time%] User selected: Exit >> "%logfile%"
     exit /b 0
 )
-echo Invalid option. Please select a valid number from 1 to 6
+echo Invalid option. Please select a valid number from 1 to 5
 echo [%date% %time%] ERROR: Invalid option selected: %var% >> "%logfile%"
 echo.
 pause
@@ -236,8 +229,6 @@ echo [%date% %time%] Stopping UniFi processes... >> "%logfile%"
 echo Stopping UniFi processes...
 taskkill /f /im "java.exe" >nul 2>&1 && echo [%date% %time%] Killed: java.exe >> "%logfile%"
 taskkill /f /im "UniFi.exe" >nul 2>&1 && echo [%date% %time%] Killed: UniFi.exe >> "%logfile%"
-taskkill /f /im "podman.exe" >nul 2>&1 && echo [%date% %time%] Killed: podman.exe >> "%logfile%"
-taskkill /f /im "UniFi OS Server.exe" >nul 2>&1 && echo [%date% %time%] Killed: UniFi OS Server.exe >> "%logfile%"
 taskkill /f /im "UniFi-installer.exe" >nul 2>&1 && echo [%date% %time%] Killed: UniFi-installer.exe >> "%logfile%"
 taskkill /f /im "Uninstall.exe" >nul 2>&1 && echo [%date% %time%] Killed: Uninstall.exe >> "%logfile%"
 timeout /t 2 /nobreak >nul
@@ -252,20 +243,9 @@ echo ===========================================
 echo        INSTALLATION COMPLETE
 echo ===========================================
 echo.
-
-if "%detect_os%"=="1" (
-    echo PRODUCT: UniFi OS Server
-    echo ACCESS URL: https://localhost:11443
-    echo.
-    echo IMPORTANT: UniFi OS Server does NOT start automatically on boot.
-    echo You must manually start "UniFi OS Server" from the Start Menu after each reboot.
-    echo Alternatively, keep the application running in the background.
-    echo [%date% %time%] UniFi OS Server installed at: https://localhost:11443 >> "%logfile%"
-) else (
-    echo PRODUCT: UniFi Network Controller
-    echo ACCESS URL: https://localhost:8443
-    echo [%date% %time%] UniFi Network Controller installed at: https://localhost:8443 >> "%logfile%"
-)
+echo PRODUCT: UniFi Network Controller
+echo ACCESS URL: https://localhost:8443
+echo [%date% %time%] UniFi Network Controller installed at: https://localhost:8443 >> "%logfile%"
 
 echo.
 echo ===========================================
@@ -325,35 +305,6 @@ if "%product_type%"=="network" (
     echo Latest: !version_latest!
     if defined version_previous echo Previous: !version_previous!
     echo [%date% %time%] Network - Latest: !version_latest!, Previous: !version_previous! >> "%logfile%"
-    
-) else if "%product_type%"=="os" (
-    echo [%date% %time%] Getting OS Server versions... >> "%logfile%"
-    
-    :: Get all versions, sort by version number (descending)
-    powershell -Command "$versions = (Get-Content '%json_file%' | ConvertFrom-Json).downloads | Where-Object { $_.name -like '*UniFi OS Server*Windows*' } | Select-Object -ExpandProperty version -Unique | ForEach-Object { [version]$_ } | Sort-Object -Descending; $versions | ForEach-Object { $_.ToString() }" > "%installpath%\os_versions.txt"
-    
-    :: Get latest version (first line = highest version)
-    for /f "delims=" %%v in ('type "%installpath%\os_versions.txt"') do (
-        if not defined version_latest (
-            set "version_latest=%%v"
-            for /f "tokens=1 delims=." %%m in ("%%v") do set "latest_major=%%m"
-        )
-    )
-    
-    :: Find the latest version from a different major version
-    for /f "delims=" %%v in ('type "%installpath%\os_versions.txt"') do (
-        for /f "tokens=1 delims=." %%m in ("%%v") do (
-            if not "%%m"=="!latest_major!" (
-                if not defined version_previous (
-                    set "version_previous=%%v"
-                )
-            )
-        )
-    )
-    
-    echo Latest: !version_latest!
-    if defined version_previous echo Previous: !version_previous!
-    echo [%date% %time%] OS - Latest: !version_latest!, Previous: !version_previous! >> "%logfile%"
 )
 
 :: Display version selection menu
@@ -435,13 +386,6 @@ if "%product_type%"=="network" (
             set "selected_version=!custom_ver!"
         )
     )
-) else if "%product_type%"=="os" (
-    for /f "delims=" %%v in ('type "%installpath%\os_versions.txt"') do (
-        if "%%v"=="!custom_ver!" (
-            set "version_exists=1"
-            set "selected_version=!custom_ver!"
-        )
-    )
 )
 
 if !version_exists! equ 0 (
@@ -460,27 +404,16 @@ if "%product_type%"=="network" (
     :: For Network Controller - simple URL format
     set "selected_url=https://dl.ui.com/unifi/!selected_version!/UniFi-installer.exe"
     echo [%date% %time%] Network download URL: !selected_url! >> "%logfile%"
-) else if "%product_type%"=="os" (
-    :: For OS Server - need to find URL from JSON
-    for /f "delims=" %%a in ('powershell -Command "(Get-Content '%json_file%' | ConvertFrom-Json).downloads | Where-Object { $_.name -like '*UniFi OS Server*Windows*' -and $_.version -eq '!selected_version!' } | Select-Object -First 1 -ExpandProperty file_path"') do set "selected_url=%%a"
-    if not defined selected_url (
-        echo ERROR: Could not find download URL for version !selected_version!
-        echo [%date% %time%] ERROR: No download URL found for version !selected_version! >> "%logfile%"
-        exit /b 1
-    )
-    echo [%date% %time%] OS Server download URL: !selected_url! >> "%logfile%"
 )
 
 :: Cleanup temp files
 if exist "%installpath%\network_versions.txt" del "%installpath%\network_versions.txt"
-if exist "%installpath%\os_versions.txt" del "%installpath%\os_versions.txt"
 
 exit /b 0
 
 :cancel_version
 :: Cleanup and return to menu
 if exist "%installpath%\network_versions.txt" del "%installpath%\network_versions.txt"
-if exist "%installpath%\os_versions.txt" del "%installpath%\os_versions.txt"
 echo [%date% %time%] User cancelled version selection >> "%logfile%"
 exit /b 1
 
@@ -741,7 +674,6 @@ echo OK
 
 call :setup_firewall
 
-set detect_os=0
 echo [%date% %time%] UNIFI NETWORK CONTROLLER INSTALLATION COMPLETE >> "%logfile%"
 goto :final_installation
 
@@ -754,241 +686,17 @@ pause
 goto :menu
 
 :: ===========================================
-:: UNIFI OS SERVER INSTALLATION
-:: ===========================================
-
-:install_os
-cls
-set "errors=0"
-set "virt_ok=0"
-set "wsl_ok=0"
-set "distro_ok=0"
-
-echo ===========================================
-echo        UniFi OS Server - PRE-CHECK
-echo ===========================================
-echo.
-
-:: 1. Check virtualization
-powershell -Command "if ((Get-CimInstance Win32_Processor).VirtualizationFirmwareEnabled) {exit 0} else {exit 1}"
-if %errorlevel% equ 0 (
-    echo [OK] Virtualization enabled
-    set "virt_ok=1"
-) else (
-    echo [FAIL] Virtualization not enabled
-)
-
-:: 2. Check WSL2 installation
-wsl --status >nul 2>&1
-if %errorlevel% equ 0 (
-    wsl --status | findstr "Default Version: 2" >nul 2>&1
-    if !errorlevel! equ 0 (
-        echo [OK] WSL2 installed
-        set "wsl_ok=1"
-    ) else (
-        echo [FAIL] WSL installed but not version 2
-    )
-) else (
-    echo [FAIL] WSL not installed
-)
-
-:: 3. Check WSL distribution
-set "distro="
-for /f %%i in ('wsl --list --quiet 2^>nul') do set distro=%%i
-if defined distro (
-    echo [OK] WSL distribution installed (%distro%)
-    set "distro_ok=1"
-) else (
-    echo [FAIL] No WSL distribution installed
-)
-
-echo.
-:: DECISION LOGIC
-if %virt_ok% neq 1 (
-    echo Virtualization is required. Cannot continue.
-    pause
-    goto :menu
-)
-
-:: If virtualization is ok but WSL2 or distro fail, try to fix
-if %wsl_ok% neq 1 (
-    echo Installing WSL2...
-    dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart >nul
-    dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart >nul
-    call :install_wsl_kernel
-    if !errorlevel! neq 0 (
-        echo Failed to install WSL2. Cannot continue.
-        pause
-        goto :menu
-    )
-    wsl --set-default-version 2 >nul
-    set "wsl_ok=1"
-    echo [OK] WSL2 installed
-)
-
-if %distro_ok% neq 1 (
-    echo Installing Ubuntu in WSL2...
-    wsl --install -d Ubuntu
-    if !errorlevel! neq 0 (
-        echo Failed to install Ubuntu. Cannot continue.
-        pause
-        goto :menu
-    )
-    set "distro_ok=1"
-    echo [OK] Ubuntu installed
-)
-
-echo.
-if %virt_ok% equ 1 if %wsl_ok% equ 1 if %distro_ok% equ 1 (
-    echo All checks passed. Press any key to continue.
-    pause
-    goto :install_os_continue
-)
-
-
-echo.
-echo ===========================================
-echo        UniFi OS Server - IMPORTANT
-echo ===========================================
-echo.
-echo NOTE: UniFi OS Server runs via WSL2 and Podman containers.
-echo.
-echo - NOT a native Windows Service
-echo - Does NOT auto-start with Windows
-echo - Requires WSL2 running
-echo - Uses Podman containers
-echo - Access via https://localhost:11443
-echo.
-echo Do you want to install UniFi OS Server?
-set /p continue_os="Continue? (y/n): "
-if /i not "%continue_os%"=="y" goto :menu
-
-if exist "%UserProfile%\AppData\Local\Programs\UniFi OS Server\" (
-    echo UniFi OS Server is already installed.
-    echo Uninstall it first.
-    pause
-    goto :menu
-)
-
-echo.
-echo Step 1: Enabling WSL features...
-dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart >nul
-dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart >nul
-
-echo.
-echo Step 2: Installing WSL2 Kernel Update...
-call :install_wsl_kernel
-if %errorlevel% neq 0 goto :cleanup_os
-
-echo.
-echo Step 3: Setting WSL default version to 2...
-wsl --set-default-version 2 >nul
-
-echo.
-echo Step 4: Restarting WSL service...
-net stop LxssManager >nul
-timeout /t 2 /nobreak >nul
-net start LxssManager >nul
-
-echo.
-echo WSL setup complete.
-echo If this is new WSL install, reboot required.
-pause
-goto :menu
-
-:install_os_continue
-call :check_curl
-if errorlevel 1 exit /b 1
-
-echo.
-echo Step 5: Getting UniFi OS Server version...
-curl -s https://download.svc.ui.com/v1/software-downloads > temp_os.json
-
-call :get_version_selection "temp_os.json" "os"
-if errorlevel 1 (
-    del temp_os.json
-    goto :menu
-)
-
-echo.
-echo Downloading UniFi OS Server version %selected_version%...
-cd /d "%installpath%"
-curl -# -L -o "UniFi-OS-Server-installer.exe" "%selected_url%"
-if %errorlevel% neq 0 (
-    echo Error downloading UniFi OS Server.
-    del temp_os.json
-    pause
-    goto :menu
-)
-
-del temp_os.json
-echo OK
-
-echo.
-echo Step 6: Installing UniFi OS Server...
-"%installpath%\UniFi-OS-Server-installer.exe" /S
-
-call :wait_installer "UniFi-OS-Server-installer.exe"
-echo OK
-
-call :setup_firewall
-
-echo.
-echo Installation Complete!
-echo Launch "UniFi OS Server" from Start Menu
-echo Access at https://localhost:11443
-pause
-goto :menu
-
-:cleanup_os
-echo Installation failed. Cleaning up...
-if exist "%UserProfile%\AppData\Local\Programs\UniFi OS Server\" rd /s /q "%UserProfile%\AppData\Local\Programs\UniFi OS Server"
-if exist "UniFi-OS-Server-installer.exe" del "UniFi-OS-Server-installer.exe"
-if exist "temp_os.json" del "temp_os.json"
-pause
-goto :menu
-
-:: ===========================================
-:: REQUIRED FUNCTION ADDED HERE
-:: ===========================================
-
-:install_wsl_kernel
-echo Downloading WSL2 kernel update...
-curl -# -L -o "%installpath%\wsl_update_x64.msi" "https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi"
-if %errorlevel% neq 0 (
-    echo Failed to download WSL2 kernel update.
-    exit /b 1
-)
-
-echo Installing WSL2 kernel update...
-msiexec /i "%installpath%\wsl_update_x64.msi" /quiet /norestart
-if %errorlevel% neq 0 (
-    echo Failed to install WSL2 kernel update.
-    exit /b 1
-)
-
-echo OK
-exit /b 0
-
-:: ===========================================
 :: REMOVE UNIFI + JRE FUNCTION
 :: ===========================================
 
 :remove
 set "detect_network=0"
-set "detect_os=0"
 set "detect_java=0"
 set "found_any_folder=0"
 
 :: Check for UniFi Network folders (even if empty or incomplete)
 if exist "%UserProfile%\Ubiquiti UniFi\" (
     set "detect_network=1"
-    set "found_any_folder=1"
-)
-
-:: Check for UniFi OS Server folders
-if exist "%UserProfile%\AppData\Local\Programs\UniFi OS Server\" (
-    set "detect_os=1"
     set "found_any_folder=1"
 )
 
@@ -1029,7 +737,6 @@ echo.
 echo The following will be removed:
 echo.
 if %detect_network% equ 1 echo - UniFi Network Controller
-if %detect_os% equ 1 echo - UniFi OS Server
 if %detect_java% equ 1 echo - Java JRE (Temurin)
 echo.
 echo WARNING: This action cannot be undone!
@@ -1093,44 +800,6 @@ if %detect_network% equ 1 (
     echo [%date% %time%] Network Controller removal complete >> "%logfile%"
 )
 
-if %detect_os% equ 1 (
-    echo.
-    echo Uninstalling UniFi OS Server...
-    echo [%date% %time%] Uninstalling UniFi OS Server >> "%logfile%"
-    
-    :: Stop containers if WSL is available
-    wsl --list >nul 2>&1
-    if !errorlevel! equ 0 (
-        echo Stopping UniFi OS Server containers...
-        wsl -d Ubuntu -u uosserver podman stop --all >nul 2>&1
-        wsl -d Ubuntu -u uosserver podman rm --all >nul 2>&1
-        echo [%date% %time%] Stopped containers >> "%logfile%"
-        
-        echo Unregistering WSL distribution...
-        wsl --unregister Ubuntu >nul 2>&1
-        echo [%date% %time%] Unregistered Ubuntu WSL >> "%logfile%"
-    )
-    
-    :: Run OS Server uninstaller if it exists
-    set "os_uninstaller=%UserProfile%\AppData\Local\Programs\UniFi OS Server\Uninstall UniFi OS Server.exe"
-    if exist "!os_uninstaller!" (
-        echo Running UniFi OS Server uninstaller...
-        echo [%date% %time%] Running OS Server uninstaller >> "%logfile%"
-        "!os_uninstaller!" /S
-        call :wait_installer "Uninstall UniFi OS Server.exe"
-        timeout /t 5 /nobreak >nul
-    )
-    
-    :: Force remove OS Server folders
-    timeout /t 3 /nobreak >nul
-    call :force_remove_folder "%UserProfile%\AppData\Local\Programs\UniFi OS Server"
-    call :force_remove_folder "%UserProfile%\AppData\Local\uosserver-updater"
-    call :force_remove_folder "%UserProfile%\AppData\Roaming\UniFi OS Server"
-    
-    echo OK
-    echo [%date% %time%] OS Server removal complete >> "%logfile%"
-)
-
 if %detect_java% equ 1 (
     echo.
     echo Uninstalling JRE...
@@ -1161,9 +830,6 @@ echo [%date% %time%] Cleaning up residual folders >> "%logfile%"
 
 :: Remove any remaining UniFi folders with force method
 call :force_remove_folder "%UserProfile%\Ubiquiti UniFi"
-call :force_remove_folder "%UserProfile%\AppData\Local\Programs\UniFi OS Server"
-call :force_remove_folder "%UserProfile%\AppData\Local\uosserver-updater"
-call :force_remove_folder "%UserProfile%\AppData\Roaming\UniFi OS Server"
 
 :: Clean empty Programs folder
 if exist "%UserProfile%\AppData\Local\Programs\" (
@@ -1194,28 +860,19 @@ goto :menu
 
 :backup
 set "backup_network=0"
-set "backup_os=0"
 
 if exist "%UserProfile%\Ubiquiti UniFi\" set "backup_network=1"
-if exist "%UserProfile%\AppData\Local\Programs\UniFi OS Server\" set "backup_os=1"
 
-if %backup_network% equ 0 if %backup_os% equ 0 (
+if %backup_network% equ 0 (
     echo No UniFi products found installed.
     echo.
     pause
     goto :menu
 )
 
-if %backup_network% equ 1 (
-    set "unifidir=%UserProfile%\Ubiquiti UniFi\data\backup"
-    set "product_name=UniFi Network Controller"
-    set "file_pattern=*.unf"
-)
-if %backup_os% equ 1 (
-    set "unifidir=%UserProfile%\AppData\Local\Programs\UniFi OS Server\backups"
-    set "product_name=UniFi OS Server"
-    set "file_pattern=*.unf"
-)
+set "unifidir=%UserProfile%\Ubiquiti UniFi\data\backup"
+set "product_name=UniFi Network Controller"
+set "file_pattern=*.unf"
 
 if not exist "%unifidir%" (
     echo No backup directory found for %product_name%

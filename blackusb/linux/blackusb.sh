@@ -99,7 +99,7 @@ trigger_cmd_allow="$PROGRAM_ABS allow_trigger"
 # Code #
 ##############
 if [[ $custom_editor = 'yes' ]]; then
-    [[ -n $DISPLAY ]] && INX=yes
+    [[ -n ${DISPLAY:-} ]] && INX=yes
     if [[ -n $INX ]]; then
         export EDITOR="$editor_x"
     else
@@ -153,8 +153,8 @@ read_values() {
         [[ -f "${devdir}idVendor" ]] || continue
         vendors+=("$(<"${devdir}idVendor")")
         products+=("$(<"${devdir}idProduct")")
-        serials+=("$(cat "${devdir}serial" 2>/dev/null || true)")
-        products_name+=("$(cat "${devdir}product" 2>/dev/null || true)")
+        serials+=("$(cat "${devdir}serial" 2>/dev/null | tr -d '"' || true)")
+        products_name+=("$(cat "${devdir}product" 2>/dev/null | tr -d '"' || true)")
     done
 }
 

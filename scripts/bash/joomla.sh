@@ -252,6 +252,7 @@ echo "2) Delete Joomla"
 echo "3) Delete MySQL/Apache2/PHP/mkcert"
 echo "4) Exit"
 read -r -p "Select an option [1-4]: " OPTION
+OPTION="${OPTION:-4}"
 
 case "$OPTION" in
     1) install_joomla ;;

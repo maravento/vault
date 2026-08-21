@@ -70,7 +70,9 @@ _notify() {
     fi
 }
 
-PIDFILE="/tmp/watchdog.pid"
+RUN_DIR="/run/user/${UID}"
+mkdir -p "$RUN_DIR"
+PIDFILE="${RUN_DIR}/watchdog.pid"
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 LOGFILE="$SCRIPT_DIR/connection.log"
 TARGET="1.1.1.1"

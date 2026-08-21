@@ -227,7 +227,7 @@ if (defined $in{'apply'}) {
         # Backup if enabled in config (before overwriting, so it's a real restore point)
         if (($config{'netplan_backup'} // '1') eq '1') {
             my $backup_dir = $config{'backup_path'} || '/var/backups/netplan';
-            my $backup_keep = int($config{'backup_keep'} || 5);
+            my $backup_keep = int($config{'backup_keep'} // 5);
             system("mkdir -p \"$backup_dir\"");
             (my $basename = $file) =~ s{.*/}{};
             my @t = localtime(time());

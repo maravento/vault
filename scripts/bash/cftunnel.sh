@@ -550,7 +550,6 @@ create_tunnel() {
         fi
         echo "  - service: http_status:404"
     } > "$config_file"
-EOF
 
     echo "[OK] Config file created: $config_file"
 

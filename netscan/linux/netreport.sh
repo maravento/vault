@@ -43,6 +43,10 @@
 
 set -euo pipefail
 
+# VALIDATION -- one variable per thing validated; use directly with =~
+_UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+_UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+
 timestamp() { date +%F-%H_%M_%S; }
 
 # logging
@@ -646,8 +650,8 @@ case "$opt" in
       warn "No target specified. Try again."
     done
 
-    # Validate target format (basic check)
-    if ! [[ "$target" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$ ]]; then
+    # Validate target format (IPv4 or FQDN)
+    if ! [[ "$target" =~ $_UH_IPV4 ]] && ! [[ "$target" =~ $_UH_FQDN ]]; then
       die "Invalid target format: $target"
     fi
 

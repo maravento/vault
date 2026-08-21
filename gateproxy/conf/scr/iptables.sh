@@ -285,15 +285,24 @@ sysctl -w net.ipv4.conf.default.arp_announce=2 >/dev/null 2>&1 || true
 sysctl -w net.ipv4.conf.all.arp_ignore=1 >/dev/null 2>&1 || true
 sysctl -w net.ipv4.conf.default.arp_ignore=1 >/dev/null 2>&1 || true
 # ARP cache tuning: reduce broadcast frequency and improve efficiency
-sysctl -w net.ipv4.neigh.default.gc_stale_time=300 >/dev/null 2>&1 || true
+# gc_thresh1/2/3 are global values, exposed under neigh/default only by
+# convention. Every other key here is per-interface: neigh/default is just the
+# template copied to interfaces created after it is written, so an interface
+# that already exists keeps the kernel defaults unless it is set by name.
 sysctl -w net.ipv4.neigh.default.gc_thresh1=128 >/dev/null 2>&1 || true
 sysctl -w net.ipv4.neigh.default.gc_thresh2=512 >/dev/null 2>&1 || true
 sysctl -w net.ipv4.neigh.default.gc_thresh3=1024 >/dev/null 2>&1 || true
-# Reduce ARP broadcast retries (limits ARP noise in large LANs)
-sysctl -w net.ipv4.neigh.default.ucast_solicit=3 >/dev/null 2>&1 || true
-sysctl -w net.ipv4.neigh.default.mcast_solicit=2 >/dev/null 2>&1 || true
-# Base reachable time for neighbor entries
-sysctl -w net.ipv4.neigh.default.base_reachable_time_ms=300000 >/dev/null 2>&1 || true
+sysctl -w "net.ipv4.neigh.${lan}.gc_stale_time=300" >/dev/null 2>&1 || true
+# ARP solicitations before a neighbour is declared FAILED and its queued
+# packets are dropped. Devices that enter deep sleep (printers, IoT) need
+# seconds to answer, so this stays above the kernel default rather than below.
+sysctl -w "net.ipv4.neigh.${lan}.ucast_solicit=6" >/dev/null 2>&1 || true
+sysctl -w "net.ipv4.neigh.${lan}.mcast_solicit=6" >/dev/null 2>&1 || true
+# Base reachable time for neighbor entries. Kept at the kernel default: this is
+# how long a MAC is trusted without re-verification, and any DHCP pool recycles
+# an IP between different devices, so a longer window would keep sending to the
+# previous holder's MAC.
+sysctl -w "net.ipv4.neigh.${lan}.base_reachable_time_ms=30000" >/dev/null 2>&1 || true
 
 ##### KERNEL & FILESYSTEM HARDENING #####
 # Enable full ASLR (Address Space Layout Randomization)
@@ -740,9 +749,10 @@ for _cf in "$acl_mac_path"/mac-*.txt; do
         [ "$_cstatus" = "a" ] || continue
         [[ "$_cmac" =~ $_UH_MAC ]] || continue
         _cmac_lc="${_cmac,,}"
-        grep -qxF "$_cmac_lc" <<< "$mac2ip_macs" || \
+        if ! grep -qxF "$_cmac_lc" <<< "$mac2ip_macs"; then
             log "WARNING: $_cmac ($(basename "$_cf")) has no static reservation"
             log "WARNING: MACCHECK drops it until pyleases.sh runs or it's added manually"
+        fi
     done < "$_cf"
 done
 

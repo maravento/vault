@@ -653,7 +653,7 @@ if (scalar(keys %blocked_domains) > 0) {
     foreach my $domain (sort { $blocked_domains{$b} <=> $blocked_domains{$a} } keys %blocked_domains) {
         last if ++$count > 10;
         print "<tr>";
-        print "<td>$domain</td>";
+        print "<td>" . escapeHTML($domain) . "</td>";
         print "<td><span class='badge badge-blocked'>" . format_number($blocked_domains{$domain}) . "</span></td>";
         print "</tr>";
     }
@@ -689,7 +689,7 @@ if (scalar(keys %clients_data) > 0) {
         my $percent = $total > 0 ? sprintf("%.1f", ($blocked / $total) * 100) : 0;
 
         print "<tr>";
-        print "<td><strong>$client</strong></td>";
+        print "<td><strong>" . escapeHTML($client) . "</strong></td>";
         print "<td>" . format_number($total) . "</td>";
         print "<td><span class='badge badge-blocked'>" . format_number($blocked) . "</span></td>";
         print "<td>$percent%</td>";
@@ -976,13 +976,13 @@ foreach my $client (sort @clients_to_show) {
 
     print "<details style='margin-bottom: 15px; border: 1px solid #ddd; border-radius: 5px;'>";
     print "<summary style='padding: 10px; background: #f8f9fa; cursor: pointer; color: #212529 !important;'>";
-    print "<strong>$client</strong> -- Total: <strong>$total_requests</strong> | ";
+    print "<strong>" . escapeHTML($client) . "</strong> -- Total: <strong>$total_requests</strong> | ";
     print "Blocked: <span style='color: #dc3545 !important;'><strong>$total_blocked</strong></span> | ";
     print "Allowed: <span style='color: #28a745 !important;'><strong>$total_allowed</strong></span>";
 
     # PDF Button by IP
     print "<form method='post' action='pdf_report.cgi' target='_blank' style='display: inline; float: right;'>";
-    print "<input type='hidden' name='client_ip' value='$client'>";
+    print "<input type='hidden' name='client_ip' value='" . escapeHTML($client) . "'>";
     print "<input type='hidden' name='time_range' value='$time_range'>";
     print "<input type='hidden' name='max_lines' value='$max_lines'>";
     print "<input type='submit' value=' PDF Report' style='background: #dc2626; color: #000000 !important; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-weight: bold; font-family: Arial, sans-serif !important; font-size: 12px !important; margin-left: 10px;'>";
@@ -1048,7 +1048,7 @@ foreach my $client (sort @clients_to_show) {
                     $url_count{$url}++;
                 }
                 foreach my $url (sort { $url_count{$b} <=> $url_count{$a} } keys %url_count) {
-                    print "* $url (" . $url_count{$url} . "x)<br>";
+                    print "* " . escapeHTML($url) . " (" . $url_count{$url} . "x)<br>";
                 }
                 print "</td>";
                 print "</tr>";
@@ -1074,7 +1074,7 @@ foreach my $client (sort @clients_to_show) {
                     $url_count{$url}++;
                 }
                 foreach my $url (sort { $url_count{$b} <=> $url_count{$a} } keys %url_count) {
-                    print "* $url (" . $url_count{$url} . "x)<br>";
+                    print "* " . escapeHTML($url) . " (" . $url_count{$url} . "x)<br>";
                 }
                 print "</td>";
                 print "</tr>";
@@ -1433,7 +1433,7 @@ if ($specific_client) {
             my $visits = $domain_stats{$domain}{total} || 0;
             my $blocked = $domain_stats{$domain}{Blocked} || 0;
             my $status = $blocked > 0 ? "<span class='blocked'>Blocked</span>" : "<span class='allowed'>Allowed</span>";
-            print "<tr><td>$domain</td><td>" . format_number($visits) . "</td><td>$status</td></tr>";
+            print "<tr><td>" . escapeHTML($domain) . "</td><td>" . format_number($visits) . "</td><td>$status</td></tr>";
         }
         print "</table>";
     }
@@ -1454,7 +1454,7 @@ if ($specific_client) {
         my $blocked = $domain_stats{$domain}{Blocked} || 0;
         my $unique_clients = scalar(keys %{$domain_stats{$domain}{clients} || {}});
         print "<tr>";
-        print "<td>$domain</td>";
+        print "<td>" . escapeHTML($domain) . "</td>";
         print "<td>" . format_number($total) . "</td>";
         print "<td class='allowed'>" . format_number($allowed) . "</td>";
         print "<td class='blocked'>" . format_number($blocked) . "</td>";
@@ -1495,7 +1495,7 @@ if ($specific_client) {
         my $blocked = $client_traffic{$client}{Blocked} || 0;
         my $block_rate = $total > 0 ? sprintf("%.1f", ($blocked/$total)*100) : 0;
         print "<tr>";
-        print "<td>$client</td>";
+        print "<td>" . escapeHTML($client) . "</td>";
         print "<td>" . format_number($total) . "</td>";
         print "<td class='allowed'>" . format_number($allowed) . "</td>";
         print "<td class='blocked'>" . format_number($blocked) . "</td>";

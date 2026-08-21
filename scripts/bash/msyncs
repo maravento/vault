@@ -148,7 +148,7 @@ frun () {
 
     # 1-9 number
     while [[ ! $INSTNUM =~ ^[1-9]$ ]]; do
-        INSTNUM=$(zenity --entry --text="How many MEGAsync instances do you need? (1-9)")
+        INSTNUM=$(zenity --entry --text="How many MEGAsync instances do you need? (1-9)") || { echo "Cancelled."; exit 0; }
 
         # check valid number
         if [[ ! $INSTNUM =~ ^[1-9]$ ]]; then
@@ -161,7 +161,7 @@ frun () {
     for (( i=1; i<=INSTNUM; i++ )); do
         NAME=""
         while [[ -z "$NAME" ]]; do
-            NAME=$(zenity --entry --text="Insert the name for instance $i/$INSTNUM")
+            NAME=$(zenity --entry --text="Insert the name for instance $i/$INSTNUM") || { echo "Cancelled."; exit 0; }
             if [[ -z "$NAME" ]]; then
                 zenity --error --text="Instance name cannot be empty."
             fi

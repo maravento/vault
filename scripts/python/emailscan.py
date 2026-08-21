@@ -72,7 +72,6 @@ def process_page(url, email, session):
         return False, set()
 def scan():
     import time
-    domain = urlparse(BASE_URL).netloc
     visited = set()
     pending = deque([normalize_url(BASE_URL)])
     pending_set = {normalize_url(BASE_URL)}

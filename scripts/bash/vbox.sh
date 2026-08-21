@@ -63,7 +63,7 @@ fi
 echo "Using local user: $local_user"
 
 # DEPENDENCIES
-for dep in wget gnupg lsb-release psmisc procps findutils gawk; do
+for dep in wget gnupg lsb-release psmisc procps findutils gawk systemd sudo; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: Required dependency '$dep' is not installed." >&2
         exit 1
@@ -83,7 +83,12 @@ function vboxinstall() {
     apt-get update
     # install vbox
     apt-get -y install linux-headers-$(uname -r) build-essential gcc make perl dkms bridge-utils
-    apt-get -y install virtualbox-7.2
+    vbox_pkg=$(apt-cache search '^virtualbox-7\.' | awk '{print $1}' | sort -V | tail -1)
+    if [ -z "$vbox_pkg" ]; then
+        echo "ERROR: No virtualbox-7.x package found in repo for $distro"
+        exit 1
+    fi
+    apt-get -y install "$vbox_pkg"
     dpkg --configure -a
     apt-get -f -y install
     # configure
@@ -124,7 +129,7 @@ vboxversion=$(dpkg -l | grep -P 'virtualbox-\d+\.\d+' | awk '{print $2}')
 
 if [ "$vboxversion" ]; then
     echo "Virtualbox is installed. Do you want to delete it? (y/n)"
-    read answer
+    read -r answer
     if [ "$answer" = "y" ]; then
         vboxpurge
     else
@@ -132,7 +137,7 @@ if [ "$vboxversion" ]; then
     fi
 else
     echo "Virtualbox is not installed. Do you want to install it? (y/n)"
-    read answer
+    read -r answer
     if [ "$answer" = "y" ]; then
         vboxinstall
     else

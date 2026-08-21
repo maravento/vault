@@ -86,13 +86,13 @@ else
 fi
 
 SCRIPT_NAME=$(basename "$0")
-PID_FILE="/tmp/${SCRIPT_NAME}.pid"
-ACTIVE_FLAG="/tmp/${SCRIPT_NAME}_active"
 
 # Root-only state dir (not world-writable /tmp) to avoid symlink attacks on
 # files that must persist across start/status/stop invocations
 STATE_DIR="/run/${SCRIPT_NAME}"
 mkdir -p -m 700 "$STATE_DIR"
+PID_FILE="$STATE_DIR/pid"
+ACTIVE_FLAG="$STATE_DIR/active"
 OUTPUT_FILE="$STATE_DIR/output.txt"
 PORTS_FILE="$STATE_DIR/ports.txt"
 

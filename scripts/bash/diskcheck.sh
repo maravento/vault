@@ -97,7 +97,7 @@ done
 
 # check ppa
 the_ppa=malcscott/ppa
-if ! grep -q "^deb .*$the_ppa" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
+if ! dpkg -s hddtemp &>/dev/null; then
     if ! add-apt-repository -y ppa:$the_ppa >/dev/null 2>&1; then
         log "WARNING: Failed to add PPA $the_ppa. hddtemp may not be available."
     else

@@ -115,11 +115,11 @@ foreach my $key (keys %in) {
         my $status = check_service_status($service);
 
         if ($action eq 'stop' && $status ne 'active') {
-            system("logger -t servicemon -p daemon.warning 'Service stopped: $service'");
+            system("logger", "-t", "servicemon", "-p", "daemon.warning", "Service stopped: $service");
         } elsif ($action eq 'start' && $status eq 'active') {
-            system("logger -t servicemon -p daemon.info 'Service started: $service'");
+            system("logger", "-t", "servicemon", "-p", "daemon.info", "Service started: $service");
         } elsif ($action eq 'restart') {
-            system("logger -t servicemon -p daemon.info 'Service restarted: $service'");
+            system("logger", "-t", "servicemon", "-p", "daemon.info", "Service restarted: $service");
         }
 
         my $timestamp = time();

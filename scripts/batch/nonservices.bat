@@ -59,9 +59,13 @@ set SERVICES="wsearch" "SysMain" "DiagTrack" "dmwappushservice"
 
 for %%S in (%SERVICES%) do (
     sc config %%S start=auto >nul 2>&1
-    echo %%S has been enabled.
-    sc start %%S >nul 2>&1
-    call :wait_running %%S
+    if !errorlevel!==0 (
+        echo %%S has been enabled.
+        sc start %%S >nul 2>&1
+        call :wait_running %%S
+    ) else (
+        echo Unable to enable %%S.
+    )
 )
 endlocal
 goto end

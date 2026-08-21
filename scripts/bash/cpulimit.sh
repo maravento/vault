@@ -41,6 +41,11 @@ start_limit() {
     # program name:
     read -r -p "Enter the program name: " program_name
 
+    if [ -z "$program_name" ]; then
+        echo "ERROR: Program name cannot be empty."
+        exit 1
+    fi
+
     # Sanitize program name to prevent regex abuse
     if [[ "$program_name" =~ [^a-zA-Z0-9_\-\.] ]]; then
         echo "Invalid program name: only alphanumeric characters, hyphens, underscores and dots are allowed."
@@ -68,7 +73,7 @@ start_limit() {
     # Apply cpulimit to each matching PID
     >> /var/run/cpulimit_managed.pid
     while IFS= read -r pid; do
-        cpulimit -l "$cpu_limit" -p "$pid" >/dev/null &
+        cpulimit -l "$cpu_limit" -p "$pid" >/dev/null 200>&- &
         cpulimit_pid=$!
         echo "$cpulimit_pid" >> /var/run/cpulimit_managed.pid
         echo "$cpu_limit% CPU limit applied to '$program_name' (PID: $pid, cpulimit PID: $cpulimit_pid)"

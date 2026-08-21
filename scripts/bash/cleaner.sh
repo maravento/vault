@@ -24,10 +24,10 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 # prevent overlapping runs
-LOCK_FD=200
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
-if ! flock -n $LOCK_FD; then
+if ! flock -n 200; then
     echo "Script $(basename "$0") is already running"
     exit 1
 fi

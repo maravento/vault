@@ -25,7 +25,7 @@ if ! flock -n 200; then
 fi
 
 # DEPENDENCIES
-for dep in openssl; do
+for dep in openssl ca-certificates systemd; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: Required dependency '$dep' is not installed." >&2
         exit 1

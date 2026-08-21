@@ -136,7 +136,7 @@ def check_link(url, session):
         return None, "conn"
 
 
-def collect_links(url, session):
+def collect_links(url, session, domain):
     try:
         resp = session.get(url, timeout=TIMEOUT, allow_redirects=True)
         resp.raise_for_status()
@@ -145,7 +145,6 @@ def collect_links(url, session):
         parser = "xml" if any(x in content_type for x in ("xml", "rss", "atom")) else "html.parser"
         soup = BeautifulSoup(resp.text, parser)
         final_url = resp.url
-        domain = urlparse(final_url).netloc
         links = set()
         for tag in soup.find_all("a", href=True):
             href = urljoin(final_url, tag["href"])
@@ -203,7 +202,7 @@ def scan():
             by_type[error_key].append((current_url, status))
             print(f"        ❌ {label}")
         else:
-            new_links = collect_links(current_url, session)
+            new_links = collect_links(current_url, session, domain)
             for link in new_links:
                 if link not in visited:
                     pending.append(link)
