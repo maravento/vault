@@ -6,12 +6,20 @@
 # Gateproxy
 # A simple proxy/firewall server
 #
+#
+# LOG: gateproxy.log, in the same directory this script is run from.
+# Appended across runs. Not covered by logrotate; empty it by hand when
+# needed: truncate -s 0 gateproxy.log
+#
 ################################################################################
 
 set -Eeuo pipefail
 
+# The log lives in this script's own directory, not inside $gp_path: that
+# folder is deleted and re-downloaded during the run, and again at the end,
+# so a log kept there would not survive. Appended across runs, so a failed
+# attempt can be compared against the one that followed it.
 log_file="$(dirname "$(realpath "$0")")/gateproxy.log"
-: > "$log_file" 2>/dev/null || true
 log() {
     local msg="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
@@ -20,7 +28,7 @@ trap 'log "ERROR: command failed at line $LINENO: $BASH_COMMAND"' ERR
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root"
+    log "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
@@ -48,7 +56,7 @@ check_conflicts() {
     if [ "${#found[@]}" -gt 0 ]; then
         log "ERROR: Conflicting $role package(s) already installed: ${found[*]}"
         log "ERROR: gateproxy installs its own $role stack."
-        log "ERROR: Remove them first: apt purge -y ${found[*]}"
+        log "ERROR: remove them first: apt purge -y ${found[*]} -- abort"
         exit 1
     fi
 }
@@ -58,7 +66,7 @@ retry_cmd() {
     local attempt=1
     until "$@"; do
         if [ "$attempt" -ge "$max_attempts" ]; then
-            log "ERROR: command failed after $max_attempts attempts: $*"
+            log "ERROR: command failed after $max_attempts attempts -- abort"
             exit 1
         fi
         log "WARNING: command failed (attempt $attempt/$max_attempts), retrying in 10s: $*"
@@ -82,7 +90,7 @@ check_conflicts "firewall"    firewalld
 check_conflicts "IDS"         snort
 if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "^Status: active"; then
     log "ERROR: ufw is active and will conflict with gateproxy's iptables rules."
-    log "ERROR: Disable it first: ufw disable"
+    log "ERROR: disable it first: ufw disable -- abort"
     exit 1
 fi
 log "No conflicting packages found: OK"
@@ -125,7 +133,7 @@ if ! LOCAL_USER=$(detect_local_user); then
 fi
 LOCAL_HOME=$(getent passwd "$LOCAL_USER" | cut -d: -f6)
 if [ -z "$LOCAL_HOME" ] || [ ! -d "$LOCAL_HOME" ]; then
-    log "ERROR: Home directory not found for user $LOCAL_USER"
+    log "ERROR: no home directory for user $LOCAL_USER -- abort"
     exit 1
 fi
 log "Using local user: $LOCAL_USER ($LOCAL_HOME)"
@@ -229,7 +237,7 @@ if [ -n "$missing" ]; then
     apt_wait_limit=60
     while pgrep -x apt > /dev/null 2>&1 || pgrep -x apt-get > /dev/null 2>&1 || pgrep -x dpkg > /dev/null 2>&1; do
         if [ "$apt_wait" -ge "$apt_wait_limit" ]; then
-            log "ERROR: apt/dpkg did not release after $((apt_wait_limit * 5)) seconds"
+            log "ERROR: apt/dpkg lock not released -- abort"
             exit 1
         fi
         log "Waiting for apt/dpkg to finish... ($apt_wait/$apt_wait_limit)"
@@ -347,7 +355,7 @@ function public_interface() {
             log "Invalid selection. Try again."
         fi
     done
-    find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$WAN_IF:g" "{}"
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$WAN_IF:g" "{}"
 }
 
 # local interface
@@ -384,7 +392,7 @@ function is_interfaces() {
         rm -rf "$gp_path" &>/dev/null
         exit
     elif [ "${#IFACES[@]}" -eq 0 ]; then
-        log "ERROR: No network interfaces found"
+        log "ERROR: no network interfaces found -- abort"
         exit 1
     else
         log "Check Net Interfaces: OK"
@@ -571,7 +579,7 @@ function is_port() {
     fi
     PORTNEW=$(echo "$PORT" | grep -E '^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$')
     if [ "$PORTNEW" ]; then
-        find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:3128:$PORTNEW:g" "{}"
+        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:3128:$PORTNEW:g" "{}"
         log "You have entered Proxy Port $PORT :OK"
         return 0
     else
@@ -617,7 +625,7 @@ if [ "$SERV_SUBNET" != "192.168.0.0" ]; then
     sed -i "s:192\.168\.0\.\*:$(echo "$SERV_SUBNET" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/server/wpad.pac"
 fi
 
-# WAN_IF, PORTNEW (as SQUID_PORT) and LOCAL_USER are appended to
+# WAN_IF and PORTNEW (the proxy port) are substituted into conf/ with sed
 # /etc/pydhcp/pydhcp.env below, once pydhcp is installed. SERVER_IP,
 # SERV_SUBNET and SERV_MASK are written instead by pydhcp's own pysetup.sh,
 # from the values gateproxy passes it via expect -- pydhcp.env is the single
@@ -637,11 +645,11 @@ cp -f "$gp_path/conf/server/00-networkd.yaml" /etc/netplan/00-networkd.yaml
 chown root:root /etc/netplan/00-networkd.yaml
 chmod 600 /etc/netplan/00-networkd.yaml
 if ! netplan generate 2>&1 | tee -a "$log_file"; then
-    log "ERROR: netplan generate failed"
+    log "ERROR: netplan generate failed -- abort"
     exit 1
 fi
 if ! netplan apply 2>&1 | tee -a "$log_file"; then
-    log "ERROR: netplan apply failed"
+    log "ERROR: netplan apply failed -- abort"
     exit 1
 fi
 
@@ -650,7 +658,7 @@ NETPLAN_WAIT=0
 NETPLAN_WAIT_LIMIT=30
 until ip -4 addr show "$LAN_IF" 2>/dev/null | grep -qF "inet $SERVER_IP/"; do
     if [ "$NETPLAN_WAIT" -ge "$NETPLAN_WAIT_LIMIT" ]; then
-        log "ERROR: $LAN_IF did not come up with an IP."
+        log "ERROR: $LAN_IF did not come up with an IP -- abort"
         log "Wait a few minutes and run: sudo bash gateproxy.sh"
         exit 1
     fi
@@ -994,27 +1002,6 @@ EOF
             log "DHCP pool range: 220-235 (default). To modify edit /etc/pydhcp/pydhcp.env"
             log "DHCP clients will use $SERVER_IP (unbound) as DNS"
 
-            # gateproxy's own config values, appended to pydhcp.env so it stays
-            # the single persistent source of truth (pydhcp.env is never
-            # overwritten by pysetup.sh once created -- see pysetup.sh:470-476).
-            PYDHCP_ENV="/etc/pydhcp/pydhcp.env"
-            if [ -f "$PYDHCP_ENV" ]; then
-                cat >> "$PYDHCP_ENV" << ENVEOF
-
-# =============================================================================
-# GATEPROXY CUSTOM VALUES
-# =============================================================================
-WAN_IF="$WAN_IF"
-SQUID_PORT=${PORTNEW:-3128}
-SQUID_INTERCEPT_PORT=3129
-LOCAL_USER="$LOCAL_USER"
-SCR_PATH=$SCR_PATH
-# =============================================================================
-ENVEOF
-                log "gateproxy config values appended to $PYDHCP_ENV"
-            else
-                log "WARNING: $PYDHCP_ENV not found -- gateproxy config values not persisted"
-            fi
         else
             log "WARNING: Cannot enter pydhcp directory. Skipping pydhcp installation."
         fi

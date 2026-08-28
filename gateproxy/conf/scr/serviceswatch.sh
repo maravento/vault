@@ -24,7 +24,7 @@ log() {
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root"
+    log "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
@@ -40,7 +40,7 @@ fi
 # DEPENDENCIES
 for dep in procps systemd apache2 squid-openssl rsyslog; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: Required dependency '$dep' is not installed."
+        log "ERROR: missing dependency '$dep' -- abort"
         exit 1
     fi
 done
@@ -48,7 +48,7 @@ done
 # DEPENDENCIES (external repo)
 for dep in webmin; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: Required dependency '$dep' is not installed."
+        log "ERROR: missing dependency '$dep' -- abort"
         exit 1
     fi
 done

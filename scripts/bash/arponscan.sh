@@ -55,7 +55,7 @@ done
 printf "\n"
 # local net interface
 while :; do
-    read -r -p "Enter the local network interface (e.g. enp2s0): " lan
+    read -r -p "Enter the local network interface (e.g. eth1): " lan
     if [ -z "$lan" ] || ! ip link show "$lan" &>/dev/null; then
         echo "ERROR: interface does not exist. Try again."
         continue

@@ -39,7 +39,7 @@ log() {
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root"
+    log "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
@@ -53,9 +53,9 @@ if ! flock -n 200; then
 fi
 
 # DEPENDENCIES
-for dep in iptables ipset arptables ebtables procps util-linux ulogd2; do
+for dep in iptables ipset arptables ebtables procps util-linux ulogd2 mawk coreutils grep; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: Required dependency '$dep' is not installed."
+        log "ERROR: missing dependency '$dep' -- abort"
         exit 1
     fi
 done
@@ -79,17 +79,17 @@ is_valid_port() {
     [[ "$1" =~ $_UH_UINT ]] && (( $1 <= 65535 ))
 }
 
-# Network config -- pydhcp.env is the single persistent source of truth for
-# both pydhcp's own values and gateproxy's (appended by gateproxy.sh after
-# pydhcp installs; see pysetup.sh:470-476 -- pydhcp.env is never overwritten
-# once created). Safe key=value parsing (file is never sourced) with
-# built-in defaults if the file is missing or a key wasn't set, so a
-# stale/partial config never blocks the firewall from loading.
+# Network config -- pydhcp.env holds pydhcp's own values and is read here;
+# gateproxy never writes into it. gateproxy's own values (WAN interface and
+# proxy ports) are the literals below: gateproxy.sh replaces them with sed
+# during install, from the answers given there. Safe key=value parsing (the
+# file is never sourced) with built-in defaults if it is missing or a key
+# wasn't set, so a stale/partial config never blocks the firewall.
 PYDHCP_ENV="/etc/pydhcp/pydhcp.env"
 
 load_env_file() {
     local file="$1" line key value
-    [[ ! -f "$file" ]] && { log "WARNING: $file not found -- using defaults"; return 1; }
+    [[ ! -f "$file" ]] && { log "WARNING: $file not found -- fallback"; return 1; }
     while IFS= read -r line || [ -n "$line" ]; do
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
         [[ "$line" =~ ^[[:space:]]*$ ]] && continue
@@ -99,8 +99,7 @@ load_env_file() {
             value="${value:1:$((${#value}-2))}"
         fi
         case "$key" in
-            WAN_IF|INTERFACESv4|SERVER_IP|SERV_SUBNET|SERV_MASK|\
-            SERV_DNS|SQUID_PORT|SQUID_INTERCEPT_PORT|LOCAL_USER|ACL_PATH|SCR_PATH)
+            INTERFACESv4|SERVER_IP|SERV_SUBNET|SERV_MASK|SERV_DNS|ACL_PATH)
                 printf -v "$key" '%s' "$value"
                 ;;
             *)
@@ -114,7 +113,7 @@ load_env_file "$PYDHCP_ENV" || true
 acl_mac_path="${ACL_PATH:-/etc/acl}/acl_mac"
 acl_ipt_path="${ACL_PATH:-/etc/acl}/acl_ipt"
 # interfaces
-wan="${WAN_IF:-eth0}"
+wan="eth0"
 lan="${INTERFACESv4:-eth1}"
 # LAN localnet/netmask (CIDR prefix derived from pydhcp's own SERV_MASK,
 # no separate gateproxy key to keep in sync by hand)
@@ -123,33 +122,33 @@ _uh_mask="${SERV_MASK:-255.255.255.0}"
 if [[ " $_UH_PREFIX " =~ [[:space:]]${_uh_mask//./\\.}:([0-9]+)[[:space:]] ]]; then
     netmask="${BASH_REMATCH[1]}"
 else
-    log "ERROR: SERV_MASK is not a valid netmask: '$_uh_mask'"
+    log "ERROR: SERV_MASK is not a valid netmask -- abort"
     exit 1
 fi
 # server IP
 serverip="${SERVER_IP:-192.168.0.10}"
 # squid proxy port
-squid_port="${SQUID_PORT:-3128}"
+squid_port="3128"
 # squid intercept port (NAT-redirected HTTP, not exposed to explicit proxy clients)
-squid_intercept_port="${SQUID_INTERCEPT_PORT:-3129}"
+squid_intercept_port="3129"
 
 # ACL/config files used by this script (existence verified below)
-mac_proxy_file="$acl_mac_path/mac-proxy.txt"
+mac_limited_file="$acl_mac_path/mac-limited.txt"
 mac_unlimited_file="$acl_mac_path/mac-unlimited.txt"
 blockports_file="$acl_ipt_path/blockports.txt"
 dhcp_conf="/etc/pydhcp/pydhcpd.conf"
 path_ips="$acl_ipt_path/dhcp_ip.txt"
 path_macs="$acl_ipt_path/dhcp_mac.txt"
 
-for f in "$mac_proxy_file" "$mac_unlimited_file" "$blockports_file" "$dhcp_conf"; do
+for f in "$mac_limited_file" "$mac_unlimited_file" "$blockports_file" "$dhcp_conf"; do
     if [ ! -f "$f" ]; then
         log "ERROR: required file not found:"
-        log "ERROR: $f"
+        log "ERROR: $f -- abort"
         exit 1
     fi
 done
 if [ ! -d "$acl_mac_path" ] || [ -z "$(ls -A "$acl_mac_path" 2>/dev/null)" ]; then
-    log "ERROR: acl_mac_path missing or empty: $acl_mac_path"
+    log "ERROR: acl_mac_path missing or empty -- abort"
     exit 1
 fi
 
@@ -273,6 +272,14 @@ sysctl -w net.ipv4.tcp_tw_reuse=1 >/dev/null 2>&1 || true
 ##### ROUTING & FORWARDING #####
 # Enable packet forwarding (required for NAT/routing)
 sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
+# Not a tuning value like the rest: without forwarding this host stops
+# routing, and LAN clients get a lease that reaches nothing. Verified by
+# its resulting state, not by sysctl's exit code, so a value already set
+# by another means is accepted.
+if [ "$(sysctl -n net.ipv4.ip_forward 2>/dev/null)" != "1" ]; then
+    log "ERROR: IPv4 forwarding is off, LAN cannot route -- abort"
+    exit 1
+fi
 
 ##### ARP OPTIMIZATION #####
 # Enable ARP filtering (prevents incorrect replies when multiple interfaces exist)
@@ -381,7 +388,7 @@ iptables -A FORWARD -s 127.0.0.0/8 ! -i lo -j DROP
 #        ipset add bogons "$bogonscidr" -exist
 #    done
 #else
-#    log "WARNING: $bogonslst not found -- skipping bogons"
+#    log "WARNING: $bogonslst not found, bogons -- skip"
 #fi
 #iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set bogons src -j DROP
 #iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set bogons dst -j DROP
@@ -727,19 +734,19 @@ iptables -A FORWARD -i "$lan" -p udp --dport 123 -m set --match-set macports src
 
 ## MAC RULES ##
 
-# MACPROXY (PAC 18100 - DHCP option 252, HTTP 80 -> Squid intercept port)
-if ! ipset list macproxy &>/dev/null; then
-    ipset create macproxy hash:mac -exist
+# MACLIMITED (PAC 18100 - DHCP option 252, HTTP 80 -> Squid intercept port)
+if ! ipset list maclimited &>/dev/null; then
+    ipset create maclimited hash:mac -exist
 else
-    ipset flush macproxy
+    ipset flush maclimited
 fi
-for mac in $(awk -F";" '$1 == "a" && $2 != "" {print $2}' "$mac_proxy_file" 2>/dev/null); do
-    [[ "$mac" =~ $_UH_MAC ]] && ipset add macproxy "$mac" -exist
+for mac in $(awk -F";" '$1 == "a" && $2 != "" {print $2}' "$mac_limited_file" 2>/dev/null); do
+    [[ "$mac" =~ $_UH_MAC ]] && ipset add maclimited "$mac" -exist
 done
-iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set macproxy src -p tcp -m multiport --dports 18100,80,$squid_port -j ACCEPT
-iptables -t nat -A PREROUTING -i "$lan" -p tcp --dport 80 -m set --match-set macproxy src -j REDIRECT --to-port "$squid_intercept_port"
-iptables -A INPUT -i "$lan" -p tcp --dport "$squid_intercept_port" -m set --match-set macproxy src -m conntrack --ctstate DNAT -j ACCEPT
-iptables -A INPUT -i "$lan" -p tcp -m multiport --dports 18100,$squid_port -m set --match-set macproxy src -j ACCEPT
+iptables -t mangle -A PREROUTING -i "$lan" -m set --match-set maclimited src -p tcp -m multiport --dports 18100,80,$squid_port -j ACCEPT
+iptables -t nat -A PREROUTING -i "$lan" -p tcp --dport 80 -m set --match-set maclimited src -j REDIRECT --to-port "$squid_intercept_port"
+iptables -A INPUT -i "$lan" -p tcp --dport "$squid_intercept_port" -m set --match-set maclimited src -m conntrack --ctstate DNAT -j ACCEPT
+iptables -A INPUT -i "$lan" -p tcp -m multiport --dports 18100,$squid_port -m set --match-set maclimited src -j ACCEPT
 
 # Diagnostic only: warn about classified MACs with no static reservation in
 # pydhcpd.conf -- MACCHECK drops their traffic regardless of classification.
@@ -751,7 +758,7 @@ for _cf in "$acl_mac_path"/mac-*.txt; do
         _cmac_lc="${_cmac,,}"
         if ! grep -qxF "$_cmac_lc" <<< "$mac2ip_macs"; then
             log "WARNING: $_cmac ($(basename "$_cf")) has no static reservation"
-            log "WARNING: MACCHECK drops it until pyleases.sh runs or it's added manually"
+            log "WARNING: MACCHECK drops it until added or reloaded -- alert"
         fi
     done < "$_cf"
 done

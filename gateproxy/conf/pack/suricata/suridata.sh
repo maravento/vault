@@ -49,7 +49,7 @@ log() {
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root"
+    log "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
@@ -65,7 +65,7 @@ fi
 # DEPENDENCIES
 for dep in jq ipset iptables coreutils grep; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: Required dependency '$dep' is not installed."
+        log "ERROR: missing dependency '$dep' -- abort"
         exit 1
     fi
 done
@@ -91,7 +91,7 @@ OUT_FILE="$ACL_IPT_PATH/suridata.txt"
 
 for f in "$RULES_FILE" "$EVE_LOG"; do
     if [ ! -f "$f" ]; then
-        log "ERROR: required file not found: $f"
+        log "ERROR: required file not found: $f -- abort"
         exit 1
     fi
 done

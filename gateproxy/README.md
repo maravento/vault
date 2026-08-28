@@ -91,10 +91,10 @@ Los DNS Primario/Secundario de arriba sólo configuran los reenviadores propios 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     Once pydhcp is installed, the script appends its own values (WAN interface, proxy ports, path) to <code>/etc/pydhcp/pydhcp.env</code> — pydhcp's own persistent config file, in a "GATEPROXY CUSTOM VALUES" block after pydhcp's own section. LAN interface, IP, netmask and DNS are written instead by pydhcp's own <code>pysetup.sh</code>, from the values gateproxy passes it via <code>expect</code>. <code>iptables.sh</code> reads that same file at any time afterward. There is no "reuse previous answers" step — each run asks fresh.
+     Once pydhcp is installed, the script substitutes its own values (WAN interface, proxy port) into <code>conf/</code> with <code>sed</code> before deploying, so they end up written into the firewall script itself. It never writes into <code>pydhcp.env</code>, which belongs to pydhcp. LAN interface, IP, netmask and DNS are written instead by pydhcp's own <code>pysetup.sh</code>, from the values gateproxy passes it via <code>expect</code>. <code>iptables.sh</code> reads that same file at any time afterward. There is no "reuse previous answers" step — each run asks fresh.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Una vez instalado pydhcp, el script agrega sus propios valores (interfaz WAN, puertos del proxy, ruta) a <code>/etc/pydhcp/pydhcp.env</code> — el archivo de configuración persistente propio de pydhcp, en un bloque "GATEPROXY CUSTOM VALUES" después de la sección propia de pydhcp. La interfaz LAN, la IP, la máscara y el DNS los escribe en cambio el propio <code>pysetup.sh</code> de pydhcp, con los valores que gateproxy le pasa por <code>expect</code>. <code>iptables.sh</code> lee ese mismo archivo en cualquier momento después. No existe un paso de "reusar respuestas anteriores" — cada corrida pregunta de nuevo.
+     Una vez instalado pydhcp, el script sustituye sus propios valores (interfaz WAN, puerto del proxy) dentro de <code>conf/</code> con <code>sed</code> antes de desplegar, así que quedan escritos en el propio script del firewall. Nunca escribe en <code>pydhcp.env</code>, que pertenece a pydhcp. La interfaz LAN, la IP, la máscara y el DNS los escribe en cambio el propio <code>pysetup.sh</code> de pydhcp, con los valores que gateproxy le pasa por <code>expect</code>. <code>iptables.sh</code> lee ese mismo archivo en cualquier momento después. No existe un paso de "reusar respuestas anteriores" — cada corrida pregunta de nuevo.
     </td>
   </tr>
 </table>
@@ -243,7 +243,7 @@ gateproxy/
 ```
 /etc/acl/
 ├── acl_mac/                # MAC address lists for iptables ipsets
-│   ├── mac-proxy.txt           # MACs routed through Squid (port 3128)
+│   ├── mac-limited.txt           # MACs routed through Squid (port 3128)
 │   └── mac-unlimited.txt       # MACs with unrestricted access (APs, switches)
 ├── acl_dhcp/               # DHCP access control
 │   └── blockdhcp.txt           # MACs blocked from a DHCP lease (empty seed, populated/managed by pydhcp's pyleases.sh)
@@ -293,14 +293,14 @@ gateproxy/
 | ipset | Type | Purpose |
 | :--- | :--- | :--- |
 | `macunlimited` | `hash:mac` | Full bypass — APs, managed switches, and similar infrastructure devices. **Requires a matching static reservation in `pydhcpd.conf`** in addition to being listed here — `MACCHECK` (see below) checks `macip`, not this list directly. Run pydhcp's `pyleases.sh` after editing this file, or add the reservation by hand |
-| `macproxy` | `hash:mac` | Routed through Squid: explicit via PAC (port 3128, served on port 18100) for compliant clients, or intercepted (port 3129) for direct/non-PAC HTTP. Same `pydhcpd.conf` reservation requirement as `macunlimited` above |
+| `maclimited` | `hash:mac` | Routed through Squid: explicit via PAC (port 3128, served on port 18100) for compliant clients, or intercepted (port 3129) for direct/non-PAC HTTP. Same `pydhcpd.conf` reservation requirement as `macunlimited` above |
 | `macports` | `hash:mac` | Registered devices with controlled port access (DNS, printing, email, STUN, etc.). Same `pydhcpd.conf` reservation requirement as `macunlimited` above |
-| `macip` | `hash:ip,mac` | MAC+IP binding, parsed from `pydhcpd.conf`. Gatekeeper for every other list below — a device not in `macip` is dropped before `macunlimited`/`macproxy`/`macports` are ever evaluated |
+| `macip` | `hash:ip,mac` | MAC+IP binding, parsed from `pydhcpd.conf`. Gatekeeper for every other list below — a device not in `macip` is dropped before `macunlimited`/`maclimited`/`macports` are ever evaluated |
 | `blockports` | `bitmap:port` | Blocked port ranges (VPN tunnels, P2P, cryptomining, legacy protocols) |
 | `suridata` | `hash:ip` | Dest IPs flagged by Suricata alerts matching a `drop.conf` signature — silent `DROP`, see below |
 | `bandata` | `hash:ip` | IPs over bandwidth quota — DNS and port 80 only, redirected to warning page. Created and populated by Proxymon, not by `iptables.sh` — Proxymon is installed by `gateproxy.sh` as a bundled optional component (see Optional Packages); `iptables.sh` only opens the warning-page port (18081) for it |
 
-`macip` is built from `pydhcpd.conf`'s static `host {}` blocks, not from `mac-*.txt` directly. Adding a MAC to `mac-unlimited.txt`/`mac-proxy.txt` classifies it, but does **not** by itself grant it network access — it still needs a matching static reservation in `pydhcpd.conf`, or the firewall's `MACCHECK` step drops its traffic regardless of classification. pydhcp ships an optional tool, `tools/pyleases.sh`, that generates those reservations from the same `mac-*.txt` files — run it after editing any of them (it is not scheduled automatically by any installer, see the Scripts section below).
+`macip` is built from `pydhcpd.conf`'s static `host {}` blocks, not from `mac-*.txt` directly. Adding a MAC to `mac-unlimited.txt`/`mac-limited.txt` classifies it, but does **not** by itself grant it network access — it still needs a matching static reservation in `pydhcpd.conf`, or the firewall's `MACCHECK` step drops its traffic regardless of classification. pydhcp ships an optional tool, `tools/pyleases.sh`, that generates those reservations from the same `mac-*.txt` files — run it after editing any of them (it is not scheduled automatically by any installer, see the Scripts section below).
 
 ### Blocked Ports (`blockports.txt`)
 

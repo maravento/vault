@@ -18,7 +18,7 @@ log() {
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root"
+    log "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
@@ -69,7 +69,7 @@ if ! local_user=$(detect_local_user); then
 fi
 local_home=$(getent passwd "$local_user" | cut -d: -f6)
 if [ -z "$local_home" ] || [ ! -d "$local_home" ]; then
-    log "ERROR: Home directory not found for user $local_user"
+    log "ERROR: no home directory for user $local_user -- abort"
     exit 1
 fi
 log "Using local user: $local_user ($local_home)"
@@ -77,7 +77,7 @@ log "Using local user: $local_user ($local_home)"
 # DEPENDENCIES
 for dep in zip gawk coreutils; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: Required dependency '$dep' is not installed."
+        log "ERROR: missing dependency '$dep' -- abort"
         exit 1
     fi
 done
@@ -121,7 +121,7 @@ case "${1:-}" in
     if zip -r "$bkconfig/$zipbk" "${pathbk[@]}" >/dev/null; then
         log "Backup Config: $bkconfig/$zipbk"
     else
-        log "ERROR: Backup Config failed"
+        log "ERROR: backup failed -- abort"
         exit 1
     fi
     ;;
