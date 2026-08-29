@@ -314,11 +314,11 @@ retry_cmd python3 gitfolder.py https://github.com/maravento/vault/gateproxy
 ### CONFIG
 echo -e "\n"
 hostnamectl set-hostname "$HOSTNAME"
-find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:gateproxy:$HOSTNAME:g" "{}"
+find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:gateproxy:$HOSTNAME:g" "{}"
 # changing name user account in config files
-find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:your_user:$LOCAL_USER:g" "{}"
+find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_user:$LOCAL_USER:g" "{}"
 # changing user home path in config files
-find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:your_home:$LOCAL_HOME:g" "{}"
+find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_home:$LOCAL_HOME:g" "{}"
 
 # detect interfaces
 mapfile -t IFACES < <(ip -br link show | awk '$1 != "lo" {sub(/@.*/, "", $1); print $1}')
@@ -355,7 +355,7 @@ function public_interface() {
             log "Invalid selection. Try again."
         fi
     done
-    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$WAN_IF:g" "{}"
+    find "$gp_path/conf" "$gp_path/scr" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$WAN_IF:g" "{}"
 }
 
 # local interface
@@ -381,7 +381,7 @@ function local_interface() {
             log "Invalid selection. Try again."
         fi
     done
-    find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
+    find "$gp_path/conf" "$gp_path/scr" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
     export LAN_IF="$ETH1"
 }
 
@@ -447,13 +447,11 @@ while true; do
                 fi
                 SERVER_IP="$serveripNEW"
 
-                find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | while IFS= read -r -d '' file; do
+                find "$gp_path/conf" -type f -print0 | while IFS= read -r -d '' file; do
                     sed -i "s:192.168.0.10:$serveripNEW:g" "$file"
                 done
 
                 find "$gp_path/acl" -type f -name "mac-*" -exec sed -i "s:192.168.0\.:$(echo "$serveripNEW" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
-
-                find "$gp_path/acl/acl_dhcp" -type f -name "blockdhcp*" -exec sed -i "s:192.168.0\.:$(echo "$serveripNEW" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
 
                 log "You have entered IP $SERVER_IP :OK"
                 break
@@ -528,7 +526,7 @@ function is_mask1() {
         log "WARNING: SERV_MASK '$SERV_MASK' not a valid netmask -- keeping default /24"
         MASKNEW2=24
     fi
-    find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:/24:/$MASKNEW2:g" "{}"
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:/24:/$MASKNEW2:g" "{}"
     log "Subnet-Mask derived from Netmask: /$MASKNEW2"
     return 0
 }
@@ -543,7 +541,7 @@ function is_dns1() {
     fi
     DNSNEW1=$(printf '%s' "$DNS1" | { [[ "$DNS1" =~ $_UH_DNS ]] && cat || true; })
     if [ "$DNSNEW1" ]; then
-        sed -i "s:1.1.1.2:$DNSNEW1:g" "$gp_path/conf/server/forward.conf"
+        sed -i "s:1.1.1.2:$DNSNEW1:g" "$gp_path/conf/unbound/forward.conf"
         log "You have entered DNS1 $DNS1 :OK"
         return 0
     else
@@ -561,7 +559,7 @@ function is_dns2() {
     fi
     DNSNEW2=$(printf '%s' "$DNS2" | { [[ "$DNS2" =~ $_UH_DNS ]] && cat || true; })
     if [ "$DNSNEW2" ]; then
-        sed -i "s:1.0.0.2:$DNSNEW2:g" "$gp_path/conf/server/forward.conf"
+        sed -i "s:1.0.0.2:$DNSNEW2:g" "$gp_path/conf/unbound/forward.conf"
         log "You have entered DNS2 $DNS2 :OK"
         return 0
     else
@@ -621,8 +619,8 @@ print(ipaddress.IPv4Network(f'{sys.argv[1]}/{sys.argv[2]}', strict=False).networ
 log "Localnet: $SERV_SUBNET (from Server IP and Netmask)"
 
 if [ "$SERV_SUBNET" != "192.168.0.0" ]; then
-    find "$gp_path/conf" -path "$gp_path/conf/scr" -prune -o -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$SERV_SUBNET:g" "{}"
-    sed -i "s:192\.168\.0\.\*:$(echo "$SERV_SUBNET" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/server/wpad.pac"
+    find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$SERV_SUBNET:g" "{}"
+    sed -i "s:192\.168\.0\.\*:$(echo "$SERV_SUBNET" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/apache2/wpad.pac"
 fi
 
 # WAN_IF and PORTNEW (the proxy port) are substituted into conf/ with sed
@@ -641,7 +639,7 @@ log "Applying network configuration..."
 find /etc/netplan -maxdepth 1 -type f -name '*.yaml' -not -name '*.yaml.bak' -exec mv -- {} {}.bak \; 2>/dev/null
 mkdir -p /etc/cloud/cloud.cfg.d
 echo "network: {config: disabled}" > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
-cp -f "$gp_path/conf/server/00-networkd.yaml" /etc/netplan/00-networkd.yaml
+cp -f "$gp_path/conf/netplan/00-networkd.yaml" /etc/netplan/00-networkd.yaml
 chown root:root /etc/netplan/00-networkd.yaml
 chmod 600 /etc/netplan/00-networkd.yaml
 if ! netplan generate 2>&1 | tee -a "$log_file"; then
@@ -739,7 +737,7 @@ retry_cmd nala install -y wget bind9-dnsutils conntrack i2c-tools wsdd ipset arp
 
 # DNS
 retry_cmd nala install -y unbound
-cp -f "$gp_path/conf/server/forward.conf" /etc/unbound/unbound.conf.d/forward.conf
+cp -f "$gp_path/conf/unbound/forward.conf" /etc/unbound/unbound.conf.d/forward.conf
 tee /etc/default/unbound >/dev/null <<'EOF'
 DAEMON_OPTS=""
 EOF
@@ -777,26 +775,35 @@ upgrade
 ### SETUP ###
 echo -e "\n"
 log "Gateproxy Packages..."
-if grep -qFf "$gp_path/conf/server/hosts.txt" /etc/hosts 2>/dev/null; then
-    log "NOTE: hosts.txt entry already present in /etc/hosts, skipping (re-run safe)"
+if grep -qFw "$HOSTNAME" /etc/hosts 2>/dev/null; then
+    log "NOTE: $HOSTNAME already resolves in /etc/hosts (e.g. the default 127.0.1.1 line) -- skipping, not adding a duplicate"
 elif grep -q "^127\.0\.1\.1" /etc/hosts; then
-    sed -i "/^127\.0\.1\.1/ r $gp_path/conf/server/hosts.txt" /etc/hosts
+    sed -i "/^127\.0\.1\.1/a $SERVER_IP\t$HOSTNAME" /etc/hosts
 else
     log "NOTE: /etc/hosts has no 127.0.1.1 line, appending hostname entry instead"
-    cat "$gp_path/conf/server/hosts.txt" >> /etc/hosts
+    printf '%s\t%s\n' "$SERVER_IP" "$HOSTNAME" >> /etc/hosts
 fi
 sed -i '/^\s*\(fe00::\|ff00::\|ff02::\)/ s/^/#/' /etc/hosts
 grep -q "ipv6.msftncsi.com" /etc/hosts || echo "$SERVER_IP ipv6.msftncsi.com ipv6.msftconnecttest.com" | tee -a /etc/hosts >/dev/null
 
 # ACLs SECTION
-acl_mac_path="$ACL_PATH/acl_mac"
-acl_dhcp_path="$ACL_PATH/acl_dhcp"
-acl_squid_path="$ACL_PATH/acl_squid"
-acl_ipt_path="$ACL_PATH/acl_ipt"
-cp -rf "$gp_path/acl/." "$ACL_PATH/"
-# DHCP ACL files
-chmod 600 "$acl_mac_path"/mac-*.txt "$acl_dhcp_path/blockdhcp.txt"
-chown root:root "$acl_mac_path"/mac-*.txt "$acl_dhcp_path/blockdhcp.txt"
+acl_mac_path="$ACL_PATH/mac"
+acl_squid_path="$ACL_PATH/squid"
+acl_ipt_path="$ACL_PATH/ipt"
+# Only files missing in $ACL_PATH are copied from the repo template -- never
+# overwrite one that already exists, since it may hold real data from a
+# previous install, from pydhcp (mac-*.txt is also seeded by pydhcp's own
+# pysetup.sh), or edited by hand.
+while IFS= read -r -d '' _acl_src; do
+    _acl_dest="$ACL_PATH/${_acl_src#"$gp_path"/acl/}"
+    if [ ! -f "$_acl_dest" ]; then
+        mkdir -p "$(dirname "$_acl_dest")"
+        cp "$_acl_src" "$_acl_dest"
+    fi
+done < <(find "$gp_path/acl" -type f -print0)
+# MAC ACL files
+chmod 600 "$acl_mac_path"/mac-*.txt
+chown root:root "$acl_mac_path"/mac-*.txt
 # Squid ACL files
 chmod 644 "$acl_squid_path"/*.txt
 chown root:root "$acl_squid_path"/*.txt
@@ -1031,9 +1038,9 @@ systemctl enable rsyslog.service
 retry_cmd nala install -y timeshift
 # FreeFileSync
 retry_cmd nala install -y libatk-adaptor libgail-common
-retry_cmd wget -O "$gp_path/conf/scr/ffsupdate.sh" https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh
-chmod +x "$gp_path/conf/scr/ffsupdate.sh"
-"$gp_path/conf/scr/ffsupdate.sh" || log "WARNING: ffsupdate.sh failed (FreeFileSync not installed)"
+retry_cmd wget -O "$gp_path/scr/ffsupdate.sh" https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh
+chmod +x "$gp_path/scr/ffsupdate.sh"
+"$gp_path/scr/ffsupdate.sh" || log "WARNING: ffsupdate.sh failed (FreeFileSync not installed)"
 (crontab -l 2>/dev/null || true; echo "@weekly /etc/scr/ffsupdate.sh") | crontab -
 log "OK"
 sleep 1
@@ -1065,7 +1072,7 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         retry_cmd nala install -y mtr-tiny           # mtr google.com
         # fail2ban
         retry_cmd nala install -y fail2ban
-        cp "$gp_path/conf/pack/fail2ban/jail.local" /etc/fail2ban/jail.local
+        cp "$gp_path/conf/fail2ban/jail.local" /etc/fail2ban/jail.local
         sed -i 's/^#\?allowipv6 *= *.*/allowipv6 = 0/' /etc/fail2ban/fail2ban.conf
         systemctl enable fail2ban.service
         log "Check: sudo fail2ban-client status <jail_name>"
@@ -1080,7 +1087,7 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         nala install -y fsearch || true
         # ttyd (web terminal)
         retry_cmd nala install -y ttyd
-        cp -f "$gp_path/conf/pack/ttyd/ttyd.service" /etc/systemd/system/ttyd.service
+        cp -f "$gp_path/conf/ttyd/ttyd.service" /etc/systemd/system/ttyd.service
         systemctl daemon-reload
         systemctl enable ttyd.service
         log "ttyd Access: http://localhost:7681"
@@ -1092,7 +1099,7 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
             log "OK: Community-ID enabled"
         fi
         # suricata disable and drop
-        cp -f "$gp_path/conf/pack/suricata/"{disable,drop}.conf /etc/suricata/
+        cp -f "$gp_path/conf/suricata/"{disable,drop}.conf /etc/suricata/
         chown root:root /etc/suricata/{disable,drop}.conf
         chmod 644 /etc/suricata/{disable,drop}.conf
         # suricata update & clean
@@ -1101,7 +1108,7 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
             chown root:root /var/log/suricata/suricatacron.log
             chmod 640 /var/log/suricata/suricatacron.log
         fi
-        cp -f "$gp_path/conf/pack/suricata/"{suricataupdate,suricataclean,suridata}.sh /etc/suricata/
+        cp -f "$gp_path/conf/suricata/"{suricataupdate,suricataclean,suridata}.sh /etc/suricata/
         chmod +x /etc/suricata/{suricataupdate,suricataclean,suridata}.sh
         # suricata ratio
         if ! grep -q "detect-thread-ratio: 0.5" /etc/suricata/suricata.yaml; then
@@ -1128,8 +1135,8 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         upgrade
         retry_cmd nala install -y evebox
         # Configure
-        cp -f "$gp_path/conf/pack/evebox/evebox.yaml" /etc/evebox/evebox.yaml
-        cp -f "$gp_path/conf/pack/evebox/evebox.service" /etc/systemd/system/evebox.service
+        cp -f "$gp_path/conf/evebox/evebox.yaml" /etc/evebox/evebox.yaml
+        cp -f "$gp_path/conf/evebox/evebox.service" /etc/systemd/system/evebox.service
         systemctl daemon-reload
         systemctl enable suricata evebox
         log "EVEBox: http://localhost:5636"
@@ -1284,44 +1291,44 @@ upgrade
 echo -e "\n"
 log "Downloading ACLs..."
 # Allow IP
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O "$ACL_PATH/acl_squid/allowip.txt" || true
-if [ ! -s "$ACL_PATH/acl_squid/allowip.txt" ]; then
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O "$ACL_PATH/squid/allowip.txt" || true
+if [ ! -s "$ACL_PATH/squid/allowip.txt" ]; then
     log "WARNING: allowip.txt download failed"
 fi
 
 # Block TLDs
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O "$ACL_PATH/acl_squid/blocktlds.txt" || true
-if [ ! -s "$ACL_PATH/acl_squid/blocktlds.txt" ]; then
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O "$ACL_PATH/squid/blocktlds.txt" || true
+if [ ! -s "$ACL_PATH/squid/blocktlds.txt" ]; then
     log "WARNING: blocktlds.txt download failed, disabling ACL in squid.conf"
-    sed -i '/^acl blocktlds /s/^/#/; /^http_access deny workdays blocktlds/s/^/#/' "$gp_path/conf/server/squid.conf"
+    sed -i '/^acl blocktlds /s/^/#/; /^http_access deny workdays blocktlds/s/^/#/' "$gp_path/conf/squid/squid.conf"
 fi
 
 # Ransomware Extensions (Squid, optional)
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/fpack/rw/rwext.txt -O "$ACL_PATH/acl_squid/rwext.txt" || true
-if [ ! -s "$ACL_PATH/acl_squid/rwext.txt" ]; then
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/fpack/rw/rwext.txt -O "$ACL_PATH/squid/rwext.txt" || true
+if [ ! -s "$ACL_PATH/squid/rwext.txt" ]; then
     log "WARNING: rwext.txt download failed"
 fi
 
 # Bad User-Agents (Squid, optional)
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/fpack/ua/blockua.txt -O "$ACL_PATH/acl_squid/blockua.txt" || true
-if [ ! -s "$ACL_PATH/acl_squid/blockua.txt" ]; then
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/fpack/ua/blockua.txt -O "$ACL_PATH/squid/blockua.txt" || true
+if [ ! -s "$ACL_PATH/squid/blockua.txt" ]; then
     log "WARNING: blockua.txt download failed"
 fi
 
 # Web3 Domains/TLDs (Squid, optional)
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3domains.txt -O "$ACL_PATH/acl_squid/web3domains.txt" || true
-if [ ! -s "$ACL_PATH/acl_squid/web3domains.txt" ]; then
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3domains.txt -O "$ACL_PATH/squid/web3domains.txt" || true
+if [ ! -s "$ACL_PATH/squid/web3domains.txt" ]; then
     log "WARNING: web3domains.txt download failed"
 fi
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3tld.txt -O "$ACL_PATH/acl_squid/web3tld.txt" || true
-if [ ! -s "$ACL_PATH/acl_squid/web3tld.txt" ]; then
+wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3tld.txt -O "$ACL_PATH/squid/web3tld.txt" || true
+if [ ! -s "$ACL_PATH/squid/web3tld.txt" ]; then
     log "WARNING: web3tld.txt download failed"
 fi
 
 # Blackweb
 if (cd "$gp_path" && wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/blackweb.tar.gz && [ -f blackweb.tar.gz ]); then
     (cd "$gp_path" && cat blackweb.tar.gz* | tar xzf -)
-    cp "$gp_path/blackweb.txt" "$ACL_PATH/acl_squid/blackweb.txt"
+    cp "$gp_path/blackweb.txt" "$ACL_PATH/squid/blackweb.txt"
 else
     log "WARNING: blackweb.tar.gz download failed"
 fi
@@ -1334,7 +1341,7 @@ echo -e "\n"
 log "Applying Config..."
 # squid
 cp -f /etc/squid/squid.conf{,.bak} &>/dev/null || true
-cp -f "$gp_path/conf/server/squid.conf" /etc/squid/squid.conf
+cp -f "$gp_path/conf/squid/squid.conf" /etc/squid/squid.conf
 chown root:root /etc/squid/squid.conf
 chmod 644 /etc/squid/squid.conf
 systemctl restart squid.service
@@ -1349,7 +1356,7 @@ scripts=(
 for url in "${scripts[@]}"; do
     fname=$(basename "$url")
 
-    if wget -q -O "$gp_path/conf/scr/$fname" "$url"; then
+    if wget -q -O "$gp_path/scr/$fname" "$url"; then
         log "Downloaded: $fname"
     else
         log "WARNING: Failed to download $fname. Skipping."
@@ -1357,7 +1364,7 @@ for url in "${scripts[@]}"; do
 done
 
 # scripts
-cp -fr "$gp_path/conf/scr/"* "$SCR_PATH"
+cp -fr "$gp_path/scr/"* "$SCR_PATH"
 chown -R root:root "$SCR_PATH"/*
 find "$SCR_PATH" -name "*.sh" -exec chmod +x {} \;
 # Choose your security level: "Secure Share Memory" (optional)
@@ -1374,7 +1381,7 @@ log "Proxy Apache Config..."
 
 cp -f /etc/apache2/sites-available/000-default.conf{,.bak} &>/dev/null || true
 sed -i "s_\(#LogLevel info ssl:warn\)_\1\n\tLogLevel warn_" /etc/apache2/sites-available/000-default.conf
-add_txt="$gp_path/conf/server/000-add.txt"
+add_txt="$gp_path/conf/apache2/000-add.txt"
 sed -i "/DocumentRoot/{
     s/\(DocumentRoot.*\)/\1/g
     r $add_txt
@@ -1382,10 +1389,10 @@ sed -i "/DocumentRoot/{
 
 mkdir -p /var/www/wpad
 chown www-data:www-data /var/www/wpad
-cp -f "$gp_path/conf/server/wpad.pac" /var/www/wpad/wpad.pac
+cp -f "$gp_path/conf/apache2/wpad.pac" /var/www/wpad/wpad.pac
 chown www-data:www-data /var/www/wpad/wpad.pac
 chmod 644 /var/www/wpad/wpad.pac
-cp -f "$gp_path/conf/server/wpad.conf" /etc/apache2/sites-available/wpad.conf
+cp -f "$gp_path/conf/apache2/wpad.conf" /etc/apache2/sites-available/wpad.conf
 chmod 644 /etc/apache2/sites-available/wpad.conf
 a2ensite -q wpad.conf
 grep -qxF "Listen $SERVER_IP:18100" /etc/apache2/ports.conf || grep -qxF 'Listen 18100' /etc/apache2/ports.conf || echo "Listen $SERVER_IP:18100" >> /etc/apache2/ports.conf
@@ -1429,7 +1436,7 @@ sysctl -p || log "WARNING: some sysctl parameters failed to apply"
 log "Apache Config..."
 cp -f /etc/apache2/apache2.conf{,.bak} &>/dev/null || true
 #echo 'RequestReadTimeout header=10-20,MinRate=500 body=20,MinRate=500' | tee -a /etc/apache2/apache2.conf # optional
-cp -f "$gp_path/conf/server/servername.conf" /etc/apache2/conf-available/servername.conf
+cp -f "$gp_path/conf/apache2/servername.conf" /etc/apache2/conf-available/servername.conf
 a2enconf servername
 
 # Hardening

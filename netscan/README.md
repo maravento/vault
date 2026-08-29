@@ -21,25 +21,24 @@
 
 ```
 netscan/
-├── README.md
-├── win/                       # Windows package metadata (netscan.exe itself is hosted on mega.nz, not in this repo)
-│   ├── changelog.txt
-│   └── netscan.exe.sha256
 ├── img/                       # Screenshots used throughout this README
 │   └── netscan-*.png
 ├── linux/
 │   └── netreport.sh           # LINUX — on-demand scan-and-report tool
-└── netwatch/                  # WEB — live web dashboard
-    ├── netwatchinstall.sh     # Installer: --install|--update|--uninstall|--status
-    ├── web/                   # Deployed to /var/www/netwatch/web/
-    │   ├── netwatch.conf       # Apache vhost -> /etc/apache2/sites-available/netwatch.conf (:3126/?tab=lan and :3126/?tab=ports)
-    │   ├── index.php           # Main page (LAN / Ports tabs)
-    │   ├── lan.html            # LAN devices viewer
-    │   ├── ports.html          # Ports viewer + Server/Target mode selector
-    │   └── netwatchapi.php     # JSON API (devices, ports, mode switch)
-    └── tools/                 # Deployed to /var/www/netwatch/tools/
-        ├── netwatchlan.sh      # LAN discovery daemon (arp-scan)
-        └── netwatchports.sh    # Port auditing daemon (ss / nmap) + mode CLI
+├── netwatch/                  # WEB — live web dashboard
+│   ├── netwatchinstall.sh     # Installer: --install|--update|--uninstall|--status
+│   ├── tools/                 # Background daemons for LAN/port scanning
+│   │   ├── netwatchlan.sh      # LAN discovery daemon (arp-scan)
+│   │   └── netwatchports.sh    # Port auditing daemon (ss / nmap) + mode CLI
+│   └── web/                   # Web dashboard front-end (LAN/Ports tabs)
+│       ├── index.php           # Main page (LAN / Ports tabs)
+│       ├── lan.html            # LAN devices viewer
+│       ├── netwatch.conf       # Apache vhost -> /etc/apache2/sites-available/netwatch.conf (:3126/?tab=lan and :3126/?tab=ports)
+│       ├── netwatchapi.php     # JSON API (devices, ports, mode switch)
+│       └── ports.html          # Ports viewer + Server/Target mode selector
+└── win/                       # Windows package metadata (netscan.exe itself is hosted on mega.nz, not in this repo)
+    ├── changelog.txt          # Version history
+    └── netscan.exe.sha256     # Checksum for netscan.exe
 ```
 
 ## NETSCAN
@@ -314,23 +313,23 @@ sudo ./netreport.sh
 </table>
 
 ```
-/etc/netwatch/                      # Read-only config (750 root:www-data), same model as proxymon's /etc/proxymon
-└── netwatch.env                     # Install config: user, interfaces, network, server IP, poll intervals
-                                     # (640 root:www-data — web reads, never writes)
+/etc/netwatch/                         # Read-only config (750 root:www-data), same model as proxymon's /etc/proxymon
+└── netwatch.env                         # Install config: user, interfaces, network, server IP, poll intervals
+                                         # (640 root:www-data — web reads, never writes)
 
-/var/www/netwatch/data/             # Web-writable state (775 www-data:www-data)
-├── netwatch.db                      # SQLite database (WAL mode)
-└── ports_mode.conf                  # Active ports mode + target IP
-                                     # (664 www-data:www-data — web rewrites in place)
+/var/www/netwatch/data/                # Web-writable state (775 www-data:www-data)
+├── netwatch.db                          # SQLite database (WAL mode)
+└── ports_mode.conf                      # Active ports mode + target IP
+                                         # (664 www-data:www-data — web rewrites in place)
 
-/var/run/                           # PID files, used by start/stop/status
-├── netwatchlan.pid                  # netwatchlan.sh
-└── netwatchports.pid                # netwatchports.sh
+/var/run/                              # PID files, used by start/stop/status
+├── netwatchlan.pid                      # netwatchlan.sh
+└── netwatchports.pid                    # netwatchports.sh
 
-/var/log/netwatch.log               # Shared by the installer and both daemons
-/etc/logrotate.d/netwatch           # Weekly rotation for the shared log
+/var/log/netwatch.log                  # Shared by the installer and both daemons
+/etc/logrotate.d/netwatch              # Weekly rotation for the shared log
 
-/var/www/netwatch/backups/          # .bak of web files and tools, one per --update
+/var/www/netwatch/backups/             # .bak of web files and tools, one per --update
 /var/www/netwatch/tools/crontab-*.bak  # crontab backup, written before each cron edit
 ```
 

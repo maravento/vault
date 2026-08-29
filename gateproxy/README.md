@@ -84,9 +84,9 @@ wget -qO gateproxy.sh https://raw.githubusercontent.com/maravento/vault/master/g
 
 Localnet (`192.168.0.0`) is derived automatically from the Server IP and Netmask together, not asked separately / Localnet (`192.168.0.0`) se deriva automáticamente del Server IP y la Netmask en conjunto, no se pregunta por separado.
 
-DNS Primary/Secondary above only configure Unbound's own forwarders (`conf/server/forward.conf`) — where Unbound sends queries it can't answer locally. They do **not** control which DNS server LAN clients are allowed to query directly; that is pydhcp's own `SERV_DNS` key in `pydhcp.env` (the same value pydhcp hands out via DHCP), which `iptables.sh` reads to open the matching firewall access — no separate gateproxy key to keep in sync by hand. It defaults to the Server IP (Unbound); leaving it unset or empty falls back to the Server IP as well, never to `1.1.1.2`/`1.0.0.2`. To have clients use and reach external DNS directly instead of Unbound, edit `SERV_DNS` in `pydhcp.env` by hand, regenerate `pydhcpd.conf` with pydhcp's `pyleases.sh`, restart `pydhcpd`, and re-run `iptables.sh`.
+DNS Primary/Secondary above only configure Unbound's own forwarders (`conf/unbound/forward.conf`) — where Unbound sends queries it can't answer locally. They do **not** control which DNS server LAN clients are allowed to query directly; that is pydhcp's own `SERV_DNS` key in `pydhcp.env` (the same value pydhcp hands out via DHCP), which `iptables.sh` reads to open the matching firewall access — no separate gateproxy key to keep in sync by hand. It defaults to the Server IP (Unbound); leaving it unset or empty falls back to the Server IP as well, never to `1.1.1.2`/`1.0.0.2`. To have clients use and reach external DNS directly instead of Unbound, edit `SERV_DNS` in `pydhcp.env` by hand, regenerate `pydhcpd.conf` with pydhcp's `pyleases.sh`, restart `pydhcpd`, and re-run `iptables.sh`.
 
-Los DNS Primario/Secundario de arriba sólo configuran los reenviadores propios de Unbound (`conf/server/forward.conf`) — a dónde manda Unbound las consultas que no puede resolver localmente. **No** controlan a qué servidor DNS pueden consultar directamente los clientes de la LAN; eso lo controla la propia clave `SERV_DNS` de pydhcp en `pydhcp.env` (el mismo valor que pydhcp entrega por DHCP), que `iptables.sh` lee para abrir el acceso correspondiente en el firewall — no hay una clave aparte de gateproxy que sincronizar a mano. Por defecto es el Server IP (Unbound); dejarla sin definir o vacía también cae en el Server IP, nunca en `1.1.1.2`/`1.0.0.2`. Para que los clientes usen y puedan alcanzar DNS externo en vez de Unbound, hay que editar `SERV_DNS` a mano en `pydhcp.env`, regenerar `pydhcpd.conf` con `pyleases.sh` de pydhcp, reiniciar `pydhcpd`, y volver a correr `iptables.sh`.
+Los DNS Primario/Secundario de arriba sólo configuran los reenviadores propios de Unbound (`conf/unbound/forward.conf`) — a dónde manda Unbound las consultas que no puede resolver localmente. **No** controlan a qué servidor DNS pueden consultar directamente los clientes de la LAN; eso lo controla la propia clave `SERV_DNS` de pydhcp en `pydhcp.env` (el mismo valor que pydhcp entrega por DHCP), que `iptables.sh` lee para abrir el acceso correspondiente en el firewall — no hay una clave aparte de gateproxy que sincronizar a mano. Por defecto es el Server IP (Unbound); dejarla sin definir o vacía también cae en el Server IP, nunca en `1.1.1.2`/`1.0.0.2`. Para que los clientes usen y puedan alcanzar DNS externo en vez de Unbound, hay que editar `SERV_DNS` a mano en `pydhcp.env`, regenerar `pydhcpd.conf` con `pyleases.sh` de pydhcp, reiniciar `pydhcpd`, y volver a correr `iptables.sh`.
 
 <table width="100%">
   <tr>
@@ -156,7 +156,7 @@ Webmin is installed with the following modules / Webmin se instala con los sigui
 
 | Component | Config | Notes |
 | :--- | :--- | :--- |
-| **pydhcp** | `/etc/pydhcp/pydhcpd.conf` | Python-based DHCP server; default pool range 220–235 |
+| **pydhcp** | `/etc/pydhcp/core/pydhcpd.conf` | Python-based DHCP server; default pool range 220–235 |
 
 Pool range and other DHCP settings can be changed in `/etc/pydhcp/pydhcp.env` after installation / El rango del pool y otros parámetros DHCP pueden modificarse en `/etc/pydhcp/pydhcp.env` luego de la instalación.
 
@@ -186,43 +186,44 @@ Pool range and other DHCP settings can be changed in `/etc/pydhcp/pydhcp.env` af
 
 ```
 gateproxy/
-├── acl/                        # Default ACL files (deployed to /etc/acl/, see ACL STRUCTURE)
+├── acl/                        # Access control lists for MAC, Squid and iptables rules (see ACL STRUCTURE)
 ├── conf/
-│   ├── pack/                   # Optional package configs, one subfolder per project
-│   │   ├── evebox/
-│   │   │   ├── evebox.service      # EveBox systemd unit
-│   │   │   └── evebox.yaml         # EveBox configuration
-│   │   ├── fail2ban/
-│   │   │   └── jail.local          # fail2ban jail config
-│   │   ├── suricata/
-│   │   │   ├── disable.conf        # Suricata disabled rules
-│   │   │   ├── drop.conf           # Suricata drop rules (converted alert->drop by suricata-update)
-│   │   │   ├── suricataclean.sh    # Suricata log cleanup
-│   │   │   ├── suricataupdate.sh   # Suricata rules update
-│   │   │   └── suridata.sh         # Captures dest_ip from drop.conf-matched alerts into suridata.txt
-│   │   └── ttyd/
-│   │       └── ttyd.service        # ttyd (web terminal) systemd unit
-│   ├── scr/                    # Scripts (deployed to /etc/scr/)
-│   │   ├── bkconf.sh               # Backup configuration files
-│   │   ├── iptables.sh             # Firewall rules and ipsets
-│   │   ├── killswitch.sh           # Emergency traffic block
-│   │   ├── serverboot.sh           # Start/restart all services
-│   │   └── serviceswatch.sh        # Service watchdog
-│   ├── server/                 # Server configuration files
+│   ├── apache2/
 │   │   ├── 000-add.txt             # Apache VirtualHost additions
-│   │   ├── 00-networkd.yaml        # Netplan configuration
-│   │   ├── forward.conf            # Unbound DNS forwarder configuration
-│   │   ├── hosts.txt               # /etc/hosts additions
 │   │   ├── servername.conf         # Apache ServerName config
-│   │   ├── squid.conf              # Squid proxy configuration
 │   │   ├── wpad.conf               # Apache WPAD virtual host
 │   │   └── wpad.pac                # Proxy auto-config script
+│   ├── evebox/
+│   │   ├── evebox.service          # EveBox systemd unit
+│   │   └── evebox.yaml             # EveBox configuration
+│   ├── fail2ban/
+│   │   └── jail.local              # fail2ban jail config
+│   ├── netplan/
+│   │   └── 00-networkd.yaml        # Netplan configuration
+│   ├── squid/
+│   │   └── squid.conf              # Squid proxy configuration
+│   ├── suricata/
+│   │   ├── disable.conf            # Suricata disabled rules
+│   │   ├── drop.conf               # Suricata drop rules (converted alert->drop by suricata-update)
+│   │   ├── suricataclean.sh        # Suricata log cleanup
+│   │   ├── suricataupdate.sh       # Suricata rules update
+│   │   ├── suridata.sh             # Captures dest_ip from drop.conf-matched alerts into /etc/suricata/suridata.txt
+│   │   └── suridata.txt            # Destination IPs blocked from Suricata alerts (see suridata.sh)
+│   ├── ttyd/
+│   │   └── ttyd.service            # ttyd (web terminal) systemd unit
+│   ├── unbound/
+│   │   └── forward.conf            # Unbound DNS forwarder configuration
 │   └── webmin/
 │       └── text-editor.wbm         # Webmin Text Editor module
-├── gateproxy.sh                # Main installer script
 ├── img/
-│   └── gateproxy.png
-└── README.md
+│   └── gateproxy.png                # Diagram used in this README
+├── scr/                        # Scripts (deployed to /etc/scr/)
+│   ├── bkconf.sh                   # Backup configuration files
+│   ├── iptables.sh                 # Firewall rules and ipsets
+│   ├── killswitch.sh               # Emergency traffic block
+│   ├── serverboot.sh               # Start/restart all services
+│   └── serviceswatch.sh            # Service watchdog
+└── gateproxy.sh                # Main installer script
 ```
 
 ## ACL STRUCTURE
@@ -232,35 +233,34 @@ gateproxy/
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     All access control lists are stored under <code>/etc/acl/</code>, organized by service. Files are deployed from the repository and managed by Webmin's Text Editor module.
+     All access control lists are stored under <code>/etc/acl/</code>, organized by service. Files are deployed from the repository only if missing (an existing file, from a previous install or from another project sharing this path, is never overwritten) and managed by Webmin's Text Editor module.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Todas las listas de control de acceso se almacenan en <code>/etc/acl/</code>, organizadas por servicio. Los archivos son desplegados desde el repositorio y administrados por el módulo Text Editor de Webmin.
+     Todas las listas de control de acceso se almacenan en <code>/etc/acl/</code>, organizadas por servicio. Los archivos se despliegan desde el repositorio solo si faltan (uno ya existente, de una instalación previa o de otro proyecto que comparte esta ruta, nunca se sobreescribe) y se administran con el módulo Text Editor de Webmin.
     </td>
   </tr>
 </table>
 
 ```
 /etc/acl/
-├── acl_mac/                # MAC address lists for iptables ipsets
+├── mac/                    # MAC address lists for iptables ipsets
 │   ├── mac-limited.txt           # MACs routed through Squid (port 3128)
 │   └── mac-unlimited.txt       # MACs with unrestricted access (APs, switches)
-├── acl_dhcp/               # DHCP access control
-│   └── blockdhcp.txt           # MACs blocked from a DHCP lease (empty seed, populated/managed by pydhcp's pyleases.sh)
-├── acl_squid/              # Squid proxy ACLs
+├── squid/                  # Squid proxy ACLs
 │   ├── aipextra.txt            # Additional allowed IPs (bypass blacklist)
 │   ├── allowdomains.txt        # Allowed domains (whitelist)
 │   ├── blockdomains.txt        # Blocked domains (blacklist)
 │   ├── blockext.txt            # Blocked file extensions
 │   ├── blockmime.txt           # Blocked MIME types
 │   └── blockpatterns.txt       # Blocked URL patterns (BitTorrent, scrapers…)
-└── acl_ipt/                # iptables ACLs
+└── ipt/                    # iptables ACLs
     ├── blockports.txt          # Blocked port ranges (VPN, P2P, cryptomining…)
     ├── bogons.txt              # Bogon/unroutable IP ranges
     ├── dhcp_ip.txt             # IP list derived from DHCP leases (auto-generated by iptables.sh)
-    ├── dhcp_mac.txt            # MAC list derived from DHCP leases (auto-generated by iptables.sh)
-    └── suridata.txt            # Dest IPs from Suricata alerts (auto-generated by suridata.sh)
+    └── dhcp_mac.txt            # MAC list derived from DHCP leases (auto-generated by iptables.sh)
 ```
+
+Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/etc/suricata/suridata.txt`, generated by `suridata.sh`. MACs blocked from a DHCP lease (`blockdhcp.txt`) belong to a different project (pydhcp) and live at `/etc/pydhcp/acl/blockdhcp.txt`, outside gateproxy's `/etc/acl/`.
 
 <table width="100%">
   <tr>
@@ -421,7 +421,7 @@ DNS (UDP/TCP 53) is a global rule applied to all LAN traffic, not a `macports`-s
 
 ### Scripts (`/etc/scr/`)
 
-The following scripts from `conf/scr/` are copied to `/etc/scr/` during installation / Los siguientes scripts de `conf/scr/` se copian a `/etc/scr/` durante la instalación:
+The following scripts from `scr/` are copied to `/etc/scr/` during installation / Los siguientes scripts de `scr/` se copian a `/etc/scr/` durante la instalación:
 
 | Script | Trigger | Purpose |
 | :--- | :--- | :--- |

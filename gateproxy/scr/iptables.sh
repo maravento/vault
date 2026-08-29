@@ -110,8 +110,8 @@ load_env_file() {
 load_env_file "$PYDHCP_ENV" || true
 
 # paths (ACL_PATH comes from $PYDHCP_ENV)
-acl_mac_path="${ACL_PATH:-/etc/acl}/acl_mac"
-acl_ipt_path="${ACL_PATH:-/etc/acl}/acl_ipt"
+acl_mac_path="${ACL_PATH:-/etc/acl}/mac"
+acl_ipt_path="${ACL_PATH:-/etc/acl}/ipt"
 # interfaces
 wan="eth0"
 lan="${INTERFACESv4:-eth1}"
@@ -136,7 +136,7 @@ squid_intercept_port="3129"
 mac_limited_file="$acl_mac_path/mac-limited.txt"
 mac_unlimited_file="$acl_mac_path/mac-unlimited.txt"
 blockports_file="$acl_ipt_path/blockports.txt"
-dhcp_conf="/etc/pydhcp/pydhcpd.conf"
+dhcp_conf="/etc/pydhcp/core/pydhcpd.conf"
 path_ips="$acl_ipt_path/dhcp_ip.txt"
 path_macs="$acl_ipt_path/dhcp_mac.txt"
 
@@ -369,7 +369,7 @@ iptables -A INPUT -s 127.0.0.0/8 ! -i lo -j DROP
 iptables -A FORWARD -s 127.0.0.0/8 ! -i lo -j DROP
 
 # BOGONS (disabled by default -- opt-in)
-# acl/acl_ipt/bogons.txt includes the RFC1918 private ranges (10.0.0.0/8,
+# acl/ipt/bogons.txt includes the RFC1918 private ranges (10.0.0.0/8,
 # 172.16.0.0/12, 192.168.0.0/16). Those are also exactly the ranges a LAN
 # can legitimately use, so blindly loading this list applies to both the
 # LAN and WAN rules below and can lock the LAN out of its own network if
@@ -541,7 +541,7 @@ done
 ## SECURITY RULES ##
 
 # BLOCKPORTS
-# path: /etc/acl/acl_ipt/blockports.txt
+# path: /etc/acl/ipt/blockports.txt
 # Block Direct Connections:
 # - HTTPs (443) - TCP/UDP
 # - HTTPs Fallback (4444,9443) - TCP
@@ -590,7 +590,7 @@ for proto in tcp udp; do
 done
 
 # SURIDATA
-suridatalst="$acl_ipt_path/suridata.txt"
+suridatalst="/etc/suricata/suridata.txt"
 if ! ipset list suridata &>/dev/null; then
     ipset create suridata hash:ip -exist
 else

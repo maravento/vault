@@ -6,6 +6,11 @@
 # ARP table filter
 # v3.0-ng or higher
 #
+# Reads mac*.txt files (format: status;MAC;IP;HOSTNAME; -- same convention
+# as gateproxy/pydhcp/uhm's mac-limited.txt/mac-unlimited.txt) from the path
+# given at the prompt, and builds static ARP entries (IP<->MAC) enforced by
+# arpon against those known devices.
+#
 ################################################################################
 
 set -uo pipefail
@@ -44,8 +49,8 @@ _UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9
 ### VARIABLES
 # path mac addresses
 while :; do
-    read -r -p "Enter the path for MAC addresses [/etc/acl]: " acl_path
-    acl_path="${acl_path:-/etc/acl}"
+    read -r -p "Enter the path for MAC addresses [/etc/acl/mac]: " acl_path
+    acl_path="${acl_path:-/etc/acl/mac}"
     if [ -z "$acl_path" ] || ! compgen -G "$acl_path/mac*" >/dev/null; then
         echo "ERROR: path does not exist or has no mac* files. Try again."
         continue

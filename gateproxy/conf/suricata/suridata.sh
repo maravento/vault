@@ -5,7 +5,7 @@
 #
 # Suridata
 # Captures dest_ip from Suricata alerts matching drop.conf signatures and
-# feeds /etc/acl/acl_ipt/suridata.txt -- the same plain IP-list format
+# feeds /etc/suricata/suridata.txt -- the same plain IP-list format
 # blockports.txt already uses. Suricata itself never blocks anything (it
 # runs passive/IDS, see steps.md in caso_suricata for why NFQUEUE/IPS mode
 # was rejected): this script is what turns drop.conf into a real block,
@@ -86,8 +86,7 @@ RULES_FILE="/var/lib/suricata/rules/suricata.rules"
 EVE_LOG="/var/log/suricata/eve.json"
 OFFSET_FILE="/var/lib/suricata/suridata.offset"
 SIDS_FILE="/var/lib/suricata/suridata.sids"
-ACL_IPT_PATH="/etc/acl/acl_ipt"
-OUT_FILE="$ACL_IPT_PATH/suridata.txt"
+OUT_FILE="/etc/suricata/suridata.txt"
 
 for f in "$RULES_FILE" "$EVE_LOG"; do
     if [ ! -f "$f" ]; then
@@ -95,7 +94,6 @@ for f in "$RULES_FILE" "$EVE_LOG"; do
         exit 1
     fi
 done
-mkdir -p "$ACL_IPT_PATH" &>/dev/null
 touch "$OUT_FILE"
 
 # -- Step 1: SIDs currently resolved to "drop" by suricata-update ------------
