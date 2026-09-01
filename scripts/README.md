@@ -139,6 +139,7 @@ Tested on: Windows 10/11 x64
 #### Hardware, Virtualization & Server
 
 - [FixPrint (Print Queue Cleaning)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/fixprint.bat)
+- [Sysprep Preparation (Remove AppX packages for all users, then run Sysprep)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/sysprep.bat)
 - [Uniform Server (Change MySQL/Apache Ports - Set portable|permanent - Run With System)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/uzeroconf.bat)
 - [VTools QEMU/KVM (Spice, VirtIO, and WinFsp Setup as a Service)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/vtools.bat)
 
