@@ -27,12 +27,12 @@ SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 (umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    log "Script $(basename "$0") is already running"
+    log "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
 fi
 
 # DEPENDENCIES (samba/winbind excluded -- Samba install is optional in gateproxy.sh)
-for dep in iproute2 systemd squid-openssl apache2 rsyslog; do
+for dep in iproute2 systemd squid-openssl apache2 rsyslog util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: missing dependency '$dep' -- abort"
         exit 1

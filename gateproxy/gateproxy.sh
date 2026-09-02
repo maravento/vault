@@ -37,7 +37,7 @@ SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 (umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    log "Script $(basename "$0") is already running"
+    log "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
 fi
 
@@ -137,6 +137,28 @@ if [ -z "$LOCAL_HOME" ] || [ ! -d "$LOCAL_HOME" ]; then
     exit 1
 fi
 log "Using local user: $LOCAL_USER ($LOCAL_HOME)"
+
+### CHECK INTERNET
+check_internet() {
+    local max_attempts="${1:-24}" attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            log "INFO: internet is available"
+            return 0
+        fi
+        log "INFO: waiting for internet ($attempt/$max_attempts)"
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    return 1
+}
+
+if ! check_internet; then
+    log "ERROR: no internet connection -- abort"
+    exit 1
+fi
 
 ### CHECK SO & DESKTOP
 log "Check System..."
@@ -321,7 +343,36 @@ find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_user:$LOC
 find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_home:$LOCAL_HOME:g" "{}"
 
 # detect interfaces
-mapfile -t IFACES < <(ip -br link show | awk '$1 != "lo" {sub(/@.*/, "", $1); print $1}')
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+# CHECK WIRED INTERFACES
+list_wired_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ -d "/sys/class/net/$iface/wireless" ] && continue
+        printf "%s %s\n" "$iface" "$state"
+    done < <(list_ifaces)
+}
+
+check_wired_interfaces() {
+    local iface state connected=0
+
+    while read -r iface state; do
+        log "INFO: wired interface: $iface=$state"
+        [ "$state" = "UP" ] && connected=$((connected + 1))
+    done < <(list_wired_ifaces)
+
+    if [ "$connected" -lt 2 ]; then
+        log "ERROR: two connected wired interfaces are required -- abort"
+        return 1
+    fi
+
+    return 0
+}
+
+mapfile -t IFACES < <(list_wired_ifaces | awk '$2 == "UP" {print $1}')
 DEFAULT_ROUTE_IF="$(ip route show default 2>/dev/null | awk '/^default/ {print $5; exit}')"
 
 # print interface list, flagging the current default-route interface as a hint only
@@ -341,7 +392,7 @@ function public_interface() {
     while true; do
         print_interfaces
         read -r -p "Select Public Network Interface (Internet) [1-${#IFACES[@]}]: " SEL
-        if [[ "$SEL" =~ ^[1-9][0-9]*$ ]] && (( SEL >= 1 && SEL <= ${#IFACES[@]} )); then
+        if [[ "$SEL" =~ $_UH_UINT ]] && (( SEL >= 1 && SEL <= ${#IFACES[@]} )); then
             CANDIDATE="${IFACES[$((SEL-1))]}"
             while true; do
                 read -r -p "Confirm WAN (Internet) interface is '$CANDIDATE'? (y/n): " CONFIRM
@@ -363,7 +414,7 @@ function local_interface() {
     while true; do
         print_interfaces
         read -r -p "Select Local Network Interface [1-${#IFACES[@]}]: " SEL
-        if [[ "$SEL" =~ ^[1-9][0-9]*$ ]] && (( SEL >= 1 && SEL <= ${#IFACES[@]} )); then
+        if [[ "$SEL" =~ $_UH_UINT ]] && (( SEL >= 1 && SEL <= ${#IFACES[@]} )); then
             CANDIDATE="${IFACES[$((SEL-1))]}"
             if [ "$CANDIDATE" = "$WAN_IF" ]; then
                 log "That interface is already assigned to WAN. Choose a different one."
@@ -391,8 +442,7 @@ function is_interfaces() {
         log "Aborted installation. Check the Minimum Requirements"
         rm -rf "$gp_path" &>/dev/null
         exit
-    elif [ "${#IFACES[@]}" -eq 0 ]; then
-        log "ERROR: no network interfaces found -- abort"
+    elif ! check_wired_interfaces; then
         exit 1
     else
         log "Check Net Interfaces: OK"

@@ -259,10 +259,10 @@ Package: NetScan
 
 **⚠️ WARNING:** Only tested on Ubuntu 24.04 LTS. Other versions or distros not tested, use at your own risk.
 
-- nmap, xsltproc, iproute2
+- nmap, xsltproc, iproute2, util-linux
 
 ```bash
-apt-get install -y nmap xsltproc iproute2
+apt-get install -y nmap xsltproc iproute2 util-linux
 ```
 
 <table width="100%">
@@ -314,7 +314,7 @@ sudo ./netreport.sh
 
 ```
 /etc/netwatch/                         # Read-only config (750 root:www-data), same model as proxymon's /etc/proxymon
-└── netwatch.env                         # Install config: user, interfaces, network, server IP, poll intervals
+└── netwatch.env                         # Install config: interfaces, network, server IP, poll intervals
                                          # (640 root:www-data — web reads, never writes)
 
 /var/www/netwatch/data/                # Web-writable state (775 www-data:www-data)
@@ -322,15 +322,15 @@ sudo ./netreport.sh
 └── ports_mode.conf                      # Active ports mode + target IP
                                          # (664 www-data:www-data — web rewrites in place)
 
-/var/run/                              # PID files, used by start/stop/status
+/run/                                  # PID files, used by start/stop/status
 ├── netwatchlan.pid                      # netwatchlan.sh
 └── netwatchports.pid                    # netwatchports.sh
 
-/var/log/netwatch.log                  # Shared by the installer and both daemons
+/var/log/netwatch.log                  # Shared by both daemons
 /etc/logrotate.d/netwatch              # Weekly rotation for the shared log
 
 /var/www/netwatch/backups/             # .bak of web files and tools, one per --update
-/var/www/netwatch/tools/crontab-*.bak  # crontab backup, written before each cron edit
+/root/crontab-*.bak                    # crontab backup, written before each cron edit
 ```
 
 #### Requirements
@@ -338,11 +338,11 @@ sudo ./netreport.sh
 **⚠️ WARNING:** Only tested on Ubuntu 24.04 LTS. Other versions or distros not tested, use at your own risk.
 
 - Apache2 with mod_php (not PHP-FPM — the vhost uses `SetHandler application/x-httpd-php`)
-- arp-scan, sqlite3, php-sqlite3, php-cli, nmap, iproute2 (`ss`), logrotate
+- arp-scan, sqlite3, php-sqlite3, php-cli, nmap, iproute2 (`ss`), logrotate, util-linux
 
 ```bash
 apt-get install -y apache2 libapache2-mod-php php-cli
-apt-get install -y arp-scan sqlite3 php-sqlite3 nmap iproute2 logrotate
+apt-get install -y arp-scan sqlite3 php-sqlite3 nmap iproute2 logrotate util-linux
 ```
 
 <table width="100%">

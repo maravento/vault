@@ -16,7 +16,7 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    echo "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
@@ -25,14 +25,14 @@ SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 (umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
+    echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
 fi
 
 # DEPENDENCIES
-for dep in iproute2 bridge-utils; do
+for dep in iproute2 bridge-utils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
         exit 1
     fi
 done

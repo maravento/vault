@@ -11,7 +11,7 @@ set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    echo "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
@@ -58,7 +58,7 @@ echo "Auto Mount/Unmount NTFS Starting. Wait..."
 # DEPENDENCIES
 for dep in ntfs-3g util-linux bsdextrautils; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
         exit 1
     fi
 done

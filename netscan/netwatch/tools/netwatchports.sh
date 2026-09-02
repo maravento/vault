@@ -35,8 +35,9 @@
 # PORTS_TARGET_IP : target host/IP, only used when PORTS_MODE=target
 #
 # Log file:
-# /var/log/netwatch.log (root:root, 640) -- shared by all three netwatch
-# scripts (installer + netwatchlan.sh + netwatchports.sh).
+# /var/log/netwatch.log (root:root, 640) -- shared by both daemons
+# (netwatchlan.sh + netwatchports.sh). The installer writes its own
+# netwatchinstall.log next to itself.
 #
 # Usage:
 # ./netwatchports.sh {start|stop|status}
@@ -60,7 +61,7 @@ log() {
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root"
+    log "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
@@ -68,19 +69,20 @@ fi
 NETWATCH_ENV="/etc/netwatch/netwatch.env"
 DB_FILE="/var/www/netwatch/data/netwatch.db"
 PORTS_MODE_FILE="/var/www/netwatch/data/ports_mode.conf"
-PIDFILE="/var/run/netwatchports.pid"
+PIDFILE="/run/netwatchports.pid"
 
 ### DEPENDENCIES
-for dep in sqlite3 nmap iproute2 procps gawk coreutils; do
+for dep in sqlite3 nmap iproute2 procps coreutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: Required dependency '$dep' is not installed."
+        log "ERROR: dependency '$dep' is not installed -- abort"
         exit 1
     fi
 done
 
 ### LOAD ENV
 if [ ! -f "$NETWATCH_ENV" ]; then
-    log "ERROR: netwatch is not installed. Run netwatchinstall.sh --install first."
+    log "ERROR: netwatch is not installed -- abort"
+    log "Run netwatchinstall.sh --install first"
     exit 1
 fi
 
@@ -111,7 +113,8 @@ set_env_var() {
 
 ### DB CHECK
 if [ ! -f "$DB_FILE" ]; then
-    log "ERROR: Database not found at $DB_FILE. Run netwatchinstall.sh --install first."
+    log "ERROR: database not found at $DB_FILE -- abort"
+    log "Run netwatchinstall.sh --install first"
     exit 1
 fi
 
@@ -119,8 +122,14 @@ now_iso() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
 
 sql_escape() { printf '%s' "$1" | sed "s/'/''/g"; }
 
+# VALIDATION -- one variable per thing validated; use directly with =~
+_UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+_UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+_UH_HOST='^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$'
+_UH_UINT='^(0|[1-9][0-9]*)$'
+
 valid_host() {
-    [[ "$1" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?$ ]]
+    [[ "$1" =~ $_UH_IPV4 ]] || [[ "$1" =~ $_UH_FQDN ]] || [[ "$1" =~ $_UH_HOST ]]
 }
 
 ### PORTS MODE (server | target <ip>) -- kept in its own file, not
@@ -238,7 +247,7 @@ poll_server() {
     local netid _state _recvq _sendq local_addr _peer_addr proc_field
     while read -r netid _state _recvq _sendq local_addr _peer_addr proc_field; do
         local port="${local_addr##*:}"
-        [[ "$port" =~ ^[0-9]+$ ]] || continue
+        [[ "$port" =~ $_UH_UINT ]] || continue
         local proto="tcp"
         [ "$netid" = "udp" ] && proto="udp"
         local key="${proto}:${port}"
@@ -254,7 +263,7 @@ poll_server() {
             sql+="INSERT INTO port_scan_state (source, host, port, proto, service, status, last_checked, last_changed) VALUES ('server', '$esc_host', ${port}, '$proto', '$esc_service', 'open', '$now', '$now');
 INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('server', '$esc_host', ${port}, 'opened', '$now');
 "
-            log "Port opened: [server] ${host}:${port}/${proto} (${service:-unknown})"
+            log "INFO: server port opened ${host}:${port}/${proto} (${service:-unknown})"
         else
             sql+="UPDATE port_scan_state SET service='$esc_service', status='open', last_checked='$now' WHERE source='server' AND host='$esc_host' AND port=${port} AND proto='$proto';
 "
@@ -262,7 +271,7 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('se
                 sql+="UPDATE port_scan_state SET last_changed='$now' WHERE source='server' AND host='$esc_host' AND port=${port} AND proto='$proto';
 INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('server', '$esc_host', ${port}, 'opened', '$now');
 "
-                log "Port opened: [server] ${host}:${port}/${proto} (${service:-unknown})"
+                log "INFO: server port opened ${host}:${port}/${proto} (${service:-unknown})"
             fi
         fi
     done < <(ss -Htulnp 2>/dev/null)
@@ -279,7 +288,7 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('se
         sql+="UPDATE port_scan_state SET status='closed', last_checked='$now', last_changed='$now' WHERE source='server' AND host='$esc_host' AND port=${port} AND proto='$proto';
 INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('server', '$esc_host', ${port}, 'closed', '$now');
 "
-        log "Port closed: [server] ${host}:${port}/${proto}"
+        log "INFO: server port closed ${host}:${port}/${proto}"
     done
 
     run_batch "$sql"
@@ -319,7 +328,7 @@ poll_target() {
         [ -z "$entry" ] && continue
         local port state proto _owner service _rest
         IFS='/' read -r port state proto _owner service _rest <<< "$entry"
-        [[ "$port" =~ ^[0-9]+$ ]] || continue
+        [[ "$port" =~ $_UH_UINT ]] || continue
         [ "$proto" = "tcp" ] || [ "$proto" = "udp" ] || continue
         local key="${proto}:${port}"
         [ -n "${seen[$key]:-}" ] && continue
@@ -337,7 +346,7 @@ poll_target() {
             if [ "$status" = "open" ]; then
                 sql+="INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('target', '$esc_target', ${port}, 'opened', '$now');
 "
-                log "Port opened: [target] ${target}:${port}/${proto} (${service:-unknown})"
+                log "INFO: target port opened ${target}:${port}/${proto} (${service:-unknown})"
             fi
         else
             sql+="UPDATE port_scan_state SET service='$esc_service', status='$status', last_checked='$now' WHERE source='target' AND host='$esc_target' AND port=${port} AND proto='$proto';
@@ -350,7 +359,7 @@ poll_target() {
                 sql+="UPDATE port_scan_state SET last_changed='$now' WHERE source='target' AND host='$esc_target' AND port=${port} AND proto='$proto';
 INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('target', '$esc_target', ${port}, '$event_type', '$now');
 "
-                log "Port ${event_type}: [target] ${target}:${port}/${proto} (${service:-unknown})"
+                log "INFO: target port ${event_type} ${target}:${port}/${proto} (${service:-unknown})"
             fi
         fi
     done
@@ -369,7 +378,7 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('ta
         sql+="UPDATE port_scan_state SET status='closed', last_checked='$now', last_changed='$now' WHERE source='target' AND host='$esc_target' AND port=${port} AND proto='$proto';
 INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('target', '$esc_target', ${port}, 'closed', '$now');
 "
-        log "Port closed: [target] ${target}:${port}/${proto}"
+        log "INFO: target port closed ${target}:${port}/${proto}"
     done
 
     run_batch "$sql"
@@ -389,7 +398,11 @@ run_poll() {
 
     if [ "$PORTS_MODE" = "target" ]; then
         if [ -z "$PORTS_TARGET_IP" ]; then
-            log "WARNING: mode is 'target' but no target host is set; skipping cycle"
+            log "WARNING: mode is target with no target host -- skip"
+            return
+        fi
+        if ! valid_host "$PORTS_TARGET_IP"; then
+            log "WARNING: invalid target host '$PORTS_TARGET_IP' -- skip"
             return
         fi
         poll_target "$PORTS_TARGET_IP" "$now"
@@ -407,7 +420,12 @@ start() {
     (umask 077; : >> "$SCRIPT_LOCK")
     exec 200>"$SCRIPT_LOCK"
     if ! flock -n 200; then
-        log "Script $(basename "$0") is already running"
+        log "ERROR: script $(basename "$0") is already running -- abort"
+        exit 1
+    fi
+
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
+        log "ERROR: netwatchports is already running -- abort"
         exit 1
     fi
 
@@ -431,20 +449,20 @@ start() {
     # `sleep "$PORT_POLL_INTERVAL"` fail every cycle without actually
     # sleeping, turning the loop into a busy-spin -- fall back to the
     # default instead of just checking for empty.
-    if [ -z "${PORT_POLL_INTERVAL:-}" ] || ! [[ "$PORT_POLL_INTERVAL" =~ ^[0-9]+$ ]]; then
-        [ -n "${PORT_POLL_INTERVAL:-}" ] && log "WARNING: PORT_POLL_INTERVAL='$PORT_POLL_INTERVAL' is not a valid number, defaulting to 30"
+    if [ -z "${PORT_POLL_INTERVAL:-}" ] || ! [[ "$PORT_POLL_INTERVAL" =~ $_UH_UINT ]]; then
+        [ -n "${PORT_POLL_INTERVAL:-}" ] && log "WARNING: invalid PORT_POLL_INTERVAL -- fallback"
         PORT_POLL_INTERVAL=30
         set_env_var "PORT_POLL_INTERVAL" "$PORT_POLL_INTERVAL"
     fi
 
-    if [ -z "${PURGE_CLOSED_AFTER_HOURS:-}" ] || ! [[ "$PURGE_CLOSED_AFTER_HOURS" =~ ^[0-9]+$ ]]; then
-        [ -n "${PURGE_CLOSED_AFTER_HOURS:-}" ] && log "WARNING: PURGE_CLOSED_AFTER_HOURS='$PURGE_CLOSED_AFTER_HOURS' is not a valid number, defaulting to 6"
+    if [ -z "${PURGE_CLOSED_AFTER_HOURS:-}" ] || ! [[ "$PURGE_CLOSED_AFTER_HOURS" =~ $_UH_UINT ]]; then
+        [ -n "${PURGE_CLOSED_AFTER_HOURS:-}" ] && log "WARNING: invalid PURGE_CLOSED_AFTER_HOURS -- fallback"
         PURGE_CLOSED_AFTER_HOURS=6
         set_env_var "PURGE_CLOSED_AFTER_HOURS" "$PURGE_CLOSED_AFTER_HOURS"
     fi
 
     load_ports_mode
-    log "Starting netwatchports..."
+    log "netwatchports start..."
     log "Mode : $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
     log "Interval : ${PORT_POLL_INTERVAL}s"
     log "Database : $DB_FILE"
@@ -452,8 +470,10 @@ start() {
 
     rm -f "$PIDFILE"
     (
+        exec 200>&-
         echo "$BASHPID" > "$PIDFILE"
         while true; do
+            log "netwatchports cycle start..."
             run_poll
             sleep "$PORT_POLL_INTERVAL"
         done

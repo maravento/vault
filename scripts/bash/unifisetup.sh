@@ -39,7 +39,7 @@ set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    echo "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
@@ -48,7 +48,7 @@ SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 (umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
+    echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
 fi
 

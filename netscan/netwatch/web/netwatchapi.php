@@ -116,7 +116,8 @@ function get_db() {
 function is_valid_host($host) {
     if ($host === '' || strlen($host) > 253) return false;
     if (filter_var($host, FILTER_VALIDATE_IP)) return true;
-    return (bool) preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/', $host);
+    if (preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/', $host)) return true;
+    return (bool) preg_match('/^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/', $host);
 }
 
 // ports_mode.conf is deliberately separate from netwatch.env (which holds

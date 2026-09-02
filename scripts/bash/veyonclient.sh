@@ -46,12 +46,12 @@ is_valid_port() {
 # DEPENDENCIES
 for dep in cloudflared; do
     if ! command -v "$dep" &>/dev/null; then
-        echo "[ERROR] Required dependency '$dep' is not installed."
+        echo "ERROR: dependency '$dep' is not installed -- abort"
         exit 1
     fi
 done
 if ! command -v veyon-master &>/dev/null; then
-    echo "[ERROR] veyon-master is not installed."
+    echo "ERROR: veyon-master is not installed."
     exit 1
 fi
 
@@ -74,11 +74,11 @@ echo ""
 while true; do
     read -r -p "Tunnel subdomain (e.g. veyon.example.com): " hostname
     if [[ ! "$hostname" =~ $_UH_FQDN ]]; then
-        echo "[WARNING] Invalid subdomain: '$hostname'"
+        echo "WARNING: Invalid subdomain: '$hostname'"
         continue
     fi
     if ! getent hosts "$hostname" >/dev/null 2>&1; then
-        echo "[WARNING] Subdomain does not resolve: '$hostname'"
+        echo "WARNING: Subdomain does not resolve: '$hostname'"
         continue
     fi
     break
@@ -88,7 +88,7 @@ while true; do
     read -r -p "Local Veyon port (default 11100): " port
     port="${port:-11100}"
     if ! is_valid_port "$port"; then
-        echo "[WARNING] Invalid port: '$port'"
+        echo "WARNING: Invalid port: '$port'"
         continue
     fi
     break

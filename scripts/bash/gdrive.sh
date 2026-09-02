@@ -17,7 +17,7 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # check no-root
 if [ "$(id -u)" == "0" ]; then
-    echo "[ERROR] This script should not be run as root."
+    echo "ERROR: This script should not be run as root -- abort"
     exit 1
 fi
 
@@ -25,7 +25,7 @@ fi
 SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    echo "[ERROR] Script $(basename "$0") is already running"
+    echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
 fi
 
@@ -37,7 +37,7 @@ echo "Gdrive Starting. Wait..."
 # DEPENDENCIES
 for dep in libcurl3-gnutls libfuse2t64 libsqlite3-0 fuse3 util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "[ERROR] Required dependency '$dep' is not installed." >&2
+        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
         exit 1
     fi
 done
@@ -45,7 +45,7 @@ done
 # DEPENDENCIES (external repo)
 for dep in google-drive-ocamlfuse; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "[ERROR] 'google-drive-ocamlfuse' is not installed. Run:" >&2
+        echo "ERROR: 'google-drive-ocamlfuse' is not installed. Run:" >&2
         echo "sudo add-apt-repository -y ppa:alessandro-strada/ppa" >&2
         echo "sudo apt install google-drive-ocamlfuse" >&2
         exit 1

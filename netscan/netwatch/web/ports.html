@@ -307,9 +307,13 @@ var liveOn = true;
 var justApplied = false; // set on Apply, cleared once a load returns any row
 
 async function getCsrfToken() {
-    const res = await fetch('/ports/netwatchapi.php?action=csrfToken');
-    const json = await res.json();
-    if (json.success) csrfToken = json.data.csrf_token;
+    try {
+        const res = await fetch('/ports/netwatchapi.php?action=csrfToken');
+        const json = await res.json();
+        if (json.success) csrfToken = json.data.csrf_token;
+    } catch (e) {
+        csrfToken = '';
+    }
 }
 
 async function loadMode() {

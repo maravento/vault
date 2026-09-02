@@ -11,14 +11,14 @@ set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    echo "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
 # DEPENDENCIES
-for dep in procps gawk; do
+for dep in procps; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
         exit 1
     fi
 done

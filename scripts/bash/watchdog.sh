@@ -36,18 +36,20 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # check no-root
 if [ "$(id -u)" == "0" ]; then
-    echo "[ERROR] This script should not be run as root."
+    echo "ERROR: This script should not be run as root -- abort"
     exit 1
 fi
 
 # DEPENDENCIES
-for dep in libnotify-bin iputils-ping gawk; do
+for dep in libnotify-bin iputils-ping util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "[ERROR] Required dependency '$dep' is not installed." >&2
+        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
         exit 1
     fi
 done
 
+# VALIDATION -- integer only; use directly with =~
+_UH_UINT='^(0|[1-9][0-9]*)$'
 # Desktop notification helper (X11 and Wayland, silent if no desktop session)
 current_uid=$(id -u)
 _notify() {
@@ -82,12 +84,12 @@ start() {
     SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
     exec 200>"$SCRIPT_LOCK"
     if ! flock -n 200; then
-        echo "[ERROR] Script $(basename "$0") is already running"
+        echo "ERROR: script $(basename "$0") is already running -- abort"
         exit 1
     fi
 
     _pid=$(cat "$PIDFILE" 2>/dev/null)
-    if [ -f "$PIDFILE" ] && [[ "$_pid" =~ ^[0-9]+$ ]] && kill -0 "$_pid" 2>/dev/null; then
+    if [ -f "$PIDFILE" ] && [[ "$_pid" =~ $_UH_UINT ]] && kill -0 "$_pid" 2>/dev/null; then
         echo "[!] Watchdog already running (PID $_pid)"
         exit 1
     fi
@@ -126,7 +128,7 @@ start() {
 stop() {
     if [ -f "$PIDFILE" ]; then
         PID=$(cat "$PIDFILE")
-        if ! [[ "$PID" =~ ^[0-9]+$ ]]; then
+        if ! [[ "$PID" =~ $_UH_UINT ]]; then
             echo "[!] Invalid PID in $PIDFILE"
             rm -f "$PIDFILE"
             exit 1
@@ -144,7 +146,7 @@ stop() {
 
 status() {
     _pid=$(cat "$PIDFILE" 2>/dev/null)
-    if [ -f "$PIDFILE" ] && [[ "$_pid" =~ ^[0-9]+$ ]] && kill -0 "$_pid" 2>/dev/null; then
+    if [ -f "$PIDFILE" ] && [[ "$_pid" =~ $_UH_UINT ]] && kill -0 "$_pid" 2>/dev/null; then
         echo "[ ] Watchdog is running (PID $_pid)"
     else
         echo "[ ] Watchdog is not running"

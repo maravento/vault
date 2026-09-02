@@ -28,18 +28,20 @@ set -uo pipefail
 
 # check no-root
 if [ "$(id -u)" == "0" ]; then
-    echo "[ERROR] This script should not be run as root."
+    echo "ERROR: This script should not be run as root -- abort"
     exit 1
 fi
 
 # DEPENDENCIES
-for dep in zenity adb scrcpy procps; do
+for dep in zenity adb scrcpy procps util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "[ERROR] Required dependency '$dep' is not installed." >&2
+        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
         exit 1
     fi
 done
 
+# VALIDATION -- integer only; use directly with =~
+_UH_UINT='^(0|[1-9][0-9]*)$'
 show_error() {
     echo -e "$1"
     zenity --error --title="droid2pc Error" --text="$1" --timeout=5 2>/dev/null
@@ -66,7 +68,7 @@ start() {
     (umask 077; : >> "$SCRIPT_LOCK")
     exec 200>"$SCRIPT_LOCK"
     if ! flock -n 200; then
-        echo "[ERROR] Script $(basename "$0") is already running"
+        echo "ERROR: script $(basename "$0") is already running -- abort"
         exit 1
     fi
 
@@ -90,7 +92,7 @@ stop() {
     if [ -f "$PIDFILE" ]; then
         local pid
         pid=$(cat "$PIDFILE")
-        if [[ -n "$pid" && "$pid" =~ ^[0-9]+$ ]]; then
+        if [[ -n "$pid" && "$pid" =~ $_UH_UINT ]]; then
             kill "$pid" 2>/dev/null
             sleep 1
             kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null

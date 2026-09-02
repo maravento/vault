@@ -10,11 +10,11 @@
 #
 # Requirements:
 # - Run as root (sudo) because scans use -sS and -O.
-# - Packages: nmap, xsltproc, iproute2 (script will check if missing).
+# - Packages: nmap, xsltproc, iproute2, util-linux (script will check if missing).
 #
 # Outputs:
 # - /home/<user>/Report/scan_TIMESTAMP.html
-# - Only .html files remain in Report (script deletes intermediate .xml/.nmap/.gnmap).
+# - Intermediate .xml/.nmap/.gnmap files are deleted after each scan.
 #
 # Log file:
 # /var/log/netreport.log -- truncated on every run (single-run tool, no rotation).
@@ -51,16 +51,15 @@ timestamp() { date +%F-%H_%M_%S; }
 
 # logging
 log_file="/var/log/netreport.log"
-_log_line() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $*" | tee -a "$log_file" 2>/dev/null || true
+log() {
+    local msg="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
-log() { _log_line "INFO $*"; }
-warn() { _log_line "WARN $*" >&2; }
-die() { _log_line "ERROR $*" >&2; exit 1; }
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    die "This script must be run as root"
+    log "ERROR: This script must be run as root -- abort"
+    exit 1
 fi
 
 # prevent overlapping runs
@@ -68,7 +67,8 @@ SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 (umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    die "Script $(basename "$0") is already running"
+    log "ERROR: script $(basename "$0") is already running -- abort"
+    exit 1
 fi
 
 # Single-run tool, not a daemon -- the log only ever needs to hold the
@@ -108,16 +108,13 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    die "No valid local user found. Create one with sudo access."
+    log "ERROR: no valid local user found -- abort"
+    exit 1
 fi
 echo "Using local user: $local_user"
 
 # Report directory (owned by user)
-if [ "$local_user" = "root" ]; then
-  report_dir="/root/Report"
-else
-  report_dir="/home/${local_user}/Report"
-fi
+report_dir="/home/${local_user}/Report"
 mkdir -p "$report_dir"
 chown "$local_user:$local_user" "$report_dir"
 chmod 0755 "$report_dir"
@@ -127,17 +124,18 @@ SCRIPT_TMPDIR=$(mktemp -d)
 trap 'rm -rf "$SCRIPT_TMPDIR"' EXIT
 
 # DEPENDENCIES
-for dep in nmap xsltproc iproute2; do
+for dep in nmap xsltproc iproute2 util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        die "Required dependency '$dep' is not installed."
+        log "ERROR: dependency '$dep' is not installed -- abort"
+        exit 1
     fi
 done
 
 # Create embedded custom XSL stylesheet
 create_custom_xsl() {
-  local xsl_file="$1"
+    local xsl_file="$1"
 
-  cat > "$xsl_file" << 'XSLEOF'
+    cat > "$xsl_file" << 'XSLEOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
 <xsl:output method="html" encoding="UTF-8" indent="yes" doctype-system="about:legacy-compat"/>
@@ -400,167 +398,166 @@ XSLEOF
 
 # spinner while PID runs
 show_spinner_for_pid() {
-  local pid=$1
-  local spin='|/-\\'
-  local i=0
-  local exit_code
-  printf "[-] Working..."
-  while kill -0 "$pid" 2>/dev/null; do
-    i=$(( (i+1) %4 ))
-    printf "\r[-] Working... %s" "${spin:$i:1}"
-    sleep 0.2
-  done
-  if wait "$pid"; then
-    exit_code=0
-  else
-    exit_code=$?
-  fi
-  printf "\r[-] Done. \n"
-  if [ "$exit_code" -ne 0 ]; then
-    warn "Background command (PID $pid) exited with code $exit_code"
-  fi
-  return 0
+    local pid=$1
+    local spin='|/-\\'
+    local i=0
+    local exit_code
+    printf "[-] Working..."
+    while kill -0 "$pid" 2>/dev/null; do
+        i=$(( (i+1) %4 ))
+        printf "\r[-] Working... %s" "${spin:$i:1}"
+        sleep 0.2
+    done
+    if wait "$pid"; then
+        exit_code=0
+    else
+        exit_code=$?
+    fi
+    printf "\r[-] Done. \n"
+    if [ "$exit_code" -ne 0 ]; then
+        log "WARNING: nmap (PID $pid) exited with code $exit_code"
+    fi
+    return 0
 }
 
 # convert XML -> HTML with improved error handling
 xml_to_html() {
-  local xml="$1"
-  local html="$2"
-  local xsl="$SCRIPT_TMPDIR/netreport-custom.xsl"
-  local xsl_error="$SCRIPT_TMPDIR/xsltproc_error.log"
-  local default_xsl="/usr/share/nmap/nmap.xsl"
+    local xml="$1"
+    local html="$2"
+    local xsl="$SCRIPT_TMPDIR/netreport-custom.xsl"
+    local xsl_error="$SCRIPT_TMPDIR/xsltproc_error.log"
+    local default_xsl="/usr/share/nmap/nmap.xsl"
 
-  log "Converting XML to HTML: $xml -> $html"
+    log "INFO: Converting XML to HTML: $xml -> $html"
 
-  # Verify XML file exists and is not empty
-  if [ ! -f "$xml" ]; then
-    warn "XML file does not exist: $xml"
-    return 1
-  fi
-
-  if [ ! -s "$xml" ]; then
-    warn "XML file is empty: $xml"
-    return 1
-  fi
-
-  # Create custom XSL if not present
-  if [ ! -f "$xsl" ]; then
-    log "Creating custom XSL stylesheet..."
-    create_custom_xsl "$xsl"
-  fi
-
-  # Try conversion with custom XSL
-  log "Converting with custom XSL..."
-  if xsltproc -o "$html" "$xsl" "$xml" 2>"$xsl_error"; then
-    log "Conversion successful"
-    rm -f "$xsl_error"
-    return 0
-  else
-    warn "Custom XSL conversion failed:"
-    head -5 "$xsl_error" | while read -r line; do warn " $line"; done
-  fi
-
-  # Fallback: try default nmap XSL
-  if [ -f "$default_xsl" ]; then
-    log "Attempting conversion with default nmap XSL..."
-    if xsltproc -o "$html" "$default_xsl" "$xml" 2>"$xsl_error"; then
-      log "Conversion successful with default XSL"
-      rm -f "$xsl_error"
-      return 0
-    else
-      warn "Default XSL conversion failed:"
-      head -5 "$xsl_error" | while read -r line; do warn " $line"; done
+    # Verify XML file exists and is not empty
+    if [ ! -f "$xml" ]; then
+        log "WARNING: XML file does not exist: $xml"
+        return 1
     fi
-  else
-    warn "Default nmap XSL not found at $default_xsl, skipping to HTML wrapper"
-  fi
 
-  # Last resort: create basic HTML wrapper
-  warn "All XSL conversions failed, creating basic HTML wrapper"
-  {
-    echo '<!DOCTYPE html>'
-    echo '<html><head><meta charset="UTF-8">'
-    echo '<title>Nmap Scan Report</title>'
-    echo '<style>body{font-family:monospace;padding:20px;background:#f5f5f5}pre{background:#fff;padding:15px;border:1px solid #ddd;overflow:auto}</style>'
-    echo '</head><body><h1>Nmap Scan Report</h1><pre>'
-    # Escape XML special characters for HTML display
-    sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' "$xml"
-    echo '</pre></body></html>'
-  } > "$html"
+    if [ ! -s "$xml" ]; then
+        log "WARNING: XML file is empty: $xml"
+        return 1
+    fi
 
-  return 0
+    # Create custom XSL if not present
+    if [ ! -f "$xsl" ]; then
+        log "INFO: Creating custom XSL stylesheet..."
+        create_custom_xsl "$xsl"
+    fi
+
+    # Try conversion with custom XSL
+    log "INFO: Converting with custom XSL..."
+    if xsltproc -o "$html" "$xsl" "$xml" 2>"$xsl_error"; then
+        log "INFO: Conversion successful"
+        rm -f "$xsl_error"
+        return 0
+    else
+        log "WARNING: Custom XSL conversion failed:"
+        head -5 "$xsl_error" | while read -r line; do log "WARNING: $line"; done
+    fi
+
+    # Fallback: try default nmap XSL
+    if [ -f "$default_xsl" ]; then
+        log "INFO: Attempting conversion with default nmap XSL..."
+        if xsltproc -o "$html" "$default_xsl" "$xml" 2>"$xsl_error"; then
+            log "INFO: Conversion successful with default XSL"
+            rm -f "$xsl_error"
+            return 0
+        else
+            log "WARNING: Default XSL conversion failed:"
+            head -5 "$xsl_error" | while read -r line; do log "WARNING: $line"; done
+        fi
+    else
+        log "WARNING: default nmap XSL not found -- fallback"
+    fi
+
+    # Last resort: create basic HTML wrapper
+    log "WARNING: all XSL conversions failed -- fallback"
+    {
+        echo '<!DOCTYPE html>'
+        echo '<html><head><meta charset="UTF-8">'
+        echo '<title>Nmap Scan Report</title>'
+        echo '<style>body{font-family:monospace;padding:20px;background:#f5f5f5}pre{background:#fff;padding:15px;border:1px solid #ddd;overflow:auto}</style>'
+        echo '</head><body><h1>Nmap Scan Report</h1><pre>'
+        # Escape XML special characters for HTML display
+        sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' "$xml"
+        echo '</pre></body></html>'
+    } > "$html"
+
+    return 0
 }
 
 # Clean intermediate files from a given base path
 cleanup_intermediate_files() {
-  local base="$1"
-  log "Cleaning intermediate files: ${base}.*"
-  rm -f "${base}.xml" "${base}.nmap" "${base}.gnmap" 2>/dev/null || true
-}
-
-# Ensure only .html files remain in Report directory
-prune_report_dir_keep_html() {
-  log "Pruning non-HTML files from $report_dir"
-  find "$report_dir" -maxdepth 1 -type f ! -name '*.html' -print0 2>/dev/null | xargs -0 -r rm -f -- 2>/dev/null || true
+    local base="$1"
+    log "INFO: Cleaning intermediate files: ${base}.*"
+    rm -f "${base}.xml" "${base}.nmap" "${base}.gnmap" 2>/dev/null || true
 }
 
 # Verify and finalize HTML report
 finalize_html_report() {
-  local html_file="$1"
+    local html_file="$1"
 
-  if [ ! -f "$html_file" ]; then
-    die "HTML report was not created: $html_file"
-  fi
+    if [ ! -f "$html_file" ]; then
+        log "ERROR: HTML report was not created: $html_file"
+        exit 1
+    fi
 
-  if [ ! -s "$html_file" ]; then
-    die "HTML report is empty: $html_file"
-  fi
+    if [ ! -s "$html_file" ]; then
+        log "ERROR: HTML report is empty: $html_file"
+        exit 1
+    fi
 
-  # Set proper ownership and permissions
-  chown "$local_user:$local_user" "$html_file" 2>/dev/null || true
-  chmod 0644 "$html_file"
+    # Set proper ownership and permissions
+    chown "$local_user:$local_user" "$html_file" 2>/dev/null || true
+    chmod 0644 "$html_file"
 
-  local file_size=$(du -h "$html_file" | cut -f1)
-  log "Report saved: $html_file (size: $file_size)"
-  echo ""
-  echo "----------------------------------------"
-  echo "Report: $html_file"
-  echo "Size: $file_size"
-  echo "----------------------------------------"
-  echo ""
+    local file_size=$(du -h "$html_file" | cut -f1)
+    log "INFO: Report saved: $html_file (size: $file_size)"
+    echo ""
+    echo "----------------------------------------"
+    echo "Report: $html_file"
+    echo "Size: $file_size"
+    echo "----------------------------------------"
+    echo ""
 }
 
 # Prompt for a valid network interface and derive its network CIDR
 select_interface() {
-  SEL_IFACE=""
-  SEL_NET=""
-  echo "Available network interfaces:"
-  local iface_list
-  iface_list=$(ip -4 addr show scope global | awk '/inet /{ip=$2} /inet /{iface=$NF; printf " %-12s %s\n", iface, ip}')
-  if [ -z "$iface_list" ]; then
-    die "No network interfaces with a global IPv4 address found."
-  fi
-  echo "$iface_list"
-  echo ""
-  DEFAULT_IFACE=$(printf '%s\n' "$iface_list" | awk 'NR==1{print $1}')
-  while true; do
-    read -rp "Select interface (default: ${DEFAULT_IFACE}): " SEL_IFACE
-    SEL_IFACE="${SEL_IFACE:-$DEFAULT_IFACE}"
-    SEL_IFACE="${SEL_IFACE#"${SEL_IFACE%%[![:space:]]*}"}"
-    SEL_IFACE="${SEL_IFACE%"${SEL_IFACE##*[![:space:]]}"}"
-    [ -n "$SEL_IFACE" ] || { warn "No interface specified. Try again."; continue; }
-    if ! ip link show "$SEL_IFACE" &>/dev/null; then
-      warn "Interface '$SEL_IFACE' does not exist. Try again."
-      continue
+    SEL_IFACE=""
+    SEL_NET=""
+    echo "Available network interfaces:"
+    local iface_list
+    iface_list=$(ip -4 addr show scope global | awk '/inet /{ip=$2} /inet /{iface=$NF; printf " %-12s %s\n", iface, ip}')
+    if [ -z "$iface_list" ]; then
+        log "ERROR: no interface with a global IPv4 address -- abort"
+        exit 1
     fi
-    SEL_NET=$(ip -4 addr show dev "$SEL_IFACE" scope global | sed -n 's/.*inet \([0-9.]\{1,\}\/[0-9]\{1,\}\).*/\1/p' | head -n1)
-    if [ -z "$SEL_NET" ]; then
-      warn "No IPv4 address found on '$SEL_IFACE'. Try again."
-      continue
-    fi
-    break
-  done
+    echo "$iface_list"
+    echo ""
+    DEFAULT_IFACE=$(printf '%s\n' "$iface_list" | awk 'NR==1{print $1}')
+    while true; do
+                read -rp "Select interface (default: ${DEFAULT_IFACE}): " SEL_IFACE
+                SEL_IFACE="${SEL_IFACE:-$DEFAULT_IFACE}"
+                SEL_IFACE="${SEL_IFACE#"${SEL_IFACE%%[![:space:]]*}"}"
+                SEL_IFACE="${SEL_IFACE%"${SEL_IFACE##*[![:space:]]}"}"
+                [ -n "$SEL_IFACE" ] || { log "WARNING: no interface specified -- retry"; continue; }
+                if ! ip link show "$SEL_IFACE" &>/dev/null; then
+                        log "WARNING: Interface '$SEL_IFACE' does not exist. Try again."
+                        continue
+                fi
+                SEL_NET=$(ip -4 addr show dev "$SEL_IFACE" scope global | sed -n 's/.*inet \([0-9.]\{1,\}\/[0-9]\{1,\}\).*/\1/p' | head -n1)
+                if [ -z "$SEL_NET" ]; then
+                        log "WARNING: No IPv4 address found on '$SEL_IFACE'. Try again."
+                        continue
+                fi
+                break
+        done
 }
+
+log "netreport start..."
 
 # MENU
 TS=$(timestamp)
@@ -575,156 +572,158 @@ echo "3) IP/Host Scan"
 echo "4) Exit"
 echo ""
 while true; do
-  read -rp "Select [1-4] (default: 4): " opt
-  opt="${opt:-4}"
-  [[ "$opt" =~ ^[1-4]$ ]] && break
-  warn "Invalid option '$opt'. Enter a number between 1 and 4."
+    read -rp "Select [1-4] (default: 4): " opt
+    opt="${opt:-4}"
+    [[ "$opt" =~ ^[1-4]$ ]] && break
+    log "WARNING: invalid option '$opt' -- retry"
 done
 echo ""
 
 case "$opt" in
-  1)
-    # Option 1: LAN Scan => scan_TIMESTAMP.html
-    log "=== Option 1: LAN Scan ==="
-    select_interface
-    iface="$SEL_IFACE"
-    net="$SEL_NET"
-    log "Using network: $net on $iface"
-    xml_file="${report_dir}/scan_${TS}.xml"
-    html_file="${report_dir}/scan_${TS}.html"
+    1)
+        # Option 1: LAN Scan => scan_TIMESTAMP.html
+        log "INFO: === Option 1: LAN Scan ==="
+        select_interface
+        iface="$SEL_IFACE"
+        net="$SEL_NET"
+        log "INFO: Using network: $net on $iface"
+        xml_file="${report_dir}/scan_${TS}.xml"
+        html_file="${report_dir}/scan_${TS}.html"
 
-    log "Starting LAN Scan on $net"
+        log "INFO: Starting LAN Scan on $net"
 
-    # Run nmap in background
-    nmap -sS -T4 -F -sV "$net" -oX "$xml_file" > "$SCRIPT_TMPDIR/nmap_out" 2>&1 &
-    pid=$!
-    show_spinner_for_pid "$pid"
+        # Run nmap in background
+        nmap -sS -T4 -F -sV "$net" -oX "$xml_file" > "$SCRIPT_TMPDIR/nmap_out" 2>&1 &
+        pid=$!
+        show_spinner_for_pid "$pid"
 
-    # Convert and finalize
-    xml_to_html "$xml_file" "$html_file" || die "Failed to convert XML to HTML"
-    finalize_html_report "$html_file"
-    cleanup_intermediate_files "${report_dir}/scan_${TS}"
-    prune_report_dir_keep_html
-    ;;
+        # Convert and finalize
+        xml_to_html "$xml_file" "$html_file" || { log "ERROR: Failed to convert XML to HTML"; exit 1; }
+        finalize_html_report "$html_file"
+        cleanup_intermediate_files "${report_dir}/scan_${TS}"
+        ;;
 
-  2)
-    # Option 2: Advanced LAN Scan => scan_deep_TIMESTAMP.html
-    log "=== Option 2: Advanced LAN Scan ==="
-    select_interface
-    iface="$SEL_IFACE"
-    net="$SEL_NET"
-    log "Using network: $net on $iface"
-    xml_file="${report_dir}/scan_deep_${TS}.xml"
-    html_file="${report_dir}/scan_deep_${TS}.html"
+    2)
+        # Option 2: Advanced LAN Scan => scan_deep_TIMESTAMP.html
+        log "INFO: === Option 2: Advanced LAN Scan ==="
+        select_interface
+        iface="$SEL_IFACE"
+        net="$SEL_NET"
+        log "INFO: Using network: $net on $iface"
+        xml_file="${report_dir}/scan_deep_${TS}.xml"
+        html_file="${report_dir}/scan_deep_${TS}.html"
 
-    log "Starting Advanced LAN Scan on $net"
-    log "This may take several minutes..."
+        log "INFO: Starting Advanced LAN Scan on $net"
+        log "INFO: This may take several minutes..."
 
-    # Run nmap in background
-    nmap -sS -T4 -p- -sV -sC --max-retries 3 --host-timeout 5m "$net" -oX "$xml_file" > "$SCRIPT_TMPDIR/nmap_out" 2>&1 &
-    pid=$!
-    show_spinner_for_pid "$pid"
+        # Run nmap in background
+        nmap -sS -T4 -p- -sV -sC --max-retries 3 --host-timeout 5m "$net" -oX "$xml_file" > "$SCRIPT_TMPDIR/nmap_out" 2>&1 &
+        pid=$!
+        show_spinner_for_pid "$pid"
 
-    # Convert and finalize
-    xml_to_html "$xml_file" "$html_file" || die "Failed to convert XML to HTML"
-    finalize_html_report "$html_file"
-    cleanup_intermediate_files "${report_dir}/scan_deep_${TS}"
-    prune_report_dir_keep_html
-    ;;
+        # Convert and finalize
+        xml_to_html "$xml_file" "$html_file" || { log "ERROR: Failed to convert XML to HTML"; exit 1; }
+        finalize_html_report "$html_file"
+        cleanup_intermediate_files "${report_dir}/scan_deep_${TS}"
+        ;;
 
-  3)
-    # Option 3: IP/Host Scan => scan_ip_TIMESTAMP.html
-    log "=== Option 3: IP/Host Scan ==="
-    select_interface
-    iface="$SEL_IFACE"
-    net="$SEL_NET"
-    log "Discovering active hosts on $net ..."
-    echo ""
-    nmap -sn "$net" 2>/dev/null | awk '/report for/{ip=$5} /MAC/{printf " %-18s %s %s %s\n", ip, $3, $4, $5}' | sort -t. -k4 -n
-    echo ""
-    while true; do
-      read -rp "Target IP or hostname: " target
-      target="${target#"${target%%[![:space:]]*}"}"
-      target="${target%"${target##*[![:space:]]}"}"
-      [ -n "$target" ] && break
-      warn "No target specified. Try again."
-    done
+    3)
+        # Option 3: IP/Host Scan => scan_ip_TIMESTAMP.html
+        log "INFO: === Option 3: IP/Host Scan ==="
+        select_interface
+        iface="$SEL_IFACE"
+        net="$SEL_NET"
+        log "INFO: Discovering active hosts on $net ..."
+        echo ""
+        nmap -sn "$net" 2>/dev/null | awk '/report for/{ip=$5} /MAC/{printf " %-18s %s %s %s\n", ip, $3, $4, $5}' | sort -t. -k4 -n
+        echo ""
+        while true; do
+            read -rp "Target IP or hostname: " target
+            target="${target#"${target%%[![:space:]]*}"}"
+            target="${target%"${target##*[![:space:]]}"}"
+            [ -n "$target" ] && break
+            log "WARNING: No target specified. Try again."
+        done
 
-    # Validate target format (IPv4 or FQDN)
-    if ! [[ "$target" =~ $_UH_IPV4 ]] && ! [[ "$target" =~ $_UH_FQDN ]]; then
-      die "Invalid target format: $target"
-    fi
+        # Validate target format (IPv4 or FQDN)
+        if ! [[ "$target" =~ $_UH_IPV4 ]] && ! [[ "$target" =~ $_UH_FQDN ]]; then
+            log "ERROR: Invalid target format: $target"
+            exit 1
+        fi
 
-    base="${report_dir}/scan_ip_${TS}"
-    xml_file="${base}.xml"
-    html_file="${report_dir}/scan_ip_${TS}.html"
+        base="${report_dir}/scan_ip_${TS}"
+        xml_file="${base}.xml"
+        html_file="${report_dir}/scan_ip_${TS}.html"
 
-    log "Starting IP/Host Scan on: $target"
-    log "This scan covers all ports and includes vulnerability detection."
-    log "May take 20-30 minutes..."
+        log "INFO: Starting IP/Host Scan on: $target"
+        log "INFO: all ports, with vulnerability detection"
+        log "INFO: May take 20-30 minutes..."
 
-    # Full scan: all 65535 ports, OS detection, version intensity, vuln scripts and traceroute
-    nmap -Pn -sS -T4 -p- -sV --version-intensity 8 -sC -O \
-         --script vuln --traceroute \
-         -oA "$base" \
-         --max-retries 3 --host-timeout 10m \
-         "$target" > "$SCRIPT_TMPDIR/nmap_out" 2>&1 &
-    pid=$!
-    show_spinner_for_pid "$pid"
+        # Full scan: all 65535 ports, OS detection, version intensity, vuln scripts and traceroute
+        nmap -Pn -sS -T4 -p- -sV --version-intensity 8 -sC -O \
+             --script vuln --traceroute \
+             -oA "$base" \
+             --max-retries 3 --host-timeout 10m \
+             "$target" > "$SCRIPT_TMPDIR/nmap_out" 2>&1 &
+        pid=$!
+        show_spinner_for_pid "$pid"
 
-    # Verify XML was created
-    if [ ! -f "$xml_file" ]; then
-      warn "XML file not found: $xml_file"
+        # Verify XML was created
+        if [ ! -f "$xml_file" ]; then
+            log "WARNING: XML file not found: $xml_file"
 
-      # Check if .nmap file exists as fallback
-      if [ -f "${base}.nmap" ]; then
-        warn "Found .nmap file, converting to HTML..."
-        target_html=$(printf '%s' "$target" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
-        {
-          echo '<!DOCTYPE html>'
-          echo '<html><head><meta charset="UTF-8">'
-          echo '<title>Nmap Scan Report - '"$target_html"'</title>'
-          echo '<style>body{font-family:monospace;padding:20px;background:#f5f5f5}pre{background:#fff;padding:15px;border:1px solid #ddd;overflow:auto;line-height:1.4}</style>'
-          echo '</head><body><h1>Nmap Scan Report: '"$target_html"'</h1>'
-          echo '<p><strong>Note:</strong> XML output not available, displaying text format.</p><pre>'
-          cat "${base}.nmap"
-          echo '</pre></body></html>'
-        } > "$html_file"
+            # Check if .nmap file exists as fallback
+            if [ -f "${base}.nmap" ]; then
+                log "WARNING: Found .nmap file, converting to HTML..."
+                target_html=$(printf '%s' "$target" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+                {
+                    echo '<!DOCTYPE html>'
+                    echo '<html><head><meta charset="UTF-8">'
+                    echo '<title>Nmap Scan Report - '"$target_html"'</title>'
+                    echo '<style>body{font-family:monospace;padding:20px;background:#f5f5f5}pre{background:#fff;padding:15px;border:1px solid #ddd;overflow:auto;line-height:1.4}</style>'
+                    echo '</head><body><h1>Nmap Scan Report: '"$target_html"'</h1>'
+                    echo '<p><strong>Note:</strong> XML output not available, displaying text format.</p><pre>'
+                    cat "${base}.nmap"
+                    echo '</pre></body></html>'
+                } > "$html_file"
 
+                finalize_html_report "$html_file"
+                cleanup_intermediate_files "$base"
+                log "netreport done at: $(date)"
+                exit 0
+            else
+                cp -f "$SCRIPT_TMPDIR/nmap_out" "${base}_nmap_out.log" 2>/dev/null || true
+                log "ERROR: no nmap output found -- abort"
+                exit 1
+            fi
+        fi
+
+        # Verify XML is not empty
+        if [ ! -s "$xml_file" ]; then
+            log "ERROR: XML file is empty: $xml_file"
+            exit 1
+        fi
+
+        log "XML file created successfully ($(du -h "$xml_file" | cut -f1))"
+
+        # Convert to HTML
+        if ! xml_to_html "$xml_file" "$html_file"; then
+            log "ERROR: Failed to convert XML to HTML"
+            exit 1
+        fi
+
+        # Finalize and cleanup
         finalize_html_report "$html_file"
         cleanup_intermediate_files "$base"
-        prune_report_dir_keep_html
+        ;;
+
+    4)
+        log "INFO: exit requested"
+        echo "Goodbye!"
+        log "netreport done at: $(date)"
         exit 0
-      else
-        cp -f "$SCRIPT_TMPDIR/nmap_out" "${base}_nmap_out.log" 2>/dev/null || true
-        die "No nmap output files found. Check ${base}_nmap_out.log"
-      fi
-    fi
-
-    # Verify XML is not empty
-    if [ ! -s "$xml_file" ]; then
-      die "XML file is empty: $xml_file"
-    fi
-
-    log "XML file created successfully ($(du -h "$xml_file" | cut -f1))"
-
-    # Convert to HTML
-    if ! xml_to_html "$xml_file" "$html_file"; then
-      die "Failed to convert XML to HTML"
-    fi
-
-    # Finalize and cleanup
-    finalize_html_report "$html_file"
-    cleanup_intermediate_files "$base"
-    prune_report_dir_keep_html
-    ;;
-
-  4)
-    log "Exit requested"
-    echo "Goodbye!"
-    exit 0
-    ;;
+        ;;
 esac
 
-log "=== Scan completed successfully ==="
+log "netreport done at: $(date)"
 echo ""

@@ -26,7 +26,7 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    echo "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
@@ -35,7 +35,7 @@ SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 (umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
+    echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
 fi
 
@@ -109,12 +109,34 @@ _notify() {
 log "bwmon start..."
 
 # DEPENDENCIES
-for dep in speedtest-cli gawk libnotify-bin systemd; do
+for dep in speedtest-cli libnotify-bin systemd util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
         exit 1
     fi
 done
+
+# CHECK INTERNET
+check_internet() {
+    local max_attempts="${1:-24}" attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            log "INFO: internet is available"
+            return 0
+        fi
+        log "INFO: waiting for internet ($attempt/$max_attempts)"
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    return 1
+}
+
+if ! check_internet; then
+    log "ERROR: no internet connection -- abort"
+    exit 1
+fi
 
 ### VARIABLES (user-editable)
 # Minimum Download value (Mbit/s)

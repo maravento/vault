@@ -7,9 +7,11 @@
 # https://github.com/maravento/vault
 #
 # Log file:
-# /var/log/netwatch.log -- shared by all three netwatch scripts (this
-# installer plus netwatchlan.sh / netwatchports.sh). Rotated weekly via
-# /etc/logrotate.d/netwatch (deployed by --install, removed by --uninstall).
+# netwatchinstall.log -- written next to this script. No rotation; clear it
+# with: truncate -s 0 <script-dir>/netwatchinstall.log
+# The daemons netwatchlan.sh / netwatchports.sh log to the shared
+# /var/log/netwatch.log, rotated weekly via /etc/logrotate.d/netwatch
+# (deployed by --install, removed by --uninstall).
 #
 ################################################################################
 
@@ -19,7 +21,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
 
 # logging
-log_file="/var/log/netwatch.log"
+log_file="$SCRIPT_DIR/netwatchinstall.log"
 log() {
     local msg="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
@@ -27,7 +29,7 @@ log() {
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root"
+    log "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
@@ -40,7 +42,7 @@ SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 (umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    log "Script $(basename "$0") is already running"
+    log "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
 fi
 
@@ -78,42 +80,10 @@ check_repo() {
 }
 check_repo
 
-# LOCAL USER detection
-detect_local_user() {
-    local uid_min uid_max
-    local user uid best_user="" best_uid=999999
-
-    uid_min=$(awk '/^UID_MIN/{print $2}' /etc/login.defs 2>/dev/null)
-    uid_max=$(awk '/^UID_MAX/{print $2}' /etc/login.defs 2>/dev/null)
-    uid_min=${uid_min:-1000}
-    uid_max=${uid_max:-60000}
-
-    while IFS=: read -r user _ uid _ _ _ shell; do
-        [ "$user" = "root" ] && continue
-        [ -z "$uid" ] && continue
-        [ "$uid" -lt "$uid_min" ] && continue
-        [ "$uid" -gt "$uid_max" ] && continue
-
-        case "$shell" in
-            */false|*/nologin) continue ;;
-        esac
-
-        id -nG "$user" 2>/dev/null | grep -qw sudo || continue
-
-        if [ "$uid" -lt "$best_uid" ]; then
-            best_uid="$uid"
-            best_user="$user"
-        fi
-    done </etc/passwd
-
-    [ -n "$best_user" ] || return 1
-    echo "$best_user"
-}
-
 # DEPENDENCIES
-for dep in systemd apache2 libapache2-mod-php php-cli php-sqlite3 arp-scan sqlite3 nmap iproute2 logrotate cron gawk procps coreutils findutils; do
+for dep in systemd apache2 libapache2-mod-php php-cli php-sqlite3 arp-scan sqlite3 nmap iproute2 logrotate cron procps coreutils findutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: Required dependency '$dep' is not installed."
+        log "ERROR: dependency '$dep' is not installed"
         exit 1
     fi
 done
@@ -126,6 +96,7 @@ VIRTUAL_IFACE_PATTERN='^(lo|docker.*|br-.*|veth.*|virbr.*|tun.*|tap.*|wg.*)$'
 
 # VALIDATION -- one variable per thing validated; use directly with =~
 _UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
+_UH_UINT='^(0|[1-9][0-9]*)$'
 
 CAND_NAMES=()
 CAND_ADDRS=()
@@ -171,7 +142,7 @@ select_scan_interfaces() {
         chosen=()
         ok=1
         for idx in "${idxs[@]}"; do
-            if ! [[ "$idx" =~ ^[0-9]+$ ]] || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#CAND_NAMES[@]}" ]; then
+            if ! [[ "$idx" =~ $_UH_UINT ]] || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#CAND_NAMES[@]}" ]; then
                 echo "ERROR: Invalid selection '$idx'. Try again."
                 ok=0
                 break
@@ -212,8 +183,9 @@ select_management_interface() {
     print_candidate_interfaces
     echo ""
     while true; do
-        read -rp "Select management interface number (e.g. 1): " idx
-        if ! [[ "$idx" =~ ^[0-9]+$ ]] || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#CAND_NAMES[@]}" ]; then
+        read -rp "Select management interface number (default: 1): " idx
+        idx="${idx:-1}"
+        if ! [[ "$idx" =~ $_UH_UINT ]] || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#CAND_NAMES[@]}" ]; then
             echo "ERROR: Invalid selection. Try again."
             continue
         fi
@@ -223,7 +195,7 @@ select_management_interface() {
     local ip_with_prefix
     ip_with_prefix=$(ip -4 addr show dev "$MGMT_IFACE" scope global | sed -n 's/.*inet \([0-9.]\{1,\}\/[0-9]\{1,\}\).*/\1/p' | head -n1)
     if ! [[ "$ip_with_prefix" =~ $_UH_CIDR ]]; then
-        log "ERROR: Could not read a valid IPv4/CIDR address from '$MGMT_IFACE'."
+        log "ERROR: no valid IPv4/CIDR on '$MGMT_IFACE' -- abort"
         exit 1
     fi
     NET_CIDR=$(compute_network_cidr "$ip_with_prefix")
@@ -322,13 +294,13 @@ check_already_installed() {
     fi
 }
 
-# add a single @reboot cron entry running both daemons in sequence, so
-# they never race each other (or other @reboot jobs) at boot
+# add one @reboot cron entry per daemon, so a failure in one never keeps
+# the other from starting
 add_reboot_cron() {
     if ! crontab -l 2>/dev/null | grep -qF "$NETWATCH_TOOLS/netwatchlan.sh start"; then
-        crontab -l 2>/dev/null > "$NETWATCH_TOOLS/crontab-$(date +%Y%m%d%H%M%S).bak" || true
-        (crontab -l 2>/dev/null; echo "@reboot $NETWATCH_TOOLS/netwatchlan.sh start && $NETWATCH_TOOLS/netwatchports.sh start") | crontab -
-        log "Added to cron @reboot"
+        crontab -l 2>/dev/null > "/root/crontab-$(date +%Y%m%d%H%M%S).bak" || true
+        (crontab -l 2>/dev/null; echo "@reboot $NETWATCH_TOOLS/netwatchlan.sh start"; echo "@reboot $NETWATCH_TOOLS/netwatchports.sh start") | crontab -
+        log "INFO: added to cron @reboot"
     fi
 }
 
@@ -337,26 +309,23 @@ do_install() {
 
     check_already_installed
 
-    if ! local_user=$(detect_local_user); then
-        log "ERROR: No valid local user found. Create one with sudo access."
-        exit 1
-    fi
-    log "Using local user: $local_user"
-
     # dependency checks
     if systemctl is-active --quiet nginx; then
-        log "ERROR: nginx is running. Disable it first: systemctl stop nginx"
+        log "ERROR: nginx is running -- abort"
+        log "Disable it first: systemctl stop nginx"
         exit 1
     fi
 
     if ! systemctl is-active --quiet apache2; then
-        log "ERROR: apache2 is not running. Start it first: systemctl start apache2"
+        log "ERROR: apache2 is not running -- abort"
+        log "Start it first: systemctl start apache2"
         exit 1
     fi
 
     # The vhost needs mod_php (SetHandler application/x-httpd-php), not PHP-FPM.
     if ! apache2ctl -M 2>/dev/null | grep -qi 'php_module'; then
-        log "ERROR: Apache mod_php is not loaded. Run first:"
+        log "ERROR: Apache mod_php is not loaded -- abort"
+        log "Run first:"
         log "apt-get install -y libapache2-mod-php"
         log "a2enmod php$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null)"
         log "systemctl restart apache2"
@@ -403,20 +372,8 @@ PMODE
     # apache vhost
     cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
     sed -i "/^Listen .*:${VHOST_PORT}\$/d" /etc/apache2/ports.conf
-    if [ -n "$SERVER_IP" ]; then
-        printf 'Listen %s:%s\nListen 127.0.0.1:%s\n' "$SERVER_IP" "$VHOST_PORT" "$VHOST_PORT" | tee -a /etc/apache2/ports.conf
-    else
-        log "WARNING: Could not detect server IP."
-        log "WARNING: Web panel will listen on all interfaces (0.0.0.0:${VHOST_PORT})."
-        echo "Listen 0.0.0.0:${VHOST_PORT}" | tee -a /etc/apache2/ports.conf
-    fi
-    if [ -n "$NET_CIDR" ]; then
-        sed "s|192.168.0.0/24|${NET_CIDR}|" "$WEB_DIR/netwatch.conf" > /etc/apache2/sites-available/netwatch.conf
-    else
-        log "WARNING: Could not detect LAN CIDR."
-        log "WARNING: netwatch.conf keeps 192.168.0.0/24, edit manually."
-        cp -f "$WEB_DIR/netwatch.conf" /etc/apache2/sites-available/netwatch.conf
-    fi
+    printf 'Listen %s:%s\nListen 127.0.0.1:%s\n' "$SERVER_IP" "$VHOST_PORT" "$VHOST_PORT" | tee -a /etc/apache2/ports.conf
+    sed "s|192.168.0.0/24|${NET_CIDR}|" "$WEB_DIR/netwatch.conf" > /etc/apache2/sites-available/netwatch.conf
     a2ensite -q netwatch.conf
 
     systemctl daemon-reload
@@ -426,7 +383,6 @@ PMODE
     # defaults from the daemons themselves (see LAN_POLL_INTERVAL,
     # LAN_OFFLINE_GRACE, PORT_POLL_INTERVAL, PURGE_CLOSED_AFTER_HOURS).
     cat > "$NETWATCH_ENV" <<ENV
-LOCAL_USER="$local_user"
 LAN_IFACES="$LAN_IFACES"
 MGMT_IFACE="$MGMT_IFACE"
 NET_CIDR="$NET_CIDR"
@@ -435,8 +391,8 @@ ENV
     chown root:www-data "$NETWATCH_ENV"
     chmod 640 "$NETWATCH_ENV"
 
-    # logrotate: the shared log has no size cap otherwise (installer +
-    # both daemons write to it indefinitely).
+    # logrotate: the shared log has no size cap otherwise (both daemons
+    # write to it indefinitely).
     cp -f /etc/logrotate.d/netwatch{,.bak} &>/dev/null
     cat > /etc/logrotate.d/netwatch <<'EOF'
 /var/log/netwatch.log {
@@ -473,7 +429,7 @@ do_update() {
     # Migration: netwatch.env from $NETWATCH_WWW to /etc/netwatch
     local legacy_env="$NETWATCH_WWW/netwatch.env"
     if [ ! -f "$NETWATCH_ENV" ] && [ -f "$legacy_env" ]; then
-        log "Migrating netwatch.env from $legacy_env to $NETWATCH_ENV"
+        log "INFO: migrating netwatch.env to $NETWATCH_ENV"
         mkdir -p "$NETWATCH_ETC"
         chown root:www-data "$NETWATCH_ETC"
         chmod 750 "$NETWATCH_ETC"
@@ -492,7 +448,7 @@ do_update() {
         local current_schema
         current_schema=$(sqlite3 "$DB_FILE" "SELECT sql FROM sqlite_master WHERE type='table' AND name='port_scan_state';" 2>/dev/null)
         if [ -n "$current_schema" ] && ! printf '%s' "$current_schema" | grep -q "UNIQUE(source, host, port, proto)"; then
-            log "Migrating port_scan_state UNIQUE constraint to include proto"
+            log "INFO: migrating port_scan_state constraint"
             sqlite3 "$DB_FILE" >/dev/null <<'SQL'
 BEGIN TRANSACTION;
 CREATE TABLE port_scan_state_new (
@@ -533,7 +489,7 @@ SQL
         dst="$NETWATCH_WEB/$fname"
         [ -f "$dst" ] && cp -f "$dst" "$NETWATCH_WWW/backups/$fname.bak" &>/dev/null
         cp -f "$src" "$dst"
-        log "Updated: $fname"
+        log "INFO: updated $fname"
     done
     chown -R www-data:www-data "$NETWATCH_WEB"
 
@@ -543,7 +499,7 @@ SQL
         [ -f "$NETWATCH_TOOLS/$fname" ] && cp -f "$NETWATCH_TOOLS/$fname" "$NETWATCH_WWW/backups/$fname.bak" &>/dev/null
         cp -f "$f" "$NETWATCH_TOOLS/$fname"
         chmod +x "$NETWATCH_TOOLS/$fname"
-        log "Updated: $fname"
+        log "INFO: updated $fname"
     done
 
     "$NETWATCH_TOOLS/netwatchlan.sh" start
@@ -604,7 +560,7 @@ do_status() {
 
     echo "=== netwatch Daemons ==="
     for name in netwatchlan netwatchports; do
-        pidfile="/var/run/${name}.pid"
+        pidfile="/run/${name}.pid"
         if [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
             echo "$name: RUNNING (PID $(cat "$pidfile"))"
         else
@@ -654,25 +610,27 @@ do_status() {
 
 ### MENU
 show_menu() {
-    echo ""
-    echo "netwatch installer"
-    echo "-------------------"
-    echo "1) Install"
-    echo "2) Update"
-    echo "3) Uninstall"
-    echo "4) Status"
-    echo "5) Exit"
-    echo ""
-    read -p "Select option (default: 5): " opt
-    opt="${opt:-5}"
-    case "$opt" in
-        1) do_install ;;
-        2) do_update ;;
-        3) do_uninstall ;;
-        4) do_status ;;
-        5) exit 0 ;;
-        *) echo "Invalid option"; show_menu ;;
-    esac
+    while true; do
+        echo ""
+        echo "netwatch installer"
+        echo "-------------------"
+        echo "1) Install"
+        echo "2) Update"
+        echo "3) Uninstall"
+        echo "4) Status"
+        echo "5) Exit"
+        echo ""
+        read -p "Select option (default: 5): " opt
+        opt="${opt:-5}"
+        case "$opt" in
+            1) do_install; break ;;
+            2) do_update; break ;;
+            3) do_uninstall; break ;;
+            4) do_status; break ;;
+            5) exit 0 ;;
+            *) echo "ERROR: Invalid option" ;;
+        esac
+    done
 }
 
 ### ARGUMENT HANDLING

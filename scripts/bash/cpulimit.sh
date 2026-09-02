@@ -11,27 +11,29 @@ set -uo pipefail
 
 ## root check
 if [ "$(id -u)" -ne 0 ]; then
-    echo "ERROR: This script must be run as root"
+    echo "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
 echo "CPU limit Starting. Wait..."
 
 # DEPENDENCIES
-for dep in cpulimit procps gawk; do
+for dep in cpulimit procps util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
         exit 1
     fi
 done
 
+# VALIDATION -- integer only; use directly with =~
+_UH_UINT='^(0|[1-9][0-9]*)$'
 start_limit() {
     # prevent overlapping runs
     SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
     (umask 077; : >> "$SCRIPT_LOCK")
     exec 200>"$SCRIPT_LOCK"
     if ! flock -n 200; then
-        echo "Script $(basename "$0") is already running"
+        echo "ERROR: script $(basename "$0") is already running -- abort"
         exit 1
     fi
 
@@ -65,17 +67,17 @@ start_limit() {
     read -r -p "Enter the CPU % number for '$program_name' (0-100): " cpu_limit
 
     # Check CPU %
-    if ! [[ "$cpu_limit" =~ ^[0-9]+$ ]] || [ "$cpu_limit" -lt 0 ] || [ "$cpu_limit" -gt 100 ]; then
+    if ! [[ "$cpu_limit" =~ $_UH_UINT ]] || [ "$cpu_limit" -lt 0 ] || [ "$cpu_limit" -gt 100 ]; then
         echo "Invalid percentage. It must be a number between 0 and 100"
         exit 1
     fi
 
     # Apply cpulimit to each matching PID
-    >> /var/run/cpulimit_managed.pid
+    >> /run/cpulimit_managed.pid
     while IFS= read -r pid; do
         cpulimit -l "$cpu_limit" -p "$pid" >/dev/null 200>&- &
         cpulimit_pid=$!
-        echo "$cpulimit_pid" >> /var/run/cpulimit_managed.pid
+        echo "$cpulimit_pid" >> /run/cpulimit_managed.pid
         echo "$cpu_limit% CPU limit applied to '$program_name' (PID: $pid, cpulimit PID: $cpulimit_pid)"
     done < <(pgrep -f "$program_name")
 }
@@ -97,13 +99,13 @@ status_limit() {
 }
 
 stop_limit() {
-    if [ -f /var/run/cpulimit_managed.pid ]; then
+    if [ -f /run/cpulimit_managed.pid ]; then
         while IFS= read -r saved_pid; do
             if kill -0 "$saved_pid" 2>/dev/null; then
                 kill "$saved_pid"
             fi
-        done < /var/run/cpulimit_managed.pid
-        rm -f /var/run/cpulimit_managed.pid
+        done < /run/cpulimit_managed.pid
+        rm -f /run/cpulimit_managed.pid
     else
         pkill -x "cpulimit" 2>/dev/null || true
     fi
