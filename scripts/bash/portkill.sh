@@ -12,18 +12,20 @@ set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    echo "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
 # DEPENDENCIES
 for dep in lsof; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
         exit 1
     fi
 done
 
+# VALIDATION -- integer only; use directly with =~
+_UH_UINT='^(0|[1-9][0-9]*)$'
 echo "Port Kill Starting. Wait..."
 
 ### PORT KILL
@@ -33,7 +35,7 @@ if [ -z "$port" ]; then
     echo "ERROR: Port number cannot be empty"
     exit 1
 fi
-if ! [[ "$port" =~ ^[0-9]+$ ]] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
+if ! [[ "$port" =~ $_UH_UINT ]] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
     echo "ERROR: '$port' is not a valid port number (1-65535)"
     exit 1
 fi

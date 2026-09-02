@@ -47,7 +47,7 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    echo "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
@@ -117,7 +117,7 @@ echo "Using local user: $local_user"
 # DEPENDENCIES
 for dep in fuse3 curl; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
         exit 1
     fi
 done
@@ -129,23 +129,21 @@ if ! command -v rclone &>/dev/null; then
     exit 1
 fi
 
-# check internet with retry (essential for @reboot)
+# CHECK INTERNET (essential for @reboot)
 check_internet() {
-    echo "Checking internet connection..."
-    local max_attempts=24 attempt=0 # 2 min top
-    while [ $attempt -lt $max_attempts ]; do
-        if timeout 3 host www.google.com &>/dev/null; then
-            echo "Internet: Online (attempt $((attempt + 1)))"
+    local max_attempts="${1:-24}" attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            echo "INFO: internet is available"
             return 0
         fi
+        echo "INFO: waiting for internet ($attempt/$max_attempts)"
         attempt=$((attempt + 1))
-        if [ $attempt -eq $max_attempts ]; then
-            echo "ERROR: Internet offline after $((max_attempts * 5)) seconds"
-            return 1
-        fi
-        echo "Waiting for internet... attempt $attempt/$max_attempts"
         sleep 5
     done
+
+    return 1
 }
 
 # VARIABLES
@@ -266,7 +264,7 @@ run_mount() {
     case "${1:-}" in
     start)
         lock_mount
-        check_internet || exit 1
+        check_internet || { echo "ERROR: no internet connection -- abort"; exit 1; }
         mount_start
         ;;
     stop)
@@ -277,7 +275,7 @@ run_mount() {
     restart)
         lock_mount
         lock_sync
-        check_internet || exit 1
+        check_internet || { echo "ERROR: no internet connection -- abort"; exit 1; }
         mount_restart
         ;;
     status) mount_status ;;
@@ -347,7 +345,7 @@ run_sync() {
     case "${1:-}" in
     run)
         lock_sync
-        check_internet || exit 1
+        check_internet || { echo "ERROR: no internet connection -- abort"; exit 1; }
         sync_run
         ;;
     status) sync_status ;;

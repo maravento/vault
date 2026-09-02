@@ -39,12 +39,12 @@ SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 (umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    log "Script $(basename "$0") is already running"
+    log "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
 fi
 
 # DEPENDENCIES
-for dep in iptables iproute2 conntrack; do
+for dep in iptables iproute2 conntrack util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: missing dependency '$dep' -- abort"
         exit 1

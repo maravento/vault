@@ -23,9 +23,11 @@
 
 set -euo pipefail
 
+# VALIDATION -- integer only; use directly with =~
+_UH_UINT='^(0|[1-9][0-9]*)$'
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    echo "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
@@ -34,7 +36,7 @@ SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 (umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
+    echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
 fi
 
@@ -260,9 +262,9 @@ header() {
 }
 
 ok() { echo -e " ${GREEN}[OK]${RESET} $*"; }
-err() { echo -e " ${RED}[ERROR]${RESET} $*"; }
-info() { echo -e " ${BLUE}[INFO]${RESET} $*"; }
-warn() { echo -e " ${YELLOW}[WARN]${RESET} $*"; }
+err() { echo -e " ${RED}ERROR:${RESET} $*"; }
+info() { echo -e " ${BLUE}INFO:${RESET} $*"; }
+warn() { echo -e " ${YELLOW}WARNING:${RESET} $*"; }
 step() { echo -e "\n ${MAGENTA}>>${RESET} ${BOLD}$*${RESET}"; }
 line() { echo -e " ${DIM}------------------------------------------------${RESET}"; }
 
@@ -298,7 +300,7 @@ select_model() {
         echo ""
         info "No model selected -- you can download one later with: ./aistack.sh model"
         return 0
-    elif [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#AVAILABLE_MODELS[@]}" ]; then
+    elif [[ "$choice" =~ $_UH_UINT ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#AVAILABLE_MODELS[@]}" ]; then
         SELECTED_MODEL="${AVAILABLE_MODELS[$((choice-1))]}"
     else
         warn "Invalid selection, using default: $DEFAULT_MODEL"
@@ -627,7 +629,7 @@ remove_model() {
     echo ""
     read -rp " -> Select model to remove [0-${#models_list[@]}]: " choice
 
-    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#models_list[@]}" ]; then
+    if [[ "$choice" =~ $_UH_UINT ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#models_list[@]}" ]; then
         local model_to_remove="${models_list[$((choice-1))]}"
         echo ""
         read -rp " Remove model '$model_to_remove'? [y/N]: " confirm

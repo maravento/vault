@@ -22,15 +22,16 @@
 # LAN_POLL_INTERVAL : seconds between scans (default: 60)
 # LAN_OFFLINE_GRACE : consecutive missed polls before marking offline (default: 3)
 #
-# On start, waits up to 2 minutes for every interface in LAN_IFACES to report
-# link state "up" before entering the scan loop (see wait_for_interfaces()) --
-# needed for @reboot, since bonded/aggregated interfaces can come up later
-# than the LAN's physical NICs. If interfaces are still down after 2 minutes,
-# the daemon starts anyway and keeps retrying each interface every poll cycle.
+# On start, waits up to 2 minutes for at least one interface in LAN_IFACES to
+# report link state "up" before entering the scan loop (see check_interfaces())
+# -- needed for @reboot, since bonded/aggregated interfaces can come up later
+# than the LAN's physical NICs. If none is up after 2 minutes, the daemon
+# starts anyway and keeps retrying each interface every poll cycle.
 #
 # Log file:
-# /var/log/netwatch.log (root:root, 640) -- shared by all three netwatch
-# scripts (installer + netwatchlan.sh + netwatchports.sh).
+# /var/log/netwatch.log (root:root, 640) -- shared by both daemons
+# (netwatchlan.sh + netwatchports.sh). The installer writes its own
+# netwatchinstall.log next to itself.
 #
 # Usage:
 # ./netwatchlan.sh {start|stop|status}
@@ -51,26 +52,29 @@ log() {
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root"
+    log "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
 ### PATHS
 NETWATCH_ENV="/etc/netwatch/netwatch.env"
 DB_FILE="/var/www/netwatch/data/netwatch.db"
-PIDFILE="/var/run/netwatchlan.pid"
+PIDFILE="/run/netwatchlan.pid"
 
 ### DEPENDENCIES
-for dep in arp-scan sqlite3 iproute2 procps gawk coreutils; do
+for dep in arp-scan sqlite3 iproute2 procps coreutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: Required dependency '$dep' is not installed."
+        log "ERROR: dependency '$dep' is not installed -- abort"
         exit 1
     fi
 done
 
+# VALIDATION -- integer only; use directly with =~
+_UH_UINT='^(0|[1-9][0-9]*)$'
 ### LOAD ENV
 if [ ! -f "$NETWATCH_ENV" ]; then
-    log "ERROR: netwatch is not installed. Run netwatchinstall.sh --install first."
+    log "ERROR: netwatch is not installed -- abort"
+    log "Run netwatchinstall.sh --install first"
     exit 1
 fi
 
@@ -101,7 +105,8 @@ set_env_var() {
 
 ### DB CHECK
 if [ ! -f "$DB_FILE" ]; then
-    log "ERROR: Database not found at $DB_FILE. Run netwatchinstall.sh --install first."
+    log "ERROR: database not found at $DB_FILE -- abort"
+    log "Run netwatchinstall.sh --install first"
     exit 1
 fi
 
@@ -148,33 +153,45 @@ resolve_hostname() {
     printf '%s' "$h"
 }
 
-### WAIT FOR INTERFACES (essential for @reboot -- bonded/aggregated
+### CHECK INTERFACES (essential for @reboot -- bonded/aggregated
 ### interfaces like bond0 can take longer than the LAN's physical NICs to
 ### come up and report link state)
-wait_for_interfaces() {
-    local ifaces iface all_up
-    local max_attempts=24 attempt=1 # 2 min top
-    IFS=',' read -ra ifaces <<< "$LAN_IFACES"
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+check_interfaces() {
+    local list="${1:-}" max_attempts="${2:-24}" attempt=1
+    local iface state ready states
+
+    [ -n "$list" ] || list="$(list_ifaces | awk '{print $1}' | paste -sd,)"
 
     while (( attempt <= max_attempts )); do
-        all_up=1
-        for iface in "${ifaces[@]}"; do
-            if ! ip link show "$iface" up &>/dev/null; then
-                all_up=0
-                log "Waiting for interface '$iface' to come up (attempt $attempt/$max_attempts)"
-                break
+        ready=0
+        states=()
+        for iface in ${list//,/ }; do
+            if [ "$(ip -br link show "$iface" 2>/dev/null | awk '{print $2}')" = "UP" ]; then
+                state="UP"
+                ready=1
+            else
+                state="DOWN"
             fi
+            states+=("$iface=$state")
         done
-        if [ "$all_up" -eq 1 ]; then
-            log "All interfaces are up: $LAN_IFACES"
+        if [ "$attempt" -eq 1 ] || [ "$ready" -eq 1 ]; then
+            for state in "${states[@]}"; do
+                log "INFO: interface: $state"
+            done
+        fi
+        if [ "$ready" -eq 1 ]; then
             return 0
         fi
+        log "INFO: waiting for interfaces ($attempt/$max_attempts)"
         attempt=$((attempt + 1))
         sleep 5
     done
 
-    log "WARNING: not all interfaces up after $max_attempts tries, continuing"
-    return 0
+    return 1
 }
 
 ### ONE SCAN CYCLE
@@ -234,7 +251,7 @@ run_scan() {
                 sql+="INSERT INTO devices (mac, ip, iface, vendor, hostname, status, first_seen, last_seen, miss_count) VALUES ('$esc_mac', '$esc_ip', '$esc_iface', '$esc_vendor', '$hostname_esc', 'online', '$now', '$now', 0);
 INSERT INTO device_events (mac, ip, event_type, event_time) VALUES ('$esc_mac', '$esc_ip', 'new_device', '$now');
 "
-                log "New device: $ip ($mac) on $iface"
+                log "INFO: new device $ip ($mac) on $iface"
             else
                 # A transient resolution failure (empty hostname this cycle)
                 # must not blank out a hostname resolved on a previous cycle.
@@ -243,7 +260,7 @@ INSERT INTO device_events (mac, ip, event_type, event_time) VALUES ('$esc_mac', 
                 if [ "${dev_status[$mac]}" = "offline" ]; then
                     sql+="INSERT INTO device_events (mac, ip, event_type, event_time) VALUES ('$esc_mac', '$esc_ip', 'online', '$now');
 "
-                    log "Device back online: $ip ($mac) on $iface"
+                    log "INFO: device online $ip ($mac) on $iface"
                 fi
             fi
         done <<< "$scan_out"
@@ -264,7 +281,7 @@ INSERT INTO device_events (mac, ip, event_type, event_time) VALUES ('$esc_mac', 
             sql+="UPDATE devices SET status='offline' WHERE mac='$esc_mac' AND status='online';
 INSERT INTO device_events (mac, ip, event_type, event_time) VALUES ('$esc_mac', '$esc_ip_addr', 'offline', '$now');
 "
-            log "Device offline: $ip_addr ($mac)"
+            log "INFO: device offline $ip_addr ($mac)"
         fi
     done
 
@@ -278,7 +295,12 @@ start() {
     (umask 077; : >> "$SCRIPT_LOCK")
     exec 200>"$SCRIPT_LOCK"
     if ! flock -n 200; then
-        log "Script $(basename "$0") is already running"
+        log "ERROR: script $(basename "$0") is already running -- abort"
+        exit 1
+    fi
+
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
+        log "ERROR: netwatchlan is already running -- abort"
         exit 1
     fi
 
@@ -300,24 +322,26 @@ start() {
         exit 1
     fi
 
-    ### WAIT FOR INTERFACES (essential for @reboot)
-    wait_for_interfaces
+    ### CHECK INTERFACES (essential for @reboot)
+    if ! check_interfaces "$LAN_IFACES"; then
+        log "WARNING: no operational interface -- alert"
+    fi
 
     ### CHECK AND SET LAN_POLL_INTERVAL
-    if [ -z "${LAN_POLL_INTERVAL:-}" ] || ! [[ "$LAN_POLL_INTERVAL" =~ ^[0-9]+$ ]]; then
-        [ -n "${LAN_POLL_INTERVAL:-}" ] && log "WARNING: LAN_POLL_INTERVAL='$LAN_POLL_INTERVAL' is not a valid number, defaulting to 60"
+    if [ -z "${LAN_POLL_INTERVAL:-}" ] || ! [[ "$LAN_POLL_INTERVAL" =~ $_UH_UINT ]]; then
+        [ -n "${LAN_POLL_INTERVAL:-}" ] && log "WARNING: invalid LAN_POLL_INTERVAL -- fallback"
         LAN_POLL_INTERVAL=60
         set_env_var "LAN_POLL_INTERVAL" "$LAN_POLL_INTERVAL"
     fi
 
     ### CHECK AND SET LAN_OFFLINE_GRACE
-    if [ -z "${LAN_OFFLINE_GRACE:-}" ] || ! [[ "$LAN_OFFLINE_GRACE" =~ ^[0-9]+$ ]]; then
-        [ -n "${LAN_OFFLINE_GRACE:-}" ] && log "WARNING: LAN_OFFLINE_GRACE='$LAN_OFFLINE_GRACE' is not a valid number, defaulting to 3"
+    if [ -z "${LAN_OFFLINE_GRACE:-}" ] || ! [[ "$LAN_OFFLINE_GRACE" =~ $_UH_UINT ]]; then
+        [ -n "${LAN_OFFLINE_GRACE:-}" ] && log "WARNING: invalid LAN_OFFLINE_GRACE -- fallback"
         LAN_OFFLINE_GRACE=3
         set_env_var "LAN_OFFLINE_GRACE" "$LAN_OFFLINE_GRACE"
     fi
 
-    log "Starting netwatchlan..."
+    log "netwatchlan start..."
     log "Interfaces : $LAN_IFACES"
     log "Interval : ${LAN_POLL_INTERVAL}s"
     log "Offline grace: ${LAN_OFFLINE_GRACE} polls"
@@ -326,8 +350,10 @@ start() {
 
     rm -f "$PIDFILE"
     (
+        exec 200>&-
         echo "$BASHPID" > "$PIDFILE"
         while true; do
+            log "netwatchlan cycle start..."
             run_scan
             sleep "$LAN_POLL_INTERVAL"
         done

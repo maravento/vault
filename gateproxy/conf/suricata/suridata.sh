@@ -58,7 +58,7 @@ SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 (umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    log "Script $(basename "$0") is already running"
+    log "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
 fi
 
@@ -150,7 +150,7 @@ current_size=$(stat -c%s "$EVE_LOG" 2>/dev/null || echo 0)
 last_offset=0
 if [ -f "$OFFSET_FILE" ]; then
     last_offset=$(cat "$OFFSET_FILE" 2>/dev/null)
-    [[ "$last_offset" =~ ^[0-9]+$ ]] || last_offset=0
+    [[ "$last_offset" =~ $_UH_UINT ]] || last_offset=0
 fi
 if (( last_offset > current_size )); then
     log "INFO: eve.json truncated -- offset reset to 0"

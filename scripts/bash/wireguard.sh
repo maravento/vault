@@ -11,7 +11,7 @@ set -uo pipefail
 
 ## root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root"
+    echo "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
@@ -20,18 +20,20 @@ SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
 (umask 077; : >> "$SCRIPT_LOCK")
 exec 200>"$SCRIPT_LOCK"
 if ! flock -n 200; then
-    echo "Script $(basename "$0") is already running"
+    echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
 fi
 
 # DEPENDENCIES
-for dep in iproute2; do
+for dep in iproute2 util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: Required dependency '$dep' is not installed." >&2
+        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
         exit 1
     fi
 done
 
+# VALIDATION -- integer only; use directly with =~
+_UH_UINT='^(0|[1-9][0-9]*)$'
 echo "WireGuard Install | Remove Starting. Wait..."
 
 # Function to install WireGuard as Server
@@ -80,7 +82,7 @@ install_wireguard_server() {
 
     # Prompt the user to choose an interface by number
     read -rp "Enter the public network interface number: " num
-    if ! [[ "$num" =~ ^[0-9]+$ ]]; then
+    if ! [[ "$num" =~ $_UH_UINT ]]; then
         echo "Error: Please enter a valid number."
         exit 1
     fi
