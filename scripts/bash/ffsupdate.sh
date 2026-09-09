@@ -5,10 +5,7 @@
 #
 # FreeFileSync Update
 #
-# NOTE on logging:
-# - Writes to /var/log/ffsupdate.log (append-only, no rotation configured
-#   by this script). Set up logrotate for this file if disk usage matters.
-# - To clear it manually: truncate -s 0 /var/log/ffsupdate.log
+# log: /var/log/ffsupdate.log (rewritten on each run)
 #
 ################################################################################
 
@@ -18,12 +15,13 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # logging
 log_file="/var/log/ffsupdate.log"
+{ > "$log_file"; } 2>/dev/null || true
 log() {
     local msg="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     log "ERROR: This script must be run as root -- abort"
     exit 1
@@ -41,7 +39,7 @@ fi
 # Start
 log "ffsupdate start..."
 
-# DEPENDENCIES
+# dependencies
 for dep in expect tcl-expect wget tar coreutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: dependency '$dep' is not installed -- abort"
@@ -49,7 +47,7 @@ for dep in expect tcl-expect wget tar coreutils util-linux; do
     fi
 done
 
-# CHECK INTERNET
+# check internet
 check_internet() {
     local max_attempts="${1:-24}" attempt=1
 

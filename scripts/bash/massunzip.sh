@@ -32,7 +32,7 @@ if ! apt-cache policy | grep -qE '/multiverse'; then
     exit 1
 fi
 
-# DEPENDENCIES
+# dependencies
 for dep in p7zip-full p7zip-rar util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -40,7 +40,7 @@ for dep in p7zip-full p7zip-rar util-linux; do
     fi
 done
 
-### PASSWORDS
+# PASSWORDS
 # add and replace "passfoo, passbar, etc" with the passwords of your files to unzip
 shopt -s extglob nullglob nocaseglob
 passw=(
@@ -54,7 +54,7 @@ passw=(
   icecream
 )
 
-### CHECK
+# CHECK
 found_files=0
 for f in *.@(gz|rar|zip|zip.001|7z|7z.001); do
     found_files=1

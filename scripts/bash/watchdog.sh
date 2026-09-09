@@ -31,7 +31,7 @@
 
 set -uo pipefail
 
-# PATH for cron
+# path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # check no-root
@@ -40,7 +40,7 @@ if [ "$(id -u)" == "0" ]; then
     exit 1
 fi
 
-# DEPENDENCIES
+# dependencies
 for dep in libnotify-bin iputils-ping util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -48,26 +48,28 @@ for dep in libnotify-bin iputils-ping util-linux; do
     fi
 done
 
-# VALIDATION -- integer only; use directly with =~
-_UH_UINT='^(0|[1-9][0-9]*)$'
+# validation -- integer only; use directly with =~
+UH_UINT='^(0|[1-9][0-9]*)$'
 # Desktop notification helper (X11 and Wayland, silent if no desktop session)
-current_uid=$(id -u)
-_notify() {
-    local bus="unix:path=/run/user/${current_uid}/bus"
-    local xdg_runtime="/run/user/${current_uid}"
+# desktop notification to the current user (X11 and Wayland, no sudo)
+notify_send_self() {
+    local current_uid
+    current_uid=$(id -u)
+    local dbus_address="unix:path=/run/user/${current_uid}/bus"
+    local xdg_runtime_dir="/run/user/${current_uid}"
     local session_type
     session_type=$(loginctl show-session \
         "$(loginctl show-user "$(id -un)" 2>/dev/null | awk -F= '/^Sessions=/{print $2}')" \
         -p Type --value 2>/dev/null || echo "x11")
     if [[ "$session_type" == "wayland" ]]; then
-        DBUS_SESSION_BUS_ADDRESS="$bus" \
+        DBUS_SESSION_BUS_ADDRESS="$dbus_address" \
         WAYLAND_DISPLAY=wayland-1 \
-        XDG_RUNTIME_DIR="$xdg_runtime" \
+        XDG_RUNTIME_DIR="$xdg_runtime_dir" \
         notify-send "$@" 2>/dev/null || true
     else
         DISPLAY=:0 \
-        DBUS_SESSION_BUS_ADDRESS="$bus" \
-        XDG_RUNTIME_DIR="$xdg_runtime" \
+        DBUS_SESSION_BUS_ADDRESS="$dbus_address" \
+        XDG_RUNTIME_DIR="$xdg_runtime_dir" \
         notify-send "$@" 2>/dev/null || true
     fi
 }
@@ -88,9 +90,9 @@ start() {
         exit 1
     fi
 
-    _pid=$(cat "$PIDFILE" 2>/dev/null)
-    if [ -f "$PIDFILE" ] && [[ "$_pid" =~ $_UH_UINT ]] && kill -0 "$_pid" 2>/dev/null; then
-        echo "[!] Watchdog already running (PID $_pid)"
+    watchdog_pid=$(cat "$PIDFILE" 2>/dev/null)
+    if [ -f "$PIDFILE" ] && [[ "$watchdog_pid" =~ $UH_UINT ]] && kill -0 "$watchdog_pid" 2>/dev/null; then
+        echo "[!] Watchdog already running (PID $watchdog_pid)"
         exit 1
     fi
 
@@ -103,7 +105,7 @@ start() {
 
             if echo "$result" | grep -q "0 received" || [ "$ping_status" -ge 2 ]; then
                 echo "[$timestamp] Internet DOWN" >> "$LOGFILE"
-                _notify -i network-error -u critical "Watchdog" "Internet DOWN"
+                notify_send_self -i network-error -u critical "Watchdog" "Internet DOWN"
             else
                 loss=$(echo "$result" | grep -oP '\d+(?=% packet loss)')
                 latency=$(echo "$result" | grep -E "rtt|round-trip" | sed 's/.*=\s*//' | awk -F '/' '{print $2}')
@@ -128,7 +130,7 @@ start() {
 stop() {
     if [ -f "$PIDFILE" ]; then
         PID=$(cat "$PIDFILE")
-        if ! [[ "$PID" =~ $_UH_UINT ]]; then
+        if ! [[ "$PID" =~ $UH_UINT ]]; then
             echo "[!] Invalid PID in $PIDFILE"
             rm -f "$PIDFILE"
             exit 1
@@ -145,9 +147,9 @@ stop() {
 }
 
 status() {
-    _pid=$(cat "$PIDFILE" 2>/dev/null)
-    if [ -f "$PIDFILE" ] && [[ "$_pid" =~ $_UH_UINT ]] && kill -0 "$_pid" 2>/dev/null; then
-        echo "[ ] Watchdog is running (PID $_pid)"
+    watchdog_pid=$(cat "$PIDFILE" 2>/dev/null)
+    if [ -f "$PIDFILE" ] && [[ "$watchdog_pid" =~ $UH_UINT ]] && kill -0 "$watchdog_pid" 2>/dev/null; then
+        echo "[ ] Watchdog is running (PID $watchdog_pid)"
     else
         echo "[ ] Watchdog is not running"
     fi

@@ -34,7 +34,7 @@ echo "Using local user: $local_user"
 
 echo "Gdrive Starting. Wait..."
 
-# DEPENDENCIES
+# dependencies
 for dep in libcurl3-gnutls libfuse2t64 libsqlite3-0 fuse3 util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -42,7 +42,7 @@ for dep in libcurl3-gnutls libfuse2t64 libsqlite3-0 fuse3 util-linux; do
     fi
 done
 
-# DEPENDENCIES (external repo)
+# dependencies (external repo)
 for dep in google-drive-ocamlfuse; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: 'google-drive-ocamlfuse' is not installed. Run:" >&2

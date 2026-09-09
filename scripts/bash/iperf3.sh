@@ -24,9 +24,9 @@
 
 set -uo pipefail
 
-# VALIDATION -- one variable per thing validated; use directly with =~
-_UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
-_UH_UINT='^(0|[1-9][0-9]*)$'
+# validation -- one variable per thing validated; use directly with =~
+UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+UH_UINT='^(0|[1-9][0-9]*)$'
 
 # check no-root
 if [ "$(id -u)" == "0" ]; then
@@ -34,7 +34,7 @@ if [ "$(id -u)" == "0" ]; then
     exit 1
 fi
 
-# DEPENDENCIES
+# dependencies
 for dep in iperf3 iputils-ping iproute2 coreutils; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -76,7 +76,7 @@ get_interfaces() {
 # --- Validate IP -------------------------------------------------------------
 validate_ip() {
     local ip="$1"
-    [[ "$ip" =~ $_UH_IPV4 ]]
+    [[ "$ip" =~ $UH_IPV4 ]]
 }
 
 # --- Sanitize IP for safe use in filenames -----------------------------------
@@ -210,7 +210,7 @@ main() {
     read -rp "Select interface [1-${#IFACES[@]}] (Enter = ${IFACES[0]}): " iface_idx
     if [[ -z "$iface_idx" ]]; then
         IFACE="${IFACES[0]}"
-    elif [[ "$iface_idx" =~ $_UH_UINT ]] && (( iface_idx >= 1 && iface_idx <= ${#IFACES[@]} )); then
+    elif [[ "$iface_idx" =~ $UH_UINT ]] && (( iface_idx >= 1 && iface_idx <= ${#IFACES[@]} )); then
         IFACE="${IFACES[$((iface_idx-1))]}"
     else
         die "Invalid selection"
@@ -242,7 +242,7 @@ main() {
 
     echo ""
     read -rp "Test duration in seconds [${DURATION}]: " dur_input
-    if [[ "$dur_input" =~ $_UH_UINT ]]; then
+    if [[ "$dur_input" =~ $UH_UINT ]]; then
         if (( dur_input < 5 )); then
             warn "Duration too low; using minimum of 5s."
             DURATION=5
@@ -255,7 +255,7 @@ main() {
     fi
 
     read -rp "Parallel TCP streams [${PARALLEL}]: " par_input
-    if [[ "$par_input" =~ $_UH_UINT ]]; then
+    if [[ "$par_input" =~ $UH_UINT ]]; then
         if (( par_input < 1 )); then
             warn "Streams must be at least 1; using 1."
             PARALLEL=1

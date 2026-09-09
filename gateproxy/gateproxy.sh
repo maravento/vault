@@ -7,9 +7,8 @@
 # A simple proxy/firewall server
 #
 #
-# LOG: gateproxy.log, in the same directory this script is run from.
-# Appended across runs. Not covered by logrotate; empty it by hand when
-# needed: truncate -s 0 gateproxy.log
+# log: gateproxy.log, in the directory this script is run from
+#      (rewritten on each run)
 #
 ################################################################################
 
@@ -20,13 +19,14 @@ set -Eeuo pipefail
 # so a log kept there would not survive. Appended across runs, so a failed
 # attempt can be compared against the one that followed it.
 log_file="$(dirname "$(realpath "$0")")/gateproxy.log"
+{ > "$log_file"; } 2>/dev/null || true
 log() {
     local msg="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 trap 'log "ERROR: command failed at line $LINENO: $BASH_COMMAND"' ERR
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     log "ERROR: This script must be run as root -- abort"
     exit 1
@@ -95,7 +95,7 @@ if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "^Status: acti
 fi
 log "No conflicting packages found: OK"
 
-# LOCAL USER detection
+# local_user detection
 detect_local_user() {
     local uid_min uid_max
     local user uid best_user="" best_uid=999999
@@ -138,7 +138,7 @@ if [ -z "$LOCAL_HOME" ] || [ ! -d "$LOCAL_HOME" ]; then
 fi
 log "Using local user: $LOCAL_USER ($LOCAL_HOME)"
 
-### CHECK INTERNET
+# check internet
 check_internet() {
     local max_attempts="${1:-24}" attempt=1
 
@@ -160,7 +160,7 @@ if ! check_internet; then
     exit 1
 fi
 
-### CHECK SO & DESKTOP
+# CHECK SO & DESKTOP
 log "Check System..."
 # lsb_release (lsb-release package) is used below but the DEPENDENCIES block
 # hasn't run yet at this point in the script -- ensure it exists here instead.
@@ -188,7 +188,7 @@ log "Clearing apt package cache..."
 apt-get clean &>/dev/null || true
 rm -f /var/cache/apt/archives/*.deb 2>/dev/null || true
 
-### VARIABLES
+# VARIABLES
 SCRIPT_PATH="$(realpath "$0")"
 gp_path=$(pwd)/gateproxy
 ACL_PATH=/etc/acl
@@ -231,7 +231,7 @@ else
     log "NOTE: $file not found, skipping component check"
 fi
 
-# DEPENDENCIES
+# dependencies
 pkgs='nala curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 p7zip-full p7zip-rar rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3'
 missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
 unavailable=""
@@ -239,14 +239,14 @@ for p in $missing; do
     apt-cache show "$p" &>/dev/null || unavailable+=" $p"
 done
 
-# VALIDATION -- one variable per thing validated; use directly with =~
-_UH_OCT='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
-_UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
-_UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
-_UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
-_UH_DNS='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(,(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9]))*$'
-_UH_UINT='^(0|[1-9][0-9]*)$'
-_UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5 252.0.0.0:6 254.0.0.0:7 255.0.0.0:8 255.128.0.0:9 255.192.0.0:10 255.224.0.0:11 255.240.0.0:12 255.248.0.0:13 255.252.0.0:14 255.254.0.0:15 255.255.0.0:16 255.255.128.0:17 255.255.192.0:18 255.255.224.0:19 255.255.240.0:20 255.255.248.0:21 255.255.252.0:22 255.255.254.0:23 255.255.255.0:24 255.255.255.128:25 255.255.255.192:26 255.255.255.224:27 255.255.255.240:28 255.255.255.248:29 255.255.255.252:30 255.255.255.254:31 255.255.255.255:32'
+# validation -- one variable per thing validated; use directly with =~
+UH_OCT='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
+UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
+UH_DNS='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(,(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9]))*$'
+UH_UINT='^(0|[1-9][0-9]*)$'
+UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5 252.0.0.0:6 254.0.0.0:7 255.0.0.0:8 255.128.0.0:9 255.192.0.0:10 255.224.0.0:11 255.240.0.0:12 255.248.0.0:13 255.252.0.0:14 255.254.0.0:15 255.255.0.0:16 255.255.128.0:17 255.255.192.0:18 255.255.224.0:19 255.255.240.0:20 255.255.248.0:21 255.255.252.0:22 255.255.254.0:23 255.255.255.0:24 255.255.255.128:25 255.255.255.192:26 255.255.255.224:27 255.255.255.240:28 255.255.255.248:29 255.255.255.252:30 255.255.255.254:31 255.255.255.255:32'
 if [ -n "$unavailable" ]; then
     log "Missing dependencies not found in APT:"
     for u in $unavailable; do log "   - $u"; done
@@ -279,7 +279,7 @@ else
     log "Dependencies OK"
 fi
 
-### BASIC
+# BASIC
 # time
 apt purge -y ntp ntpdate chrony &>/dev/null || true
 retry_cmd apt install -y --reinstall systemd-timesyncd &>/dev/null
@@ -304,9 +304,9 @@ ifconfig lo 127.0.0.1
 cp /etc/crontab{,.bak} &>/dev/null || true
 cp /etc/apt/sources.list{,.bak} &>/dev/null || true
 
-### CLEAN | UPDATE | FIX
+# CLEAN | UPDATE | FIX
 echo -e "\n"
-function upgrade() {
+upgrade() {
     log "Update and Clean. Wait..."
     retry_cmd nala upgrade --purge -y
     retry_cmd aptitude safe-upgrade -y
@@ -321,19 +321,19 @@ function upgrade() {
 
 upgrade
 
-### PACKAGES
+# PACKAGES
 clear
 echo -e "\n"
 log "Check Dependencies..."
 
-### GATEPROXY GIT
+# GATEPROXY GIT
 echo -e "\n"
 [ -d "$gp_path" ] && rm -rf "$gp_path"
 retry_cmd wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
 chmod +x gitfolder.py
 retry_cmd python3 gitfolder.py https://github.com/maravento/vault/gateproxy
 
-### CONFIG
+# CONFIG
 echo -e "\n"
 hostnamectl set-hostname "$HOSTNAME"
 find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:gateproxy:$HOSTNAME:g" "{}"
@@ -347,7 +347,7 @@ list_ifaces() {
     ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
 }
 
-# CHECK WIRED INTERFACES
+# check wired interfaces
 list_wired_ifaces() {
     local iface state
     while read -r iface state; do
@@ -376,7 +376,7 @@ mapfile -t IFACES < <(list_wired_ifaces | awk '$2 == "UP" {print $1}')
 DEFAULT_ROUTE_IF="$(ip route show default 2>/dev/null | awk '/^default/ {print $5; exit}')"
 
 # print interface list, flagging the current default-route interface as a hint only
-function print_interfaces() {
+print_interfaces() {
     echo "Available network interfaces:"
     for i in "${!IFACES[@]}"; do
         if [ -n "$DEFAULT_ROUTE_IF" ] && [ "${IFACES[$i]}" = "$DEFAULT_ROUTE_IF" ]; then
@@ -388,11 +388,11 @@ function print_interfaces() {
 }
 
 # public interface
-function public_interface() {
+public_interface() {
     while true; do
         print_interfaces
         read -r -p "Select Public Network Interface (Internet) [1-${#IFACES[@]}]: " SEL
-        if [[ "$SEL" =~ $_UH_UINT ]] && (( SEL >= 1 && SEL <= ${#IFACES[@]} )); then
+        if [[ "$SEL" =~ $UH_UINT ]] && (( SEL >= 1 && SEL <= ${#IFACES[@]} )); then
             CANDIDATE="${IFACES[$((SEL-1))]}"
             while true; do
                 read -r -p "Confirm WAN (Internet) interface is '$CANDIDATE'? (y/n): " CONFIRM
@@ -410,11 +410,11 @@ function public_interface() {
 }
 
 # local interface
-function local_interface() {
+local_interface() {
     while true; do
         print_interfaces
         read -r -p "Select Local Network Interface [1-${#IFACES[@]}]: " SEL
-        if [[ "$SEL" =~ $_UH_UINT ]] && (( SEL >= 1 && SEL <= ${#IFACES[@]} )); then
+        if [[ "$SEL" =~ $UH_UINT ]] && (( SEL >= 1 && SEL <= ${#IFACES[@]} )); then
             CANDIDATE="${IFACES[$((SEL-1))]}"
             if [ "$CANDIDATE" = "$WAN_IF" ]; then
                 log "That interface is already assigned to WAN. Choose a different one."
@@ -436,7 +436,7 @@ function local_interface() {
     export LAN_IF="$ETH1"
 }
 
-function is_interfaces() {
+is_interfaces() {
     if ip link show eth0 &>/dev/null; then
         log "Older NIC-Ethernet Format Detected"
         log "Aborted installation. Check the Minimum Requirements"
@@ -454,7 +454,7 @@ function is_interfaces() {
 
 is_interfaces
 
-### START
+# START
 clear
 echo -e "\n"
 log "    Welcome to GateProxy"
@@ -482,7 +482,7 @@ while true; do
                     log "Using default IP $SERVER_IP"
                     break
                 fi
-                serveripNEW=$(printf '%s' "$input_ip" | { [[ "$input_ip" =~ $_UH_IPV4 ]] && cat || true; })
+                serveripNEW=$(printf '%s' "$input_ip" | { [[ "$input_ip" =~ $UH_IPV4 ]] && cat || true; })
                 if [ -z "$serveripNEW" ]; then
                     log "You have entered IP incorrect"
                     continue
@@ -519,7 +519,7 @@ while true; do
     esac
 done
 
-### PARAMETERS
+# PARAMETERS
 is_ask() {
     inquiry="$1"
     iresponse="$2"
@@ -557,20 +557,20 @@ MASKNEW2="24"
 
 # netmask -- CIDR prefix (MASKNEW2) is derived from this, not asked
 # separately, so the two can never contradict each other.
-function is_mask1() {
+is_mask1() {
     read -r -p "Enter Netmask (e.g. 255.255.255.0): " MASK1
     if [ -z "$MASK1" ]; then
         SERV_MASK="255.255.255.0"
         log "Using default Netmask $SERV_MASK"
     else
-        SERV_MASK=$(printf '%s' "$MASK1" | { [[ "$MASK1" =~ $_UH_NETMASK ]] && cat || true; })
+        SERV_MASK=$(printf '%s' "$MASK1" | { [[ "$MASK1" =~ $UH_NETMASK ]] && cat || true; })
         if [ -z "$SERV_MASK" ]; then
             SERV_MASK="255.255.255.0"
             return 1
         fi
         log "You have entered Netmask $MASK1 :OK"
     fi
-    if [[ " $_UH_PREFIX " =~ [[:space:]]${SERV_MASK//./\\.}:([0-9]+)[[:space:]] ]]; then
+    if [[ " $UH_PREFIX " =~ [[:space:]]${SERV_MASK//./\\.}:([0-9]+)[[:space:]] ]]; then
         MASKNEW2="${BASH_REMATCH[1]}"
     else
         log "WARNING: SERV_MASK '$SERV_MASK' not a valid netmask -- keeping default /24"
@@ -582,14 +582,14 @@ function is_mask1() {
 }
 
 # dns primary
-function is_dns1() {
+is_dns1() {
     read -r -p "Enter DNS1 (e.g. 1.1.1.2): " DNS1
     if [ -z "$DNS1" ]; then
         DNSNEW1="1.1.1.2"
         log "Using default DNS1 $DNSNEW1"
         return 0
     fi
-    DNSNEW1=$(printf '%s' "$DNS1" | { [[ "$DNS1" =~ $_UH_DNS ]] && cat || true; })
+    DNSNEW1=$(printf '%s' "$DNS1" | { [[ "$DNS1" =~ $UH_DNS ]] && cat || true; })
     if [ "$DNSNEW1" ]; then
         sed -i "s:1.1.1.2:$DNSNEW1:g" "$gp_path/conf/unbound/forward.conf"
         log "You have entered DNS1 $DNS1 :OK"
@@ -600,14 +600,14 @@ function is_dns1() {
 }
 
 # dns secondary
-function is_dns2() {
+is_dns2() {
     read -r -p "Enter DNS2 (e.g. 1.0.0.2): " DNS2
     if [ -z "$DNS2" ]; then
         DNSNEW2="1.0.0.2"
         log "Using default DNS2 $DNSNEW2"
         return 0
     fi
-    DNSNEW2=$(printf '%s' "$DNS2" | { [[ "$DNS2" =~ $_UH_DNS ]] && cat || true; })
+    DNSNEW2=$(printf '%s' "$DNS2" | { [[ "$DNS2" =~ $UH_DNS ]] && cat || true; })
     if [ "$DNSNEW2" ]; then
         sed -i "s:1.0.0.2:$DNSNEW2:g" "$gp_path/conf/unbound/forward.conf"
         log "You have entered DNS2 $DNS2 :OK"
@@ -618,7 +618,7 @@ function is_dns2() {
 }
 
 # squid port
-function is_port() {
+is_port() {
     read -r -p "Enter Proxy Port (e.g. 3128): " PORT
     if [ -z "$PORT" ]; then
         PORTNEW="3128"
@@ -683,7 +683,7 @@ fi
 # CIDR prefix from SERV_MASK -- no separate gateproxy keys for these,
 # so there is nothing to keep in sync by hand.
 
-### NETPLAN
+# NETPLAN
 echo -e "\n"
 log "Applying network configuration..."
 find /etc/netplan -maxdepth 1 -type f -name '*.yaml' -not -name '*.yaml.bak' -exec mv -- {} {}.bak \; 2>/dev/null
@@ -715,7 +715,7 @@ until ip -4 addr show "$LAN_IF" 2>/dev/null | grep -qF "inet $SERVER_IP/"; do
 done
 log "Network OK: $LAN_IF has $SERVER_IP"
 
-### AVAHI
+# AVAHI
 avahi_conf="/etc/avahi/avahi-daemon.conf"
 if command -v avahi-daemon &>/dev/null && [ -f "$avahi_conf" ]; then
     log "Restricting avahi-daemon to $LAN_IF..."
@@ -724,7 +724,7 @@ if command -v avahi-daemon &>/dev/null && [ -f "$avahi_conf" ]; then
     systemctl restart avahi-daemon &>/dev/null || log "WARNING: avahi-daemon restart failed"
 fi
 
-### ESSENTIAL
+# ESSENTIAL
 clear
 echo -e "\n"
 log "Essential Packages..."
@@ -822,7 +822,7 @@ sleep 1
 
 upgrade
 
-### SETUP ###
+# SETUP ###
 echo -e "\n"
 log "Gateproxy Packages..."
 if grep -qFw "$HOSTNAME" /etc/hosts 2>/dev/null; then
@@ -844,11 +844,11 @@ acl_ipt_path="$ACL_PATH/ipt"
 # overwrite one that already exists, since it may hold real data from a
 # previous install, from pydhcp (mac-*.txt is also seeded by pydhcp's own
 # pysetup.sh), or edited by hand.
-while IFS= read -r -d '' _acl_src; do
-    _acl_dest="$ACL_PATH/${_acl_src#"$gp_path"/acl/}"
-    if [ ! -f "$_acl_dest" ]; then
-        mkdir -p "$(dirname "$_acl_dest")"
-        cp "$_acl_src" "$_acl_dest"
+while IFS= read -r -d '' acl_src; do
+    acl_dest="$ACL_PATH/${acl_src#"$gp_path"/acl/}"
+    if [ ! -f "$acl_dest" ]; then
+        mkdir -p "$(dirname "$acl_dest")"
+        cp "$acl_src" "$acl_dest"
     fi
 done < <(find "$gp_path/acl" -type f -print0)
 # MAC ACL files
@@ -1104,16 +1104,16 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         # execute command yes
         # Net Tools (Replace NIC and IP/CIDR)
         retry_cmd nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
-        retry_cmd nala install -y fping              # Net diagnostics: fping -a -g 192.168.1.0/24
+        retry_cmd nala install -y fping              # Net diagnostics: fping -a -g 192.168.0.0/24
         retry_cmd nala install -y ethtool            # Net config: ethtool eth0
         # Net test: On server: iperf3 -s | On client: iperf3 -c SERVER_IP
         DEBIAN_FRONTEND=noninteractive retry_cmd nala install -y iperf3  2>/dev/null
         # Net Scanning (Replace NIC and IP/CIDR)
         retry_cmd nala install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
-        retry_cmd nala install -y nbtscan            # nbtscan 192.168.1.0/24
+        retry_cmd nala install -y nbtscan            # nbtscan 192.168.0.0/24
         retry_cmd nala install -y nast               # nast -m
         retry_cmd nala install -y arp-scan           # arp-scan --localnet
-        retry_cmd nala install -y arping             # arping -I eth0 192.168.1.1
+        retry_cmd nala install -y arping             # arping -I eth0 192.168.0.10
         retry_cmd nala install -y netdiscover        # netdiscover
         # Nmap
         retry_cmd nala install -y nmap python3-nmap ndiff
@@ -1206,7 +1206,7 @@ done
 
 upgrade
 
-### SHARED ###
+# SHARED ###
 # Samba with Shared folder, Recycle Bin and Audit
 echo -e "\n"
 while true; do
@@ -1225,10 +1225,10 @@ with SHARED folder, Recycle Bin and Audit (y/n)" answer
 spawn bash smbinstall.sh --install
 interact {
     -o
-    "Enter Samba server IP/network (e.g. 192.168.1.0/24): " {
+    "Enter Samba server IP/network \[*\]: " {
         send "$SERV_SUBNET/$MASKNEW2\r"
     }
-    "Enter network interface: " {
+    "Enter network interface \[*\]: " {
         send "$LAN_IF\r"
     }
 }
@@ -1270,7 +1270,7 @@ log "OK"
 
 upgrade
 
-### UHM ###
+# UHM ###
 # UniFi Hotspot Manager (optional, requires pydhcp already installed above).
 # Only prompted if a local UniFi Network controller is actually detected --
 # classic (dpkg package "unifi") or unifi-os (/var/lib/uosserver, podman-based).
@@ -1337,7 +1337,7 @@ log "OK"
 
 upgrade
 
-### ACLs ###
+# ACLs ###
 echo -e "\n"
 log "Downloading ACLs..."
 # Allow IP
@@ -1386,7 +1386,7 @@ rm -f "$gp_path"/blackweb.*
 log "OK"
 sleep 1
 
-### ADD CONFIG ###
+# ADD CONFIG ###
 echo -e "\n"
 log "Applying Config..."
 # squid
@@ -1549,7 +1549,7 @@ log "Add Crontab Tasks..."
 log "OK"
 sleep 1
 
-### ENDING ###
+# ENDING ###
 # Disable NFS (Network File System) / NIS (Network Information Service)
 if systemctl list-unit-files | grep -q '^rpcbind'; then
     systemctl stop rpcbind.service rpcbind.socket &>/dev/null || true

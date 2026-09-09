@@ -9,7 +9,7 @@
 
 set -uo pipefail
 
-## root check
+# root check
 if [ "$(id -u)" -ne 0 ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
@@ -17,7 +17,7 @@ fi
 
 echo "CPU limit Starting. Wait..."
 
-# DEPENDENCIES
+# dependencies
 for dep in cpulimit procps util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -25,8 +25,8 @@ for dep in cpulimit procps util-linux; do
     fi
 done
 
-# VALIDATION -- integer only; use directly with =~
-_UH_UINT='^(0|[1-9][0-9]*)$'
+# validation -- integer only; use directly with =~
+UH_UINT='^(0|[1-9][0-9]*)$'
 start_limit() {
     # prevent overlapping runs
     SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
@@ -67,7 +67,7 @@ start_limit() {
     read -r -p "Enter the CPU % number for '$program_name' (0-100): " cpu_limit
 
     # Check CPU %
-    if ! [[ "$cpu_limit" =~ $_UH_UINT ]] || [ "$cpu_limit" -lt 0 ] || [ "$cpu_limit" -gt 100 ]; then
+    if ! [[ "$cpu_limit" =~ $UH_UINT ]] || [ "$cpu_limit" -lt 0 ] || [ "$cpu_limit" -gt 100 ]; then
         echo "Invalid percentage. It must be a number between 0 and 100"
         exit 1
     fi

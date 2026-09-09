@@ -30,14 +30,14 @@
 # 7. Show status (installed vs. latest online)
 # 8. Exit
 #
-# Log file: unifisetup.log, next to this script (truncate -s 0 unifisetup.log to clear)
+# log: unifisetup.log, next to this script (rewritten on each run)
 # Downloads/work dir: .unifisetup-work, also next to this script
 #
 ################################################################################
 
 set -uo pipefail
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
@@ -55,6 +55,7 @@ fi
 # logging
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 log_file="${script_dir}/unifisetup.log"
+{ > "$log_file"; } 2>/dev/null || true
 log() {
     local msg="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true

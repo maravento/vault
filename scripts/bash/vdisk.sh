@@ -10,7 +10,7 @@
 
 set -uo pipefail
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
@@ -24,7 +24,7 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# LOCAL USER detection
+# local_user detection
 detect_local_user() {
     local uid_min uid_max
     local user uid best_user="" best_uid=999999
@@ -64,7 +64,7 @@ echo "Using local user: $local_user"
 
 echo "Virtual Hard Disk Starting. Wait..."
 
-# DEPENDENCIES
+# dependencies
 for dep in kpartx pv ntfs-3g dosfstools e2fsprogs util-linux coreutils; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -72,7 +72,7 @@ for dep in kpartx pv ntfs-3g dosfstools e2fsprogs util-linux coreutils; do
     fi
 done
 
-### VARIABLES
+# VARIABLES
 # CHANGE VALUES AND PATHS
 # path to mount point folder (change it)
 mountpoint="/home/$local_user/vdisk"
@@ -80,18 +80,14 @@ mountpoint="/home/$local_user/vdisk"
 myvhd="/home/$local_user/img"
 # path to .img file (e.g: 4GB_HDD.img) (change it)
 myimg="$myvhd/1GB_HDD.img"
-# choose type: msdos, gpt
-vptable="msdos"
 # Large .img file in MB/MiB (e.g: 4096 = 4GB) (change it)
 vsize="1024"
 # disk label (change it)
 vlabel="mydisk"
 # 1M or 1k/2k/4k/16k
 vbs="1M"
-# partition: primary/logical/extended
-ptype="primary"
 
-### mount
+# mount
 # if no mount point exists, create it
 if [ ! -d "$mountpoint" ]; then
     mkdir -p "$mountpoint"
@@ -106,7 +102,7 @@ if [ ! -d "$myvhd" ]; then
 fi
 
 # format ntfs
-function pntfs() {
+pntfs() {
     mkntfs -Q -v -F -L "$vlabel" $myimg
     ntfsresize -i -f -v $myimg
     ntfsresize --force --force --no-action $myimg
@@ -115,14 +111,14 @@ function pntfs() {
 }
 
 # format fat32
-function pfat32() {
+pfat32() {
     mkfs.fat -F32 -v -I -n "$vlabel" $myimg
     fsck.fat -a -w -v $myimg
     fdisk -lu $myimg
 }
 
 # format ext4
-function pext4() {
+pext4() {
     mkfs.ext4 -F -L "$vlabel" $myimg
     e2fsck -f -y -v -C 0 $myimg
     resize2fs -p $myimg
@@ -130,7 +126,7 @@ function pext4() {
 }
 
 # create and format disk .img
-function create_img() {
+create_img() {
     # create img
     dd if=/dev/zero | pv | dd of=$myimg iflag=fullblock bs=$vbs count=$vsize && sync
     printf "\n"
@@ -159,7 +155,7 @@ function create_img() {
 # if no .img exists, create it
 if [ ! -f "$myimg" ]; then create_img; fi
 
-function mount_img() {
+mount_img() {
     if [ $# -eq 0 ]; then
         echo "Select an operation loop: "
         echo "1. Mount"
@@ -190,7 +186,7 @@ function mount_img() {
     fi
 }
 
-function mount_img_kpartx() {
+mount_img_kpartx() {
     if [ $# -eq 0 ]; then
         echo "Select an operation kpartx: "
         echo "1. Mount"

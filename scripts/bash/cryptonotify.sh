@@ -17,7 +17,7 @@
 
 set -uo pipefail
 
-# PATH for cron
+# path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # check no-root
@@ -36,7 +36,7 @@ fi
 
 echo "Top 5 Crypto Price Notifier Starting. Wait..."
 
-# DEPENDENCIES
+# dependencies
 for dep in curl jq libnotify-bin util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -44,7 +44,7 @@ for dep in curl jq libnotify-bin util-linux; do
     fi
 done
 
-# CHECK INTERNET
+# check internet
 check_internet() {
     local max_attempts="${1:-24}" attempt=1
 
@@ -66,25 +66,25 @@ if ! check_internet; then
     exit 1
 fi
 
-current_uid=$(id -u)
-
-# Desktop notification helper (X11 and Wayland)
-_notify() {
-    local bus="unix:path=/run/user/${current_uid}/bus"
-    local xdg_runtime="/run/user/${current_uid}"
+# desktop notification to the current user (X11 and Wayland, no sudo)
+notify_send_self() {
+    local current_uid
+    current_uid=$(id -u)
+    local dbus_address="unix:path=/run/user/${current_uid}/bus"
+    local xdg_runtime_dir="/run/user/${current_uid}"
     local session_type
     session_type=$(loginctl show-session \
         "$(loginctl show-user "$(id -un)" 2>/dev/null | awk -F= '/^Sessions=/{print $2}')" \
         -p Type --value 2>/dev/null || echo "x11")
     if [[ "$session_type" == "wayland" ]]; then
-        DBUS_SESSION_BUS_ADDRESS="$bus" \
+        DBUS_SESSION_BUS_ADDRESS="$dbus_address" \
         WAYLAND_DISPLAY=wayland-1 \
-        XDG_RUNTIME_DIR="$xdg_runtime" \
+        XDG_RUNTIME_DIR="$xdg_runtime_dir" \
         notify-send "$@" 2>/dev/null || true
     else
         DISPLAY=:0 \
-        DBUS_SESSION_BUS_ADDRESS="$bus" \
-        XDG_RUNTIME_DIR="$xdg_runtime" \
+        DBUS_SESSION_BUS_ADDRESS="$dbus_address" \
+        XDG_RUNTIME_DIR="$xdg_runtime_dir" \
         notify-send "$@" 2>/dev/null || true
     fi
 }
@@ -98,7 +98,7 @@ top5=$(echo "$top5_response" | head -n -1)
 
 if [ "$top5_http_code" != "200" ]; then
     echo "CoinGecko API error (HTTP $top5_http_code). Cannot fetch market data."
-    _notify -i dialog-error "Crypto Prices" "API error (HTTP $top5_http_code). Try again later."
+    notify_send_self -i dialog-error "Crypto Prices" "API error (HTTP $top5_http_code). Try again later."
     exit 1
 fi
 
@@ -107,7 +107,7 @@ mapfile -t ids < <(echo "$top5" | jq -r '.[].id')
 
 if [ ${#ids[@]} -eq 0 ]; then
     echo "No data returned from CoinGecko API."
-    _notify -i dialog-error "Crypto Prices" "No data returned from API. Try again later."
+    notify_send_self -i dialog-error "Crypto Prices" "No data returned from API. Try again later."
     exit 1
 fi
 
@@ -130,7 +130,7 @@ prices=$(echo "$prices_response" | head -n -1)
 
 if [ "$prices_http_code" != "200" ]; then
     echo "CoinGecko prices API error (HTTP $prices_http_code)."
-    _notify -i dialog-error "Crypto Prices" "Price API error (HTTP $prices_http_code). Try again later."
+    notify_send_self -i dialog-error "Crypto Prices" "Price API error (HTTP $prices_http_code). Try again later."
     exit 1
 fi
 
@@ -144,4 +144,4 @@ done
 
 # Notify
 echo -e "$PRICE"
-_notify -i checkbox "Crypto Prices" "$PRICE"
+notify_send_self -i checkbox "Crypto Prices" "$PRICE"

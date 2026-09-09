@@ -23,8 +23,7 @@
 #
 # NOTE on logging:
 # - This script's own actions are logged to /var/log/x11vncmgr.log
-#   (append-only, no rotation configured by this script).
-#   To clear it manually: truncate -s 0 /var/log/x11vncmgr.log
+#   (rewritten on each run).
 # - LOG_FILE (below) is unrelated: it is where the x11vnc daemon itself
 #   writes its own runtime output (passed via -o to x11vnc), not this
 #   script's own log.
@@ -43,12 +42,13 @@ LOG_FILE="/var/log/x11vnc.log"
 
 # logging
 log_file="/var/log/x11vncmgr.log"
+{ > "$log_file"; } 2>/dev/null || true
 log() {
     local msg="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     log "ERROR: This script must be run as root -- abort"
     exit 1
@@ -63,7 +63,7 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# DEPENDENCIES
+# dependencies
 for dep in iproute2 util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: dependency '$dep' is not installed -- abort"

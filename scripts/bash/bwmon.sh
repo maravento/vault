@@ -21,10 +21,10 @@
 
 set -uo pipefail
 
-# PATH for cron
+# path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
@@ -39,7 +39,7 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# LOCAL USER detection (target for the desktop notification, if any)
+# local_user detection (target for the desktop notification, if any)
 detect_local_user() {
     local uid_min uid_max
     local user uid best_user="" best_uid=999999
@@ -79,36 +79,36 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
-# Desktop notification helper (X11 and Wayland, silent if no desktop session)
-_notify() {
-    local user="$1"; shift
-    [ -z "$user" ] && return 0
-    local uid
-    uid=$(id -u "$user" 2>/dev/null) || return 0
-    local bus="unix:path=/run/user/${uid}/bus"
-    local xdg_runtime="/run/user/${uid}"
+# desktop notification to another user (X11 and Wayland, silent if no session)
+notify_send() {
+    local target_user="$1"; shift
+    [ -z "$target_user" ] && return 0
+    local target_uid
+    target_uid=$(id -u "$target_user" 2>/dev/null) || return 0
+    local dbus_address="unix:path=/run/user/${target_uid}/bus"
+    local xdg_runtime_dir="/run/user/${target_uid}"
     local session_type
     session_type=$(loginctl show-session \
-        "$(loginctl show-user "$user" 2>/dev/null | awk -F= '/^Sessions=/{print $2}')" \
+        "$(loginctl show-user "$target_user" 2>/dev/null | awk -F= '/^Sessions=/{print $2}')" \
         -p Type --value 2>/dev/null || echo "x11")
     if [[ "$session_type" == "wayland" ]]; then
-        sudo -u "$user" \
-            DBUS_SESSION_BUS_ADDRESS="$bus" \
+        sudo -u "$target_user" \
+            DBUS_SESSION_BUS_ADDRESS="$dbus_address" \
             WAYLAND_DISPLAY=wayland-1 \
-            XDG_RUNTIME_DIR="$xdg_runtime" \
+            XDG_RUNTIME_DIR="$xdg_runtime_dir" \
             notify-send "$@" 2>/dev/null || true
     else
-        sudo -u "$user" \
+        sudo -u "$target_user" \
             DISPLAY=:0 \
-            DBUS_SESSION_BUS_ADDRESS="$bus" \
-            XDG_RUNTIME_DIR="$xdg_runtime" \
+            DBUS_SESSION_BUS_ADDRESS="$dbus_address" \
+            XDG_RUNTIME_DIR="$xdg_runtime_dir" \
             notify-send "$@" 2>/dev/null || true
     fi
 }
 
 log "bwmon start..."
 
-# DEPENDENCIES
+# dependencies
 for dep in speedtest-cli libnotify-bin systemd util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -116,7 +116,7 @@ for dep in speedtest-cli libnotify-bin systemd util-linux; do
     fi
 done
 
-# CHECK INTERNET
+# check internet
 check_internet() {
     local max_attempts="${1:-24}" attempt=1
 
@@ -138,13 +138,13 @@ if ! check_internet; then
     exit 1
 fi
 
-### VARIABLES (user-editable)
+# VARIABLES (user-editable)
 # Minimum Download value (Mbit/s)
 dlmin="1.00"
 # Minimum Upload value (Mbit/s)
 ulmin="1.00"
 
-### SPEEDTEST
+# SPEEDTEST
 log "Running speedtest (this may take ~30s)..."
 resume=$(speedtest-cli --secure --simple 2>&1)
 
@@ -197,7 +197,7 @@ check_metric "Download" "$dlvalue" "$dlmb" "$dlmin" "$dlvalue_mbit" || below_thr
 check_metric "Upload" "$ulvalue" "$ulmb" "$ulmin" "$ulvalue_mbit" || below_threshold=1
 
 if [ "$below_threshold" -eq 1 ]; then
-    _notify "$local_user" -i network-error "Bandwidth Watchdog" \
+    notify_send "$local_user" -i network-error "Bandwidth Watchdog" \
         "Speed below minimum: Download ${dlvalue} ${dlmb}, Upload ${ulvalue} ${ulmb}"
 fi
 

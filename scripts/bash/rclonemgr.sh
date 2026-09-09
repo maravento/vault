@@ -42,10 +42,10 @@
 
 set -uo pipefail
 
-# PATH for cron
+# path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
@@ -76,7 +76,7 @@ SCRIPT_LOG="/var/log/rclonemgr.log"
 exec 1> >(tee -a "$SCRIPT_LOG")
 exec 2>&1
 
-# LOCAL USER detection
+# local_user detection
 detect_local_user() {
     local uid_min uid_max
     local user uid best_user="" best_uid=999999
@@ -114,7 +114,7 @@ if ! local_user=$(detect_local_user); then
 fi
 echo "Using local user: $local_user"
 
-# DEPENDENCIES
+# dependencies
 for dep in fuse3 curl; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -122,14 +122,14 @@ for dep in fuse3 curl; do
     fi
 done
 
-# DEPENDENCIES (curl install)
+# dependencies (curl install)
 if ! command -v rclone &>/dev/null; then
     echo "ERROR: 'rclone' is not installed. Install it with:" >&2
     echo "curl https://rclone.org/install.sh | sudo bash" >&2
     exit 1
 fi
 
-# CHECK INTERNET (essential for @reboot)
+# check internet (essential for @reboot)
 check_internet() {
     local max_attempts="${1:-24}" attempt=1
 

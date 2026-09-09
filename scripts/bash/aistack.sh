@@ -23,9 +23,9 @@
 
 set -euo pipefail
 
-# VALIDATION -- integer only; use directly with =~
-_UH_UINT='^(0|[1-9][0-9]*)$'
-## root check
+# validation -- integer only; use directly with =~
+UH_UINT='^(0|[1-9][0-9]*)$'
+# root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
@@ -40,7 +40,7 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# LOCAL USER detection
+# local_user detection
 detect_local_user() {
     local uid_min uid_max
     local user uid best_user="" best_uid=999999
@@ -300,7 +300,7 @@ select_model() {
         echo ""
         info "No model selected -- you can download one later with: ./aistack.sh model"
         return 0
-    elif [[ "$choice" =~ $_UH_UINT ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#AVAILABLE_MODELS[@]}" ]; then
+    elif [[ "$choice" =~ $UH_UINT ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#AVAILABLE_MODELS[@]}" ]; then
         SELECTED_MODEL="${AVAILABLE_MODELS[$((choice-1))]}"
     else
         warn "Invalid selection, using default: $DEFAULT_MODEL"
@@ -629,7 +629,7 @@ remove_model() {
     echo ""
     read -rp " -> Select model to remove [0-${#models_list[@]}]: " choice
 
-    if [[ "$choice" =~ $_UH_UINT ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#models_list[@]}" ]; then
+    if [[ "$choice" =~ $UH_UINT ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#models_list[@]}" ]; then
         local model_to_remove="${models_list[$((choice-1))]}"
         echo ""
         read -rp " Remove model '$model_to_remove'? [y/N]: " confirm
@@ -1687,8 +1687,8 @@ update_opencode_desktop() {
 # but binary "@opencode-aidesktop"), so we search by a loose case-insensitive
 # match instead of guessing one exact path, and let the operator confirm.
 _opencode_desktop_find_config_dirs() {
-    local home="/home/$local_user"
-    find "$home/.config" "$home/.cache" "$home/.local/share" \
+    local user_home="/home/$local_user"
+    find "$user_home/.config" "$user_home/.cache" "$user_home/.local/share" \
         -mindepth 1 -maxdepth 1 -iname '*opencode*' 2>/dev/null || true
 }
 

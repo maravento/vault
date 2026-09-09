@@ -32,7 +32,7 @@ if [ "$(id -u)" == "0" ]; then
     exit 1
 fi
 
-# DEPENDENCIES
+# dependencies
 for dep in zenity adb scrcpy procps util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -40,8 +40,8 @@ for dep in zenity adb scrcpy procps util-linux; do
     fi
 done
 
-# VALIDATION -- integer only; use directly with =~
-_UH_UINT='^(0|[1-9][0-9]*)$'
+# validation -- integer only; use directly with =~
+UH_UINT='^(0|[1-9][0-9]*)$'
 show_error() {
     echo -e "$1"
     zenity --error --title="droid2pc Error" --text="$1" --timeout=5 2>/dev/null
@@ -92,7 +92,7 @@ stop() {
     if [ -f "$PIDFILE" ]; then
         local pid
         pid=$(cat "$PIDFILE")
-        if [[ -n "$pid" && "$pid" =~ $_UH_UINT ]]; then
+        if [[ -n "$pid" && "$pid" =~ $UH_UINT ]]; then
             kill "$pid" 2>/dev/null
             sleep 1
             kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null

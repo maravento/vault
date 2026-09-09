@@ -16,7 +16,7 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     log "ERROR: This script must be run as root -- abort"
     exit 1
@@ -31,7 +31,7 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# DEPENDENCIES (samba/winbind excluded -- Samba install is optional in gateproxy.sh)
+# dependencies (samba/winbind excluded -- Samba install is optional in gateproxy.sh)
 for dep in iproute2 systemd squid-openssl apache2 rsyslog util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: missing dependency '$dep' -- abort"
@@ -112,7 +112,7 @@ else
     exit 1
 fi
 
-### SERVERS
+# SERVERS
 log "DHCP..."
 systemctl reload pydhcpd.service
 sleep 5

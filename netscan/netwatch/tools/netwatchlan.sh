@@ -40,7 +40,7 @@
 
 set -uo pipefail
 
-# PATH for cron
+# path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # logging
@@ -50,18 +50,18 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     log "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
-### PATHS
-NETWATCH_ENV="/etc/netwatch/netwatch.env"
-DB_FILE="/var/www/netwatch/data/netwatch.db"
-PIDFILE="/run/netwatchlan.pid"
+# PATHS
+netwatch_env="/etc/netwatch/netwatch.env"
+db_file="/var/www/netwatch/data/netwatch.db"
+pid_file="/run/netwatchlan.pid"
 
-### DEPENDENCIES
+# dependencies
 for dep in arp-scan sqlite3 iproute2 procps coreutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: dependency '$dep' is not installed -- abort"
@@ -69,10 +69,10 @@ for dep in arp-scan sqlite3 iproute2 procps coreutils util-linux; do
     fi
 done
 
-# VALIDATION -- integer only; use directly with =~
-_UH_UINT='^(0|[1-9][0-9]*)$'
-### LOAD ENV
-if [ ! -f "$NETWATCH_ENV" ]; then
+# validation -- integer only; use directly with =~
+UH_UINT='^(0|[1-9][0-9]*)$'
+# LOAD ENV
+if [ ! -f "$netwatch_env" ]; then
     log "ERROR: netwatch is not installed -- abort"
     log "Run netwatchinstall.sh --install first"
     exit 1
@@ -86,7 +86,7 @@ load_env() {
             val="${val//\"}"
             export "$key=$val"
         fi
-    done < "$NETWATCH_ENV"
+    done < "$netwatch_env"
 }
 load_env
 
@@ -96,16 +96,16 @@ set_env_var() {
     val=$(printf '%s' "$val" | tr -d '\r\n')
     esc_val=$(printf '%s' "$val" | sed -e 's/[\&|]/\\&/g')
     esc_key=$(printf '%s' "$key" | sed 's/[.[\*^$]/\\&/g')
-    if grep -q "^${esc_key}=" "$NETWATCH_ENV"; then
-        sed -i "s|^${esc_key}=.*|${key}=\"${esc_val}\"|" "$NETWATCH_ENV"
+    if grep -q "^${esc_key}=" "$netwatch_env"; then
+        sed -i "s|^${esc_key}=.*|${key}=\"${esc_val}\"|" "$netwatch_env"
     else
-        echo "${key}=\"${val}\"" >> "$NETWATCH_ENV"
+        echo "${key}=\"${val}\"" >> "$netwatch_env"
     fi
 }
 
-### DB CHECK
-if [ ! -f "$DB_FILE" ]; then
-    log "ERROR: database not found at $DB_FILE -- abort"
+# DB CHECK
+if [ ! -f "$db_file" ]; then
+    log "ERROR: database not found at $db_file -- abort"
     log "Run netwatchinstall.sh --install first"
     exit 1
 fi
@@ -121,7 +121,7 @@ sql_escape() { printf '%s' "$1" | sed "s/'/''/g"; }
 # a no-op.
 run_batch() {
     [ -z "${1:-}" ] && return 0
-    sqlite3 -cmd "PRAGMA busy_timeout=5000;" "$DB_FILE" >/dev/null 2>>"$log_file" <<SQL
+    sqlite3 -cmd "PRAGMA busy_timeout=5000;" "$db_file" >/dev/null 2>>"$log_file" <<SQL
 BEGIN IMMEDIATE;
 ${1}COMMIT;
 SQL
@@ -153,9 +153,9 @@ resolve_hostname() {
     printf '%s' "$h"
 }
 
-### CHECK INTERFACES (essential for @reboot -- bonded/aggregated
-### interfaces like bond0 can take longer than the LAN's physical NICs to
-### come up and report link state)
+# CHECK INTERFACES (essential for @reboot -- bonded/aggregated
+# interfaces like bond0 can take longer than the LAN's physical NICs to
+# come up and report link state)
 list_ifaces() {
     ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
 }
@@ -194,7 +194,7 @@ check_interfaces() {
     return 1
 }
 
-### ONE SCAN CYCLE
+# ONE SCAN CYCLE
 run_scan() {
     if [ -z "${LAN_IFACES:-}" ]; then
         log "ERROR: LAN_IFACES is not set"
@@ -213,7 +213,7 @@ run_scan() {
         dev_status["$d_mac"]="$d_status"
         dev_miss["$d_mac"]="$d_miss"
         dev_ip["$d_mac"]="$d_ip"
-    done < <(sqlite3 -separator '|' "$DB_FILE" "SELECT mac, status, miss_count, ip FROM devices;" 2>>"$log_file")
+    done < <(sqlite3 -separator '|' "$db_file" "SELECT mac, status, miss_count, ip FROM devices;" 2>>"$log_file")
 
     local sql=""
 
@@ -240,8 +240,8 @@ run_scan() {
             seen_macs["$mac"]=1
 
             local hostname hostname_esc esc_mac esc_ip esc_iface esc_vendor
-            hostname=$(resolve_hostname "$ip")
-            hostname_esc=$(sql_escape "$hostname")
+            device_hostname=$(resolve_hostname "$ip")
+            hostname_esc=$(sql_escape "$device_hostname")
             esc_mac=$(sql_escape "$mac")
             esc_ip=$(sql_escape "$ip")
             esc_iface=$(sql_escape "$iface")
@@ -288,7 +288,7 @@ INSERT INTO device_events (mac, ip, event_type, event_time) VALUES ('$esc_mac', 
     run_batch "$sql"
 }
 
-### START
+# START
 start() {
     # prevent overlapping runs
     SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
@@ -299,13 +299,13 @@ start() {
         exit 1
     fi
 
-    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
+    if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file" 2>/dev/null)" 2>/dev/null; then
         log "ERROR: netwatchlan is already running -- abort"
         exit 1
     fi
 
-    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-        log "netwatchlan is already running with PID $(cat "$PIDFILE")"
+    if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
+        log "netwatchlan is already running with PID $(cat "$pid_file")"
         exit 1
     fi
 
@@ -316,26 +316,26 @@ start() {
     chmod 640 "$log_file"
     chown root:root "$log_file"
 
-    ### CHECK LAN_IFACES
+    # CHECK LAN_IFACES
     if [ -z "${LAN_IFACES:-}" ]; then
-        log "ERROR: LAN_IFACES is not set in $NETWATCH_ENV"
+        log "ERROR: LAN_IFACES is not set in $netwatch_env"
         exit 1
     fi
 
-    ### CHECK INTERFACES (essential for @reboot)
+    # CHECK INTERFACES (essential for @reboot)
     if ! check_interfaces "$LAN_IFACES"; then
         log "WARNING: no operational interface -- alert"
     fi
 
-    ### CHECK AND SET LAN_POLL_INTERVAL
-    if [ -z "${LAN_POLL_INTERVAL:-}" ] || ! [[ "$LAN_POLL_INTERVAL" =~ $_UH_UINT ]]; then
+    # CHECK AND SET LAN_POLL_INTERVAL
+    if [ -z "${LAN_POLL_INTERVAL:-}" ] || ! [[ "$LAN_POLL_INTERVAL" =~ $UH_UINT ]]; then
         [ -n "${LAN_POLL_INTERVAL:-}" ] && log "WARNING: invalid LAN_POLL_INTERVAL -- fallback"
         LAN_POLL_INTERVAL=60
         set_env_var "LAN_POLL_INTERVAL" "$LAN_POLL_INTERVAL"
     fi
 
-    ### CHECK AND SET LAN_OFFLINE_GRACE
-    if [ -z "${LAN_OFFLINE_GRACE:-}" ] || ! [[ "$LAN_OFFLINE_GRACE" =~ $_UH_UINT ]]; then
+    # CHECK AND SET LAN_OFFLINE_GRACE
+    if [ -z "${LAN_OFFLINE_GRACE:-}" ] || ! [[ "$LAN_OFFLINE_GRACE" =~ $UH_UINT ]]; then
         [ -n "${LAN_OFFLINE_GRACE:-}" ] && log "WARNING: invalid LAN_OFFLINE_GRACE -- fallback"
         LAN_OFFLINE_GRACE=3
         set_env_var "LAN_OFFLINE_GRACE" "$LAN_OFFLINE_GRACE"
@@ -345,13 +345,13 @@ start() {
     log "Interfaces : $LAN_IFACES"
     log "Interval : ${LAN_POLL_INTERVAL}s"
     log "Offline grace: ${LAN_OFFLINE_GRACE} polls"
-    log "Database : $DB_FILE"
+    log "Database : $db_file"
     log "Log : $log_file"
 
-    rm -f "$PIDFILE"
+    rm -f "$pid_file"
     (
         exec 200>&-
-        echo "$BASHPID" > "$PIDFILE"
+        echo "$BASHPID" > "$pid_file"
         while true; do
             log "netwatchlan cycle start..."
             run_scan
@@ -362,40 +362,40 @@ start() {
 
     # Wait (briefly) for the child to have written its PID before logging it.
     for _ in $(seq 1 20); do
-        [ -s "$PIDFILE" ] && break
+        [ -s "$pid_file" ] && break
         sleep 0.05
     done
-    log "netwatchlan started with PID $(cat "$PIDFILE" 2>/dev/null)"
+    log "netwatchlan started with PID $(cat "$pid_file" 2>/dev/null)"
 }
 
-### STOP
+# STOP
 stop() {
     log "Stopping netwatchlan..."
-    if [ -f "$PIDFILE" ]; then
-        local PID
-        PID=$(cat "$PIDFILE")
-        if kill -0 "$PID" 2>/dev/null; then
-            kill "$PID" 2>/dev/null
-            log "netwatchlan stopped (PID $PID)"
+    if [ -f "$pid_file" ]; then
+        local daemon_pid
+        daemon_pid=$(cat "$pid_file")
+        if kill -0 "$daemon_pid" 2>/dev/null; then
+            kill "$daemon_pid" 2>/dev/null
+            log "netwatchlan stopped (PID $daemon_pid)"
         else
             log "netwatchlan was not running (stale PID file removed)"
         fi
-        rm -f "$PIDFILE"
+        rm -f "$pid_file"
     else
         log "netwatchlan is not running"
     fi
 }
 
-### STATUS
+# STATUS
 status() {
     log "netwatchlan status..."
-    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-        log "netwatchlan is RUNNING (PID $(cat "$PIDFILE"))"
+    if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
+        log "netwatchlan is RUNNING (PID $(cat "$pid_file"))"
         log "Interfaces : ${LAN_IFACES:-unset}"
         log "Interval : ${LAN_POLL_INTERVAL:-60}s"
-        if [ -f "$DB_FILE" ]; then
+        if [ -f "$db_file" ]; then
             local counts
-            counts=$(sqlite3 "$DB_FILE" "SELECT status, COUNT(*) FROM devices GROUP BY status;" 2>/dev/null)
+            counts=$(sqlite3 "$db_file" "SELECT status, COUNT(*) FROM devices GROUP BY status;" 2>/dev/null)
             log "Devices :"
             echo "$counts" | sed 's/^/ /' | tee -a "$log_file"
         fi
@@ -404,7 +404,7 @@ status() {
     fi
 }
 
-### MAIN
+# MAIN
 case "${1:-}" in
     start) start ;;
     stop) stop ;;

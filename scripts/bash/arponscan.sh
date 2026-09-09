@@ -15,7 +15,7 @@
 
 set -uo pipefail
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
@@ -32,7 +32,7 @@ fi
 
 echo "ARP table filter Starting. Wait..."
 
-# DEPENDENCIES
+# dependencies
 for dep in arpon net-tools iproute2 procps systemd findutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -43,10 +43,10 @@ done
 mkdir -p /var/log/arpon
 touch /var/log/arpon/arpon.log
 
-# VALIDATION -- one variable per thing validated; use directly with =~
-_UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+# validation -- one variable per thing validated; use directly with =~
+UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 
-### VARIABLES
+# VARIABLES
 # path mac addresses
 while :; do
     read -r -p "Enter the path for MAC addresses [/etc/acl/mac]: " acl_path
@@ -71,7 +71,7 @@ printf "\n"
 # Local IP Server
 while :; do
     read -r -p "Enter the local IP server (e.g. 192.168.0.10): " localip
-    if [[ "$localip" =~ $_UH_IPV4 ]]; then
+    if [[ "$localip" =~ $UH_IPV4 ]]; then
         break
     fi
     echo "ERROR: invalid IPv4 address. Try again."
@@ -80,7 +80,7 @@ done
 ARPSTATIC_FILE="$(dirname "$(realpath "$0")")/arpstatic"
 
 # ip2mac
-function ip2mac() {
+ip2mac() {
     echo '#!/bin/bash' > "$ARPSTATIC_FILE"
     awk -F";" '{print "ip neigh replace " $3 " lladdr " $2 " nud permanent dev '"$lan"'"}' "$acl_path"/mac* \
         | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n \
@@ -91,7 +91,7 @@ function ip2mac() {
 # change mode (darpi, sarpi, harpi)
 mode=darpi
 
-function arponrun() {
+arponrun() {
     chmod +x "$ARPSTATIC_FILE"
 
     # optional rule: flush ARP table
@@ -112,7 +112,7 @@ function arponrun() {
 }
 
 # Stops the service if there are duplicates
-function duplicate() {
+duplicate() {
     local dupes
     dupes=$(for field in 2 3 4; do cut -d\; -f"${field}" "$acl_path"/mac* | sort | uniq -d; done)
     if [ -z "$dupes" ]; then

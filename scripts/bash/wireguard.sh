@@ -9,7 +9,7 @@
 
 set -uo pipefail
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
@@ -24,7 +24,7 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# DEPENDENCIES
+# dependencies
 for dep in iproute2 util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -32,8 +32,8 @@ for dep in iproute2 util-linux; do
     fi
 done
 
-# VALIDATION -- integer only; use directly with =~
-_UH_UINT='^(0|[1-9][0-9]*)$'
+# validation -- integer only; use directly with =~
+UH_UINT='^(0|[1-9][0-9]*)$'
 echo "WireGuard Install | Remove Starting. Wait..."
 
 # Function to install WireGuard as Server
@@ -82,7 +82,7 @@ install_wireguard_server() {
 
     # Prompt the user to choose an interface by number
     read -rp "Enter the public network interface number: " num
-    if ! [[ "$num" =~ $_UH_UINT ]]; then
+    if ! [[ "$num" =~ $UH_UINT ]]; then
         echo "Error: Please enter a valid number."
         exit 1
     fi
@@ -191,7 +191,7 @@ PersistentKeepalive = 25 # Optional" > /etc/wireguard/wg0.conf
     echo "/etc/wireguard/wg0.conf"
     echo "  - Replace <Client IP>/32 with your assigned client IP (e.g., 10.0.0.2/32)."
     echo "  - Replace <Server's Public Key> with the server's public key."
-    echo "  - Replace <Server's Public IP>:51820 with the server's IP address (e.g., 192.168.1.1:51820)."
+    echo "  - Replace <Server's Public IP>:51820 with the server's IP address (e.g., 192.168.0.10:51820)."
     echo "Once you have made the changes, enable and start WireGuard with:"
     echo "  sudo systemctl enable wg-quick@wg0"
     echo "  sudo wg-quick up wg0"

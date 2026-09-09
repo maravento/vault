@@ -15,16 +15,16 @@
 
 set -uo pipefail
 
-# PATH for cron
+# path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
-# DEPENDENCIES
+# dependencies
 for dep in udev systemd util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -32,8 +32,8 @@ for dep in udev systemd util-linux; do
     fi
 done
 
-# VALIDATION -- integer only; use directly with =~
-_UH_UINT='^(0|[1-9][0-9]*)$'
+# validation -- integer only; use directly with =~
+UH_UINT='^(0|[1-9][0-9]*)$'
 echo "BlackUSB Start. Wait..."
 
 # How to Use:
@@ -182,7 +182,7 @@ eject_product() {
 choose_remove() {
     message "\nChoose number to add"
     read -r -e number
-    [[ "$number" =~ $_UH_UINT ]] || die "wrong number"
+    [[ "$number" =~ $UH_UINT ]] || die "wrong number"
     [[ -z "${vendors[$number]}" ]] && die "wrong number"
 
     string_eject="SUBSYSTEM==\"usb\", ENV{ID_VENDOR_ID}==\"${vendors[$number]}\", ENV{ID_MODEL_ID}==\"${products[$number]}\""

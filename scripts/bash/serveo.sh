@@ -14,13 +14,13 @@
 
 set -uo pipefail
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
-# LOCAL USER detection
+# local_user detection
 detect_local_user() {
     local uid_min uid_max
     local user uid best_user="" best_uid=999999
@@ -60,7 +60,7 @@ echo "Using local user: $local_user"
 
 echo "Serveo Tunnel Starting. Wait..."
 
-# DEPENDENCIES
+# dependencies
 for dep in openssh-client netcat-openbsd procps iproute2 util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2

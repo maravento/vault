@@ -35,15 +35,15 @@
 
 set -uo pipefail
 
-# VALIDATION -- one variable per thing validated; use directly with =~
-_UH_UINT='^(0|[1-9][0-9]*)$'
-_UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+# validation -- one variable per thing validated; use directly with =~
+UH_UINT='^(0|[1-9][0-9]*)$'
+UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
 
 is_valid_port() {
-    [[ "$1" =~ $_UH_UINT ]] && (( $1 >= 1 && $1 <= 65535 ))
+    [[ "$1" =~ $UH_UINT ]] && (( $1 >= 1 && $1 <= 65535 ))
 }
 
-# DEPENDENCIES
+# dependencies
 for dep in cloudflared; do
     if ! command -v "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort"
@@ -73,7 +73,7 @@ echo ""
 
 while true; do
     read -r -p "Tunnel subdomain (e.g. veyon.example.com): " hostname
-    if [[ ! "$hostname" =~ $_UH_FQDN ]]; then
+    if [[ ! "$hostname" =~ $UH_FQDN ]]; then
         echo "WARNING: Invalid subdomain: '$hostname'"
         continue
     fi

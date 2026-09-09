@@ -13,10 +13,10 @@
 
 set -uo pipefail
 
-# PATH for cron
+# path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
@@ -31,7 +31,7 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# LOCAL USER detection
+# local_user detection
 detect_local_user() {
     local uid_min uid_max
     local user uid best_user="" best_uid=999999
@@ -69,7 +69,7 @@ if ! local_user=$(detect_local_user); then
 fi
 echo "Using local user: $local_user"
 
-# DEPENDENCIES
+# dependencies
 for dep in findutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -79,14 +79,14 @@ done
 
 echo "File Extensions Report Start. Wait..."
 
-### VARIABLES
+# VARIABLES
 # default target folder (created automatically if missing); edit to scan
 # a different folder
 targetfolder="/home/$local_user/filereport"
 mkdir -p "$targetfolder"
 logreport=/var/log/filereport.log
 
-### REPORT
+# REPORT
 # Add file extensions you want to find
 find "$targetfolder" -type f | grep -E "\.webm$|\.flv$|\.vob$|\.ogg$|\.ogv$|\.drc$|\.gifv$|\.mng$|\.avi$|\.mov$|\.qt$|\.wmv$|\.yuv$|\.rm$|\.rmvb$|\.asf$|\.amv$|\.m4v$|\.mp[34]$|\.svi$|\.3gp$|\.f4v$|\.iso$|\.exe$" >"$logreport"
 # alternate command (slow) (for media files)

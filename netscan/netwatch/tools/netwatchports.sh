@@ -49,7 +49,7 @@
 
 set -uo pipefail
 
-# PATH for cron
+# path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # logging
@@ -59,19 +59,19 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     log "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
-### PATHS
-NETWATCH_ENV="/etc/netwatch/netwatch.env"
-DB_FILE="/var/www/netwatch/data/netwatch.db"
-PORTS_MODE_FILE="/var/www/netwatch/data/ports_mode.conf"
-PIDFILE="/run/netwatchports.pid"
+# PATHS
+netwatch_env="/etc/netwatch/netwatch.env"
+db_file="/var/www/netwatch/data/netwatch.db"
+ports_mode_file="/var/www/netwatch/data/ports_mode.conf"
+pid_file="/run/netwatchports.pid"
 
-### DEPENDENCIES
+# dependencies
 for dep in sqlite3 nmap iproute2 procps coreutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: dependency '$dep' is not installed -- abort"
@@ -79,8 +79,8 @@ for dep in sqlite3 nmap iproute2 procps coreutils util-linux; do
     fi
 done
 
-### LOAD ENV
-if [ ! -f "$NETWATCH_ENV" ]; then
+# LOAD ENV
+if [ ! -f "$netwatch_env" ]; then
     log "ERROR: netwatch is not installed -- abort"
     log "Run netwatchinstall.sh --install first"
     exit 1
@@ -94,7 +94,7 @@ load_env() {
             val="${val//\"}"
             export "$key=$val"
         fi
-    done < "$NETWATCH_ENV"
+    done < "$netwatch_env"
 }
 load_env
 
@@ -104,16 +104,16 @@ set_env_var() {
     val=$(printf '%s' "$val" | tr -d '\r\n')
     esc_val=$(printf '%s' "$val" | sed -e 's/[\&|]/\\&/g')
     esc_key=$(printf '%s' "$key" | sed 's/[.[\*^$]/\\&/g')
-    if grep -q "^${esc_key}=" "$NETWATCH_ENV"; then
-        sed -i "s|^${esc_key}=.*|${key}=\"${esc_val}\"|" "$NETWATCH_ENV"
+    if grep -q "^${esc_key}=" "$netwatch_env"; then
+        sed -i "s|^${esc_key}=.*|${key}=\"${esc_val}\"|" "$netwatch_env"
     else
-        echo "${key}=\"${val}\"" >> "$NETWATCH_ENV"
+        echo "${key}=\"${val}\"" >> "$netwatch_env"
     fi
 }
 
-### DB CHECK
-if [ ! -f "$DB_FILE" ]; then
-    log "ERROR: database not found at $DB_FILE -- abort"
+# DB CHECK
+if [ ! -f "$db_file" ]; then
+    log "ERROR: database not found at $db_file -- abort"
     log "Run netwatchinstall.sh --install first"
     exit 1
 fi
@@ -122,23 +122,23 @@ now_iso() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
 
 sql_escape() { printf '%s' "$1" | sed "s/'/''/g"; }
 
-# VALIDATION -- one variable per thing validated; use directly with =~
-_UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
-_UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
-_UH_HOST='^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$'
-_UH_UINT='^(0|[1-9][0-9]*)$'
+# validation -- one variable per thing validated; use directly with =~
+UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+UH_HOST='^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$'
+UH_UINT='^(0|[1-9][0-9]*)$'
 
 valid_host() {
-    [[ "$1" =~ $_UH_IPV4 ]] || [[ "$1" =~ $_UH_FQDN ]] || [[ "$1" =~ $_UH_HOST ]]
+    [[ "$1" =~ $UH_IPV4 ]] || [[ "$1" =~ $UH_FQDN ]] || [[ "$1" =~ $UH_HOST ]]
 }
 
-### PORTS MODE (server | target <ip>) -- kept in its own file, not
-### netwatch.env, so the web-facing PHP process can write it without
-### touching the panel's access-control config.
+# PORTS MODE (server | target <ip>) -- kept in its own file, not
+# netwatch.env, so the web-facing PHP process can write it without
+# touching the panel's access-control config.
 load_ports_mode() {
     PORTS_MODE="server"
     PORTS_TARGET_IP=""
-    if [ -f "$PORTS_MODE_FILE" ]; then
+    if [ -f "$ports_mode_file" ]; then
         while IFS= read -r line; do
             if [[ "$line" =~ ^[A-Z_]+=.* ]]; then
                 local key val
@@ -150,24 +150,24 @@ load_ports_mode() {
                     PORTS_TARGET_IP) PORTS_TARGET_IP="$val" ;;
                 esac
             fi
-        done < "$PORTS_MODE_FILE"
+        done < "$ports_mode_file"
     fi
 }
 
 write_ports_mode() {
     local mode="$1" target="$2"
     local dir tmp_file
-    dir="$(dirname "$PORTS_MODE_FILE")"
+    dir="$(dirname "$ports_mode_file")"
     mkdir -p "$dir"
 
-    tmp_file=$(mktemp "${PORTS_MODE_FILE}.XXXXXX")
+    tmp_file=$(mktemp "${ports_mode_file}.XXXXXX")
     cat > "$tmp_file" <<EOF
 PORTS_MODE="${mode}"
 PORTS_TARGET_IP="${target}"
 EOF
     chown www-data:www-data "$tmp_file" 2>/dev/null || true
     chmod 664 "$tmp_file"
-    mv -f "$tmp_file" "$PORTS_MODE_FILE"
+    mv -f "$tmp_file" "$ports_mode_file"
 }
 
 cmd_mode() {
@@ -203,13 +203,13 @@ cmd_list() {
     fi
     echo "Mode: $PORTS_MODE Host: $host"
     echo "PORT PROTO STATUS SERVICE"
-    sqlite3 -separator '|' "$DB_FILE" "SELECT port, proto, status, IFNULL(service,'') FROM port_scan_state WHERE source='$(sql_escape "$PORTS_MODE")' AND host='$(sql_escape "$host")' ORDER BY port;" | \
+    sqlite3 -separator '|' "$db_file" "SELECT port, proto, status, IFNULL(service,'') FROM port_scan_state WHERE source='$(sql_escape "$PORTS_MODE")' AND host='$(sql_escape "$host")' ORDER BY port;" | \
         while IFS='|' read -r port proto status service; do
             printf "%-6s %-6s %-7s %s\n" "$port" "$proto" "$status" "$service"
         done
 }
 
-### BATCHED WRITE
+# BATCHED WRITE
 # One transaction per poll cycle in a single sqlite3 process: each poll
 # function loads the source/host's current state once, computes the transitions
 # in bash, and hands the whole set of statements here. Data is substituted into
@@ -217,13 +217,13 @@ cmd_list() {
 # not re-expanded); an empty batch is a no-op.
 run_batch() {
     [ -z "${1:-}" ] && return 0
-    sqlite3 -cmd "PRAGMA busy_timeout=5000;" "$DB_FILE" >/dev/null 2>>"$log_file" <<SQL
+    sqlite3 -cmd "PRAGMA busy_timeout=5000;" "$db_file" >/dev/null 2>>"$log_file" <<SQL
 BEGIN IMMEDIATE;
 ${1}COMMIT;
 SQL
 }
 
-### POLL: SERVER MODE
+# POLL: SERVER MODE
 poll_server() {
     local now="$1"
     local host="${SERVER_IP:-localhost}"
@@ -236,7 +236,7 @@ poll_server() {
     while IFS='|' read -r p_proto p_port p_stat; do
         [ -z "$p_port" ] && continue
         prev["${p_proto}:${p_port}"]="$p_stat"
-    done < <(sqlite3 -separator '|' "$DB_FILE" "SELECT proto, port, status FROM port_scan_state WHERE source='server' AND host='$esc_host';" 2>>"$log_file")
+    done < <(sqlite3 -separator '|' "$db_file" "SELECT proto, port, status FROM port_scan_state WHERE source='server' AND host='$esc_host';" 2>>"$log_file")
 
     local sql=""
 
@@ -244,10 +244,10 @@ poll_server() {
     # process. Fields: Netid State Recv-Q Send-Q LocalAddress:Port PeerAddress:Port Process
     # (udp sockets show State as "UNCONN" instead of "LISTEN" -- still the
     # right thing to report as an open/listening port).
-    local netid _state _recvq _sendq local_addr _peer_addr proc_field
-    while read -r netid _state _recvq _sendq local_addr _peer_addr proc_field; do
+    local netid local_addr proc_field
+    while read -r netid _ _ _ local_addr _ proc_field; do
         local port="${local_addr##*:}"
-        [[ "$port" =~ $_UH_UINT ]] || continue
+        [[ "$port" =~ $UH_UINT ]] || continue
         local proto="tcp"
         [ "$netid" = "udp" ] && proto="udp"
         local key="${proto}:${port}"
@@ -294,7 +294,7 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('se
     run_batch "$sql"
 }
 
-### POLL: TARGET MODE
+# POLL: TARGET MODE
 poll_target() {
     local target="$1" now="$2"
 
@@ -318,7 +318,7 @@ poll_target() {
     while IFS='|' read -r p_proto p_port p_stat; do
         [ -z "$p_port" ] && continue
         prev["${p_proto}:${p_port}"]="$p_stat"
-    done < <(sqlite3 -separator '|' "$DB_FILE" "SELECT proto, port, status FROM port_scan_state WHERE source='target' AND host='$esc_target';" 2>>"$log_file")
+    done < <(sqlite3 -separator '|' "$db_file" "SELECT proto, port, status FROM port_scan_state WHERE source='target' AND host='$esc_target';" 2>>"$log_file")
 
     local sql=""
     local entries entry
@@ -326,9 +326,9 @@ poll_target() {
     for entry in "${entries[@]}"; do
         entry="${entry# }"
         [ -z "$entry" ] && continue
-        local port state proto _owner service _rest
-        IFS='/' read -r port state proto _owner service _rest <<< "$entry"
-        [[ "$port" =~ $_UH_UINT ]] || continue
+        local port state proto service
+        IFS='/' read -r port state proto _ service _ <<< "$entry"
+        [[ "$port" =~ $UH_UINT ]] || continue
         [ "$proto" = "tcp" ] || [ "$proto" = "udp" ] || continue
         local key="${proto}:${port}"
         [ -n "${seen[$key]:-}" ] && continue
@@ -384,9 +384,9 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('ta
     run_batch "$sql"
 }
 
-### ONE POLL CYCLE
+# ONE POLL CYCLE
 purge_stale_closed_ports() {
-    sqlite3 -cmd "PRAGMA busy_timeout=5000;" "$DB_FILE" \
+    sqlite3 -cmd "PRAGMA busy_timeout=5000;" "$db_file" \
         "DELETE FROM port_scan_state WHERE status='closed' AND julianday(last_changed) < julianday('now', '-${PURGE_CLOSED_AFTER_HOURS} hours');" \
         2>>"$log_file"
 }
@@ -413,7 +413,7 @@ run_poll() {
     purge_stale_closed_ports
 }
 
-### START
+# START
 start() {
     # prevent overlapping runs
     SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
@@ -424,13 +424,13 @@ start() {
         exit 1
     fi
 
-    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
+    if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file" 2>/dev/null)" 2>/dev/null; then
         log "ERROR: netwatchports is already running -- abort"
         exit 1
     fi
 
-    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-        log "netwatchports is already running with PID $(cat "$PIDFILE")"
+    if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
+        log "netwatchports is already running with PID $(cat "$pid_file")"
         exit 1
     fi
 
@@ -441,7 +441,7 @@ start() {
     chmod 640 "$log_file"
     chown root:root "$log_file"
 
-    if [ ! -f "$PORTS_MODE_FILE" ]; then
+    if [ ! -f "$ports_mode_file" ]; then
         write_ports_mode "server" ""
     fi
 
@@ -449,13 +449,13 @@ start() {
     # `sleep "$PORT_POLL_INTERVAL"` fail every cycle without actually
     # sleeping, turning the loop into a busy-spin -- fall back to the
     # default instead of just checking for empty.
-    if [ -z "${PORT_POLL_INTERVAL:-}" ] || ! [[ "$PORT_POLL_INTERVAL" =~ $_UH_UINT ]]; then
+    if [ -z "${PORT_POLL_INTERVAL:-}" ] || ! [[ "$PORT_POLL_INTERVAL" =~ $UH_UINT ]]; then
         [ -n "${PORT_POLL_INTERVAL:-}" ] && log "WARNING: invalid PORT_POLL_INTERVAL -- fallback"
         PORT_POLL_INTERVAL=30
         set_env_var "PORT_POLL_INTERVAL" "$PORT_POLL_INTERVAL"
     fi
 
-    if [ -z "${PURGE_CLOSED_AFTER_HOURS:-}" ] || ! [[ "$PURGE_CLOSED_AFTER_HOURS" =~ $_UH_UINT ]]; then
+    if [ -z "${PURGE_CLOSED_AFTER_HOURS:-}" ] || ! [[ "$PURGE_CLOSED_AFTER_HOURS" =~ $UH_UINT ]]; then
         [ -n "${PURGE_CLOSED_AFTER_HOURS:-}" ] && log "WARNING: invalid PURGE_CLOSED_AFTER_HOURS -- fallback"
         PURGE_CLOSED_AFTER_HOURS=6
         set_env_var "PURGE_CLOSED_AFTER_HOURS" "$PURGE_CLOSED_AFTER_HOURS"
@@ -465,13 +465,13 @@ start() {
     log "netwatchports start..."
     log "Mode : $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
     log "Interval : ${PORT_POLL_INTERVAL}s"
-    log "Database : $DB_FILE"
+    log "Database : $db_file"
     log "Log : $log_file"
 
-    rm -f "$PIDFILE"
+    rm -f "$pid_file"
     (
         exec 200>&-
-        echo "$BASHPID" > "$PIDFILE"
+        echo "$BASHPID" > "$pid_file"
         while true; do
             log "netwatchports cycle start..."
             run_poll
@@ -482,41 +482,41 @@ start() {
 
     # Wait (briefly) for the child to have written its PID before logging it.
     for _ in $(seq 1 20); do
-        [ -s "$PIDFILE" ] && break
+        [ -s "$pid_file" ] && break
         sleep 0.05
     done
-    log "netwatchports started with PID $(cat "$PIDFILE" 2>/dev/null)"
+    log "netwatchports started with PID $(cat "$pid_file" 2>/dev/null)"
 }
 
-### STOP
+# STOP
 stop() {
     log "Stopping netwatchports..."
-    if [ -f "$PIDFILE" ]; then
-        local PID
-        PID=$(cat "$PIDFILE")
-        if kill -0 "$PID" 2>/dev/null; then
-            kill "$PID" 2>/dev/null
-            log "netwatchports stopped (PID $PID)"
+    if [ -f "$pid_file" ]; then
+        local daemon_pid
+        daemon_pid=$(cat "$pid_file")
+        if kill -0 "$daemon_pid" 2>/dev/null; then
+            kill "$daemon_pid" 2>/dev/null
+            log "netwatchports stopped (PID $daemon_pid)"
         else
             log "netwatchports was not running (stale PID file removed)"
         fi
-        rm -f "$PIDFILE"
+        rm -f "$pid_file"
     else
         log "netwatchports is not running"
     fi
 }
 
-### STATUS
+# STATUS
 status() {
     log "netwatchports status..."
     load_ports_mode
-    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-        log "netwatchports is RUNNING (PID $(cat "$PIDFILE"))"
+    if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
+        log "netwatchports is RUNNING (PID $(cat "$pid_file"))"
         log "Mode : $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
         log "Interval : ${PORT_POLL_INTERVAL:-30}s"
-        if [ -f "$DB_FILE" ]; then
+        if [ -f "$db_file" ]; then
             local counts
-            counts=$(sqlite3 "$DB_FILE" "SELECT status, COUNT(*) FROM port_scan_state WHERE source='$(sql_escape "$PORTS_MODE")' GROUP BY status;" 2>/dev/null)
+            counts=$(sqlite3 "$db_file" "SELECT status, COUNT(*) FROM port_scan_state WHERE source='$(sql_escape "$PORTS_MODE")' GROUP BY status;" 2>/dev/null)
             log "Ports :"
             echo "$counts" | sed 's/^/ /' | tee -a "$log_file"
         fi
@@ -526,7 +526,7 @@ status() {
     fi
 }
 
-### MAIN
+# MAIN
 case "${1:-}" in
     start) start ;;
     stop) stop ;;

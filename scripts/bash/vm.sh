@@ -12,13 +12,13 @@
 
 set -uo pipefail
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
-# LOCAL USER detection
+# local_user detection
 detect_local_user() {
     local uid_min uid_max
     local user uid best_user="" best_uid=999999
@@ -56,7 +56,7 @@ if ! local_user=$(detect_local_user); then
 fi
 echo "Using local user: $local_user"
 
-# DEPENDENCIES (version-variable package)
+# dependencies (version-variable package)
 if ! command -v VBoxManage &>/dev/null; then
     echo "ERROR: VirtualBox (VBoxManage) is not installed." >&2
     exit 1
@@ -64,7 +64,7 @@ fi
 
 echo "Virtualbox Starting. Wait..."
 
-### VARIABLES
+# VARIABLES
 # Set name of VM (e.g: win10) or UUID (e.g.: 4ec6acc1-a232-566d-a040-6bc4aadc19a6)
 read -rp "Enter the VM name or UUID to manage: " VMNAME
 if [ -z "$VMNAME" ]; then
@@ -72,7 +72,7 @@ if [ -z "$VMNAME" ]; then
     exit 1
 fi
 
-### FUNCTIONS
+# FUNCTIONS
 if ! sudo -H -u "$local_user" VBoxManage showvminfo "$VMNAME" &>/dev/null; then
     echo "ERROR: VM '$VMNAME' not found or not accessible"
     exit 1

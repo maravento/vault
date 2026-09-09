@@ -43,9 +43,9 @@
 
 set -euo pipefail
 
-# VALIDATION -- one variable per thing validated; use directly with =~
-_UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
-_UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+# validation -- one variable per thing validated; use directly with =~
+UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
 
 timestamp() { date +%F-%H_%M_%S; }
 
@@ -56,7 +56,7 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     log "ERROR: This script must be run as root -- abort"
     exit 1
@@ -75,7 +75,7 @@ fi
 # current execution, so it is truncated on every start instead of rotated.
 truncate -s 0 "$log_file" 2>/dev/null || true
 
-# LOCAL USER detection
+# local_user detection
 detect_local_user() {
     local uid_min uid_max
     local user uid best_user="" best_uid=999999
@@ -123,7 +123,7 @@ chmod 0755 "$report_dir"
 SCRIPT_TMPDIR=$(mktemp -d)
 trap 'rm -rf "$SCRIPT_TMPDIR"' EXIT
 
-# DEPENDENCIES
+# dependencies
 for dep in nmap xsltproc iproute2 util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: dependency '$dep' is not installed -- abort"
@@ -646,7 +646,7 @@ case "$opt" in
         done
 
         # Validate target format (IPv4 or FQDN)
-        if ! [[ "$target" =~ $_UH_IPV4 ]] && ! [[ "$target" =~ $_UH_FQDN ]]; then
+        if ! [[ "$target" =~ $UH_IPV4 ]] && ! [[ "$target" =~ $UH_FQDN ]]; then
             log "ERROR: Invalid target format: $target"
             exit 1
         fi

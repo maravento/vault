@@ -6,9 +6,7 @@
 # netwatch - LAN device inventory & watched ports dashboard
 # https://github.com/maravento/vault
 #
-# Log file:
-# netwatchinstall.log -- written next to this script. No rotation; clear it
-# with: truncate -s 0 <script-dir>/netwatchinstall.log
+# log: netwatchinstall.log, next to this script (rewritten on each run)
 # The daemons netwatchlan.sh / netwatchports.sh log to the shared
 # /var/log/netwatch.log, rotated weekly via /etc/logrotate.d/netwatch
 # (deployed by --install, removed by --uninstall).
@@ -17,17 +15,18 @@
 
 set -uo pipefail
 
-### PATHS
-SCRIPT_DIR="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
+# PATHS
+script_dir="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
 
 # logging
-log_file="$SCRIPT_DIR/netwatchinstall.log"
+log_file="$script_dir/netwatchinstall.log"
+{ > "$log_file"; } 2>/dev/null || true
 log() {
     local msg="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     log "ERROR: This script must be run as root -- abort"
     exit 1
@@ -46,27 +45,27 @@ if ! flock -n 200; then
     exit 1
 fi
 
-WEB_DIR="$SCRIPT_DIR/web"
-TOOLS_DIR="$SCRIPT_DIR/tools"
-NETWATCH_WWW="/var/www/netwatch"
-NETWATCH_WEB="$NETWATCH_WWW/web"
-NETWATCH_TOOLS="$NETWATCH_WWW/tools"
-NETWATCH_DATA="$NETWATCH_WWW/data"
+web_dir="$script_dir/web"
+tools_dir="$script_dir/tools"
+netwatch_www="/var/www/netwatch"
+netwatch_web="$netwatch_www/web"
+netwatch_tools="$netwatch_www/tools"
+netwatch_data="$netwatch_www/data"
 # netwatch.env is read-only config (access-control CIDR etc.) and lives in
 # /etc/netwatch, root-owned, so the web process can never write it. The
 # mutable, web-writable ports_mode.conf stays in the data dir (still outside
 # the DocumentRoot) -- /etc should hold root-writable config only, not a file
 # the web user rewrites on every mode change.
-NETWATCH_ETC="/etc/netwatch"
-NETWATCH_ENV="$NETWATCH_ETC/netwatch.env"
-DB_FILE="$NETWATCH_DATA/netwatch.db"
-PORTS_MODE_FILE="$NETWATCH_DATA/ports_mode.conf"
-VHOST_PORT="3126"
+netwatch_etc="/etc/netwatch"
+netwatch_env="$netwatch_etc/netwatch.env"
+db_file="$netwatch_data/netwatch.db"
+ports_mode_file="$netwatch_data/ports_mode.conf"
+vhost_port="3126"
 
-### REPOSITORY STRUCTURE CHECK
+# REPOSITORY STRUCTURE CHECK
 check_repo() {
     local missing=0
-    for dir in "$WEB_DIR" "$TOOLS_DIR"; do
+    for dir in "$web_dir" "$tools_dir"; do
         if [ ! -d "$dir" ] || [ -z "$(ls -A "$dir" 2>/dev/null)" ]; then
             missing=1
             break
@@ -80,7 +79,7 @@ check_repo() {
 }
 check_repo
 
-# DEPENDENCIES
+# dependencies
 for dep in systemd apache2 libapache2-mod-php php-cli php-sqlite3 arp-scan sqlite3 nmap iproute2 logrotate cron procps coreutils findutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: dependency '$dep' is not installed"
@@ -88,29 +87,29 @@ for dep in systemd apache2 libapache2-mod-php php-cli php-sqlite3 arp-scan sqlit
     fi
 done
 
-### INTERFACE / NETWORK SELECTION
+# INTERFACE / NETWORK SELECTION
 # Virtual/loopback interfaces are never useful arp-scan targets and are
 # hidden from every selector below (both the scan-interfaces prompt and the
 # management-interface prompt).
-VIRTUAL_IFACE_PATTERN='^(lo|docker.*|br-.*|veth.*|virbr.*|tun.*|tap.*|wg.*)$'
+virtual_iface_pattern='^(lo|docker.*|br-.*|veth.*|virbr.*|tun.*|tap.*|wg.*)$'
 
-# VALIDATION -- one variable per thing validated; use directly with =~
-_UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
-_UH_UINT='^(0|[1-9][0-9]*)$'
+# validation -- one variable per thing validated; use directly with =~
+UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
+UH_UINT='^(0|[1-9][0-9]*)$'
 
-CAND_NAMES=()
-CAND_ADDRS=()
+candidate_names=()
+candidate_addrs=()
 list_candidate_interfaces() {
-    CAND_NAMES=()
-    CAND_ADDRS=()
+    candidate_names=()
+    candidate_addrs=()
     local iface addr
     while read -r iface addr; do
         [ -z "$iface" ] && continue
-        [[ "$iface" =~ $VIRTUAL_IFACE_PATTERN ]] && continue
+        [[ "$iface" =~ $virtual_iface_pattern ]] && continue
         CAND_NAMES+=("$iface")
         CAND_ADDRS+=("$addr")
     done < <(ip -4 addr show scope global | awk '/inet /{print $NF, $2}')
-    if [ "${#CAND_NAMES[@]}" -eq 0 ]; then
+    if [ "${#candidate_names[@]}" -eq 0 ]; then
         echo "ERROR: No physical network interfaces with a global IPv4 address found (virtual/loopback interfaces are excluded)."
         exit 1
     fi
@@ -119,7 +118,7 @@ list_candidate_interfaces() {
 print_candidate_interfaces() {
     local i
     for i in "${!CAND_NAMES[@]}"; do
-        printf " %2d) %-12s %s\n" "$((i + 1))" "${CAND_NAMES[$i]}" "${CAND_ADDRS[$i]}"
+        printf " %2d) %-12s %s\n" "$((i + 1))" "${candidate_names[$i]}" "${candidate_addrs[$i]}"
     done
 }
 
@@ -132,7 +131,7 @@ select_scan_interfaces() {
     print_candidate_interfaces
     echo ""
     local all_idxs
-    all_idxs=$(seq -s, 1 "${#CAND_NAMES[@]}")
+    all_idxs=$(seq -s, 1 "${#candidate_names[@]}")
     while true; do
         read -rp "Select interface(s) to scan -- comma-separated numbers (default: $all_idxs): " sel
         sel="${sel//[[:space:]]/}"
@@ -142,22 +141,22 @@ select_scan_interfaces() {
         chosen=()
         ok=1
         for idx in "${idxs[@]}"; do
-            if ! [[ "$idx" =~ $_UH_UINT ]] || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#CAND_NAMES[@]}" ]; then
+            if ! [[ "$idx" =~ $UH_UINT ]] || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#candidate_names[@]}" ]; then
                 echo "ERROR: Invalid selection '$idx'. Try again."
                 ok=0
                 break
             fi
-            chosen+=("${CAND_NAMES[$((idx - 1))]}")
+            chosen+=("${candidate_names[$((idx - 1))]}")
         done
         [ "$ok" -eq 1 ] || continue
-        LAN_IFACES=$(printf '%s\n' "${chosen[@]}" | awk '!seen[$0]++' | paste -sd, -)
+        ifaces_answer=$(printf '%s\n' "${chosen[@]}" | awk '!seen[$0]++' | paste -sd, -)
         break
     done
-    echo "Scanning interfaces: $LAN_IFACES"
+    echo "Scanning interfaces: $ifaces_answer"
 }
 
 # Computes the actual network address for an "ip/prefix" pair (e.g.
-# 192.168.1.24/24 -> 192.168.1.0/24) by zeroing the host bits -- `ip addr
+# 192.168.0.24/24 -> 192.168.0.0/24) by zeroing the host bits -- `ip addr
 # show` reports the interface's own host address with its prefix length,
 # not the network address, and NET_CIDR (used as the Apache "Require ip"
 # argument and stored in netwatch.env) is supposed to be the latter.
@@ -185,29 +184,29 @@ select_management_interface() {
     while true; do
         read -rp "Select management interface number (default: 1): " idx
         idx="${idx:-1}"
-        if ! [[ "$idx" =~ $_UH_UINT ]] || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#CAND_NAMES[@]}" ]; then
+        if ! [[ "$idx" =~ $UH_UINT ]] || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#candidate_names[@]}" ]; then
             echo "ERROR: Invalid selection. Try again."
             continue
         fi
-        MGMT_IFACE="${CAND_NAMES[$((idx - 1))]}"
+        mgmt_answer="${candidate_names[$((idx - 1))]}"
         break
     done
     local ip_with_prefix
-    ip_with_prefix=$(ip -4 addr show dev "$MGMT_IFACE" scope global | sed -n 's/.*inet \([0-9.]\{1,\}\/[0-9]\{1,\}\).*/\1/p' | head -n1)
-    if ! [[ "$ip_with_prefix" =~ $_UH_CIDR ]]; then
-        log "ERROR: no valid IPv4/CIDR on '$MGMT_IFACE' -- abort"
+    ip_with_prefix=$(ip -4 addr show dev "$mgmt_answer" scope global | sed -n 's/.*inet \([0-9.]\{1,\}\/[0-9]\{1,\}\).*/\1/p' | head -n1)
+    if ! [[ "$ip_with_prefix" =~ $UH_CIDR ]]; then
+        log "ERROR: no valid IPv4/CIDR on '$mgmt_answer' -- abort"
         exit 1
     fi
-    NET_CIDR=$(compute_network_cidr "$ip_with_prefix")
-    SERVER_IP=$(ip -4 addr show dev "$MGMT_IFACE" scope global | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
-    echo "Management interface : $MGMT_IFACE"
-    echo "Network : $NET_CIDR"
-    echo "Server IP : $SERVER_IP"
+    net_cidr_value=$(compute_network_cidr "$ip_with_prefix")
+    detected_ip=$(ip -4 addr show dev "$mgmt_answer" scope global | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
+    echo "Management interface : $mgmt_answer"
+    echo "Network : $net_cidr_value"
+    echo "Server IP : $detected_ip"
 }
 
-### INITIALIZE DB SCHEMA
+# INITIALIZE DB SCHEMA
 init_schema() {
-    sqlite3 "$DB_FILE" >/dev/null <<'SQL'
+    sqlite3 "$db_file" >/dev/null <<'SQL'
 PRAGMA journal_mode=WAL;
 
 CREATE TABLE IF NOT EXISTS devices (
@@ -268,15 +267,15 @@ CREATE INDEX IF NOT EXISTS idx_port_events_hostport ON port_events(source, host,
 SQL
 }
 
-### INSTALL
-### CHECK ALREADY INSTALLED
+# INSTALL
+# CHECK ALREADY INSTALLED
 check_already_installed() {
     local installed=0
     local reasons=""
 
-    if [ -f "$NETWATCH_ENV" ]; then
+    if [ -f "$netwatch_env" ]; then
         installed=1
-        reasons+=" - netwatch.env already exists: $NETWATCH_ENV\n"
+        reasons+=" - netwatch.env already exists: $netwatch_env\n"
     fi
 
     if [ -f "/etc/apache2/sites-available/netwatch.conf" ]; then
@@ -297,9 +296,9 @@ check_already_installed() {
 # add one @reboot cron entry per daemon, so a failure in one never keeps
 # the other from starting
 add_reboot_cron() {
-    if ! crontab -l 2>/dev/null | grep -qF "$NETWATCH_TOOLS/netwatchlan.sh start"; then
+    if ! crontab -l 2>/dev/null | grep -qF "$netwatch_tools/netwatchlan.sh start"; then
         crontab -l 2>/dev/null > "/root/crontab-$(date +%Y%m%d%H%M%S).bak" || true
-        (crontab -l 2>/dev/null; echo "@reboot $NETWATCH_TOOLS/netwatchlan.sh start"; echo "@reboot $NETWATCH_TOOLS/netwatchports.sh start") | crontab -
+        (crontab -l 2>/dev/null; echo "@reboot $netwatch_tools/netwatchlan.sh start"; echo "@reboot $netwatch_tools/netwatchports.sh start") | crontab -
         log "INFO: added to cron @reboot"
     fi
 }
@@ -337,43 +336,43 @@ do_install() {
     select_scan_interfaces
     select_management_interface
 
-    mkdir -p "$NETWATCH_WEB" "$NETWATCH_TOOLS" "$NETWATCH_DATA" "$NETWATCH_ETC"
+    mkdir -p "$netwatch_web" "$netwatch_tools" "$netwatch_data" "$netwatch_etc"
 
-    cp -f "$WEB_DIR"/*.php "$WEB_DIR"/*.html "$NETWATCH_WEB/"
-    chmod -R 755 "$NETWATCH_WEB"
-    chown -R www-data:www-data "$NETWATCH_WEB"
+    cp -f "$web_dir"/*.php "$web_dir"/*.html "$netwatch_web/"
+    chmod -R 755 "$netwatch_web"
+    chown -R www-data:www-data "$netwatch_web"
 
-    cp -f "$TOOLS_DIR"/*.sh "$NETWATCH_TOOLS/"
-    chmod +x "$NETWATCH_TOOLS"/*.sh
+    cp -f "$tools_dir"/*.sh "$netwatch_tools/"
+    chmod +x "$netwatch_tools"/*.sh
 
     init_schema
-    chown -R www-data:www-data "$NETWATCH_DATA"
-    chmod 775 "$NETWATCH_DATA"
+    chown -R www-data:www-data "$netwatch_data"
+    chmod 775 "$netwatch_data"
     # netwatch.db: root:www-data 640 -- daemons (root) read/write, web reads only.
-    chown root:www-data "$DB_FILE"
-    chmod 640 "$DB_FILE"
+    chown root:www-data "$db_file"
+    chmod 640 "$db_file"
 
     # Config dir /etc/netwatch: same model as proxymon's /etc/proxymon --
     # root:www-data 750, holds only read-only config (netwatch.env). The
     # web process must never be the writer of anything under /etc.
-    chown root:www-data "$NETWATCH_ETC"
-    chmod 750 "$NETWATCH_ETC"
+    chown root:www-data "$netwatch_etc"
+    chmod 750 "$netwatch_etc"
 
     # ports_mode.conf: mutable, web-writable state (active watch mode +
     # target IP) -- stays in the data dir, www-data:www-data, same as any
     # other web-writable file in this project (never under /etc).
-    cat > "$PORTS_MODE_FILE" <<'PMODE'
+    cat > "$ports_mode_file" <<'PMODE'
 PORTS_MODE="server"
 PORTS_TARGET_IP=""
 PMODE
-    chown www-data:www-data "$PORTS_MODE_FILE"
-    chmod 664 "$PORTS_MODE_FILE"
+    chown www-data:www-data "$ports_mode_file"
+    chmod 664 "$ports_mode_file"
 
     # apache vhost
     cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
-    sed -i "/^Listen .*:${VHOST_PORT}\$/d" /etc/apache2/ports.conf
-    printf 'Listen %s:%s\nListen 127.0.0.1:%s\n' "$SERVER_IP" "$VHOST_PORT" "$VHOST_PORT" | tee -a /etc/apache2/ports.conf
-    sed "s|192.168.0.0/24|${NET_CIDR}|" "$WEB_DIR/netwatch.conf" > /etc/apache2/sites-available/netwatch.conf
+    sed -i "/^Listen .*:${vhost_port}\$/d" /etc/apache2/ports.conf
+    printf 'Listen %s:%s\nListen 127.0.0.1:%s\n' "$detected_ip" "$vhost_port" "$vhost_port" | tee -a /etc/apache2/ports.conf
+    sed "s|192.168.0.0/24|${net_cidr_value}|" "$web_dir/netwatch.conf" > /etc/apache2/sites-available/netwatch.conf
     a2ensite -q netwatch.conf
 
     systemctl daemon-reload
@@ -382,14 +381,14 @@ PMODE
     # save install config; poll intervals are left unset here and get their
     # defaults from the daemons themselves (see LAN_POLL_INTERVAL,
     # LAN_OFFLINE_GRACE, PORT_POLL_INTERVAL, PURGE_CLOSED_AFTER_HOURS).
-    cat > "$NETWATCH_ENV" <<ENV
-LAN_IFACES="$LAN_IFACES"
-MGMT_IFACE="$MGMT_IFACE"
-NET_CIDR="$NET_CIDR"
-SERVER_IP="$SERVER_IP"
+    cat > "$netwatch_env" <<ENV
+LAN_IFACES="$ifaces_answer"
+MGMT_IFACE="$mgmt_answer"
+NET_CIDR="$net_cidr_value"
+SERVER_IP="$detected_ip"
 ENV
-    chown root:www-data "$NETWATCH_ENV"
-    chmod 640 "$NETWATCH_ENV"
+    chown root:www-data "$netwatch_env"
+    chmod 640 "$netwatch_env"
 
     # logrotate: the shared log has no size cap otherwise (both daemons
     # write to it indefinitely).
@@ -407,49 +406,49 @@ EOF
 
     # start daemons -- they are netwatch's core, not an optional extra, so
     # they auto-start right after install.
-    "$NETWATCH_TOOLS/netwatchlan.sh" start
-    "$NETWATCH_TOOLS/netwatchports.sh" start
+    "$netwatch_tools/netwatchlan.sh" start
+    "$netwatch_tools/netwatchports.sh" start
     add_reboot_cron
 
     echo ""
-    echo "LAN tab : http://localhost:${VHOST_PORT}/?tab=lan"
-    echo "Ports tab : http://localhost:${VHOST_PORT}/?tab=ports"
-    echo "Env file : $NETWATCH_ENV"
-    echo "Database : $DB_FILE"
-    echo "Tools dir : $NETWATCH_TOOLS"
+    echo "LAN tab : http://localhost:${vhost_port}/?tab=lan"
+    echo "Ports tab : http://localhost:${vhost_port}/?tab=ports"
+    echo "Env file : $netwatch_env"
+    echo "Database : $db_file"
+    echo "Tools dir : $netwatch_tools"
     echo ""
 
     log "netwatchinstall done at: $(date)"
 }
 
-### UPDATE
+# UPDATE
 do_update() {
     log "netwatchinstall start (update)..."
 
-    # Migration: netwatch.env from $NETWATCH_WWW to /etc/netwatch
-    local legacy_env="$NETWATCH_WWW/netwatch.env"
-    if [ ! -f "$NETWATCH_ENV" ] && [ -f "$legacy_env" ]; then
-        log "INFO: migrating netwatch.env to $NETWATCH_ENV"
-        mkdir -p "$NETWATCH_ETC"
-        chown root:www-data "$NETWATCH_ETC"
-        chmod 750 "$NETWATCH_ETC"
-        mv -f "$legacy_env" "$NETWATCH_ENV"
-        chown root:www-data "$NETWATCH_ENV"
-        chmod 640 "$NETWATCH_ENV"
+    # Migration: netwatch.env from $netwatch_www to /etc/netwatch
+    local legacy_env="$netwatch_www/netwatch.env"
+    if [ ! -f "$netwatch_env" ] && [ -f "$legacy_env" ]; then
+        log "INFO: migrating netwatch.env to $netwatch_env"
+        mkdir -p "$netwatch_etc"
+        chown root:www-data "$netwatch_etc"
+        chmod 750 "$netwatch_etc"
+        mv -f "$legacy_env" "$netwatch_env"
+        chown root:www-data "$netwatch_env"
+        chmod 640 "$netwatch_env"
     fi
 
-    if [ ! -f "$NETWATCH_ENV" ]; then
+    if [ ! -f "$netwatch_env" ]; then
         log "ERROR: netwatch is not installed."
         exit 1
     fi
 
     # Migration: add proto to the port_scan_state UNIQUE constraint
-    if [ -f "$DB_FILE" ]; then
+    if [ -f "$db_file" ]; then
         local current_schema
-        current_schema=$(sqlite3 "$DB_FILE" "SELECT sql FROM sqlite_master WHERE type='table' AND name='port_scan_state';" 2>/dev/null)
+        current_schema=$(sqlite3 "$db_file" "SELECT sql FROM sqlite_master WHERE type='table' AND name='port_scan_state';" 2>/dev/null)
         if [ -n "$current_schema" ] && ! printf '%s' "$current_schema" | grep -q "UNIQUE(source, host, port, proto)"; then
             log "INFO: migrating port_scan_state constraint"
-            sqlite3 "$DB_FILE" >/dev/null <<'SQL'
+            sqlite3 "$db_file" >/dev/null <<'SQL'
 BEGIN TRANSACTION;
 CREATE TABLE port_scan_state_new (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -473,37 +472,37 @@ COMMIT;
 SQL
         fi
 
-        chown root:www-data "$DB_FILE"
-        chmod 640 "$DB_FILE"
+        chown root:www-data "$db_file"
+        chmod 640 "$db_file"
     fi
 
-    "$NETWATCH_TOOLS/netwatchlan.sh" stop 2>/dev/null || true
-    "$NETWATCH_TOOLS/netwatchports.sh" stop 2>/dev/null || true
+    "$netwatch_tools/netwatchlan.sh" stop 2>/dev/null || true
+    "$netwatch_tools/netwatchports.sh" stop 2>/dev/null || true
 
     # web files (application code only -- netwatch.conf is never overwritten,
     # it may contain manual edits after install)
-    mkdir -p "$NETWATCH_WWW/backups"
-    for src in "$WEB_DIR"/*.php "$WEB_DIR"/*.html; do
+    mkdir -p "$netwatch_www/backups"
+    for src in "$web_dir"/*.php "$web_dir"/*.html; do
         [ -f "$src" ] || continue
         fname="$(basename "$src")"
-        dst="$NETWATCH_WEB/$fname"
-        [ -f "$dst" ] && cp -f "$dst" "$NETWATCH_WWW/backups/$fname.bak" &>/dev/null
+        dst="$netwatch_web/$fname"
+        [ -f "$dst" ] && cp -f "$dst" "$netwatch_www/backups/$fname.bak" &>/dev/null
         cp -f "$src" "$dst"
         log "INFO: updated $fname"
     done
-    chown -R www-data:www-data "$NETWATCH_WEB"
+    chown -R www-data:www-data "$netwatch_web"
 
-    for f in "$TOOLS_DIR"/*.sh; do
+    for f in "$tools_dir"/*.sh; do
         [ -f "$f" ] || continue
         fname="$(basename "$f")"
-        [ -f "$NETWATCH_TOOLS/$fname" ] && cp -f "$NETWATCH_TOOLS/$fname" "$NETWATCH_WWW/backups/$fname.bak" &>/dev/null
-        cp -f "$f" "$NETWATCH_TOOLS/$fname"
-        chmod +x "$NETWATCH_TOOLS/$fname"
+        [ -f "$netwatch_tools/$fname" ] && cp -f "$netwatch_tools/$fname" "$netwatch_www/backups/$fname.bak" &>/dev/null
+        cp -f "$f" "$netwatch_tools/$fname"
+        chmod +x "$netwatch_tools/$fname"
         log "INFO: updated $fname"
     done
 
-    "$NETWATCH_TOOLS/netwatchlan.sh" start
-    "$NETWATCH_TOOLS/netwatchports.sh" start
+    "$netwatch_tools/netwatchlan.sh" start
+    "$netwatch_tools/netwatchports.sh" start
     add_reboot_cron
 
     systemctl restart apache2
@@ -511,7 +510,7 @@ SQL
     log "netwatchinstall done at: $(date)"
 }
 
-### UNINSTALL
+# UNINSTALL
 do_uninstall() {
     # Confirm before the rm -rf below (interactive runs only)
     if [ -t 0 ]; then
@@ -525,15 +524,15 @@ do_uninstall() {
 
     log "netwatchinstall start (uninstall)..."
 
-    "$NETWATCH_TOOLS/netwatchlan.sh" stop 2>/dev/null || true
-    "$NETWATCH_TOOLS/netwatchports.sh" stop 2>/dev/null || true
+    "$netwatch_tools/netwatchlan.sh" stop 2>/dev/null || true
+    "$netwatch_tools/netwatchports.sh" stop 2>/dev/null || true
 
     a2dissite -q netwatch.conf &>/dev/null
-    sed -i "/^Listen .*:${VHOST_PORT}\$/d" /etc/apache2/ports.conf
+    sed -i "/^Listen .*:${vhost_port}\$/d" /etc/apache2/ports.conf
     rm -f /etc/apache2/sites-available/netwatch.conf
 
-    rm -rf "$NETWATCH_WWW"
-    rm -rf "$NETWATCH_ETC"
+    rm -rf "$netwatch_www"
+    rm -rf "$netwatch_etc"
 
     rm -f /etc/logrotate.d/netwatch /etc/logrotate.d/netwatch.bak
 
@@ -541,9 +540,9 @@ do_uninstall() {
     crontab -l 2>/dev/null > "/root/crontab-uninstall-$(date +%Y%m%d%H%M%S).bak" || true
     cron_tmp=$(mktemp)
     crontab -l 2>/dev/null > "$cron_tmp" || true
-    grep -vF "$NETWATCH_TOOLS/netwatchlan.sh start" "$cron_tmp" > "${cron_tmp}.next" || true
+    grep -vF "$netwatch_tools/netwatchlan.sh start" "$cron_tmp" > "${cron_tmp}.next" || true
     mv "${cron_tmp}.next" "$cron_tmp"
-    grep -vF "$NETWATCH_TOOLS/netwatchports.sh start" "$cron_tmp" > "${cron_tmp}.next" || true
+    grep -vF "$netwatch_tools/netwatchports.sh start" "$cron_tmp" > "${cron_tmp}.next" || true
     mv "${cron_tmp}.next" "$cron_tmp"
     crontab "$cron_tmp"
     rm -f "$cron_tmp"
@@ -554,7 +553,7 @@ do_uninstall() {
     log "netwatchinstall done at: $(date)"
 }
 
-### STATUS
+# STATUS
 do_status() {
     log "netwatchinstall start (status)..."
 
@@ -570,10 +569,10 @@ do_status() {
 
     echo ""
     echo "=== Apache Port ==="
-    if ss -tlnp 2>/dev/null | grep -qE ":${VHOST_PORT}[[:space:]]"; then
-        echo ":${VHOST_PORT} OPEN"
+    if ss -tlnp 2>/dev/null | grep -qE ":${vhost_port}[[:space:]]"; then
+        echo ":${vhost_port} OPEN"
     else
-        echo ":${VHOST_PORT} CLOSED"
+        echo ":${vhost_port} CLOSED"
     fi
 
     echo ""
@@ -583,32 +582,32 @@ do_status() {
 
     echo ""
     echo "=== Config ==="
-    if [ -f "$NETWATCH_ENV" ]; then
-        echo "Scan interfaces : $(grep '^LAN_IFACES=' "$NETWATCH_ENV" | cut -d= -f2- | tr -d '"')"
-        echo "Management iface : $(grep '^MGMT_IFACE=' "$NETWATCH_ENV" | cut -d= -f2- | tr -d '"')"
+    if [ -f "$netwatch_env" ]; then
+        echo "Scan interfaces : $(grep '^LAN_IFACES=' "$netwatch_env" | cut -d= -f2- | tr -d '"')"
+        echo "Management iface : $(grep '^MGMT_IFACE=' "$netwatch_env" | cut -d= -f2- | tr -d '"')"
     else
-        echo "$NETWATCH_ENV not found"
+        echo "$netwatch_env not found"
     fi
-    if [ -f "$PORTS_MODE_FILE" ]; then
-        echo "Ports mode : $(grep '^PORTS_MODE=' "$PORTS_MODE_FILE" | cut -d= -f2- | tr -d '"')"
-        echo "Ports target : $(grep '^PORTS_TARGET_IP=' "$PORTS_MODE_FILE" | cut -d= -f2- | tr -d '"')"
+    if [ -f "$ports_mode_file" ]; then
+        echo "Ports mode : $(grep '^PORTS_MODE=' "$ports_mode_file" | cut -d= -f2- | tr -d '"')"
+        echo "Ports target : $(grep '^PORTS_TARGET_IP=' "$ports_mode_file" | cut -d= -f2- | tr -d '"')"
     fi
 
     echo ""
     echo "=== Database ==="
-    if [ -f "$DB_FILE" ]; then
+    if [ -f "$db_file" ]; then
         echo "Devices:"
-        sqlite3 "$DB_FILE" "SELECT status, COUNT(*) FROM devices GROUP BY status;" 2>/dev/null | sed 's/^/ /'
+        sqlite3 "$db_file" "SELECT status, COUNT(*) FROM devices GROUP BY status;" 2>/dev/null | sed 's/^/ /'
         echo "Ports (active mode):"
-        sqlite3 "$DB_FILE" "SELECT status, COUNT(*) FROM port_scan_state GROUP BY status;" 2>/dev/null | sed 's/^/ /'
+        sqlite3 "$db_file" "SELECT status, COUNT(*) FROM port_scan_state GROUP BY status;" 2>/dev/null | sed 's/^/ /'
     else
-        echo "$DB_FILE not found"
+        echo "$db_file not found"
     fi
 
     log "netwatchinstall done at: $(date)"
 }
 
-### MENU
+# MENU
 show_menu() {
     while true; do
         echo ""
@@ -633,7 +632,7 @@ show_menu() {
     done
 }
 
-### ARGUMENT HANDLING
+# ACTIONS
 case "${1:-}" in
     --install) do_install ;;
     --update) do_update ;;

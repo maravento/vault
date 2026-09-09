@@ -4,11 +4,10 @@
 :: Autorun Disable
 :: For Windows 10/11
 
-:: NOTE: Since Windows Vista (security update from 2011 onward), autorun.inf
-:: execution on removable/USB drives is already disabled by default at the
-:: system level, regardless of this registry value. This script exists to
-:: enforce/restore NoDriveTypeAutoRun=0xFF in case an app, malware, or a
-:: policy change enables Autorun intentionally or accidentally.
+:: NOTE: In Windows 10/11, autorun.inf execution on removable/USB drives 
+:: is disabled by default at the system level, regardless of this registry value. 
+:: This script should only be used if a malware, app, or user action has enabled 
+:: Autorun intentionally or accidentally, to enforce/restore NoDriveTypeAutoRun=0xFF.
 
 net session >nul 2>&1
 if %errorlevel% neq 0 (

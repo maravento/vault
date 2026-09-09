@@ -16,16 +16,16 @@
 
 set -uo pipefail
 
-# PATH for cron
+# path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
-# LOCAL USER detection
+# local_user detection
 detect_local_user() {
     local uid_min uid_max
     local user uid best_user="" best_uid=999999
@@ -65,33 +65,34 @@ echo "Using local user: $local_user"
 
 echo "ArpWatch starting. Wait..."
 
-# Desktop notification helper (X11 and Wayland, silent if no desktop session)
-_notify() {
-    local user="$1"; shift
-    local uid
-    uid=$(id -u "$user")
-    local bus="unix:path=/run/user/${uid}/bus"
-    local xdg_runtime="/run/user/${uid}"
+# desktop notification to another user (X11 and Wayland, silent if no session)
+notify_send() {
+    local target_user="$1"; shift
+    [ -z "$target_user" ] && return 0
+    local target_uid
+    target_uid=$(id -u "$target_user" 2>/dev/null) || return 0
+    local dbus_address="unix:path=/run/user/${target_uid}/bus"
+    local xdg_runtime_dir="/run/user/${target_uid}"
     local session_type
     session_type=$(loginctl show-session \
-        "$(loginctl show-user "$user" 2>/dev/null | awk -F= '/^Sessions=/{print $2}')" \
+        "$(loginctl show-user "$target_user" 2>/dev/null | awk -F= '/^Sessions=/{print $2}')" \
         -p Type --value 2>/dev/null || echo "x11")
     if [[ "$session_type" == "wayland" ]]; then
-        sudo -u "$user" \
-            DBUS_SESSION_BUS_ADDRESS="$bus" \
+        sudo -u "$target_user" \
+            DBUS_SESSION_BUS_ADDRESS="$dbus_address" \
             WAYLAND_DISPLAY=wayland-1 \
-            XDG_RUNTIME_DIR="$xdg_runtime" \
+            XDG_RUNTIME_DIR="$xdg_runtime_dir" \
             notify-send "$@" 2>/dev/null || true
     else
-        sudo -u "$user" \
+        sudo -u "$target_user" \
             DISPLAY=:0 \
-            DBUS_SESSION_BUS_ADDRESS="$bus" \
-            XDG_RUNTIME_DIR="$xdg_runtime" \
+            DBUS_SESSION_BUS_ADDRESS="$dbus_address" \
+            XDG_RUNTIME_DIR="$xdg_runtime_dir" \
             notify-send "$@" 2>/dev/null || true
     fi
 }
 
-# DEPENDENCIES
+# dependencies
 for dep in arpwatch libnotify-bin systemd iproute2 procps bsdutils coreutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -103,6 +104,10 @@ done
 if systemctl is-enabled --quiet arpwatch.service; then
     systemctl disable --now arpwatch.service
 fi
+
+# validation -- one variable per thing validated; use directly with =~
+UH_MAC_RE='([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}'
+UH_MAC="^${UH_MAC_RE}$"
 
 LOGDIR="/var/log/arpwatch"
 mkdir -p "$LOGDIR"
@@ -165,12 +170,12 @@ start() {
         LOGFILE="$LOGDIR/arpwatch_$iface.log"
         tail -n0 -F "$LOGFILE" | while read -r line; do
             if [[ "$line" =~ new\ station|changed\ ethernet|flip-flop|duplicate ]]; then
-                mac=$(echo "$line" | grep -o -i -E '([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}')
-                if ! grep -iq "$mac" "$WHITELIST"; then
+                mac=$(echo "$line" | grep -o -i -E "$UH_MAC_RE")
+                if [[ "$mac" =~ $UH_MAC ]] && ! grep -iq "$mac" "$WHITELIST"; then
                     msg="[$iface] $line"
                     logger -t arpwatch "$msg"
                     echo "$(date +'%F %T') $msg" | tee -a "$UNIFIED_LOG"
-                    _notify "$local_user" -i checkbox "ARPWatch" "$msg"
+                    notify_send "$local_user" -i checkbox "ARPWatch" "$msg"
                 fi
             fi
         done &

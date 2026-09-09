@@ -19,7 +19,7 @@
 
 set -uo pipefail
 
-# PATH for cron
+# path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # logging
@@ -29,7 +29,7 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     log "ERROR: This script must be run as root -- abort"
     exit 1
@@ -49,7 +49,7 @@ echo "----------------------------------------------------------------" | tee -a
 # Start
 log "diskcheck start..."
 
-# LOCAL USER detection
+# local_user detection
 detect_local_user() {
     local uid_min uid_max
     local user uid best_user="" best_uid=999999
@@ -87,7 +87,7 @@ if ! local_user=$(detect_local_user); then
 fi
 log "Using local user: $local_user"
 
-# DEPENDENCIES
+# dependencies
 for dep in inxi smartmontools util-linux libnotify-bin; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: dependency '$dep' is not installed -- abort"
@@ -133,28 +133,29 @@ fi
 
 # ---------------------------------------------------------------------
 # HELPER: send desktop notification + syslog
-# ---------------------------------------------------------------------
-_notify() {
-    local user="$1"; shift
-    local uid
-    uid=$(id -u "$user")
-    local bus="unix:path=/run/user/${uid}/bus"
-    local xdg_runtime="/run/user/${uid}"
+# desktop notification to another user (X11 and Wayland, silent if no session)
+notify_send() {
+    local target_user="$1"; shift
+    [ -z "$target_user" ] && return 0
+    local target_uid
+    target_uid=$(id -u "$target_user" 2>/dev/null) || return 0
+    local dbus_address="unix:path=/run/user/${target_uid}/bus"
+    local xdg_runtime_dir="/run/user/${target_uid}"
     local session_type
     session_type=$(loginctl show-session \
-        "$(loginctl show-user "$user" 2>/dev/null | awk -F= '/^Sessions=/{print $2}')" \
+        "$(loginctl show-user "$target_user" 2>/dev/null | awk -F= '/^Sessions=/{print $2}')" \
         -p Type --value 2>/dev/null || echo "x11")
     if [[ "$session_type" == "wayland" ]]; then
-        sudo -u "$user" \
-            DBUS_SESSION_BUS_ADDRESS="$bus" \
+        sudo -u "$target_user" \
+            DBUS_SESSION_BUS_ADDRESS="$dbus_address" \
             WAYLAND_DISPLAY=wayland-1 \
-            XDG_RUNTIME_DIR="$xdg_runtime" \
+            XDG_RUNTIME_DIR="$xdg_runtime_dir" \
             notify-send "$@" 2>/dev/null || true
     else
-        sudo -u "$user" \
+        sudo -u "$target_user" \
             DISPLAY=:0 \
-            DBUS_SESSION_BUS_ADDRESS="$bus" \
-            XDG_RUNTIME_DIR="$xdg_runtime" \
+            DBUS_SESSION_BUS_ADDRESS="$dbus_address" \
+            XDG_RUNTIME_DIR="$xdg_runtime_dir" \
             notify-send "$@" 2>/dev/null || true
     fi
 }
@@ -164,7 +165,7 @@ notify_alert() {
     local icon="${2:-dialog-warning}"
     logger -t disktemp "$msg"
     log "$msg"
-    _notify "$local_user" -i "$icon" "DISK ALERT" "$msg" \
+    notify_send "$local_user" -i "$icon" "DISK ALERT" "$msg" \
         || log " notify-send failed (no desktop session?)"
 }
 

@@ -60,10 +60,10 @@
 
 set -uo pipefail
 
-# VALIDATION -- one variable per thing validated; use directly with =~
-_UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+# validation -- one variable per thing validated; use directly with =~
+UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
@@ -78,7 +78,7 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# DEPENDENCIES
+# dependencies
 for dep in perl gawk gzip util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -86,7 +86,7 @@ for dep in perl gawk gzip util-linux; do
     fi
 done
 
-# DEPENDENCIES (squid or squid-openssl)
+# dependencies (squid or squid-openssl)
 if ! dpkg -s squid &>/dev/null && ! dpkg -s squid-openssl &>/dev/null; then
     echo "ERROR: 'squid' or 'squid-openssl' is not installed -- abort" >&2
     exit 1
@@ -121,7 +121,7 @@ squid_filter() {
     read -p "Enter the word to search (e.g. google): " WORD
 
     IPNEW=""
-    [[ "$IP" =~ $_UH_IPV4 ]] && IPNEW="$IP"
+    [[ "$IP" =~ $UH_IPV4 ]] && IPNEW="$IP"
 
     if [[ "$IPNEW" ]]; then
         zcat -f $ACCESS_LOG 2>/dev/null | perl -pe 's/^(\d+\.\d+)/localtime($1)/e' \
@@ -492,8 +492,8 @@ squid_ip_timeframe() {
 
     # 2. User Input & Validation
     # Prompt for IP and validate format
-    read -p "Enter IP address (e.g. 192.168.10.42): " IP
-    [[ ! "$IP" =~ $_UH_IPV4 ]] && { echo "Invalid IP format"; return; }
+    read -p "Enter IP address (e.g. 192.168.0.10): " IP
+    [[ ! "$IP" =~ $UH_IPV4 ]] && { echo "Invalid IP format"; return; }
 
     # Prompt for date, default to current system date if empty
     read -p "Date (YYYY-MM-DD, enter for today): " USER_DATE

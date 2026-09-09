@@ -9,13 +9,13 @@
 
 set -uo pipefail
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
-# DEPENDENCIES
+# dependencies
 for dep in procps; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -25,7 +25,7 @@ done
 
 echo "Kill Process Starting. Wait..."
 
-### KILL PROCESS
+# KILL PROCESS
 read -rp "Set process name (e.g. vlc): " PS
 
 if [ -z "$PS" ]; then

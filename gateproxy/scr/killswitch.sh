@@ -28,7 +28,7 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     log "ERROR: This script must be run as root -- abort"
     exit 1
@@ -43,7 +43,7 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# DEPENDENCIES
+# dependencies
 for dep in iptables iproute2 conntrack util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: missing dependency '$dep' -- abort"
@@ -55,9 +55,9 @@ done
 log "killswitch start..."
 
 ####################
-### KERNEL RULES ###
+# KERNEL RULES ###
 ####################
-### Zero all packets and counters ###
+# Zero all packets and counters ###
 iptables -F
 iptables -X
 iptables -t nat -F
@@ -71,19 +71,19 @@ iptables -t security -X
 iptables -Z
 iptables -t nat -Z
 iptables -t mangle -Z
-### Global Policies IPv4
+# Global Policies IPv4
 iptables -P INPUT DROP
 iptables -P FORWARD DROP
 iptables -P OUTPUT DROP
-### Global Policies IPv6
+# Global Policies IPv6
 ip6tables -P INPUT DROP
 ip6tables -P FORWARD DROP
 ip6tables -P OUTPUT DROP
-### Blackhole IPv4
+# Blackhole IPv4
 ip route replace blackhole 0.0.0.0/0 2>/dev/null || true
-### Blackhole IPv6
+# Blackhole IPv6
 ip -6 route replace blackhole ::/0 2>/dev/null || true
-### Flush conntrack (existing connections bypass DROP policies)
+# Flush conntrack (existing connections bypass DROP policies)
 conntrack -F 2>/dev/null || true
 
 # End

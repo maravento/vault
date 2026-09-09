@@ -9,7 +9,7 @@
 
 set -uo pipefail
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
@@ -24,7 +24,7 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# LOCAL USER detection
+# local_user detection
 detect_local_user() {
     local uid_min uid_max
     local user uid best_user="" best_uid=999999
@@ -62,7 +62,7 @@ if ! local_user=$(detect_local_user); then
 fi
 echo "Using local user: $local_user"
 
-# DEPENDENCIES
+# dependencies
 for dep in wget gnupg lsb-release psmisc procps findutils systemd sudo util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -72,8 +72,8 @@ done
 
 echo "Virtualbox Install | Remove Starting. Wait..."
 
-### FUNCTIONS
-function vboxinstall() {
+# FUNCTIONS
+vboxinstall() {
     echo "Installing Virtualbox..."
     # Download and install .asc
     wget --timeout=30 -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | gpg --dearmor | tee /usr/share/keyrings/virtualbox.gpg &>/dev/null
@@ -107,7 +107,7 @@ function vboxinstall() {
     echo "Done. Reboot"
 }
 
-function vboxpurge() {
+vboxpurge() {
     echo "Removing Virtualbox..."
     sudo -u $local_user bash -c "VBoxManage list runningvms | grep -oP '(?<=\{)[0-9a-f-]+(?=\})' | xargs -r -I {} VBoxManage controlvm {} poweroff"
     ps ax | grep -P 'vboxwebsrv|VirtualBox|Vbox' | awk '{print $1}' | xargs kill -9 &>/dev/null

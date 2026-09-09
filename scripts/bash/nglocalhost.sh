@@ -21,7 +21,7 @@ fi
 
 echo "ngLocalhost Tunnel Starting. Wait..."
 
-# DEPENDENCIES
+# dependencies
 for dep in openssh-client netcat-openbsd procps iproute2 coreutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2

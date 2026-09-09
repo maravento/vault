@@ -12,7 +12,7 @@ set -uo pipefail
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
     exit 1
@@ -29,7 +29,7 @@ fi
 
 echo "Force Log Rotate Start. Wait..."
 
-# DEPENDENCIES
+# dependencies
 for dep in logrotate bsdutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2

@@ -78,12 +78,12 @@
 
 set -uo pipefail
 
-### --- USER CONFIGURATION --- ###
+# --- USER CONFIGURATION --- ###
 # Cloudflare API Token (Zone:DNS:Edit permission), only needed for 'delete'
 # to auto-remove the DNS record. Leave empty to skip automatic DNS deletion.
 token_cloudflare=""
 
-# PATH for cron
+# path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # check no-root
@@ -92,7 +92,7 @@ if [ "$(id -u)" == "0" ]; then
     exit 1
 fi
 
-# DEPENDENCIES
+# dependencies
 for dep in cloudflared curl cron procps util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
@@ -100,19 +100,19 @@ for dep in cloudflared curl cron procps util-linux; do
     fi
 done
 
-### --- CONFIGURATION --- ###
+# --- CONFIGURATION --- ###
 
 _resolve_user_home() {
-    local home=""
+    local user_home=""
     # 1. getent with explicit user from SUDO_USER or USER or logname
     local try_user="${SUDO_USER:-${USER:-}}"
     [ -z "$try_user" ] && try_user=$(logname 2>/dev/null || true)
-    [ -n "$try_user" ] && home=$(getent passwd "$try_user" | cut -d: -f6)
+    [ -n "$try_user" ] && user_home=$(getent passwd "$try_user" | cut -d: -f6)
     # 2. Fall back to $HOME if set and valid
-    [ -z "$home" ] && [ -n "${HOME:-}" ] && [ -d "$HOME" ] && home="$HOME"
+    [ -z "$user_home" ] && [ -n "${HOME:-}" ] && [ -d "$HOME" ] && user_home="$HOME"
     # 3. getent with current UID
-    [ -z "$home" ] && home=$(getent passwd "$(id -u)" | cut -d: -f6)
-    echo "$home"
+    [ -z "$user_home" ] && user_home=$(getent passwd "$(id -u)" | cut -d: -f6)
+    echo "$user_home"
 }
 
 USER_HOME=$(_resolve_user_home)
@@ -125,17 +125,17 @@ CONFIG_DIR="$USER_HOME/.cloudflared"
 CLOUDFLARED_BIN="$(command -v cloudflared)"
 mkdir -p "$CONFIG_DIR"
 
-### --- VALIDATION --- ###
-# VALIDATION -- one variable per thing validated; use directly with =~
-_UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
-_UH_UINT='^(0|[1-9][0-9]*)$'
-_UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+# --- VALIDATION --- ###
+# validation -- one variable per thing validated; use directly with =~
+UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+UH_UINT='^(0|[1-9][0-9]*)$'
+UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
 
 is_valid_port() {
-    [[ "$1" =~ $_UH_UINT ]] && (( $1 >= 1 && $1 <= 65535 ))
+    [[ "$1" =~ $UH_UINT ]] && (( $1 >= 1 && $1 <= 65535 ))
 }
 
-### --- FUNCTIONS --- ###
+# --- FUNCTIONS --- ###
 
 preflight_check() {
     local max_retries=10
@@ -192,7 +192,7 @@ get_tunnel_id() {
 
 _pid_is_valid() {
     local pid="$1"
-    [[ -n "$pid" && "$pid" =~ $_UH_UINT ]]
+    [[ -n "$pid" && "$pid" =~ $UH_UINT ]]
 }
 
 # Deletes the DNS record for $1 (hostname) via the Cloudflare API.
@@ -200,16 +200,16 @@ _pid_is_valid() {
 # aborts the caller: missing token, missing zone, or missing record are all
 # reported and skipped.
 delete_dns_record() {
-    local hostname="$1"
+    local tunnel_hostname="$1"
 
-    if [[ -z "$hostname" ]]; then
+    if [[ -z "$tunnel_hostname" ]]; then
         echo "WARNING: No hostname found in config; skipping DNS record deletion."
         return 0
     fi
 
     if [[ -z "$token_cloudflare" ]]; then
         echo "WARNING: 'token_cloudflare' is not set; skipping automatic DNS deletion."
-        echo "[NOTE] Remove the DNS record for '$hostname' manually from the Cloudflare dashboard."
+        echo "[NOTE] Remove the DNS record for '$tunnel_hostname' manually from the Cloudflare dashboard."
         return 0
     fi
 
@@ -221,13 +221,13 @@ delete_dns_record() {
         return 0
     }
 
-    # pick the zone whose name is the longest suffix match of $hostname
+    # pick the zone whose name is the longest suffix match of $tunnel_hostname
     local zone_id=""
     local zone_name=""
     local candidate
     while IFS=$'\t' read -r candidate cid; do
         [[ -z "$candidate" ]] && continue
-        if [[ "$hostname" == "$candidate" || "$hostname" == *".$candidate" ]]; then
+        if [[ "$tunnel_hostname" == "$candidate" || "$tunnel_hostname" == *".$candidate" ]]; then
             if [[ ${#candidate} -gt ${#zone_name} ]]; then
                 zone_name="$candidate"
                 zone_id="$cid"
@@ -236,14 +236,14 @@ delete_dns_record() {
     done < <(echo "$zones_response" | gawk 'match($0,/"id":"[a-f0-9]+"/){id=substr($0,RSTART+6,RLENGTH-7)} match($0,/"name":"[^"]+"/){name=substr($0,RSTART+8,RLENGTH-9); if(id!="") print name"\t"id; id=""}' RS='}' ORS='\n')
 
     if [[ -z "$zone_id" ]]; then
-        echo "WARNING: No matching Cloudflare zone found for '$hostname'; skipping automatic DNS deletion."
+        echo "WARNING: No matching Cloudflare zone found for '$tunnel_hostname'; skipping automatic DNS deletion."
         return 0
     fi
 
     local records_response
-    records_response=$(curl -sf -X GET "https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records?name=${hostname}" \
+    records_response=$(curl -sf -X GET "https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records?name=${tunnel_hostname}" \
         -H "Authorization: Bearer $api_token" -H "Content-Type: application/json") || {
-        echo "WARNING: Could not query DNS records for '$hostname'; skipping automatic DNS deletion."
+        echo "WARNING: Could not query DNS records for '$tunnel_hostname'; skipping automatic DNS deletion."
         return 0
     }
 
@@ -251,16 +251,16 @@ delete_dns_record() {
     record_id=$(echo "$records_response" | gawk 'match($0,/"id":"[a-f0-9]+"/){print substr($0,RSTART+6,RLENGTH-7); exit}')
 
     if [[ -z "$record_id" ]]; then
-        echo "[OK] No DNS record found for '$hostname' (already removed or never created)."
+        echo "[OK] No DNS record found for '$tunnel_hostname' (already removed or never created)."
         return 0
     fi
 
-    echo "Deleting DNS record for '$hostname' (zone: $zone_name)..."
+    echo "Deleting DNS record for '$tunnel_hostname' (zone: $zone_name)..."
     if curl -sf -X DELETE "https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records/${record_id}" \
         -H "Authorization: Bearer $api_token" -H "Content-Type: application/json" >/dev/null; then
-        echo "[OK] DNS record for '$hostname' deleted."
+        echo "[OK] DNS record for '$tunnel_hostname' deleted."
     else
-        echo "WARNING: Failed to delete DNS record for '$hostname'; remove it manually from the dashboard."
+        echo "WARNING: Failed to delete DNS record for '$tunnel_hostname'; remove it manually from the dashboard."
     fi
 }
 
@@ -488,18 +488,18 @@ create_tunnel() {
 
     local credentials_file="$CONFIG_DIR/${tunnel_id}.json"
 
-    local hostname service no_tls_verify service_type svc_ip svc_port domain
+    local tunnel_hostname service no_tls_verify service_type svc_ip svc_port domain
     while true; do
-        read -r -p "Public hostname (e.g. sub.domain.com): " hostname
-        if [[ -z "$hostname" ]]; then
+        read -r -p "Public hostname (e.g. sub.domain.com): " tunnel_hostname
+        if [[ -z "$tunnel_hostname" ]]; then
             echo "ERROR: Hostname is required. Aborting."
             return 1
         fi
-        if [[ ! "$hostname" =~ $_UH_FQDN ]]; then
-            echo "WARNING: Invalid hostname format: '$hostname'"
+        if [[ ! "$tunnel_hostname" =~ $UH_FQDN ]]; then
+            echo "WARNING: Invalid hostname format: '$tunnel_hostname'"
             continue
         fi
-        domain="${hostname#*.}"
+        domain="${tunnel_hostname#*.}"
         if ! getent hosts "$domain" >/dev/null 2>&1; then
             echo "WARNING: Invalid domain: '$domain'"
             continue
@@ -511,7 +511,7 @@ create_tunnel() {
     case "$service_type" in
         http|https|tcp)
             read -r -p "Server IP: " svc_ip
-            if [[ ! "$svc_ip" =~ $_UH_IPV4 ]]; then
+            if [[ ! "$svc_ip" =~ $UH_IPV4 ]]; then
                 echo "ERROR: Invalid IP: '$svc_ip'"
                 return 1
             fi
@@ -542,7 +542,7 @@ create_tunnel() {
         echo "credentials-file: $credentials_file"
         echo ""
         echo "ingress:"
-        echo "  - hostname: $hostname"
+        echo "  - hostname: $tunnel_hostname"
         echo "    service: $service"
         if [[ "$no_tls_verify" == "yes" ]]; then
             echo "    originRequest:"
@@ -554,9 +554,9 @@ create_tunnel() {
     echo "[OK] Config file created: $config_file"
 
     local do_route
-    read -r -p "Route DNS '$hostname' to this tunnel now? (y/n): " do_route
+    read -r -p "Route DNS '$tunnel_hostname' to this tunnel now? (y/n): " do_route
     if [[ "$do_route" =~ ^[Yy]$ ]]; then
-        "$CLOUDFLARED_BIN" tunnel route dns "$tunnel_name" "$hostname"
+        "$CLOUDFLARED_BIN" tunnel route dns "$tunnel_name" "$tunnel_hostname"
     fi
 
     local do_start
@@ -689,7 +689,7 @@ delete_tunnel() {
         return 1
     fi
 
-    if [[ "$tunnel_name" =~ $_UH_UINT ]]; then
+    if [[ "$tunnel_name" =~ $UH_UINT ]]; then
         local index=$((tunnel_name - 1))
         if [[ $index -lt 0 || $index -ge ${#tunnels[@]} ]]; then
             echo "ERROR: Invalid selection: $tunnel_name"
@@ -712,9 +712,9 @@ delete_tunnel() {
         return 0
     fi
 
-    local tunnel_id hostname
+    local tunnel_id tunnel_hostname
     tunnel_id=$(get_tunnel_id "$config_file")
-    hostname=$(grep "hostname:" "$config_file" | head -1 | awk '{print $3}')
+    tunnel_hostname=$(grep "hostname:" "$config_file" | head -1 | awk '{print $3}')
 
     stop_tunnel "$tunnel_name"
 
@@ -724,7 +724,7 @@ delete_tunnel() {
         "$CLOUDFLARED_BIN" tunnel delete -f "$tunnel_name" 2>&1
     fi
 
-    delete_dns_record "$hostname"
+    delete_dns_record "$tunnel_hostname"
 
     rm -f "$config_file" "$CONFIG_DIR/${tunnel_name}.pid" "$CONFIG_DIR/${tunnel_name}.log"
     [[ -n "$tunnel_id" ]] && rm -f "$CONFIG_DIR/${tunnel_id}.json"
@@ -741,7 +741,7 @@ _cron_remove() {
     fi
 }
 
-### --- MAIN --- ###
+# --- MAIN --- ###
 ACTION="${1:-}"
 
 if [[ -z "$ACTION" ]]; then
