@@ -330,8 +330,12 @@ sudo ./netreport.sh
 /etc/logrotate.d/netwatch              # Weekly rotation for the shared log
 
 /var/www/netwatch/backups/             # .bak of web files and tools, one per --update
-/root/crontab-*.bak                    # crontab backup, written before each cron edit
+/etc/bak/crontab/root.bak              # Copy of root's crontab, taken before any cron entry is added or removed
 ```
+
+> `netwatchinstall.sh` copies root's crontab to `/etc/bak/crontab/root.bak` before adding or removing any cron entry. It is a single copy, overwritten on every run, shared with every other project that touches the same crontab, and it is never restored automatically. `--uninstall` does not restore it either: it deletes only its own entries, matched by the full script path, and leaves every other cron job untouched. To roll back, restore the copy by hand with `crontab /etc/bak/crontab/root.bak`.
+>
+> `netwatchinstall.sh` copia el crontab de root en `/etc/bak/crontab/root.bak` antes de agregar o quitar cualquier entrada de cron. Es una sola copia, sobrescrita en cada ejecución, compartida con cualquier otro proyecto que toque el mismo crontab, y nunca se restaura de forma automática. `--uninstall` tampoco la restaura: borra únicamente sus propias entradas, identificadas por la ruta completa del script, y deja intactas las demás tareas de cron. Para deshacer un cambio, restaura la copia a mano con `crontab /etc/bak/crontab/root.bak`.
 
 #### Requirements
 

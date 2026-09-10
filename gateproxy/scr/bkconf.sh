@@ -31,49 +31,6 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# local_user detection
-detect_local_user() {
-    local uid_min uid_max
-    local user uid best_user="" best_uid=999999
-
-    uid_min=$(awk '/^UID_MIN/{print $2}' /etc/login.defs 2>/dev/null)
-    uid_max=$(awk '/^UID_MAX/{print $2}' /etc/login.defs 2>/dev/null)
-    uid_min=${uid_min:-1000}
-    uid_max=${uid_max:-60000}
-
-    while IFS=: read -r user _ uid _ _ _ shell; do
-        [ "$user" = "root" ] && continue
-        [ -z "$uid" ] && continue
-        [ "$uid" -lt "$uid_min" ] && continue
-        [ "$uid" -gt "$uid_max" ] && continue
-
-        case "$shell" in
-            */false|*/nologin) continue ;;
-        esac
-
-        id -nG "$user" 2>/dev/null | grep -qw sudo || continue
-
-        if [ "$uid" -lt "$best_uid" ]; then
-            best_uid="$uid"
-            best_user="$user"
-        fi
-    done </etc/passwd
-
-    [ -n "$best_user" ] || return 1
-    echo "$best_user"
-}
-
-if ! local_user=$(detect_local_user); then
-    log "ERROR: No valid local user found. Create one with sudo access."
-    exit 1
-fi
-local_home=$(getent passwd "$local_user" | cut -d: -f6)
-if [ -z "$local_home" ] || [ ! -d "$local_home" ]; then
-    log "ERROR: no home directory for user $local_user -- abort"
-    exit 1
-fi
-log "Using local user: $local_user ($local_home)"
-
 # dependencies
 for dep in zip coreutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
@@ -83,9 +40,10 @@ for dep in zip coreutils util-linux; do
 done
 
 # VARIABLES
-# path to cloud
-bkconfig="$local_home/bkconf"
+# project backup path
+bkconfig="/etc/bak/gateproxy"
 mkdir -p "$bkconfig" >/dev/null 2>&1
+chmod 700 "$bkconfig"
 
 log "bkconfig start..."
 
@@ -120,6 +78,10 @@ case "${1:-}" in
     log "Start Backup Config Files..."
     if zip -r "$bkconfig/$zipbk" "${pathbk[@]}" >/dev/null; then
         log "Backup Config: $bkconfig/$zipbk"
+        old_backups=("$bkconfig"/backup_*.zip)
+        if (( ${#old_backups[@]} > 3 )); then
+            printf '%s\n' "${old_backups[@]}" | sort | head -n -3 | xargs -r rm -f
+        fi
     else
         log "ERROR: backup failed -- abort"
         exit 1

@@ -429,11 +429,6 @@ start() {
         exit 1
     fi
 
-    if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
-        log "netwatchports is already running with PID $(cat "$pid_file")"
-        exit 1
-    fi
-
     # Enforce perms unconditionally: the shared /var/log/netwatch.log may
     # already exist (created by the installer or the other daemon), so
     # normalize ownership/mode on every start rather than only on creation.

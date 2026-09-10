@@ -74,8 +74,8 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 - [x11vnc (install|uninstall|start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/x11vncmgr.sh)
 
 #### Proxy & Firewall
+
 - [IP Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ipkill.sh)
-- [Squid Analysis Tool](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/squidtool.sh)
 - [Squid-OpenSSL (ssl-bump)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/sslbump.sh)
 
 #### Server & Deployment
@@ -115,7 +115,6 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 
 - [Netplan Manager - Networking Category (install|uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/netplanmgr.sh)
 - [Services Monitor - System Category (install|uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/servicemon.sh)
-- [Squid Monitor - Server Category (install|uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/squidmon.sh)
 
 ### BATCH (Windows)
 

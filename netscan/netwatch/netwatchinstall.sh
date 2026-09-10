@@ -106,8 +106,8 @@ list_candidate_interfaces() {
     while read -r iface addr; do
         [ -z "$iface" ] && continue
         [[ "$iface" =~ $virtual_iface_pattern ]] && continue
-        CAND_NAMES+=("$iface")
-        CAND_ADDRS+=("$addr")
+        candidate_names+=("$iface")
+        candidate_addrs+=("$addr")
     done < <(ip -4 addr show scope global | awk '/inet /{print $NF, $2}')
     if [ "${#candidate_names[@]}" -eq 0 ]; then
         echo "ERROR: No physical network interfaces with a global IPv4 address found (virtual/loopback interfaces are excluded)."
@@ -117,7 +117,7 @@ list_candidate_interfaces() {
 
 print_candidate_interfaces() {
     local i
-    for i in "${!CAND_NAMES[@]}"; do
+    for i in "${!candidate_names[@]}"; do
         printf " %2d) %-12s %s\n" "$((i + 1))" "${candidate_names[$i]}" "${candidate_addrs[$i]}"
     done
 }
@@ -293,11 +293,28 @@ check_already_installed() {
     fi
 }
 
+# crontab backup
+backup_crontab() {
+    local cron_user="$1"
+    local backup_dir="/etc/bak/crontab"
+    local crontab_tmp
+
+    [ -n "$cron_user" ] || return 1
+    mkdir -p "$backup_dir" || return 1
+
+    crontab_tmp=$(mktemp)
+    if crontab -u "$cron_user" -l > "$crontab_tmp" 2>/dev/null && [ -s "$crontab_tmp" ]; then
+        mv -f "$crontab_tmp" "$backup_dir/${cron_user}.bak"
+    else
+        rm -f "$crontab_tmp"
+    fi
+}
+
 # add one @reboot cron entry per daemon, so a failure in one never keeps
 # the other from starting
 add_reboot_cron() {
     if ! crontab -l 2>/dev/null | grep -qF "$netwatch_tools/netwatchlan.sh start"; then
-        crontab -l 2>/dev/null > "/root/crontab-$(date +%Y%m%d%H%M%S).bak" || true
+        backup_crontab root
         (crontab -l 2>/dev/null; echo "@reboot $netwatch_tools/netwatchlan.sh start"; echo "@reboot $netwatch_tools/netwatchports.sh start") | crontab -
         log "INFO: added to cron @reboot"
     fi
@@ -537,7 +554,7 @@ do_uninstall() {
     rm -f /etc/logrotate.d/netwatch /etc/logrotate.d/netwatch.bak
 
     # cron entries -- matched by full command/path, not bare substrings
-    crontab -l 2>/dev/null > "/root/crontab-uninstall-$(date +%Y%m%d%H%M%S).bak" || true
+    backup_crontab root
     cron_tmp=$(mktemp)
     crontab -l 2>/dev/null > "$cron_tmp" || true
     grep -vF "$netwatch_tools/netwatchlan.sh start" "$cron_tmp" > "${cron_tmp}.next" || true

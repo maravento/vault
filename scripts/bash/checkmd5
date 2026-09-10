@@ -75,7 +75,6 @@ fi
 
 # Get file info for display
 original_filename=$(basename "$original_file")
-original_dir=$(dirname "$original_file")
 
 # Look for checksum file with same name + .md5 extension
 checksum_file="${original_file}.md5"

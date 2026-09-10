@@ -171,7 +171,7 @@ fi
 # uses them. macports has no list of its own: it is a set of sets, so adding a
 # member costs no file read and no duplicated address.
 mac_set() {
-    local set_name="$1" src_file="$2" mac_addr
+    local set_name="$1" src_file="$2" mac_addr invalid_count=0
     ipset create "$set_name" hash:mac -exist
     ipset flush "$set_name"
     if [ ! -f "$src_file" ]; then
@@ -179,8 +179,16 @@ mac_set() {
         return 0
     fi
     for mac_addr in $(awk -F";" 'NF>=2 && $1 == "a" && $2 != "" {print $2}' "$src_file"); do
-        [[ "$mac_addr" =~ $UH_MAC ]] && ipset add "$set_name" "$mac_addr" -exist
+        if [[ "$mac_addr" =~ $UH_MAC ]]; then
+            ipset add "$set_name" "$mac_addr" -exist
+        else
+            invalid_count=$((invalid_count + 1))
+        fi
     done
+    if [ "$invalid_count" -gt 0 ]; then
+        log "WARNING: $invalid_count invalid MACs in $(basename "$src_file") -- skip"
+    fi
+    return 0
 }
 
 mac_set maclimited   "$ACL_MAC_LIMITED"
@@ -546,8 +554,8 @@ if [ -n "$mac2ip_rules" ]; then
     # expansion of a token.
     mac2ip_args=()
     while IFS=' ' read -r M2I_MAC M2I_IP; do
-        [[ -n "$M2I_MAC" ]] && MAC2IP_ARGS+=("$M2I_MAC")
-        [[ -n "$M2I_IP" ]] && MAC2IP_ARGS+=("$M2I_IP")
+        [[ -n "$M2I_MAC" ]] && mac2ip_args+=("$M2I_MAC")
+        [[ -n "$M2I_IP" ]] && mac2ip_args+=("$M2I_IP")
     done <<< "$mac2ip_rules"
     create_acl "${mac2ip_args[@]}"
     iptables -t mangle -N MACCHECK 2>/dev/null || true

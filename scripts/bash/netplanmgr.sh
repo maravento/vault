@@ -16,7 +16,6 @@
 # - Applies configuration instantly using "netplan apply"
 # - Validates YAML syntax and warns of possible errors
 # - Displays current interface status and active configuration
-# - Supports restore of previous Netplan backups
 # - Installs and integrates seamlessly into Webmin's Network category
 # - Works with both systemd-netplanmgr and NetworkManager backends
 # - Includes responsive layout and action buttons for quick management
@@ -226,19 +225,7 @@ if (defined $in{'apply'}) {
     if ($file && is_safe_netplan_file($file)) {
         # Backup if enabled in config (before overwriting, so it's a real restore point)
         if (($config{'netplan_backup'} // '1') eq '1') {
-            my $backup_dir = $config{'backup_path'} || '/var/backups/netplan';
-            my $backup_keep = int($config{'backup_keep'} // 5);
-            system("mkdir -p \"$backup_dir\"");
-            (my $basename = $file) =~ s{.*/}{};
-            my @t = localtime(time());
-            my $stamp = sprintf('%04d%02d%02d-%02d%02d%02d',
-                $t[5]+1900, $t[4]+1, $t[3], $t[2], $t[1], $t[0]);
-            system("cp \"$file\" \"$backup_dir/${basename}.${stamp}.bak\" 2>/dev/null");
-            # Rotate: keep only the N most recent backups for this file
-            my @old = sort glob("\"$backup_dir/${basename}.*.bak\"");
-            while (@old > $backup_keep) {
-                unlink(shift @old);
-            }
+            system("cp -f \"$file\" \"${file}.bak\" 2>/dev/null");
         }
         # Save first if content present
         if (defined $in{'content'}) {
@@ -927,8 +914,6 @@ EOF
     cat > "$MODDIR/config.info" <<'EOF'
 netplan_path=Netplan configuration directory,0
 netplan_backup=Create backup before applying,1,1-Yes,0-No
-backup_path=Backup directory,0
-backup_keep=Number of backups to keep,0,5
 EOF
 
     # ============================================================
@@ -937,8 +922,6 @@ EOF
     cat > "$MODDIR/config.info.es" <<'EOF'
 netplan_path=Directorio de configuracion Netplan,0
 netplan_backup=Crear respaldo antes de aplicar,1,1-Si,0-No
-backup_path=Directorio de respaldos,0
-backup_keep=Numero de respaldos a mantener,0,5
 EOF
 
     # ============================================================
@@ -947,8 +930,6 @@ EOF
     cat > "$MODDIR/defaultconfig" <<'EOF'
 netplan_path=/etc/netplan
 netplan_backup=1
-backup_path=/var/backups/netplan
-backup_keep=5
 EOF
 
     # ============================================================
@@ -957,8 +938,6 @@ EOF
     cat > "$ETCDIR/config" <<'EOF'
 netplan_path=/etc/netplan
 netplan_backup=1
-backup_path=/var/backups/netplan
-backup_keep=5
 EOF
 
     # ============================================================

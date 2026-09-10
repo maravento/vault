@@ -80,6 +80,13 @@ retry_cmd() {
     done
 }
 
+# crontab entry
+add_cron_entry() {
+    local cron_line="$1" cron_path="$2"
+    crontab -l 2>/dev/null | grep -qF "$cron_path" && return 0
+    (crontab -l 2>/dev/null || true; echo "$cron_line") | crontab -
+}
+
 log "Checking for conflicting pre-installed packages..."
 check_conflicts "DHCP server" isc-dhcp-server dnsmasq
 check_conflicts "DNS server"  bind9 pdns-recursor
@@ -1091,7 +1098,7 @@ retry_cmd nala install -y libatk-adaptor libgail-common
 retry_cmd wget -O "$gp_path/scr/ffsupdate.sh" https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh
 chmod +x "$gp_path/scr/ffsupdate.sh"
 "$gp_path/scr/ffsupdate.sh" || log "WARNING: ffsupdate.sh failed (FreeFileSync not installed)"
-(crontab -l 2>/dev/null || true; echo "@weekly /etc/scr/ffsupdate.sh") | crontab -
+add_cron_entry "@weekly /etc/scr/ffsupdate.sh" "/etc/scr/ffsupdate.sh"
 log "OK"
 sleep 1
 
@@ -1165,9 +1172,9 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
             sed -i 's/detect-thread-ratio: 1.0/detect-thread-ratio: 0.5/' /etc/suricata/suricata.yaml
         fi
         # suricata cron
-        (crontab -l 2>/dev/null || true; echo "0 2 * * * /etc/suricata/suricataupdate.sh >/dev/null 2>&1") | crontab -
-        (crontab -l 2>/dev/null || true; echo "@monthly /etc/suricata/suricataclean.sh >/dev/null 2>&1") | crontab -
-        (crontab -l 2>/dev/null || true; echo "*/5 * * * * /etc/suricata/suridata.sh >/dev/null 2>&1") | crontab -
+        add_cron_entry "0 2 * * * /etc/suricata/suricataupdate.sh >/dev/null 2>&1" "/etc/suricata/suricataupdate.sh"
+        add_cron_entry "@monthly /etc/suricata/suricataclean.sh >/dev/null 2>&1" "/etc/suricata/suricataclean.sh"
+        add_cron_entry "*/5 * * * * /etc/suricata/suridata.sh >/dev/null 2>&1" "/etc/suricata/suridata.sh"
         # suricata check IDS
         SURICATA_SERVICE="/usr/lib/systemd/system/suricata.service"
         CORRECT_EXECSTART="ExecStart=/usr/bin/suricata -D --af-packet -c /etc/suricata/suricata.yaml --pidfile /run/suricata.pid"
@@ -1543,9 +1550,11 @@ sleep 1
 # CRONTAB
 echo -e "\n"
 log "Add Crontab Tasks..."
-(crontab -l 2>/dev/null || true; echo "@reboot systemctl daemon-reload && /etc/scr/hwclock.sh && /etc/scr/blackusb.sh off
-*/5 * * * * /etc/scr/serviceswatch.sh
-@weekly /etc/scr/cleaner.sh") | sort -u | crontab -
+add_cron_entry "@reboot systemctl daemon-reload" "systemctl daemon-reload"
+add_cron_entry "@reboot /etc/scr/hwclock.sh" "/etc/scr/hwclock.sh"
+add_cron_entry "@reboot /etc/scr/blackusb.sh off" "/etc/scr/blackusb.sh"
+add_cron_entry "*/5 * * * * /etc/scr/serviceswatch.sh" "/etc/scr/serviceswatch.sh"
+add_cron_entry "@weekly /etc/scr/cleaner.sh" "/etc/scr/cleaner.sh"
 log "OK"
 sleep 1
 

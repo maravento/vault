@@ -239,7 +239,7 @@ run_scan() {
             [ -n "${seen_macs[$mac]:-}" ] && continue
             seen_macs["$mac"]=1
 
-            local hostname hostname_esc esc_mac esc_ip esc_iface esc_vendor
+            local device_hostname hostname_esc esc_mac esc_ip esc_iface esc_vendor
             device_hostname=$(resolve_hostname "$ip")
             hostname_esc=$(sql_escape "$device_hostname")
             esc_mac=$(sql_escape "$mac")
@@ -301,11 +301,6 @@ start() {
 
     if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file" 2>/dev/null)" 2>/dev/null; then
         log "ERROR: netwatchlan is already running -- abort"
-        exit 1
-    fi
-
-    if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
-        log "netwatchlan is already running with PID $(cat "$pid_file")"
         exit 1
     fi
 

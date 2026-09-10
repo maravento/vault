@@ -102,7 +102,7 @@ trigger_cmd_allow="$PROGRAM_ABS allow_trigger"
 ##############
 if [[ $custom_editor = 'yes' ]]; then
     [[ -n ${DISPLAY:-} ]] && INX=yes
-    if [[ -n $INX ]]; then
+    if [[ -n "${INX:-}" ]]; then
         export EDITOR="$editor_x"
     else
         export EDITOR="$editor_console"
@@ -183,7 +183,7 @@ choose_remove() {
     message "\nChoose number to add"
     read -r -e number
     [[ "$number" =~ $UH_UINT ]] || die "wrong number"
-    [[ -z "${vendors[$number]}" ]] && die "wrong number"
+    [[ -z "${vendors[$number]:-}" ]] && die "wrong number"
 
     string_eject="SUBSYSTEM==\"usb\", ENV{ID_VENDOR_ID}==\"${vendors[$number]}\", ENV{ID_MODEL_ID}==\"${products[$number]}\""
     [[ -z ${serials[$number]} ]] || string_eject="${string_eject}, ENV{ID_SERIAL_SHORT}==\"${serials[$number]}\""
