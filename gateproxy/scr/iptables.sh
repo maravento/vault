@@ -44,23 +44,23 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     log "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
 fi
 
 # dependencies
-for DEP in iptables ipset arptables ebtables procps util-linux ulogd2 mawk coreutils grep; do
-    if ! dpkg -s "$DEP" &>/dev/null; then
-        log "ERROR: missing dependency '$DEP' -- abort"
+for dep_pkg in iptables ipset arptables ebtables kmod procps util-linux ulogd2 mawk coreutils grep; do
+    if ! dpkg -s "$dep_pkg" &>/dev/null; then
+        log "ERROR: missing dependency '$dep_pkg' -- abort"
         exit 1
     fi
 done
 
-log "Iptables Start..."
+log "iptables start..."
 
 # ------------------------------------------------------------------------------
 # VARIABLES
@@ -78,40 +78,30 @@ UH_MAC_RE='([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}'
 UH_MAC="^${UH_MAC_RE}$"
 UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5 252.0.0.0:6 254.0.0.0:7 255.0.0.0:8 255.128.0.0:9 255.192.0.0:10 255.224.0.0:11 255.240.0.0:12 255.248.0.0:13 255.252.0.0:14 255.254.0.0:15 255.255.0.0:16 255.255.128.0:17 255.255.192.0:18 255.255.224.0:19 255.255.240.0:20 255.255.248.0:21 255.255.252.0:22 255.255.254.0:23 255.255.255.0:24 255.255.255.128:25 255.255.255.192:26 255.255.255.224:27 255.255.255.240:28 255.255.255.248:29 255.255.255.252:30 255.255.255.254:31 255.255.255.255:32'
 
-is_valid_port() {
-    [[ "$1" =~ $UH_UINT ]] && (( $1 <= 65535 ))
-}
-
 # Network config -- pydhcp.env holds pydhcp's own values and is read here;
 # gateproxy never writes into it. gateproxy's own values (WAN interface and
-# proxy ports) are the literals below: gateproxy.sh replaces them with sed
+# proxy ports) are the literals below: gpsetup.sh replaces them with sed
 # during install, from the answers given there. Safe key=value parsing (the
-# file is never sourced) with built-in defaults if it is missing or a key
-# wasn't set, so a stale/partial config never blocks the firewall.
+# file is never sourced): a malformed line aborts, and a missing file or an
+# absent key falls back to the built-in default.
 pydhcp_conf="/etc/pydhcp/pydhcp.env"
 
-load_env_file() {
-    local conf_file="$1" env_line env_key env_value raw_key raw_value
+load_conf() {
+    local conf_file="$1" env_line env_key env_value
     [[ ! -f "$conf_file" ]] && { log "WARNING: $conf_file not found -- fallback"; return 1; }
     while IFS= read -r env_line || [ -n "$env_line" ]; do
         [[ "$env_line" =~ ^[[:space:]]*# ]] && continue
         [[ "$env_line" =~ ^[[:space:]]*$ ]] && continue
         env_key="${env_line%%=*}"
         env_value="${env_line#*=}"
-        raw_key="$env_key" raw_value="$env_value"
-        env_key="${env_key#"${env_key%%[![:space:]]*}"}"
-        env_key="${env_key%"${env_key##*[![:space:]]}"}"
-        env_value="${env_value#"${env_value%%[![:space:]]*}"}"
-        env_value="${env_value%"${env_value##*[![:space:]]}"}"
-        if [[ "$env_key" != "$raw_key" || "$env_value" != "$raw_value" ]]; then
-            log "WARNING: stray whitespace fixed -- alert"
-            log "WARNING: env_key $env_key"
-        fi
-        if [[ "$env_value" == \"*\" && "$env_value" == *\" && ${#env_value} -ge 2 ]]; then
-            env_value="${env_value:1:$((${#env_value}-2))}"
+        if [[ ! "$env_line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] \
+           || [[ "$env_value" == [[:space:]\"\']* ]] \
+           || [[ "$env_value" == *[[:space:]\"\'] ]]; then
+            log "ERROR: malformed line in $conf_file: '$env_line' -- abort"
+            exit 1
         fi
         case "$env_key" in
-            INTERFACESv4|SERVER_IP|SERV_SUBNET|SERV_MASK|SERV_DNS|ACL_PATH)
+            INTERFACESv4|SERVER_IP|SERV_SUBNET|SERV_MASK|SERV_DNS|ACL_PATH|WPAD_PORT)
                 printf -v "$env_key" '%s' "$env_value"
                 ;;
             *)
@@ -119,7 +109,7 @@ load_env_file() {
         esac
     done < "$conf_file"
 }
-load_env_file "$pydhcp_conf" || true
+load_conf "$pydhcp_conf" || true
 
 # paths (ACL_PATH comes from $pydhcp_conf)
 acl_mac_path="${ACL_PATH:-/etc/acl}/mac"
@@ -143,6 +133,9 @@ SERVER_IP="${SERVER_IP:-192.168.0.10}"
 squid_port="3128"
 # squid intercept port (NAT-redirected HTTP, not exposed to explicit proxy clients)
 squid_intercept_port="3129"
+# PAC port announced by pydhcpd in DHCP option 252
+WPAD_PORT="${WPAD_PORT:-18100}"
+[[ "$WPAD_PORT" =~ $UH_UINT ]] && (( WPAD_PORT >= 1 && WPAD_PORT <= 65535 )) || { log "ERROR: WPAD_PORT is not a valid port: '$WPAD_PORT' -- abort"; exit 1; }
 
 # ACL/config files used by this script (existence verified below)
 ACL_MAC_LIMITED="$acl_mac_path/mac-limited.txt"
@@ -152,10 +145,9 @@ dhcp_conf="/etc/pydhcp/core/pydhcpd.conf"
 path_ips="$acl_ipt_path/dhcp_ip.txt"
 path_macs="$acl_ipt_path/dhcp_mac.txt"
 
-for FILE in "$ACL_MAC_LIMITED" "$ACL_MAC_UNLIMITED" "$blockports_file" "$dhcp_conf"; do
-    if [ ! -f "$FILE" ]; then
-        log "ERROR: required file not found:"
-        log "ERROR: $FILE -- abort"
+for conf_file in "$ACL_MAC_LIMITED" "$ACL_MAC_UNLIMITED" "$blockports_file" "$dhcp_conf"; do
+    if [ ! -f "$conf_file" ]; then
+        log "ERROR: required file not found: $conf_file -- abort"
         exit 1
     fi
 done
@@ -261,6 +253,12 @@ sysctl -w vm.overcommit_memory=1 >/dev/null 2>&1 || true
 sysctl -w net.core.somaxconn=65535 >/dev/null 2>&1 || true
 
 # CONNECTION TRACKING
+# nf_conntrack_max/buckets only exist under /proc/sys once the nf_conntrack
+# kernel module is loaded. On a cold boot this script can run before
+# anything else has triggered that module to load, so the sysctl calls
+# below would silently do nothing. Force the module to load first
+# so tuning takes effect immediately, instead of depending on boot timing.
+modprobe -q nf_conntrack 2>/dev/null || true
 # Increase connection tracking table size for high concurrency
 sysctl -w net.netfilter.nf_conntrack_max=524288 >/dev/null 2>&1 || true
 sysctl -w net.netfilter.nf_conntrack_buckets=131072 >/dev/null 2>&1 || true
@@ -435,18 +433,18 @@ iptables -A FORWARD -s 127.0.0.0/8 ! -i lo -j DROP
 # Before uncommenting this block: open bogons.txt and comment out (or
 # choose ranges that avoid) whatever CIDR contains this server's own LAN
 # subnet, then verify the remaining entries are still what you want blocked.
-#BOGONS_FILE="$acl_ipt_path/bogons.txt"
+#bogons_file="$acl_ipt_path/bogons.txt"
 #if ! ipset list bogons &>/dev/null; then
 #    ipset create bogons hash:net -exist
 #else
 #    ipset flush bogons
 #fi
-#if [ -f "$BOGONS_FILE" ]; then
-#    for BOGONSCIDR in $(grep -vE '^\s*#|^\s*$' "$BOGONS_FILE" | awk '{print $1}' | sort -V -u 2>/dev/null); do
-#        ipset add bogons "$BOGONSCIDR" -exist
+#if [ -f "$bogons_file" ]; then
+#    for bogons_cidr in $(grep -vE '^\s*#|^\s*$' "$bogons_file" | awk '{print $1}' | sort -V -u 2>/dev/null); do
+#        ipset add bogons "$bogons_cidr" -exist
 #    done
 #else
-#    log "WARNING: $BOGONS_FILE not found, bogons -- skip"
+#    log "WARNING: $bogons_file not found, bogons -- skip"
 #fi
 #iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set bogons src -j DROP
 #iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set bogons dst -j DROP
@@ -467,8 +465,8 @@ iptables -A OUTPUT -o "$INTERFACESv4" -p udp --sport 67 --dport 68 -j ACCEPT
 iptables -t nat -A POSTROUTING -s "$SERV_SUBNET/$netmask_int" -o "$wan_iface" -j MASQUERADE
 #
 # SNAT example for static WAN IP (more efficient)
-# WAN_IP=$(ip -4 -o addr show dev "$wan_iface" | awk '{print $4}' | cut -d/ -f1)
-# iptables -t nat -A POSTROUTING -s "$SERV_SUBNET/$netmask_int" -o "$wan_iface" -j SNAT --to-source "$WAN_IP"
+# wan_ip=$(ip -4 -o addr show dev "$wan_iface" | awk '{print $4}' | cut -d/ -f1)
+# iptables -t nat -A POSTROUTING -s "$SERV_SUBNET/$netmask_int" -o "$wan_iface" -j SNAT --to-source "$wan_ip"
 
 # LAN ---> PROXY <--- WAN
 iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
@@ -499,15 +497,15 @@ iptables -A FORWARD -p tcp --tcp-flags SYN,ACK SYN,ACK -m conntrack --ctstate NE
 iptables -A FORWARD -i "$INTERFACESv4" -p udp --dport 53 -m state --state NEW -m recent --set --name DNS_DROPPER
 iptables -A FORWARD -i "$INTERFACESv4" -p udp --dport 53 -m state --state NEW -m recent --update --seconds 1 --hitcount 15 --name DNS_DROPPER -j DROP
 SERV_DNS="${SERV_DNS:-$SERVER_IP}"
-for DNSIP in ${SERV_DNS//,/ }; do
-    for PROTOCOL in tcp udp; do
-        iptables -A INPUT -i "$INTERFACESv4" -d "$DNSIP" -p "$PROTOCOL" --dport 53 -j ACCEPT
-        iptables -A FORWARD -i "$INTERFACESv4" -d "$DNSIP" -p "$PROTOCOL" --dport 53 -j ACCEPT
+for dns_ip in ${SERV_DNS//,/ }; do
+    for proto_name in tcp udp; do
+        iptables -A INPUT -i "$INTERFACESv4" -d "$dns_ip" -p "$proto_name" --dport 53 -j ACCEPT
+        iptables -A FORWARD -i "$INTERFACESv4" -d "$dns_ip" -p "$proto_name" --dport 53 -j ACCEPT
     done
 done
-for PROTOCOL in tcp udp; do
-    iptables -A FORWARD -i "$INTERFACESv4" -p "$PROTOCOL" --dport 53 -m hashlimit --hashlimit-name dns-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip -j NFLOG --nflog-prefix "DNS-DROP: "
-    iptables -A FORWARD -i "$INTERFACESv4" -p "$PROTOCOL" --dport 53 -j DROP
+for proto_name in tcp udp; do
+    iptables -A FORWARD -i "$INTERFACESv4" -p "$proto_name" --dport 53 -m hashlimit --hashlimit-name dns-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip -j NFLOG --nflog-prefix "DNS-DROP: "
+    iptables -A FORWARD -i "$INTERFACESv4" -p "$proto_name" --dport 53 -j DROP
 done
 
 # MAC2IP
@@ -553,9 +551,9 @@ if [ -n "$mac2ip_rules" ]; then
     # relying on bare unquoted word-splitting) avoids any accidental glob
     # expansion of a token.
     mac2ip_args=()
-    while IFS=' ' read -r M2I_MAC M2I_IP; do
-        [[ -n "$M2I_MAC" ]] && mac2ip_args+=("$M2I_MAC")
-        [[ -n "$M2I_IP" ]] && mac2ip_args+=("$M2I_IP")
+    while IFS=' ' read -r m2i_mac m2i_ip; do
+        [[ -n "$m2i_mac" ]] && mac2ip_args+=("$m2i_mac")
+        [[ -n "$m2i_ip" ]] && mac2ip_args+=("$m2i_ip")
     done <<< "$mac2ip_rules"
     create_acl "${mac2ip_args[@]}"
     iptables -t mangle -N MACCHECK 2>/dev/null || true
@@ -574,8 +572,7 @@ if [ -n "$mac2ip_rules" ]; then
             { arptables -A INPUT -i "$INTERFACESv4" --source-ip "$arp_ip" ! --source-mac "$arp_mac" -j DROP || true; }
     done
 else
-    log "WARNING: No static DHCP entries in $dhcp_conf"
-    log "WARNING: macip binding skipped"
+    log "WARNING: no static DHCP entries in $dhcp_conf -- skip"
 fi
 
 # MACUNLIMITED (MAC + IP for Access Points, Switch, etc.)
@@ -584,9 +581,9 @@ iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set macunlimi
 # Unlimited devices never use the proxy -- block PAC access so DHCP option 252
 # (WPAD, if enabled) has no effect on them, since pydhcpd is ACL-agnostic and
 # sends it to every client regardless of classification.
-iptables -A INPUT -i "$INTERFACESv4" -p tcp -m multiport --dports $squid_port,18100 -m set --match-set macunlimited src -j DROP
-for CHAIN in INPUT FORWARD; do
-    iptables -A "$CHAIN" -i "$INTERFACESv4" -m set --match-set macunlimited src -j ACCEPT
+iptables -A INPUT -i "$INTERFACESv4" -p tcp -m multiport --dports $squid_port,$WPAD_PORT -m set --match-set macunlimited src -j DROP
+for chain_name in INPUT FORWARD; do
+    iptables -A "$chain_name" -i "$INTERFACESv4" -m set --match-set macunlimited src -j ACCEPT
 done
 
 # ------------------------------------------------------------------------------
@@ -635,11 +632,11 @@ if ! ipset list blockports &>/dev/null; then
 else
     ipset flush blockports
 fi
-for BLPORTS in $(sort -V -u "$blockports_file" 2>/dev/null); do
-    is_valid_port "$BLPORTS" && ipset add blockports "$BLPORTS" -exist
+for blocked_ports in $(sort -V -u "$blockports_file" 2>/dev/null); do
+    [[ "$blocked_ports" =~ $UH_UINT ]] && (( blocked_ports <= 65535 )) && ipset add blockports "$blocked_ports" -exist
 done
-for PROTO in tcp udp; do
-    iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -p "$PROTO" -m set --match-set blockports dst -j DROP
+for proto_name in tcp udp; do
+    iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -p "$proto_name" -m set --match-set blockports dst -j DROP
 done
 
 # SURIDATA
@@ -651,12 +648,11 @@ else
     ipset flush suridata
 fi
 if [ -f "$suridata_file" ]; then
-    for SURIDATAIP in $(grep -vE '^\s*#|^\s*$' "$suridata_file" | sort -u 2>/dev/null); do
-        [[ "$SURIDATAIP" =~ $UH_IPV4 ]] && ipset add suridata "$SURIDATAIP" -exist
+    for suridata_ip in $(grep -vE '^\s*#|^\s*$' "$suridata_file" | sort -u 2>/dev/null); do
+        [[ "$suridata_ip" =~ $UH_IPV4 ]] && ipset add suridata "$suridata_ip" -exist
     done
 else
-    log "WARNING: $suridata_file not found"
-    log "WARNING: skipping suridata"
+    log "WARNING: $suridata_file not found -- skip"
 fi
 iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set suridata dst -j NFLOG --nflog-prefix "SURIDATA DROP: "
 iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set suridata dst -j DROP
@@ -666,13 +662,13 @@ iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set suridata 
 iptables -A FORWARD -i "$INTERFACESv4" -p 41 -j DROP
 
 # NETBIOS NMBD (disabled in smb.conf)
-for CHAIN in INPUT FORWARD; do
-    iptables -A "$CHAIN" -i "$INTERFACESv4" -p udp -m multiport --dports 137,138 -j DROP
-    iptables -A "$CHAIN" -i "$INTERFACESv4" -p tcp --dport 139 -j DROP
+for chain_name in INPUT FORWARD; do
+    iptables -A "$chain_name" -i "$INTERFACESv4" -p udp -m multiport --dports 137,138 -j DROP
+    iptables -A "$chain_name" -i "$INTERFACESv4" -p tcp --dport 139 -j DROP
 done
 # CoAP/CoAPs 5683/5684
-for CHAIN in INPUT FORWARD; do
-    iptables -A "$CHAIN" -i "$INTERFACESv4" -p udp -m multiport --dports 5683,5684 -j DROP
+for chain_name in INPUT FORWARD; do
+    iptables -A "$chain_name" -i "$INTERFACESv4" -p udp -m multiport --dports 5683,5684 -j DROP
 done
 
 # syncflood
@@ -689,18 +685,18 @@ iptables -A syn_flood -j DROP
 # Windows Update Delivery Optimization (WUDO)
 # Allow peer-to-peer update sharing within the local network.
 # Block outbound WUDO traffic to WAN and direct connections to the firewall.
-for PROTO in tcp udp; do
-    iptables -A FORWARD -i "$INTERFACESv4" -p "$PROTO" --dport 7680 -s "$SERV_SUBNET/$netmask_int" -d "$SERV_SUBNET/$netmask_int" -j ACCEPT
+for proto_name in tcp udp; do
+    iptables -A FORWARD -i "$INTERFACESv4" -p "$proto_name" --dport 7680 -s "$SERV_SUBNET/$netmask_int" -d "$SERV_SUBNET/$netmask_int" -j ACCEPT
 done
-for CHAIN in INPUT FORWARD; do
-    for PROTO in tcp udp; do
-        iptables -A "$CHAIN" -i "$INTERFACESv4" -p "$PROTO" --dport 7680 -j DROP
+for chain_name in INPUT FORWARD; do
+    for proto_name in tcp udp; do
+        iptables -A "$chain_name" -i "$INTERFACESv4" -p "$proto_name" --dport 7680 -j DROP
     done
 done
 
-# Block GRE (Generic Routing Encapsulation) PROTOCOL 47
-for CHAIN in INPUT FORWARD; do
-    iptables -A "$CHAIN" -i "$INTERFACESv4" -p 47 -j DROP
+# Block GRE (Generic Routing Encapsulation) proto_name 47
+for chain_name in INPUT FORWARD; do
+    iptables -A "$chain_name" -i "$INTERFACESv4" -p 47 -j DROP
 done
 # Block Windows ICS (Internet Connection Sharing) network range
 iptables -A FORWARD -i "$INTERFACESv4" -d 192.168.137.0/24 -j DROP
@@ -737,19 +733,19 @@ iptables -A FORWARD -i "$INTERFACESv4" -o "$wan_iface" -p icmp -j DROP
 # https://github.com/maravento/proxymon
 iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 18081 -m set --match-set macports src -j ACCEPT
 # PRINTERS
-# Printer and scanner PROTOCOL traffic addressed to the proxy itself
-for CHAIN in INPUT FORWARD; do
+# Printer and scanner proto_name traffic addressed to the proxy itself
+for chain_name in INPUT FORWARD; do
     # PRINTERS & SCANNERS UDP: SNMP (161,162) + prnrequest/prnstatus (3910/3911)
-    iptables -A "$CHAIN" -i "$INTERFACESv4" -p udp -m multiport --dports 161,162,3910,3911 -m set --match-set macports src -j ACCEPT
+    iptables -A "$chain_name" -i "$INTERFACESv4" -p udp -m multiport --dports 161,162,3910,3911 -m set --match-set macports src -j ACCEPT
     # PRINTERS & SCANNERS TCP: JetDirect/RAW (9100) + prnrequest/prnstatus (3910/3911)
-    iptables -A "$CHAIN" -i "$INTERFACESv4" -p tcp -m multiport --dports 9100,3910,3911 -m set --match-set macports src -j ACCEPT
+    iptables -A "$chain_name" -i "$INTERFACESv4" -p tcp -m multiport --dports 9100,3910,3911 -m set --match-set macports src -j ACCEPT
 done
 # STUN/TURN (WebRTC, Teams, Meet, Zoom)
 iptables -A FORWARD -i "$INTERFACESv4" -o "$wan_iface" -p udp -m multiport --dports 3478:3481 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i "$INTERFACESv4" -o "$wan_iface" -p tcp -m multiport --dports 3478,5349 -m set --match-set macports src -j ACCEPT
 # Google STUN
 iptables -A FORWARD -i "$INTERFACESv4" -o "$wan_iface" -p udp -m multiport --dports 19302:19309 -m set --match-set macports src -j ACCEPT
-# FILE SHARING SAMBA (SMB)
+# conf_file SHARING SAMBA (SMB)
 iptables -A INPUT -i "$INTERFACESv4" -p tcp -m multiport --dports 445,3092 -m set --match-set macports src -j ACCEPT
 # EMAIL (SMTP, IMAP, POP3)
 iptables -A FORWARD -i "$INTERFACESv4" -p tcp -m multiport --dports 110,143,465,587,993,995 -m set --match-set macports src -j ACCEPT
@@ -787,25 +783,25 @@ iptables -A FORWARD -i "$INTERFACESv4" -p udp --dport 123 -m set --match-set mac
 # MAC RULES
 # ------------------------------------------------------------------------------
 
-# MACLIMITED (PAC 18100 - DHCP option 252, HTTP 80 -> Squid intercept port)
-iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set maclimited src -p tcp -m multiport --dports 18100,80,$squid_port -j ACCEPT
+# MACLIMITED (PAC on WPAD_PORT - DHCP option 252, HTTP 80 -> Squid intercept port)
+iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set maclimited src -p tcp -m multiport --dports $WPAD_PORT,80,$squid_port -j ACCEPT
 iptables -t nat -A PREROUTING -i "$INTERFACESv4" -p tcp --dport 80 -m set --match-set maclimited src -j REDIRECT --to-port "$squid_intercept_port"
 iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport "$squid_intercept_port" -m set --match-set maclimited src -m conntrack --ctstate DNAT -j ACCEPT
-iptables -A INPUT -i "$INTERFACESv4" -p tcp -m multiport --dports 18100,$squid_port -m set --match-set maclimited src -j ACCEPT
+iptables -A INPUT -i "$INTERFACESv4" -p tcp -m multiport --dports $WPAD_PORT,$squid_port -m set --match-set maclimited src -j ACCEPT
 
 # Diagnostic only: warn about classified MACs with no static reservation in
 # pydhcpd.conf -- MACCHECK drops their traffic regardless of classification.
-for CF in "$acl_mac_path"/mac-*.txt; do
-    [ -f "$CF" ] || continue
-    while IFS=';' read -r CSTATUS CMAC CREST; do
-        [ "$CSTATUS" = "a" ] || continue
-        [[ "$CMAC" =~ $UH_MAC ]] || continue
-        client_mac_lc="${CMAC,,}"
+for check_file in "$acl_mac_path"/mac-*.txt; do
+    [ -f "$check_file" ] || continue
+    while IFS=';' read -r mac_status client_mac mac_rest; do
+        [ "$mac_status" = "a" ] || continue
+        [[ "$client_mac" =~ $UH_MAC ]] || continue
+        client_mac_lc="${client_mac,,}"
         if ! grep -qxF "$client_mac_lc" <<< "$mac2ip_macs"; then
-            log "WARNING: $CMAC ($(basename "$CF")) has no static reservation"
+            log "WARNING: $client_mac ($(basename "$check_file")) has no static reservation"
             log "WARNING: MACCHECK drops it until added or reloaded -- alert"
         fi
-    done < "$CF"
+    done < "$check_file"
 done
 
 # ------------------------------------------------------------------------------

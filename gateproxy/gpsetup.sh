@@ -7,24 +7,28 @@
 # A simple proxy/firewall server
 #
 #
-# log: gateproxy.log, in the directory this script is run from
+# log: gpsetup.log, in the directory this script is run from
 #      (rewritten on each run)
 #
 ################################################################################
 
 set -Eeuo pipefail
 
+# -----------------------------------------------------------------------------
+# REQUIREMENTS
+# -----------------------------------------------------------------------------
+
 # The log lives in this script's own directory, not inside $gp_path: that
 # folder is deleted and re-downloaded during the run, and again at the end,
-# so a log kept there would not survive. Appended across runs, so a failed
-# attempt can be compared against the one that followed it.
-log_file="$(dirname "$(realpath "$0")")/gateproxy.log"
+# so a log kept there would not survive. Emptied at the start of every run,
+# so what it holds is always the last install attempt and nothing else.
+log_file="$(dirname "$(realpath "$0")")/gpsetup.log"
 { > "$log_file"; } 2>/dev/null || true
 log() {
     local msg="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
-trap 'log "ERROR: command failed at line $LINENO: $BASH_COMMAND"' ERR
+trap 'log "ERROR: command failed at line $LINENO: $BASH_COMMAND -- abort"' ERR
 
 # root check
 if [ "$(id -u)" != "0" ]; then
@@ -44,6 +48,10 @@ fi
 log "gateproxy start..."
 printf "\n"
 
+# -----------------------------------------------------------------------------
+# FUNCTIONS
+# -----------------------------------------------------------------------------
+
 # checking conflicting pre-installed packages
 check_conflicts() {
     local role="$1"; shift
@@ -54,11 +62,26 @@ check_conflicts() {
         fi
     done
     if [ "${#found[@]}" -gt 0 ]; then
-        log "ERROR: Conflicting $role package(s) already installed: ${found[*]}"
-        log "ERROR: gateproxy installs its own $role stack."
-        log "ERROR: remove them first: apt purge -y ${found[*]} -- abort"
+        log "ERROR: conflicting $role package(s) installed: ${found[*]}, remove them with apt purge -- abort"
         exit 1
     fi
+}
+
+# ACL download
+get_acl() {
+    local source_url="$1" target_file="$2" http_code
+    http_code=$(curl -k -s -o /dev/null -w '%{http_code}' -I -L --connect-timeout 5 --max-time 15 --retry 1 "$source_url")
+    case "$http_code" in
+        2*|405) ;;
+        000) log "TIMEOUT: $source_url"; return 1 ;;
+        5*)  log "BUSY: $source_url"; return 1 ;;
+        *)   log "BROKEN: $source_url"; return 1 ;;
+    esac
+    if ! wget -q -c -N "$source_url" -O "$target_file"; then
+        log "PARTIAL: $source_url"
+        return 1
+    fi
+    log "SAVED: $(basename "$source_url")"
 }
 
 retry_cmd() {
@@ -69,7 +92,7 @@ retry_cmd() {
             log "ERROR: command failed after $max_attempts attempts -- abort"
             exit 1
         fi
-        log "WARNING: command failed (attempt $attempt/$max_attempts), retrying in 10s: $*"
+        log "WARNING: command failed (attempt $attempt/$max_attempts), retrying in 10s: $* -- retry"
         case "$1" in
             nala|apt|apt-get)
                 rm -f /var/cache/apt/archives/*.deb 2>/dev/null || true
@@ -96,8 +119,7 @@ check_conflicts "syslog"      syslog-ng
 check_conflicts "firewall"    firewalld
 check_conflicts "IDS"         snort
 if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "^Status: active"; then
-    log "ERROR: ufw is active and will conflict with gateproxy's iptables rules."
-    log "ERROR: disable it first: ufw disable -- abort"
+    log "ERROR: ufw is active and conflicts with gateproxy's iptables rules, disable it with ufw disable -- abort"
     exit 1
 fi
 log "No conflicting packages found: OK"
@@ -135,7 +157,7 @@ detect_local_user() {
 }
 
 if ! LOCAL_USER=$(detect_local_user); then
-    log "ERROR: No valid local user found. Create one with sudo access."
+    log "ERROR: no valid local user found, create one with sudo access -- abort"
     exit 1
 fi
 LOCAL_HOME=$(getent passwd "$LOCAL_USER" | cut -d: -f6)
@@ -174,34 +196,21 @@ log "Check System..."
 command -v lsb_release &>/dev/null || apt-get install -y lsb-release
 # Get the current desktop environment in lowercase
 DESKTOP_ENV=$(echo "${XDG_CURRENT_DESKTOP:-}" | tr '[:upper:]' '[:lower:]')
-# Get the Ubuntu version number (e.g., 22.04, 24.04)
+# Get the Ubuntu version number
 UBUNTU_VERSION=$(lsb_release -rs)
-# Get the distribution ID (e.g., Ubuntu)
+# Get the distribution ID
 UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
 log "Desktop: $DESKTOP_ENV"
 log "OS: $UBUNTU_ID $UBUNTU_VERSION"
-
 if [ "$UBUNTU_ID" != "ubuntu" ]; then
-    log "WARNING: Unsupported OS $UBUNTU_ID (Ubuntu only) -- continuing at your own risk"
-fi
-if [ "$(printf '%s\n' "$UBUNTU_VERSION" "24.04" | sort -V | head -n1)" != "24.04" ]; then
-    log "WARNING: Ubuntu $UBUNTU_VERSION"
-    log "WARNING: below min supported 24.04 continuing at your own risk"
-elif [ "$UBUNTU_VERSION" != "24.04" ]; then
-    log "WARNING: Ubuntu $UBUNTU_VERSION untested (min: 24.04)"
+    log "WARNING: unsupported OS $UBUNTU_ID, Ubuntu only -- use at your own risk"
+elif [ "$UBUNTU_VERSION" != "24.04" ] && [ "$UBUNTU_VERSION" != "26.04" ]; then
+    log "WARNING: unsupported version $UBUNTU_VERSION -- use at your own risk"
 fi
 
 log "Clearing apt package cache..."
 apt-get clean &>/dev/null || true
 rm -f /var/cache/apt/archives/*.deb 2>/dev/null || true
-
-# VARIABLES
-SCRIPT_PATH="$(realpath "$0")"
-gp_path=$(pwd)/gateproxy
-ACL_PATH=/etc/acl
-mkdir -p "$ACL_PATH" &>/dev/null
-SCR_PATH=/etc/scr
-mkdir -p "$SCR_PATH" &>/dev/null
 
 # PPA
 file="/etc/apt/sources.list.d/ubuntu.sources"
@@ -238,13 +247,16 @@ else
     log "NOTE: $file not found, skipping component check"
 fi
 
-# dependencies
-pkgs='nala curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 p7zip-full p7zip-rar rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3'
-missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
-unavailable=""
-for p in $missing; do
-    apt-cache show "$p" &>/dev/null || unavailable+=" $p"
-done
+# -----------------------------------------------------------------------------
+# VARIABLES
+# -----------------------------------------------------------------------------
+
+SCRIPT_PATH="$(realpath "$0")"
+gp_path=$(pwd)/gateproxy
+ACL_PATH=/etc/acl
+mkdir -p "$ACL_PATH" &>/dev/null
+SCR_PATH=/etc/scr
+mkdir -p "$SCR_PATH" &>/dev/null
 
 # validation -- one variable per thing validated; use directly with =~
 UH_OCT='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
@@ -254,6 +266,18 @@ UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248
 UH_DNS='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(,(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9]))*$'
 UH_UINT='^(0|[1-9][0-9]*)$'
 UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5 252.0.0.0:6 254.0.0.0:7 255.0.0.0:8 255.128.0.0:9 255.192.0.0:10 255.224.0.0:11 255.240.0.0:12 255.248.0.0:13 255.252.0.0:14 255.254.0.0:15 255.255.0.0:16 255.255.128.0:17 255.255.192.0:18 255.255.224.0:19 255.255.240.0:20 255.255.248.0:21 255.255.252.0:22 255.255.254.0:23 255.255.255.0:24 255.255.255.128:25 255.255.255.192:26 255.255.255.224:27 255.255.255.240:28 255.255.255.248:29 255.255.255.252:30 255.255.255.254:31 255.255.255.255:32'
+
+# -----------------------------------------------------------------------------
+# DEPENDENCIES
+# -----------------------------------------------------------------------------
+
+pkgs='nala curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 7zip rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3'
+missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
+unavailable=""
+for p in $missing; do
+    apt-cache show "$p" &>/dev/null || unavailable+=" $p"
+done
+
 if [ -n "$unavailable" ]; then
     log "Missing dependencies not found in APT:"
     for u in $unavailable; do log "   - $u"; done
@@ -286,16 +310,19 @@ else
     log "Dependencies OK"
 fi
 
-# BASIC
+# -----------------------------------------------------------------------------
+# CONFIG
+# -----------------------------------------------------------------------------
+
 # time
 apt purge -y ntp ntpdate chrony &>/dev/null || true
 retry_cmd apt install -y --reinstall systemd-timesyncd &>/dev/null
-hwclock -w &>/dev/null || log "WARNING: hwclock -w failed (no RTC available?)"
-systemctl enable --now systemd-timesyncd &>/dev/null || log "WARNING: systemd-timesyncd failed to start"
-timedatectl set-ntp true &>/dev/null || log "WARNING: timedatectl set-ntp failed"
+hwclock -w &>/dev/null || log "WARNING: hwclock -w failed, no RTC available -- degraded"
+systemctl enable --now systemd-timesyncd &>/dev/null || log "WARNING: systemd-timesyncd failed to start -- degraded"
+timedatectl set-ntp true &>/dev/null || log "WARNING: timedatectl set-ntp failed -- degraded"
 timedatectl status | grep -E "NTP|synchroniz" || true
 # Performance Co-Pilot (PCP)
-systemctl disable --now pmcd pmproxy pmlogger &>/dev/null || log "WARNING: PCP failed to disable"
+systemctl disable --now pmcd pmproxy pmlogger &>/dev/null || log "WARNING: PCP failed to disable -- alert"
 # install | remove
 retry_cmd apt -qq install -y apt-file
 retry_cmd apt-file update
@@ -329,7 +356,6 @@ upgrade() {
 upgrade
 
 # PACKAGES
-clear
 echo -e "\n"
 log "Check Dependencies..."
 
@@ -404,7 +430,7 @@ public_interface() {
             while true; do
                 read -r -p "Confirm WAN (Internet) interface is '$CANDIDATE'? (y/n): " CONFIRM
                 case "$CONFIRM" in
-                    [Yy]) WAN_IF="$CANDIDATE"; break 2 ;;
+                    [Yy]) wan_iface="$CANDIDATE"; break 2 ;;
                     [Nn]) break ;;
                     *) log "Answer: YES (y) or NO (n)" ;;
                 esac
@@ -413,7 +439,7 @@ public_interface() {
             log "Invalid selection. Try again."
         fi
     done
-    find "$gp_path/conf" "$gp_path/scr" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$WAN_IF:g" "{}"
+    find "$gp_path/conf" "$gp_path/scr" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$wan_iface:g" "{}"
 }
 
 # local interface
@@ -423,7 +449,7 @@ local_interface() {
         read -r -p "Select Local Network Interface [1-${#IFACES[@]}]: " SEL
         if [[ "$SEL" =~ $UH_UINT ]] && (( SEL >= 1 && SEL <= ${#IFACES[@]} )); then
             CANDIDATE="${IFACES[$((SEL-1))]}"
-            if [ "$CANDIDATE" = "$WAN_IF" ]; then
+            if [ "$CANDIDATE" = "$wan_iface" ]; then
                 log "That interface is already assigned to WAN. Choose a different one."
                 continue
             fi
@@ -580,7 +606,7 @@ is_mask1() {
     if [[ " $UH_PREFIX " =~ [[:space:]]${SERV_MASK//./\\.}:([0-9]+)[[:space:]] ]]; then
         MASKNEW2="${BASH_REMATCH[1]}"
     else
-        log "WARNING: SERV_MASK '$SERV_MASK' not a valid netmask -- keeping default /24"
+        log "WARNING: SERV_MASK '$SERV_MASK' is not a valid netmask, keeping /24 -- fallback"
         MASKNEW2=24
     fi
     find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:/24:/$MASKNEW2:g" "{}"
@@ -645,7 +671,7 @@ is_port() {
 echo -e "\n"
 while true; do
     read -r -p "Server settings:
-Mask 255.255.255.0 (CIDR derived automatically), DNS 1.1.1.2 1.0.0.2, Proxy Port 3128
+Mask 255.255.255.0 (CIDR auto), DNS 1.1.1.2 1.0.0.2, Proxy Port 3128
     Do you want to change? (y/n)" answer
     case "$answer" in
     [Yy]*)
@@ -680,7 +706,7 @@ if [ "$SERV_SUBNET" != "192.168.0.0" ]; then
     sed -i "s:192\.168\.0\.\*:$(echo "$SERV_SUBNET" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/apache2/wpad.pac"
 fi
 
-# WAN_IF and PORTNEW (the proxy port) are substituted into conf/ with sed
+# wan_iface and PORTNEW (the proxy port) are substituted into conf/ with sed
 # /etc/pydhcp/pydhcp.env below, once pydhcp is installed. SERVER_IP,
 # SERV_SUBNET and SERV_MASK are written instead by pydhcp's own pysetup.sh,
 # from the values gateproxy passes it via expect -- pydhcp.env is the single
@@ -689,6 +715,10 @@ fi
 # pydhcp hands out via DHCP), INTERFACESv4 (LAN interface) and derives its
 # CIDR prefix from SERV_MASK -- no separate gateproxy keys for these,
 # so there is nothing to keep in sync by hand.
+
+# -----------------------------------------------------------------------------
+# INSTALL
+# -----------------------------------------------------------------------------
 
 # NETPLAN
 echo -e "\n"
@@ -714,7 +744,7 @@ NETPLAN_WAIT_LIMIT=30
 until ip -4 addr show "$LAN_IF" 2>/dev/null | grep -qF "inet $SERVER_IP/"; do
     if [ "$NETPLAN_WAIT" -ge "$NETPLAN_WAIT_LIMIT" ]; then
         log "ERROR: $LAN_IF did not come up with an IP -- abort"
-        log "Wait a few minutes and run: sudo bash gateproxy.sh"
+        log "Wait a few minutes and run: sudo bash gpsetup.sh"
         exit 1
     fi
     sleep 2
@@ -728,11 +758,10 @@ if command -v avahi-daemon &>/dev/null && [ -f "$avahi_conf" ]; then
     log "Restricting avahi-daemon to $LAN_IF..."
     sed -i "s/^use-ipv6=yes/use-ipv6=no/" "$avahi_conf"
     sed -i "s/^#allow-interfaces=.*/allow-interfaces=$LAN_IF/" "$avahi_conf"
-    systemctl restart avahi-daemon &>/dev/null || log "WARNING: avahi-daemon restart failed"
+    systemctl restart avahi-daemon &>/dev/null || log "WARNING: avahi-daemon restart failed -- alert"
 fi
 
 # ESSENTIAL
-clear
 echo -e "\n"
 log "Essential Packages..."
 # DISK & STORAGE MANAGEMENT
@@ -740,29 +769,23 @@ retry_cmd nala install -y gparted gnome-disk-utility qdirstat baobab
 retry_cmd nala install -y --no-install-recommends smartmontools gsmartcontrol
 
 # FILE SYSTEMS SUPPORT
-retry_cmd nala install -y nfs-common ntfs-3g reiserfsprogs reiser4progs xfsprogs \
-                jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus \
-                mtools nilfs-tools f2fs-tools exfat-fuse
+retry_cmd nala install -y nfs-common ntfs-3g xfsprogs jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools exfat-fuse
 
 # FUSE & VIRTUAL FILE SYSTEMS
-retry_cmd nala install -y libfuse2t64 gvfs-fuse bindfs sshfs jmtpfs
+retry_cmd nala install -y libfuse2t64 gvfs-fuse bindfs sshfs go-mtpfs
 
 # VOLUME & QUOTA MANAGEMENT
 retry_cmd nala install -y lvm2 quota attr
 retry_cmd nala install -y udisks2 udisks2-btrfs udisks2-lvm2
 
 # SYSTEM UTILITIES & MONITORING
-retry_cmd nala install -y trash-cli pm-utils cpu-x btop htop lsof \
-                inotify-tools dmidecode idle3 wmctrl pv tree moreutils \
-                preload deborphan debconf-utils mokutil util-linux \
-                linux-tools-common apparmor-utils
+retry_cmd nala install -y trash-cli pm-utils cpu-x btop htop lsof inotify-tools dmidecode wmctrl pv tree moreutils preload debconf-utils mokutil util-linux linux-tools-common apparmor-utils
 
 # PACKAGE MANAGEMENT TOOLS
 retry_cmd nala install -y dpkg ppa-purge apt-utils gdebi synaptic
 
 # TEXT & FILE UTILITIES
-retry_cmd nala install -y gawk rename renameutils sharutils dos2unix colordiff \
-                ripgrep yamllint
+retry_cmd nala install -y gawk rename renameutils sharutils dos2unix colordiff ripgrep yamllint
 
 # LOGGING & SYSTEM SERVICES
 retry_cmd nala install -y finger logrotate
@@ -771,36 +794,22 @@ retry_cmd nala install -y finger logrotate
 retry_cmd nala install -y linux-firmware linux-headers-$(uname -r) module-assistant
 
 # DEVELOPMENT: COMPILERS & BUILD TOOLS
-retry_cmd nala install -y build-essential clang autoconf autoconf-archive autogen \
-                automake dh-autoreconf pkg-config
+retry_cmd nala install -y build-essential clang autoconf autoconf-archive autogen automake dh-autoreconf pkg-config
 
 # DEVELOPMENT: LIBRARIES & HEADERS
-retry_cmd nala install -y uuid-dev libmnl-dev libssl-dev libffi-dev libpam0g-dev \
-                libpcap-dev libasound2-dev libglib2.0-dev libudisks2-dev \
-                liblvm2-dev python3-dev gtkhash
+retry_cmd nala install -y uuid-dev libmnl-dev libssl-dev libffi-dev libpam0g-dev libpcap-dev libasound2-dev libglib2.0-dev libudisks2-dev liblvm2-dev python3-dev gtkhash
 
 # PROGRAMMING: PYTHON
 retry_cmd nala install -y python3-pip python3-venv python3-psutil
 
 # PROGRAMMING: RUBY
-retry_cmd nala install -y rubygems-integration rake ruby ruby-did-you-mean ruby-json \
-                ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit
+retry_cmd nala install -y rubygems-integration rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit
 
 # PROGRAMMING: JAVASCRIPT & WEB
 retry_cmd nala install -y javascript-common libjs-jquery xsltproc
 
 # NETWORK & CONNECTIVITY
 retry_cmd nala install -y wget bind9-dnsutils conntrack i2c-tools wsdd ipset arptables ebtables
-
-# DNS
-retry_cmd nala install -y unbound
-cp -f "$gp_path/conf/unbound/forward.conf" /etc/unbound/unbound.conf.d/forward.conf
-tee /etc/default/unbound >/dev/null <<'EOF'
-DAEMON_OPTS=""
-EOF
-unbound-checkconf || log "Warning: Unbound Conf Fail"
-systemctl daemon-reload
-systemctl enable --now unbound
 
 # GEOLOCATION DATABASES
 retry_cmd nala install -y geoip-database
@@ -829,7 +838,7 @@ sleep 1
 
 upgrade
 
-# SETUP ###
+# SETUP
 echo -e "\n"
 log "Gateproxy Packages..."
 if grep -qFw "$HOSTNAME" /etc/hosts 2>/dev/null; then
@@ -867,6 +876,16 @@ chown root:root "$acl_squid_path"/*.txt
 # IPTables ACL files
 chmod 644 "$acl_ipt_path"/*.txt
 chown root:root "$acl_ipt_path"/*.txt
+
+# DNS
+retry_cmd nala install -y unbound
+cp -f "$gp_path/conf/unbound/forward.conf" /etc/unbound/unbound.conf.d/forward.conf
+tee /etc/default/unbound >/dev/null <<'EOF'
+DAEMON_OPTS=""
+EOF
+unbound-checkconf || log "Warning: Unbound Conf Fail"
+systemctl daemon-reload
+systemctl enable --now unbound
 
 # PHP
 retry_cmd nala install -y php libapache2-mod-php php-cli php-curl php-sqlite3
@@ -943,7 +962,7 @@ nala purge -y squid* &>/dev/null || true
 rm -rf /var/spool/squid* /var/log/squid* /etc/squid* &>/dev/null
 rm -f /run/squid.pid &>/dev/null
 #DEBIAN_FRONTEND=noninteractive nala install -y --no-install-recommends squid-openssl
-retry_cmd nala install -y squid-openssl squid-langpack squid-common squidclient squid-purge
+retry_cmd nala install -y squid-openssl squid-langpack squid-common
 upgrade
 mkdir -p /var/log/squid &>/dev/null
 touch /var/log/squid/{access,cache,store,deny}.log &>/dev/null
@@ -981,14 +1000,14 @@ rm -f setup-repos.sh
 # webmin modules
 # Text Editor | Service Monitor | Netplan Manager
 systemctl stop webmin.service 2>/dev/null || true
-/usr/share/webmin/install-module.pl "$gp_path/conf/webmin/text-editor.wbm" || log "WARNING: text-editor module install failed"
+/usr/share/webmin/install-module.pl "$gp_path/conf/webmin/text-editor.wbm" || log "WARNING: text-editor module install failed -- skip"
 find "$acl_mac_path" -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/dev/null || true
 # List of modules to install
 for module in servicemon netplanmgr; do
     log "Installing $module module..."
     if wget -q -O "$gp_path/${module}.sh" "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/${module}.sh"; then
         chmod +x "$gp_path/${module}.sh"
-        "$gp_path/${module}.sh" install || log "WARNING: $module module install failed"
+        "$gp_path/${module}.sh" install || log "WARNING: $module module install failed -- skip"
         rm -f "$gp_path/${module}.sh"
     else
         log "Error: Failed to download ${module}.sh"
@@ -1019,16 +1038,16 @@ EOF
             if expect -f "$PROXYMON_EXPECT"; then
                 log "Sent to proxymon: SERVER_IP=$SERVER_IP lan_interface=$LAN_IF"
             else
-                log "WARNING: proxymon.sh install failed. Skipping installation."
+                log "WARNING: proxymon.sh install failed -- skip"
             fi
             rm -f "$PROXYMON_EXPECT"
         fi
         cd "$gp_path"
     else
-        log "WARNING: Cannot enter proxymon directory. Skipping installation."
+        log "WARNING: cannot enter the proxymon directory -- skip"
     fi
 else
-    log "WARNING: Failed to clone proxymon. Skipping installation."
+    log "WARNING: cannot clone proxymon -- skip"
 fi
 
 # DHCP SECTION
@@ -1055,11 +1074,13 @@ expect "Enter pool end"
 send "\r"
 expect "Enter DNS server"
 send "$SERVER_IP\r"
+expect "DHCP pool lease cleanup interval"
+send "\r"
 expect eof
 catch wait result
 exit [lindex \$result 3]
 EOF
-            expect -f "$PYDHCP_EXPECT" || log "WARNING: pydhcp install failed"
+            expect -f "$PYDHCP_EXPECT" || log "WARNING: pydhcp install failed -- skip"
             rm -f "$PYDHCP_EXPECT"
 
             cd "$gp_path"
@@ -1067,13 +1088,13 @@ EOF
             log "DHCP clients will use $SERVER_IP (unbound) as DNS"
 
         else
-            log "WARNING: Cannot enter pydhcp directory. Skipping pydhcp installation."
+            log "WARNING: cannot enter the pydhcp directory -- skip"
         fi
     else
-        log "WARNING: pydhcp directory not found. Skipping pydhcp installation."
+        log "WARNING: pydhcp directory not found -- skip"
     fi
 else
-    log "WARNING: Failed to clone pydhcp. Skipping pydhcp installation."
+    log "WARNING: cannot clone pydhcp -- skip"
 fi
 
 # LOGS SECTION
@@ -1097,7 +1118,7 @@ retry_cmd nala install -y timeshift
 retry_cmd nala install -y libatk-adaptor libgail-common
 retry_cmd wget -O "$gp_path/scr/ffsupdate.sh" https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh
 chmod +x "$gp_path/scr/ffsupdate.sh"
-"$gp_path/scr/ffsupdate.sh" || log "WARNING: ffsupdate.sh failed (FreeFileSync not installed)"
+"$gp_path/scr/ffsupdate.sh" || log "WARNING: ffsupdate.sh failed, FreeFileSync not installed -- skip"
 add_cron_entry "@weekly /etc/scr/ffsupdate.sh" "/etc/scr/ffsupdate.sh"
 log "OK"
 sleep 1
@@ -1229,7 +1250,7 @@ with SHARED folder, Recycle Bin and Audit (y/n)" answer
                 if cd "$smbstack_path"; then
                     SMB_EXPECT=$(mktemp)
                     cat > "$SMB_EXPECT" <<EOF
-spawn bash smbinstall.sh --install
+spawn bash smbsetup.sh --install
 interact {
     -o
     "Enter Samba server IP/network \[*\]: " {
@@ -1245,18 +1266,18 @@ EOF
                     if expect -f "$SMB_EXPECT"; then
                         log "smbstack installed OK"
                     else
-                        log "WARNING: smbinstall.sh --install failed. Skipping Samba installation."
+                        log "WARNING: smbsetup.sh --install failed -- skip"
                     fi
                     rm -f "$SMB_EXPECT"
                     cd "$gp_path"
                 else
-                    log "WARNING: Cannot enter smbstack directory. Skipping Samba installation."
+                    log "WARNING: cannot enter the smbstack directory -- skip"
                 fi
             else
-                log "WARNING: smbstack directory not found. Skipping Samba installation."
+                log "WARNING: smbstack directory not found -- skip"
             fi
         else
-            log "WARNING: Failed to clone smbstack. Skipping Samba installation."
+            log "WARNING: cannot clone smbstack -- skip"
         fi
         break
         ;;
@@ -1308,17 +1329,17 @@ if [ -n "$UNIFI_DETECTED_TYPE" ]; then
                         if bash uhmsetup.sh; then
                             log "uhm installed OK"
                         else
-                            log "WARNING: uhmsetup.sh failed. Skipping uhm installation."
+                            log "WARNING: uhmsetup.sh failed -- skip"
                         fi
                         cd "$gp_path"
                     else
-                        log "WARNING: Cannot enter uhm directory. Skipping uhm installation."
+                        log "WARNING: cannot enter the uhm directory -- skip"
                     fi
                 else
-                    log "WARNING: uhm directory not found. Skipping uhm installation."
+                    log "WARNING: uhm directory not found -- skip"
                 fi
             else
-                log "WARNING: Failed to clone uhm. Skipping uhm installation."
+                log "WARNING: cannot clone uhm -- skip"
             fi
             break
             ;;
@@ -1348,46 +1369,46 @@ upgrade
 echo -e "\n"
 log "Downloading ACLs..."
 # Allow IP
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt -O "$ACL_PATH/squid/allowip.txt" || true
+get_acl https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt "$ACL_PATH/squid/allowip.txt" || true
 if [ ! -s "$ACL_PATH/squid/allowip.txt" ]; then
-    log "WARNING: allowip.txt download failed"
+    log "WARNING: allowip.txt is empty -- skip"
 fi
 
 # Block TLDs
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt -O "$ACL_PATH/squid/blocktlds.txt" || true
+get_acl https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt "$ACL_PATH/squid/blocktlds.txt" || true
 if [ ! -s "$ACL_PATH/squid/blocktlds.txt" ]; then
-    log "WARNING: blocktlds.txt download failed, disabling ACL in squid.conf"
+    log "WARNING: blocktlds.txt is empty, ACL disabled in squid.conf -- degraded"
     sed -i '/^acl blocktlds /s/^/#/; /^http_access deny workdays blocktlds/s/^/#/' "$gp_path/conf/squid/squid.conf"
 fi
 
 # Ransomware Extensions (Squid, optional)
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/fpack/rw/rwext.txt -O "$ACL_PATH/squid/rwext.txt" || true
+get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/rw/rwext.txt "$ACL_PATH/squid/rwext.txt" || true
 if [ ! -s "$ACL_PATH/squid/rwext.txt" ]; then
-    log "WARNING: rwext.txt download failed"
+    log "WARNING: rwext.txt is empty -- skip"
 fi
 
 # Bad User-Agents (Squid, optional)
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/fpack/ua/blockua.txt -O "$ACL_PATH/squid/blockua.txt" || true
+get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/ua/blockua.txt "$ACL_PATH/squid/blockua.txt" || true
 if [ ! -s "$ACL_PATH/squid/blockua.txt" ]; then
-    log "WARNING: blockua.txt download failed"
+    log "WARNING: blockua.txt is empty -- skip"
 fi
 
 # Web3 Domains/TLDs (Squid, optional)
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3domains.txt -O "$ACL_PATH/squid/web3domains.txt" || true
+get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3domains.txt "$ACL_PATH/squid/web3domains.txt" || true
 if [ ! -s "$ACL_PATH/squid/web3domains.txt" ]; then
-    log "WARNING: web3domains.txt download failed"
+    log "WARNING: web3domains.txt is empty -- skip"
 fi
-wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3tld.txt -O "$ACL_PATH/squid/web3tld.txt" || true
+get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3tld.txt "$ACL_PATH/squid/web3tld.txt" || true
 if [ ! -s "$ACL_PATH/squid/web3tld.txt" ]; then
-    log "WARNING: web3tld.txt download failed"
+    log "WARNING: web3tld.txt is empty -- skip"
 fi
 
 # Blackweb
-if (cd "$gp_path" && wget -q --show-progress -c -N https://raw.githubusercontent.com/maravento/blackweb/master/blackweb.tar.gz && [ -f blackweb.tar.gz ]); then
+if (cd "$gp_path" && get_acl https://raw.githubusercontent.com/maravento/blackweb/master/blackweb.tar.gz blackweb.tar.gz && [ -f blackweb.tar.gz ]); then
     (cd "$gp_path" && cat blackweb.tar.gz* | tar xzf -)
     cp "$gp_path/blackweb.txt" "$ACL_PATH/squid/blackweb.txt"
 else
-    log "WARNING: blackweb.tar.gz download failed"
+    log "WARNING: blackweb.tar.gz not available -- skip"
 fi
 rm -f "$gp_path"/blackweb.*
 log "OK"
@@ -1416,7 +1437,7 @@ for url in "${scripts[@]}"; do
     if wget -q -O "$gp_path/scr/$fname" "$url"; then
         log "Downloaded: $fname"
     else
-        log "WARNING: Failed to download $fname. Skipping."
+        log "WARNING: cannot download $fname -- skip"
     fi
 done
 
@@ -1488,7 +1509,7 @@ net.ipv4.tcp_congestion_control = bbr
 EOT
 grep -qxF "DefaultLimitNOFILE=65535" /etc/systemd/system.conf || echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/system.conf >/dev/null
 grep -qxF "DefaultLimitNOFILE=65535" /etc/systemd/user.conf || echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/user.conf >/dev/null
-sysctl -p || log "WARNING: some sysctl parameters failed to apply"
+sysctl -p || log "WARNING: some sysctl parameters failed to apply -- degraded"
 
 log "Apache Config..."
 cp -f /etc/apache2/apache2.conf{,.bak} &>/dev/null || true
@@ -1589,7 +1610,6 @@ chown root:syslog /var/log
 
 upgrade
 
-clear
 echo -e "\n"
 log "Done. Press ENTER to Reboot"
 log "after reboot, run:"
@@ -1608,6 +1628,10 @@ cd /
 rm -f "$(dirname "$gp_path")/gitfolder.py"
 rm -rf "$gp_path"
 (sleep 2 && rm -- "$SCRIPT_PATH") &
+
+# -----------------------------------------------------------------------------
+# END
+# -----------------------------------------------------------------------------
 
 log "gateproxy done at: $(date)"
 reboot
