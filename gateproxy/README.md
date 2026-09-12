@@ -41,7 +41,7 @@
 </table>
 
 ```bash
-wget -qO gateproxy.sh https://raw.githubusercontent.com/maravento/vault/master/gateproxy/gateproxy.sh && sudo bash gateproxy.sh
+wget -qO gpsetup.sh https://raw.githubusercontent.com/maravento/vault/master/gateproxy/gpsetup.sh && sudo bash gpsetup.sh
 ```
 
 ![Gateproxy](https://raw.githubusercontent.com/maravento/vault/master/gateproxy/img/gateproxy.png)
@@ -223,7 +223,7 @@ gateproxy/
 │   ├── killswitch.sh               # Emergency traffic block
 │   ├── serverboot.sh               # Start/restart all services
 │   └── serviceswatch.sh            # Service watchdog
-└── gateproxy.sh                # Main installer script
+└── gpsetup.sh                  # Main installer script
 ```
 
 ## ACL STRUCTURE
@@ -298,7 +298,7 @@ Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/et
 | `macip` | `hash:ip,mac` | MAC+IP binding, parsed from `pydhcpd.conf`. Gatekeeper for every other list below — a device not in `macip` is dropped before `macunlimited`/`maclimited`/`macports` are ever evaluated |
 | `blockports` | `bitmap:port` | Blocked port ranges (VPN tunnels, P2P, cryptomining, legacy protocols) |
 | `suridata` | `hash:ip` | Dest IPs flagged by Suricata alerts matching a `drop.conf` signature — silent `DROP`, see below |
-| `bandata` | `hash:ip` | IPs over bandwidth quota — DNS and port 80 only, redirected to warning page. Created and populated by Proxymon, not by `iptables.sh` — Proxymon is installed by `gateproxy.sh` as a bundled optional component (see Optional Packages); `iptables.sh` only opens the warning-page port (18081) for it |
+| `bandata` | `hash:ip` | IPs over bandwidth quota — DNS and port 80 only, redirected to warning page. Created and populated by Proxymon, not by `iptables.sh` — Proxymon is installed by `gpsetup.sh` as a bundled optional component (see Optional Packages); `iptables.sh` only opens the warning-page port (18081) for it |
 
 `macip` is built from `pydhcpd.conf`'s static `host {}` blocks, not from `mac-*.txt` directly. Adding a MAC to `mac-unlimited.txt`/`mac-limited.txt` classifies it, but does **not** by itself grant it network access — it still needs a matching static reservation in `pydhcpd.conf`, or the firewall's `MACCHECK` step drops its traffic regardless of classification. pydhcp ships an optional tool, `tools/pyleases.sh`, that generates those reservations from the same `mac-*.txt` files — run it after editing any of them (it is not scheduled automatically by any installer, see the Scripts section below).
 

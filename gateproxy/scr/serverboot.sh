@@ -31,7 +31,7 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# dependencies (samba/winbind excluded -- Samba install is optional in gateproxy.sh)
+# dependencies (samba/winbind excluded -- Samba install is optional in gpsetup.sh)
 for dep in iproute2 systemd squid-openssl apache2 rsyslog util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: missing dependency '$dep' -- abort"
