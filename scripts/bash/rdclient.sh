@@ -16,9 +16,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -62,7 +62,7 @@ if ! local_user=$(detect_local_user); then
 fi
 echo "Using local user: $local_user"
 
-USER_LANG=$(locale | grep LANG= | cut -d= -f2 | cut -d_ -f1) || true
+user_lang=$(locale | grep LANG= | cut -d= -f2 | cut -d_ -f1) || true
 
 export LANG=${LANG:-C.UTF-8}
 export LC_ALL=${LC_ALL:-C.UTF-8}
@@ -112,17 +112,17 @@ check_dependencies() {
 
     if [ ${#missing[@]} -gt 0 ]; then
         echo "INFO: Installing missing dependencies: ${missing[*]}"
-        APT_LOCK_TIMEOUT=120
-        APT_LOCK_ELAPSED=0
-        APT_LOCK_FILES="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
-        while lsof $APT_LOCK_FILES >/dev/null 2>&1; do
-            if [ "$APT_LOCK_ELAPSED" -ge "$APT_LOCK_TIMEOUT" ]; then
-                echo "ERROR: APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
+        apt_lock_timeout=120
+        apt_lock_elapsed=0
+        apt_lock_files="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
+        while lsof $apt_lock_files >/dev/null 2>&1; do
+            if [ "$apt_lock_elapsed" -ge "$apt_lock_timeout" ]; then
+                echo "ERROR: APT/DPKG locks still held after ${apt_lock_timeout}s. Aborting."
                 exit 1
             fi
-            echo "   Locks still held, waiting... (${APT_LOCK_ELAPSED}s elapsed)"
+            echo "   Locks still held, waiting... (${apt_lock_elapsed}s elapsed)"
             sleep 5
-            APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
+            apt_lock_elapsed=$((apt_lock_elapsed + 5))
         done
         if ! retry_cmd apt-get -qq update; then
             echo "ERROR: Failed to update package lists"
@@ -151,100 +151,100 @@ setup_keyboard() {
     fi
 
     user_home=$(getent passwd "$local_user" | cut -d: -f6)
-    XPROFILE="$user_home/.xprofile"
+    xprofile_path="$user_home/.xprofile"
     local_group=$(id -gn "$local_user")
 
-    if [ ! -f "$XPROFILE" ]; then
-        touch "$XPROFILE"
-        chown "$local_user:$local_group" "$XPROFILE" 2>/dev/null || true
+    if [ ! -f "$xprofile_path" ]; then
+        touch "$xprofile_path"
+        chown "$local_user:$local_group" "$xprofile_path" 2>/dev/null || true
     fi
 
-    case "$USER_LANG" in
-        es) KB_LAYOUT="latam" ;;
-        en) KB_LAYOUT="us" ;;
-        fr) KB_LAYOUT="fr" ;;
-        de) KB_LAYOUT="de" ;;
-        it) KB_LAYOUT="it" ;;
-        pt) KB_LAYOUT="br" ;;
-        ru) KB_LAYOUT="ru" ;;
-        ja) KB_LAYOUT="jp" ;;
-        zh) KB_LAYOUT="cn" ;;
-        ko) KB_LAYOUT="kr" ;;
-        ar) KB_LAYOUT="ara" ;;
-        tr) KB_LAYOUT="tr" ;;
-        pl) KB_LAYOUT="pl" ;;
-        nl) KB_LAYOUT="nl" ;;
-        sv) KB_LAYOUT="se" ;;
-        no) KB_LAYOUT="no" ;;
-        da) KB_LAYOUT="dk" ;;
-        fi) KB_LAYOUT="fi" ;;
-        cs) KB_LAYOUT="cz" ;;
-        hu) KB_LAYOUT="hu" ;;
-        ro) KB_LAYOUT="ro" ;;
-        el) KB_LAYOUT="gr" ;;
-        he) KB_LAYOUT="il" ;;
-        th) KB_LAYOUT="th" ;;
-        vi) KB_LAYOUT="vn" ;;
-        *) KB_LAYOUT="us" ;;
+    case "$user_lang" in
+        es) kb_layout="latam" ;;
+        en) kb_layout="us" ;;
+        fr) kb_layout="fr" ;;
+        de) kb_layout="de" ;;
+        it) kb_layout="it" ;;
+        pt) kb_layout="br" ;;
+        ru) kb_layout="ru" ;;
+        ja) kb_layout="jp" ;;
+        zh) kb_layout="cn" ;;
+        ko) kb_layout="kr" ;;
+        ar) kb_layout="ara" ;;
+        tr) kb_layout="tr" ;;
+        pl) kb_layout="pl" ;;
+        nl) kb_layout="nl" ;;
+        sv) kb_layout="se" ;;
+        no) kb_layout="no" ;;
+        da) kb_layout="dk" ;;
+        fi) kb_layout="fi" ;;
+        cs) kb_layout="cz" ;;
+        hu) kb_layout="hu" ;;
+        ro) kb_layout="ro" ;;
+        el) kb_layout="gr" ;;
+        he) kb_layout="il" ;;
+        th) kb_layout="th" ;;
+        vi) kb_layout="vn" ;;
+        *) kb_layout="us" ;;
     esac
 
-    if ! grep -q "setxkbmap $KB_LAYOUT" "$XPROFILE"; then
-        echo "setxkbmap $KB_LAYOUT" >> "$XPROFILE"
-        chown "$local_user:$local_group" "$XPROFILE" 2>/dev/null || true
+    if ! grep -q "setxkbmap $kb_layout" "$xprofile_path"; then
+        echo "setxkbmap $kb_layout" >> "$xprofile_path"
+        chown "$local_user:$local_group" "$xprofile_path" 2>/dev/null || true
     fi
 }
 
 install_rustdesk() {
     check_dependencies
 
-    VER_TAG=$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//' || true)
-    if [ -z "$VER_TAG" ]; then
+    ver_tag=$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//' || true)
+    if [ -z "$ver_tag" ]; then
         echo "ERROR: Failed to fetch latest version"
         exit 1
     fi
 
     if dpkg -l rustdesk 2>/dev/null | grep -q '^ii'; then
-        INSTALLED_VER=$(dpkg -l rustdesk | grep '^ii' | awk '{print $3}')
-        echo "INFO: RustDesk installed: $INSTALLED_VER"
+        installed_ver=$(dpkg -l rustdesk | grep '^ii' | awk '{print $3}')
+        echo "INFO: RustDesk installed: $installed_ver"
     else
-        INSTALLED_VER=""
+        installed_ver=""
         echo "INFO: RustDesk not installed"
     fi
 
-    echo "INFO: Latest version: $VER_TAG"
+    echo "INFO: Latest version: $ver_tag"
 
-    if [ "$INSTALLED_VER" = "$VER_TAG" ]; then
+    if [ "$installed_ver" = "$ver_tag" ]; then
         echo "OK: You already have the latest version. Nothing to do."
         return
     fi
 
-    DEB_FILE="rustdesk-${VER_TAG}-x86_64.deb"
-    BASE_URL="https://github.com/rustdesk/rustdesk/releases/download/${VER_TAG}"
+    deb_file="rustdesk-${ver_tag}-x86_64.deb"
+    base_url="https://github.com/rustdesk/rustdesk/releases/download/${ver_tag}"
 
     cd /tmp
-    if ! retry_cmd wget -q "${BASE_URL}/${DEB_FILE}"; then
+    if ! retry_cmd wget -q "${base_url}/${deb_file}"; then
         echo "ERROR: Download failed"
-        rm -f "$DEB_FILE"
+        rm -f "$deb_file"
         exit 1
     fi
 
     echo "INFO: Installing package..."
-    DPKG_OUT=$(mktemp)
-    if dpkg -i "./$DEB_FILE" >"$DPKG_OUT" 2>&1; then
+    dpkg_out=$(mktemp)
+    if dpkg -i "./$deb_file" >"$dpkg_out" 2>&1; then
         setup_keyboard
         # The .deb's own postinst enables and starts rustdesk.service on its
         # own; undo that here so the package is installed but not running
         # until the user starts it manually.
         systemctl stop rustdesk 2>/dev/null || true
         systemctl disable rustdesk 2>/dev/null || true
-        rm -f "$DEB_FILE" "$DPKG_OUT"
-        echo "OK: RustDesk $VER_TAG installed successfully"
+        rm -f "$deb_file" "$dpkg_out"
+        echo "OK: RustDesk $ver_tag installed successfully"
         echo "INFO: Service stopped. To start it now: sudo systemctl start rustdesk"
         echo "INFO: To start it on every boot: sudo systemctl enable rustdesk"
     else
         echo "ERROR: Installation failed"
-        cat "$DPKG_OUT" >&2
-        rm -f "$DEB_FILE" "$DPKG_OUT"
+        cat "$dpkg_out" >&2
+        rm -f "$deb_file" "$dpkg_out"
         exit 1
     fi
 }
@@ -256,14 +256,14 @@ remove_rustdesk() {
     fi
 
     echo "INFO: Removing RustDesk..."
-    APT_OUT=$(mktemp)
-    if apt-get remove --purge -y rustdesk >"$APT_OUT" 2>&1; then
-        rm -f "$APT_OUT"
+    apt_out=$(mktemp)
+    if apt-get remove --purge -y rustdesk >"$apt_out" 2>&1; then
+        rm -f "$apt_out"
         echo "OK: RustDesk removed successfully"
     else
         echo "ERROR: Failed to remove RustDesk"
-        cat "$APT_OUT" >&2
-        rm -f "$APT_OUT"
+        cat "$apt_out" >&2
+        rm -f "$apt_out"
         exit 1
     fi
 
@@ -274,20 +274,20 @@ remove_rustdesk() {
         user_home=$(getent passwd "$local_user" | cut -d: -f6)
         user_uid=$(id -u "$local_user" 2>/dev/null || true)
 
-        XPROFILE="$user_home/.xprofile"
-        [ -f "$XPROFILE" ] && sed -i '/^setxkbmap /d' "$XPROFILE"
+        xprofile_path="$user_home/.xprofile"
+        [ -f "$xprofile_path" ] && sed -i '/^setxkbmap /d' "$xprofile_path"
 
         rm -rf "$user_home/.local/share/logs/RustDesk"
         [ -n "$user_uid" ] && rm -rf "/tmp/RustDesk-service" "/tmp/RustDesk-$user_uid"
 
         if [ -d "$user_home/.config/rustdesk" ]; then
-            read -rp "Also delete saved profiles/connections at $user_home/.config/rustdesk? (y/n): " RESP
-            [[ "$RESP" =~ ^[Yy]$ ]] && rm -rf "$user_home/.config/rustdesk"
+            read -rp "Also delete saved profiles/connections at $user_home/.config/rustdesk? (y/n): " user_response
+            [[ "$user_response" =~ ^[Yy]$ ]] && rm -rf "$user_home/.config/rustdesk"
         fi
 
         if [ -d "$user_home/Videos/RustDesk" ]; then
-            read -rp "Also delete recordings at $user_home/Videos/RustDesk? (y/n): " RESP
-            [[ "$RESP" =~ ^[Yy]$ ]] && rm -rf "$user_home/Videos/RustDesk"
+            read -rp "Also delete recordings at $user_home/Videos/RustDesk? (y/n): " user_response
+            [[ "$user_response" =~ ^[Yy]$ ]] && rm -rf "$user_home/Videos/RustDesk"
         fi
     fi
 }

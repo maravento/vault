@@ -63,9 +63,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     log "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -111,7 +111,7 @@ if ! local_user=$(detect_local_user); then
     log "ERROR: no valid local user found -- abort"
     exit 1
 fi
-echo "Using local user: $local_user"
+log "INFO: Using local user: $local_user"
 
 # Report directory (owned by user)
 report_dir="/home/${local_user}/Report"
@@ -432,12 +432,12 @@ xml_to_html() {
 
     # Verify XML file exists and is not empty
     if [ ! -f "$xml" ]; then
-        log "WARNING: XML file does not exist: $xml"
+        log "WARNING: XML file does not exist: $xml -- skip"
         return 1
     fi
 
     if [ ! -s "$xml" ]; then
-        log "WARNING: XML file is empty: $xml"
+        log "WARNING: XML file is empty: $xml -- skip"
         return 1
     fi
 
@@ -454,7 +454,7 @@ xml_to_html() {
         rm -f "$xsl_error"
         return 0
     else
-        log "WARNING: Custom XSL conversion failed:"
+        log "WARNING: Custom XSL conversion failed -- fallback"
         head -5 "$xsl_error" | while read -r line; do log "WARNING: $line"; done
     fi
 
@@ -466,7 +466,7 @@ xml_to_html() {
             rm -f "$xsl_error"
             return 0
         else
-            log "WARNING: Default XSL conversion failed:"
+            log "WARNING: Default XSL conversion failed -- fallback"
             head -5 "$xsl_error" | while read -r line; do log "WARNING: $line"; done
         fi
     else
@@ -501,12 +501,12 @@ finalize_html_report() {
     local html_file="$1"
 
     if [ ! -f "$html_file" ]; then
-        log "ERROR: HTML report was not created: $html_file"
+        log "ERROR: HTML report was not created: $html_file -- abort"
         exit 1
     fi
 
     if [ ! -s "$html_file" ]; then
-        log "ERROR: HTML report is empty: $html_file"
+        log "ERROR: HTML report is empty: $html_file -- abort"
         exit 1
     fi
 
@@ -545,12 +545,12 @@ select_interface() {
                 SEL_IFACE="${SEL_IFACE%"${SEL_IFACE##*[![:space:]]}"}"
                 [ -n "$SEL_IFACE" ] || { log "WARNING: no interface specified -- retry"; continue; }
                 if ! ip link show "$SEL_IFACE" &>/dev/null; then
-                        log "WARNING: Interface '$SEL_IFACE' does not exist. Try again."
+                        log "WARNING: Interface '$SEL_IFACE' does not exist -- retry"
                         continue
                 fi
                 SEL_NET=$(ip -4 addr show dev "$SEL_IFACE" scope global | sed -n 's/.*inet \([0-9.]\{1,\}\/[0-9]\{1,\}\).*/\1/p' | head -n1)
                 if [ -z "$SEL_NET" ]; then
-                        log "WARNING: No IPv4 address found on '$SEL_IFACE'. Try again."
+                        log "WARNING: No IPv4 address found on '$SEL_IFACE' -- retry"
                         continue
                 fi
                 break
@@ -642,12 +642,12 @@ case "$opt" in
             target="${target#"${target%%[![:space:]]*}"}"
             target="${target%"${target##*[![:space:]]}"}"
             [ -n "$target" ] && break
-            log "WARNING: No target specified. Try again."
+            log "WARNING: No target specified -- retry"
         done
 
         # Validate target format (IPv4 or FQDN)
         if ! [[ "$target" =~ $UH_IPV4 ]] && ! [[ "$target" =~ $UH_FQDN ]]; then
-            log "ERROR: Invalid target format: $target"
+            log "ERROR: Invalid target format: $target -- abort"
             exit 1
         fi
 
@@ -670,11 +670,11 @@ case "$opt" in
 
         # Verify XML was created
         if [ ! -f "$xml_file" ]; then
-            log "WARNING: XML file not found: $xml_file"
+            log "WARNING: XML file not found: $xml_file -- fallback"
 
             # Check if .nmap file exists as fallback
             if [ -f "${base}.nmap" ]; then
-                log "WARNING: Found .nmap file, converting to HTML..."
+                log "WARNING: Found .nmap file, converting to HTML -- fallback"
                 target_html=$(printf '%s' "$target" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
                 {
                     echo '<!DOCTYPE html>'
@@ -689,7 +689,7 @@ case "$opt" in
 
                 finalize_html_report "$html_file"
                 cleanup_intermediate_files "$base"
-                log "netreport done at: $(date)"
+                log "netreport done at: $(date '+%Y-%m-%d %H:%M:%S')"
                 exit 0
             else
                 cp -f "$SCRIPT_TMPDIR/nmap_out" "${base}_nmap_out.log" 2>/dev/null || true
@@ -704,7 +704,7 @@ case "$opt" in
             exit 1
         fi
 
-        log "XML file created successfully ($(du -h "$xml_file" | cut -f1))"
+        log "INFO: XML file created successfully ($(du -h "$xml_file" | cut -f1))"
 
         # Convert to HTML
         if ! xml_to_html "$xml_file" "$html_file"; then
@@ -720,10 +720,10 @@ case "$opt" in
     4)
         log "INFO: exit requested"
         echo "Goodbye!"
-        log "netreport done at: $(date)"
+        log "netreport done at: $(date '+%Y-%m-%d %H:%M:%S')"
         exit 0
         ;;
 esac
 
-log "netreport done at: $(date)"
+log "netreport done at: $(date '+%Y-%m-%d %H:%M:%S')"
 echo ""

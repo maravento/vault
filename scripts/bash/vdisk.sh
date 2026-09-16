@@ -17,8 +17,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -169,13 +170,13 @@ mount_img() {
             mount -o loop,rw,sync "$myimg" "$mountpoint"
             chown -R "$local_user": "$mountpoint"
             chmod 750 "$mountpoint"
-            echo "VHD-IMG Mount: $(date)" | tee -a /var/log/syslog
+            echo "VHD-IMG Mount: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
             ;;
         2)
             # umount .img
             echo "Umount VHD-IMG..."
             umount "$mountpoint"
-            echo "VHD-IMG Umount: $(date)" | tee -a /var/log/syslog
+            echo "VHD-IMG Umount: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
             ;;
         *)
             echo "Invalid choice. Exiting."
@@ -204,14 +205,14 @@ mount_img_kpartx() {
             for f in $(losetup --list | grep "$myvhd" | awk '{print $1}'); do mount $f $mountpoint; done
             chown -R "$local_user": "$mountpoint"
             chmod 750 "$mountpoint"
-            echo "VHD-IMG Mount: $(date)" | tee -a /var/log/syslog
+            echo "VHD-IMG Mount: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
             ;;
         2)
             # umount .img
             echo "Umount VHD-IMG..."
             umount "$mountpoint"
             if [ -n "$(kpartx -d -v "$myimg")" ]; then
-                echo "VHD-IMG Umount: $(date)" | tee -a /var/log/syslog
+                echo "VHD-IMG Umount: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
             else
                 echo "No Mounted Image"
             fi

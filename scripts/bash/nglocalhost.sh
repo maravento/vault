@@ -13,7 +13,7 @@
 
 set -uo pipefail
 
-# check no-root
+# no-root check
 if [ "$(id -u)" == "0" ]; then
     echo "ERROR: This script should not be run as root -- abort"
     exit 1
@@ -47,14 +47,14 @@ else
     echo "Fingerprint Add (nglocalhost.com)"
 fi
 
-SCRIPT_NAME=$(basename "$0")
-RUN_DIR="/run/user/${UID}"
-mkdir -p "$RUN_DIR"
-ACTIVE_FLAG="${RUN_DIR}/${SCRIPT_NAME}_active"
-PID_FILE="${RUN_DIR}/${SCRIPT_NAME}.pid"
-PORTS_FILE="${RUN_DIR}/${SCRIPT_NAME}.ports"
+script_name=$(basename "$0")
+run_dir="/run/user/${UID}"
+mkdir -p "$run_dir"
+active_flag="${run_dir}/${script_name}_active"
+pid_file="${run_dir}/${script_name}.pid"
+ports_file="${run_dir}/${script_name}.ports"
 is_running() {
-    if pgrep -f "ssh.*nglocalhost.com" > /dev/null || [ -f "$ACTIVE_FLAG" ]; then
+    if pgrep -f "ssh.*nglocalhost.com" > /dev/null || [ -f "$active_flag" ]; then
         return 0
     else
         return 1
@@ -62,13 +62,13 @@ is_running() {
 }
 kill_all_tunnel_processes() {
     pkill -f "ssh.*nglocalhost.com" 2>/dev/null
-    rm -f "$PID_FILE" "$ACTIVE_FLAG" "$PORTS_FILE"
+    rm -f "$pid_file" "$active_flag" "$ports_file"
 }
 start() {
     # prevent overlapping runs
-    SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-    (umask 077; : >> "$SCRIPT_LOCK")
-    exec 200>"$SCRIPT_LOCK"
+    script_lock="/var/lock/$(basename "$0" .sh).lock"
+    (umask 077; : >> "$script_lock")
+    exec 200>"$script_lock"
     if ! flock -n 200; then
         echo "ERROR: script $(basename "$0") is already running -- abort"
         exit 1
@@ -80,8 +80,8 @@ start() {
         echo "Error. You must enter at least one port."
         exit 1
     fi
-    touch "$ACTIVE_FLAG"
-    PORT_ARGS=""
+    touch "$active_flag"
+    port_args=""
     local_ports=()
     for port in $ports; do
         if ss -tuln | grep -q ":$port "; then
@@ -90,18 +90,18 @@ start() {
             echo "Port $port is not accessible locally"
             continue
         fi
-        PORT_ARGS+=" -R 0:localhost:$port"
+        port_args+=" -R 0:localhost:$port"
         local_ports+=($port)
     done
-    if [ -z "$PORT_ARGS" ]; then
-        rm -f "$ACTIVE_FLAG"
+    if [ -z "$port_args" ]; then
+        rm -f "$active_flag"
         exit 1
     fi
     local output_file
     output_file=$(mktemp /tmp/nglocalhost_output.XXXXXX)
-    ssh -q -T -o LogLevel=ERROR -o ServerAliveInterval=60 -o ServerAliveCountMax=30 ${PORT_ARGS:-} nglocalhost.com > "$output_file" 2>&1 &
-    SSH_PID=$!
-    echo "$SSH_PID" > "$PID_FILE"
+    ssh -q -T -o LogLevel=ERROR -o ServerAliveInterval=60 -o ServerAliveCountMax=30 ${port_args:-} nglocalhost.com > "$output_file" 2>&1 &
+    ssh_pid=$!
+    echo "$ssh_pid" > "$pid_file"
     for i in {1..10}; do
         if [ -s "$output_file" ]; then
             break
@@ -114,18 +114,18 @@ start() {
     assigned_ports=$(echo "$output" | grep -oP 'nglocalhost\.com:\K[0-9]+')
     if [ -z "$assigned_ports" ]; then
         echo "No remote ports assigned"
-        rm -f "$ACTIVE_FLAG"
-        kill "$SSH_PID" 2>/dev/null
+        rm -f "$active_flag"
+        kill "$ssh_pid" 2>/dev/null
         exit 1
     fi
-    > "$PORTS_FILE"
+    > "$ports_file"
     i=0
     for assigned_port in $assigned_ports; do
         echo "Local ${local_ports[$i]} -> https://nglocalhost.com:$assigned_port"
-        echo "${local_ports[$i]}:$assigned_port" >> "$PORTS_FILE"
+        echo "${local_ports[$i]}:$assigned_port" >> "$ports_file"
         ((i++)) || true
     done
-    rm -f "$ACTIVE_FLAG"
+    rm -f "$active_flag"
 }
 stop() {
     if is_running; then
@@ -138,7 +138,7 @@ stop() {
 status() {
     if is_running; then
         echo "Tunnel running"
-        cat "$PORTS_FILE" 2>/dev/null
+        cat "$ports_file" 2>/dev/null
     else
         echo "Tunnel NOT running"
     fi

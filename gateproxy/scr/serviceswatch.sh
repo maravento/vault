@@ -29,9 +29,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     log "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -56,38 +56,43 @@ done
 # Start
 log "serviceswatch start..."
 
+# ------------------------------------------------------------------------------
 # VARIABLES
+# ------------------------------------------------------------------------------
+
 sleep_time="5"
 
-# CHECK SERVICES
+# ------------------------------------------------------------------------------
+# SERVICES
+# ------------------------------------------------------------------------------
 
 # Webmin service
 if pgrep -x miniserv.pl > /dev/null; then
-    log "ONLINE: Webmin"
+    log "INFO: Webmin ONLINE"
 else
     for pid in $(ps -ef | grep "[m]iniserv.pl" | awk '{print $2}'); do
         kill -9 "$pid" &>/dev/null
     done
     sleep "${sleep_time}"
     /etc/webmin/restart-by-force-kill
-    log "Webmin start"
+    log "FIX: Webmin restarted"
 fi
 
 # Apache2 service
 if pgrep -x apache2 > /dev/null; then
-    log "ONLINE: apache2"
+    log "INFO: apache2 ONLINE"
 else
     for pid in $(ps -ef | grep "[a]pache2" | awk '{print $2}'); do
         kill -9 "$pid" &>/dev/null
     done
     sleep "${sleep_time}"
     systemctl start apache2.service
-    log "Apache2 start"
+    log "FIX: apache2 restarted"
 fi
 
 # Squid Service
 if pgrep -x squid > /dev/null; then
-    log "ONLINE: squid"
+    log "INFO: squid ONLINE"
 else
     for pid in $(ps -ef | grep "[s]quid" | awk '{print $2}'); do
         kill -9 "$pid" &>/dev/null
@@ -95,18 +100,18 @@ else
     done
     sleep "${sleep_time}"
     systemctl start squid.service
-    log "Squid start"
+    log "FIX: squid restarted"
 fi
 
 # rsyslog
 if pgrep -x rsyslogd > /dev/null; then
-    log "ONLINE: rsyslog"
+    log "INFO: rsyslog ONLINE"
 else
     systemctl stop syslog.socket rsyslog.service &>/dev/null
     sleep "${sleep_time}"
     systemctl start syslog.socket rsyslog.service
-    log "Rsyslog start"
+    log "FIX: rsyslog restarted"
 fi
 
 # End
-log "serviceswatch done at: $(date)"
+log "serviceswatch done at: $(date '+%Y-%m-%d %H:%M:%S')"

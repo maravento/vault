@@ -17,9 +17,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -38,9 +38,11 @@ install_joomla() {
     read -r -sp "Set the password for the MySQL joomla user: " DBPASS
     echo
 
-    # Escape single quotes for safe embedding in SQL string literals (SQL standard: ' -> '')
-    SQL_ROOTPASS="${ROOTPASS//\'/\'\'}"
-    SQL_DBPASS="${DBPASS//\'/\'\'}"
+    # Escape backslashes and single quotes for safe embedding in SQL string literals
+    SQL_ROOTPASS="${ROOTPASS//\\/\\\\}"
+    SQL_ROOTPASS="${SQL_ROOTPASS//\'/\'\'}"
+    SQL_DBPASS="${DBPASS//\\/\\\\}"
+    SQL_DBPASS="${SQL_DBPASS//\'/\'\'}"
 
     apt update && apt upgrade -y
 
@@ -204,6 +206,10 @@ EOF
 delete_joomla() {
     read -r -sp "Enter the MySQL root password: " ROOTPASS
     echo
+    if [ -z "$ROOTPASS" ]; then
+        echo "ERROR: password cannot be empty -- abort"
+        exit 1
+    fi
     echo "Removing Joomla..."
     rm -rf /var/www/html/joomla
 

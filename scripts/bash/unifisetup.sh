@@ -44,9 +44,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -65,11 +65,11 @@ log() {
 # Constants
 ################################################################################
 
-DOWNLOADS_API="https://download.svc.ui.com/v1/software-downloads"
-WORK_DIR="${script_dir}/.unifisetup-work"
-DOWNLOADS_JSON="${WORK_DIR}/downloads.json"
-MIN_MAJOR="24"
-MIN_MINOR="04"
+downloads_api="https://download.svc.ui.com/v1/software-downloads"
+work_dir="${script_dir}/.unifisetup-work"
+downloads_json="${work_dir}/downloads.json"
+min_major="24"
+min_minor="04"
 
 ################################################################################
 # OS / architecture checks
@@ -98,8 +98,8 @@ os_check() {
         log "WARNING: continuing at your own risk"
     fi
 
-    if [ "$(printf '%s\n' "${VERSION_ID:-0}" "${MIN_MAJOR}.${MIN_MINOR}" | sort -V | head -n1)" != "${MIN_MAJOR}.${MIN_MINOR}" ]; then
-        log "WARNING: Untested below Ubuntu ${MIN_MAJOR}.${MIN_MINOR}"
+    if [ "$(printf '%s\n' "${VERSION_ID:-0}" "${min_major}.${min_minor}" | sort -V | head -n1)" != "${min_major}.${min_minor}" ]; then
+        log "WARNING: Untested below Ubuntu ${min_major}.${min_minor}"
         log "WARNING: (detected ${VERSION_ID:-unknown}) continuing at your own risk"
     fi
 
@@ -136,7 +136,7 @@ ensure_prereqs() {
     fi
 
     mkdir -p /etc/apt/keyrings
-    mkdir -p -m 700 "${WORK_DIR}"
+    mkdir -p -m 700 "${work_dir}"
 }
 
 ################################################################################
@@ -145,9 +145,9 @@ ensure_prereqs() {
 
 fetch_downloads_json() {
     log "Fetching official Ubiquiti release catalog..."
-    if ! curl -fsSL "${DOWNLOADS_API}" -o "${DOWNLOADS_JSON}"; then
+    if ! curl -fsSL "${downloads_api}" -o "${downloads_json}"; then
         log "ERROR: Failed to fetch release catalog."
-        log "URL: ${DOWNLOADS_API}"
+        log "URL: ${downloads_api}"
         exit 1
     fi
 }
@@ -155,7 +155,7 @@ fetch_downloads_json() {
 # Populates: latest_network_version, latest_network_url
 get_latest_network() {
     local row
-    row="$(jq -r '.downloads[] | select(.name | test("^UniFi Network Application [0-9.]+ for Debian/Ubuntu$")) | [.version, .file_url] | @tsv' "${DOWNLOADS_JSON}" | sort -k1,1V | tail -n1)"
+    row="$(jq -r '.downloads[] | select(.name | test("^UniFi Network Application [0-9.]+ for Debian/Ubuntu$")) | [.version, .file_url] | @tsv' "${downloads_json}" | sort -k1,1V | tail -n1)"
     latest_network_version="$(echo "$row" | cut -f1)"
     latest_network_url="$(echo "$row" | cut -f2)"
 }
@@ -163,7 +163,7 @@ get_latest_network() {
 # Populates: latest_osserver_version, latest_osserver_url
 get_latest_osserver() {
     local row
-    row="$(jq -r --arg arch "${osserver_arch}" '.downloads[] | select(.name | test("^UniFi OS Server [0-9.]+ for Linux \\(" + $arch + "\\)$")) | [.version, .file_url] | @tsv' "${DOWNLOADS_JSON}" | sort -k1,1V | tail -n1)"
+    row="$(jq -r --arg arch "${osserver_arch}" '.downloads[] | select(.name | test("^UniFi OS Server [0-9.]+ for Linux \\(" + $arch + "\\)$")) | [.version, .file_url] | @tsv' "${downloads_json}" | sort -k1,1V | tail -n1)"
     latest_osserver_version="$(echo "$row" | cut -f1)"
     latest_osserver_url="$(echo "$row" | cut -f2)"
 }
@@ -311,7 +311,7 @@ install_network() {
         log "WARNING: Failed to refresh CA certificates"
     fi
 
-    local deb_file="${WORK_DIR}/unifi_${target_version}_all.deb"
+    local deb_file="${work_dir}/unifi_${target_version}_all.deb"
     log "Downloading UniFi Network ${target_version}..."
     if ! curl -fL --progress-bar -o "${deb_file}" "${target_url}"; then
         log "ERROR: Failed to download package."
@@ -477,7 +477,7 @@ install_osserver() {
 
     ensure_osserver_prereqs
 
-    local installer_file="${WORK_DIR}/uosserver-${target_version}"
+    local installer_file="${work_dir}/uosserver-${target_version}"
     log "Downloading UniFi OS Server ${target_version}..."
     log "This is a large file, it may take a while."
     if ! curl -fL --progress-bar -o "${installer_file}" "${target_url}"; then
@@ -692,7 +692,7 @@ menu() {
             5) action_uninstall_network ;;
             6) action_uninstall_osserver ;;
             7) action_status ;;
-            8) log "unifisetup done at: $(date)"; exit 0 ;;
+            8) log "unifisetup done at: $(date '+%Y-%m-%d %H:%M:%S')"; exit 0 ;;
             *) echo "Invalid option" ;;
         esac
         echo ""

@@ -300,7 +300,7 @@ sync_transfer() {
 }
 
 sync_run() {
-    echo "Run Sync at $(date)" | tee -a /var/log/syslog
+    echo "Run Sync at $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
 
     for service_name in "${services[@]}"; do
         local service_path="$cloud_path/$service_name"

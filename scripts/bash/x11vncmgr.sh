@@ -24,7 +24,7 @@
 # NOTE on logging:
 # - This script's own actions are logged to /var/log/x11vncmgr.log
 #   (rewritten on each run).
-# - LOG_FILE (below) is unrelated: it is where the x11vnc daemon itself
+# - x11vnc_log_file (below) is unrelated: it is where the x11vnc daemon itself
 #   writes its own runtime output (passed via -o to x11vnc), not this
 #   script's own log.
 #
@@ -32,13 +32,13 @@
 
 set -uo pipefail
 
-DISPLAY_NUM=":0"
-XAUTH_PATH="/var/run/lightdm/root/:0"
-VNC_PASSWD="/root/.vnc/passwd"
-VNC_PORT="5900"
-SERVICE_NAME="x11vnc"
-SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
-LOG_FILE="/var/log/x11vnc.log"
+display_num=":0"
+xauth_path="/var/run/lightdm/root/:0"
+vnc_passwd="/root/.vnc/passwd"
+vnc_port="5900"
+service_name="x11vnc"
+service_file="/etc/systemd/system/${service_name}.service"
+x11vnc_log_file="/var/log/x11vnc.log"
 
 # logging
 log_file="/var/log/x11vncmgr.log"
@@ -55,9 +55,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     log "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -72,37 +72,37 @@ for dep in iproute2 util-linux; do
 done
 
 check_password_exists() {
-    if [ ! -f "$VNC_PASSWD" ]; then
-        x11vnc -storepasswd "$VNC_PASSWD"
+    if [ ! -f "$vnc_passwd" ]; then
+        x11vnc -storepasswd "$vnc_passwd"
     fi
 }
 
 verify_running() {
-    if ! systemctl is-active --quiet "$SERVICE_NAME"; then
-        log "ERROR: $SERVICE_NAME is not active."
+    if ! systemctl is-active --quiet "$service_name"; then
+        log "ERROR: $service_name is not active."
         exit 1
     fi
 
-    if ! ss -tlnp | grep -q ":${VNC_PORT} "; then
-        log "ERROR: port ${VNC_PORT} is not listening."
+    if ! ss -tlnp | grep -q ":${vnc_port} "; then
+        log "ERROR: port ${vnc_port} is not listening."
         exit 1
     fi
 
-    log "$SERVICE_NAME is active and listening on port ${VNC_PORT}."
+    log "$service_name is active and listening on port ${vnc_port}."
 }
 
 verify_removed() {
-    if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
-        log "ERROR: $SERVICE_NAME is still active."
+    if systemctl is-active --quiet "$service_name" 2>/dev/null; then
+        log "ERROR: $service_name is still active."
         exit 1
     fi
 
-    if [ -f "$SERVICE_FILE" ]; then
-        log "ERROR: $SERVICE_FILE still exists."
+    if [ -f "$service_file" ]; then
+        log "ERROR: $service_file still exists."
         exit 1
     fi
 
-    log "$SERVICE_NAME uninstalled."
+    log "$service_name uninstalled."
 }
 
 do_install() {
@@ -122,7 +122,7 @@ do_install() {
 
     check_password_exists
 
-    cat > "$SERVICE_FILE" <<EOF
+    cat > "$service_file" <<EOF
 [Unit]
 Description=x11vnc remote desktop server
 After=lightdm.service network.target
@@ -130,7 +130,7 @@ Requires=lightdm.service
 
 [Service]
 Type=forking
-ExecStart=/usr/bin/x11vnc -display ${DISPLAY_NUM} -auth ${XAUTH_PATH} -rfbauth ${VNC_PASSWD} -forever -shared -bg -repeat -noxrecord -noxfixes -o ${LOG_FILE}
+ExecStart=/usr/bin/x11vnc -display ${display_num} -auth ${xauth_path} -rfbauth ${vnc_passwd} -forever -shared -bg -repeat -noxrecord -noxfixes -o ${x11vnc_log_file}
 ExecStop=/usr/bin/pkill x11vnc
 Restart=on-failure
 User=root
@@ -140,17 +140,17 @@ WantedBy=multi-user.target
 EOF
 
     systemctl daemon-reload
-    systemctl enable --now "$SERVICE_NAME"
+    systemctl enable --now "$service_name"
 
     verify_running
 }
 
 do_uninstall() {
-    systemctl stop "$SERVICE_NAME" 2>/dev/null || true
-    systemctl disable "$SERVICE_NAME" 2>/dev/null || true
+    systemctl stop "$service_name" 2>/dev/null || true
+    systemctl disable "$service_name" 2>/dev/null || true
 
-    if [ -f "$SERVICE_FILE" ]; then
-        rm -f "$SERVICE_FILE"
+    if [ -f "$service_file" ]; then
+        rm -f "$service_file"
         systemctl daemon-reload
     fi
 
@@ -162,19 +162,19 @@ do_uninstall() {
         fi
     fi
 
-    if [ -f "$VNC_PASSWD" ]; then
-        rm -f "$VNC_PASSWD"
+    if [ -f "$vnc_passwd" ]; then
+        rm -f "$vnc_passwd"
     fi
 
     verify_removed
 
-    rm -f "$LOG_FILE" "$log_file"
+    rm -f "$x11vnc_log_file" "$log_file"
     exit 0
 }
 
 do_start() {
     check_password_exists
-    systemctl start "$SERVICE_NAME"
+    systemctl start "$service_name"
 
     log "Service started."
 
@@ -182,13 +182,13 @@ do_start() {
 }
 
 do_stop() {
-    systemctl stop "$SERVICE_NAME"
+    systemctl stop "$service_name"
 
     log "Service stopped."
 }
 
 do_restart() {
-    systemctl restart "$SERVICE_NAME"
+    systemctl restart "$service_name"
 
     log "Service restarted."
 
@@ -196,18 +196,18 @@ do_restart() {
 }
 
 do_status() {
-    if systemctl is-active --quiet "$SERVICE_NAME"; then
+    if systemctl is-active --quiet "$service_name"; then
         local pid
-        pid=$(systemctl show -p MainPID --value "$SERVICE_NAME")
-        echo "[UP] $SERVICE_NAME (PID $pid)"
+        pid=$(systemctl show -p MainPID --value "$service_name")
+        echo "[UP] $service_name (PID $pid)"
     else
-        echo "[DOWN] $SERVICE_NAME"
+        echo "[DOWN] $service_name"
     fi
 
-    if ss -tlnp | grep -q ":${VNC_PORT} "; then
-        echo "[UP] port ${VNC_PORT} listening"
+    if ss -tlnp | grep -q ":${vnc_port} "; then
+        echo "[UP] port ${vnc_port} listening"
     else
-        echo "[DOWN] port ${VNC_PORT} not listening"
+        echo "[DOWN] port ${vnc_port} not listening"
     fi
 }
 
@@ -260,4 +260,4 @@ else
 fi
 
 # End
-log "x11vncmgr done at: $(date)"
+log "x11vncmgr done at: $(date '+%Y-%m-%d %H:%M:%S')"

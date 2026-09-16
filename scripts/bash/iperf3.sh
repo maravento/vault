@@ -28,7 +28,7 @@ set -uo pipefail
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 UH_UINT='^(0|[1-9][0-9]*)$'
 
-# check no-root
+# no-root check
 if [ "$(id -u)" == "0" ]; then
     echo "ERROR: This script should not be run as root -- abort"
     exit 1
@@ -174,7 +174,7 @@ run_tests() {
     {
         echo "Server: $ip"
         echo "Local Interface: $iface"
-        echo "Date: $(date)"
+        echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
         echo "Test Duration: ${DURATION}s"
         echo "Parallel Streams: $PARALLEL"
     } | tee "$log"

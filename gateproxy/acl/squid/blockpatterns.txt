@@ -11,7 +11,7 @@ info_hash
 iptv
 jndi:
 magnet:
-mtc1
+mtc
 nopor
 \.onion
 peer_id=

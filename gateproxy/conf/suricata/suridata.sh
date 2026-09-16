@@ -59,22 +59,22 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
-## root check
+# root check
 if [ "$(id -u)" != "0" ]; then
     log "ERROR: This script must be run as root -- abort"
     exit 1
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     log "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
 fi
 
-# DEPENDENCIES
+# dependencies
 for dep in jq ipset iptables coreutils grep; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: missing dependency '$dep' -- abort"
@@ -96,80 +96,83 @@ UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5
 
 log "suridata start..."
 
+# ------------------------------------------------------------------------------
 # VARIABLES
-RULES_FILE="/var/lib/suricata/rules/suricata.rules"
-EVE_LOG="/var/log/suricata/eve.json"
-OFFSET_FILE="/var/lib/suricata/suridata.offset"
-SIDS_FILE="/var/lib/suricata/suridata.sids"
-OUT_FILE="/etc/suricata/suridata.txt"
+# ------------------------------------------------------------------------------
+
+rules_file="/var/lib/suricata/rules/suricata.rules"
+eve_log="/var/log/suricata/eve.json"
+offset_file="/var/lib/suricata/suridata.offset"
+sids_file="/var/lib/suricata/suridata.sids"
+out_file="/etc/suricata/suridata.txt"
 
 # network identity -- same "${VAR:-default}" fallback style as iptables.sh,
 # so this script still runs standalone if nothing exports these first.
 wan_iface="eth0"
 SERV_SUBNET="${SERV_SUBNET:-192.168.0.0}"
 
-for f in "$RULES_FILE" "$EVE_LOG"; do
+for f in "$rules_file" "$eve_log"; do
     if [ ! -f "$f" ]; then
         log "ERROR: required file not found: $f -- abort"
         exit 1
     fi
 done
-touch "$OUT_FILE"
+touch "$out_file"
 
 # -- LAN/WAN exclusion prefixes -----------------------------------------------
 # Assumes /24, same convention as the rest of this project (blockports.txt
-# etc.). LAN_PREFIX comes straight from SERV_SUBNET (fixed, known value).
-# WAN_PREFIX has no fixed value to fall back on -- the WAN IP is
+# etc.). lan_prefix comes straight from SERV_SUBNET (fixed, known value).
+# wan_prefix has no fixed value to fall back on -- the WAN IP is
 # ISP/DHCP-assigned and can change, so it's resolved at runtime from
 # wan_iface. If it can't be resolved (interface down, not yet up), WAN
 # exclusion is simply skipped for this run and logged, without aborting.
 if [[ "$SERV_SUBNET" =~ $UH_IPV4 ]]; then
-    LAN_PREFIX="${SERV_SUBNET%.*}."
+    lan_prefix="${SERV_SUBNET%.*}."
 else
     log "WARNING: SERV_SUBNET '$SERV_SUBNET' is not a valid IPv4 -- LAN exclusion disabled this run"
-    LAN_PREFIX=""
+    lan_prefix=""
 fi
 
-WAN_IP=$(ip -4 -o addr show "$wan_iface" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)
-if [[ "$WAN_IP" =~ $UH_IPV4 ]]; then
-    WAN_PREFIX="${WAN_IP%.*}."
+wan_ip=$(ip -4 -o addr show "$wan_iface" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)
+if [[ "$wan_ip" =~ $UH_IPV4 ]]; then
+    wan_prefix="${wan_ip%.*}."
 else
     log "WARNING: could not resolve IP for wan_iface=$wan_iface -- WAN exclusion disabled this run"
-    WAN_PREFIX=""
+    wan_prefix=""
 fi
 
 # -- Step 0: retroactively purge already-listed LAN/WAN IPs ------------------
 # The filter in Step 3 only stops NEW IPs from being added -- it does
-# nothing for IPs that were written to OUT_FILE (or the live ipset) before
-# this exclusion existed, or from a run where LAN_PREFIX/WAN_PREFIX
+# nothing for IPs that were written to out_file (or the live ipset) before
+# this exclusion existed, or from a run where lan_prefix/wan_prefix
 # resolution failed. This pass removes them retroactively on every run.
-if [ -n "$LAN_PREFIX" ] || [ -n "$WAN_PREFIX" ]; then
+if [ -n "$lan_prefix" ] || [ -n "$wan_prefix" ]; then
     purged=0
-    CLEAN_FILE=$(mktemp)
+    clean_file=$(mktemp)
     while IFS= read -r ip; do
         [ -z "$ip" ] && continue
-        if { [ -n "$LAN_PREFIX" ] && [[ "$ip" == "$LAN_PREFIX"* ]]; } || \
-           { [ -n "$WAN_PREFIX" ] && [[ "$ip" == "$WAN_PREFIX"* ]]; }; then
+        if { [ -n "$lan_prefix" ] && [[ "$ip" == "$lan_prefix"* ]]; } || \
+           { [ -n "$wan_prefix" ] && [[ "$ip" == "$wan_prefix"* ]]; }; then
             log "INFO: $ip removed (LAN/WAN range)"
             ipset del suridata "$ip" 2>/dev/null || true
             (( purged++ )) || true
             continue
         fi
-        echo "$ip" >> "$CLEAN_FILE"
-    done < "$OUT_FILE"
+        echo "$ip" >> "$clean_file"
+    done < "$out_file"
     if (( purged > 0 )); then
-        mv "$CLEAN_FILE" "$OUT_FILE"
+        mv "$clean_file" "$out_file"
         log "$purged local IP(s) purged"
     else
-        rm -f "$CLEAN_FILE"
+        rm -f "$clean_file"
     fi
 fi
 
 # -- Step 1: SIDs currently resolved to "drop" by suricata-update ------------
-mapfile -t DROP_SIDS < <(grep '^drop ' "$RULES_FILE" 2>/dev/null | grep -oP 'sid:\K\d+' | sort -u)
-if [ "${#DROP_SIDS[@]}" -eq 0 ]; then
-    log "WARNING: no drop-action SIDs found in $RULES_FILE --"
-    log "WARNING: nothing to match, skipping this run"
+mapfile -t drop_sids < <(grep '^drop ' "$rules_file" 2>/dev/null | grep -oP 'sid:\K\d+' | sort -u)
+if [ "${#drop_sids[@]}" -eq 0 ]; then
+    log "WARNING: no drop-action SIDs found in $rules_file"
+    log "WARNING: nothing to match this run -- skip"
     exit 0
 fi
 
@@ -179,33 +182,33 @@ fi
 # argument-length limit -- jq fails with "argument list too long" and, since
 # earlier versions of this script piped stderr to /dev/null, that failure
 # was silent and every run just logged "No new IPs this run".
-SID_MAP_FILE=$(mktemp)
-NEW_SID_MAP_FILE=$(mktemp)
-SID_GREP_FILE=$(mktemp)
-trap 'rm -f "$SID_MAP_FILE" "$NEW_SID_MAP_FILE" "$SID_GREP_FILE"' EXIT
-printf '%s\n' "${DROP_SIDS[@]}" | jq -R 'select(length>0)' | jq -s 'map({(.): true}) | add' > "$SID_MAP_FILE"
+sid_map_file=$(mktemp)
+new_sid_map_file=$(mktemp)
+sid_grep_file=$(mktemp)
+trap 'rm -f "$sid_map_file" "$new_sid_map_file" "$sid_grep_file"' EXIT
+printf '%s\n' "${drop_sids[@]}" | jq -R 'select(length>0)' | jq -s 'map({(.): true}) | add' > "$sid_map_file"
 
 # -- Step 1b: SIDs newly resolved to drop since the last run -----------------
 # suricataupdate.sh runs once a day; any alert for a SID that already
 # happened before its conversion to drop would otherwise be lost forever,
 # since Step 2 below only tails NEW eve.json content. Backfill by doing a
 # one-time full scan restricted to just the newly-dropped SIDs.
-touch "$SIDS_FILE"
-mapfile -t NEW_SIDS < <(comm -23 <(printf '%s\n' "${DROP_SIDS[@]}") <(sort -u "$SIDS_FILE"))
-printf '%s\n' "${DROP_SIDS[@]}" > "$SIDS_FILE"
+touch "$sids_file"
+mapfile -t new_sids < <(comm -23 <(printf '%s\n' "${drop_sids[@]}") <(sort -u "$sids_file"))
+printf '%s\n' "${drop_sids[@]}" > "$sids_file"
 
 backfill_ips=""
-if [ "${#NEW_SIDS[@]}" -gt 0 ]; then
-    log "INFO: ${#NEW_SIDS[@]} SID(s) newly resolved to drop --"
+if [ "${#new_sids[@]}" -gt 0 ]; then
+    log "INFO: ${#new_sids[@]} SID(s) newly resolved to drop"
     log "INFO: rescanning full eve.json for them"
-    printf '%s\n' "${NEW_SIDS[@]}" | jq -R 'select(length>0)' | jq -s 'map({(.): true}) | add' > "$NEW_SID_MAP_FILE"
+    printf '%s\n' "${new_sids[@]}" | jq -R 'select(length>0)' | jq -s 'map({(.): true}) | add' > "$new_sid_map_file"
     # Cheap text pre-filter before the expensive JSON parse: grep -F over
     # the whole file is far faster than jq parsing every line, and it's
     # safe to over-match (e.g. SID 201787 also matches inside 2017871) --
     # jq's exact-key lookup below still discards anything that isn't a
     # real match, this step only cuts down how much jq has to parse.
-    printf '"signature_id":%s\n' "${NEW_SIDS[@]}" > "$SID_GREP_FILE"
-    backfill_ips=$(grep -aF -f "$SID_GREP_FILE" "$EVE_LOG" | jq -r --slurpfile sids "$NEW_SID_MAP_FILE" '
+    printf '"signature_id":%s\n' "${new_sids[@]}" > "$sid_grep_file"
+    backfill_ips=$(grep -aF -f "$sid_grep_file" "$eve_log" | jq -r --slurpfile sids "$new_sid_map_file" '
         select(.event_type=="alert")
         | select(.alert.signature_id != null)
         | select($sids[0][(.alert.signature_id|tostring)] == true)
@@ -215,10 +218,10 @@ if [ "${#NEW_SIDS[@]}" -gt 0 ]; then
 fi
 
 # -- Step 2: read only what's new in eve.json since the last run -------------
-current_size=$(stat -c%s "$EVE_LOG" 2>/dev/null || echo 0)
+current_size=$(stat -c%s "$eve_log" 2>/dev/null || echo 0)
 last_offset=0
-if [ -f "$OFFSET_FILE" ]; then
-    last_offset=$(cat "$OFFSET_FILE" 2>/dev/null)
+if [ -f "$offset_file" ]; then
+    last_offset=$(cat "$offset_file" 2>/dev/null)
     [[ "$last_offset" =~ $UH_UINT ]] || last_offset=0
 fi
 if (( last_offset > current_size )); then
@@ -229,7 +232,7 @@ fi
 new_ips=""
 jq_failed=0
 if (( current_size > last_offset )); then
-    new_ips=$(tail -c "+$((last_offset + 1))" "$EVE_LOG" 2>/dev/null | jq -r --slurpfile sids "$SID_MAP_FILE" '
+    new_ips=$(tail -c "+$((last_offset + 1))" "$eve_log" 2>/dev/null | jq -r --slurpfile sids "$sid_map_file" '
         select(.event_type=="alert")
         | select(.alert.signature_id != null)
         | select($sids[0][(.alert.signature_id|tostring)] == true)
@@ -239,7 +242,7 @@ fi
 if (( jq_failed )); then
     log "WARNING: jq failed parsing new eve.json content -- offset NOT advanced, will retry this segment next run"
 else
-    echo "$current_size" > "$OFFSET_FILE"
+    echo "$current_size" > "$offset_file"
 fi
 
 new_ips=$(printf '%s\n%s\n' "$new_ips" "$backfill_ips" | sed '/^$/d' | sort -u)
@@ -252,20 +255,20 @@ if [ -n "$new_ips" ]; then
         [ -z "$ip" ] && continue
         [[ "$ip" =~ $UH_IPV4 ]] || continue
         # exclude LAN subnet and WAN interface's own /24
-        [ -n "$LAN_PREFIX" ] && [[ "$ip" == "$LAN_PREFIX"* ]] && continue
-        [ -n "$WAN_PREFIX" ] && [[ "$ip" == "$WAN_PREFIX"* ]] && continue
-        grep -qxF "$ip" "$OUT_FILE" 2>/dev/null && continue
-        echo "$ip" >> "$OUT_FILE"
+        [ -n "$lan_prefix" ] && [[ "$ip" == "$lan_prefix"* ]] && continue
+        [ -n "$wan_prefix" ] && [[ "$ip" == "$wan_prefix"* ]] && continue
+        grep -qxF "$ip" "$out_file" 2>/dev/null && continue
+        echo "$ip" >> "$out_file"
         log "INFO: $ip added to suridata.txt"
         (( added++ )) || true
     done <<< "$new_ips"
 fi
 
 if (( added == 0 )); then
-    log "No new IPs this run"
+    log "INFO: no new IPs this run"
 else
-    log "$added new IP(s) added"
-    sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -o "$OUT_FILE" "$OUT_FILE"
+    log "INFO: $added new IP(s) added"
+    sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -o "$out_file" "$out_file"
 fi
 
 # -- Step 4: patch the live ipset so the block applies before the next -------
@@ -276,9 +279,9 @@ if ipset list suridata &>/dev/null; then
     while IFS= read -r ip; do
         [[ "$ip" =~ ^#.*$ || -z "$ip" ]] && continue
         [[ "$ip" =~ $UH_IPV4 ]] && ipset add suridata "$ip" -exist
-    done < "$OUT_FILE"
+    done < "$out_file"
 else
     log "INFO: ipset 'suridata' does not exist yet -- run iptables.sh once to create it"
 fi
 
-log "suridata done at: $(date)"
+log "suridata done at: $(date '+%Y-%m-%d %H:%M:%S')"

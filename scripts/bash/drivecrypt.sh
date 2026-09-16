@@ -19,9 +19,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -98,14 +98,14 @@ case "${1:-}" in
         exit 1
     fi
     sudo -u "$local_user" bindfs -n "$originpath" "$dstpath"
-    msg="DriveCrypt Mount: $(date)"
+    msg="DriveCrypt Mount: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "$msg"
     logger -t drivecrypt "$msg"
     ;;
 'stop')
     echo "Umounting DriveCrypt..."
     sudo -u "$local_user" fusermount -u "$dstpath"
-    msg="DriveCrypt Umount: $(date)"
+    msg="DriveCrypt Umount: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "$msg"
     logger -t drivecrypt "$msg"
     ;;

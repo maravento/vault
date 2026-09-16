@@ -18,10 +18,10 @@ set -euo pipefail
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # cleanup temporary files on exit or error
-WORK_DIR="$(pwd)"
+work_dir="$(pwd)"
 cleanup() {
-    rm -f "$WORK_DIR/main.zip"
-    rm -rf "$WORK_DIR/phpvirtualbox-main"
+    rm -f "$work_dir/main.zip"
+    rm -rf "$work_dir/phpvirtualbox-main"
 }
 trap cleanup EXIT
 
@@ -32,9 +32,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -112,17 +112,17 @@ if [ "${#unavailable[@]}" -gt 0 ]; then
 fi
 if [ "${#missing[@]}" -gt 0 ]; then
     echo "Waiting for APT/DPKG locks to be released..."
-    APT_LOCK_TIMEOUT=120
-    APT_LOCK_ELAPSED=0
-    APT_LOCK_FILES=(/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend)
-    while lsof "${APT_LOCK_FILES[@]}" >/dev/null 2>&1; do
-        if [ "$APT_LOCK_ELAPSED" -ge "$APT_LOCK_TIMEOUT" ]; then
-            echo "APT/DPKG locks still held after ${APT_LOCK_TIMEOUT}s. Aborting."
+    apt_lock_timeout=120
+    apt_lock_elapsed=0
+    apt_lock_files=(/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend)
+    while lsof "${apt_lock_files[@]}" >/dev/null 2>&1; do
+        if [ "$apt_lock_elapsed" -ge "$apt_lock_timeout" ]; then
+            echo "APT/DPKG locks still held after ${apt_lock_timeout}s. Aborting."
             exit 1
         fi
-        echo "Locks still held, waiting... (${APT_LOCK_ELAPSED}s elapsed)"
+        echo "Locks still held, waiting... (${apt_lock_elapsed}s elapsed)"
         sleep 5
-        APT_LOCK_ELAPSED=$((APT_LOCK_ELAPSED + 5))
+        apt_lock_elapsed=$((apt_lock_elapsed + 5))
     done
     echo "Installing: ${missing[*]}"
     retry_cmd apt-get -qq update
@@ -144,8 +144,8 @@ fi
 # PHPVBOX
 # download phpvirtualbox
 retry_cmd wget -q -c https://github.com/BartekSz95/phpvirtualbox/archive/main.zip
-DOWNLOAD_SHA256="$(sha256sum main.zip | awk '{print $1}')"
-echo "main.zip SHA256: $DOWNLOAD_SHA256"
+download_sha256="$(sha256sum main.zip | awk '{print $1}')"
+echo "main.zip SHA256: $download_sha256"
 unzip -q main.zip
 # ren config
 mv phpvirtualbox-main/config.php-example phpvirtualbox-main/config.php
@@ -196,9 +196,9 @@ fi' >/etc/init.d/phpvbox_port.sh
 chmod +x /etc/init.d/phpvbox_port.sh
 
 # Add the task to the crontab (skip if already present)
-CRON_ENTRY="*/30 * * * * /etc/init.d/phpvbox_port.sh"
-if ! crontab -l 2>/dev/null | grep -qF "$CRON_ENTRY"; then
-    (crontab -l 2>/dev/null || true; echo "$CRON_ENTRY") | crontab -
+cron_entry="*/30 * * * * /etc/init.d/phpvbox_port.sh"
+if ! crontab -l 2>/dev/null | grep -qF "$cron_entry"; then
+    (crontab -l 2>/dev/null || true; echo "$cron_entry") | crontab -
 fi
 if ! service cron restart; then
     echo "Failed to restart cron"

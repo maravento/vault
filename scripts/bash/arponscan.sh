@@ -22,9 +22,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -103,11 +103,11 @@ arponrun() {
 
     if ps -ef | grep -qw '[a]rpon'; then
         systemctl reload-or-restart arpon >/dev/null 2>&1
-        echo "ArpON reloaded $(date)" | tee -a /var/log/syslog
+        echo "ArpON reloaded $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
     else
         # start ArpON
         /usr/sbin/arpon -d -i "$lan" --"$mode" >/dev/null 2>&1
-        echo "ArpON start $(date)" | tee -a /var/log/syslog
+        echo "ArpON start $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
     fi
 }
 
@@ -120,7 +120,7 @@ duplicate() {
         arponrun
         echo "Done"
     else
-        echo "Duplicate Data: $(date) $dupes" | tee -a /var/log/syslog
+        echo "Duplicate Data: $(date '+%Y-%m-%d %H:%M:%S') $dupes" | tee -a /var/log/syslog
         exit 1
     fi
 }

@@ -26,9 +26,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     log "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -50,36 +50,58 @@ for dep in evebox; do
     fi
 done
 
-log "suricataupdate start.."
+# check internet
+check_internet() {
+    local max_attempts="${1:-24}" attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            log "INFO: internet is available"
+            return 0
+        fi
+        log "INFO: waiting for internet ($attempt/$max_attempts)"
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    return 1
+}
+
+log "suricataupdate start..."
+
+if ! check_internet; then
+    log "ERROR: no internet connection -- abort"
+    exit 1
+fi
 
 if suricata-update --disable-conf=/etc/suricata/disable.conf \
                   --drop-conf=/etc/suricata/drop.conf \
                   --quiet >> "$log_file" 2>&1; then
-    RULES_FILE="/var/lib/suricata/rules/suricata.rules"
+    rules_file="/var/lib/suricata/rules/suricata.rules"
 
     # not-suspicious rules
-    #sed -i '/classtype:not-suspicious;/d' "$RULES_FILE"
+    #sed -i '/classtype:not-suspicious;/d' "$rules_file"
 
     if systemctl restart suricata; then
         sleep 3
         if ! systemctl is-active --quiet suricata; then
-            log "Suricata not active after reload"
+            log "ERROR: Suricata not active after reload -- abort"
             exit 1
         fi
-        ACTIVE_RULES=$(grep -c '^alert' "$RULES_FILE" 2>/dev/null); [ -z "$ACTIVE_RULES" ] && ACTIVE_RULES="N/A"
-        log "Suricata reloaded - Active rules: $ACTIVE_RULES"
+        active_rules=$(grep -c '^alert' "$rules_file" 2>/dev/null); [ -z "$active_rules" ] && active_rules="N/A"
+        log "INFO: Suricata reloaded, active rules: $active_rules"
         if systemctl restart evebox; then
-            log "EveBox restarted"
+            log "INFO: EveBox restarted"
         else
-            log "Warning: Failed to restart EveBox"
+            log "WARNING: EveBox failed to restart -- alert"
         fi
     else
-        log "Failed to reload Suricata"
+        log "ERROR: failed to reload Suricata -- abort"
         exit 1
     fi
 else
-    log "Error suricata-update"
+    log "ERROR: suricata-update failed -- abort"
     exit 1
 fi
 
-log "suricataupdate done at: $(date)"
+log "suricataupdate done at: $(date '+%Y-%m-%d %H:%M:%S')"

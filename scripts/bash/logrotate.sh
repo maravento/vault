@@ -19,9 +19,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -37,13 +37,13 @@ for dep in logrotate bsdutils util-linux; do
     fi
 done
 
-LOGROTATE_BIN=$(command -v logrotate)
+logrotate_bin=$(command -v logrotate)
 
-LOGROTATE_ERR=$("$LOGROTATE_BIN" -f /etc/logrotate.conf 2>&1 >/dev/null)
-EXITVALUE=$?
+logrotate_err=$("$logrotate_bin" -f /etc/logrotate.conf 2>&1 >/dev/null)
+exit_value=$?
 
-if [ "$EXITVALUE" -ne 0 ]; then
-    /usr/bin/logger -t logrotate "ALERT exited abnormally with [$EXITVALUE]: $LOGROTATE_ERR"
+if [ "$exit_value" -ne 0 ]; then
+    /usr/bin/logger -t logrotate "ALERT exited abnormally with [$exit_value]: $logrotate_err"
 fi
 
 exit 0

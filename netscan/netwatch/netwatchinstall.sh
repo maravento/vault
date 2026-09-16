@@ -37,9 +37,9 @@ chmod 640 "$log_file"
 chown root:root "$log_file"
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     log "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -72,7 +72,7 @@ check_repo() {
         fi
     done
     if [ "$missing" -eq 1 ]; then
-        log "ERROR: Repository files not found. Run:"
+        log "ERROR: Repository files not found -- abort"
         log "git clone https://github.com/maravento/vault"
         exit 1
     fi
@@ -82,7 +82,7 @@ check_repo
 # dependencies
 for dep in systemd apache2 libapache2-mod-php php-cli php-sqlite3 arp-scan sqlite3 nmap iproute2 logrotate cron procps coreutils findutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: dependency '$dep' is not installed"
+        log "ERROR: dependency '$dep' is not installed -- abort"
         exit 1
     fi
 done
@@ -110,7 +110,7 @@ list_candidate_interfaces() {
         candidate_addrs+=("$addr")
     done < <(ip -4 addr show scope global | awk '/inet /{print $NF, $2}')
     if [ "${#candidate_names[@]}" -eq 0 ]; then
-        echo "ERROR: No physical network interfaces with a global IPv4 address found (virtual/loopback interfaces are excluded)."
+        log "ERROR: no physical interface with a global IPv4 address -- abort"
         exit 1
     fi
 }
@@ -142,7 +142,7 @@ select_scan_interfaces() {
         ok=1
         for idx in "${idxs[@]}"; do
             if ! [[ "$idx" =~ $UH_UINT ]] || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#candidate_names[@]}" ]; then
-                echo "ERROR: Invalid selection '$idx'. Try again."
+                log "WARNING: invalid selection '$idx' -- retry"
                 ok=0
                 break
             fi
@@ -185,7 +185,7 @@ select_management_interface() {
         read -rp "Select management interface number (default: 1): " idx
         idx="${idx:-1}"
         if ! [[ "$idx" =~ $UH_UINT ]] || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#candidate_names[@]}" ]; then
-            echo "ERROR: Invalid selection. Try again."
+            log "WARNING: invalid selection -- retry"
             continue
         fi
         mgmt_answer="${candidate_names[$((idx - 1))]}"
@@ -284,7 +284,7 @@ check_already_installed() {
     fi
 
     if [ "$installed" -eq 1 ]; then
-        log "ERROR: netwatch is already installed. Aborting."
+        log "ERROR: netwatch is already installed -- abort"
         echo ""
         printf "%b" "$reasons"
         echo ""
@@ -435,7 +435,7 @@ EOF
     echo "Tools dir : $netwatch_tools"
     echo ""
 
-    log "netwatchinstall done at: $(date)"
+    log "netwatchinstall done at: $(date '+%Y-%m-%d %H:%M:%S')"
 }
 
 # UPDATE
@@ -455,7 +455,7 @@ do_update() {
     fi
 
     if [ ! -f "$netwatch_env" ]; then
-        log "ERROR: netwatch is not installed."
+        log "ERROR: netwatch is not installed -- abort"
         exit 1
     fi
 
@@ -524,7 +524,7 @@ SQL
 
     systemctl restart apache2
 
-    log "netwatchinstall done at: $(date)"
+    log "netwatchinstall done at: $(date '+%Y-%m-%d %H:%M:%S')"
 }
 
 # UNINSTALL
@@ -567,7 +567,7 @@ do_uninstall() {
     systemctl daemon-reload
     systemctl restart apache2
 
-    log "netwatchinstall done at: $(date)"
+    log "netwatchinstall done at: $(date '+%Y-%m-%d %H:%M:%S')"
 }
 
 # STATUS
@@ -621,7 +621,7 @@ do_status() {
         echo "$db_file not found"
     fi
 
-    log "netwatchinstall done at: $(date)"
+    log "netwatchinstall done at: $(date '+%Y-%m-%d %H:%M:%S')"
 }
 
 # MENU
@@ -644,7 +644,7 @@ show_menu() {
             3) do_uninstall; break ;;
             4) do_status; break ;;
             5) exit 0 ;;
-            *) echo "ERROR: Invalid option" ;;
+            *) log "WARNING: invalid option -- retry" ;;
         esac
     done
 }

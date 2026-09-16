@@ -19,7 +19,7 @@
 
 ---
 
-**⚠️ WARNING:** Only tested on Ubuntu 24.04 LTS. Other versions or distros not tested, use at your own risk.
+**⚠️ WARNING:** Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
 
 | CPU | NIC | RAM | Storage |
 | :---: | :---: | :---: | :---: |

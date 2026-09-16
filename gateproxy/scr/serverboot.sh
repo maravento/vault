@@ -23,9 +23,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     log "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -40,7 +40,7 @@ for dep in iproute2 systemd squid-openssl apache2 rsyslog util-linux; do
 done
 
 log "===================================================="
-log "serverboot start.."
+log "serverboot start..."
 
 # Wait until the required network topology is available.
 #
@@ -80,60 +80,60 @@ network_ready() {
     ((iface_count >= required))
 }
 
-log "Waiting for network interfaces..."
+log "INFO: Waiting for network interfaces..."
 
 net_ready=0
 for i in $(seq 1 10); do
     if network_ready; then
         net_ready=1
-        log "Attempt $i/10: $iface_count interface(s) UP (required $required) - READY"
+        log "INFO: Attempt $i/10: $iface_count iface(s) UP (required $required), ready"
         while IFS= read -r iface; do
-            [[ -n "$iface" ]] && log "$iface"
+            [[ -n "$iface" ]] && log "INFO: $iface"
         done <<< "$iface_list"
         break
     fi
 
-    log "Attempt $i/10: $iface_count interface(s) UP (required $required) - waiting..."
+    log "INFO: Attempt $i/10: $iface_count iface(s) UP (required $required) -- retry"
     while IFS= read -r iface; do
-        [[ -n "$iface" ]] && log "$iface"
+        [[ -n "$iface" ]] && log "INFO: $iface"
     done <<< "$iface_list"
 
     sleep 5
 done
 
 if ((net_ready)); then
-    log "Network ready."
+    log "INFO: Network ready."
 else
     log "WARNING: network not ready after 10 retries"
-    log "WARNING: ($iface_count/$required interfaces UP) - aborting "
+    log "ERROR: $iface_count/$required interfaces UP -- abort"
     while IFS= read -r iface; do
-        [[ -n "$iface" ]] && log "$iface"
+        [[ -n "$iface" ]] && log "INFO: $iface"
     done <<< "$iface_list"
     exit 1
 fi
 
 # SERVERS
-log "DHCP..."
+log "INFO: DHCP..."
 systemctl reload pydhcpd.service
 sleep 5
-log "Squid Reload..."
+log "INFO: Squid Reload..."
 systemctl reload squid.service
 sleep 5
-log "Apache2 Restart..."
+log "INFO: Apache2 Restart..."
 systemctl restart apache2.service
 sleep 5
 if systemctl list-unit-files smbd.service &>/dev/null; then
-    log "Samba Restart..."
+    log "INFO: Samba Restart..."
     systemctl restart smbd.service
     sleep 5
 fi
 if systemctl list-unit-files winbind.service &>/dev/null; then
-    log "Winbind Reload..."
+    log "INFO: Winbind Reload..."
     systemctl restart winbind.service
     sleep 5
 fi
-log "Rsyslog Reload..."
+log "INFO: Rsyslog Reload..."
 systemctl restart syslog.socket rsyslog.service
 sleep 5
 
-log "serverboot done at: $(date)"
+log "serverboot done at: $(date '+%Y-%m-%d %H:%M:%S')"

@@ -66,40 +66,40 @@ echo "Virtualbox Starting. Wait..."
 
 # VARIABLES
 # Set name of VM (e.g: win10) or UUID (e.g.: 4ec6acc1-a232-566d-a040-6bc4aadc19a6)
-read -rp "Enter the VM name or UUID to manage: " VMNAME
-if [ -z "$VMNAME" ]; then
+read -rp "Enter the VM name or UUID to manage: " vm_name
+if [ -z "$vm_name" ]; then
     echo "ERROR: VM name cannot be empty"
     exit 1
 fi
 
 # FUNCTIONS
-if ! sudo -H -u "$local_user" VBoxManage showvminfo "$VMNAME" &>/dev/null; then
-    echo "ERROR: VM '$VMNAME' not found or not accessible"
+if ! sudo -H -u "$local_user" VBoxManage showvminfo "$vm_name" &>/dev/null; then
+    echo "ERROR: VM '$vm_name' not found or not accessible"
     exit 1
 fi
 
 case "${1:-}" in
 start)
-    echo "Starting $VMNAME..."
-    sudo -H -u "$local_user" VBoxManage startvm "$VMNAME" --type headless
+    echo "Starting $vm_name..."
+    sudo -H -u "$local_user" VBoxManage startvm "$vm_name" --type headless
     ;;
 stop)
-    echo "Saving State $VMNAME..."
-    sudo -H -u "$local_user" VBoxManage controlvm "$VMNAME" savestate
+    echo "Saving State $vm_name..."
+    sudo -H -u "$local_user" VBoxManage controlvm "$vm_name" savestate
     sleep 20
     ;;
 shutdown)
-    echo "Shutting Down $VMNAME..."
-    sudo -H -u "$local_user" VBoxManage controlvm "$VMNAME" acpipowerbutton
+    echo "Shutting Down $vm_name..."
+    sudo -H -u "$local_user" VBoxManage controlvm "$vm_name" acpipowerbutton
     sleep 20
     ;;
 reset)
-    echo "Resetting $VMNAME..."
-    sudo -H -u "$local_user" VBoxManage controlvm "$VMNAME" reset
+    echo "Resetting $vm_name..."
+    sudo -H -u "$local_user" VBoxManage controlvm "$vm_name" reset
     ;;
 status)
-    echo -n "VMNAME->"
-    sudo -H -u "$local_user" VBoxManage showvminfo "$VMNAME" --machinereadable | grep 'VMState=' | cut -d '=' -f2
+    echo -n "VM->"
+    sudo -H -u "$local_user" VBoxManage showvminfo "$vm_name" --machinereadable | grep 'VMState=' | cut -d '=' -f2
     exit 0
     ;;
 *)

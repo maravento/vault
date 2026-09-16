@@ -305,7 +305,7 @@ poll_target() {
     ports_field=$(printf '%s\n' "$nmap_out" | grep '^Host:' | sed -n 's/.*Ports: //p')
 
     if [ -z "$ports_field" ]; then
-        log "WARNING: no port data for '$target' (host down/unreachable)"
+        log "WARNING: no port data for '$target' -- skip"
         return
     fi
 
@@ -416,9 +416,9 @@ run_poll() {
 # START
 start() {
     # prevent overlapping runs
-    SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-    (umask 077; : >> "$SCRIPT_LOCK")
-    exec 200>"$SCRIPT_LOCK"
+    script_lock="/var/lock/$(basename "$0" .sh).lock"
+    (umask 077; : >> "$script_lock")
+    exec 200>"$script_lock"
     if ! flock -n 200; then
         log "ERROR: script $(basename "$0") is already running -- abort"
         exit 1
@@ -458,10 +458,10 @@ start() {
 
     load_ports_mode
     log "netwatchports start..."
-    log "Mode : $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
-    log "Interval : ${PORT_POLL_INTERVAL}s"
-    log "Database : $db_file"
-    log "Log : $log_file"
+    log "INFO: Mode : $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
+    log "INFO: Interval : ${PORT_POLL_INTERVAL}s"
+    log "INFO: Database : $db_file"
+    log "INFO: Log : $log_file"
 
     rm -f "$pid_file"
     (
@@ -480,24 +480,24 @@ start() {
         [ -s "$pid_file" ] && break
         sleep 0.05
     done
-    log "netwatchports started with PID $(cat "$pid_file" 2>/dev/null)"
+    log "INFO: netwatchports started with PID $(cat "$pid_file" 2>/dev/null)"
 }
 
 # STOP
 stop() {
-    log "Stopping netwatchports..."
+    log "INFO: Stopping netwatchports..."
     if [ -f "$pid_file" ]; then
         local daemon_pid
         daemon_pid=$(cat "$pid_file")
         if kill -0 "$daemon_pid" 2>/dev/null; then
             kill "$daemon_pid" 2>/dev/null
-            log "netwatchports stopped (PID $daemon_pid)"
+            log "INFO: netwatchports stopped (PID $daemon_pid)"
         else
-            log "netwatchports was not running (stale PID file removed)"
+            log "INFO: netwatchports was not running (stale PID file removed)"
         fi
         rm -f "$pid_file"
     else
-        log "netwatchports is not running"
+        log "INFO: netwatchports is not running"
     fi
 }
 
@@ -506,18 +506,18 @@ status() {
     log "netwatchports status..."
     load_ports_mode
     if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
-        log "netwatchports is RUNNING (PID $(cat "$pid_file"))"
-        log "Mode : $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
-        log "Interval : ${PORT_POLL_INTERVAL:-30}s"
+        log "INFO: netwatchports is RUNNING (PID $(cat "$pid_file"))"
+        log "INFO: Mode : $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
+        log "INFO: Interval : ${PORT_POLL_INTERVAL:-30}s"
         if [ -f "$db_file" ]; then
             local counts
             counts=$(sqlite3 "$db_file" "SELECT status, COUNT(*) FROM port_scan_state WHERE source='$(sql_escape "$PORTS_MODE")' GROUP BY status;" 2>/dev/null)
-            log "Ports :"
+            log "INFO: Ports :"
             echo "$counts" | sed 's/^/ /' | tee -a "$log_file"
         fi
     else
-        log "netwatchports is STOPPED"
-        log "Mode : $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
+        log "INFO: netwatchports is STOPPED"
+        log "INFO: Mode : $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
     fi
 }
 
@@ -528,5 +528,5 @@ case "${1:-}" in
     status) status ;;
     mode) cmd_mode "$@" ;;
     list) cmd_list ;;
-    *) log "Usage: $(basename "$0") {start|stop|status|mode server|mode target <host>|list}" ;;
+    *) log "INFO: Usage: $(basename "$0") {start|stop|status|mode server|mode target <host>|list}" ;;
 esac

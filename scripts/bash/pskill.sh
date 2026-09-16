@@ -26,27 +26,27 @@ done
 echo "Kill Process Starting. Wait..."
 
 # KILL PROCESS
-read -rp "Set process name (e.g. vlc): " PS
+read -rp "Set process name (e.g. vlc): " process_name
 
-if [ -z "$PS" ]; then
+if [ -z "$process_name" ]; then
     echo "ERROR: Process name cannot be empty"
     exit 1
 fi
 
-PROTECTED="^(systemd|init|kernel|kthreadd|ksoftirqd|migration|watchdog)$"
-if [[ "$PS" =~ $PROTECTED ]]; then
-    echo "ERROR: '$PS' is a protected system process and cannot be killed"
+protected_pattern="^(systemd|init|kernel|kthreadd|ksoftirqd|migration|watchdog)$"
+if [[ "$process_name" =~ $protected_pattern ]]; then
+    echo "ERROR: '$process_name' is a protected system process and cannot be killed"
     exit 1
 fi
 
-pids=$(ps ax | awk '{print $1, $5}' | grep -wF "$PS" | awk '{print $1}' 2>/dev/null || true)
+pids=$(ps ax | awk '{print $1, $5}' | grep -wF "$process_name" | awk '{print $1}' 2>/dev/null || true)
 
 if [ -z "$pids" ]; then
-    echo "There are no records of: $PS"
+    echo "There are no records of: $process_name"
 else
     kill -TERM $pids 2>/dev/null
     sleep 3
-    surviving=$(ps ax | awk '{print $1, $5}' | grep -wF "$PS" | awk '{print $1}' 2>/dev/null)
+    surviving=$(ps ax | awk '{print $1, $5}' | grep -wF "$process_name" | awk '{print $1}' 2>/dev/null)
     if [ -n "$surviving" ]; then
         kill -KILL $surviving 2>/dev/null
     fi

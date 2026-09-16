@@ -7,10 +7,10 @@
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-    NetScan is a network scanning and auditing toolkit built around Nmap. It includes a portable Windows tool with an alternative GUI frontend based on Zenity — deploying Nmap with all its dependencies silently and unattended, and running different scan levels while generating HTML reports —, an equivalent on-demand scan-and-report script for Linux, and NetWatch, a live web dashboard for continuous LAN device and port auditing on Linux.
+    NetScan is a zero-knowledge network scanning and auditing toolkit built around Nmap. It is designed for the discovery, analysis, and monitoring of network devices, services, and ports, providing information to assess the status and exposure of a network infrastructure through on-demand audits or continuous monitoring, without requiring agents or software to be installed on the audited devices.
     </td>
     <td style="width: 50%; vertical-align: top;">
-    NetScan es un conjunto de herramientas de escaneo y auditoría de red construido alrededor de Nmap. Incluye una herramienta portable para Windows con un frontend GUI alternativo basado en Zenity — que despliega Nmap con todas sus dependencias de forma silenciosa y desatendida, y ejecuta distintos niveles de escaneo generando reportes en HTML —, un script equivalente de escaneo y reporte bajo demanda para Linux, y NetWatch, un panel web en tiempo real para auditoría continua de dispositivos LAN y puertos en Linux.
+    NetScan es un conjunto de herramientas de escaneo y auditoría de red de conocimiento cero, construido alrededor de Nmap. Está orientado al descubrimiento, análisis y supervisión de dispositivos, servicios y puertos de red, proporcionando información para evaluar el estado y la exposición de una infraestructura de red mediante auditorías puntuales o monitoreo continuo, sin necesidad de instalar agentes ni software en los equipos auditados.
     </td>
   </tr>
 </table>
@@ -21,24 +21,24 @@
 
 ```
 netscan/
-├── img/                       # Screenshots used throughout this README
-│   └── netscan-*.png
 ├── linux/
 │   └── netreport.sh           # LINUX — on-demand scan-and-report tool
+│
 ├── netwatch/                  # WEB — live web dashboard
-│   ├── netwatchinstall.sh     # Installer: --install|--update|--uninstall|--status
+│   ├── netwatchinstall.sh       # Installer: --install|--update|--uninstall|--status
 │   ├── tools/                 # Background daemons for LAN/port scanning
-│   │   ├── netwatchlan.sh      # LAN discovery daemon (arp-scan)
-│   │   └── netwatchports.sh    # Port auditing daemon (ss / nmap) + mode CLI
+│   │   ├── netwatchlan.sh       # LAN discovery daemon (arp-scan)
+│   │   └── netwatchports.sh     # Port auditing daemon (ss / nmap) + mode CLI
 │   └── web/                   # Web dashboard front-end (LAN/Ports tabs)
-│       ├── index.php           # Main page (LAN / Ports tabs)
-│       ├── lan.html            # LAN devices viewer
-│       ├── netwatch.conf       # Apache vhost -> /etc/apache2/sites-available/netwatch.conf (:3126/?tab=lan and :3126/?tab=ports)
-│       ├── netwatchapi.php     # JSON API (devices, ports, mode switch)
-│       └── ports.html          # Ports viewer + Server/Target mode selector
-└── win/                       # Windows package metadata (netscan.exe itself is hosted on mega.nz, not in this repo)
-    ├── changelog.txt          # Version history
-    └── netscan.exe.sha256     # Checksum for netscan.exe
+│       ├── index.php            # Main page (LAN / Ports tabs)
+│       ├── lan.html             # LAN devices viewer
+│       ├── netwatch.conf        # Apache vhost (:3126/?tab=lan and :3126/?tab=ports)
+│       ├── netwatchapi.php      # JSON API (devices, ports, mode switch)
+│       └── ports.html           # Ports viewer + Server/Target mode selector
+│
+└── win/                       # Windows package metadata (netscan.exe is hosted on mega.nz)
+    ├── changelog.txt            # Version history
+    └── netscan.exe.sha256       # Checksum for netscan.exe
 ```
 
 ## NETSCAN
@@ -257,7 +257,7 @@ Package: NetScan
 
 #### Requirements
 
-**⚠️ WARNING:** Only tested on Ubuntu 24.04 LTS. Other versions or distros not tested, use at your own risk.
+**⚠️ WARNING:** Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
 
 - nmap, xsltproc, iproute2, util-linux
 
@@ -339,7 +339,7 @@ sudo ./netreport.sh
 
 #### Requirements
 
-**⚠️ WARNING:** Only tested on Ubuntu 24.04 LTS. Other versions or distros not tested, use at your own risk.
+**⚠️ WARNING:** Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
 
 - Apache2 with mod_php (not PHP-FPM — the vhost uses `SetHandler application/x-httpd-php`)
 - arp-scan, sqlite3, php-sqlite3, php-cli, nmap, iproute2 (`ss`), logrotate, util-linux

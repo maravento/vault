@@ -43,9 +43,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -59,9 +59,9 @@ for dep in coreutils util-linux; do
     fi
 done
 
-MODNAME="servicemon"
-MODDIR="/usr/share/webmin/$MODNAME"
-ETCDIR="/etc/webmin/$MODNAME"
+mod_name="servicemon"
+mod_dir="/usr/share/webmin/$mod_name"
+etc_dir="/etc/webmin/$mod_name"
 
 install_module() {
     echo ""
@@ -72,12 +72,12 @@ install_module() {
 
     echo "Creating Services Monitor module structure..."
 
-    mkdir -p "$MODDIR/images"
-    mkdir -p "$MODDIR/lang"
-    mkdir -p "$MODDIR/help"
-    mkdir -p "$ETCDIR"
+    mkdir -p "$mod_dir/images"
+    mkdir -p "$mod_dir/lang"
+    mkdir -p "$mod_dir/help"
+    mkdir -p "$etc_dir"
 
-    cat > "$MODDIR/index.cgi" <<'INDEXCGI'
+    cat > "$mod_dir/index.cgi" <<'INDEXCGI'
 #!/usr/bin/perl
 # Services Monitor - Main interface
 use strict;
@@ -525,9 +525,9 @@ sub check_service_status {
 
 INDEXCGI
 
-    chmod +x "$MODDIR/index.cgi"
+    chmod +x "$mod_dir/index.cgi"
 
-    cat > "$MODDIR/module.info" <<'EOF'
+    cat > "$mod_dir/module.info" <<'EOF'
 desc=Services Monitor
 longdesc=Monitor and manage system services
 category=system
@@ -536,7 +536,7 @@ version=1.0
 depends=webmin
 EOF
 
-    cat > "$MODDIR/module.info.es" <<'EOF'
+    cat > "$mod_dir/module.info.es" <<'EOF'
 desc=Monitor de Servicios
 longdesc=Monitorea y gestiona servicios del sistema
 category=system
@@ -545,7 +545,7 @@ version=1.0
 depends=webmin
 EOF
 
-    cat > "$MODDIR/lang/en" <<'EOF'
+    cat > "$mod_dir/lang/en" <<'EOF'
 index_title=Services Monitor
 index_table=System Services Status
 table_service=Service
@@ -602,7 +602,7 @@ filter_showing_failed=Showing: Failed services only
 filter_no_services=No services match the current filter
 EOF
 
-    cat > "$MODDIR/lang/es" <<'EOF'
+    cat > "$mod_dir/lang/es" <<'EOF'
 index_title=Monitor de Servicios
 index_table=Estado de Servicios del Sistema
 table_service=Servicio
@@ -659,31 +659,31 @@ filter_showing_failed=Mostrando: Solo servicios fallidos
 filter_no_services=No hay servicios que coincidan con el filtro actual
 EOF
 
-    cat > "$MODDIR/config.info" <<'EOF'
+    cat > "$mod_dir/config.info" <<'EOF'
 filter_mode=Service Display Filter,4,default-Default (Failed + Active services),active-Active services only,failed-Failed services only
 auto_refresh=Auto-refresh,1,1-Enabled,0-Disabled
 refresh_interval=Refresh interval (seconds),3,30
 EOF
 
-    cat > "$MODDIR/config.info.es" <<'EOF'
+    cat > "$mod_dir/config.info.es" <<'EOF'
 filter_mode=Filtro de Visualizacion de Servicios,4,default-Predeterminado (Servicios Fallidos + Activos),active-Solo servicios activos,failed-Solo servicios fallidos
 auto_refresh=Auto-actualizacion,1,1-Activado,0-Desactivado
 refresh_interval=Intervalo de actualizacion (segundos),3,30
 EOF
 
-    cat > "$MODDIR/defaultconfig" <<'EOF'
+    cat > "$mod_dir/defaultconfig" <<'EOF'
 filter_mode=default
 auto_refresh=0
 refresh_interval=30
 EOF
 
-    cat > "$ETCDIR/config" <<'EOF'
+    cat > "$etc_dir/config" <<'EOF'
 filter_mode=default
 auto_refresh=0
 refresh_interval=30
 EOF
 
-    cat > "$MODDIR/servicemon-lib.pl" <<'EOF'
+    cat > "$mod_dir/servicemon-lib.pl" <<'EOF'
 #!/usr/bin/perl
 # Services Monitor library functions
 
@@ -694,9 +694,9 @@ do '../ui-lib.pl';
 1;
 EOF
 
-    chmod +x "$MODDIR/servicemon-lib.pl"
+    chmod +x "$mod_dir/servicemon-lib.pl"
 
-    cat > "$MODDIR/install_check.pl" <<'EOF'
+    cat > "$mod_dir/install_check.pl" <<'EOF'
 #!/usr/bin/perl
 # Check if systemctl is available
 
@@ -710,9 +710,9 @@ sub module_install_check {
 }
 EOF
 
-    chmod +x "$MODDIR/install_check.pl"
+    chmod +x "$mod_dir/install_check.pl"
 
-    cat > "$MODDIR/help/intro.html" <<'EOF'
+    cat > "$mod_dir/help/intro.html" <<'EOF'
 <header>Services Monitor</header>
 
 <h3>Introduction</h3>
@@ -749,7 +749,7 @@ EOF
 <footer>
 EOF
 
-    cat > "$MODDIR/help/intro.es.html" <<'EOF'
+    cat > "$mod_dir/help/intro.es.html" <<'EOF'
 <header>Monitor de Servicios</header>
 
 <h3>Introduccion</h3>
@@ -786,7 +786,7 @@ EOF
 <footer>
 EOF
 
-    cat > "$MODDIR/CHANGELOG" <<'EOF'
+    cat > "$mod_dir/CHANGELOG" <<'EOF'
 Version 1.1 (2024)
 - Added configurable service filtering
 - Filter options: Default (All), Active only, Failed only
@@ -804,19 +804,19 @@ Version 1.0 (2024)
 - Configuration page with module information
 EOF
 
-    ICON_B64=$(mktemp)
-    cat > "$ICON_B64" << 'ICONEOF'
+    icon_b64=$(mktemp)
+    cat > "$icon_b64" << 'ICONEOF'
 R0lGODlhMAAwAPAAAAAAAAAAACH5BAEAAAAALAAAAAAwADAAAAKrhI+py+0Po5wqJEszCpyf7mkUiAGkOJJqiUKr2krvGS/zDdYGzusmj6vdLjPfynb0/XIVmnLZQTKfsOZU95I6W8NNUQj8yq5hcWRbzk62xOA5BIX/Pj0XML6rP9JuvJ3v4cTGAChncpFR+JSXtshIlgSm5mWWWPlYJdLVFqmxSdlpOQmayRU6isXnGHfnqEhVyBITazgbuxiFWXKlxFJ6uGpVGywsS3yMHFMAADs=
 ICONEOF
 
-    base64 -d "$ICON_B64" > "$MODDIR/images/icon.gif" || true
-    rm -f "$ICON_B64"
+    base64 -d "$icon_b64" > "$mod_dir/images/icon.gif" || true
+    rm -f "$icon_b64"
 
-    chown -R root:root "$MODDIR" "$ETCDIR"
-    chmod -R 755 "$MODDIR"
-    chmod 644 "$MODDIR"/*.info* "$MODDIR/lang/"* "$MODDIR/help/"* "$MODDIR/CHANGELOG" 2>/dev/null || true
-    chmod 755 "$MODDIR"/*.cgi "$MODDIR"/*.pl 2>/dev/null || true
-    chmod 644 "$MODDIR/images/"* 2>/dev/null || true
+    chown -R root:root "$mod_dir" "$etc_dir"
+    chmod -R 755 "$mod_dir"
+    chmod 644 "$mod_dir"/*.info* "$mod_dir/lang/"* "$mod_dir/help/"* "$mod_dir/CHANGELOG" 2>/dev/null || true
+    chmod 755 "$mod_dir"/*.cgi "$mod_dir"/*.pl 2>/dev/null || true
+    chmod 644 "$mod_dir/images/"* 2>/dev/null || true
 
     if [ -f /etc/webmin/webmin.acl ]; then
         if ! grep -qE "^root:.*\bservicemon\b" /etc/webmin/webmin.acl 2>/dev/null; then
@@ -838,8 +838,8 @@ ICONEOF
     echo "Services Monitor module installed successfully!"
     echo "=========================================="
     echo ""
-    echo "Module location: $MODDIR"
-    echo "Config location: $ETCDIR"
+    echo "Module location: $mod_dir"
+    echo "Config location: $etc_dir"
     echo ""
     echo "Features:"
     echo "Modern and user-friendly interface"
@@ -863,15 +863,15 @@ uninstall_module() {
     echo "=========================================="
     echo ""
 
-    if [ ! -d "$MODDIR" ]; then
+    if [ ! -d "$mod_dir" ]; then
         echo "Module is not installed."
         echo ""
         return 1
     fi
 
     echo "Removing module directories..."
-    rm -rf "$MODDIR"
-    rm -rf "$ETCDIR"
+    rm -rf "$mod_dir"
+    rm -rf "$etc_dir"
     echo "Module directories removed"
 
     if [ -f /etc/webmin/webmin.acl ]; then

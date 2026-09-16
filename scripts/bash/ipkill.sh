@@ -63,4 +63,4 @@ kill "$tcpkill_pid" 2>/dev/null
 wait "$tcpkill_pid" 2>/dev/null
 
 logger -t ipkill "IP Kill Done: $target_ip_validated on $eth"
-echo "IP Kill Done: $(date)"
+echo "IP Kill Done: $(date '+%Y-%m-%d %H:%M:%S')"

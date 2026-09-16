@@ -10,7 +10,7 @@
 
 set -uo pipefail
 
-# check no-root
+# no-root check
 if [ "$(id -u)" == "0" ]; then
     echo "[ERROR] This script should not be run as root."
     exit 1
@@ -77,32 +77,32 @@ check_dependencies
 
 # --- Select clipboard tool ---
 if command -v xclip &>/dev/null; then
-    CLIP_CMD="xclip -selection clipboard"
+    clip_cmd="xclip -selection clipboard"
 elif command -v xsel &>/dev/null; then
-    CLIP_CMD="xsel --clipboard"
+    clip_cmd="xsel --clipboard"
 elif command -v wl-copy &>/dev/null; then
-    CLIP_CMD="wl-copy"
+    clip_cmd="wl-copy"
 fi
 
 # --- Detect file manager and get selected paths ---
-PATHS=""
+selected_paths=""
 
 # Try different file manager environment variables
 if [[ -n "${CAJA_SCRIPT_SELECTED_FILE_PATHS:-}" ]]; then
     # Caja (MATE)
-    PATHS="$CAJA_SCRIPT_SELECTED_FILE_PATHS"
+    selected_paths="$CAJA_SCRIPT_SELECTED_FILE_PATHS"
 elif [[ -n "${NAUTILUS_SCRIPT_SELECTED_FILE_PATHS:-}" ]]; then
     # Nautilus (GNOME)
-    PATHS="$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+    selected_paths="$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
 elif [[ -n "${NEMO_SCRIPT_SELECTED_FILE_PATHS:-}" ]]; then
     # Nemo (Cinnamon)
-    PATHS="$NEMO_SCRIPT_SELECTED_FILE_PATHS"
+    selected_paths="$NEMO_SCRIPT_SELECTED_FILE_PATHS"
 elif [[ -n "${THUNAR_SCRIPT_SELECTED_FILE_PATHS:-}" ]]; then
     # Thunar (XFCE) - not standard, but some configs use it
-    PATHS="$THUNAR_SCRIPT_SELECTED_FILE_PATHS"
+    selected_paths="$THUNAR_SCRIPT_SELECTED_FILE_PATHS"
 elif [[ $# -gt 0 ]]; then
     # Fallback: paths passed as arguments (Dolphin, PCManFM, others)
-    PATHS="$*"
+    selected_paths="$*"
 else
     # No files selected
     if command -v zenity &>/dev/null; then
@@ -114,16 +114,16 @@ else
 fi
 
 # Clean up paths (remove file:// prefix and decode URIs)
-PATHS=$(echo "$PATHS" | sed 's|file://||g' | python3 -c "
+selected_paths=$(echo "$selected_paths" | sed 's|file://||g' | python3 -c "
 import sys, urllib.parse
 print(urllib.parse.unquote(sys.stdin.read()), end='')
 ")
 
 # Remove any trailing newlines or whitespace
-PATHS=$(echo "$PATHS" | sed 's/[[:space:]]*$//')
+selected_paths=$(echo "$selected_paths" | sed 's/[[:space:]]*$//')
 
 # Validate that we have actual paths
-if [[ -z "$PATHS" ]]; then
+if [[ -z "$selected_paths" ]]; then
     if command -v zenity &>/dev/null; then
         zenity --error --text="Could not retrieve file path.\n\nFile manager may not be supported." --width=350 --title="Copy Path"
     elif command -v notify-send &>/dev/null; then
@@ -133,16 +133,16 @@ if [[ -z "$PATHS" ]]; then
 fi
 
 # Copy to clipboard
-echo -n "$PATHS" | $CLIP_CMD
+echo -n "$selected_paths" | $clip_cmd
 
 # Show success notification
 if command -v zenity &>/dev/null; then
     # Truncate long paths for display
-    DISPLAY_PATHS="$PATHS"
-    if [[ ${#DISPLAY_PATHS} -gt 200 ]]; then
-        DISPLAY_PATHS="${DISPLAY_PATHS:0:200}..."
+    display_paths="$selected_paths"
+    if [[ ${#display_paths} -gt 200 ]]; then
+        display_paths="${display_paths:0:200}..."
     fi
-    zenity --info --text="Path(s) copied to clipboard:\n\n$DISPLAY_PATHS" --timeout=2 --width=400 --title="Copy Path" 2>/dev/null || true
+    zenity --info --text="Path(s) copied to clipboard:\n\n$display_paths" --timeout=2 --width=400 --title="Copy Path" 2>/dev/null || true
 elif command -v notify-send &>/dev/null; then
     notify-send "Copy Path" "Path(s) copied to clipboard" -t 2000
 fi

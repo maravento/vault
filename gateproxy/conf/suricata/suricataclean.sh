@@ -26,9 +26,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     log "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -42,7 +42,7 @@ for dep in systemd coreutils findutils; do
     fi
 done
 
-log "suricataclean start.."
+log "suricataclean start..."
 
 # Clean: Suricata Logs (stop first to avoid descriptor conflicts)
 systemctl stop suricata &>/dev/null
@@ -51,11 +51,11 @@ truncate -s 0 /var/log/suricata/eve.json
 truncate -s 0 /var/log/suricata/fast.log
 truncate -s 0 /var/log/suricata/stats.log
 find /var/log/suricata/ -name "*.gz" -delete
-log "Suricata logs cleared"
+log "INFO: Suricata logs cleared"
 if systemctl start suricata; then
-    log "Suricata started"
+    log "INFO: Suricata started"
 else
-    log "Warning: Failed to start Suricata"
+    log "WARNING: Suricata failed to start -- alert"
 fi
 # Clean: EveBox DB. Deleting the files outright (instead of DELETE FROM
 # events; VACUUM;) also clears EveBox's eve.json read bookmark. The bookmark
@@ -73,11 +73,11 @@ rm -f /var/lib/evebox/events.sqlite /var/lib/evebox/events.sqlite-wal /var/lib/e
 # tested in production; uncomment only if that reset is actually desired.
 # rm -f /var/lib/evebox/config.sqlite /var/lib/evebox/config.sqlite-wal /var/lib/evebox/config.sqlite-shm
 rm -f /var/lib/evebox/*.bookmark
-log "EveBox database cleared"
+log "INFO: EveBox database cleared"
 if systemctl start evebox; then
-    log "EveBox started"
+    log "INFO: EveBox started"
 else
-    log "Warning: Failed to start EveBox"
+    log "WARNING: EveBox failed to start -- alert"
 fi
 
-log "suricataclean done at: $(date)"
+log "suricataclean done at: $(date '+%Y-%m-%d %H:%M:%S')"

@@ -37,9 +37,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     log "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -156,16 +156,16 @@ detect_local_user() {
     echo "$best_user"
 }
 
-if ! LOCAL_USER=$(detect_local_user); then
+if ! local_user=$(detect_local_user); then
     log "ERROR: no valid local user found, create one with sudo access -- abort"
     exit 1
 fi
-LOCAL_HOME=$(getent passwd "$LOCAL_USER" | cut -d: -f6)
-if [ -z "$LOCAL_HOME" ] || [ ! -d "$LOCAL_HOME" ]; then
-    log "ERROR: no home directory for user $LOCAL_USER -- abort"
+local_home=$(getent passwd "$local_user" | cut -d: -f6)
+if [ -z "$local_home" ] || [ ! -d "$local_home" ]; then
+    log "ERROR: no home directory for user $local_user -- abort"
     exit 1
 fi
-log "Using local user: $LOCAL_USER ($LOCAL_HOME)"
+log "Using local user: $local_user ($local_home)"
 
 # check internet
 check_internet() {
@@ -371,9 +371,9 @@ echo -e "\n"
 hostnamectl set-hostname "$HOSTNAME"
 find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:gateproxy:$HOSTNAME:g" "{}"
 # changing name user account in config files
-find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_user:$LOCAL_USER:g" "{}"
+find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_user:$local_user:g" "{}"
 # changing user home path in config files
-find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_home:$LOCAL_HOME:g" "{}"
+find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_home:$local_home:g" "{}"
 
 # detect interfaces
 list_ifaces() {
@@ -481,7 +481,7 @@ is_interfaces() {
         log "Check Net Interfaces: OK"
         public_interface
         local_interface
-        log "OK"
+        log "INFO: OK"
     fi
 }
 
@@ -680,7 +680,7 @@ Mask 255.255.255.0 (CIDR auto), DNS 1.1.1.2 1.0.0.2, Proxy Port 3128
         is_ask "Do you want to change? DNS1 1.1.1.2? (y/n)" "You have entered DNS1 incorrect" is_dns1
         is_ask "Do you want to change? DNS2 1.0.0.2? (y/n)" "You have entered DNS2 incorrect" is_dns2
         is_ask "Do you want to change? Proxy Port Default 3128? (y/n)" "You have entered Proxy Port incorrect" is_port
-        log "OK"
+        log "INFO: OK"
         break
         ;;
     [Nn]*|"")
@@ -833,7 +833,7 @@ echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select tr
 retry_cmd nala install -y ttf-mscorefonts-installer fontconfig
 fc-cache -f
 
-log "OK"
+log "INFO: OK"
 sleep 1
 
 upgrade
@@ -1102,7 +1102,7 @@ chown root:root /var/log
 retry_cmd nala install -y ulogd2
 mkdir -p /var/log/ulog &>/dev/null
 touch /var/log/ulog/syslogemu.log &>/dev/null
-usermod -a -G ulog "$LOCAL_USER"
+usermod -a -G ulog "$local_user"
 log "Ulog Access: /var/log/ulog/syslogemu.log"
 # rsyslog
 # in case fails: nala install -y libfastjson4
@@ -1118,7 +1118,7 @@ retry_cmd wget -O "$gp_path/scr/ffsupdate.sh" https://raw.githubusercontent.com/
 chmod +x "$gp_path/scr/ffsupdate.sh"
 "$gp_path/scr/ffsupdate.sh" || log "WARNING: ffsupdate.sh failed, FreeFileSync not installed -- skip"
 add_cron_entry "@weekly /etc/scr/ffsupdate.sh" "/etc/scr/ffsupdate.sh"
-log "OK"
+log "INFO: OK"
 sleep 1
 
 echo -e "\n"
@@ -1292,7 +1292,7 @@ EOF
         ;;
     esac
 done
-log "OK"
+log "INFO: OK"
 
 upgrade
 
@@ -1359,7 +1359,7 @@ else
     log "To install UniFi Network self-hosted / UniFi OS Server first,"
     log "use unifisetup.sh (check README)."
 fi
-log "OK"
+log "INFO: OK"
 
 upgrade
 
@@ -1409,7 +1409,7 @@ else
     log "WARNING: blackweb.tar.gz not available -- skip"
 fi
 rm -f "$gp_path"/blackweb.*
-log "OK"
+log "INFO: OK"
 sleep 1
 
 # ADD CONFIG ###
@@ -1449,7 +1449,7 @@ find "$SCR_PATH" -name "*.sh" -exec chmod +x {} \;
 # alternative
 grep -qxF 'tmpfs /tmp tmpfs defaults,size=2G,nofail,noatime,mode=1777 0 0' /etc/fstab || \
     echo 'tmpfs /tmp tmpfs defaults,size=2G,nofail,noatime,mode=1777 0 0' >> /etc/fstab
-log "OK"
+log "INFO: OK"
 sleep 1
 
 echo -e "\n"
@@ -1474,7 +1474,7 @@ a2ensite -q wpad.conf
 grep -qxF "Listen $SERVER_IP:18100" /etc/apache2/ports.conf || grep -qxF 'Listen 18100' /etc/apache2/ports.conf || echo "Listen $SERVER_IP:18100" >> /etc/apache2/ports.conf
 apachectl -t -D DUMP_INCLUDES -S || true
 log "WPAD-PAC: http://$SERVER_IP:18100/wpad.pac"
-log "OK"
+log "INFO: OK"
 sleep 1
 
 echo -e "\n"
@@ -1547,14 +1547,14 @@ grep -q "^Timeout" /etc/apache2/conf-available/security.conf || \
     echo 'Timeout 60' >> /etc/apache2/conf-available/security.conf
 sed -i 's/Options -Indexes FollowSymLinks/Options -Indexes +FollowSymLinks/g' /etc/apache2/apache2.conf
 a2enconf -q security || true
-log "OK"
+log "INFO: OK"
 sleep 1
 
 # APACHE PASSWORD
 echo -e "\n"
 log "Create Apache Password: /var/www/..."
 echo -e "\n"
-until htpasswd -c /etc/apache2/.htpasswd "$LOCAL_USER"; do
+until htpasswd -c /etc/apache2/.htpasswd "$local_user"; do
     log "Passwords did not match or were empty. Try again."
 done
 
@@ -1563,7 +1563,7 @@ apache2ctl configtest || true
 chmod -R 755 /var/www
 chown -R www-data:www-data /var/www
 apachectl -t -D DUMP_INCLUDES -S || true
-log "OK"
+log "INFO: OK"
 sleep 1
 
 # CRONTAB
@@ -1574,7 +1574,7 @@ add_cron_entry "@reboot /etc/scr/hwclock.sh" "/etc/scr/hwclock.sh"
 add_cron_entry "@reboot /etc/scr/blackusb.sh off" "/etc/scr/blackusb.sh"
 add_cron_entry "*/5 * * * * /etc/scr/serviceswatch.sh" "/etc/scr/serviceswatch.sh"
 add_cron_entry "@weekly /etc/scr/cleaner.sh" "/etc/scr/cleaner.sh"
-log "OK"
+log "INFO: OK"
 sleep 1
 
 # ENDING ###
@@ -1590,9 +1590,9 @@ systemctl daemon-reexec &>/dev/null
 # Update initramfs (optional)
 #update-initramfs -u -k all
 # create alias "upgrade"
-sudo -u "$LOCAL_USER" bash -c "grep -q '^alias upgrade=' '${LOCAL_HOME}/.bashrc' 2>/dev/null || printf '%s\n' 'alias upgrade=\"sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo systemctl daemon-reload && sudo updatedb && sudo update-desktop-database && sudo snap refresh\"' >> ${LOCAL_HOME}/.bashrc"
-sudo -u "$LOCAL_USER" bash -c "grep -q '^alias server=' '${LOCAL_HOME}/.bashrc' 2>/dev/null || printf '%s\n' 'alias server=\"sudo /etc/scr/serverboot.sh\"' >> ${LOCAL_HOME}/.bashrc"
-sudo -u "$LOCAL_USER" bash -c "grep -q '^alias cleaner=' '${LOCAL_HOME}/.bashrc' 2>/dev/null || printf '%s\n' 'alias cleaner=\"sudo /etc/scr/cleaner.sh\"' >> ${LOCAL_HOME}/.bashrc"
+sudo -u "$local_user" bash -c "grep -q '^alias upgrade=' '${local_home}/.bashrc' 2>/dev/null || printf '%s\n' 'alias upgrade=\"sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo systemctl daemon-reload && sudo updatedb && sudo update-desktop-database && sudo snap refresh\"' >> ${local_home}/.bashrc"
+sudo -u "$local_user" bash -c "grep -q '^alias server=' '${local_home}/.bashrc' 2>/dev/null || printf '%s\n' 'alias server=\"sudo /etc/scr/serverboot.sh\"' >> ${local_home}/.bashrc"
+sudo -u "$local_user" bash -c "grep -q '^alias cleaner=' '${local_home}/.bashrc' 2>/dev/null || printf '%s\n' 'alias cleaner=\"sudo /etc/scr/cleaner.sh\"' >> ${local_home}/.bashrc"
 # IPv4 priority
 sed -i 's/^#\s*precedence ::ffff:0:0\/96\s\+100/precedence ::ffff:0:0\/96  100/' /etc/gai.conf
 # snap
@@ -1631,5 +1631,5 @@ rm -rf "$gp_path"
 # END
 # -----------------------------------------------------------------------------
 
-log "gateproxy done at: $(date)"
+log "gateproxy done at: $(date '+%Y-%m-%d %H:%M:%S')"
 reboot

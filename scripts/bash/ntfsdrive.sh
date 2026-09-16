@@ -71,64 +71,64 @@ list_drives() {
 
 mount_drive() {
     list_drives
-    read -r -p "Enter the LABEL or UUID of the disk to be mounted ('exit' to exit): " DISKID
+    read -r -p "Enter the label or UUID of the disk to be mounted ('exit' to exit): " disk_id
 
-    [ -z "$DISKID" ] || [ "$DISKID" == "exit" ] && echo "Exiting..." && return
+    [ -z "$disk_id" ] || [ "$disk_id" == "exit" ] && echo "Exiting..." && return
 
-    DEVICE=$(lsblk -rn -o NAME,LABEL,UUID | awk -v id="$DISKID" '$2 == id || $3 == id {print "/dev/" $1}')
+    device_path=$(lsblk -rn -o NAME,LABEL,UUID | awk -v id="$disk_id" '$2 == id || $3 == id {print "/dev/" $1}')
 
-    if [ -n "$DEVICE" ]; then
-        LABEL=$(lsblk -no LABEL "$DEVICE" | tr -d ' ')
-        [ -z "$LABEL" ] && LABEL=$(basename "$DEVICE")
+    if [ -n "$device_path" ]; then
+        disk_label=$(lsblk -no LABEL "$device_path" | tr -d ' ')
+        [ -z "$disk_label" ] && disk_label=$(basename "$device_path")
 
-        MOUNT_POINT="/media/$local_user/$LABEL"
+        mount_point="/media/$local_user/$disk_label"
 
-        if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
-            echo "Device is already mounted at $MOUNT_POINT."
+        if mountpoint -q "$mount_point" 2>/dev/null; then
+            echo "Device is already mounted at $mount_point."
             return
         fi
 
-        mkdir -p "$MOUNT_POINT"
-        chown "$local_user:$local_user" "$MOUNT_POINT"
+        mkdir -p "$mount_point"
+        chown "$local_user:$local_user" "$mount_point"
 
-        if mount -o uid=$(id -u "$local_user"),gid=$(id -g "$local_user"),fmask=0022,dmask=0022,windows_names -t ntfs-3g "$DEVICE" "$MOUNT_POINT"; then
-            echo "Device mounted on $MOUNT_POINT."
+        if mount -o uid=$(id -u "$local_user"),gid=$(id -g "$local_user"),fmask=0022,dmask=0022,windows_names -t ntfs-3g "$device_path" "$mount_point"; then
+            echo "Device mounted on $mount_point."
         else
             echo "Error mounting device"
-            rmdir "$MOUNT_POINT" 2>/dev/null || true
+            rmdir "$mount_point" 2>/dev/null || true
         fi
     else
-        echo "No disk found with LABEL/UUID '$DISKID'."
+        echo "No disk found with LABEL/UUID '$disk_id'."
     fi
 }
 
 umount_drive() {
-    MOUNT_POINTS=$(lsblk -nr -o MOUNTPOINT | grep -E "^/mnt|^/media")
+    mount_points=$(lsblk -nr -o MOUNTPOINT | grep -E "^/mnt|^/media")
 
-    if [ -z "$MOUNT_POINTS" ]; then
+    if [ -z "$mount_points" ]; then
         echo "There are no disks mounted in /mnt or /media"
         return
     fi
 
     echo "Mounted devices:"
-    echo "$MOUNT_POINTS"
+    echo "$mount_points"
     echo ""
 
-    read -r -p "Enter the name of the folder where the disk is mounted ('exit' to exit): " FOLDER
-    [ "$FOLDER" == "exit" ] && echo "Exiting..." && return
+    read -r -p "Enter the name of the folder where the disk is mounted ('exit' to exit): " folder_name
+    [ "$folder_name" == "exit" ] && echo "Exiting..." && return
 
-    if ! echo "$FOLDER" | grep -qE '^[a-zA-Z0-9_:@. -]+$'; then
+    if ! echo "$folder_name" | grep -qE '^[a-zA-Z0-9_:@. -]+$'; then
         echo "Invalid folder name."
         return
     fi
 
-    MOUNT_POINT=$(echo "$MOUNT_POINTS" | awk -F/ -v f="$FOLDER" '$NF == f')
+    mount_point=$(echo "$mount_points" | awk -F/ -v f="$folder_name" '$NF == f')
 
-    if [ -n "$MOUNT_POINT" ]; then
-        echo "Unmounting $MOUNT_POINT..."
-        umount "$MOUNT_POINT" && echo "Device unmounted" || echo "Error unmounting device"
+    if [ -n "$mount_point" ]; then
+        echo "Unmounting $mount_point..."
+        umount "$mount_point" && echo "Device unmounted" || echo "Error unmounting device"
     else
-        echo "No mounted disk found at '/$FOLDER'."
+        echo "No mounted disk found at '/$folder_name'."
     fi
 }
 

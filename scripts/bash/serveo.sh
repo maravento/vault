@@ -85,21 +85,21 @@ else
     echo "Fingerprint Add (serveo.net)"
 fi
 
-SCRIPT_NAME=$(basename "$0")
+script_name=$(basename "$0")
 
 # Root-only state dir (not world-writable /tmp) to avoid symlink attacks on
 # files that must persist across start/status/stop invocations
-STATE_DIR="/run/${SCRIPT_NAME}"
-mkdir -p -m 700 "$STATE_DIR"
-PID_FILE="$STATE_DIR/pid"
-ACTIVE_FLAG="$STATE_DIR/active"
-OUTPUT_FILE="$STATE_DIR/output.txt"
-PORTS_FILE="$STATE_DIR/ports.txt"
+state_dir="/run/${script_name}"
+mkdir -p -m 700 "$state_dir"
+pid_file="$state_dir/pid"
+active_flag="$state_dir/active"
+output_file="$state_dir/output.txt"
+ports_file="$state_dir/ports.txt"
 
 is_running() {
     if pgrep -f "ssh.*serveo.net" > /dev/null; then
         return 0
-    elif [ -f "$ACTIVE_FLAG" ]; then
+    elif [ -f "$active_flag" ]; then
         return 0
     else
         return 1
@@ -112,12 +112,12 @@ kill_all_tunnel_processes() {
         kill -9 "$pid" 2>/dev/null
     done
     current_pid=$$
-    for pid in $(ps ax | grep -v grep | grep "[b]ash.*${SCRIPT_NAME}" | awk '{print $1}'); do
+    for pid in $(ps ax | grep -v grep | grep "[b]ash.*${script_name}" | awk '{print $1}'); do
         if [ "$pid" != "$current_pid" ]; then
             kill -9 "$pid" 2>/dev/null
         fi
     done
-    rm -f "$PID_FILE" "$ACTIVE_FLAG" 2>/dev/null
+    rm -f "$pid_file" "$active_flag" 2>/dev/null
     sleep 1
     if ps ax | grep -v grep | grep -q "[s]sh.*serveo.net"; then
         echo "Forcing termination..."
@@ -128,9 +128,9 @@ kill_all_tunnel_processes() {
 
 start() {
     # prevent overlapping runs
-    SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-    (umask 077; : >> "$SCRIPT_LOCK")
-    exec 200>"$SCRIPT_LOCK"
+    script_lock="/var/lock/$(basename "$0" .sh).lock"
+    (umask 077; : >> "$script_lock")
+    exec 200>"$script_lock"
     if ! flock -n 200; then
         echo "ERROR: script $(basename "$0") is already running -- abort"
         exit 1
@@ -147,8 +147,8 @@ start() {
         exit 1
     fi
 
-    touch "$ACTIVE_FLAG"
-    PORT_ARGS=''
+    touch "$active_flag"
+    port_args=''
     local_ports=()
     for port in $ports; do
         if ss -tuln | grep -q ":$port "; then
@@ -158,36 +158,36 @@ start() {
             echo "Make sure a service is listening on that port"
             continue
         fi
-        PORT_ARGS+=" -R 0:localhost:$port"
+        port_args+=" -R 0:localhost:$port"
         local_ports+=($port)
     done
-    if [ -z "$PORT_ARGS" ]; then
+    if [ -z "$port_args" ]; then
         echo "Ports could not be added. The tunnel will not start."
-        rm -f "$ACTIVE_FLAG"
+        rm -f "$active_flag"
         exit 1
     fi
     echo "Starting tunnel with ports: $ports"
 
-    > "$OUTPUT_FILE"
+    > "$output_file"
     # OPCIONAL: Add the following options if you do not want to use SSH fingerprint verification
     # -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
-    ssh -q -T -o LogLevel=ERROR -o ServerAliveInterval=60 -o ServerAliveCountMax=30 ${PORT_ARGS:-} serveo.net > "$OUTPUT_FILE" 2>&1 &
-    SSH_PID=$!
-    echo "$SSH_PID" > "$PID_FILE"
+    ssh -q -T -o LogLevel=ERROR -o ServerAliveInterval=60 -o ServerAliveCountMax=30 ${port_args:-} serveo.net > "$output_file" 2>&1 &
+    ssh_pid=$!
+    echo "$ssh_pid" > "$pid_file"
 
     for i in {1..10}; do
-        if [ -s "$OUTPUT_FILE" ]; then
+        if [ -s "$output_file" ]; then
             break
         fi
         sleep 1
     done
 
-    output=$(cat "$OUTPUT_FILE")
+    output=$(cat "$output_file")
 
     if [ -z "$output" ]; then
         echo "Error: Could not get output from Serveo"
-        rm -f "$ACTIVE_FLAG"
-        kill $SSH_PID 2>/dev/null
+        rm -f "$active_flag"
+        kill $ssh_pid 2>/dev/null
         exit 1
     fi
 
@@ -197,8 +197,8 @@ start() {
     assigned_ports=$(echo "$output" | grep -oP 'serveo\.net:\K[0-9]+' | head -n ${#local_ports[@]})
     if [ -z "$assigned_ports" ]; then
         echo "The remote ports assigned by Serveo could not be obtained"
-        rm -f "$ACTIVE_FLAG"
-        kill $SSH_PID 2>/dev/null
+        rm -f "$active_flag"
+        kill $ssh_pid 2>/dev/null
         exit 1
     fi
 
@@ -225,14 +225,14 @@ start() {
         ((i++)) || true
     done
 
-    rm -f "$ACTIVE_FLAG"
+    rm -f "$active_flag"
     echo "The tunnel is now active"
 
-    > "$PORTS_FILE"
+    > "$ports_file"
     i=0
     for assigned_port in $assigned_ports; do
         local_port="${local_ports[$i]}"
-        echo "$local_port:$assigned_port" >> "$PORTS_FILE"
+        echo "$local_port:$assigned_port" >> "$ports_file"
         ((i++)) || true
     done
 }
@@ -251,11 +251,11 @@ stop() {
             echo "pkill -9 -f \"ssh.*serveo.net\""
         else
             echo "Tunnel successfully stopped"
-            rm -f "$PORTS_FILE"
+            rm -f "$ports_file"
         fi
     else
         echo "There are no active tunnels"
-        rm -f "$PORTS_FILE"
+        rm -f "$ports_file"
     fi
 }
 
@@ -268,11 +268,11 @@ status() {
             echo "Active SSH processes: $ssh_pids"
         fi
 
-        if [ -f "$PID_FILE" ]; then
-            echo "PID: $(cat "$PID_FILE" 2>/dev/null || echo "not available")"
+        if [ -f "$pid_file" ]; then
+            echo "PID: $(cat "$pid_file" 2>/dev/null || echo "not available")"
         fi
 
-        if [ -f "$PORTS_FILE" ]; then
+        if [ -f "$ports_file" ]; then
             echo "Exposed Ports:"
             while IFS=: read -r local_port remote_port; do
                 if [[ "$local_port" -eq 22 ]]; then
@@ -280,7 +280,7 @@ status() {
                 else
                     echo "Local $local_port -> https://serveo.net:$remote_port"
                 fi
-            done < "$PORTS_FILE"
+            done < "$ports_file"
         else
             echo "No port mapping info found."
         fi

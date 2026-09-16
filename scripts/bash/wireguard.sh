@@ -16,9 +16,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -55,20 +55,20 @@ install_wireguard_server() {
     cd /etc/wireguard || exit
 
     # restrict permissions while generating key material, restore afterward
-    PREV_UMASK=$(umask)
+    prev_umask=$(umask)
     umask 077
 
     # Generate private and public keys
     wg genkey | tee /etc/wireguard/private.key | wg pubkey | tee /etc/wireguard/public.key
 
     # Display keys to copy into configuration file
-    SERVER_PRIVATE_KEY=$(cat /etc/wireguard/private.key)
-    SERVER_PUBLIC_KEY=$(cat /etc/wireguard/public.key)
+    server_private_key=$(cat /etc/wireguard/private.key)
+    server_public_key=$(cat /etc/wireguard/public.key)
 
-    echo "Public key: $SERVER_PUBLIC_KEY"
+    echo "Public key: $server_public_key"
 
     # Verify that the keys have been read correctly
-    if [ -z "$SERVER_PRIVATE_KEY" ] || [ -z "$SERVER_PUBLIC_KEY" ]; then
+    if [ -z "$server_private_key" ] || [ -z "$server_public_key" ]; then
       echo "Error: Failed to read keys"
       exit 1
     fi
@@ -104,7 +104,7 @@ install_wireguard_server() {
 Address = 10.0.0.1/24
 #SaveConfig = true
 ListenPort = 51820
-PrivateKey = $SERVER_PRIVATE_KEY
+PrivateKey = $server_private_key
 PostUp = iptables -I FORWARD -i wg0 -j ACCEPT; iptables -t nat -I POSTROUTING -o $public_eth -j MASQUERADE
 PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o $public_eth -j MASQUERADE
 
@@ -120,7 +120,7 @@ EOL
     chmod 644 /etc/wireguard/public.key
 
     # restore the umask that was active before key generation
-    umask "$PREV_UMASK"
+    umask "$prev_umask"
 
     # Enable IPv4 persistent redirection
     if [ ! -f /etc/sysctl.conf ]; then
@@ -161,14 +161,14 @@ install_wireguard_client() {
     apt install -y wireguard wireguard-tools
 
     # Generate private and public keys for the client
-    CLIENT_PRIVATE_KEY=$(wg genkey)
-    CLIENT_PUBLIC_KEY=$(echo "$CLIENT_PRIVATE_KEY" | wg pubkey)
+    client_private_key=$(wg genkey)
+    client_public_key=$(echo "$client_private_key" | wg pubkey)
 
     # Configure the WireGuard configuration file with the generated keys
-    PREV_UMASK=$(umask)
+    prev_umask=$(umask)
     umask 077
     echo "[Interface]
-PrivateKey = $CLIENT_PRIVATE_KEY
+PrivateKey = $client_private_key
 Address = <Client IP>/32
 # DNS = 8.8.8.8 # Optional
 
@@ -177,7 +177,7 @@ PublicKey = <Server's Public Key>
 Endpoint = <Server's Public IP>:51820 # Real IP
 AllowedIPs = 0.0.0.0/0, ::/0
 PersistentKeepalive = 25 # Optional" > /etc/wireguard/wg0.conf
-    umask "$PREV_UMASK"
+    umask "$prev_umask"
 
     # Permissions for files and keys
     chmod 600 /etc/wireguard/wg0.conf
@@ -185,7 +185,7 @@ PersistentKeepalive = 25 # Optional" > /etc/wireguard/wg0.conf
     # Show completion message
     echo "WireGuard client installation complete."
     echo
-    echo "Client's Public Key: $CLIENT_PUBLIC_KEY"
+    echo "Client's Public Key: $client_public_key"
     echo
     echo "Please edit the following file and replace the placeholders:"
     echo "/etc/wireguard/wg0.conf"

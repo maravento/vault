@@ -16,9 +16,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -115,7 +115,7 @@ vboxpurge() {
     service vboxdrv stop &>/dev/null
     killall VirtualBox iprt-VBoxTscThread VBoxSVC &>/dev/null
     VBoxManage extpack uninstall "Oracle VM VirtualBox Extension Pack"
-    apt-get -y autoremove --purge $(echo $vboxversion)
+    apt-get -y autoremove --purge
     /opt/VirtualBox/uninstall.sh &>/dev/null
     apt-get -y remove --purge virtualbox*
     rm -rf /etc/vbox /opt/VirtualBox /usr/lib/virtualbox /etc/apt/sources.list.d/virtualbox.list &>/dev/null

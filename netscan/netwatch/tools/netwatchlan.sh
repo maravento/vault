@@ -197,7 +197,7 @@ check_interfaces() {
 # ONE SCAN CYCLE
 run_scan() {
     if [ -z "${LAN_IFACES:-}" ]; then
-        log "ERROR: LAN_IFACES is not set"
+        log "ERROR: LAN_IFACES is not set -- skip"
         return 1
     fi
 
@@ -221,7 +221,7 @@ run_scan() {
     IFS=',' read -ra ifaces <<< "$LAN_IFACES"
     for iface in "${ifaces[@]}"; do
         if ! ip link show "$iface" &>/dev/null; then
-            log "WARNING: interface '$iface' does not exist, skipping"
+            log "WARNING: interface '$iface' does not exist -- skip"
             continue
         fi
 
@@ -291,9 +291,9 @@ INSERT INTO device_events (mac, ip, event_type, event_time) VALUES ('$esc_mac', 
 # START
 start() {
     # prevent overlapping runs
-    SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-    (umask 077; : >> "$SCRIPT_LOCK")
-    exec 200>"$SCRIPT_LOCK"
+    script_lock="/var/lock/$(basename "$0" .sh).lock"
+    (umask 077; : >> "$script_lock")
+    exec 200>"$script_lock"
     if ! flock -n 200; then
         log "ERROR: script $(basename "$0") is already running -- abort"
         exit 1
@@ -313,7 +313,7 @@ start() {
 
     # CHECK LAN_IFACES
     if [ -z "${LAN_IFACES:-}" ]; then
-        log "ERROR: LAN_IFACES is not set in $netwatch_env"
+        log "ERROR: LAN_IFACES is not set in $netwatch_env -- abort"
         exit 1
     fi
 
@@ -337,11 +337,11 @@ start() {
     fi
 
     log "netwatchlan start..."
-    log "Interfaces : $LAN_IFACES"
-    log "Interval : ${LAN_POLL_INTERVAL}s"
-    log "Offline grace: ${LAN_OFFLINE_GRACE} polls"
-    log "Database : $db_file"
-    log "Log : $log_file"
+    log "INFO: Interfaces : $LAN_IFACES"
+    log "INFO: Interval : ${LAN_POLL_INTERVAL}s"
+    log "INFO: Offline grace: ${LAN_OFFLINE_GRACE} polls"
+    log "INFO: Database : $db_file"
+    log "INFO: Log : $log_file"
 
     rm -f "$pid_file"
     (
@@ -360,24 +360,24 @@ start() {
         [ -s "$pid_file" ] && break
         sleep 0.05
     done
-    log "netwatchlan started with PID $(cat "$pid_file" 2>/dev/null)"
+    log "INFO: netwatchlan started with PID $(cat "$pid_file" 2>/dev/null)"
 }
 
 # STOP
 stop() {
-    log "Stopping netwatchlan..."
+    log "INFO: Stopping netwatchlan..."
     if [ -f "$pid_file" ]; then
         local daemon_pid
         daemon_pid=$(cat "$pid_file")
         if kill -0 "$daemon_pid" 2>/dev/null; then
             kill "$daemon_pid" 2>/dev/null
-            log "netwatchlan stopped (PID $daemon_pid)"
+            log "INFO: netwatchlan stopped (PID $daemon_pid)"
         else
-            log "netwatchlan was not running (stale PID file removed)"
+            log "INFO: netwatchlan was not running (stale PID file removed)"
         fi
         rm -f "$pid_file"
     else
-        log "netwatchlan is not running"
+        log "INFO: netwatchlan is not running"
     fi
 }
 
@@ -385,17 +385,17 @@ stop() {
 status() {
     log "netwatchlan status..."
     if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
-        log "netwatchlan is RUNNING (PID $(cat "$pid_file"))"
-        log "Interfaces : ${LAN_IFACES:-unset}"
-        log "Interval : ${LAN_POLL_INTERVAL:-60}s"
+        log "INFO: netwatchlan is RUNNING (PID $(cat "$pid_file"))"
+        log "INFO: Interfaces : ${LAN_IFACES:-unset}"
+        log "INFO: Interval : ${LAN_POLL_INTERVAL:-60}s"
         if [ -f "$db_file" ]; then
             local counts
             counts=$(sqlite3 "$db_file" "SELECT status, COUNT(*) FROM devices GROUP BY status;" 2>/dev/null)
-            log "Devices :"
+            log "INFO: Devices :"
             echo "$counts" | sed 's/^/ /' | tee -a "$log_file"
         fi
     else
-        log "netwatchlan is STOPPED"
+        log "INFO: netwatchlan is STOPPED"
     fi
 }
 
@@ -404,5 +404,5 @@ case "${1:-}" in
     start) start ;;
     stop) stop ;;
     status) status ;;
-    *) log "Usage: $(basename "$0") {start|stop|status}" ;;
+    *) log "INFO: Usage: $(basename "$0") {start|stop|status}" ;;
 esac

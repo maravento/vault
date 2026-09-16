@@ -51,8 +51,7 @@ commands_list=(
 # Use colors in messages
 colors='yes'
 
-# Advanced config #
-###################
+# ADVANCED CONFIG
 
 # Logging, you possibly don't want to turn it off
 log_enabled='yes'
@@ -82,27 +81,26 @@ editor_console='nano'
 rule_file='/etc/udev/rules.d/00-blackusb.rules'
 
 # Path to the app, do not edit
-SCR="$(
+scr="$(
     cd "$(dirname "$0")"
     pwd -P
 )"
-PROGRAM="${0##*/}"
-PROGRAM_ABS="$SCR/$PROGRAM"
+program="${0##*/}"
+program_abs="$scr/$program"
 
 # Run this when uknown usb device is added
-trigger_cmd_add="$PROGRAM_ABS trigger"
+trigger_cmd_add="$program_abs trigger"
 
 # Run this when specified usb device is removed
-trigger_cmd_remove="$PROGRAM_ABS trigger"
+trigger_cmd_remove="$program_abs trigger"
 
 # Run this when a whitelisted usb device is added (logging only, no block)
-trigger_cmd_allow="$PROGRAM_ABS allow_trigger"
+trigger_cmd_allow="$program_abs allow_trigger"
 
-# Code #
-##############
+# CODE
 if [[ $custom_editor = 'yes' ]]; then
-    [[ -n ${DISPLAY:-} ]] && INX=yes
-    if [[ -n "${INX:-}" ]]; then
+    [[ -n ${DISPLAY:-} ]] && inx=yes
+    if [[ -n "${inx:-}" ]]; then
         export EDITOR="$editor_x"
     else
         export EDITOR="$editor_console"
@@ -353,12 +351,12 @@ o | on)
     ;;
 
 t | trigger)
-    setsid "$PROGRAM_ABS" trigger_async </dev/null >/dev/null 2>&1 &
+    setsid "$program_abs" trigger_async </dev/null >/dev/null 2>&1 &
     disown
     ;;
 
 allow_trigger)
-    setsid "$PROGRAM_ABS" allow_trigger_async </dev/null >/dev/null 2>&1 &
+    setsid "$program_abs" allow_trigger_async </dev/null >/dev/null 2>&1 &
     disown
     ;;
 

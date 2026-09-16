@@ -26,7 +26,7 @@
 
 set -uo pipefail
 
-# check no-root
+# no-root check
 if [ "$(id -u)" == "0" ]; then
     echo "ERROR: This script should not be run as root -- abort"
     exit 1
@@ -64,9 +64,9 @@ check_device() {
 
 start() {
     # prevent overlapping runs
-    SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-    (umask 077; : >> "$SCRIPT_LOCK")
-    exec 200>"$SCRIPT_LOCK"
+    script_lock="/var/lock/$(basename "$0" .sh).lock"
+    (umask 077; : >> "$script_lock")
+    exec 200>"$script_lock"
     if ! flock -n 200; then
         echo "ERROR: script $(basename "$0") is already running -- abort"
         exit 1

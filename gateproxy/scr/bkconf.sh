@@ -23,9 +23,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     log "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -39,7 +39,10 @@ for dep in zip coreutils util-linux; do
     fi
 done
 
+# ------------------------------------------------------------------------------
 # VARIABLES
+# ------------------------------------------------------------------------------
+
 # project backup path
 bkconfig="/etc/bak/gateproxy"
 mkdir -p "$bkconfig" >/dev/null 2>&1
@@ -47,7 +50,10 @@ chmod 700 "$bkconfig"
 
 log "bkconfig start..."
 
+# ------------------------------------------------------------------------------
 # BACKUP
+# ------------------------------------------------------------------------------
+
 zipbk="backup_$(date +%Y%m%d_%H%M).zip"
 # Build pathbk as array, skipping non-existent paths
 pathbk=()
@@ -70,14 +76,14 @@ do
     if [ -e "$p" ]; then
         pathbk+=("$p")
     else
-        log "WARNING: $p not found, skipping"
+        log "WARNING: $p not found -- skip"
     fi
 done
 case "${1:-}" in
 'start')
-    log "Start Backup Config Files..."
+    log "INFO: Start Backup Config Files..."
     if zip -r "$bkconfig/$zipbk" "${pathbk[@]}" >/dev/null; then
-        log "Backup Config: $bkconfig/$zipbk"
+        log "INFO: Backup Config: $bkconfig/$zipbk"
         old_backups=("$bkconfig"/backup_*.zip)
         if (( ${#old_backups[@]} > 3 )); then
             printf '%s\n' "${old_backups[@]}" | sort | head -n -3 | xargs -r rm -f
@@ -89,8 +95,8 @@ case "${1:-}" in
     ;;
 'stop') ;;
 *)
-    log "Usage: $0 { start | stop }"
+    log "INFO: Usage: $0 { start | stop }"
     ;;
 esac
 
-log "bkconfig done at: $(date)"
+log "bkconfig done at: $(date '+%Y-%m-%d %H:%M:%S')"

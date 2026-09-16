@@ -90,11 +90,17 @@ UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5
 # absent key falls back to the built-in default.
 pydhcp_conf="/etc/pydhcp/pydhcp.env"
 
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
+# LOAD_CONF
+# Read known key=value pairs from a config file, without sourcing it
 load_conf() {
-    local conf_file="$1" env_line env_key env_value
+    local conf_file="$1" env_key env_value env_line
     [[ ! -f "$conf_file" ]] && { log "WARNING: $conf_file not found -- fallback"; return 1; }
-    while IFS= read -r env_line || [ -n "$env_line" ]; do
-        [[ "$env_line" =~ ^[[:space:]]*# ]] && continue
+    while IFS= read -r env_line || [[ -n "$env_line" ]]; do
+        [[ "$env_line" =~ ^[[:space:]]*[#] ]] && continue
         [[ "$env_line" =~ ^[[:space:]]*$ ]] && continue
         env_key="${env_line%%=*}"
         env_value="${env_line#*=}"
@@ -819,4 +825,4 @@ iptables -A INPUT -j DROP
 iptables -A FORWARD -m hashlimit --hashlimit-name forward-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip,dstport -j NFLOG --nflog-prefix "FINAL-FORWARD DROP: "
 iptables -A FORWARD -j DROP
 
-log "iptables done at: $(date)"
+log "iptables done at: $(date '+%Y-%m-%d %H:%M:%S')"

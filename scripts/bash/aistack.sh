@@ -32,9 +32,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -209,32 +209,10 @@ remove_native_components() {
     fi
 }
 
-# Available models for selection
-AVAILABLE_MODELS=(
-    "llama3.3:70b" # State-of-the-art 2025, ~43GB RAM, matches Llama 3.1 405B quality
-    "gemma4:31b" # Maximum quality, needs 20GB RAM, high-end GPU
-    "gemma4:26b" # MoE architecture, needs 18GB RAM
-    "qwen2.5-coder:14b" # Top-rated coding model 2026, ~9GB RAM, 16GB recommended
-    "mistral-small3.2" # Latest Mistral Small, improved function calling, ~14GB RAM
-    "phi4:14b" # Microsoft Phi-4, punches above its weight, ~9GB RAM, MIT license
-    "qwen2.5:14b" # General purpose, strong multilingual, ~9GB RAM
-    "gemma3:12b" # Google Gemma 3, vision + creative writing, ~8GB RAM
-    "qwen2.5-coder:7b" # Powerful for coding, 6-8GB RAM
-    "gemma4:e4b" # Balanced multimodal, 5-6GB RAM
-    "codellama:7b" # Code-specialized, 6-8GB RAM
-    "deepseek-coder-v2:16b" # DeepSeek Coder V2, MoE, ~8.9GB RAM, MIT license
-    "deepseek-coder:6.7b" # MIT license, good for coding
-    "mistral:7b" # General purpose, Apache 2.0
-    "phi3:3.8b" # Small but capable, MIT license
-    "llama3.2:3b" # Balanced quality/speed, ~3GB RAM
-    "qwen2.5-coder:1.5b" # Fast coding model, 2-3GB RAM, ideal for CPU
-    "gemma4:e2b" # Ultralight multimodal, ~4GB RAM
-    "llama3.2:1b" # Very fast, ~1-2GB RAM
-    "glm-5.2:cloud" # Z.ai flagship, 756B params, needs high-end GPU cluster
-)
-
-DEFAULT_MODEL="qwen2.5-coder:7b"
-SELECTED_MODEL="$DEFAULT_MODEL"
+# ------------------------------------------------------------------------------
+# LLM MODEL CATALOG (independent from Apps -- fetched live, not hardcoded)
+# ------------------------------------------------------------------------------
+SELECTED_MODEL=""
 
 # -- Colors --------------------------------------------------------------------
 RED='\033[0;31m'
@@ -270,41 +248,78 @@ line() { echo -e " ${DIM}------------------------------------------------${RESET
 
 pause() { echo ""; read -rp " Press Enter to continue..." _; }
 
+# -- Fetch current model catalog from Ollama ------------------------------------
+# Unofficial endpoint (no documented public API for the full library),
+# returns Ollama's own featured-models list: name + size, no license/RAM info.
+fetch_available_models() {
+    AVAILABLE_MODELS=()
+    if ! command -v jq &>/dev/null; then
+        warn "jq is not installed -- cannot parse the model catalog"
+        return 1
+    fi
+
+    local max_attempts=5
+    local attempt=1
+    local json=""
+    while [ "$attempt" -le "$max_attempts" ]; do
+        json=$(curl -fsSL --connect-timeout 5 --max-time 10 "https://ollama.com/api/tags" 2>/dev/null)
+        if [[ -n "$json" ]] && jq -e '.models' &>/dev/null <<<"$json"; then
+            break
+        fi
+        warn "Could not reach the Ollama model catalog (attempt $attempt/$max_attempts)"
+        attempt=$((attempt + 1))
+        [ "$attempt" -le "$max_attempts" ] && sleep 5
+    done
+
+    if [[ -z "$json" ]] || ! jq -e '.models' &>/dev/null <<<"$json"; then
+        err "Model catalog unreachable after $max_attempts attempts"
+        return 1
+    fi
+
+    while IFS=$'\t' read -r name size; do
+        AVAILABLE_MODELS+=("${name}|${size}")
+    done < <(jq -r '.models[] | [.name, .size] | @tsv' <<<"$json")
+
+    [ "${#AVAILABLE_MODELS[@]}" -gt 0 ]
+}
+
 # -- Model selection menu ------------------------------------------------------
 select_model() {
     echo ""
-    echo -e " ${BOLD}Available Local Models:${RESET}"
+    step "Fetching current model catalog from ollama.com..."
+    if ! fetch_available_models; then
+        err "Skipping model download -- catalog unavailable"
+        SELECTED_MODEL=""
+        return 1
+    fi
+
     echo ""
-    echo -e " ${WHITE}0)${RESET} ${DIM}Skip -- do not download a model now${RESET}"
+    echo -e " ${BOLD}Available Models (live catalog):${RESET}"
     echo ""
 
     local i=1
-    for model in "${AVAILABLE_MODELS[@]}"; do
-        if [[ "$model" == "$DEFAULT_MODEL" ]]; then
-            echo -e " ${WHITE}$i)${RESET} $model ${DIM}(default)${RESET}"
-        else
-            echo -e " ${WHITE}$i)${RESET} $model"
-        fi
+    local entry name size_h
+    for entry in "${AVAILABLE_MODELS[@]}"; do
+        name="${entry%%|*}"
+        size_h=$(numfmt --to=iec --suffix=B "${entry##*|}" 2>/dev/null || echo "${entry##*|}")
+        echo -e " ${WHITE}$i)${RESET} $name ${DIM}(${size_h})${RESET}"
         i=$((i+1))
     done
 
     echo ""
-    echo -e " ${DIM}Press Enter to use default: ${DEFAULT_MODEL}${RESET}"
-    echo ""
-    read -rp " -> Select model [0-${#AVAILABLE_MODELS[@]}]: " choice
+    read -rp " -> Select model [1-${#AVAILABLE_MODELS[@]}] or 'q' to skip: " choice
 
-    if [[ -z "$choice" ]]; then
-        SELECTED_MODEL="$DEFAULT_MODEL"
-    elif [[ "$choice" == "0" ]]; then
+    if [[ "$choice" == "q" || "$choice" == "Q" ]]; then
         SELECTED_MODEL=""
         echo ""
         info "No model selected -- you can download one later with: ./aistack.sh model"
         return 0
     elif [[ "$choice" =~ $UH_UINT ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#AVAILABLE_MODELS[@]}" ]; then
-        SELECTED_MODEL="${AVAILABLE_MODELS[$((choice-1))]}"
+        SELECTED_MODEL="${AVAILABLE_MODELS[$((choice-1))]%%|*}"
     else
-        warn "Invalid selection, using default: $DEFAULT_MODEL"
-        SELECTED_MODEL="$DEFAULT_MODEL"
+        warn "Invalid selection -- skipping model download"
+        SELECTED_MODEL=""
+        return 1
     fi
 
     echo ""
@@ -574,10 +589,7 @@ download_model() {
 
 # -- List installed models ------------------------------------------------------
 list_installed_models() {
-    if ! docker ps --format '{{.Names}}' | grep -q "^ollama$"; then
-        err "Ollama container is not running"
-        return 1
-    fi
+    require_ollama_running || return 1
 
     local models
     models=$(docker exec ollama ollama list 2>/dev/null | tail -n +2)
@@ -600,10 +612,7 @@ list_installed_models() {
 
 # -- Remove a specific model ----------------------------------------------------
 remove_model() {
-    if ! docker ps --format '{{.Names}}' | grep -q "^ollama$"; then
-        err "Ollama container is not running"
-        return 1
-    fi
+    require_ollama_running || return 1
 
     # Get list of installed models
     local models_list=()
@@ -644,14 +653,14 @@ remove_model() {
     fi
 }
 
-# -- Change default model (remove current, install new) ------------------------
-change_default_model() {
+# -- Replace current model with another -----------------------------------------
+replace_current_model() {
     require_ollama_running || return 1
     # Get current selected model
     local current_model="$SELECTED_MODEL"
 
     echo ""
-    echo -e " ${BOLD}Current default model: ${WHITE}$current_model${RESET}"
+    echo -e " ${BOLD}Current model: ${WHITE}$current_model${RESET}"
     echo ""
 
     # Ask if user wants to remove current model
@@ -672,14 +681,6 @@ change_default_model() {
 
     # Download new model
     download_model
-
-    # Update DEFAULT_MODEL in script? (optional)
-    echo ""
-    read -rp " Set '$SELECTED_MODEL' as new default for future installs? [y/N]: " set_default
-    if [[ "$set_default" =~ ^[yY]$ ]]; then
-        DEFAULT_MODEL="$SELECTED_MODEL"
-        ok "Default model updated to: $DEFAULT_MODEL"
-    fi
 }
 
 # -- Manage Models Submenu -----------------------------------------------------
@@ -700,7 +701,7 @@ menu_models() {
         echo ""
         echo -e " ${WHITE}1)${RESET} Install additional model"
         echo -e " ${WHITE}2)${RESET} Remove a model"
-        echo -e " ${WHITE}3)${RESET} Change default model (remove current + install new)"
+        echo -e " ${WHITE}3)${RESET} Replace current model with another"
         echo -e " ${WHITE}0)${RESET} Back to main menu"
         echo ""
         line
@@ -710,7 +711,7 @@ menu_models() {
         case "$opt" in
             1) select_model; download_model; pause ;;
             2) remove_model; pause ;;
-            3) change_default_model; pause ;;
+            3) replace_current_model; pause ;;
             0) return ;;
             *) warn "Invalid option" ;;
         esac
@@ -1594,6 +1595,11 @@ update_opencode_desktop() {
 
     local current_ver
     current_ver=$(_opencode_desktop_state_get VERSION)
+    if [ -z "$current_ver" ] && [ "$format" = "deb" ]; then
+        local existing_pkg
+        existing_pkg=$(_opencode_desktop_deb_pkg)
+        [ -n "$existing_pkg" ] && current_ver=$(dpkg-query -W -f='${Version}' "$existing_pkg" 2>/dev/null || true)
+    fi
     info "Currently installed: ${current_ver:-unknown} (format: $format)"
 
     local arch
@@ -1968,7 +1974,7 @@ uninstall_all() {
 status_all() {
     echo ""
     echo -e " ${BOLD}${CYAN}--- AI STACK STATUS -----------------------------${RESET}"
-    echo -e " ${DIM}$(date)${RESET}"
+    echo -e " ${DIM}$(date '+%Y-%m-%d %H:%M:%S')${RESET}"
 
     echo -e "\n ${BOLD}--- Docker ---------------------------------------${RESET}"
     if docker --version >/dev/null 2>&1; then

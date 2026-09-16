@@ -34,9 +34,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -98,14 +98,14 @@ install_winboat() {
     # Step 1: Install Docker + Portainer
     echo "[1/4] Installing Docker + Portainer..."
     if ! command -v docker &> /dev/null; then
-        DOCKER_SCRIPT=$(mktemp /tmp/docker.XXXXXX.sh)
-        if ! wget --timeout=30 --show-progress https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh -O "$DOCKER_SCRIPT"; then
+        docker_script=$(mktemp /tmp/docker.XXXXXX.sh)
+        if ! wget --timeout=30 --show-progress https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh -O "$docker_script"; then
             echo "ERROR: Failed to download docker.sh"
             exit 1
         fi
-        chmod +x "$DOCKER_SCRIPT"
-        "$DOCKER_SCRIPT" install
-        rm "$DOCKER_SCRIPT"
+        chmod +x "$docker_script"
+        "$docker_script" install
+        rm "$docker_script"
     else
         echo "Docker is already installed. Skipping..."
     fi
@@ -143,21 +143,21 @@ install_winboat() {
     echo "[3/4] Installing Winboat..."
     if ! command -v winboat &> /dev/null; then
         echo "Fetching latest Winboat release..."
-        DEB_URL=$(curl -s https://api.github.com/repos/TibixDev/winboat/releases/latest | grep -oP '"browser_download_url": "\K[^"]*\.deb')
+        deb_url=$(curl -s https://api.github.com/repos/TibixDev/winboat/releases/latest | grep -oP '"browser_download_url": "\K[^"]*\.deb')
 
-        if [ -z "$DEB_URL" ]; then
+        if [ -z "$deb_url" ]; then
             echo "Error: Could not fetch Winboat download URL"
             exit 1
         fi
 
         echo "Downloading Winboat..."
-        WINBOAT_DEB=$(mktemp /tmp/winboat.XXXXXX.deb)
-        wget -q --timeout=30 --show-progress "$DEB_URL" -O "$WINBOAT_DEB"
+        winboat_deb=$(mktemp /tmp/winboat.XXXXXX.deb)
+        wget -q --timeout=30 --show-progress "$deb_url" -O "$winboat_deb"
 
         echo "Installing Winboat package..."
-        dpkg -i "$WINBOAT_DEB"
+        dpkg -i "$winboat_deb"
         apt-get install -f -y
-        rm -f "$WINBOAT_DEB"
+        rm -f "$winboat_deb"
 
         echo "Winboat installed successfully!"
     else
@@ -212,21 +212,21 @@ uninstall_winboat() {
 
     # Step 2: Stop and remove Winboat Docker containers
     echo "[2/5] Removing Winboat Docker containers..."
-    WINBOAT_CONTAINERS=$(docker ps -a --filter "name=WinBoat" --format "{{.ID}}" 2>/dev/null)
-    if [ -n "$WINBOAT_CONTAINERS" ]; then
+    winboat_containers=$(docker ps -a --filter "name=WinBoat" --format "{{.ID}}" 2>/dev/null)
+    if [ -n "$winboat_containers" ]; then
         echo "Found Winboat containers, stopping and removing..."
-        docker stop $WINBOAT_CONTAINERS 2>/dev/null || true
-        docker rm $WINBOAT_CONTAINERS 2>/dev/null || true
+        docker stop $winboat_containers 2>/dev/null || true
+        docker rm $winboat_containers 2>/dev/null || true
         echo "Winboat containers removed"
     else
         echo "No Winboat containers found"
     fi
 
     # Remove Winboat Docker volumes
-    WINBOAT_VOLUMES=$(docker volume ls --format "{{.Name}}" 2>/dev/null | grep -i winboat)
-    if [ -n "$WINBOAT_VOLUMES" ]; then
+    winboat_volumes=$(docker volume ls --format "{{.Name}}" 2>/dev/null | grep -i winboat)
+    if [ -n "$winboat_volumes" ]; then
         echo "Found Winboat volumes, removing..."
-        echo "$WINBOAT_VOLUMES" | xargs -r docker volume rm 2>/dev/null || true
+        echo "$winboat_volumes" | xargs -r docker volume rm 2>/dev/null || true
         echo "Winboat volumes removed"
     fi
     printf "\n"
@@ -281,14 +281,14 @@ uninstall_winboat() {
     case $remove_docker in
         [Yy]*)
             echo "Removing Docker..."
-            DOCKER_SCRIPT=$(mktemp /tmp/docker.XXXXXX.sh)
-            if ! wget --timeout=30 --show-progress https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh -O "$DOCKER_SCRIPT"; then
+            docker_script=$(mktemp /tmp/docker.XXXXXX.sh)
+            if ! wget --timeout=30 --show-progress https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh -O "$docker_script"; then
                 echo "ERROR: Failed to download docker.sh"
                 exit 1
             fi
-            chmod +x "$DOCKER_SCRIPT"
-            "$DOCKER_SCRIPT" remove
-            rm "$DOCKER_SCRIPT"
+            chmod +x "$docker_script"
+            "$docker_script" remove
+            rm "$docker_script"
             ;;
         *)
             echo "Docker kept installed"

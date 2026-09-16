@@ -43,9 +43,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # prevent overlapping runs
-SCRIPT_LOCK="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$SCRIPT_LOCK")
-exec 200>"$SCRIPT_LOCK"
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock")
+exec 200>"$script_lock"
 if ! flock -n 200; then
     echo "ERROR: script $(basename "$0") is already running -- abort"
     exit 1
@@ -59,13 +59,13 @@ for dep in coreutils systemd netplan.io util-linux; do
     fi
 done
 
-MODNAME="netplanmgr"
-if ! [[ "$MODNAME" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-    echo "ERROR: MODNAME contains invalid characters"
+mod_name="netplanmgr"
+if ! [[ "$mod_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo "ERROR: mod_name contains invalid characters"
     exit 1
 fi
-MODDIR="/usr/share/webmin/$MODNAME"
-ETCDIR="/etc/webmin/$MODNAME"
+mod_dir="/usr/share/webmin/$mod_name"
+etc_dir="/etc/webmin/$mod_name"
 
 # ============================================================
 # Function: Install Module
@@ -80,15 +80,15 @@ install_module() {
     echo "Creating Netplan Manager module structure..."
 
     # Create directories
-    mkdir -p "$MODDIR/images"
-    mkdir -p "$MODDIR/lang"
-    mkdir -p "$MODDIR/help"
-    mkdir -p "$ETCDIR"
+    mkdir -p "$mod_dir/images"
+    mkdir -p "$mod_dir/lang"
+    mkdir -p "$mod_dir/help"
+    mkdir -p "$etc_dir"
 
     # ============================================================
     # 1. index.cgi (main file)
     # ============================================================
-    cat > "$MODDIR/index.cgi" <<'INDEXCGI'
+    cat > "$mod_dir/index.cgi" <<'INDEXCGI'
 #!/usr/bin/perl
 # Netplan Manager - Main interface
 use strict;
@@ -830,12 +830,12 @@ MODAL
 &ui_print_footer("/", $text{'index'});
 INDEXCGI
 
-    chmod 755 "$MODDIR/index.cgi"
+    chmod 755 "$mod_dir/index.cgi"
 
     # ============================================================
     # 2. module.info (English)
     # ============================================================
-    cat > "$MODDIR/module.info" <<'EOF'
+    cat > "$mod_dir/module.info" <<'EOF'
 desc=Netplan Manager
 longdesc=View, edit and apply Netplan YAML configuration files
 category=net
@@ -847,7 +847,7 @@ EOF
     # ============================================================
     # 3. module.info.es (Spanish)
     # ============================================================
-    cat > "$MODDIR/module.info.es" <<'EOF'
+    cat > "$mod_dir/module.info.es" <<'EOF'
 desc=Administrador de Netplan
 longdesc=Ver, editar y aplicar archivos YAML de Netplan
 category=net
@@ -859,7 +859,7 @@ EOF
     # ============================================================
     # 4. lang/en (English strings)
     # ============================================================
-    cat > "$MODDIR/lang/en" <<'EOF'
+    cat > "$mod_dir/lang/en" <<'EOF'
 index_title=Netplan Manager
 index_desc=Manage Netplan network configuration files under /etc/netplan
 table_file=Configuration File
@@ -885,7 +885,7 @@ EOF
     # ============================================================
     # 5. lang/es (Spanish strings)
     # ============================================================
-    cat > "$MODDIR/lang/es" <<'EOF'
+    cat > "$mod_dir/lang/es" <<'EOF'
 index_title=Administrador de Netplan
 index_desc=Gestiona los archivos de configuracion Netplan en /etc/netplan
 table_file=Archivo de Configuracion
@@ -911,7 +911,7 @@ EOF
     # ============================================================
     # 6. config.info (Configuration options - English)
     # ============================================================
-    cat > "$MODDIR/config.info" <<'EOF'
+    cat > "$mod_dir/config.info" <<'EOF'
 netplan_path=Netplan configuration directory,0
 netplan_backup=Create backup before applying,1,1-Yes,0-No
 EOF
@@ -919,7 +919,7 @@ EOF
     # ============================================================
     # 6b. config.info.es (Configuration options - Spanish)
     # ============================================================
-    cat > "$MODDIR/config.info.es" <<'EOF'
+    cat > "$mod_dir/config.info.es" <<'EOF'
 netplan_path=Directorio de configuracion Netplan,0
 netplan_backup=Crear respaldo antes de aplicar,1,1-Si,0-No
 EOF
@@ -927,7 +927,7 @@ EOF
     # ============================================================
     # 7. defaultconfig (Default configuration values)
     # ============================================================
-    cat > "$MODDIR/defaultconfig" <<'EOF'
+    cat > "$mod_dir/defaultconfig" <<'EOF'
 netplan_path=/etc/netplan
 netplan_backup=1
 EOF
@@ -935,7 +935,7 @@ EOF
     # ============================================================
     # 8. config (Initial configuration - same as defaults)
     # ============================================================
-    cat > "$ETCDIR/config" <<'EOF'
+    cat > "$etc_dir/config" <<'EOF'
 netplan_path=/etc/netplan
 netplan_backup=1
 EOF
@@ -943,7 +943,7 @@ EOF
     # ============================================================
     # 9. install_check.pl
     # ============================================================
-    cat > "$MODDIR/install_check.pl" <<'EOF'
+    cat > "$mod_dir/install_check.pl" <<'EOF'
 #!/usr/bin/perl
 # Check if netplan is available
 
@@ -957,12 +957,12 @@ sub module_install_check {
 }
 EOF
 
-    chmod 755 "$MODDIR/install_check.pl"
+    chmod 755 "$mod_dir/install_check.pl"
 
     # ============================================================
     # 10. help/intro.html
     # ============================================================
-    cat > "$MODDIR/help/intro.html" <<'EOF'
+    cat > "$mod_dir/help/intro.html" <<'EOF'
 <header>Netplan Manager</header>
 
 <h3>Introduction</h3>
@@ -989,7 +989,7 @@ EOF
     # ============================================================
     # 11. help/intro.es.html
     # ============================================================
-    cat > "$MODDIR/help/intro.es.html" <<'EOF'
+    cat > "$mod_dir/help/intro.es.html" <<'EOF'
 <header>Administrador de Netplan</header>
 
 <h3>Introduccion</h3>
@@ -1016,7 +1016,7 @@ EOF
     # ============================================================
     # 12. CHANGELOG
     # ============================================================
-    cat > "$MODDIR/CHANGELOG" <<'EOF'
+    cat > "$mod_dir/CHANGELOG" <<'EOF'
 Version 1.2 (2025)
 - Added modal popup editor for better UX with long file lists
 - Added AJAX file loading for instant editing
@@ -1040,29 +1040,29 @@ EOF
     # ============================================================
     # 13. Create icon.gif
     # ============================================================
-    ICON_B64=$(mktemp)
-    cat > "$ICON_B64" << 'ICONEOF'
+    icon_b64=$(mktemp)
+    cat > "$icon_b64" << 'ICONEOF'
 R0lGODlhMAAwAPAAAAAAAAAAACH5BAEAAAAALAAAAAAwADAAAAKrhI+py+0Po5wqJEszCpyf7mkUiAGkOJJqiUKr2krvGS/zDdYGzusmj6vdLjPfynb0/XIVmnLZQTKfsOZU95I6W8NNUQj8yq5hcWRbzk62xOA5BIX/Pj0XML6rP9JuvJ3v4cTGAChncpFR+JSXtshIlgSm5mWWWPlYJdLVFqmxSdlpOQmayRU6isXnGHfnqEhVyBITazgbuxiFWXKlxFJ6uGpVGywsS3yMHFMAADs=
 ICONEOF
 
-    base64 -d "$ICON_B64" > "$MODDIR/images/icon.gif" || true
-    rm -f "$ICON_B64"
+    base64 -d "$icon_b64" > "$mod_dir/images/icon.gif" || true
+    rm -f "$icon_b64"
 
     # ============================================================
     # Set permissions
     # ============================================================
-    chown -R root:root "$MODDIR" "$ETCDIR"
-    chmod -R 755 "$MODDIR"
-    chmod 644 "$MODDIR"/*.info* "$MODDIR/lang/"* "$MODDIR/help/"* "$MODDIR/CHANGELOG" 2>/dev/null || true
-    chmod 755 "$MODDIR"/*.cgi "$MODDIR"/*.pl 2>/dev/null || true
-    chmod 644 "$MODDIR/images/"* 2>/dev/null || true
+    chown -R root:root "$mod_dir" "$etc_dir"
+    chmod -R 755 "$mod_dir"
+    chmod 644 "$mod_dir"/*.info* "$mod_dir/lang/"* "$mod_dir/help/"* "$mod_dir/CHANGELOG" 2>/dev/null || true
+    chmod 755 "$mod_dir"/*.cgi "$mod_dir"/*.pl 2>/dev/null || true
+    chmod 644 "$mod_dir/images/"* 2>/dev/null || true
 
     # ============================================================
     # Register in Webmin ACL
     # ============================================================
     if [ -f /etc/webmin/webmin.acl ]; then
-        if ! grep -qE "^root:.*\b${MODNAME}\b" /etc/webmin/webmin.acl 2>/dev/null; then
-            sed -i.bak 's/\(^root:.*\)/\1 '"$MODNAME"'/' /etc/webmin/webmin.acl
+        if ! grep -qE "^root:.*\b${mod_name}\b" /etc/webmin/webmin.acl 2>/dev/null; then
+            sed -i.bak 's/\(^root:.*\)/\1 '"$mod_name"'/' /etc/webmin/webmin.acl
             rm -f /etc/webmin/webmin.acl.bak
             echo "Module added to webmin.acl"
         fi
@@ -1082,8 +1082,8 @@ ICONEOF
     echo "Netplan Manager installed successfully!"
     echo "=========================================="
     echo ""
-    echo "Module location: $MODDIR"
-    echo "Config location: $ETCDIR"
+    echo "Module location: $mod_dir"
+    echo "Config location: $etc_dir"
     echo ""
     echo "Please refresh your browser to see the module."
     echo "Find it under the 'Network' category."
@@ -1100,20 +1100,20 @@ uninstall_module() {
     echo "=========================================="
     echo ""
 
-    if [ ! -d "$MODDIR" ]; then
+    if [ ! -d "$mod_dir" ]; then
         echo "Module is not installed."
         echo ""
         return 1
     fi
 
     echo "Removing module files..."
-    rm -rf "$MODDIR"
-    rm -rf "$ETCDIR"
+    rm -rf "$mod_dir"
+    rm -rf "$etc_dir"
 
     # Remove from ACL
     if [ -f /etc/webmin/webmin.acl ]; then
-        if grep -q "$MODNAME" /etc/webmin/webmin.acl 2>/dev/null; then
-            sed -i.bak 's/ '"$MODNAME"'//g' /etc/webmin/webmin.acl
+        if grep -q "$mod_name" /etc/webmin/webmin.acl 2>/dev/null; then
+            sed -i.bak 's/ '"$mod_name"'//g' /etc/webmin/webmin.acl
             rm -f /etc/webmin/webmin.acl.bak
             echo "Module removed from webmin.acl"
         fi
