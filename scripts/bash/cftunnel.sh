@@ -48,7 +48,7 @@
 #   4. Zone Resources: Include -> Specific zone -> your domain only
 #   5. (Recommended) set a TTL / client IP filter
 #   6. Create Token and copy it -> it is shown only once
-#   7. Paste it into the 'token_cloudflare' variable below (USER CONFIGURATION)
+#   7. Paste it into the 'token_cloudflare' variable below (CONFIG)
 #
 # USEFUL COMMANDS:
 # ================
@@ -78,10 +78,17 @@
 
 set -uo pipefail
 
-# --- USER CONFIGURATION --- ###
+# ------------------------------------------------------------------------------
+# CONFIG
+# ------------------------------------------------------------------------------
+
 # Cloudflare API Token (Zone:DNS:Edit permission), only needed for 'delete'
 # to auto-remove the DNS record. Leave empty to skip automatic DNS deletion.
 token_cloudflare=""
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -100,7 +107,9 @@ for dep in cloudflared curl cron procps util-linux; do
     fi
 done
 
-# --- CONFIGURATION --- ###
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
 
 _resolve_user_home() {
     local user_home=""
@@ -125,17 +134,18 @@ CONFIG_DIR="$USER_HOME/.cloudflared"
 CLOUDFLARED_BIN="$(command -v cloudflared)"
 mkdir -p "$CONFIG_DIR"
 
-# --- VALIDATION --- ###
 # validation -- one variable per thing validated; use directly with =~
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 UH_UINT='^(0|[1-9][0-9]*)$'
 UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
 
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
 is_valid_port() {
     [[ "$1" =~ $UH_UINT ]] && (( $1 >= 1 && $1 <= 65535 ))
 }
-
-# --- FUNCTIONS --- ###
 
 preflight_check() {
     local max_retries=10
@@ -501,16 +511,18 @@ create_tunnel() {
         fi
         domain="${tunnel_hostname#*.}"
         if ! getent hosts "$domain" >/dev/null 2>&1; then
-            echo "WARNING: Invalid domain: '$domain'"
-            continue
+            echo "WARNING: domain '$domain' does not resolve -- alert"
+            echo "WARNING: a zone apex with no A/AAAA record is normal"
         fi
         break
     done
 
-    read -r -p "Service type (http/https/tcp): " service_type
+    read -r -p "Service type (http/https/tcp) [http]: " service_type
+    service_type="${service_type:-http}"
     case "$service_type" in
         http|https|tcp)
-            read -r -p "Server IP: " svc_ip
+            read -r -p "Server IP [127.0.0.1]: " svc_ip
+            svc_ip="${svc_ip:-127.0.0.1}"
             if [[ ! "$svc_ip" =~ $UH_IPV4 ]]; then
                 echo "ERROR: Invalid IP: '$svc_ip'"
                 return 1
@@ -741,7 +753,10 @@ _cron_remove() {
     fi
 }
 
-# --- MAIN --- ###
+# ------------------------------------------------------------------------------
+# ACTIONS
+# ------------------------------------------------------------------------------
+
 ACTION="${1:-}"
 
 if [[ -z "$ACTION" ]]; then
@@ -824,3 +839,7 @@ case "$ACTION" in
         exit 1
         ;;
 esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------

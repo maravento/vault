@@ -29,15 +29,27 @@
 # full eve.json scan for just that SID to catch anything already logged --
 # the normal tail-from-offset logic below only sees NEW alerts.
 #
-# No expiry: once an IP is added, it stays -- same model as blockports.txt
+# NO EXPIRY: once an IP is added, it stays -- same model as blockports.txt
 # (manually curated, never auto-pruned). If a false positive slips in,
 # remove it by hand from suridata.txt and re-run this script.
+#
+# LOCAL EXCLUSION: dest_ip values inside the server's own LAN (SERV_SUBNET,
+# assumed /24) or inside the WAN interface's own /24 are never written to
+# suridata.txt -- a false/positive alert against your own network must not
+# result in the firewall blocking your own gateway, WAN uplink, or LAN
+# hosts. On every run, any LAN/WAN IP already present from before this
+# exclusion existed is also purged from suridata.txt and from the live
+# ipset. SERV_SUBNET follows the same "${VAR:-default}" fallback pattern
+# already used by iptables.sh, so this script can run standalone even if
+# nothing exports it. The WAN side has no such fixed value (DHCP/ISP-
+# assigned, can change), so its /24 is resolved at runtime from wan_iface
+# via `ip addr show` instead of a fallback constant.
 #
 ################################################################################
 
 set -uo pipefail
 
-# path for cron
+# PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # logging
@@ -47,7 +59,7 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
-# root check
+## root check
 if [ "$(id -u)" != "0" ]; then
     log "ERROR: This script must be run as root -- abort"
     exit 1
@@ -62,7 +74,7 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# dependencies
+# DEPENDENCIES
 for dep in jq ipset iptables coreutils grep; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: missing dependency '$dep' -- abort"
@@ -77,6 +89,9 @@ UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]
 UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
 UH_DNS='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(,(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9]))*$'
 UH_UINT='^(0|[1-9][0-9]*)$'
+UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+UH_MAC_RE='([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}'
+UH_MAC="^${UH_MAC_RE}$"
 UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5 252.0.0.0:6 254.0.0.0:7 255.0.0.0:8 255.128.0.0:9 255.192.0.0:10 255.224.0.0:11 255.240.0.0:12 255.248.0.0:13 255.252.0.0:14 255.254.0.0:15 255.255.0.0:16 255.255.128.0:17 255.255.192.0:18 255.255.224.0:19 255.255.240.0:20 255.255.248.0:21 255.255.252.0:22 255.255.254.0:23 255.255.255.0:24 255.255.255.128:25 255.255.255.192:26 255.255.255.224:27 255.255.255.240:28 255.255.255.248:29 255.255.255.252:30 255.255.255.254:31 255.255.255.255:32'
 
 log "suridata start..."
@@ -88,6 +103,11 @@ OFFSET_FILE="/var/lib/suricata/suridata.offset"
 SIDS_FILE="/var/lib/suricata/suridata.sids"
 OUT_FILE="/etc/suricata/suridata.txt"
 
+# network identity -- same "${VAR:-default}" fallback style as iptables.sh,
+# so this script still runs standalone if nothing exports these first.
+wan_iface="eth0"
+SERV_SUBNET="${SERV_SUBNET:-192.168.0.0}"
+
 for f in "$RULES_FILE" "$EVE_LOG"; do
     if [ ! -f "$f" ]; then
         log "ERROR: required file not found: $f -- abort"
@@ -95,6 +115,55 @@ for f in "$RULES_FILE" "$EVE_LOG"; do
     fi
 done
 touch "$OUT_FILE"
+
+# -- LAN/WAN exclusion prefixes -----------------------------------------------
+# Assumes /24, same convention as the rest of this project (blockports.txt
+# etc.). LAN_PREFIX comes straight from SERV_SUBNET (fixed, known value).
+# WAN_PREFIX has no fixed value to fall back on -- the WAN IP is
+# ISP/DHCP-assigned and can change, so it's resolved at runtime from
+# wan_iface. If it can't be resolved (interface down, not yet up), WAN
+# exclusion is simply skipped for this run and logged, without aborting.
+if [[ "$SERV_SUBNET" =~ $UH_IPV4 ]]; then
+    LAN_PREFIX="${SERV_SUBNET%.*}."
+else
+    log "WARNING: SERV_SUBNET '$SERV_SUBNET' is not a valid IPv4 -- LAN exclusion disabled this run"
+    LAN_PREFIX=""
+fi
+
+WAN_IP=$(ip -4 -o addr show "$wan_iface" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)
+if [[ "$WAN_IP" =~ $UH_IPV4 ]]; then
+    WAN_PREFIX="${WAN_IP%.*}."
+else
+    log "WARNING: could not resolve IP for wan_iface=$wan_iface -- WAN exclusion disabled this run"
+    WAN_PREFIX=""
+fi
+
+# -- Step 0: retroactively purge already-listed LAN/WAN IPs ------------------
+# The filter in Step 3 only stops NEW IPs from being added -- it does
+# nothing for IPs that were written to OUT_FILE (or the live ipset) before
+# this exclusion existed, or from a run where LAN_PREFIX/WAN_PREFIX
+# resolution failed. This pass removes them retroactively on every run.
+if [ -n "$LAN_PREFIX" ] || [ -n "$WAN_PREFIX" ]; then
+    purged=0
+    CLEAN_FILE=$(mktemp)
+    while IFS= read -r ip; do
+        [ -z "$ip" ] && continue
+        if { [ -n "$LAN_PREFIX" ] && [[ "$ip" == "$LAN_PREFIX"* ]]; } || \
+           { [ -n "$WAN_PREFIX" ] && [[ "$ip" == "$WAN_PREFIX"* ]]; }; then
+            log "INFO: $ip removed (LAN/WAN range)"
+            ipset del suridata "$ip" 2>/dev/null || true
+            (( purged++ )) || true
+            continue
+        fi
+        echo "$ip" >> "$CLEAN_FILE"
+    done < "$OUT_FILE"
+    if (( purged > 0 )); then
+        mv "$CLEAN_FILE" "$OUT_FILE"
+        log "$purged local IP(s) purged"
+    else
+        rm -f "$CLEAN_FILE"
+    fi
+fi
 
 # -- Step 1: SIDs currently resolved to "drop" by suricata-update ------------
 mapfile -t DROP_SIDS < <(grep '^drop ' "$RULES_FILE" 2>/dev/null | grep -oP 'sid:\K\d+' | sort -u)
@@ -175,12 +244,16 @@ fi
 
 new_ips=$(printf '%s\n%s\n' "$new_ips" "$backfill_ips" | sed '/^$/d' | sort -u)
 
-# -- Step 3: append new, valid, not-yet-listed IPs ----------------------------
+
+# -- Step 3: append new, valid, not-yet-listed, non-local IPs ----------------
 added=0
 if [ -n "$new_ips" ]; then
     while IFS= read -r ip; do
         [ -z "$ip" ] && continue
         [[ "$ip" =~ $UH_IPV4 ]] || continue
+        # exclude LAN subnet and WAN interface's own /24
+        [ -n "$LAN_PREFIX" ] && [[ "$ip" == "$LAN_PREFIX"* ]] && continue
+        [ -n "$WAN_PREFIX" ] && [[ "$ip" == "$WAN_PREFIX"* ]] && continue
         grep -qxF "$ip" "$OUT_FILE" 2>/dev/null && continue
         echo "$ip" >> "$OUT_FILE"
         log "INFO: $ip added to suridata.txt"

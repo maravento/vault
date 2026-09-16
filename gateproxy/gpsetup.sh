@@ -244,7 +244,7 @@ if [ -f "$file" ]; then
         log "No changes made. No update needed."
     fi
 else
-    log "NOTE: $file not found, skipping component check"
+    log "INFO: $(basename "$file") not found -- skip"
 fi
 
 # -----------------------------------------------------------------------------
@@ -842,11 +842,11 @@ upgrade
 echo -e "\n"
 log "Gateproxy Packages..."
 if grep -qFw "$HOSTNAME" /etc/hosts 2>/dev/null; then
-    log "NOTE: $HOSTNAME already resolves in /etc/hosts (e.g. the default 127.0.1.1 line) -- skipping, not adding a duplicate"
+    log "INFO: $HOSTNAME already resolves in /etc/hosts -- skip"
 elif grep -q "^127\.0\.1\.1" /etc/hosts; then
     sed -i "/^127\.0\.1\.1/a $SERVER_IP\t$HOSTNAME" /etc/hosts
 else
-    log "NOTE: /etc/hosts has no 127.0.1.1 line, appending hostname entry instead"
+    log "INFO: /etc/hosts missing 127.0.1.1, appending hostname entry"
     printf '%s\t%s\n' "$SERVER_IP" "$HOSTNAME" >> /etc/hosts
 fi
 sed -i '/^\s*\(fe00::\|ff00::\|ff02::\)/ s/^/#/' /etc/hosts
@@ -1064,8 +1064,6 @@ if (cd "$gp_path" && git clone https://github.com/maravento/pydhcp); then
 spawn bash pysetup.sh
 expect -re {\[([0-9]+)\][ \t]+$LAN_IF[ \t(]}
 send "\$expect_out(1,string)\r"
-expect "Enter DHCP server IP"
-send "$SERVER_IP\r"
 expect "Enter netmask"
 send "$SERV_MASK\r"
 expect "Enter pool start"
@@ -1131,7 +1129,7 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
     [Yy]*)
         # execute command yes
         # Net Tools (Replace NIC and IP/CIDR)
-        retry_cmd nala install -y wireless-tools     # Wireless tools: iwconfig, iwlist, iwpriv
+        retry_cmd nala install -y iw                 # Wireless tools: iwconfig, iwlist, iwpriv
         retry_cmd nala install -y fping              # Net diagnostics: fping -a -g 192.168.0.0/24
         retry_cmd nala install -y ethtool            # Net config: ethtool eth0
         # Net test: On server: iperf3 -s | On client: iperf3 -c SERVER_IP
