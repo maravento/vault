@@ -31,7 +31,7 @@
 # Log file:
 # /var/log/netwatch.log (root:root, 640) -- shared by both daemons
 # (netwatchlan.sh + netwatchports.sh). The installer writes its own
-# netwatchinstall.log next to itself.
+# netwatchsetup.log next to itself.
 #
 # Usage:
 # ./netwatchlan.sh {start|stop|status}
@@ -74,7 +74,7 @@ UH_UINT='^(0|[1-9][0-9]*)$'
 # LOAD ENV
 if [ ! -f "$netwatch_env" ]; then
     log "ERROR: netwatch is not installed -- abort"
-    log "Run netwatchinstall.sh --install first"
+    log "Run netwatchsetup.sh --install first"
     exit 1
 fi
 
@@ -106,7 +106,7 @@ set_env_var() {
 # DB CHECK
 if [ ! -f "$db_file" ]; then
     log "ERROR: database not found at $db_file -- abort"
-    log "Run netwatchinstall.sh --install first"
+    log "Run netwatchsetup.sh --install first"
     exit 1
 fi
 

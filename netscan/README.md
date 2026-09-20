@@ -25,10 +25,12 @@ netscan/
 │   └── netreport.sh           # LINUX — on-demand scan-and-report tool
 │
 ├── netwatch/                  # WEB — live web dashboard
-│   ├── netwatchinstall.sh       # Installer: --install|--update|--uninstall|--status
+│   ├── netwatchsetup.sh       # Installer: --install|--update|--uninstall|--status
+│   │
 │   ├── tools/                 # Background daemons for LAN/port scanning
 │   │   ├── netwatchlan.sh       # LAN discovery daemon (arp-scan)
 │   │   └── netwatchports.sh     # Port auditing daemon (ss / nmap) + mode CLI
+│   │
 │   └── web/                   # Web dashboard front-end (LAN/Ports tabs)
 │       ├── index.php            # Main page (LAN / Ports tabs)
 │       ├── lan.html             # LAN devices viewer
@@ -333,9 +335,9 @@ sudo ./netreport.sh
 /etc/bak/crontab/root.bak              # Copy of root's crontab, taken before any cron entry is added or removed
 ```
 
-> `netwatchinstall.sh` copies root's crontab to `/etc/bak/crontab/root.bak` before adding or removing any cron entry. It is a single copy, overwritten on every run, shared with every other project that touches the same crontab, and it is never restored automatically. `--uninstall` does not restore it either: it deletes only its own entries, matched by the full script path, and leaves every other cron job untouched. To roll back, restore the copy by hand with `crontab /etc/bak/crontab/root.bak`.
+> `netwatchsetup.sh` copies root's crontab to `/etc/bak/crontab/root.bak` before adding or removing any cron entry. It is a single copy, overwritten on every run, shared with every other project that touches the same crontab, and it is never restored automatically. `--uninstall` does not restore it either: it deletes only its own entries, matched by the full script path, and leaves every other cron job untouched. To roll back, restore the copy by hand with `crontab /etc/bak/crontab/root.bak`.
 >
-> `netwatchinstall.sh` copia el crontab de root en `/etc/bak/crontab/root.bak` antes de agregar o quitar cualquier entrada de cron. Es una sola copia, sobrescrita en cada ejecución, compartida con cualquier otro proyecto que toque el mismo crontab, y nunca se restaura de forma automática. `--uninstall` tampoco la restaura: borra únicamente sus propias entradas, identificadas por la ruta completa del script, y deja intactas las demás tareas de cron. Para deshacer un cambio, restaura la copia a mano con `crontab /etc/bak/crontab/root.bak`.
+> `netwatchsetup.sh` copia el crontab de root en `/etc/bak/crontab/root.bak` antes de agregar o quitar cualquier entrada de cron. Es una sola copia, sobrescrita en cada ejecución, compartida con cualquier otro proyecto que toque el mismo crontab, y nunca se restaura de forma automática. `--uninstall` tampoco la restaura: borra únicamente sus propias entradas, identificadas por la ruta completa del script, y deja intactas las demás tareas de cron. Para deshacer un cambio, restaura la copia a mano con `crontab /etc/bak/crontab/root.bak`.
 
 #### Requirements
 
@@ -390,7 +392,7 @@ apt-get install -y avahi-utils nbtscan
 ```bash
 git clone --depth=1 https://github.com/maravento/vault.git
 cd vault/netscan/netwatch
-sudo bash netwatchinstall.sh --install
+sudo bash netwatchsetup.sh --install
 
 # or
 
@@ -398,7 +400,7 @@ wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/s
 chmod +x gitfolder.py
 python3 gitfolder.py https://github.com/maravento/vault/netscan
 cd netscan/netwatch
-sudo bash netwatchinstall.sh --install
+sudo bash netwatchsetup.sh --install
 ```
 
 <table width="100%">
@@ -427,9 +429,9 @@ sudo bash netwatchinstall.sh --install
 
 ```bash
 cd vault/netscan/netwatch
-sudo bash netwatchinstall.sh --update
+sudo bash netwatchsetup.sh --update
 # or | o
-sudo bash netwatchinstall.sh --uninstall
+sudo bash netwatchsetup.sh --uninstall
 ```
 
 | File | `--update` | `--uninstall` |
@@ -443,7 +445,7 @@ sudo bash netwatchinstall.sh --uninstall
 ##### Status
 
 ```bash
-sudo bash netwatchinstall.sh --status
+sudo bash netwatchsetup.sh --status
 ```
 
 Shows: daemon status (running/stopped), Apache port 3126, last 10 lines of the shared log, active ports mode/target, and device/port counts from the database.

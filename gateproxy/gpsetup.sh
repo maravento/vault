@@ -28,6 +28,19 @@ log() {
     local msg="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
+# Each module clones into $gp_path, writes its own log there, and $gp_path is
+# deleted at the end. Its log is appended here while the folder still exists.
+dump_module_log() {
+    local module_log="$1"
+    local module_name="$2"
+    if [ -f "$module_log" ]; then
+        log "--- begin $module_name log ---"
+        cat "$module_log" >> "$log_file" 2>/dev/null || true
+        log "--- end $module_name log ---"
+    else
+        log "WARNING: $module_name log not found at $module_log -- skip"
+    fi
+}
 trap 'log "ERROR: command failed at line $LINENO: $BASH_COMMAND -- abort"' ERR
 
 # root check
@@ -77,7 +90,7 @@ get_acl() {
         5*)  log "BUSY: $source_url"; return 1 ;;
         *)   log "BROKEN: $source_url"; return 1 ;;
     esac
-    if ! wget -q -c -N "$source_url" -O "$target_file"; then
+    if ! wget -q -c -N --timeout=15 --tries=1 "$source_url" -O "$target_file"; then
         log "PARTIAL: $source_url"
         return 1
     fi
@@ -271,6 +284,10 @@ UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5
 # DEPENDENCIES
 # -----------------------------------------------------------------------------
 
+# PACKAGES
+echo -e "\n"
+log "Check Dependencies..."
+
 pkgs='nala curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 7zip rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3'
 missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
 unavailable=""
@@ -334,9 +351,17 @@ DISK=$(lsblk -dno NAME,TYPE | awk '$2=="disk"{print "/dev/"$1; exit}')
 [ -n "$DISK" ] && hdparm -W "$DISK" &>/dev/null || true
 ifconfig lo 127.0.0.1
 #systemctl disable avahi-daemon cups-browser &> /dev/null # optional
-# cron
-cp /etc/crontab{,.bak} &>/dev/null || true
 cp /etc/apt/sources.list{,.bak} &>/dev/null || true
+
+# Cron backup
+if [ -d /var/spool/cron/crontabs ]; then
+    for f in /var/spool/cron/crontabs/*; do
+        [ -f "$f" ] && cp "$f"{,.bak}
+    done
+    log "Backup crontabs: /var/spool/cron/crontabs/*.bak"
+else
+    log "WARNING: /var/spool/cron/crontabs not found -- skip"
+fi
 
 # CLEAN | UPDATE | FIX
 echo -e "\n"
@@ -355,14 +380,10 @@ upgrade() {
 
 upgrade
 
-# PACKAGES
-echo -e "\n"
-log "Check Dependencies..."
-
 # GATEPROXY GIT
 echo -e "\n"
 [ -d "$gp_path" ] && rm -rf "$gp_path"
-retry_cmd wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
+retry_cmd wget -qO gitfolder.py --timeout=15 --tries=1 https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
 chmod +x gitfolder.py
 retry_cmd python3 gitfolder.py https://github.com/maravento/vault/gateproxy
 
@@ -439,6 +460,7 @@ public_interface() {
             log "Invalid selection. Try again."
         fi
     done
+    log "WAN interface: $wan_iface"
     find "$gp_path/conf" "$gp_path/scr" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$wan_iface:g" "{}"
 }
 
@@ -465,6 +487,7 @@ local_interface() {
             log "Invalid selection. Try again."
         fi
     done
+    log "LAN interface: $ETH1"
     find "$gp_path/conf" "$gp_path/scr" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
     export LAN_IF="$ETH1"
 }
@@ -496,7 +519,8 @@ log "    Minimum Requirements:"
 log "    CPU:      4+ cores (>= 3.0 GHz)"
 log "    NIC:      2 (WAN & LAN)"
 log "    RAM:      4 GB cache_mem (12+ GB RAM recommended)"
-log "    Storage:  100 GB SSD for cache_dir rock"
+log "    Storage:  50 GB SSD for cache_dir rock"
+log "    SO:       Ubuntu 24.04/26.04 LTS"
 echo -e "\n"
 log "    Press ENTER to start or CTRL+C to abort"
 echo -e "\n"
@@ -573,7 +597,7 @@ is_ask() {
             ;;
         [Nn]*|"")
             # execute command no (default on empty ENTER)
-            log "NO"
+            log "$inquiry: NO"
             break
             ;;
         *)
@@ -685,7 +709,7 @@ Mask 255.255.255.0 (CIDR auto), DNS 1.1.1.2 1.0.0.2, Proxy Port 3128
         ;;
     [Nn]*|"")
         # execute command no (default on empty ENTER)
-        log "NO"
+        log "Server settings: keep defaults"
         break
         ;;
     *)
@@ -765,8 +789,7 @@ fi
 echo -e "\n"
 log "Essential Packages..."
 # DISK & STORAGE MANAGEMENT
-retry_cmd nala install -y gparted gnome-disk-utility qdirstat baobab
-retry_cmd nala install -y --no-install-recommends smartmontools gsmartcontrol
+retry_cmd nala install -y --no-install-recommends smartmontools
 
 # FILE SYSTEMS SUPPORT
 retry_cmd nala install -y nfs-common ntfs-3g xfsprogs jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools exfat-fuse
@@ -779,10 +802,10 @@ retry_cmd nala install -y lvm2 quota attr
 retry_cmd nala install -y udisks2 udisks2-btrfs udisks2-lvm2
 
 # SYSTEM UTILITIES & MONITORING
-retry_cmd nala install -y trash-cli pm-utils cpu-x btop htop lsof inotify-tools dmidecode wmctrl pv tree moreutils preload debconf-utils mokutil util-linux linux-tools-common apparmor-utils
+retry_cmd nala install -y trash-cli pm-utils btop htop lsof inotify-tools dmidecode pv tree moreutils preload debconf-utils mokutil util-linux linux-tools-common apparmor-utils
 
 # PACKAGE MANAGEMENT TOOLS
-retry_cmd nala install -y dpkg ppa-purge apt-utils gdebi synaptic
+retry_cmd nala install -y dpkg ppa-purge apt-utils
 
 # TEXT & FILE UTILITIES
 retry_cmd nala install -y gawk rename renameutils sharutils dos2unix colordiff ripgrep yamllint
@@ -794,10 +817,10 @@ retry_cmd nala install -y finger logrotate
 retry_cmd nala install -y linux-firmware linux-headers-$(uname -r) module-assistant
 
 # DEVELOPMENT: COMPILERS & BUILD TOOLS
-retry_cmd nala install -y build-essential clang autoconf autoconf-archive autogen automake dh-autoreconf pkg-config
+retry_cmd nala install -y build-essential autoconf autoconf-archive autogen automake dh-autoreconf pkg-config
 
 # DEVELOPMENT: LIBRARIES & HEADERS
-retry_cmd nala install -y uuid-dev libmnl-dev libssl-dev libffi-dev libpam0g-dev libpcap-dev libasound2-dev libglib2.0-dev libudisks2-dev liblvm2-dev python3-dev gtkhash
+retry_cmd nala install -y uuid-dev libmnl-dev libssl-dev libffi-dev libpam0g-dev libpcap-dev libasound2-dev libglib2.0-dev libudisks2-dev liblvm2-dev python3-dev
 
 # PROGRAMMING: PYTHON
 retry_cmd nala install -y python3-pip python3-venv python3-psutil
@@ -808,7 +831,7 @@ retry_cmd nala install -y rubygems-integration rake ruby ruby-did-you-mean ruby-
 # PROGRAMMING: JAVASCRIPT & WEB
 retry_cmd nala install -y javascript-common libjs-jquery xsltproc
 
-# NETWORK & CONNECTIVITY
+# NETWORK DEPENDENCIES
 retry_cmd nala install -y wget bind9-dnsutils conntrack i2c-tools wsdd ipset arptables ebtables
 
 # GEOLOCATION DATABASES
@@ -816,7 +839,7 @@ retry_cmd nala install -y geoip-database
 
 # GRAPHICS & DISPLAY
 # if there any problems, install the package: libegl-mesa0
-retry_cmd nala install -y mesa-utils libfontconfig1
+retry_cmd nala install -y libfontconfig1
 
 # RUNTIME LIBRARIES
 retry_cmd nala install -y libuser gir1.2-gtop-2.0
@@ -1005,7 +1028,7 @@ find "$acl_mac_path" -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/
 # List of modules to install
 for module in servicemon netplanmgr; do
     log "Installing $module module..."
-    if wget -q -O "$gp_path/${module}.sh" "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/${module}.sh"; then
+    if wget -q -O "$gp_path/${module}.sh" --timeout=15 --tries=1 "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/${module}.sh"; then
         chmod +x "$gp_path/${module}.sh"
         "$gp_path/${module}.sh" install || log "WARNING: $module module install failed -- skip"
         rm -f "$gp_path/${module}.sh"
@@ -1018,30 +1041,17 @@ done
 retry_cmd nala install -y rsync nbtscan libcgi-session-perl libgd-perl sarg
 if (cd "$gp_path" && git clone https://github.com/maravento/proxymon); then
     if cd "$gp_path/proxymon"; then
-        if [ -f proxymon.sh ]; then
-            chmod +x proxymon.sh
-            PROXYMON_EXPECT=$(mktemp)
-            cat > "$PROXYMON_EXPECT" <<EOF
-spawn ./proxymon.sh install
-interact {
-    -o
-    "LAN interface (default:" {
-        send "$LAN_IF\r"
-    }
-    "Server IP for LAN (default:" {
-        send "$SERVER_IP\r"
-    }
-}
-catch wait result
-exit [lindex \$result 3]
-EOF
-            if expect -f "$PROXYMON_EXPECT"; then
+        if [ -f pmsetup.sh ]; then
+            chmod +x pmsetup.sh
+            if PROXYMON_LAN="$LAN_IF" PROXYMON_SERVER_IP="$SERVER_IP" ./pmsetup.sh install; then
                 log "Sent to proxymon: SERVER_IP=$SERVER_IP lan_interface=$LAN_IF"
             else
-                log "WARNING: proxymon.sh install failed -- skip"
+                log "WARNING: pmsetup.sh install failed -- skip"
             fi
-            rm -f "$PROXYMON_EXPECT"
+        else
+            log "WARNING: pmsetup.sh not found in proxymon repo -- skip"
         fi
+        dump_module_log "$gp_path/proxymon/pmsetup.log" "proxymon"
         cd "$gp_path"
     else
         log "WARNING: cannot enter the proxymon directory -- skip"
@@ -1080,6 +1090,7 @@ exit [lindex \$result 3]
 EOF
             expect -f "$PYDHCP_EXPECT" || log "WARNING: pydhcp install failed -- skip"
             rm -f "$PYDHCP_EXPECT"
+            dump_module_log "$pydhcp_path/pysetup.log" "pydhcp"
 
             cd "$gp_path"
             log "DHCP pool range: 220-235 (default). To modify edit /etc/pydhcp/pydhcp.env"
@@ -1114,46 +1125,113 @@ systemctl enable rsyslog.service
 retry_cmd nala install -y timeshift
 # FreeFileSync
 retry_cmd nala install -y libatk-adaptor libgail-common
-retry_cmd wget -O "$gp_path/scr/ffsupdate.sh" https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh
+retry_cmd wget -O "$gp_path/scr/ffsupdate.sh" --timeout=15 --tries=1 https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh
 chmod +x "$gp_path/scr/ffsupdate.sh"
 "$gp_path/scr/ffsupdate.sh" || log "WARNING: ffsupdate.sh failed, FreeFileSync not installed -- skip"
 add_cron_entry "@weekly /etc/scr/ffsupdate.sh" "/etc/scr/ffsupdate.sh"
 log "INFO: OK"
 sleep 1
 
+# NET TOOLS
+# Net Tools (Replace NIC and IP/CIDR)
+retry_cmd nala install -y iw                 # Wireless tools: iwconfig, iwlist, iwpriv
+retry_cmd nala install -y fping              # Net diagnostics: fping -a -g 192.168.0.0/24
+retry_cmd nala install -y ethtool            # Net config: ethtool eth0
+# Net test: On server: iperf3 -s | On client: iperf3 -c SERVER_IP
+DEBIAN_FRONTEND=noninteractive retry_cmd nala install -y iperf3  2>/dev/null
+# Net Scanning (Replace NIC and IP/CIDR)
+retry_cmd nala install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
+retry_cmd nala install -y nbtscan            # nbtscan 192.168.0.0/24
+retry_cmd nala install -y nast               # nast -m
+retry_cmd nala install -y arp-scan           # arp-scan --localnet
+retry_cmd nala install -y arping             # arping -I eth0 192.168.0.10
+retry_cmd nala install -y netdiscover        # netdiscover
+# Nmap
+retry_cmd nala install -y nmap python3-nmap ndiff
+# Domain/IP Scanning
+retry_cmd nala install -y traceroute         # traceroute google.com
+retry_cmd nala install -y mtr-tiny           # mtr google.com
+
+# SECURITY SECTION
+# fail2ban
+retry_cmd nala install -y fail2ban
+cp "$gp_path/conf/fail2ban/jail.local" /etc/fail2ban/jail.local
+sed -i 's/^#\?allowipv6 *= *.*/allowipv6 = 0/' /etc/fail2ban/fail2ban.conf
+systemctl enable fail2ban.service
+log "Check: sudo fail2ban-client status <jail_name>"
+log "Unban all: sudo fail2ban-client unban --all"
+log "Unban Jail: sudo fail2ban-client set <jail_name> unban --all"
+# ttyd (web terminal)
+retry_cmd nala install -y ttyd
+cp -f "$gp_path/conf/ttyd/ttyd.service" /etc/systemd/system/ttyd.service
+systemctl daemon-reload
+systemctl enable ttyd.service
+log "ttyd Access: http://localhost:7681"
+# suricata install
+systemctl mask suricata.service &>/dev/null || true
+retry_cmd nala install -y suricata suricata-update jq
+sed -i "s/interface: eth[0-9]/interface: $LAN_IF/g" /etc/suricata/suricata.yaml
+systemctl unmask suricata.service &>/dev/null || true
+if grep -q "community-id: false" /etc/suricata/suricata.yaml; then
+    sed -i 's/community-id: false/community-id: true/' /etc/suricata/suricata.yaml
+    log "OK: Community-ID enabled"
+fi
+# suricata disable and drop
+cp -f "$gp_path/conf/suricata/"{disable,drop}.conf /etc/suricata/
+chown root:root /etc/suricata/{disable,drop}.conf
+chmod 644 /etc/suricata/{disable,drop}.conf
+# suricata update & clean
+if [ ! -f /var/log/suricata/suricatacron.log ]; then
+    touch /var/log/suricata/suricatacron.log
+    chown root:root /var/log/suricata/suricatacron.log
+    chmod 640 /var/log/suricata/suricatacron.log
+fi
+cp -f "$gp_path/conf/suricata/"{suricataupdate,suricataclean,suridata}.sh /etc/suricata/
+chmod +x /etc/suricata/{suricataupdate,suricataclean,suridata}.sh
+# suricata ratio
+if ! grep -q "detect-thread-ratio: 0.5" /etc/suricata/suricata.yaml; then
+    sed -i 's/detect-thread-ratio: 1.0/detect-thread-ratio: 0.5/' /etc/suricata/suricata.yaml
+fi
+# suricata cron
+add_cron_entry "0 2 * * * /etc/suricata/suricataupdate.sh >/dev/null 2>&1" "/etc/suricata/suricataupdate.sh"
+add_cron_entry "@monthly /etc/suricata/suricataclean.sh >/dev/null 2>&1" "/etc/suricata/suricataclean.sh"
+add_cron_entry "*/5 * * * * /etc/suricata/suridata.sh >/dev/null 2>&1" "/etc/suricata/suridata.sh"
+# suricata check IDS
+SURICATA_SERVICE="/usr/lib/systemd/system/suricata.service"
+CORRECT_EXECSTART="ExecStart=/usr/bin/suricata -D --af-packet -c /etc/suricata/suricata.yaml --pidfile /run/suricata.pid"
+if grep -q "^ExecStart=.*--af-packet" "$SURICATA_SERVICE" && ! grep -q "^ExecStart=.*-q" "$SURICATA_SERVICE"; then
+    log "OK: Suricata Mode: IDS"
+else
+    log "Fixing Suricata IDS..."
+    sed -i "s|^ExecStart=.*|$CORRECT_EXECSTART|" "$SURICATA_SERVICE"
+    log "Suricata Mode: IDS"
+fi
+# evebox
+mkdir -p /etc/apt/keyrings
+retry_cmd curl -fsSL https://evebox.org/files/GPG-KEY-evebox -o /etc/apt/keyrings/evebox.asc
+echo "deb [signed-by=/etc/apt/keyrings/evebox.asc] https://evebox.org/files/debian stable main" | tee /etc/apt/sources.list.d/evebox.list
+upgrade
+retry_cmd nala install -y evebox
+# Configure
+cp -f "$gp_path/conf/evebox/evebox.yaml" /etc/evebox/evebox.yaml
+cp -f "$gp_path/conf/evebox/evebox.service" /etc/systemd/system/evebox.service
+systemctl daemon-reload
+systemctl enable suricata evebox
+log "EVEBox: http://localhost:5636"
+
+# OPTIONAL PACK
 echo -e "\n"
 while true; do
-read -r -p "Do you want to install Optional Pack?
-Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
+    read -r -p "Do you want to install Optional GTK Pack?
+mesa-utils, lynis, gparted, gnome-disk-utility, qdirstat, baobab,
+gsmartcontrol, cpu-x, synaptic, gdebi, gtkhash, wmctrl, fsearch  (y/n)" answer
     case "$answer" in
     [Yy]*)
         # execute command yes
-        # Net Tools (Replace NIC and IP/CIDR)
-        retry_cmd nala install -y iw                 # Wireless tools: iwconfig, iwlist, iwpriv
-        retry_cmd nala install -y fping              # Net diagnostics: fping -a -g 192.168.0.0/24
-        retry_cmd nala install -y ethtool            # Net config: ethtool eth0
-        # Net test: On server: iperf3 -s | On client: iperf3 -c SERVER_IP
-        DEBIAN_FRONTEND=noninteractive retry_cmd nala install -y iperf3  2>/dev/null
-        # Net Scanning (Replace NIC and IP/CIDR)
-        retry_cmd nala install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
-        retry_cmd nala install -y nbtscan            # nbtscan 192.168.0.0/24
-        retry_cmd nala install -y nast               # nast -m
-        retry_cmd nala install -y arp-scan           # arp-scan --localnet
-        retry_cmd nala install -y arping             # arping -I eth0 192.168.0.10
-        retry_cmd nala install -y netdiscover        # netdiscover
-        # Nmap
-        retry_cmd nala install -y nmap python3-nmap ndiff
-        # Domain/IP Scanning
-        retry_cmd nala install -y traceroute         # traceroute google.com
-        retry_cmd nala install -y mtr-tiny           # mtr google.com
-        # fail2ban
-        retry_cmd nala install -y fail2ban
-        cp "$gp_path/conf/fail2ban/jail.local" /etc/fail2ban/jail.local
-        sed -i 's/^#\?allowipv6 *= *.*/allowipv6 = 0/' /etc/fail2ban/fail2ban.conf
-        systemctl enable fail2ban.service
-        log "Check: sudo fail2ban-client status <jail_name>"
-        log "Unban all: sudo fail2ban-client unban --all"
-        log "Unban Jail: sudo fail2ban-client set <jail_name> unban --all"
+        log "Optional GTK Pack: YES"
+        # gtk
+        retry_cmd nala install -y --no-install-recommends gsmartcontrol
+        retry_cmd nala install -y gparted gnome-disk-utility qdirstat baobab cpu-x synaptic gdebi gtkhash wmctrl mesa-utils
         # lynis
         retry_cmd nala install -y lynis
         log "Lynis Run: lynis -c -Q and log: /var/log/lynis.log"
@@ -1161,66 +1239,11 @@ Net Tools, fail2ban, Suricata-Evebox (y/n)" answer
         add-apt-repository -y ppa:christian-boxdoerfer/fsearch-stable || true
         upgrade
         nala install -y fsearch || true
-        # ttyd (web terminal)
-        retry_cmd nala install -y ttyd
-        cp -f "$gp_path/conf/ttyd/ttyd.service" /etc/systemd/system/ttyd.service
-        systemctl daemon-reload
-        systemctl enable ttyd.service
-        log "ttyd Access: http://localhost:7681"
-        # suricata install
-        retry_cmd nala install -y suricata suricata-update jq
-        sed -i "s/interface: eth[0-9]/interface: $LAN_IF/g" /etc/suricata/suricata.yaml
-        if grep -q "community-id: false" /etc/suricata/suricata.yaml; then
-            sed -i 's/community-id: false/community-id: true/' /etc/suricata/suricata.yaml
-            log "OK: Community-ID enabled"
-        fi
-        # suricata disable and drop
-        cp -f "$gp_path/conf/suricata/"{disable,drop}.conf /etc/suricata/
-        chown root:root /etc/suricata/{disable,drop}.conf
-        chmod 644 /etc/suricata/{disable,drop}.conf
-        # suricata update & clean
-        if [ ! -f /var/log/suricata/suricatacron.log ]; then
-            touch /var/log/suricata/suricatacron.log
-            chown root:root /var/log/suricata/suricatacron.log
-            chmod 640 /var/log/suricata/suricatacron.log
-        fi
-        cp -f "$gp_path/conf/suricata/"{suricataupdate,suricataclean,suridata}.sh /etc/suricata/
-        chmod +x /etc/suricata/{suricataupdate,suricataclean,suridata}.sh
-        # suricata ratio
-        if ! grep -q "detect-thread-ratio: 0.5" /etc/suricata/suricata.yaml; then
-            sed -i 's/detect-thread-ratio: 1.0/detect-thread-ratio: 0.5/' /etc/suricata/suricata.yaml
-        fi
-        # suricata cron
-        add_cron_entry "0 2 * * * /etc/suricata/suricataupdate.sh >/dev/null 2>&1" "/etc/suricata/suricataupdate.sh"
-        add_cron_entry "@monthly /etc/suricata/suricataclean.sh >/dev/null 2>&1" "/etc/suricata/suricataclean.sh"
-        add_cron_entry "*/5 * * * * /etc/suricata/suridata.sh >/dev/null 2>&1" "/etc/suricata/suridata.sh"
-        # suricata check IDS
-        SURICATA_SERVICE="/usr/lib/systemd/system/suricata.service"
-        CORRECT_EXECSTART="ExecStart=/usr/bin/suricata -D --af-packet -c /etc/suricata/suricata.yaml --pidfile /run/suricata.pid"
-        if grep -q "^ExecStart=.*--af-packet" "$SURICATA_SERVICE" && ! grep -q "^ExecStart=.*-q" "$SURICATA_SERVICE"; then
-            log "OK: Suricata Mode: IDS"
-        else
-            log "Fixing Suricata IDS..."
-            sed -i "s|^ExecStart=.*|$CORRECT_EXECSTART|" "$SURICATA_SERVICE"
-            log "Suricata Mode: IDS"
-        fi
-        # evebox
-        mkdir -p /etc/apt/keyrings
-        retry_cmd curl -fsSL https://evebox.org/files/GPG-KEY-evebox -o /etc/apt/keyrings/evebox.asc
-        echo "deb [signed-by=/etc/apt/keyrings/evebox.asc] https://evebox.org/files/debian stable main" | tee /etc/apt/sources.list.d/evebox.list
-        upgrade
-        retry_cmd nala install -y evebox
-        # Configure
-        cp -f "$gp_path/conf/evebox/evebox.yaml" /etc/evebox/evebox.yaml
-        cp -f "$gp_path/conf/evebox/evebox.service" /etc/systemd/system/evebox.service
-        systemctl daemon-reload
-        systemctl enable suricata evebox
-        log "EVEBox: http://localhost:5636"
         break
         ;;
     [Nn]*|"")
         # execute command no (default on empty ENTER)
-        log "NO"
+        log "Optional GTK Pack: NO"
         break
         ;;
     *)
@@ -1241,32 +1264,18 @@ with SHARED folder, Recycle Bin and Audit (y/n)" answer
 
     case "$answer" in
     [Yy]*)
+        log "Samba (smbstack): YES"
         if (cd "$gp_path" && git clone https://github.com/maravento/smbstack); then
             smbstack_path="$gp_path/smbstack"
 
             if [ -d "$smbstack_path" ]; then
                 if cd "$smbstack_path"; then
-                    SMB_EXPECT=$(mktemp)
-                    cat > "$SMB_EXPECT" <<EOF
-spawn bash smbsetup.sh --install
-interact {
-    -o
-    "Enter Samba server IP/network \[*\]: " {
-        send "$SERV_SUBNET/$MASKNEW2\r"
-    }
-    "Enter network interface \[*\]: " {
-        send "$LAN_IF\r"
-    }
-}
-catch wait result
-exit [lindex \$result 3]
-EOF
-                    if expect -f "$SMB_EXPECT"; then
+                    if SMBSTACK_IFACE="$LAN_IF" bash smbsetup.sh --install; then
                         log "smbstack installed OK"
                     else
                         log "WARNING: smbsetup.sh --install failed -- skip"
                     fi
-                    rm -f "$SMB_EXPECT"
+                    dump_module_log "$smbstack_path/smbsetup.log" "smbstack"
                     cd "$gp_path"
                 else
                     log "WARNING: cannot enter the smbstack directory -- skip"
@@ -1282,7 +1291,7 @@ EOF
 
     [Nn]*|"")
         # default on empty ENTER
-        log "NO"
+        log "Samba (smbstack): NO"
         break
         ;;
 
@@ -1318,6 +1327,7 @@ if [ -n "$UNIFI_DETECTED_TYPE" ]; then
 
         case "$answer" in
         [Yy]*)
+            log "UniFi Hotspot Manager (uhm): YES"
             if (cd "$gp_path" && git clone https://github.com/maravento/uhm); then
                 uhm_path="$gp_path/uhm"
 
@@ -1329,6 +1339,7 @@ if [ -n "$UNIFI_DETECTED_TYPE" ]; then
                         else
                             log "WARNING: uhmsetup.sh failed -- skip"
                         fi
+                        dump_module_log "$uhm_path/uhmsetup.log" "uhm"
                         cd "$gp_path"
                     else
                         log "WARNING: cannot enter the uhm directory -- skip"
@@ -1344,7 +1355,7 @@ if [ -n "$UNIFI_DETECTED_TYPE" ]; then
 
         [Nn]*|"")
             # default on empty ENTER
-            log "NO"
+            log "UniFi Hotspot Manager (uhm): NO"
             break
             ;;
 
@@ -1432,7 +1443,7 @@ scripts=(
 for url in "${scripts[@]}"; do
     fname=$(basename "$url")
 
-    if wget -q -O "$gp_path/scr/$fname" "$url"; then
+    if wget -q -O "$gp_path/scr/$fname" --timeout=15 --tries=1 "$url"; then
         log "Downloaded: $fname"
     else
         log "WARNING: cannot download $fname -- skip"
@@ -1486,7 +1497,6 @@ grep -qxF '*.none    /var/log/ulog/syslogemu.log' /etc/rsyslog.conf || \
 cp -f /etc/security/limits.conf{,.bak} &>/dev/null || true
 cp -f /etc/systemd/system.conf{,.bak} &>/dev/null || true
 cp -f /etc/systemd/user.conf{,.bak} &>/dev/null || true
-cp -f /etc/sysctl.conf{,.bak} &>/dev/null || true
 cp -f /etc/hosts{,.bak} &>/dev/null || true
 
 # adding parameters
@@ -1500,14 +1510,14 @@ root    hard    nproc   65535
 root    soft    nofile  65535
 root    hard    nofile  65535
 EOT
-grep -qxF 'net.ipv4.tcp_congestion_control = bbr' /etc/sysctl.conf || tee -a /etc/sysctl.conf >/dev/null <<EOT
+cat > /etc/sysctl.d/99-system-optimization.conf <<'EOT'
 # System optimization
 vm.swappiness = 10
 net.ipv4.tcp_congestion_control = bbr
 EOT
 grep -qxF "DefaultLimitNOFILE=65535" /etc/systemd/system.conf || echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/system.conf >/dev/null
 grep -qxF "DefaultLimitNOFILE=65535" /etc/systemd/user.conf || echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/user.conf >/dev/null
-sysctl -p || log "WARNING: some sysctl parameters failed to apply -- degraded"
+sysctl --system >/dev/null || log "WARNING: some sysctl parameters failed to apply -- degraded"
 
 log "Apache Config..."
 cp -f /etc/apache2/apache2.conf{,.bak} &>/dev/null || true
@@ -1560,8 +1570,8 @@ done
 
 # APACHE CONFIG
 apache2ctl configtest || true
-chmod -R 755 /var/www
-chown -R www-data:www-data /var/www
+chmod -R 755 /var/www/html /var/www/wpad
+chown -R www-data:www-data /var/www/html /var/www/wpad
 apachectl -t -D DUMP_INCLUDES -S || true
 log "INFO: OK"
 sleep 1

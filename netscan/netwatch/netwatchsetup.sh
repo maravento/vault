@@ -6,7 +6,7 @@
 # netwatch - LAN device inventory & watched ports dashboard
 # https://github.com/maravento/vault
 #
-# log: netwatchinstall.log, next to this script (rewritten on each run)
+# log: netwatchsetup.log, next to this script (rewritten on each run)
 # The daemons netwatchlan.sh / netwatchports.sh log to the shared
 # /var/log/netwatch.log, rotated weekly via /etc/logrotate.d/netwatch
 # (deployed by --install, removed by --uninstall).
@@ -19,7 +19,7 @@ set -uo pipefail
 script_dir="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
 
 # logging
-log_file="$script_dir/netwatchinstall.log"
+log_file="$script_dir/netwatchsetup.log"
 { > "$log_file"; } 2>/dev/null || true
 log() {
     local msg="$1"
@@ -288,7 +288,7 @@ check_already_installed() {
         echo ""
         printf "%b" "$reasons"
         echo ""
-        log "To update, run: sudo bash netwatchinstall.sh --update"
+        log "To update, run: sudo bash netwatchsetup.sh --update"
         exit 1
     fi
 }
@@ -321,7 +321,7 @@ add_reboot_cron() {
 }
 
 do_install() {
-    log "netwatchinstall start (install)..."
+    log "netwatchsetup start (install)..."
 
     check_already_installed
 
@@ -435,12 +435,12 @@ EOF
     echo "Tools dir : $netwatch_tools"
     echo ""
 
-    log "netwatchinstall done at: $(date '+%Y-%m-%d %H:%M:%S')"
+    log "netwatchsetup done at: $(date '+%Y-%m-%d %H:%M:%S')"
 }
 
 # UPDATE
 do_update() {
-    log "netwatchinstall start (update)..."
+    log "netwatchsetup start (update)..."
 
     # Migration: netwatch.env from $netwatch_www to /etc/netwatch
     local legacy_env="$netwatch_www/netwatch.env"
@@ -524,7 +524,7 @@ SQL
 
     systemctl restart apache2
 
-    log "netwatchinstall done at: $(date '+%Y-%m-%d %H:%M:%S')"
+    log "netwatchsetup done at: $(date '+%Y-%m-%d %H:%M:%S')"
 }
 
 # UNINSTALL
@@ -539,7 +539,7 @@ do_uninstall() {
         esac
     fi
 
-    log "netwatchinstall start (uninstall)..."
+    log "netwatchsetup start (uninstall)..."
 
     "$netwatch_tools/netwatchlan.sh" stop 2>/dev/null || true
     "$netwatch_tools/netwatchports.sh" stop 2>/dev/null || true
@@ -567,12 +567,12 @@ do_uninstall() {
     systemctl daemon-reload
     systemctl restart apache2
 
-    log "netwatchinstall done at: $(date '+%Y-%m-%d %H:%M:%S')"
+    log "netwatchsetup done at: $(date '+%Y-%m-%d %H:%M:%S')"
 }
 
 # STATUS
 do_status() {
-    log "netwatchinstall start (status)..."
+    log "netwatchsetup start (status)..."
 
     echo "=== netwatch Daemons ==="
     for name in netwatchlan netwatchports; do
@@ -621,7 +621,7 @@ do_status() {
         echo "$db_file not found"
     fi
 
-    log "netwatchinstall done at: $(date '+%Y-%m-%d %H:%M:%S')"
+    log "netwatchsetup done at: $(date '+%Y-%m-%d %H:%M:%S')"
 }
 
 # MENU

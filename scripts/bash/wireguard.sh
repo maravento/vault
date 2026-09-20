@@ -123,16 +123,10 @@ EOL
     umask "$prev_umask"
 
     # Enable IPv4 persistent redirection
-    if [ ! -f /etc/sysctl.conf ]; then
-        echo "Error: /etc/sysctl.conf not found"
-        exit 1
-    fi
-    if grep -q '^#*net.ipv4.ip_forward' /etc/sysctl.conf; then
-        sed -i '/^#*net.ipv4.ip_forward/c\net.ipv4.ip_forward=1' /etc/sysctl.conf
-    else
-        echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
-    fi
-    sysctl -p
+    cat > /etc/sysctl.d/99-wireguard.conf <<'EOT'
+net.ipv4.ip_forward=1
+EOT
+    sysctl --system >/dev/null
 
     # Launch the WireGuard interface
     wg-quick up wg0

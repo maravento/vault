@@ -23,7 +23,7 @@
 
 | CPU | NIC | RAM | Storage |
 | :---: | :---: | :---: | :---: |
-| 4+ cores (≥ 3.0 GHz) | 2 (WAN & LAN) | 12+ GB (4 GB cache_mem) | 100 GB SSD (cache_dir rock) |
+| 4+ cores (≥ 3.0 GHz) | 2 (WAN & LAN) | 12+ GB (4 GB cache_mem) | 50 GB SSD (cache_dir rock) |
 
 ## HOW TO USE
 
@@ -173,6 +173,29 @@ Pool range and other DHCP settings can be changed in `/etc/pydhcp/pydhcp.env` af
 | **iptables + ipset** | `/etc/scr/iptables.sh` | Stateful firewall with MAC-based access control |
 | **ulogd2** | `/var/log/ulog/syslogemu.log` | Kernel-level packet logging via NFLOG |
 
+### Security / Monitoring
+
+| Component | Port | Notes |
+| :--- | :---: | :--- |
+| **Suricata IDS** | — | Network intrusion detection in AF-PACKET mode with auto-update rules; community-id enabled |
+| **suridata** | — | Turns `drop.conf` matches into real blocks via the `suridata` ipset (see [FIREWALL](#firewall)); cron every 5 minutes |
+| **EveBox** | `5636` | Suricata event browser (`http://localhost:5636`) |
+| **fail2ban** | — | Brute-force protection with custom jail config |
+| **ttyd** | `7681` | Web terminal, loopback-only (`http://localhost:7681`) |
+
+### Net Tools
+
+Command-line tools for the administrator. No script of the stack invokes them / Herramientas de línea de comandos para el administrador. Ningún script del stack las invoca.
+
+| Tool | Purpose |
+| :--- | :--- |
+| `iw` | Wireless interfaces (`iwconfig`, `iwlist`, `iwpriv`) |
+| `fping`, `ethtool` | Host reachability and NIC settings |
+| `iperf3` | Throughput test (server: `iperf3 -s`, client: `iperf3 -c SERVER_IP`) |
+| `masscan`, `nmap`, `python3-nmap`, `ndiff` | Port scanning and scan comparison |
+| `nbtscan`, `nast`, `arp-scan`, `arping`, `netdiscover` | LAN discovery over NetBIOS and ARP |
+| `traceroute`, `mtr-tiny` | Path tracing to a domain or IP |
+
 ### Backup
 
 | Component | Notes |
@@ -187,6 +210,7 @@ Pool range and other DHCP settings can be changed in `/etc/pydhcp/pydhcp.env` af
 ```
 gateproxy/
 ├── acl/                        # Access control lists for MAC, Squid and iptables rules (see ACL STRUCTURE)
+│
 ├── conf/
 │   ├── apache2/
 │   │   ├── 000-add.txt             # Apache VirtualHost additions
@@ -215,14 +239,14 @@ gateproxy/
 │   │   └── forward.conf            # Unbound DNS forwarder configuration
 │   └── webmin/
 │       └── text-editor.wbm         # Webmin Text Editor module
-├── img/
-│   └── gateproxy.png                # Diagram used in this README
+│
 ├── scr/                        # Scripts (deployed to /etc/scr/)
 │   ├── bkconf.sh                   # Backup configuration files
 │   ├── iptables.sh                 # Firewall rules and ipsets
 │   ├── killswitch.sh               # Emergency traffic block
 │   ├── serverboot.sh               # Start/restart all services
 │   └── serviceswatch.sh            # Service watchdog
+│
 └── gpsetup.sh                  # Main installer script
 ```
 
@@ -298,7 +322,7 @@ Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/et
 | `macip` | `hash:ip,mac` | MAC+IP binding, parsed from `pydhcpd.conf`. Gatekeeper for every other list below — a device not in `macip` is dropped before `macunlimited`/`maclimited`/`macports` are ever evaluated |
 | `blockports` | `bitmap:port` | Blocked port ranges (VPN tunnels, P2P, cryptomining, legacy protocols) |
 | `suridata` | `hash:ip` | Dest IPs flagged by Suricata alerts matching a `drop.conf` signature — silent `DROP`, see below |
-| `bandata` | `hash:ip` | IPs over bandwidth quota — DNS and port 80 only, redirected to warning page. Created and populated by Proxymon, not by `iptables.sh` — Proxymon is installed by `gpsetup.sh` as a bundled optional component (see Optional Packages); `iptables.sh` only opens the warning-page port (18081) for it |
+| `bandata` | `hash:ip` | IPs over bandwidth quota — DNS and port 80 only, redirected to warning page. Created and populated by Proxymon, not by `iptables.sh` — Proxymon is installed by `gpsetup.sh` as a bundled component (see [COMPONENTS](#components)); `iptables.sh` only opens the warning-page port (18081) for it |
 
 `macip` is built from `pydhcpd.conf`'s static `host {}` blocks, not from `mac-*.txt` directly. Adding a MAC to `mac-unlimited.txt`/`mac-limited.txt` classifies it, but does **not** by itself grant it network access — it still needs a matching static reservation in `pydhcpd.conf`, or the firewall's `MACCHECK` step drops its traffic regardless of classification. pydhcp ships an optional tool, `tools/pyleases.sh`, that generates those reservations from the same `mac-*.txt` files — run it after editing any of them (it is not scheduled automatically by any installer, see the Scripts section below).
 
@@ -343,7 +367,7 @@ Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/et
 
 - SYN flood protection via rate-limited `syn_flood` chain
 - TCP scan / malformed packet drops (SYN+FIN, SYN+RST, NEW with SYN+ACK)
-- Bittorrent/Tor and other protocol-level detection is handled by Suricata (see Optional Packages below), not by hex-string matching in `iptables.sh`
+- Bittorrent/Tor and other protocol-level detection is handled by Suricata (see [COMPONENTS](#components)), not by hex-string matching in `iptables.sh`
 - GRE (protocol 47) and 6to4 (protocol 41) blocked from LAN
 - Windows ICS network range (192.168.137.0/24) blocked
 - NetBIOS NMBD (137–139), CoAP (5683–5684), mDNS noise, WUDO WAN traffic blocked
@@ -378,16 +402,23 @@ DNS (UDP/TCP 53) is a global rule applied to all LAN traffic, not a `macports`-s
   </tr>
 </table>
 
-### Optional Pack: Net Tools + Security
+### Optional GTK Pack
 
-- **Network diagnostics** — `fping`, `ethtool`, `iperf3`, `masscan`, `nbtscan`, `nast`, `arp-scan`, `arping`, `netdiscover`, `nmap`, `traceroute`, `mtr`, `wireless-tools`
-- **fail2ban** — brute-force protection with custom jail config
+Desktop applications. Only useful on a machine with a graphical session / Aplicaciones de escritorio. Solo útiles en una máquina con sesión gráfica.
+
+- **gparted** — partition editor
+- **gnome-disk-utility** — GNOME disk manager
+- **qdirstat** — disk usage analyzer
+- **baobab** — disk usage analyzer (GNOME)
+- **gsmartcontrol** — GUI for SMART disk health
+- **cpu-x** — hardware information viewer
+- **synaptic** — graphical package manager
+- **gdebi** — graphical `.deb` installer
+- **gtkhash** — checksum calculator
+- **wmctrl** — window manager control
+- **mesa-utils** — OpenGL diagnostics (`glxinfo`, `glxgears`)
+- **fsearch** — fast file search; adds an external PPA
 - **lynis** — security auditing (`lynis -c -Q`; log at `/var/log/lynis.log`)
-- **fsearch** — fast file search (GUI)
-- **ttyd** — web terminal, loopback-only (`http://localhost:7681`)
-- **Suricata IDS** — network intrusion detection in AF-PACKET mode with auto-update rules; community-id enabled
-- **suridata** — turns `drop.conf` matches into real blocks via the `suridata` ipset (see [FIREWALL](#firewall)); cron every 5 minutes
-- **EveBox** — Suricata event browser (`http://localhost:5636`)
 
 ### Optional Pack: Samba
 
