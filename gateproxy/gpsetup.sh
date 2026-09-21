@@ -776,6 +776,13 @@ until ip -4 addr show "$LAN_IF" 2>/dev/null | grep -qF "inet $SERVER_IP/"; do
 done
 log "Network OK: $LAN_IF has $SERVER_IP"
 
+ip -4 -o addr show dev "$LAN_IF" | awk '{print $4}' | while read -r extra_addr; do
+    if [ "${extra_addr%%/*}" != "$SERVER_IP" ]; then
+        ip addr del "$extra_addr" dev "$LAN_IF" 2>/dev/null \
+            && log "WARNING: removed leftover address $extra_addr from $LAN_IF -- alert"
+    fi
+done
+
 # AVAHI
 avahi_conf="/etc/avahi/avahi-daemon.conf"
 if command -v avahi-daemon &>/dev/null && [ -f "$avahi_conf" ]; then

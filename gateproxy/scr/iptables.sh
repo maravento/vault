@@ -434,35 +434,6 @@ ip6tables -A OUTPUT -o lo -j ACCEPT || true
 iptables -A INPUT -s 127.0.0.0/8 ! -i lo -j DROP
 iptables -A FORWARD -s 127.0.0.0/8 ! -i lo -j DROP
 
-# BOGONS (disabled by default -- opt-in)
-# acl/ipt/bogons.txt includes the RFC1918 private ranges (10.0.0.0/8,
-# 172.16.0.0/12, 192.168.0.0/16). Those are also exactly the ranges a LAN
-# can legitimately use, so blindly loading this list applies to both the
-# LAN and WAN rules below and can lock the LAN out of its own network if
-# the chosen Server IP/subnet falls inside one of them.
-# Before uncommenting this block: open bogons.txt and comment out (or
-# choose ranges that avoid) whatever CIDR contains this server's own LAN
-# subnet, then verify the remaining entries are still what you want blocked.
-#bogons_file="$acl_ipt_path/bogons.txt"
-#if ! ipset list bogons &>/dev/null; then
-#    ipset create bogons hash:net -exist
-#else
-#    ipset flush bogons
-#fi
-#if [ -f "$bogons_file" ]; then
-#    for bogons_cidr in $(grep -vE '^\s*#|^\s*$' "$bogons_file" | awk '{print $1}' | sort -V -u 2>/dev/null); do
-#        ipset add bogons "$bogons_cidr" -exist
-#    done
-#else
-#    log "WARNING: $bogons_file not found, bogons -- skip"
-#fi
-#iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set bogons src -j DROP
-#iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set bogons dst -j DROP
-# WAN ingress: drop spoofed traffic claiming a reserved/private source address.
-# dst intentionally omitted -- this host may itself sit behind CGNAT/double-NAT
-# on a private WAN address, which a dst check would wrongly match and drop.
-#iptables -t mangle -A PREROUTING -i "$wan_iface" -m set --match-set bogons src -j DROP
-
 # DHCP
 # Let pydhcpd serve the LAN, and this host renew its own lease on the WAN
 iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -p udp --dport 67 -j ACCEPT
@@ -599,6 +570,43 @@ done
 # ------------------------------------------------------------------------------
 # SECURITY RULES
 # ------------------------------------------------------------------------------
+
+# BOGONS
+# Reserved and unroutable address ranges, dropped in both directions
+bogons_file="$acl_ipt_path/bogons.txt"
+bogons_url="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/gateproxy/acl/ipt/bogons.txt"
+if [ ! -f "$bogons_file" ]; then
+    if curl -fL --retry 3 --retry-delay 2 --progress-bar -o "$bogons_file" "$bogons_url"; then
+        chown root:root "$bogons_file"
+    else
+        log "WARNING: cannot download $bogons_file -- skip"
+    fi
+fi
+
+if ! ipset list bogons &>/dev/null; then
+    ipset create bogons hash:net -exist
+else
+    ipset flush bogons
+fi
+if [ -f "$bogons_file" ]; then
+    for bogons_cidr in $(grep -vE '^\s*#|^\s*$' "$bogons_file" | awk '{print $1}' | sort -V -u 2>/dev/null); do
+        ipset add bogons "$bogons_cidr" -exist
+    done
+else
+    log "WARNING: $bogons_file not found, bogons -- skip"
+fi
+
+# Allow 255.255.255.0/24 before BOGONS DROP
+iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -s 255.255.255.0/24 -j ACCEPT
+iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -d 255.255.255.0/24 -j ACCEPT
+# DROP bogons
+iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set bogons src -j DROP
+iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set bogons dst -j DROP
+
+# WAN ingress: drop spoofed traffic claiming a reserved/private source address.
+# dst intentionally omitted -- this host may itself sit behind CGNAT/double-NAT
+# on a private WAN address, which a dst check would wrongly match and drop.
+iptables -t mangle -A PREROUTING -i "$wan_iface" -m set --match-set bogons src -j DROP
 
 # BLOCKPORTS
 # path: /etc/acl/ipt/blockports.txt
@@ -739,61 +747,70 @@ iptables -A FORWARD -i "$INTERFACESv4" -o "$wan_iface" -p icmp -j DROP
 # MAC PORTS
 # ------------------------------------------------------------------------------
 
-# WARNING PAGE HTTP FOR BANDATA (TCP 18081)
+# PROXYMON: WARNING PAGE HTTP FOR BANDATA
 # https://github.com/maravento/proxymon
 iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 18081 -m set --match-set macports src -j ACCEPT
-# PRINTERS
-# Printer and scanner proto_name traffic addressed to the proxy itself
-for chain_name in INPUT FORWARD; do
-    # PRINTERS & SCANNERS UDP: SNMP (161,162) + prnrequest/prnstatus (3910/3911)
-    iptables -A "$chain_name" -i "$INTERFACESv4" -p udp -m multiport --dports 161,162,3910,3911 -m set --match-set macports src -j ACCEPT
-    # PRINTERS & SCANNERS TCP: JetDirect/RAW (9100) + prnrequest/prnstatus (3910/3911)
-    iptables -A "$chain_name" -i "$INTERFACESv4" -p tcp -m multiport --dports 9100,3910,3911 -m set --match-set macports src -j ACCEPT
-done
+# SMBSTACK
+# https://github.com/maravento/smbstack
+iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 3092 -m set --match-set macports src -j ACCEPT
+
+# PROXYMON: WARNING PAGE HTTP FOR BANDATA
+# https://github.com/maravento/proxymon
+iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 18081 -m set --match-set macports src -j ACCEPT
+# SMBSTACK
+# https://github.com/maravento/smbstack
+iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 3092 -m set --match-set macports src -j ACCEPT
+
+# COMMONS PORTS
+# SMB / Microsoft-DS
+iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 445 -m set --match-set macports src -j ACCEPT
+# Printers (printer/scanner PROTOCOL traffic addressed to the proxy itself)
+iptables -A INPUT -i "$INTERFACESv4" -p udp -m multiport --dports 161,162,3910,3911 -m set --match-set macports src -j ACCEPT
+iptables -A INPUT -i "$INTERFACESv4" -p tcp -m multiport --dports 9100,3910,3911 -m set --match-set macports src -j ACCEPT
+# Printers & Scanners UDP (SNMP 161,162 + prnrequest/prnstatus 3910/3911)
+iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -p udp -m multiport --dports 161,162,3910,3911 -m set --match-set macports src -j ACCEPT
+# Printers & Scanners TCP (JetDirect/RAW 9100 + prnrequest/prnstatus 3910/3911)
+iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -p tcp -m multiport --dports 9100,3910,3911 -m set --match-set macports src -j ACCEPT
 # STUN/TURN (WebRTC, Teams, Meet, Zoom)
 iptables -A FORWARD -i "$INTERFACESv4" -o "$wan_iface" -p udp -m multiport --dports 3478:3481 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i "$INTERFACESv4" -o "$wan_iface" -p tcp -m multiport --dports 3478,5349 -m set --match-set macports src -j ACCEPT
 # Google STUN
 iptables -A FORWARD -i "$INTERFACESv4" -o "$wan_iface" -p udp -m multiport --dports 19302:19309 -m set --match-set macports src -j ACCEPT
-# conf_file SHARING SAMBA (SMB)
-iptables -A INPUT -i "$INTERFACESv4" -p tcp -m multiport --dports 445,3092 -m set --match-set macports src -j ACCEPT
-# EMAIL (SMTP, IMAP, POP3)
+# Email (SMTP, IMAP, POP3)
 iptables -A FORWARD -i "$INTERFACESv4" -p tcp -m multiport --dports 110,143,465,587,993,995 -m set --match-set macports src -j ACCEPT
-# MESSAGING & XMPP (Jabber, FCM)
+# Messaging & XMPP (Jabber, FCM)
 iptables -A FORWARD -i "$INTERFACESv4" -p tcp -m multiport --dports 5222,5223,5228,5269 -m set --match-set macports src -j ACCEPT
 # WSD (Web Services Discovery) - TCP
-iptables -A FORWARD -i "$INTERFACESv4" -p tcp -m multiport --dports 5357,5358 -m set --match-set macports src -j ACCEPT
-# mDNS LAN noise
+iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -p tcp -m multiport --dports 5357,5358 -m set --match-set macports src -j ACCEPT
+# mDNS LAN (noise)
 iptables -A INPUT -i "$INTERFACESv4" -d 224.0.0.251 -p udp --dport 5353 -j DROP
 # Drop local multicast (collaboration tools, discovery, etc.)
 iptables -A INPUT -i "$INTERFACESv4" -d 239.255.0.0/16 -j DROP
-# LAN traffic: discovery, printing, collaboration
 # mDNS / Bonjour / AirPrint
 iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -d 224.0.0.251 -p udp --dport 5353 -m set --match-set macports src -j ACCEPT
-# LLMNR
-# Name resolution between LAN devices when there is no DNS entry
+# LLMNR (Name resolution between LAN devices when there is no DNS entry)
 iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -d 224.0.0.252 -p udp --dport 5355 -m set --match-set macports src -j ACCEPT
 # SSDP / UPnP
 iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -d 239.255.255.250 -p udp --dport 1900 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -p udp --dport 5000 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i "$INTERFACESv4" -p udp -m multiport --dports 1900,5000 -m set --match-set macports src -j DROP
-# WSD
-# Device discovery on the LAN, used by printers and scanners
+# WSD (Device discovery on the LAN, used by printers and scanners)
 iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -d 239.255.255.250 -p udp --dport 3702 -m set --match-set macports src -j ACCEPT
 # Multimedia & Streaming
 iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -p tcp -m multiport --dports 2869,8200 -m set --match-set macports src -j ACCEPT
 # IGMP (required for multicast group management)
 iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -p igmp -m set --match-set macports src -j ACCEPT
-# NTP
-# Time sync against this host, and out to the internet
+# NTP (Time sync against this host, and out to the internet)
 iptables -A INPUT -i "$INTERFACESv4" -p udp --dport 123 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i "$INTERFACESv4" -p udp --dport 123 -m set --match-set macports src -j ACCEPT
 
 # ------------------------------------------------------------------------------
-# MAC RULES
+# MACRULES
 # ------------------------------------------------------------------------------
 
-# MACLIMITED (PAC on WPAD_PORT - DHCP option 252, HTTP 80 -> Squid intercept port)
+# MACLIMITED
+# PAC on WPAD_PORT - DHCP option 252, HTTP 80 -> Squid intercept port
+# Send limited devices through Squid and serve them the PAC file
 iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set maclimited src -p tcp -m multiport --dports $WPAD_PORT,80,$squid_port -j ACCEPT
 iptables -t nat -A PREROUTING -i "$INTERFACESv4" -p tcp --dport 80 -m set --match-set maclimited src -j REDIRECT --to-port "$squid_intercept_port"
 iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport "$squid_intercept_port" -m set --match-set maclimited src -m conntrack --ctstate DNAT -j ACCEPT

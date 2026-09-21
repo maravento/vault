@@ -247,7 +247,6 @@ fi
 
 new_ips=$(printf '%s\n%s\n' "$new_ips" "$backfill_ips" | sed '/^$/d' | sort -u)
 
-
 # -- Step 3: append new, valid, not-yet-listed, non-local IPs ----------------
 added=0
 if [ -n "$new_ips" ]; then

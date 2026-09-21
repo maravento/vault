@@ -10,7 +10,7 @@
 set -uo pipefail
 
 # logging
-log_file="/var/log/bkconfig.log"
+log_file="/var/log/bkconf.log"
 log() {
     local msg="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
@@ -32,9 +32,9 @@ if ! flock -n 200; then
 fi
 
 # dependencies
-for dep in zip coreutils util-linux; do
-    if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: missing dependency '$dep' -- abort"
+for dep_pkg in zip coreutils util-linux findutils; do
+    if ! dpkg -s "$dep_pkg" &>/dev/null; then
+        log "ERROR: '$dep_pkg' is not installed -- abort"
         exit 1
     fi
 done
@@ -48,7 +48,7 @@ bkconfig="/etc/bak/gateproxy"
 mkdir -p "$bkconfig" >/dev/null 2>&1
 chmod 700 "$bkconfig"
 
-log "bkconfig start..."
+log "bkconf start..."
 
 # ------------------------------------------------------------------------------
 # BACKUP
@@ -71,6 +71,8 @@ for p in \
     /etc/apt/sources.list \
     /var/spool/cron/crontabs \
     /etc/logrotate.d/rsyslog \
+    /etc/unbound \
+    /etc/suricata \
     /etc/sarg
 do
     if [ -e "$p" ]; then
@@ -99,4 +101,4 @@ case "${1:-}" in
     ;;
 esac
 
-log "bkconfig done at: $(date '+%Y-%m-%d %H:%M:%S')"
+log "bkconf done at: $(date '+%Y-%m-%d %H:%M:%S')"
