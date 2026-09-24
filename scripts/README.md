@@ -62,29 +62,22 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 
 - [Android 2 PC via scrcpy (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/droid2pc.sh)
 - [ArpON table filter](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arponscan.sh)
-- [Arpwatch (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arpwatch.sh)
 - [Bandwidth Watchdog (bwmon - cron; alerts via syslog + desktop notification when below minimum download|upload)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bwmon.sh)
 - [Internet Watchdog (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/watchdog.sh)
 - [Iperf3 Client](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/iperf3.sh)
+- [IP Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ipkill.sh)
 - [Netplan Switch (--status|--to-networkd|--to-nm|--help)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/npswitch.sh)
-- [Port Kill (check port with: `sudo netstat -lnp | grep "port"`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/portkill.sh)
 - [Rustdesk Client (install|uninstall|update)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rdclient.sh)
 - [Rustdesk Server (install|uninstall|update)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rdserver.sh)
 - [Veyon Client Tunnel (connects Veyon Master to a remote Veyon Service via cftunnel.sh)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/veyonclient.sh)
 - [x11vnc (install|uninstall|start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/x11vncmgr.sh)
-
-#### Proxy & Firewall
-
-- [IP Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ipkill.sh)
-- [Squid-OpenSSL (ssl-bump)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/sslbump.sh)
 
 #### Server & Deployment
 
 - [Cloudflare Tunnel (create|start|startall|stop|status|delete) - Zero Trust Activation Recommended](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cftunnel.sh)
 - [Docker + Portainer (install|remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/docker.sh)
 - [Joomla (install|remove with Apache/MySQL/PHP/mkcert)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/joomla.sh)
-- [ngLocalhost Tunnel (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/nglocalhost.sh)
-- [Serveo Tunnel (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/serveo.sh)
+- [Squid-OpenSSL (ssl-bump)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/sslbump.sh)
 - [Wireguard VPN (install|uninstall - server|client)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/wireguard.sh)
 
 #### Storage, Backup & Cloud
@@ -92,7 +85,7 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 - [Cleaner - Delete files (Thumbs.db, Zone.identifier, encryptable, etc.)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cleaner.sh)
 - [Disk Check (HDD/SSD/NVMe)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/diskcheck.sh)
 - [Drive Crypt (Cryptomator Encrypted Disk - start|stop - to folder `/home/$USER/dcrypt`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/drivecrypt.sh)
-- [File Extensions Report (find files by extension in target folder)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/filereport.sh)
+- [File Report (HTML disk usage report: top extensions, folders and largest files)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/filereport.sh)
 - [FreeFileSync Update](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ffsupdate.sh)
 - [Gdrive (Start | Stop - to folder `/home/$USER/gdrive`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/gdrive.sh)
 - [Mass Unzip with Pass](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/massunzip.sh)
@@ -109,6 +102,7 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 - [Kill Process By Name](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/pskill.sh)
 - [Kworker Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/kworker.sh)
 - [Limit processes with CPU Limit (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cpulimit.sh)
+- [Port Kill (check port with: `sudo netstat -lnp | grep "port"`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/portkill.sh)
 - [Realtek Linux drivers](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/realtekdrv.sh)
 
 #### Webmin Module Installation Tools
@@ -133,7 +127,6 @@ Tested on: Windows 10/11 x64
 - [Net Reset (Proxy and NIC)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/netreset.bat)
 - [Non-Essential Services (disable|auto)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/nonservices.bat)
 - [SMB Config (Modify smb1|smb signing|insecure guest access)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/smbconf.bat)
-- [WMIC (Add|Remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/wmic.bat)
 
 #### Hardware, Virtualization & Server
 

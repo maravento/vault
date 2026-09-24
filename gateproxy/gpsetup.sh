@@ -116,21 +116,36 @@ retry_cmd() {
     done
 }
 
-# crontab entry
-add_cron_entry() {
-    local cron_line="$1" cron_path="$2"
-    crontab -l 2>/dev/null | grep -qF "$cron_path" && return 0
-    (crontab -l 2>/dev/null || true; echo "$cron_line") | crontab -
+# CRON_D
+# Add or replace one line in the project's single cron.d file
+cron_d_set() {
+    local match="$1" line="$2"
+    local cron_file="/etc/cron.d/gateproxy"
+    local cron_tmp
+
+    cron_tmp=$(mktemp)
+    [ -f "$cron_file" ] && { grep -vF "$match" "$cron_file" > "$cron_tmp" || true; }
+    [ -n "$line" ] && printf '%s\n' "$line" >> "$cron_tmp"
+    if [ -s "$cron_tmp" ]; then
+        install -m 644 -o root -g root "$cron_tmp" "$cron_file"
+    else
+        rm -f "$cron_file"
+    fi
+    rm -f "$cron_tmp"
 }
 
 log "Checking for conflicting pre-installed packages..."
-check_conflicts "DHCP server" isc-dhcp-server dnsmasq
-check_conflicts "DNS server"  bind9 pdns-recursor
-check_conflicts "proxy"       squid squid3 tinyproxy privoxy 3proxy
-check_conflicts "web server"  nginx lighttpd caddy
+check_conflicts "DHCP server" isc-dhcp-server dnsmasq kea-dhcp4-server
+check_conflicts "DNS server"  bind9 pdns-recursor unbound
+check_conflicts "proxy"       squid squid3 squid-openssl tinyproxy privoxy 3proxy
+check_conflicts "web server"  apache2 nginx lighttpd caddy
+check_conflicts "file server" samba
 check_conflicts "syslog"      syslog-ng
-check_conflicts "firewall"    firewalld
-check_conflicts "IDS"         snort
+check_conflicts "firewall"    firewalld fail2ban
+check_conflicts "IDS"         snort suricata evebox
+check_conflicts "web admin"   webmin ttyd
+check_conflicts "time sync"   ntp chrony
+check_conflicts "mail"        exim4
 if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "^Status: active"; then
     log "ERROR: ufw is active and conflicts with gateproxy's iptables rules, disable it with ufw disable -- abort"
     exit 1
@@ -332,7 +347,6 @@ fi
 # -----------------------------------------------------------------------------
 
 # time
-apt purge -y ntp ntpdate chrony &>/dev/null || true
 retry_cmd apt install -y --reinstall systemd-timesyncd &>/dev/null
 hwclock -w &>/dev/null || log "WARNING: hwclock -w failed, no RTC available -- degraded"
 systemctl enable --now systemd-timesyncd &>/dev/null || log "WARNING: systemd-timesyncd failed to start -- degraded"
@@ -353,15 +367,13 @@ ifconfig lo 127.0.0.1
 #systemctl disable avahi-daemon cups-browser &> /dev/null # optional
 cp /etc/apt/sources.list{,.bak} &>/dev/null || true
 
-# Cron backup
-if [ -d /var/spool/cron/crontabs ]; then
-    for f in /var/spool/cron/crontabs/*; do
-        [ -f "$f" ] && cp "$f"{,.bak}
-    done
-    log "Backup crontabs: /var/spool/cron/crontabs/*.bak"
-else
-    log "WARNING: /var/spool/cron/crontabs not found -- skip"
-fi
+# legacy cron entries, from versions before /etc/cron.d
+for legacy_path in /etc/scr/ffsupdate.sh /etc/suricata/suricataupdate.sh \
+    /etc/suricata/suricataclean.sh /etc/suricata/suridata.sh \
+    /etc/scr/hwclock.sh /etc/scr/blackusb.sh /etc/scr/serviceswatch.sh \
+    /etc/scr/cleaner.sh "systemctl daemon-reload"; do
+    crontab -l 2>/dev/null | { grep -vF "$legacy_path" || true; } | crontab - 2>/dev/null || true
+done
 
 # CLEAN | UPDATE | FIX
 echo -e "\n"
@@ -684,7 +696,7 @@ is_port() {
     fi
     PORTNEW=$(echo "$PORT" | grep -E '^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$')
     if [ "$PORTNEW" ]; then
-        find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:3128:$PORTNEW:g" "{}"
+        find "$gp_path/conf" "$gp_path/scr" -type f -print0 | xargs -0 -I "{}" sed -i "s:3128:$PORTNEW:g" "{}"
         log "You have entered Proxy Port $PORT :OK"
         return 0
     else
@@ -815,7 +827,7 @@ retry_cmd nala install -y trash-cli pm-utils btop htop lsof inotify-tools dmidec
 retry_cmd nala install -y dpkg ppa-purge apt-utils
 
 # TEXT & FILE UTILITIES
-retry_cmd nala install -y gawk rename renameutils sharutils dos2unix colordiff ripgrep yamllint
+retry_cmd nala install -y rename renameutils sharutils dos2unix colordiff ripgrep yamllint
 
 # LOGGING & SYSTEM SERVICES
 retry_cmd nala install -y finger logrotate
@@ -988,7 +1000,6 @@ while pgrep squid > /dev/null; do
     killall -s SIGTERM squid &>/dev/null
     sleep 5
 done
-nala purge -y squid* &>/dev/null || true
 rm -rf /var/spool/squid* /var/log/squid* /etc/squid* &>/dev/null
 rm -f /run/squid.pid &>/dev/null
 #DEBIAN_FRONTEND=noninteractive nala install -y --no-install-recommends squid-openssl
@@ -1135,7 +1146,7 @@ retry_cmd nala install -y libatk-adaptor libgail-common
 retry_cmd wget -O "$gp_path/scr/ffsupdate.sh" --timeout=15 --tries=1 https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh
 chmod +x "$gp_path/scr/ffsupdate.sh"
 "$gp_path/scr/ffsupdate.sh" || log "WARNING: ffsupdate.sh failed, FreeFileSync not installed -- skip"
-add_cron_entry "@weekly /etc/scr/ffsupdate.sh" "/etc/scr/ffsupdate.sh"
+cron_d_set "/etc/scr/ffsupdate.sh" "@weekly root /etc/scr/ffsupdate.sh"
 log "INFO: OK"
 sleep 1
 
@@ -1200,9 +1211,9 @@ if ! grep -q "detect-thread-ratio: 0.5" /etc/suricata/suricata.yaml; then
     sed -i 's/detect-thread-ratio: 1.0/detect-thread-ratio: 0.5/' /etc/suricata/suricata.yaml
 fi
 # suricata cron
-add_cron_entry "0 2 * * * /etc/suricata/suricataupdate.sh >/dev/null 2>&1" "/etc/suricata/suricataupdate.sh"
-add_cron_entry "@monthly /etc/suricata/suricataclean.sh >/dev/null 2>&1" "/etc/suricata/suricataclean.sh"
-add_cron_entry "*/5 * * * * /etc/suricata/suridata.sh >/dev/null 2>&1" "/etc/suricata/suridata.sh"
+cron_d_set "/etc/suricata/suricataupdate.sh" "0 2 * * * root /etc/suricata/suricataupdate.sh >/dev/null 2>&1"
+cron_d_set "/etc/suricata/suricataclean.sh" "@monthly root /etc/suricata/suricataclean.sh >/dev/null 2>&1"
+cron_d_set "/etc/suricata/suridata.sh" "*/5 * * * * root /etc/suricata/suridata.sh >/dev/null 2>&1"
 # suricata check IDS
 SURICATA_SERVICE="/usr/lib/systemd/system/suricata.service"
 CORRECT_EXECSTART="ExecStart=/usr/bin/suricata -D --af-packet -c /etc/suricata/suricata.yaml --pidfile /run/suricata.pid"
@@ -1586,11 +1597,11 @@ sleep 1
 # CRONTAB
 echo -e "\n"
 log "Add Crontab Tasks..."
-add_cron_entry "@reboot systemctl daemon-reload" "systemctl daemon-reload"
-add_cron_entry "@reboot /etc/scr/hwclock.sh" "/etc/scr/hwclock.sh"
-add_cron_entry "@reboot /etc/scr/blackusb.sh off" "/etc/scr/blackusb.sh"
-add_cron_entry "*/5 * * * * /etc/scr/serviceswatch.sh" "/etc/scr/serviceswatch.sh"
-add_cron_entry "@weekly /etc/scr/cleaner.sh" "/etc/scr/cleaner.sh"
+cron_d_set "systemctl daemon-reload" "@reboot root systemctl daemon-reload"
+cron_d_set "/etc/scr/hwclock.sh" "@reboot root /etc/scr/hwclock.sh"
+cron_d_set "/etc/scr/blackusb.sh" "@reboot root /etc/scr/blackusb.sh off"
+cron_d_set "/etc/scr/serviceswatch.sh" "*/5 * * * * root /etc/scr/serviceswatch.sh"
+cron_d_set "/etc/scr/cleaner.sh" "@weekly root /etc/scr/cleaner.sh"
 log "INFO: OK"
 sleep 1
 

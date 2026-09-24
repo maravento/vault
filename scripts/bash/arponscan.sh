@@ -82,7 +82,7 @@ ARPSTATIC_FILE="$(dirname "$(realpath "$0")")/arpstatic"
 # ip2mac
 ip2mac() {
     echo '#!/bin/bash' > "$ARPSTATIC_FILE"
-    awk -F";" '{print "ip neigh replace " $3 " lladdr " $2 " nud permanent dev '"$lan"'"}' "$acl_path"/mac* \
+    awk -F";" '$1 == "a" {print "ip neigh replace " $3 " lladdr " $2 " nud permanent dev '"$lan"'"}' "$acl_path"/mac* \
         | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n \
         | uniq >> "$ARPSTATIC_FILE"
 }
@@ -97,7 +97,7 @@ arponrun() {
     # optional rule: flush ARP table
     ip -s -s neigh flush all >/dev/null 2>&1
     # optional rule: flush ARP table (PERM) -- keep local server IP
-    arp -a | grep -i perm | grep -oP '(\d+\.){3}\d+' | grep -v "$localip" | xargs -I {} arp -d {}
+    arp -a | grep -i perm | grep -oP '(\d+\.){3}\d+' | grep -v -x -F "$localip" | xargs -I {} arp -d {}
     # run script and add ip+mac to ARP table
     "$ARPSTATIC_FILE" >/dev/null 2>&1
 

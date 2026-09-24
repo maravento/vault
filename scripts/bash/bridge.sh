@@ -30,7 +30,7 @@ if ! flock -n 200; then
 fi
 
 # dependencies
-for dep in iproute2 bridge-utils util-linux; do
+for dep in iproute2 bridge-utils util-linux network-manager; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "ERROR: dependency '$dep' is not installed -- abort" >&2
         exit 1

@@ -117,7 +117,7 @@ vboxpurge() {
     VBoxManage extpack uninstall "Oracle VM VirtualBox Extension Pack"
     apt-get -y autoremove --purge
     /opt/VirtualBox/uninstall.sh &>/dev/null
-    apt-get -y remove --purge virtualbox*
+    apt-get -y remove --purge 'virtualbox*'
     rm -rf /etc/vbox /opt/VirtualBox /usr/lib/virtualbox /etc/apt/sources.list.d/virtualbox.list &>/dev/null
     rm -rf /var/lib/dpkg/info/virtualbox* &>/dev/null
     # Optional: delete virtual disk config

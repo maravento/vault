@@ -57,7 +57,7 @@ if ! flock -n 200; then
 fi
 
 # dependencies
-for dep_pkg in iptables ipset arptables ebtables kmod procps util-linux ulogd2 mawk coreutils grep; do
+for dep_pkg in iptables ipset arptables ebtables kmod procps util-linux ulogd2 coreutils grep; do
     if ! dpkg -s "$dep_pkg" &>/dev/null; then
         log "ERROR: missing dependency '$dep_pkg' -- abort"
         exit 1
@@ -572,41 +572,43 @@ done
 # ------------------------------------------------------------------------------
 
 # BOGONS
-# Reserved and unroutable address ranges, dropped in both directions
-bogons_file="$acl_ipt_path/bogons.txt"
-bogons_url="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/gateproxy/acl/ipt/bogons.txt"
-if [ ! -f "$bogons_file" ]; then
-    if curl -fL --retry 3 --retry-delay 2 --progress-bar -o "$bogons_file" "$bogons_url"; then
-        chown root:root "$bogons_file"
-    else
-        log "WARNING: cannot download $bogons_file -- skip"
-    fi
-fi
+# Reserved and unroutable address ranges. Optional and disabled by default:
+# enable the whole block only if the LAN range is not listed in bogons.txt,
+# or it will block the local network.
+#bogons_file="$acl_ipt_path/bogons.txt"
+#bogons_url="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/gateproxy/acl/ipt/bogons.txt"
+#if [ ! -f "$bogons_file" ]; then
+#    if curl -fL --retry 3 --retry-delay 2 --progress-bar -o "$bogons_file" "$bogons_url"; then
+#        chown root:root "$bogons_file"
+#    else
+#        log "WARNING: cannot download $bogons_file -- skip"
+#    fi
+#fi
 
-if ! ipset list bogons &>/dev/null; then
-    ipset create bogons hash:net -exist
-else
-    ipset flush bogons
-fi
-if [ -f "$bogons_file" ]; then
-    for bogons_cidr in $(grep -vE '^\s*#|^\s*$' "$bogons_file" | awk '{print $1}' | sort -V -u 2>/dev/null); do
-        ipset add bogons "$bogons_cidr" -exist
-    done
-else
-    log "WARNING: $bogons_file not found, bogons -- skip"
-fi
+#if ! ipset list bogons &>/dev/null; then
+#    ipset create bogons hash:net -exist
+#else
+#    ipset flush bogons
+#fi
+#if [ -f "$bogons_file" ]; then
+#    for bogons_cidr in $(grep -vE '^\s*#|^\s*$' "$bogons_file" | awk '{print $1}' | sort -V -u 2>/dev/null); do
+#        ipset add bogons "$bogons_cidr" -exist
+#    done
+#else
+#    log "WARNING: $bogons_file not found, bogons -- skip"
+#fi
 
 # Allow 255.255.255.0/24 before BOGONS DROP
-iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -s 255.255.255.0/24 -j ACCEPT
-iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -d 255.255.255.0/24 -j ACCEPT
+#iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -s 255.255.255.0/24 -j ACCEPT
+#iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -d 255.255.255.0/24 -j ACCEPT
 # DROP bogons
-iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set bogons src -j DROP
-iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set bogons dst -j DROP
+#iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set bogons src -j DROP
+#iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set bogons dst -j DROP
 
 # WAN ingress: drop spoofed traffic claiming a reserved/private source address.
 # dst intentionally omitted -- this host may itself sit behind CGNAT/double-NAT
 # on a private WAN address, which a dst check would wrongly match and drop.
-iptables -t mangle -A PREROUTING -i "$wan_iface" -m set --match-set bogons src -j DROP
+#iptables -t mangle -A PREROUTING -i "$wan_iface" -m set --match-set bogons src -j DROP
 
 # BLOCKPORTS
 # path: /etc/acl/ipt/blockports.txt

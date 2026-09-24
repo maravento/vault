@@ -69,7 +69,7 @@ for p in \
     /etc/network/interfaces \
     /etc/netplan \
     /etc/apt/sources.list \
-    /var/spool/cron/crontabs \
+    /etc/cron.d/gateproxy \
     /etc/logrotate.d/rsyslog \
     /etc/unbound \
     /etc/suricata \

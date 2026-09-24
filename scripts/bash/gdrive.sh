@@ -80,7 +80,7 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    log "ERROR: No valid local user found. Create one with sudo access."
+    echo "ERROR: No valid local user found. Create one with sudo access."
     exit 1
 fi
 

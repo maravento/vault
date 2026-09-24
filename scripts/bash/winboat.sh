@@ -143,7 +143,7 @@ install_winboat() {
     echo "[3/4] Installing Winboat..."
     if ! command -v winboat &> /dev/null; then
         echo "Fetching latest Winboat release..."
-        deb_url=$(curl -s https://api.github.com/repos/TibixDev/winboat/releases/latest | grep -oP '"browser_download_url": "\K[^"]*\.deb')
+        deb_url=$(curl -sL https://api.github.com/repos/TibixDev/winboat/releases/latest | grep -oP '"browser_download_url": "\K[^"]*\.deb')
 
         if [ -z "$deb_url" ]; then
             echo "Error: Could not fetch Winboat download URL"

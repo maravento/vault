@@ -9,6 +9,7 @@
 #
 # special thanks to:
 # https://github.com/BartekSz95
+# https://github.com/phpvirtualbox/phpvirtualbox
 #
 ################################################################################
 
@@ -20,8 +21,8 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # cleanup temporary files on exit or error
 work_dir="$(pwd)"
 cleanup() {
-    rm -f "$work_dir/main.zip"
-    rm -rf "$work_dir/phpvirtualbox-main"
+    rm -f "$work_dir/master.zip"
+    rm -rf "$work_dir/phpvirtualbox-master"
 }
 trap cleanup EXIT
 
@@ -143,19 +144,19 @@ fi
 
 # PHPVBOX
 # download phpvirtualbox
-retry_cmd wget -q -c https://github.com/BartekSz95/phpvirtualbox/archive/main.zip
-download_sha256="$(sha256sum main.zip | awk '{print $1}')"
-echo "main.zip SHA256: $download_sha256"
-unzip -q main.zip
+retry_cmd wget -q -c https://github.com/phpvirtualbox/phpvirtualbox/archive/master.zip
+download_sha256="$(sha256sum master.zip | awk '{print $1}')"
+echo "master.zip SHA256: $download_sha256"
+unzip -q master.zip
 # ren config
-mv phpvirtualbox-main/config.php-example phpvirtualbox-main/config.php
-#mv phpvirtualbox-main/recovery.php-disabled phpvirtualbox-main/recovery.php
+mv phpvirtualbox-master/config.php-example phpvirtualbox-master/config.php
+#mv phpvirtualbox-master/recovery.php-disabled phpvirtualbox-master/recovery.php
 # change user
 safe_local_user=$(printf '%s' "$local_user" | sed -e 's/[\&:]/\\&/g')
-sed -i "0,/var \\\$username/{/var \\\$username/s:'vbox':'$safe_local_user':}" phpvirtualbox-main/config.php
+sed -i "0,/var \\\$username/{/var \\\$username/s:'vbox':'$safe_local_user':}" phpvirtualbox-master/config.php
 # move folder to final path (remove previous install to avoid nesting on reinstall)
 rm -rf /var/www/html/phpvirtualbox
-mv phpvirtualbox-main/ /var/www/html/phpvirtualbox
+mv phpvirtualbox-master/ /var/www/html/phpvirtualbox
 # set chown
 chown -R www-data:www-data /var/www/html/phpvirtualbox
 # create virtualbox file config
@@ -195,11 +196,14 @@ fi' >/etc/init.d/phpvbox_port.sh
 # execution permissions
 chmod +x /etc/init.d/phpvbox_port.sh
 
-# Add the task to the crontab (skip if already present)
-cron_entry="*/30 * * * * /etc/init.d/phpvbox_port.sh"
-if ! crontab -l 2>/dev/null | grep -qF "$cron_entry"; then
-    (crontab -l 2>/dev/null || true; echo "$cron_entry") | crontab -
-fi
+# Add the task to /etc/cron.d (single file per project)
+cron_tmp=$(mktemp)
+printf '%s\n' "*/30 * * * * root /etc/init.d/phpvbox_port.sh" > "$cron_tmp"
+install -m 644 -o root -g root "$cron_tmp" /etc/cron.d/phpvbox
+rm -f "$cron_tmp"
+
+# legacy entry in root's crontab, from versions before /etc/cron.d
+crontab -l 2>/dev/null | { grep -vF "/etc/init.d/phpvbox_port.sh" || true; } | crontab - 2>/dev/null || true
 if ! service cron restart; then
     echo "Failed to restart cron"
     exit 1

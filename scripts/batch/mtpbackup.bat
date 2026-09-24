@@ -43,7 +43,7 @@ if exist "%usb_letter%:\" (
     robocopy "%source_folder%" "%usb_letter%:\Profiles" /E /COPY:DAT /MIR /IS /IT /TEE /ETA /R:10 /W:5 /ZB /V /LOG:"%usb_letter%:\profiles_bk.txt"
 
     :: Check for errors during copying
-    if %errorlevel% geq 8 (
+    if errorlevel 8 (
         echo Error copying folder to USB drive
     ) else (
         echo Folder successfully copied to %usb_letter%:\

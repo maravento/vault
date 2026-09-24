@@ -75,10 +75,10 @@ mount_drive() {
 
     [ -z "$disk_id" ] || [ "$disk_id" == "exit" ] && echo "Exiting..." && return
 
-    device_path=$(lsblk -rn -o NAME,LABEL,UUID | awk -v id="$disk_id" '$2 == id || $3 == id {print "/dev/" $1}')
+    device_path=$(blkid -L "$disk_id" 2>/dev/null || blkid -U "$disk_id" 2>/dev/null)
 
     if [ -n "$device_path" ]; then
-        disk_label=$(lsblk -no LABEL "$device_path" | tr -d ' ')
+        disk_label=$(lsblk -no LABEL "$device_path" | tr -d ' /')
         [ -z "$disk_label" ] && disk_label=$(basename "$device_path")
 
         mount_point="/media/$local_user/$disk_label"
@@ -117,7 +117,7 @@ umount_drive() {
     read -r -p "Enter the name of the folder where the disk is mounted ('exit' to exit): " folder_name
     [ "$folder_name" == "exit" ] && echo "Exiting..." && return
 
-    if ! echo "$folder_name" | grep -qE '^[a-zA-Z0-9_:@. -]+$'; then
+    if [ -z "$folder_name" ] || [[ "$folder_name" == */* ]]; then
         echo "Invalid folder name."
         return
     fi

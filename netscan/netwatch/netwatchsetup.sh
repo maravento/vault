@@ -293,31 +293,35 @@ check_already_installed() {
     fi
 }
 
-# crontab backup
-backup_crontab() {
-    local cron_user="$1"
-    local backup_dir="/etc/bak/crontab"
-    local crontab_tmp
+# CRON_D
+# Add or replace one line in the project's single cron.d file
+cron_d_set() {
+    local match="$1" line="$2"
+    local cron_file="/etc/cron.d/netwatch"
+    local cron_tmp
 
-    [ -n "$cron_user" ] || return 1
-    mkdir -p "$backup_dir" || return 1
-
-    crontab_tmp=$(mktemp)
-    if crontab -u "$cron_user" -l > "$crontab_tmp" 2>/dev/null && [ -s "$crontab_tmp" ]; then
-        mv -f "$crontab_tmp" "$backup_dir/${cron_user}.bak"
+    cron_tmp=$(mktemp)
+    [ -f "$cron_file" ] && { grep -vF "$match" "$cron_file" > "$cron_tmp" || true; }
+    [ -n "$line" ] && printf '%s\n' "$line" >> "$cron_tmp"
+    if [ -s "$cron_tmp" ]; then
+        install -m 644 -o root -g root "$cron_tmp" "$cron_file"
     else
-        rm -f "$crontab_tmp"
+        rm -f "$cron_file"
     fi
+    rm -f "$cron_tmp"
 }
 
 # add one @reboot cron entry per daemon, so a failure in one never keeps
 # the other from starting
 add_reboot_cron() {
-    if ! crontab -l 2>/dev/null | grep -qF "$netwatch_tools/netwatchlan.sh start"; then
-        backup_crontab root
-        (crontab -l 2>/dev/null; echo "@reboot $netwatch_tools/netwatchlan.sh start"; echo "@reboot $netwatch_tools/netwatchports.sh start") | crontab -
-        log "INFO: added to cron @reboot"
-    fi
+    cron_d_set "$netwatch_tools/netwatchlan.sh" "@reboot root $netwatch_tools/netwatchlan.sh start"
+    cron_d_set "$netwatch_tools/netwatchports.sh" "@reboot root $netwatch_tools/netwatchports.sh start"
+    log "INFO: added to cron @reboot"
+
+    # legacy entries, from versions before /etc/cron.d
+    for legacy_path in "$netwatch_tools/netwatchlan.sh start" "$netwatch_tools/netwatchports.sh start"; do
+        crontab -l 2>/dev/null | { grep -vF "$legacy_path" || true; } | crontab - 2>/dev/null || true
+    done
 }
 
 do_install() {
@@ -498,13 +502,10 @@ SQL
 
     # web files (application code only -- netwatch.conf is never overwritten,
     # it may contain manual edits after install)
-    mkdir -p "$netwatch_www/backups"
     for src in "$web_dir"/*.php "$web_dir"/*.html; do
         [ -f "$src" ] || continue
         fname="$(basename "$src")"
-        dst="$netwatch_web/$fname"
-        [ -f "$dst" ] && cp -f "$dst" "$netwatch_www/backups/$fname.bak" &>/dev/null
-        cp -f "$src" "$dst"
+        cp -f "$src" "$netwatch_web/$fname"
         log "INFO: updated $fname"
     done
     chown -R www-data:www-data "$netwatch_web"
@@ -512,7 +513,6 @@ SQL
     for f in "$tools_dir"/*.sh; do
         [ -f "$f" ] || continue
         fname="$(basename "$f")"
-        [ -f "$netwatch_tools/$fname" ] && cp -f "$netwatch_tools/$fname" "$netwatch_www/backups/$fname.bak" &>/dev/null
         cp -f "$f" "$netwatch_tools/$fname"
         chmod +x "$netwatch_tools/$fname"
         log "INFO: updated $fname"
@@ -553,16 +553,12 @@ do_uninstall() {
 
     rm -f /etc/logrotate.d/netwatch /etc/logrotate.d/netwatch.bak
 
-    # cron entries -- matched by full command/path, not bare substrings
-    backup_crontab root
-    cron_tmp=$(mktemp)
-    crontab -l 2>/dev/null > "$cron_tmp" || true
-    grep -vF "$netwatch_tools/netwatchlan.sh start" "$cron_tmp" > "${cron_tmp}.next" || true
-    mv "${cron_tmp}.next" "$cron_tmp"
-    grep -vF "$netwatch_tools/netwatchports.sh start" "$cron_tmp" > "${cron_tmp}.next" || true
-    mv "${cron_tmp}.next" "$cron_tmp"
-    crontab "$cron_tmp"
-    rm -f "$cron_tmp"
+    rm -f /etc/cron.d/netwatch
+
+    # legacy entries in root's crontab, from versions before /etc/cron.d
+    for legacy_path in "$netwatch_tools/netwatchlan.sh start" "$netwatch_tools/netwatchports.sh start"; do
+        crontab -l 2>/dev/null | { grep -vF "$legacy_path" || true; } | crontab - 2>/dev/null || true
+    done
 
     systemctl daemon-reload
     systemctl restart apache2

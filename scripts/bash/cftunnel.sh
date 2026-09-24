@@ -243,7 +243,7 @@ delete_dns_record() {
                 zone_id="$cid"
             fi
         fi
-    done < <(echo "$zones_response" | gawk 'match($0,/"id":"[a-f0-9]+"/){id=substr($0,RSTART+6,RLENGTH-7)} match($0,/"name":"[^"]+"/){name=substr($0,RSTART+8,RLENGTH-9); if(id!="") print name"\t"id; id=""}' RS='}' ORS='\n')
+    done < <(echo "$zones_response" | awk 'match($0,/"id":"[a-f0-9]+"/){id=substr($0,RSTART+6,RLENGTH-7)} match($0,/"name":"[^"]+"/){name=substr($0,RSTART+8,RLENGTH-9); if(id!="") print name"\t"id; id=""}' RS='}' ORS='\n')
 
     if [[ -z "$zone_id" ]]; then
         echo "WARNING: No matching Cloudflare zone found for '$tunnel_hostname'; skipping automatic DNS deletion."
@@ -258,7 +258,7 @@ delete_dns_record() {
     }
 
     local record_id
-    record_id=$(echo "$records_response" | gawk 'match($0,/"id":"[a-f0-9]+"/){print substr($0,RSTART+6,RLENGTH-7); exit}')
+    record_id=$(echo "$records_response" | awk 'match($0,/"id":"[a-f0-9]+"/){print substr($0,RSTART+6,RLENGTH-7); exit}')
 
     if [[ -z "$record_id" ]]; then
         echo "[OK] No DNS record found for '$tunnel_hostname' (already removed or never created)."
@@ -744,10 +744,12 @@ delete_tunnel() {
     echo "[OK] Tunnel '$tunnel_name' deleted."
 }
 
+# This script runs as a normal user, so it cannot write /etc/cron.d, which
+# only root can modify. Its autostart entry lives in the user's own crontab.
 _cron_remove() {
     local script_path="$1"
     if crontab -l 2>/dev/null | grep -qF "$script_path"; then
-        crontab -l 2>/dev/null | grep -vF "$script_path" | crontab -
+        crontab -l 2>/dev/null | { grep -vF "$script_path" || true; } | crontab -
         pkill -HUP crond 2>/dev/null || pkill -HUP cron 2>/dev/null || true
         echo "[OK] Autostart entry removed from crontab."
     fi

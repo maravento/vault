@@ -101,15 +101,19 @@ restore_r8169() {
     echo "Restoring 'r8169' driver..."
     rm -f /etc/modprobe.d/blacklist-r8169.conf
 
-    if lsmod | grep -q '^r8168'; then
-        modprobe -r r8168 2>/dev/null
-    fi
+    for realtek_mod in r8168 r8125; do
+        if lsmod | grep -q "^$realtek_mod"; then
+            modprobe -r "$realtek_mod" 2>/dev/null
+        fi
+    done
 
-    echo "Removing 'r8168-dkms' package..."
-    if ! apt-get purge -y r8168-dkms; then
-        echo "Failed to remove r8168-dkms"
-        exit 1
-    fi
+    echo "Removing Realtek DKMS packages..."
+    for realtek_pkg in r8168-dkms r8125-dkms; do
+        if dpkg -s "$realtek_pkg" &>/dev/null && ! apt-get purge -y "$realtek_pkg"; then
+            echo "Failed to remove $realtek_pkg"
+            exit 1
+        fi
+    done
 
     update-initramfs -u
     depmod -a

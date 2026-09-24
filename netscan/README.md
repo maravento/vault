@@ -331,13 +331,12 @@ sudo ./netreport.sh
 /var/log/netwatch.log                  # Shared by both daemons
 /etc/logrotate.d/netwatch              # Weekly rotation for the shared log
 
-/var/www/netwatch/backups/             # .bak of web files and tools, one per --update
-/etc/bak/crontab/root.bak              # Copy of root's crontab, taken before any cron entry is added or removed
+/etc/cron.d/netwatch                   # All cron entries of the project, one file
 ```
 
-> `netwatchsetup.sh` copies root's crontab to `/etc/bak/crontab/root.bak` before adding or removing any cron entry. It is a single copy, overwritten on every run, shared with every other project that touches the same crontab, and it is never restored automatically. `--uninstall` does not restore it either: it deletes only its own entries, matched by the full script path, and leaves every other cron job untouched. To roll back, restore the copy by hand with `crontab /etc/bak/crontab/root.bak`.
+> `netwatchsetup.sh` writes every cron entry of the project to `/etc/cron.d/netwatch`. Adding or removing an entry touches that file only, so the cron jobs of other projects are never at risk. `--uninstall` deletes the file. Installations made before this change keep their entries in root's crontab; the installer removes them, matched by the full script path.
 >
-> `netwatchsetup.sh` copia el crontab de root en `/etc/bak/crontab/root.bak` antes de agregar o quitar cualquier entrada de cron. Es una sola copia, sobrescrita en cada ejecución, compartida con cualquier otro proyecto que toque el mismo crontab, y nunca se restaura de forma automática. `--uninstall` tampoco la restaura: borra únicamente sus propias entradas, identificadas por la ruta completa del script, y deja intactas las demás tareas de cron. Para deshacer un cambio, restaura la copia a mano con `crontab /etc/bak/crontab/root.bak`.
+> `netwatchsetup.sh` escribe todas las entradas de cron del proyecto en `/etc/cron.d/netwatch`. Agregar o quitar una entrada toca únicamente ese archivo, así que las tareas de otros proyectos nunca corren riesgo. `--uninstall` elimina el archivo. Las instalaciones anteriores a este cambio conservan sus entradas en el crontab de root; el instalador las retira, identificadas por la ruta completa del script.
 
 #### Requirements
 
@@ -372,14 +371,14 @@ apt-get install -y avahi-utils nbtscan
       <strong>Important</strong>
       <ul>
         <li>nginx must not be running.</li>
-        <li>NetWatch uses Apache2 exclusively on port 3126, because it is listed as <strong>Unassigned</strong> by IANA. For more information visit <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt</a></li>
+        <li>The web panel listens on port <code>3126</code>, registered by <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> as Unassigned.</li>
       </ul>
     </td>
     <td style="width: 50%; vertical-align: top;">
       <strong>Importante</strong>
       <ul>
         <li>nginx no debe estar en ejecución.</li>
-        <li>NetWatch usa Apache2 exclusivamente en el puerto 3126, ya que está listado como <strong>Sin asignar</strong> por IANA. Para más información visita <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt</a></li>
+        <li>El panel web escucha en el puerto <code>3126</code>, registrado por <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> como Sin asignar.</li>
       </ul>
     </td>
   </tr>

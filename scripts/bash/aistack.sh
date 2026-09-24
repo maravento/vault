@@ -407,7 +407,6 @@ install_nvidia_docker() {
         step "Installing NVIDIA Container Toolkit"
 
         # Add NVIDIA repository - using keyrings (apt-key is deprecated)
-        distribution=$(. /etc/os-release; echo "$ID$VERSION_ID")
         rm -f /etc/apt/keyrings/nvidia-docker.gpg /tmp/nvidia_docker_$$.gpg
         mkdir -p /etc/apt/keyrings
         if ! retry_cmd curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey -o /tmp/nvidia_docker_$$.gpg; then
@@ -419,7 +418,7 @@ install_nvidia_docker() {
         chmod 644 /etc/apt/keyrings/nvidia-docker.gpg
         rm -f /tmp/nvidia_docker_$$.gpg
         # Add repo with signed-by pointing to its own keyring (not the global one)
-        curl -fsSL "https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list" \
+        curl -fsSL "https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list" \
             | sed 's|deb https://|deb [signed-by=/etc/apt/keyrings/nvidia-docker.gpg] https://|g' \
             | tee /etc/apt/sources.list.d/nvidia-docker.list > /dev/null
         ok "NVIDIA Docker GPG key imported to keyrings"
@@ -1846,7 +1845,7 @@ uninstall_portainer() {
 
         read -rp " Remove Portainer image? [y/N]: " confirm
         if [[ "$confirm" =~ ^[yY]$ ]]; then
-            docker rmi portainer/portainer-ce 2>/dev/null
+            docker rmi portainer/portainer-ce:lts 2>/dev/null
             ok "Portainer image removed"
         fi
     else

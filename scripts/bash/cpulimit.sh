@@ -55,20 +55,20 @@ start_limit() {
     fi
 
     # Verify process exists
-    if ! pgrep -f "$program_name" &>/dev/null; then
+    if ! pgrep -f "^(/[^[:space:]]*/)?$program_name([[:space:]]|$)" &>/dev/null; then
         echo "No running process found for '$program_name'."
         exit 1
     fi
 
-    pid_count=$(pgrep -f "$program_name" | wc -l)
+    pid_count=$(pgrep -f "^(/[^[:space:]]*/)?$program_name([[:space:]]|$)" | wc -l)
     echo "Found $pid_count process(es) matching '$program_name'."
 
     # CPU %
-    read -r -p "Enter the CPU % number for '$program_name' (0-100): " cpu_limit
+    read -r -p "Enter the CPU % number for '$program_name' (1-100): " cpu_limit
 
     # Check CPU %
-    if ! [[ "$cpu_limit" =~ $UH_UINT ]] || [ "$cpu_limit" -lt 0 ] || [ "$cpu_limit" -gt 100 ]; then
-        echo "Invalid percentage. It must be a number between 0 and 100"
+    if ! [[ "$cpu_limit" =~ $UH_UINT ]] || [ "$cpu_limit" -lt 1 ] || [ "$cpu_limit" -gt 100 ]; then
+        echo "Invalid percentage. It must be a number between 1 and 100"
         exit 1
     fi
 
@@ -79,7 +79,7 @@ start_limit() {
         cpulimit_pid=$!
         echo "$cpulimit_pid" >> /run/cpulimit_managed.pid
         echo "$cpu_limit% CPU limit applied to '$program_name' (PID: $pid, cpulimit PID: $cpulimit_pid)"
-    done < <(pgrep -f "$program_name")
+    done < <(pgrep -f "^(/[^[:space:]]*/)?$program_name([[:space:]]|$)")
 }
 
 status_limit() {

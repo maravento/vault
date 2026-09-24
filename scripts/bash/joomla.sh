@@ -229,7 +229,7 @@ EOF
 delete_dependencies() {
     echo "Removing MySQL, Apache2, PHP and mkcert..."
     systemctl stop apache2 mysql
-    apt purge --auto-remove mysql-server mysql-client mysql-common apache2 php* libapache2-mod-php -y
+    apt purge --auto-remove mysql-server mysql-client mysql-common apache2 'php*' libapache2-mod-php -y
     rm -rf /etc/mysql /var/lib/mysql /var/log/mysql 2>/dev/null
     rm -rf /etc/apache2 /var/www/html 2>/dev/null
     rm -rf /etc/php /var/log/apache2 2>/dev/null

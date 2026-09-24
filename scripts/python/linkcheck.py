@@ -112,6 +112,8 @@ def check_link(url, session):
                 return None, "timeout"
             except SSLError:
                 return None, "ssl"
+            except TooManyRedirects:
+                return None, "too_many_redirects"
             except Exception:
                 return None, "redirect_broken"
 

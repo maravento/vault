@@ -43,7 +43,7 @@ remove_and_install_squid_openssl() {
     [ -d /etc/squid ] && cp -a /etc/squid/. "$BACKUP_DIR/"
 
     echo "Removing old squid..."
-    apt purge -y squid* &>/dev/null
+    apt purge -y 'squid*' &>/dev/null
     rm -rf /var/spool/squid* /var/log/squid* /etc/squid*
     rm -f "$CA_CERT_D/squid_proxyCA.crt"
 

@@ -3,11 +3,19 @@
 """
 gitfolder.py
 ------------
-Downloads a specific folder or file from a public GitHub repository
-using the GitHub API. Supports recursive download of subfolders and
-preserves the original directory structure locally.
-Usage: python3 gitfolder.py <github_url>
-Example: python3 gitfolder.py https://github.com/maravento/vault/project_name
+Downloads a specific folder from a public GitHub repository using the
+GitHub API. Supports recursive download of subfolders and preserves the
+original directory structure locally.
+
+Only GitHub is supported. Only folders are supported: a file URL or any
+other host aborts with a warning.
+
+Usage:
+    wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
+    chmod +x gitfolder.py
+    python3 gitfolder.py https://github.com/maravento/vault/project_name
+
+Replace "project_name" with the name of the project folder.
 """
 import requests
 import os
@@ -68,7 +76,8 @@ def download_folder_from_github(repo_owner, repo_name, folder_path, output_dir, 
         return False
     os.makedirs(output_dir, exist_ok=True)
     if isinstance(contents, dict) and contents.get("type") == "file":
-        return download_item(contents, output_dir) and fetch_ok
+        print("WARNING: URL points to a file. This script downloads folders only -- abort")
+        return False
     ok = fetch_ok
     for item in contents:
         if item["type"] == "file":
@@ -122,6 +131,12 @@ if __name__ == "__main__":
     url = sys.argv[1]
     parsed_url = urlparse(url)
     path_parts = parsed_url.path.strip("/").split("/")
+    if parsed_url.netloc == "raw.githubusercontent.com" or (len(path_parts) > 2 and path_parts[2] == "blob"):
+        print("WARNING: URL points to a file. This script downloads folders only -- abort")
+        sys.exit(1)
+    if parsed_url.netloc not in ("github.com", "www.github.com"):
+        print("WARNING: only GitHub URLs are supported -- abort")
+        sys.exit(1)
     if len(path_parts) < 2:
         print("Error: URL must include at least owner and repository name.")
         sys.exit(1)

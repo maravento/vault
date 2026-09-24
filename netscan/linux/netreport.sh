@@ -156,26 +156,26 @@ create_custom_xsl() {
       padding: 20px;
     }
     .container { max-width: 1200px; margin: 0 auto; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-radius: 8px; }
-    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 8px 8px 0 0; }
+    .header { background: linear-gradient(to bottom, #553c7b, #3b2a5a); color: white; padding: 30px; border-radius: 8px 8px 0 0; }
     .header h1 { font-size: 2em; margin-bottom: 10px; }
     .header .info { opacity: 0.9; font-size: 0.95em; }
     .summary { padding: 25px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; }
     .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 15px; }
-    .summary-item { background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #667eea; }
-    .summary-item strong { display: block; color: #667eea; font-size: 0.85em; text-transform: uppercase; margin-bottom: 5px; }
+    .summary-item { background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #553c7b; }
+    .summary-item strong { display: block; color: #553c7b; font-size: 0.85em; text-transform: uppercase; margin-bottom: 5px; }
     .summary-item span { font-size: 1.3em; font-weight: bold; color: #2c3e50; }
     .content { padding: 25px; }
     .host { margin-bottom: 30px; border: 1px solid #e9ecef; border-radius: 6px; overflow: hidden; }
-    .host-header { background: #667eea; color: white; padding: 15px 20px; }
+    .host-header { background: #553c7b; color: white; padding: 15px 20px; }
     .host-header h2 { font-size: 1.4em; }
     .host-info { padding: 20px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; }
     .host-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; }
     .info-item { display: flex; align-items: center; }
-    .info-item strong { min-width: 100px; color: #667eea; }
+    .info-item strong { min-width: 100px; color: #553c7b; }
     .ports { padding: 20px; }
-    .ports h3 { margin-bottom: 15px; color: #2c3e50; border-bottom: 2px solid #667eea; padding-bottom: 8px; }
+    .ports h3 { margin-bottom: 15px; color: #2c3e50; border-bottom: 2px solid #553c7b; padding-bottom: 8px; }
     .port-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-    .port-table th { background: #667eea; color: white; padding: 12px; text-align: left; font-weight: 600; font-size: 0.9em; }
+    .port-table th { background: #553c7b; color: white; padding: 12px; text-align: left; font-weight: 600; font-size: 0.9em; }
     .port-table td { padding: 12px; border-bottom: 1px solid #e9ecef; }
     .port-table tr:hover { background: #f8f9fa; }
     .port-open { color: #27ae60; font-weight: bold; }

@@ -404,7 +404,7 @@ EOF
 
     target="$SFTP_HOST"
     [[ -n "${SFTP_USER:-}" ]] && target="$SFTP_USER@$SFTP_HOST"
-    [[ -n "${SFTP_PATH:-}" ]] && target="$target:$SFTP_PATH"
+    target="$target:${SFTP_PATH:-}"
 
     if sshfs "$target" "$LOCAL_DIR" -o reconnect,ServerAliveInterval=15,uid=$(id -u),gid=$(id -g); then
         info "Mounted:\n$target -> $LOCAL_DIR" "Mounted"

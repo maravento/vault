@@ -25,7 +25,7 @@ if %errorlevel%==0 (
     echo Autorun is already disabled.
 ) else (
     reg add "%KEY%" /v NoDriveTypeAutoRun /t REG_DWORD /d 0xFF /f >nul
-    if %errorlevel%==0 (
+    if not errorlevel 1 (
         echo.
         echo Autorun disabled successfully.
         echo Restart your PC to apply the change.
