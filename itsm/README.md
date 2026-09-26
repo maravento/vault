@@ -49,7 +49,7 @@
 
 | File | OS | Size |
 | :---: | :---: | :---: |
-| [itsm.exe (.zip)](https://mega.nz/file/eVc1BTbY#MgTZ-zelvJtID1vD0nmVEo0ajT8-2Ihk-yZgcwH10IY) | Windows 10/11 x64 | 163,5 MB |
+| [itsm.exe (.zip)](https://mega.nz/file/SJ0DzLSZ#kDRYpVEOwACvcumPxMEUvBccYY3YdI97NX6xs6VFD10) | Windows 10/11 x64 | 167,7 MB |
 
 ## Supported Versions
 
@@ -67,7 +67,7 @@
 ### Web-based ITSM solutions
 
 - [glpi-11.x](https://glpi-project.org/downloads/)
-- [iTop-3.2.x](https://sourceforge.net/projects/itop/files/itop/)
+- [iTop-3.x.x](https://sourceforge.net/projects/itop/files/itop/)
 
 ### Stacks
 
