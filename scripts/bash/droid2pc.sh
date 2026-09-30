@@ -5,22 +5,12 @@
 #
 # droid2pc - Control and mirror Android devices to PC via scrcpy
 #
-# Compatible:
-# Android 5.0 (API 21) or higher
+# DESCRIPTION: Starts, stops or checks the status of scrcpy for an Android
+# device connected via ADB/USB debugging. Not run as root.
 #
-# Requirements (run once):
-# 1. Enable "Developer options" on your Android device.
-# -> Settings > About phone > Tap "Build number" 7 times.
-# 2. Enable "USB debugging" in Developer options.
-# 3. Connect the phone via USB and authorize the PC when prompted.
-# 4. Install required packages on Ubuntu:
-# sudo apt install adb scrcpy
+# USAGE: ./droid2pc.sh { start | stop | status }
 #
-# Usage:
-# ./droid2pc start # Start scrcpy if device is connected
-# ./droid2pc stop # Stop any running scrcpy instance
-# ./droid2pc status # Check if scrcpy is running
-#
+# ENV: PID file under /run/user/<uid>/
 #
 ################################################################################
 

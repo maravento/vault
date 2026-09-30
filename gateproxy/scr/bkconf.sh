@@ -9,6 +9,10 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # logging
 log_file="/var/log/bkconf.log"
 log() {
@@ -78,7 +82,7 @@ do
     if [ -e "$p" ]; then
         pathbk+=("$p")
     else
-        log "WARNING: $p not found -- skip"
+        log "INFO: $p not found -- skip"
     fi
 done
 case "${1:-}" in

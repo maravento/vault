@@ -4,76 +4,15 @@
 ################################################################################
 #
 # Cloudflare Tunnel Service Manager (cftunnel)
-# Unified control script for multiple Cloudflare Tunnels
 #
-# Usage: cftunnel.sh {create|start|startall|stop|status|delete}
+# DESCRIPTION:
+# Creates, starts, stops and deletes Cloudflare Tunnels, and manages their
+# cron autostart entry. Configuration and credentials are stored under
+# ~/.cloudflared/.
 #
-#   create     Create a new tunnel interactively (login, name, hostname, service)
-#   start      Start tunnels interactively (asks per tunnel)
-#   startall   Start all configured tunnels without prompts + enable cron autostart
-#   stop       Stop all running tunnels + remove cron autostart entry
-#   status     List active/inactive tunnels
-#   delete     Stop and permanently delete a tunnel (Cloudflare side + local config)
+# USAGE:
+# cftunnel.sh {create|start|startall|stop|status|delete}
 #
-# FILE STRUCTURE:
-# ===============
-# ~/.cloudflared/
-#   ├── cert.pem                 # Authentication certificate
-#   ├── tunnel1.yml              # Tunnel configuration file
-#   ├── tunnel2.yml              # Another tunnel configuration
-#   ├── TUNNEL-ID.json           # Tunnel credentials
-#   ├── tunnel1.pid              # PID file for tunnel1
-#   ├── tunnel2.pid              # PID file for tunnel2
-#   └── tunnel1.log              # Log file for tunnel1
-#
-# PREREQUISITES:
-# ==============
-# 1. Install cloudflared (Debian/Ubuntu):
-#    sudo mkdir -p --mode=0755 /usr/share/keyrings
-#    curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
-#    echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' | sudo tee /etc/apt/sources.list.d/cloudflared.list
-#    sudo apt-get update && sudo apt-get install cloudflared
-#
-# 2. Authenticate once (downloads cert.pem to ~/.cloudflared/):
-#    cloudflared tunnel login
-#
-# API TOKEN (optional, only needed to auto-remove DNS records on delete):
-# =========================================================================
-# cloudflared has no CLI command to delete a DNS route, so removing the
-# record left behind by 'cloudflared tunnel route dns' requires a scoped
-# Cloudflare API Token instead of cert.pem:
-#   1. dash.cloudflare.com -> profile icon -> My Profile -> API Tokens
-#   2. Create Token -> Create Custom Token
-#   3. Permissions: Zone -> DNS -> Edit
-#   4. Zone Resources: Include -> Specific zone -> your domain only
-#   5. (Recommended) set a TTL / client IP filter
-#   6. Create Token and copy it -> it is shown only once
-#   7. Paste it into the 'token_cloudflare' variable below (CONFIG)
-#
-# USEFUL COMMANDS:
-# ================
-# cloudflared tunnel login                              # First-time authentication
-# cloudflared tunnel list                               # List all tunnels
-# cloudflared tunnel create TUNNEL_NAME                 # Create new tunnel
-# cloudflared tunnel run TUNNEL_NAME                    # Start specific tunnel
-# cloudflared tunnel route dns TUNNEL_NAME SUBDOMAIN    # Route DNS to tunnel
-# cloudflared tunnel cleanup TUNNEL_NAME                # Cleanup tunnel connections
-# cloudflared tunnel delete TUNNEL_NAME                 # Delete tunnel permanently
-#
-# RECOMMENDATION:
-# ===============
-# Use permanent tunnels for production services and temporary tunnels
-# only for quick testing and development purposes.
-#
-# Always protect every tunnel hostname (HTTP or 'tcp://' ingress alike)
-# with a Cloudflare Zero Trust Access Application + policy. Without it,
-# anyone who discovers the hostname can reach the exposed service — the
-# tunnel alone does not authenticate connections.
-#
-# Zero Trust -> Access Control -> Applications -> Create New Application
-#
-# For more information:
-# https://developers.cloudflare.com/cloudflare-one/connections/connect-apps
 ################################################################################
 
 set -uo pipefail
@@ -126,7 +65,7 @@ _resolve_user_home() {
 
 USER_HOME=$(_resolve_user_home)
 if [ -z "$USER_HOME" ] || [ ! -d "$USER_HOME" ]; then
-    echo "ERROR: Cannot determine a valid home directory (resolved: '${USER_HOME:-empty}')."
+    echo "ERROR: cannot determine a valid home directory (resolved: '${USER_HOME:-empty}') -- abort"
     exit 1
 fi
 
@@ -213,12 +152,12 @@ delete_dns_record() {
     local tunnel_hostname="$1"
 
     if [[ -z "$tunnel_hostname" ]]; then
-        echo "WARNING: No hostname found in config; skipping DNS record deletion."
+        echo "INFO: no hostname found in config, skipping DNS deletion -- skip"
         return 0
     fi
 
     if [[ -z "$token_cloudflare" ]]; then
-        echo "WARNING: 'token_cloudflare' is not set; skipping automatic DNS deletion."
+        echo "INFO: 'token_cloudflare' not set, skipping automatic DNS deletion -- skip"
         echo "[NOTE] Remove the DNS record for '$tunnel_hostname' manually from the Cloudflare dashboard."
         return 0
     fi
@@ -227,7 +166,7 @@ delete_dns_record() {
     local zones_response
     zones_response=$(curl -sf -X GET "https://api.cloudflare.com/client/v4/zones?per_page=50" \
         -H "Authorization: Bearer $api_token" -H "Content-Type: application/json") || {
-        echo "WARNING: Could not reach Cloudflare API to list zones; skipping automatic DNS deletion."
+        echo "INFO: could not reach Cloudflare API to list zones, skipping -- skip"
         return 0
     }
 
@@ -246,14 +185,14 @@ delete_dns_record() {
     done < <(echo "$zones_response" | awk 'match($0,/"id":"[a-f0-9]+"/){id=substr($0,RSTART+6,RLENGTH-7)} match($0,/"name":"[^"]+"/){name=substr($0,RSTART+8,RLENGTH-9); if(id!="") print name"\t"id; id=""}' RS='}' ORS='\n')
 
     if [[ -z "$zone_id" ]]; then
-        echo "WARNING: No matching Cloudflare zone found for '$tunnel_hostname'; skipping automatic DNS deletion."
+        echo "INFO: no matching Cloudflare zone for '$tunnel_hostname', skipping -- skip"
         return 0
     fi
 
     local records_response
     records_response=$(curl -sf -X GET "https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records?name=${tunnel_hostname}" \
         -H "Authorization: Bearer $api_token" -H "Content-Type: application/json") || {
-        echo "WARNING: Could not query DNS records for '$tunnel_hostname'; skipping automatic DNS deletion."
+        echo "INFO: could not query DNS records for '$tunnel_hostname', skipping -- skip"
         return 0
     }
 
@@ -270,7 +209,7 @@ delete_dns_record() {
         -H "Authorization: Bearer $api_token" -H "Content-Type: application/json" >/dev/null; then
         echo "[OK] DNS record for '$tunnel_hostname' deleted."
     else
-        echo "WARNING: Failed to delete DNS record for '$tunnel_hostname'; remove it manually from the dashboard."
+        echo "WARNING: failed to delete DNS record for '$tunnel_hostname' -- alert"
     fi
 }
 
@@ -284,7 +223,7 @@ start_tunnel() {
     echo "Config: $config_file"
 
     if [[ ! -f "$config_file" ]]; then
-        echo "ERROR: Config file does not exist: $config_file"
+        echo "WARNING: config file does not exist: $config_file -- alert"
         return 1
     fi
 
@@ -293,7 +232,7 @@ start_tunnel() {
         local old_pid
         old_pid=$(cat "$pid_file")
         if _pid_is_valid "$old_pid" && kill -0 "$old_pid" 2>/dev/null; then
-            echo "WARNING: Tunnel '$tunnel_name' already running (PID $old_pid)"
+            echo "INFO: tunnel '$tunnel_name' already running (PID $old_pid)"
             local restart
             read -r -p "Stop existing tunnel and start new one? (y/n): " restart
             if [[ ! "$restart" =~ ^[Yy]$ ]]; then
@@ -315,7 +254,7 @@ start_tunnel() {
     local tunnel_id
     tunnel_id=$(get_tunnel_id "$config_file")
     if [[ -z "$tunnel_id" ]]; then
-        echo "ERROR: No 'tunnel:' entry found in config file."
+        echo "WARNING: no 'tunnel:' entry found in config file -- alert"
         return 1
     fi
 
@@ -336,7 +275,7 @@ start_tunnel() {
         ((retries--))
     done
 
-    echo "ERROR: Failed to start tunnel '$tunnel_name'"
+    echo "WARNING: failed to start tunnel '$tunnel_name' -- alert"
     tail -20 "$log_file"
     rm -f "$pid_file"
     return 1
@@ -354,7 +293,7 @@ stop_tunnel() {
     local pid
     pid=$(cat "$pid_file")
     if ! _pid_is_valid "$pid"; then
-        echo "WARNING: Invalid PID in $pid_file ('$pid'). Removing stale file."
+        echo "INFO: invalid PID in $pid_file ('$pid'), removed stale file -- fixed"
         rm -f "$pid_file"
         return
     fi
@@ -375,7 +314,7 @@ stop_all_tunnels() {
     mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
 
     if [[ ${#tunnels[@]} -eq 0 ]]; then
-        echo "ERROR: No tunnel configuration files found in $CONFIG_DIR/"
+        echo "WARNING: no tunnel configuration files found in $CONFIG_DIR/ -- alert"
         return 1
     fi
 
@@ -427,7 +366,7 @@ status_tunnel() {
     local pid
     pid=$(cat "$pid_file")
     if ! _pid_is_valid "$pid"; then
-        echo "WARNING: Invalid PID in $pid_file. Removing stale file."
+        echo "INFO: invalid PID in $pid_file, removed stale file -- fixed"
         rm -f "$pid_file"
         return
     fi
@@ -459,11 +398,11 @@ create_tunnel() {
         if [[ "$do_login" =~ ^[Yy]$ ]]; then
             "$CLOUDFLARED_BIN" tunnel login
             if [[ ! -f "$CONFIG_DIR/cert.pem" ]]; then
-                echo "ERROR: Login did not complete (cert.pem not found)."
+                echo "WARNING: login did not complete, cert.pem not found -- alert"
                 return 1
             fi
         else
-            echo "ERROR: Cannot create a tunnel without logging in first."
+            echo "WARNING: cannot create a tunnel without logging in first -- alert"
             return 1
         fi
     fi
@@ -471,13 +410,13 @@ create_tunnel() {
     local tunnel_name
     read -r -p "Tunnel name: " tunnel_name
     if [[ -z "$tunnel_name" ]]; then
-        echo "ERROR: Tunnel name cannot be empty."
+        echo "WARNING: tunnel name cannot be empty -- alert"
         return 1
     fi
 
     local config_file="$CONFIG_DIR/${tunnel_name}.yml"
     if [[ -f "$config_file" ]]; then
-        echo "ERROR: Config file already exists: $config_file"
+        echo "WARNING: config file already exists: $config_file -- alert"
         return 1
     fi
 
@@ -492,7 +431,7 @@ create_tunnel() {
         tunnel_id=$("$CLOUDFLARED_BIN" tunnel list 2>/dev/null | awk -v name="$tunnel_name" '$2==name {print $1}' | head -1)
     fi
     if [[ -z "$tunnel_id" ]]; then
-        echo "ERROR: Could not determine tunnel ID. Aborting config creation."
+        echo "WARNING: could not determine tunnel ID, aborting config creation -- alert"
         return 1
     fi
 
@@ -502,17 +441,17 @@ create_tunnel() {
     while true; do
         read -r -p "Public hostname (e.g. sub.domain.com): " tunnel_hostname
         if [[ -z "$tunnel_hostname" ]]; then
-            echo "ERROR: Hostname is required. Aborting."
+            echo "WARNING: hostname is required, aborting -- alert"
             return 1
         fi
         if [[ ! "$tunnel_hostname" =~ $UH_FQDN ]]; then
-            echo "WARNING: Invalid hostname format: '$tunnel_hostname'"
+            echo "INFO: invalid hostname format: '$tunnel_hostname' -- retry"
             continue
         fi
         domain="${tunnel_hostname#*.}"
         if ! getent hosts "$domain" >/dev/null 2>&1; then
-            echo "WARNING: domain '$domain' does not resolve -- alert"
-            echo "WARNING: a zone apex with no A/AAAA record is normal"
+            echo "WARNING: domain '$domain' does not resolve"
+            echo "WARNING: a zone apex with no A/AAAA record is normal -- alert"
         fi
         break
     done
@@ -524,18 +463,18 @@ create_tunnel() {
             read -r -p "Server IP [127.0.0.1]: " svc_ip
             svc_ip="${svc_ip:-127.0.0.1}"
             if [[ ! "$svc_ip" =~ $UH_IPV4 ]]; then
-                echo "ERROR: Invalid IP: '$svc_ip'"
+                echo "WARNING: invalid IP: '$svc_ip' -- alert"
                 return 1
             fi
             read -r -p "Port: " svc_port
             if ! is_valid_port "$svc_port"; then
-                echo "ERROR: Invalid port: '$svc_port'"
+                echo "WARNING: invalid port: '$svc_port' -- alert"
                 return 1
             fi
             service="${service_type}://${svc_ip}:${svc_port}"
             ;;
         *)
-            echo "ERROR: Invalid service type: $service_type"
+            echo "WARNING: invalid service type: $service_type -- alert"
             return 1
             ;;
     esac
@@ -594,7 +533,7 @@ start_multiple_tunnels() {
     local tunnel_count=${#tunnels[@]}
 
     if [[ $tunnel_count -eq 0 ]]; then
-        echo "ERROR: No tunnel configuration files found in $CONFIG_DIR/"
+        echo "WARNING: no tunnel configuration files found in $CONFIG_DIR/ -- alert"
         echo "Tip: Create configuration files with .yml extension"
         return 1
     fi
@@ -628,7 +567,7 @@ startall_tunnels() {
     mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
 
     if [[ ${#tunnels[@]} -eq 0 ]]; then
-        echo "ERROR: No tunnel configuration files found in $CONFIG_DIR/"
+        echo "WARNING: no tunnel configuration files found in $CONFIG_DIR/ -- alert"
         return 1
     fi
 
@@ -638,7 +577,7 @@ startall_tunnels() {
             local old_pid
             old_pid=$(cat "$pid_file")
             if _pid_is_valid "$old_pid" && kill -0 "$old_pid" 2>/dev/null; then
-                echo "WARNING: Tunnel '$tunnel' already running (PID $old_pid), skipping."
+                echo "INFO: tunnel '$tunnel' already running (PID $old_pid) -- skip"
                 continue
             else
                 rm -f "$pid_file"
@@ -654,7 +593,7 @@ status_all_tunnels() {
     mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
 
     if [[ ${#tunnels[@]} -eq 0 ]]; then
-        echo "ERROR: No tunnel configuration files found in $CONFIG_DIR/"
+        echo "WARNING: no tunnel configuration files found in $CONFIG_DIR/ -- alert"
         return 1
     fi
 
@@ -684,7 +623,7 @@ delete_tunnel() {
     mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
 
     if [[ ${#tunnels[@]} -eq 0 ]]; then
-        echo "ERROR: No tunnel configuration files found in $CONFIG_DIR/"
+        echo "WARNING: no tunnel configuration files found in $CONFIG_DIR/ -- alert"
         return 1
     fi
 
@@ -697,14 +636,14 @@ delete_tunnel() {
     local tunnel_name
     read -r -p "Tunnel name or number to delete: " tunnel_name
     if [[ -z "$tunnel_name" ]]; then
-        echo "ERROR: Tunnel name cannot be empty."
+        echo "WARNING: tunnel name cannot be empty -- alert"
         return 1
     fi
 
     if [[ "$tunnel_name" =~ $UH_UINT ]]; then
         local index=$((tunnel_name - 1))
         if [[ $index -lt 0 || $index -ge ${#tunnels[@]} ]]; then
-            echo "ERROR: Invalid selection: $tunnel_name"
+            echo "WARNING: invalid selection: $tunnel_name -- alert"
             return 1
         fi
         tunnel_name="${tunnels[$index]}"
@@ -712,12 +651,12 @@ delete_tunnel() {
 
     local config_file="$CONFIG_DIR/${tunnel_name}.yml"
     if [[ ! -f "$config_file" ]]; then
-        echo "ERROR: Config file does not exist: $config_file"
+        echo "WARNING: config file does not exist: $config_file -- alert"
         return 1
     fi
 
     local confirm
-    echo "WARNING: This will stop and permanently delete tunnel '$tunnel_name' (Cloudflare side + local config)."
+    echo "This will stop and permanently delete tunnel '$tunnel_name' (Cloudflare side + local config)."
     read -r -p "Continue? (y/n): " confirm
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
         echo "Aborted."
@@ -732,7 +671,7 @@ delete_tunnel() {
 
     echo "Running: cloudflared tunnel delete $tunnel_name"
     if ! "$CLOUDFLARED_BIN" tunnel delete "$tunnel_name" 2>&1; then
-        echo "WARNING: 'cloudflared tunnel delete' failed. Retrying with --force..."
+        echo "WARNING: 'cloudflared tunnel delete' failed, retrying with --force -- alert"
         "$CLOUDFLARED_BIN" tunnel delete -f "$tunnel_name" 2>&1
     fi
 
@@ -781,7 +720,7 @@ if [[ -z "$ACTION" ]]; then
         5) ACTION="status" ;;
         6) ACTION="delete" ;;
         0) exit 0 ;;
-        *) echo "ERROR: Invalid option: $menu_choice"; exit 1 ;;
+        *) echo "ERROR: invalid option: $menu_choice -- abort"; exit 1 ;;
     esac
 fi
 
@@ -815,7 +754,7 @@ case "$ACTION" in
             echo "[OK] Autostart enabled in crontab."
             echo "Entry: @reboot $script_path startall"
         else
-            echo "WARNING: Autostart entry already exists in crontab."
+            echo "INFO: autostart entry already exists in crontab -- skip"
         fi
         ;;
     stop)

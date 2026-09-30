@@ -6,18 +6,21 @@
 # Disk Check Monitor
 # Checks temperature, SMART status and degradation indicators on HDD, SSD and NVMe.
 # Sends desktop alert and logs to syslog if any issue is detected.
-# Requires: inxi, smartmontools
-# Usage: sudo ./diskcheck.sh
-# Cron Root: @daily /etc/scr/diskcheck.sh
+# Requires: inxi, smartmontools, util-linux, libnotify-bin
+# USAGE: sudo ./diskcheck.sh
+# Intended to run periodically via root's crontab.
 # Log rotate: /etc/logrotate.d/diskcheck
 #
-# NOTE on logging:
-# - Writes to /var/log/diskcheck.log (log + screen via tee). Rotation is
-# self-installed by this script (/etc/logrotate.d/diskcheck).
+# LOG: /var/log/diskcheck.log, written to file and screen via tee
+#      Rotation is self-installed by this script
 #
 ################################################################################
 
 set -uo pipefail
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -82,7 +85,8 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    log "ERROR: No valid local user found. Create one with sudo access."
+    log "ERROR: no valid local user found"
+    log "ERROR: create one with sudo access -- abort"
     exit 1
 fi
 log "Using local user: $local_user"
@@ -99,11 +103,11 @@ done
 the_ppa=malcscott/ppa
 if ! dpkg -s hddtemp &>/dev/null; then
     if ! add-apt-repository -y ppa:$the_ppa >/dev/null 2>&1; then
-        log "WARNING: Failed to add PPA $the_ppa. hddtemp may not be available."
+        log "WARNING: failed to add PPA $the_ppa, hddtemp unavailable -- alert"
     else
         apt-get update -qq
         if ! apt-get install -y hddtemp >/dev/null 2>&1; then
-            log "WARNING: Failed to install hddtemp from PPA $the_ppa."
+            log "WARNING: failed to install hddtemp from PPA $the_ppa -- alert"
         fi
     fi
 fi

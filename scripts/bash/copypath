@@ -3,7 +3,7 @@
 #
 ################################################################################
 #
-# copy-path.sh - Universal script to copy file/folder paths to clipboard
+# copypath - Universal script to copy file/folder paths to clipboard
 # Compatible with: Nautilus, Caja, Nemo, Thunar, Dolphin, PCManFM
 #
 ################################################################################

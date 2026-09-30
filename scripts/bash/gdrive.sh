@@ -3,11 +3,12 @@
 #
 ################################################################################
 #
-# Mount | Umount google drive folder (no root)
-# https://www.maravento.com/2018/11/compartir-google-drive-con-samba.html
-# how to use (not sudo/root)
-# ./gdrive start
-# ./gdrive stop
+# Mount | Umount Google Drive folder via google-drive-ocamlfuse
+#
+# DESCRIPTION: Mounts/unmounts the local user's Google Drive folder,
+# auto-detecting the local sudo user. Not run as root.
+#
+# USAGE: ./gdrive.sh { start | stop }
 #
 ################################################################################
 
@@ -40,9 +41,8 @@ done
 # dependencies (external repo)
 for dep in google-drive-ocamlfuse; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: 'google-drive-ocamlfuse' is not installed. Run:" >&2
-        echo "sudo add-apt-repository -y ppa:alessandro-strada/ppa" >&2
-        echo "sudo apt install google-drive-ocamlfuse" >&2
+        echo "ERROR: 'google-drive-ocamlfuse' is not installed" >&2
+        echo "ERROR: run: add-apt-repository ppa:alessandro-strada/ppa -- abort" >&2
         exit 1
     fi
 done
@@ -80,7 +80,7 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: No valid local user found. Create one with sudo access."
+    echo "ERROR: no valid local user found, create one with sudo access -- abort"
     exit 1
 fi
 
@@ -90,7 +90,7 @@ echo "Gdrive Starting. Wait..."
 
 GD="/home/$local_user/gdrive"
 if [ -e "$GD" ] && [ ! -d "$GD" ]; then
-    echo "ERROR: $GD exists but is not a directory"
+    echo "ERROR: $GD exists but is not a directory -- abort"
     exit 1
 fi
 if [ ! -d "$GD" ]; then

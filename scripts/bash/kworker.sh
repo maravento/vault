@@ -5,6 +5,10 @@
 #
 # Kworker Kill
 #
+# DESCRIPTION: Detects an ACPI GPE interrupt in storm (high count) and
+# disables it to stop the associated kworker CPU spike. Run as root.
+#
+# LOG: /var/log/syslog
 ################################################################################
 
 set -uo pipefail

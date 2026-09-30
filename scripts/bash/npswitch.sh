@@ -2,23 +2,19 @@
 # maravento.com
 #
 ################################################################################
-# npswitch.sh -- Netplan Renderer Switcher
 #
-# Safely switches between NetworkManager and systemd-networkd on
-# Ubuntu/Debian systems using Netplan. Detects your interfaces (WiFi,
-# Ethernet, virtual) and recommends the best renderer.
+# DESCRIPTION:
+# Switches between NetworkManager and systemd-networkd on Netplan-based
+# systems. Detects network interfaces and recommends the best renderer.
 #
 # USAGE:
-# sudo ./npswitch.sh # interactive menu
-# sudo ./npswitch.sh --status # show current config
-# sudo ./npswitch.sh --to-networkd # switch to systemd-networkd
-# sudo ./npswitch.sh --to-nm # switch to NetworkManager
-# sudo ./npswitch.sh --help # show help
+# sudo ./npswitch.sh [--status|--to-networkd|--to-nm|-h|--help]
+# Without arguments, shows an interactive menu.
 #
 # NOTES:
-# May temporarily disconnect your network -- use with caution over SSH
-# YAML files are backed up (.bak) before any change
-# Virtual interfaces (docker0, virbr0, etc.) are excluded
+# May temporarily disconnect the network -- use with caution over SSH
+# Netplan YAML files under /etc/netplan are backed up (.bak) before changes
+#
 ################################################################################
 
 set -uo pipefail

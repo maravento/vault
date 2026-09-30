@@ -5,33 +5,15 @@
 #
 # UniFi Setup - Installer / Uninstaller / Updater for Ubuntu
 #
-# Description:
+# DESCRIPTION:
 # Installs, updates, and removes UniFi Network Application and UniFi OS
-# Server on Ubuntu, using Ubiquiti's own official release catalog
-# (download.svc.ui.com) to detect and download versions. No third-party
-# scripts or APIs are used.
+# Server on Ubuntu, using Ubiquiti's own official release catalog to detect
+# and download versions. Menu-driven, no command-line parameters accepted.
 #
-# Products:
-# - UniFi Network Application (installed via the official .deb package,
-# requires MongoDB and a matching Java runtime)
-# - UniFi OS Server (installed via the official Linux installer binary,
-# runs rootless containers through Podman)
-#
-# Usage:
+# USAGE:
 # sudo ./unifisetup.sh
 #
-# Menu-driven only, no command-line parameters are accepted:
-# 1. Install UniFi Network Application
-# 2. Install UniFi OS Server
-# 3. Update UniFi Network Application
-# 4. Update UniFi OS Server
-# 5. Uninstall UniFi Network Application
-# 6. Uninstall UniFi OS Server
-# 7. Show status (installed vs. latest online)
-# 8. Exit
-#
-# log: unifisetup.log, next to this script (rewritten on each run)
-# Downloads/work dir: .unifisetup-work, also next to this script
+# LOG: unifisetup.log, next to this script (rewritten on each run)
 #
 ################################################################################
 
@@ -86,7 +68,7 @@ get_server_address() {
 
 os_check() {
     if [ ! -f /etc/os-release ]; then
-        log "ERROR: /etc/os-release not found, cannot detect OS"
+        log "ERROR: /etc/os-release not found, cannot detect OS -- abort"
         exit 1
     fi
 
@@ -94,13 +76,13 @@ os_check() {
     . /etc/os-release
 
     if [ "${ID:-}" != "ubuntu" ]; then
-        log "WARNING: This script targets Ubuntu (detected: ${ID:-unknown})"
-        log "WARNING: continuing at your own risk"
+        log "WARNING: this script targets Ubuntu (detected: ${ID:-unknown})"
+        log "WARNING: continuing anyway -- alert"
     fi
 
     if [ "$(printf '%s\n' "${VERSION_ID:-0}" "${min_major}.${min_minor}" | sort -V | head -n1)" != "${min_major}.${min_minor}" ]; then
-        log "WARNING: Untested below Ubuntu ${min_major}.${min_minor}"
-        log "WARNING: (detected ${VERSION_ID:-unknown}) continuing at your own risk"
+        log "WARNING: untested below Ubuntu ${min_major}.${min_minor}"
+        log "WARNING: detected ${VERSION_ID:-unknown}, continuing anyway -- alert"
     fi
 
     os_codename="${VERSION_CODENAME:-noble}"
@@ -113,7 +95,7 @@ arch_check() {
         amd64) osserver_arch="x64" ;;
         arm64) osserver_arch="arm64" ;;
         *)
-            log "ERROR: Unsupported architecture: ${architecture}"
+            log "ERROR: unsupported architecture: ${architecture} -- abort"
             exit 1
             ;;
     esac
@@ -146,8 +128,8 @@ ensure_prereqs() {
 fetch_downloads_json() {
     log "Fetching official Ubiquiti release catalog..."
     if ! curl -fsSL "${downloads_api}" -o "${downloads_json}"; then
-        log "ERROR: Failed to fetch release catalog."
-        log "URL: ${downloads_api}"
+        log "ERROR: failed to fetch release catalog"
+        log "ERROR: URL: ${downloads_api} -- abort"
         exit 1
     fi
 }
@@ -192,7 +174,7 @@ ensure_mongodb_repo() {
     log "Adding MongoDB 8.0 repository..."
     curl -fsSL https://pgp.mongodb.com/server-8.0.asc | gpg -o /etc/apt/keyrings/mongodb-server-8.0.gpg --dearmor --yes >>"$log_file" 2>&1
     if [ "${PIPESTATUS[0]}" -ne 0 ] || [ "${PIPESTATUS[1]}" -ne 0 ]; then
-        log "ERROR: Failed to add MongoDB repository key"
+        log "WARNING: failed to add MongoDB repository key -- alert"
         return 1
     fi
     # "noble" is intentionally fixed, not the detected codename: MongoDB only
@@ -217,13 +199,13 @@ ensure_adoptium_repo() {
     if ! curl -fsSL "https://packages.adoptium.net/artifactory/deb/dists/" \
         | sed -e 's/<[^>]*>//g' -e '/^$/d' | awk '{print $1}' | sed 's#/$##' \
         | grep -iq "^${adoptium_codename}$"; then
-        log "WARNING: Adoptium has no ${adoptium_codename} suite yet, using noble"
+        log "WARNING: Adoptium has no ${adoptium_codename} suite, using noble -- fallback"
         adoptium_codename="noble"
     fi
 
     curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg -o /etc/apt/keyrings/packages-adoptium.gpg --dearmor --yes >>"$log_file" 2>&1
     if [ "${PIPESTATUS[0]}" -ne 0 ] || [ "${PIPESTATUS[1]}" -ne 0 ]; then
-        log "ERROR: Failed to add Adoptium repository key"
+        log "WARNING: failed to add Adoptium repository key -- alert"
         return 1
     fi
     echo "deb [signed-by=/etc/apt/keyrings/packages-adoptium.gpg] https://packages.adoptium.net/artifactory/deb ${adoptium_codename} main" \
@@ -280,7 +262,7 @@ install_network() {
 
     log "Installing Java runtime (${java_package})..."
     if ! DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${java_package}" ca-certificates-java >>"$log_file" 2>&1; then
-        log "ERROR: Failed to install ${java_package}"
+        log "WARNING: failed to install ${java_package} -- alert"
         return 1
     fi
 
@@ -308,14 +290,14 @@ install_network() {
             /var/lib/dpkg/info/ca-certificates-java.postinst configure >>"$log_file" 2>&1 || true
         fi
     else
-        log "WARNING: Failed to refresh CA certificates"
+        log "WARNING: failed to refresh CA certificates -- alert"
     fi
 
     local deb_file="${work_dir}/unifi_${target_version}_all.deb"
     log "Downloading UniFi Network ${target_version}..."
     if ! curl -fL --progress-bar -o "${deb_file}" "${target_url}"; then
-        log "ERROR: Failed to download package."
-        log "URL: ${target_url}"
+        log "WARNING: failed to download package"
+        log "WARNING: URL: ${target_url} -- alert"
         return 1
     fi
 
@@ -323,8 +305,8 @@ install_network() {
     if DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' "${deb_file}" >>"$log_file" 2>&1; then
         log "UniFi Network ${target_version} installed"
     else
-        log "ERROR: Failed to install package."
-        log "File: ${deb_file}"
+        log "WARNING: failed to install package"
+        log "WARNING: file: ${deb_file} -- alert"
         rm -f "${deb_file}"
         return 1
     fi
@@ -340,13 +322,13 @@ action_install_network() {
     fi
     get_installed_osserver
     if [ -n "${installed_osserver_version}" ]; then
-        log "ERROR: OS Server (v${installed_osserver_version}) present; can't coexist."
-        log "Remove UniFi OS Server first."
+        log "WARNING: OS Server (v${installed_osserver_version}) present, can't coexist"
+        log "WARNING: remove UniFi OS Server first -- alert"
         return 1
     fi
     get_latest_network
     if [ -z "${latest_network_version}" ]; then
-        log "ERROR: Could not fetch latest UniFi Network version"
+        log "WARNING: could not fetch latest UniFi Network version -- alert"
         return 1
     fi
     if install_network "${latest_network_version}" "${latest_network_url}"; then
@@ -363,7 +345,7 @@ action_update_network() {
     fi
     get_latest_network
     if [ -z "${latest_network_version}" ]; then
-        log "ERROR: Could not fetch latest UniFi Network version"
+        log "WARNING: could not fetch latest UniFi Network version -- alert"
         return 1
     fi
     if dpkg --compare-versions "${installed_network_version}" ge "${latest_network_version}"; then
@@ -385,8 +367,8 @@ backup_network_config() {
     latest_unf="$(find "${autobackup_dir}" -type f -name '*.unf' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n1 | awk '{print $2}')"
 
     if [ -z "${latest_unf}" ]; then
-        log "WARNING: No UniFi autobackup (.unf) found, skipping backup"
-        log "Looked in: ${autobackup_dir}"
+        log "WARNING: no UniFi autobackup (.unf) found, skipping backup"
+        log "WARNING: looked in: ${autobackup_dir} -- alert"
         return 1
     fi
 
@@ -395,8 +377,8 @@ backup_network_config() {
     if cp "${latest_unf}" "${dest}" 2>>"$log_file"; then
         log "Backup saved: ${dest}"
     else
-        log "WARNING: Failed to create backup."
-        log "Path: ${dest}"
+        log "WARNING: failed to create backup"
+        log "WARNING: path: ${dest} -- alert"
         rm -f "${dest}"
         return 1
     fi
@@ -422,8 +404,7 @@ action_uninstall_network() {
     esac
 
     local remove_mongo="n"
-    echo "WARNING:"
-    echo "MongoDB was installed as a UniFi dependency, may be shared."
+    echo "MongoDB was installed as a UniFi dependency, may be shared"
     read -rp "Do you want to remove MongoDB? (y/N) " remove_mongo
 
     systemctl stop unifi 2>/dev/null || true
@@ -481,8 +462,8 @@ install_osserver() {
     log "Downloading UniFi OS Server ${target_version}..."
     log "This is a large file, it may take a while."
     if ! curl -fL --progress-bar -o "${installer_file}" "${target_url}"; then
-        log "ERROR: Failed to download package."
-        log "URL: ${target_url}"
+        log "WARNING: failed to download package"
+        log "WARNING: URL: ${target_url} -- alert"
         return 1
     fi
 
@@ -492,7 +473,7 @@ install_osserver() {
     if "${installer_file}" --non-interactive --force-install 200>&- >>"$log_file" 2>&1; then
         log "OS Server ${target_version} installed"
     else
-        log "ERROR: UniFi OS Server installer failed"
+        log "WARNING: UniFi OS Server installer failed -- alert"
         rm -f "${installer_file}"
         return 1
     fi
@@ -508,13 +489,13 @@ action_install_osserver() {
     fi
     get_installed_network
     if [ -n "${installed_network_version}" ]; then
-        log "ERROR: Network (v${installed_network_version}) present; can't coexist."
-        log "Remove UniFi Network first."
+        log "WARNING: Network (v${installed_network_version}) present, can't coexist"
+        log "WARNING: remove UniFi Network first -- alert"
         return 1
     fi
     get_latest_osserver
     if [ -z "${latest_osserver_version}" ]; then
-        log "ERROR: Could not fetch latest UniFi OS Server version"
+        log "WARNING: could not fetch latest UniFi OS Server version -- alert"
         return 1
     fi
     if install_osserver "${latest_osserver_version}" "${latest_osserver_url}"; then
@@ -531,7 +512,7 @@ action_update_osserver() {
     fi
     get_latest_osserver
     if [ -z "${latest_osserver_version}" ]; then
-        log "ERROR: Could not fetch latest UniFi OS Server version"
+        log "WARNING: could not fetch latest UniFi OS Server version -- alert"
         return 1
     fi
     if dpkg --compare-versions "${installed_osserver_version}" ge "${latest_osserver_version}"; then
@@ -549,7 +530,7 @@ action_update_osserver() {
 # state directory, /var/lib/uosserver.
 backup_osserver_config() {
     if [ ! -d /var/lib/uosserver ]; then
-        log "WARNING: /var/lib/uosserver not found, skipping backup"
+        log "WARNING: /var/lib/uosserver not found, skipping backup -- alert"
         return 1
     fi
     local dest
@@ -557,8 +538,8 @@ backup_osserver_config() {
     if tar -czf "${dest}" -C /var/lib uosserver 2>>"$log_file"; then
         log "Backup saved: ${dest}"
     else
-        log "WARNING: Failed to create backup."
-        log "Path: ${dest}"
+        log "WARNING: failed to create backup"
+        log "WARNING: path: ${dest} -- alert"
         rm -f "${dest}"
         return 1
     fi
@@ -620,12 +601,12 @@ action_uninstall_osserver() {
 
     if id -u uosserver >/dev/null 2>&1; then
         if ! userdel -r uosserver 2>>"$log_file"; then
-            log "WARNING: Could not remove user uosserver, check ${log_file}"
+            log "WARNING: could not remove user uosserver, check ${log_file} -- alert"
         fi
     fi
     if getent group uosserver >/dev/null 2>&1; then
         if ! groupdel uosserver 2>>"$log_file"; then
-            log "WARNING: Could not remove group uosserver"
+            log "WARNING: could not remove group uosserver -- alert"
         fi
     fi
 

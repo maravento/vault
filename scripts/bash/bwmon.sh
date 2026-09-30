@@ -11,11 +11,11 @@
 # configured minimum (dlmin/ulmin below, user-editable). Exits 1 if either
 # value is below the minimum, 0 otherwise -- usable as a cron watchdog.
 #
-# Usage:
+# USAGE:
 # Add this script to your crontab to run periodically, e.g. every 30 minutes:
 # */30 * * * * /path_to/bwmon.sh
 #
-# Log file: /var/log/bwmon.log
+# LOG: /var/log/bwmon.log
 #
 ################################################################################
 
@@ -149,7 +149,7 @@ log "Running speedtest (this may take ~30s)..."
 resume=$(speedtest-cli --secure --simple 2>&1)
 
 if ! echo "$resume" | grep -q "^Download:"; then
-    log "ERROR: speedtest-cli failed or returned unexpected output: $resume"
+    log "ERROR: speedtest-cli failed: ${resume//$'\n'/ | } -- abort"
     exit 1
 fi
 
@@ -162,7 +162,7 @@ dlmb=$(echo "$dl" | awk '{print $3}')
 ulmb=$(echo "$ul" | awk '{print $3}')
 
 if [ -z "$dlvalue" ] || [ -z "$ulvalue" ]; then
-    log "ERROR: Could not parse speedtest output: $resume"
+    log "ERROR: could not parse speedtest output: ${resume//$'\n'/ | } -- abort"
     exit 1
 fi
 
@@ -184,8 +184,8 @@ ulvalue_mbit=$(normalize_to_mbit "$ulvalue" "$ulmb")
 check_metric() {
     local label="$1" value="$2" unit="$3" min="$4" mbit="$5"
     if (($(echo "$mbit $min" | awk '{print ($1 < $2)}'))); then
-        log "WARNING: $label slow: $value $unit < $min Mbit/s (min value)"
-        logger -t bwmon "WARNING: $label slow: $value $unit < $min Mbit/s (min value)"
+        log "WARNING: $label slow: $value $unit < $min Mbit/s -- alert"
+        logger -t bwmon "WARNING: $label slow: $value $unit < $min Mbit/s -- alert"
         return 1
     fi
     log "$label OK: $value $unit (min: $min Mbit/s)"

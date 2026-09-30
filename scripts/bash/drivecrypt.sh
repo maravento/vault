@@ -4,7 +4,14 @@
 ################################################################################
 #
 # Cryptomator Encrypted Disk - Mount | Umount
-# https://www.maravento.com/2020/12/montando-boveda-cryptomator-como-unidad_2.html
+#
+# DESCRIPTION: Mounts/unmounts the local user's Cryptomator vault path via
+# bindfs, auto-detecting the local sudo user and installing Cryptomator
+# if missing.
+#
+# USAGE: ./drivecrypt.sh { start | stop }
+#
+# LOG: system log (via logger, tag drivecrypt)
 #
 ################################################################################
 
@@ -60,7 +67,7 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: No valid local user found. Create one with sudo access."
+    echo "ERROR: no valid local user found, create one with sudo access -- abort"
     exit 1
 fi
 echo "Using local user: $local_user"

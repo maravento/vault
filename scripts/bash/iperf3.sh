@@ -4,21 +4,15 @@
 ################################################################################
 #
 # iperf3 LAN Performance Test
-# Description: Interactive LAN throughput and latency tester (TCP/UDP/ping)
 #
-# Usage: ./iperf3.sh
-# Requirements: iperf3 (client and server)
+# DESCRIPTION: Interactive LAN throughput and latency tester (ping/TCP/UDP).
+# Prompts for the local interface, target server IPs, duration and
+# parallel streams; the iperf3 server must already be running on each
+# target. Not run as root.
 #
-# Before running, start the iperf3 server on each target host:
-# iperf3 -s
+# USAGE: ./iperf3.sh
 #
-# Tests performed per target:
-# - Latency ping (5 packets, configurable via PING_COUNT)
-# - TCP upload iperf3 (configurable streams and duration)
-# - TCP download iperf3 reverse mode
-# - UDP iperf3 (1 Gbps target)
-#
-# Output: logs saved to ./iperf3_logs/
+# OUTPUT: logs saved under ./iperf3_logs/
 #
 ################################################################################
 

@@ -6,10 +6,10 @@
 # netwatch - LAN device inventory & watched ports dashboard
 # https://github.com/maravento/vault
 #
-# log: netwatchsetup.log, next to this script (rewritten on each run)
-# The daemons netwatchlan.sh / netwatchports.sh log to the shared
-# /var/log/netwatch.log, rotated weekly via /etc/logrotate.d/netwatch
-# (deployed by --install, removed by --uninstall).
+# LOG: netwatchsetup.log, next to this script (rewritten on each run)
+#      The daemons netwatchlan.sh / netwatchports.sh log to the shared
+#      /var/log/netwatch.log, rotated weekly via /etc/logrotate.d/netwatch
+#      (deployed by --install, removed by --uninstall).
 #
 ################################################################################
 
@@ -24,6 +24,34 @@ log_file="$script_dir/netwatchsetup.log"
 log() {
     local msg="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+}
+
+# conflicting packages
+check_conflicts() {
+    local role="$1"; shift
+    local found=()
+    for dep_pkg in "$@"; do
+        if dpkg-query -W -f='${Status}' "$dep_pkg" 2>/dev/null | grep -q "ok installed"; then
+            found+=("$dep_pkg")
+        fi
+    done
+    if [ "${#found[@]}" -gt 0 ]; then
+        for dep_pkg in "${found[@]}"; do
+            log "ERROR: conflicting $role package: $dep_pkg"
+        done
+        log "ERROR: remove them with apt purge -- abort"
+        exit 1
+    fi
+}
+
+# port in use
+check_port() {
+    local proto="$1" port="$2" role="$3"
+    if [ -n "$(ss -lnH "-${proto,,}" "sport = :$port" 2>/dev/null)" ]; then
+        log "ERROR: ${proto^^} port $port in use by another $role"
+        log "ERROR: stop that service before installing -- abort"
+        exit 1
+    fi
 }
 
 # root check
@@ -72,8 +100,8 @@ check_repo() {
         fi
     done
     if [ "$missing" -eq 1 ]; then
-        log "ERROR: Repository files not found -- abort"
-        log "git clone https://github.com/maravento/vault"
+        log "ERROR: repository files not found"
+        log "ERROR: clone it from github.com/maravento/vault -- abort"
         exit 1
     fi
 }
@@ -142,7 +170,7 @@ select_scan_interfaces() {
         ok=1
         for idx in "${idxs[@]}"; do
             if ! [[ "$idx" =~ $UH_UINT ]] || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#candidate_names[@]}" ]; then
-                log "WARNING: invalid selection '$idx' -- retry"
+                log "INFO: invalid selection '$idx' -- retry"
                 ok=0
                 break
             fi
@@ -185,7 +213,7 @@ select_management_interface() {
         read -rp "Select management interface number (default: 1): " idx
         idx="${idx:-1}"
         if ! [[ "$idx" =~ $UH_UINT ]] || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#candidate_names[@]}" ]; then
-            log "WARNING: invalid selection -- retry"
+            log "INFO: invalid selection -- retry"
             continue
         fi
         mgmt_answer="${candidate_names[$((idx - 1))]}"
@@ -284,11 +312,11 @@ check_already_installed() {
     fi
 
     if [ "$installed" -eq 1 ]; then
-        log "ERROR: netwatch is already installed -- abort"
         echo ""
         printf "%b" "$reasons"
         echo ""
-        log "To update, run: sudo bash netwatchsetup.sh --update"
+        log "ERROR: netwatch is already installed (see reasons above)"
+        log "ERROR: run: sudo bash netwatchsetup.sh --update -- abort"
         exit 1
     fi
 }
@@ -330,25 +358,20 @@ do_install() {
     check_already_installed
 
     # dependency checks
-    if systemctl is-active --quiet nginx; then
-        log "ERROR: nginx is running -- abort"
-        log "Disable it first: systemctl stop nginx"
+    check_conflicts "web server" nginx lighttpd caddy
+
+    if ! systemctl is-active --quiet apache2; then
+        log "ERROR: apache2 is not running"
+        log "ERROR: start it first: systemctl start apache2 -- abort"
         exit 1
     fi
 
-    if ! systemctl is-active --quiet apache2; then
-        log "ERROR: apache2 is not running -- abort"
-        log "Start it first: systemctl start apache2"
-        exit 1
-    fi
+    check_port tcp 3126 "web interface"
 
     # The vhost needs mod_php (SetHandler application/x-httpd-php), not PHP-FPM.
     if ! apache2ctl -M 2>/dev/null | grep -qi 'php_module'; then
-        log "ERROR: Apache mod_php is not loaded -- abort"
-        log "Run first:"
-        log "apt-get install -y libapache2-mod-php"
-        log "a2enmod php$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null)"
-        log "systemctl restart apache2"
+        log "ERROR: Apache mod_php is not loaded"
+        log "ERROR: run: apt-get install -y libapache2-mod-php -- abort"
         exit 1
     fi
 
@@ -640,7 +663,7 @@ show_menu() {
             3) do_uninstall; break ;;
             4) do_status; break ;;
             5) exit 0 ;;
-            *) log "WARNING: invalid option -- retry" ;;
+            *) log "INFO: invalid option -- retry" ;;
         esac
     done
 }

@@ -44,7 +44,7 @@ start_limit() {
     read -r -p "Enter the program name: " program_name
 
     if [ -z "$program_name" ]; then
-        echo "ERROR: Program name cannot be empty."
+        echo "ERROR: program name cannot be empty -- abort"
         exit 1
     fi
 

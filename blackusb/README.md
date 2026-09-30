@@ -23,7 +23,7 @@
 
 **⚠️ WARNING:** Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
 
-`bash`, `udev`, `util-linux`
+`bash`, `udev`, `systemd`, `util-linux`
 
 <table width="100%">
   <tr>

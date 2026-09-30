@@ -58,7 +58,7 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: No valid local user found. Create one with sudo access."
+    echo "ERROR: no valid local user found, create one with sudo access -- abort"
     exit 1
 fi
 echo "Using local user: $local_user"

@@ -8,7 +8,7 @@
 # install, uninstall, start, stop, status, restart
 # Must be run as root (sudo)
 #
-# Usage: x11vncmgr.sh [install|uninstall|start|stop|restart|status]
+# USAGE: x11vncmgr.sh [install|uninstall|start|stop|restart|status]
 #
 #   install    Install x11vnc, create the VNC password if missing, create and
 #              enable the systemd service, and start it
@@ -21,12 +21,9 @@
 #
 #   Run with no arguments for an interactive menu with the same options.
 #
-# NOTE on logging:
-# - This script's own actions are logged to /var/log/x11vncmgr.log
-#   (rewritten on each run).
-# - x11vnc_log_file (below) is unrelated: it is where the x11vnc daemon itself
-#   writes its own runtime output (passed via -o to x11vnc), not this
-#   script's own log.
+# LOG: /var/log/x11vncmgr.log, this script's own actions, rewritten each run
+#      x11vnc_log_file below is a different file: the daemon's own output,
+#      passed to x11vnc with -o, not this script's log
 #
 ################################################################################
 
@@ -79,12 +76,12 @@ check_password_exists() {
 
 verify_running() {
     if ! systemctl is-active --quiet "$service_name"; then
-        log "ERROR: $service_name is not active."
+        log "ERROR: $service_name is not active -- abort"
         exit 1
     fi
 
     if ! ss -tlnp | grep -q ":${vnc_port} "; then
-        log "ERROR: port ${vnc_port} is not listening."
+        log "ERROR: port ${vnc_port} is not listening -- abort"
         exit 1
     fi
 
@@ -93,12 +90,12 @@ verify_running() {
 
 verify_removed() {
     if systemctl is-active --quiet "$service_name" 2>/dev/null; then
-        log "ERROR: $service_name is still active."
+        log "ERROR: $service_name is still active -- abort"
         exit 1
     fi
 
     if [ -f "$service_file" ]; then
-        log "ERROR: $service_file still exists."
+        log "ERROR: $service_file still exists -- abort"
         exit 1
     fi
 
@@ -108,13 +105,13 @@ verify_removed() {
 do_install() {
     if ! command -v x11vnc >/dev/null 2>&1; then
         if ! apt_out=$(apt update 2>&1); then
-            log "ERROR: apt update failed."
+            log "ERROR: apt update failed -- abort"
             echo "$apt_out"
             exit 1
         fi
 
         if ! apt_out=$(apt install -y x11vnc 2>&1); then
-            log "ERROR: failed to install x11vnc package."
+            log "ERROR: failed to install x11vnc package -- abort"
             echo "$apt_out"
             exit 1
         fi
@@ -156,7 +153,7 @@ do_uninstall() {
 
     if command -v x11vnc >/dev/null 2>&1; then
         if ! apt_out=$(apt remove -y x11vnc 2>&1); then
-            log "ERROR: failed to remove x11vnc package."
+            log "ERROR: failed to remove x11vnc package -- abort"
             echo "$apt_out"
             exit 1
         fi

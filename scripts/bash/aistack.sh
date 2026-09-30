@@ -13,7 +13,7 @@
 # LLM models are managed independently from the stack installation.
 # Online models (OpenAI, Anthropic, etc.) can be connected via Open WebUI.
 #
-# Usage: ./aistack.sh [COMMAND]
+# USAGE: ./aistack.sh [COMMAND]
 # Commands:
 # install | status | model | install-opencode | update-opencode | uninstall-opencode |
 # install-opencode-desktop | update-opencode-desktop | uninstall-opencode-desktop | uninstall
@@ -25,6 +25,11 @@ set -euo pipefail
 
 # validation -- integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: This script must be run as root -- abort"
@@ -73,7 +78,7 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: No valid local user found. Create one with sudo access."
+    echo "ERROR: no valid local user found, create one with sudo access -- abort"
     exit 1
 fi
 echo "Using local user: $local_user"
@@ -317,7 +322,7 @@ select_model() {
     elif [[ "$choice" =~ $UH_UINT ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#AVAILABLE_MODELS[@]}" ]; then
         SELECTED_MODEL="${AVAILABLE_MODELS[$((choice-1))]%%|*}"
     else
-        warn "Invalid selection -- skipping model download"
+        warn "Invalid selection -- alert"
         SELECTED_MODEL=""
         return 1
     fi
@@ -556,7 +561,7 @@ require_ollama_running() {
 # -- Download Model ------------------------------------------------------------
 download_model() {
     if [[ -z "${SELECTED_MODEL:-}" ]]; then
-        info "No model selected -- skipping download"
+        info "No model selected -- skip"
         return 0
     fi
     step "Downloading model: ${SELECTED_MODEL}"
@@ -1796,7 +1801,7 @@ uninstall_ollama_container() {
     step "Uninstalling Ollama container"
 
     if ! command -v docker &>/dev/null; then
-        info "Docker is not installed -- skipping container removal"
+        info "Docker is not installed -- skip"
     elif docker ps -a --format '{{.Names}}' | grep -q "^ollama$"; then
         docker stop ollama 2>/dev/null
         docker rm ollama 2>/dev/null
@@ -1814,7 +1819,7 @@ uninstall_ollama_container() {
             ok "Models removed"
         fi
     else
-        info "Ollama container not found -- skipping"
+        info "Ollama container not found -- skip"
     fi
 
     # -- Offer to remove native Ollama if found -----------------------------
@@ -1896,7 +1901,7 @@ uninstall_all() {
         cd "${AI_BASE_DIR}" && docker compose down -v 2>/dev/null || true
         ok "Containers stopped and removed"
     else
-        info "Not found -- skipping"
+        info "Not found -- skip"
     fi
 
     # -- Portainer ----------------------------------------------------------
@@ -1907,7 +1912,7 @@ uninstall_all() {
         docker volume rm portainer_data 2>/dev/null || true
         ok "Portainer removed"
     else
-        info "Not found -- skipping"
+        info "Not found -- skip"
     fi
 
     # -- Docker -------------------------------------------------------------
@@ -1919,14 +1924,14 @@ uninstall_all() {
             for pkg in docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker.io docker-doc docker-compose docker-compose-v2; do
                 if dpkg -s "$pkg" &>/dev/null; then
                     if ! apt-get purge -y "$pkg"; then
-                        warn "Failed to purge package: $pkg"
+                        warn "Failed to purge package: $pkg -- alert"
                         purge_failed+=("$pkg")
                     fi
                 fi
             done
             if [ ${#purge_failed[@]} -gt 0 ]; then
-                err "Some packages could not be removed: ${purge_failed[*]}"
-                info "Try manually: apt-get purge -y ${purge_failed[*]}"
+                warn "packages not removed: ${purge_failed[*]}"
+                warn "run: apt-get purge -y ${purge_failed[*]} -- alert"
             fi
             rm -rf /var/lib/docker
             rm -rf /var/lib/containerd
@@ -1938,7 +1943,7 @@ uninstall_all() {
             info "Docker kept"
         fi
     else
-        info "Not installed -- skipping"
+        info "Not installed -- skip"
     fi
 
     # -- AI data directory --------------------------------------------------
@@ -1957,7 +1962,7 @@ uninstall_all() {
             info "Data kept"
         fi
     else
-        info "Not found -- skipping"
+        info "Not found -- skip"
     fi
 
     # -- Native installations outside Docker --------------------------------

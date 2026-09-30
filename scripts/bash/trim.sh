@@ -45,7 +45,7 @@ echo "TRIM Start. Wait..."
 # Execute TRIM
 # -a: all mounted filesystems on devices that support TRIM
 # -v: verbose output
-TRIM_LOG=$(fstrim -av) || { echo "ERROR: fstrim failed"; exit 1; }
+TRIM_LOG=$(fstrim -av) || { echo "ERROR: fstrim failed -- abort"; exit 1; }
 echo "$TRIM_LOG"
 
 echo ""

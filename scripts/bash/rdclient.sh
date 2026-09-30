@@ -57,7 +57,7 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: No valid local user found. Create one with sudo access."
+    echo "ERROR: no valid local user found, create one with sudo access -- abort"
     exit 1
 fi
 echo "Using local user: $local_user"
@@ -72,10 +72,10 @@ retry_cmd() {
     local attempt=1
     until "$@"; do
         if [ "$attempt" -ge "$max_attempts" ]; then
-            echo "ERROR: command failed after $max_attempts attempts: $*"
+            echo "ERROR: command failed after $max_attempts attempts: $* -- abort"
             exit 1
         fi
-        echo "WARNING: command failed (attempt $attempt/$max_attempts), retrying in 10s: $*"
+        echo "INFO: attempt $attempt/$max_attempts failed: $* -- retry"
         attempt=$((attempt + 1))
         sleep 10
     done
@@ -84,11 +84,11 @@ retry_cmd() {
 check_dependencies() {
     if ! dpkg -s curl >/dev/null 2>&1; then
         if ! retry_cmd apt-get -qq update; then
-            echo "ERROR: Failed to update package lists while preparing to install curl"
+            echo "ERROR: failed to update package lists while preparing curl -- abort"
             exit 1
         fi
         if ! retry_cmd apt-get install -y curl; then
-            echo "ERROR: Failed to install curl"
+            echo "ERROR: failed to install curl -- abort"
             exit 1
         fi
     fi
@@ -104,9 +104,8 @@ check_dependencies() {
     done
 
     if [ ${#unavailable[@]} -gt 0 ]; then
-        echo "ERROR: Missing dependencies not found in APT:"
-        for u in "${unavailable[@]}"; do echo "   - $u"; done
-        echo "TIP: Please install them manually or enable the required repositories."
+        for u in "${unavailable[@]}"; do echo "ERROR: dependency not found in APT: $u"; done
+        echo "ERROR: install them manually, or enable the required repos -- abort"
         exit 1
     fi
 
@@ -117,7 +116,7 @@ check_dependencies() {
         apt_lock_files="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
         while lsof $apt_lock_files >/dev/null 2>&1; do
             if [ "$apt_lock_elapsed" -ge "$apt_lock_timeout" ]; then
-                echo "ERROR: APT/DPKG locks still held after ${apt_lock_timeout}s. Aborting."
+                echo "ERROR: APT/DPKG locks still held after ${apt_lock_timeout}s -- abort"
                 exit 1
             fi
             echo "   Locks still held, waiting... (${apt_lock_elapsed}s elapsed)"
@@ -125,11 +124,11 @@ check_dependencies() {
             apt_lock_elapsed=$((apt_lock_elapsed + 5))
         done
         if ! retry_cmd apt-get -qq update; then
-            echo "ERROR: Failed to update package lists"
+            echo "ERROR: failed to update package lists -- abort"
             exit 1
         fi
         if ! retry_cmd apt-get install -y "${missing[@]}"; then
-            echo "ERROR: Failed to install dependencies"
+            echo "ERROR: failed to install dependencies -- abort"
             exit 1
         fi
     fi
@@ -138,7 +137,7 @@ check_dependencies() {
     if ! dpkg -s libxdo3 &>/dev/null && ! dpkg -s libxdo4 &>/dev/null; then
         echo "INFO: Installing missing dependency: libxdo3"
         if ! retry_cmd apt-get install -y libxdo3; then
-            echo "ERROR: Failed to install libxdo3"
+            echo "ERROR: failed to install libxdo3 -- abort"
             exit 1
         fi
     fi
@@ -146,7 +145,7 @@ check_dependencies() {
 
 setup_keyboard() {
     if [ -z "$local_user" ]; then
-        echo "WARNING: Could not detect local user, skipping keyboard setup"
+        echo "INFO: could not detect local user, skipping keyboard setup -- skip"
         return
     fi
 
@@ -199,7 +198,7 @@ install_rustdesk() {
 
     ver_tag=$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//' || true)
     if [ -z "$ver_tag" ]; then
-        echo "ERROR: Failed to fetch latest version"
+        echo "ERROR: failed to fetch latest version -- abort"
         exit 1
     fi
 
@@ -223,7 +222,7 @@ install_rustdesk() {
 
     cd /tmp
     if ! retry_cmd wget -q "${base_url}/${deb_file}"; then
-        echo "ERROR: Download failed"
+        echo "ERROR: download failed -- abort"
         rm -f "$deb_file"
         exit 1
     fi
@@ -242,7 +241,7 @@ install_rustdesk() {
         echo "INFO: Service stopped. To start it now: sudo systemctl start rustdesk"
         echo "INFO: To start it on every boot: sudo systemctl enable rustdesk"
     else
-        echo "ERROR: Installation failed"
+        echo "ERROR: installation failed -- abort"
         cat "$dpkg_out" >&2
         rm -f "$deb_file" "$dpkg_out"
         exit 1
@@ -261,7 +260,7 @@ remove_rustdesk() {
         rm -f "$apt_out"
         echo "OK: RustDesk removed successfully"
     else
-        echo "ERROR: Failed to remove RustDesk"
+        echo "ERROR: failed to remove RustDesk -- abort"
         cat "$apt_out" >&2
         rm -f "$apt_out"
         exit 1
@@ -318,7 +317,7 @@ case $option in
         exit 0
         ;;
     *)
-        echo "ERROR: Invalid option"
+        echo "ERROR: invalid option -- abort"
         exit 1
         ;;
 esac

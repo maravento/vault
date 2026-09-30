@@ -8,18 +8,20 @@
 # Warning
 # Use it only in case of attack or illegal access to your network
 #
-# NOTE on logging:
-# - killswitch.sh belongs to the iptables ruleset -- shares
-# /var/log/iptables.log with scr/iptables.sh (rotation is self-installed
-# there, /etc/logrotate.d/iptables).
-#
 # Verify: iptables -L -n / iptables -nvL / iptables -Ln -t mangle / iptables -Ln -t nat
 # Ports: /etc/services
 # https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt
 #
+# LOG: /var/log/iptables.log, shared with scr/iptables.sh
+#      Rotation is self-installed there, /etc/logrotate.d/iptables
+#
 ################################################################################
 
 set -uo pipefail
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # logging
 log_file="/var/log/iptables.log"

@@ -34,12 +34,11 @@
 # PORTS_MODE : "server" or "target"
 # PORTS_TARGET_IP : target host/IP, only used when PORTS_MODE=target
 #
-# Log file:
-# /var/log/netwatch.log (root:root, 640) -- shared by both daemons
-# (netwatchlan.sh + netwatchports.sh). The installer writes its own
-# netwatchsetup.log next to itself.
+# LOG: /var/log/netwatch.log (root:root, 640) -- shared by both daemons
+#      (netwatchlan.sh + netwatchports.sh). The installer writes its own
+#      netwatchsetup.log next to itself.
 #
-# Usage:
+# USAGE:
 # ./netwatchports.sh {start|stop|status}
 # ./netwatchports.sh mode server
 # ./netwatchports.sh mode target <host>
@@ -81,8 +80,8 @@ done
 
 # LOAD ENV
 if [ ! -f "$netwatch_env" ]; then
-    log "ERROR: netwatch is not installed -- abort"
-    log "Run netwatchsetup.sh --install first"
+    log "ERROR: netwatch is not installed"
+    log "ERROR: run netwatchsetup.sh --install first -- abort"
     exit 1
 fi
 
@@ -113,8 +112,8 @@ set_env_var() {
 
 # DB CHECK
 if [ ! -f "$db_file" ]; then
-    log "ERROR: database not found at $db_file -- abort"
-    log "Run netwatchsetup.sh --install first"
+    log "ERROR: database not found at $db_file"
+    log "ERROR: run netwatchsetup.sh --install first -- abort"
     exit 1
 fi
 
@@ -182,7 +181,7 @@ cmd_mode() {
                 echo "Usage: $(basename "$0") mode target <host>"
                 exit 1
             fi
-            valid_host "$ip" || { echo "ERROR: Invalid target: $ip"; exit 1; }
+            valid_host "$ip" || { log "ERROR: invalid target: $ip -- abort"; exit 1; }
             write_ports_mode "target" "$ip"
             echo "Mode set to: target ($ip)"
             ;;
@@ -305,7 +304,7 @@ poll_target() {
     ports_field=$(printf '%s\n' "$nmap_out" | grep '^Host:' | sed -n 's/.*Ports: //p')
 
     if [ -z "$ports_field" ]; then
-        log "WARNING: no port data for '$target' -- skip"
+        log "WARNING: no port data for '$target' -- alert"
         return
     fi
 
@@ -398,11 +397,11 @@ run_poll() {
 
     if [ "$PORTS_MODE" = "target" ]; then
         if [ -z "$PORTS_TARGET_IP" ]; then
-            log "WARNING: mode is target with no target host -- skip"
+            log "WARNING: mode is target with no target host -- alert"
             return
         fi
         if ! valid_host "$PORTS_TARGET_IP"; then
-            log "WARNING: invalid target host '$PORTS_TARGET_IP' -- skip"
+            log "WARNING: invalid target host '$PORTS_TARGET_IP' -- alert"
             return
         fi
         poll_target "$PORTS_TARGET_IP" "$now"

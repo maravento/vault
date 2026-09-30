@@ -5,7 +5,10 @@
 #
 # FreeFileSync Update
 #
-# log: /var/log/ffsupdate.log (rewritten on each run)
+# DESCRIPTION: Downloads and silently installs the latest FreeFileSync
+# release. Run as root, intended for cron/unattended use.
+#
+# LOG: /var/log/ffsupdate.log (rewritten on each run)
 #
 ################################################################################
 
@@ -73,36 +76,36 @@ ffsfile="FreeFileSync.tar.gz"
 ffsrun="FreeFileSync.run"
 url="https://www.freefilesync.org/download.php"
 
-trap 'rm -f "$ffsfile" "$ffsrun"; log "ERROR: Aborted. Temporary files cleaned up."; exit 1' ERR INT TERM
+trap 'rm -f "$ffsfile" "$ffsrun"; log "ERROR: aborted, temporary files cleaned up -- abort"; exit 1' ERR INT TERM
 
 link=$(wget -q "$url" -O - | grep -Pio '/download/[^"]+Linux[^"]+gz') || true
 if [ -z "$link" ]; then
-    log "ERROR: Could not find download link. Site may have changed."
+    log "ERROR: could not find download link, site may have changed -- abort"
     exit 1
 fi
 
 version=$(echo "$link" | sed -r 's:.*FreeFileSync_([0-9]+\.[0-9]+)_.*:\1:')
 if [ -z "$version" ]; then
-    log "ERROR: Could not parse version from link: $link"
+    log "ERROR: could not parse version from link: $link -- abort"
     exit 1
 fi
 
 if ! wget -qO "$ffsfile" "https://www.freefilesync.org$link" \
     -U "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/63.0.3239.84 Chrome/63.0.3239.84 Safari/537.36"; then
-    log "ERROR: Download failed."
+    log "ERROR: download failed -- abort"
     rm -f "$ffsfile"
     exit 1
 fi
 
 if ! tar xf "$ffsfile" >/dev/null 2>&1; then
-    log "ERROR: Failed to extract $ffsfile. File may be corrupt."
+    log "ERROR: failed to extract $ffsfile, file may be corrupt -- abort"
     rm -f "$ffsfile"
     exit 1
 fi
 
 extracted=$(ls FreeFileSync*.run 2>/dev/null | head -1)
 if [ -z "$extracted" ]; then
-    log "ERROR: No FreeFileSync*.run file found after extraction."
+    log "ERROR: no FreeFileSync*.run file found after extraction -- abort"
     rm -f "$ffsfile"
     exit 1
 fi

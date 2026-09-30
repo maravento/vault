@@ -7,7 +7,7 @@
 # A simple proxy/firewall server
 #
 #
-# log: gpsetup.log, in the directory this script is run from
+# LOG: gpsetup.log, in the directory this script is run from
 #      (rewritten on each run)
 #
 ################################################################################
@@ -38,7 +38,7 @@ dump_module_log() {
         cat "$module_log" >> "$log_file" 2>/dev/null || true
         log "--- end $module_name log ---"
     else
-        log "WARNING: $module_name log not found at $module_log -- skip"
+        log "WARNING: $module_name log not found at $module_log -- alert"
     fi
 }
 trap 'log "ERROR: command failed at line $LINENO: $BASH_COMMAND -- abort"' ERR
@@ -65,17 +65,41 @@ printf "\n"
 # FUNCTIONS
 # -----------------------------------------------------------------------------
 
-# checking conflicting pre-installed packages
+# conflicting packages
 check_conflicts() {
     local role="$1"; shift
     local found=()
-    for pkg in "$@"; do
-        if dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "ok installed"; then
-            found+=("$pkg")
+    for dep_pkg in "$@"; do
+        if dpkg-query -W -f='${Status}' "$dep_pkg" 2>/dev/null | grep -q "ok installed"; then
+            found+=("$dep_pkg")
         fi
     done
     if [ "${#found[@]}" -gt 0 ]; then
-        log "ERROR: conflicting $role package(s) installed: ${found[*]}, remove them with apt purge -- abort"
+        for dep_pkg in "${found[@]}"; do
+            log "ERROR: conflicting $role package: $dep_pkg"
+        done
+        log "ERROR: remove them with apt purge -- abort"
+        exit 1
+    fi
+}
+
+# overlapping packages
+warn_overlap() {
+    local feature="$1"; shift
+    local dep_pkg
+    for dep_pkg in "$@"; do
+        if dpkg-query -W -f='${Status}' "$dep_pkg" 2>/dev/null | grep -q "ok installed"; then
+            log "WARNING: $dep_pkg installed, keep its $feature disabled -- alert"
+        fi
+    done
+}
+
+# port in use
+check_port() {
+    local proto="$1" port="$2" role="$3"
+    if [ -n "$(ss -lnH "-${proto,,}" "sport = :$port" 2>/dev/null)" ]; then
+        log "ERROR: ${proto^^} port $port in use by another $role"
+        log "ERROR: stop that service before installing -- abort"
         exit 1
     fi
 }
@@ -105,7 +129,7 @@ retry_cmd() {
             log "ERROR: command failed after $max_attempts attempts -- abort"
             exit 1
         fi
-        log "WARNING: command failed (attempt $attempt/$max_attempts), retrying in 10s: $* -- retry"
+        log "INFO: attempt $attempt/$max_attempts failed: $* -- retry"
         case "$1" in
             nala|apt|apt-get)
                 rm -f /var/cache/apt/archives/*.deb 2>/dev/null || true
@@ -135,19 +159,22 @@ cron_d_set() {
 }
 
 log "Checking for conflicting pre-installed packages..."
-check_conflicts "DHCP server" isc-dhcp-server dnsmasq kea-dhcp4-server
+check_conflicts "DHCP server" isc-dhcp-server kea-dhcp4-server udhcpd
 check_conflicts "DNS server"  bind9 pdns-recursor unbound
-check_conflicts "proxy"       squid squid3 squid-openssl tinyproxy privoxy 3proxy
+check_conflicts "proxy"       squid squid3 squid-openssl
 check_conflicts "web server"  apache2 nginx lighttpd caddy
 check_conflicts "file server" samba
 check_conflicts "syslog"      syslog-ng
 check_conflicts "firewall"    firewalld fail2ban
 check_conflicts "IDS"         snort suricata evebox
 check_conflicts "web admin"   webmin ttyd
-check_conflicts "time sync"   ntp chrony
+check_conflicts "time sync"   chrony ntpsec
 check_conflicts "mail"        exim4
+check_port udp 67 "DHCP server"
+warn_overlap "dhcp" dnsmasq
 if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "^Status: active"; then
-    log "ERROR: ufw is active and conflicts with gateproxy's iptables rules, disable it with ufw disable -- abort"
+    log "ERROR: ufw is active, conflicts with gateproxy's iptables rules"
+    log "ERROR: disable it with: ufw disable -- abort"
     exit 1
 fi
 log "No conflicting packages found: OK"
@@ -185,7 +212,8 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    log "ERROR: no valid local user found, create one with sudo access -- abort"
+    log "ERROR: no valid local user found"
+    log "ERROR: create one with sudo access -- abort"
     exit 1
 fi
 local_home=$(getent passwd "$local_user" | cut -d: -f6)
@@ -231,9 +259,9 @@ UBUNTU_ID=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
 log "Desktop: $DESKTOP_ENV"
 log "OS: $UBUNTU_ID $UBUNTU_VERSION"
 if [ "$UBUNTU_ID" != "ubuntu" ]; then
-    log "WARNING: unsupported OS $UBUNTU_ID, Ubuntu only -- use at your own risk"
+    log "WARNING: unsupported OS $UBUNTU_ID, Ubuntu only -- alert"
 elif [ "$UBUNTU_VERSION" != "24.04" ] && [ "$UBUNTU_VERSION" != "26.04" ]; then
-    log "WARNING: unsupported version $UBUNTU_VERSION -- use at your own risk"
+    log "WARNING: unsupported version $UBUNTU_VERSION -- alert"
 fi
 
 log "Clearing apt package cache..."
@@ -303,7 +331,7 @@ UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5
 echo -e "\n"
 log "Check Dependencies..."
 
-pkgs='nala curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 7zip rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3'
+pkgs='nala curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 7zip rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3 iproute2'
 missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
 unavailable=""
 for p in $missing; do
@@ -348,9 +376,9 @@ fi
 
 # time
 retry_cmd apt install -y --reinstall systemd-timesyncd &>/dev/null
-hwclock -w &>/dev/null || log "WARNING: hwclock -w failed, no RTC available -- degraded"
-systemctl enable --now systemd-timesyncd &>/dev/null || log "WARNING: systemd-timesyncd failed to start -- degraded"
-timedatectl set-ntp true &>/dev/null || log "WARNING: timedatectl set-ntp failed -- degraded"
+hwclock -w &>/dev/null || log "INFO: hwclock -w failed, no RTC available"
+systemctl enable --now systemd-timesyncd &>/dev/null || log "INFO: systemd-timesyncd failed to start"
+timedatectl set-ntp true &>/dev/null || log "INFO: timedatectl set-ntp failed"
 timedatectl status | grep -E "NTP|synchroniz" || true
 # Performance Co-Pilot (PCP)
 systemctl disable --now pmcd pmproxy pmlogger &>/dev/null || log "WARNING: PCP failed to disable -- alert"
@@ -779,8 +807,8 @@ NETPLAN_WAIT=0
 NETPLAN_WAIT_LIMIT=30
 until ip -4 addr show "$LAN_IF" 2>/dev/null | grep -qF "inet $SERVER_IP/"; do
     if [ "$NETPLAN_WAIT" -ge "$NETPLAN_WAIT_LIMIT" ]; then
-        log "ERROR: $LAN_IF did not come up with an IP -- abort"
-        log "Wait a few minutes and run: sudo bash gpsetup.sh"
+        log "ERROR: $LAN_IF did not come up with an IP"
+        log "ERROR: wait a few minutes and run: sudo bash gpsetup.sh -- abort"
         exit 1
     fi
     sleep 2
@@ -851,7 +879,7 @@ retry_cmd nala install -y rubygems-integration rake ruby ruby-did-you-mean ruby-
 retry_cmd nala install -y javascript-common libjs-jquery xsltproc
 
 # NETWORK DEPENDENCIES
-retry_cmd nala install -y wget bind9-dnsutils conntrack i2c-tools wsdd ipset arptables ebtables
+retry_cmd nala install -y bind9-dnsutils conntrack i2c-tools wsdd ipset arptables ebtables
 
 # GEOLOCATION DATABASES
 retry_cmd nala install -y geoip-database
@@ -925,7 +953,7 @@ cp -f "$gp_path/conf/unbound/forward.conf" /etc/unbound/unbound.conf.d/forward.c
 tee /etc/default/unbound >/dev/null <<'EOF'
 DAEMON_OPTS=""
 EOF
-unbound-checkconf || log "Warning: Unbound Conf Fail"
+unbound-checkconf || log "WARNING: unbound config check failed -- alert"
 systemctl daemon-reload
 systemctl enable --now unbound
 
@@ -937,7 +965,7 @@ if command -v php &>/dev/null; then
     PHP_VERSION=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>/dev/null)
     log "PHP version detected: $PHP_VERSION"
 else
-    log "Error: PHP not installed"
+    log "ERROR: PHP not installed -- abort"
     exit 1
 fi
 
@@ -948,7 +976,7 @@ if [ ! -f /etc/php/$PHP_VERSION/apache2/php.ini ]; then
         cp /etc/php/$PHP_VERSION/cli/php.ini /etc/php/$PHP_VERSION/apache2/php.ini
         log "php.ini copied to /etc/php/$PHP_VERSION/apache2/"
     else
-        log "Error: php.ini not found"
+        log "ERROR: php.ini not found -- abort"
         exit 1
     fi
 fi
@@ -1041,17 +1069,17 @@ rm -f setup-repos.sh
 # webmin modules
 # Text Editor | Service Monitor | Netplan Manager
 systemctl stop webmin.service 2>/dev/null || true
-/usr/share/webmin/install-module.pl "$gp_path/conf/webmin/text-editor.wbm" || log "WARNING: text-editor module install failed -- skip"
+/usr/share/webmin/install-module.pl "$gp_path/conf/webmin/text-editor.wbm" || log "WARNING: text-editor module install failed -- alert"
 find "$acl_mac_path" -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/dev/null || true
 # List of modules to install
 for module in servicemon netplanmgr; do
     log "Installing $module module..."
     if wget -q -O "$gp_path/${module}.sh" --timeout=15 --tries=1 "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/${module}.sh"; then
         chmod +x "$gp_path/${module}.sh"
-        "$gp_path/${module}.sh" install || log "WARNING: $module module install failed -- skip"
+        "$gp_path/${module}.sh" install || log "WARNING: $module module install failed -- alert"
         rm -f "$gp_path/${module}.sh"
     else
-        log "Error: Failed to download ${module}.sh"
+        log "WARNING: failed to download ${module}.sh -- alert"
     fi
 done
 
@@ -1064,18 +1092,18 @@ if (cd "$gp_path" && git clone https://github.com/maravento/proxymon); then
             if PROXYMON_LAN="$LAN_IF" PROXYMON_SERVER_IP="$SERVER_IP" ./pmsetup.sh install; then
                 log "Sent to proxymon: SERVER_IP=$SERVER_IP lan_interface=$LAN_IF"
             else
-                log "WARNING: pmsetup.sh install failed -- skip"
+                log "WARNING: pmsetup.sh install failed -- alert"
             fi
         else
-            log "WARNING: pmsetup.sh not found in proxymon repo -- skip"
+            log "WARNING: pmsetup.sh not found in proxymon repo -- alert"
         fi
         dump_module_log "$gp_path/proxymon/pmsetup.log" "proxymon"
         cd "$gp_path"
     else
-        log "WARNING: cannot enter the proxymon directory -- skip"
+        log "WARNING: cannot enter the proxymon directory -- alert"
     fi
 else
-    log "WARNING: cannot clone proxymon -- skip"
+    log "WARNING: cannot clone proxymon -- alert"
 fi
 
 # DHCP SECTION
@@ -1089,7 +1117,7 @@ if (cd "$gp_path" && git clone https://github.com/maravento/pydhcp); then
         if cd "$pydhcp_path"; then
             PYDHCP_EXPECT=$(mktemp)
             cat > "$PYDHCP_EXPECT" <<EOF
-spawn bash pysetup.sh
+spawn env PYDHCP_WAN_IFACE=$wan_iface bash pysetup.sh
 expect -re {\[([0-9]+)\][ \t]+$LAN_IF[ \t(]}
 send "\$expect_out(1,string)\r"
 expect "Enter netmask"
@@ -1106,7 +1134,7 @@ expect eof
 catch wait result
 exit [lindex \$result 3]
 EOF
-            expect -f "$PYDHCP_EXPECT" || log "WARNING: pydhcp install failed -- skip"
+            expect -f "$PYDHCP_EXPECT" || log "WARNING: pydhcp install failed -- alert"
             rm -f "$PYDHCP_EXPECT"
             dump_module_log "$pydhcp_path/pysetup.log" "pydhcp"
 
@@ -1115,13 +1143,13 @@ EOF
             log "DHCP clients will use $SERVER_IP (unbound) as DNS"
 
         else
-            log "WARNING: cannot enter the pydhcp directory -- skip"
+            log "WARNING: cannot enter the pydhcp directory -- alert"
         fi
     else
-        log "WARNING: pydhcp directory not found -- skip"
+        log "WARNING: pydhcp directory not found -- alert"
     fi
 else
-    log "WARNING: cannot clone pydhcp -- skip"
+    log "WARNING: cannot clone pydhcp -- alert"
 fi
 
 # LOGS SECTION
@@ -1145,7 +1173,7 @@ retry_cmd nala install -y timeshift
 retry_cmd nala install -y libatk-adaptor libgail-common
 retry_cmd wget -O "$gp_path/scr/ffsupdate.sh" --timeout=15 --tries=1 https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh
 chmod +x "$gp_path/scr/ffsupdate.sh"
-"$gp_path/scr/ffsupdate.sh" || log "WARNING: ffsupdate.sh failed, FreeFileSync not installed -- skip"
+"$gp_path/scr/ffsupdate.sh" || log "WARNING: ffsupdate.sh failed, FreeFileSync not installed -- alert"
 cron_d_set "/etc/scr/ffsupdate.sh" "@weekly root /etc/scr/ffsupdate.sh"
 log "INFO: OK"
 sleep 1
@@ -1159,7 +1187,6 @@ retry_cmd nala install -y ethtool            # Net config: ethtool eth0
 DEBIAN_FRONTEND=noninteractive retry_cmd nala install -y iperf3  2>/dev/null
 # Net Scanning (Replace NIC and IP/CIDR)
 retry_cmd nala install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
-retry_cmd nala install -y nbtscan            # nbtscan 192.168.0.0/24
 retry_cmd nala install -y nast               # nast -m
 retry_cmd nala install -y arp-scan           # arp-scan --localnet
 retry_cmd nala install -y arping             # arping -I eth0 192.168.0.10
@@ -1291,18 +1318,18 @@ with SHARED folder, Recycle Bin and Audit (y/n)" answer
                     if SMBSTACK_IFACE="$LAN_IF" bash smbsetup.sh --install; then
                         log "smbstack installed OK"
                     else
-                        log "WARNING: smbsetup.sh --install failed -- skip"
+                        log "WARNING: smbsetup.sh --install failed -- alert"
                     fi
                     dump_module_log "$smbstack_path/smbsetup.log" "smbstack"
                     cd "$gp_path"
                 else
-                    log "WARNING: cannot enter the smbstack directory -- skip"
+                    log "WARNING: cannot enter the smbstack directory -- alert"
                 fi
             else
-                log "WARNING: smbstack directory not found -- skip"
+                log "WARNING: smbstack directory not found -- alert"
             fi
         else
-            log "WARNING: cannot clone smbstack -- skip"
+            log "WARNING: cannot clone smbstack -- alert"
         fi
         break
         ;;
@@ -1355,18 +1382,18 @@ if [ -n "$UNIFI_DETECTED_TYPE" ]; then
                         if bash uhmsetup.sh; then
                             log "uhm installed OK"
                         else
-                            log "WARNING: uhmsetup.sh failed -- skip"
+                            log "WARNING: uhmsetup.sh failed -- alert"
                         fi
                         dump_module_log "$uhm_path/uhmsetup.log" "uhm"
                         cd "$gp_path"
                     else
-                        log "WARNING: cannot enter the uhm directory -- skip"
+                        log "WARNING: cannot enter the uhm directory -- alert"
                     fi
                 else
-                    log "WARNING: uhm directory not found -- skip"
+                    log "WARNING: uhm directory not found -- alert"
                 fi
             else
-                log "WARNING: cannot clone uhm -- skip"
+                log "WARNING: cannot clone uhm -- alert"
             fi
             break
             ;;
@@ -1398,36 +1425,36 @@ log "Downloading ACLs..."
 # Allow IP
 get_acl https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt "$ACL_PATH/squid/allowip.txt" || true
 if [ ! -s "$ACL_PATH/squid/allowip.txt" ]; then
-    log "WARNING: allowip.txt is empty -- skip"
+    log "WARNING: allowip.txt is empty -- alert"
 fi
 
 # Block TLDs
 get_acl https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt "$ACL_PATH/squid/blocktlds.txt" || true
 if [ ! -s "$ACL_PATH/squid/blocktlds.txt" ]; then
-    log "WARNING: blocktlds.txt is empty, ACL disabled in squid.conf -- degraded"
+    log "INFO: blocktlds.txt is empty, ACL disabled in squid.conf"
     sed -i '/^acl blocktlds /s/^/#/; /^http_access deny workdays blocktlds/s/^/#/' "$gp_path/conf/squid/squid.conf"
 fi
 
 # Ransomware Extensions (Squid, optional)
 get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/rw/rwext.txt "$ACL_PATH/squid/rwext.txt" || true
 if [ ! -s "$ACL_PATH/squid/rwext.txt" ]; then
-    log "WARNING: rwext.txt is empty -- skip"
+    log "WARNING: rwext.txt is empty -- alert"
 fi
 
 # Bad User-Agents (Squid, optional)
 get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/ua/blockua.txt "$ACL_PATH/squid/blockua.txt" || true
 if [ ! -s "$ACL_PATH/squid/blockua.txt" ]; then
-    log "WARNING: blockua.txt is empty -- skip"
+    log "WARNING: blockua.txt is empty -- alert"
 fi
 
 # Web3 Domains/TLDs (Squid, optional)
 get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3domains.txt "$ACL_PATH/squid/web3domains.txt" || true
 if [ ! -s "$ACL_PATH/squid/web3domains.txt" ]; then
-    log "WARNING: web3domains.txt is empty -- skip"
+    log "WARNING: web3domains.txt is empty -- alert"
 fi
 get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3tld.txt "$ACL_PATH/squid/web3tld.txt" || true
 if [ ! -s "$ACL_PATH/squid/web3tld.txt" ]; then
-    log "WARNING: web3tld.txt is empty -- skip"
+    log "WARNING: web3tld.txt is empty -- alert"
 fi
 
 # Blackweb
@@ -1435,7 +1462,7 @@ if (cd "$gp_path" && get_acl https://raw.githubusercontent.com/maravento/blackwe
     (cd "$gp_path" && cat blackweb.tar.gz* | tar xzf -)
     cp "$gp_path/blackweb.txt" "$ACL_PATH/squid/blackweb.txt"
 else
-    log "WARNING: blackweb.tar.gz not available -- skip"
+    log "WARNING: blackweb.tar.gz not available -- alert"
 fi
 rm -f "$gp_path"/blackweb.*
 log "INFO: OK"
@@ -1464,7 +1491,7 @@ for url in "${scripts[@]}"; do
     if wget -q -O "$gp_path/scr/$fname" --timeout=15 --tries=1 "$url"; then
         log "Downloaded: $fname"
     else
-        log "WARNING: cannot download $fname -- skip"
+        log "WARNING: cannot download $fname -- alert"
     fi
 done
 
@@ -1535,7 +1562,7 @@ net.ipv4.tcp_congestion_control = bbr
 EOT
 grep -qxF "DefaultLimitNOFILE=65535" /etc/systemd/system.conf || echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/system.conf >/dev/null
 grep -qxF "DefaultLimitNOFILE=65535" /etc/systemd/user.conf || echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/user.conf >/dev/null
-sysctl --system >/dev/null || log "WARNING: some sysctl parameters failed to apply -- degraded"
+sysctl --system >/dev/null || log "INFO: some sysctl parameters failed to apply"
 
 log "Apache Config..."
 cp -f /etc/apache2/apache2.conf{,.bak} &>/dev/null || true

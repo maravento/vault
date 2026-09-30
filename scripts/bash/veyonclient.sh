@@ -4,32 +4,15 @@
 ################################################################################
 #
 # Veyon Client Tunnel (veyonclient)
+#
+# DESCRIPTION:
 # Connects Veyon Master to a remote Veyon Service through a Cloudflare
-# Tunnel Access-protected TCP hostname (see cftunnel.sh for the server side).
+# Tunnel Access-protected TCP hostname (see cftunnel.sh for the server
+# side). Requires cloudflared installed locally and a tunnel already
+# deployed on the remote side.
 #
-# Usage: bash veyonclient.sh
-#
-# PREREQUISITES:
-# ==============
-# - cloudflared installed on this machine (the one running Veyon Master).
-# - A Cloudflare Tunnel already deployed and running on the remote side
-#   (see cftunnel.sh), with its public hostname pointing to
-#   tcp://<remote-veyon-ip>:<port>.
-# - A Cloudflare Zero Trust Access Application protecting that hostname.
-#
-# WHAT THIS SCRIPT DOES:
-# =======================
-# 1. Checks that cloudflared and veyon-master are installed.
-# 2. Asks for the tunnel's public hostname and verifies it resolves.
-# 3. Asks for the local port to forward (11100 remote control, 11099
-#    monitoring feed).
-# 4. Authenticates against Cloudflare Access once via 'cloudflared access
-#    login' (opens a browser window). Running the login step separately
-#    avoids 'cloudflared access tcp' hanging after browser approval on a
-#    fresh, unauthenticated machine.
-# 5. Starts 'cloudflared access tcp' in the foreground, forwarding
-#    127.0.0.1:<port> into the tunnel. Open Veyon Master and connect to
-#    127.0.0.1 on that port; close this terminal (Ctrl+C) when done.
+# USAGE:
+# bash veyonclient.sh
 #
 ################################################################################
 
@@ -51,7 +34,7 @@ for dep in cloudflared; do
     fi
 done
 if ! command -v veyon-master &>/dev/null; then
-    echo "ERROR: veyon-master is not installed."
+    echo "ERROR: veyon-master is not installed -- abort"
     exit 1
 fi
 
@@ -74,11 +57,11 @@ echo ""
 while true; do
     read -r -p "Tunnel subdomain (e.g. veyon.example.com): " hostname
     if [[ ! "$hostname" =~ $UH_FQDN ]]; then
-        echo "WARNING: Invalid subdomain: '$hostname'"
+        echo "INFO: invalid subdomain: '$hostname' -- retry"
         continue
     fi
     if ! getent hosts "$hostname" >/dev/null 2>&1; then
-        echo "WARNING: Subdomain does not resolve: '$hostname'"
+        echo "INFO: subdomain does not resolve: '$hostname' -- retry"
         continue
     fi
     break
@@ -88,7 +71,7 @@ while true; do
     read -r -p "Local Veyon port (default 11100): " port
     port="${port:-11100}"
     if ! is_valid_port "$port"; then
-        echo "WARNING: Invalid port: '$port'"
+        echo "INFO: invalid port: '$port' -- retry"
         continue
     fi
     break

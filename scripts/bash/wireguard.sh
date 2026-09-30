@@ -69,7 +69,7 @@ install_wireguard_server() {
 
     # Verify that the keys have been read correctly
     if [ -z "$server_private_key" ] || [ -z "$server_public_key" ]; then
-      echo "Error: Failed to read keys"
+      echo "ERROR: failed to read keys -- abort"
       exit 1
     fi
 
@@ -83,7 +83,7 @@ install_wireguard_server() {
     # Prompt the user to choose an interface by number
     read -rp "Enter the public network interface number: " num
     if ! [[ "$num" =~ $UH_UINT ]]; then
-        echo "Error: Please enter a valid number."
+        echo "ERROR: please enter a valid number -- abort"
         exit 1
     fi
 
@@ -92,7 +92,7 @@ install_wireguard_server() {
 
     # Verify the selected public interface
     if [ -z "$public_eth" ]; then
-        echo "Error: No interface selected or invalid number."
+        echo "ERROR: no interface selected or invalid number -- abort"
         exit 1
     fi
 

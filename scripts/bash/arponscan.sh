@@ -11,6 +11,8 @@
 # given at the prompt, and builds static ARP entries (IP<->MAC) enforced by
 # arpon against those known devices.
 #
+# LOG: /var/log/syslog
+#
 ################################################################################
 
 set -uo pipefail
@@ -52,7 +54,7 @@ while :; do
     read -r -p "Enter the path for MAC addresses [/etc/acl/mac]: " acl_path
     acl_path="${acl_path:-/etc/acl/mac}"
     if [ -z "$acl_path" ] || ! compgen -G "$acl_path/mac*" >/dev/null; then
-        echo "ERROR: path does not exist or has no mac* files. Try again."
+        echo "INFO: path does not exist or has no mac* files -- retry"
         continue
     fi
     break
@@ -62,7 +64,7 @@ printf "\n"
 while :; do
     read -r -p "Enter the local network interface (e.g. eth1): " lan
     if [ -z "$lan" ] || ! ip link show "$lan" &>/dev/null; then
-        echo "ERROR: interface does not exist. Try again."
+        echo "INFO: interface does not exist -- retry"
         continue
     fi
     break
@@ -74,7 +76,7 @@ while :; do
     if [[ "$localip" =~ $UH_IPV4 ]]; then
         break
     fi
-    echo "ERROR: invalid IPv4 address. Try again."
+    echo "INFO: invalid IPv4 address -- retry"
 done
 
 ARPSTATIC_FILE="$(dirname "$(realpath "$0")")/arpstatic"

@@ -67,7 +67,7 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 - [Iperf3 Client](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/iperf3.sh)
 - [IP Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ipkill.sh)
 - [Netplan Switch (--status|--to-networkd|--to-nm|--help)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/npswitch.sh)
-- [Rustdesk Client (install|uninstall|update)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rdclient.sh)
+- [Rustdesk Client (install|remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rdclient.sh)
 - [Rustdesk Server (install|uninstall|update)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rdserver.sh)
 - [Veyon Client Tunnel (connects Veyon Master to a remote Veyon Service via cftunnel.sh)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/veyonclient.sh)
 - [x11vnc (install|uninstall|start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/x11vncmgr.sh)

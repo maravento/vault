@@ -5,12 +5,15 @@
 #
 # Services Watchdog
 #
-# NOTE on logging:
-# - Writes to /var/log/serviceswatch.log (own log, not shared).
+# LOG: /var/log/serviceswatch.log, its own log, not shared
 #
 ################################################################################
 
 set -uo pipefail
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -75,7 +78,7 @@ else
     done
     sleep "${sleep_time}"
     /etc/webmin/restart-by-force-kill
-    log "FIX: Webmin restarted"
+    log "INFO: Webmin restarted -- fixed"
 fi
 
 # Apache2 service
@@ -87,7 +90,7 @@ else
     done
     sleep "${sleep_time}"
     systemctl start apache2.service
-    log "FIX: apache2 restarted"
+    log "INFO: apache2 restarted -- fixed"
 fi
 
 # Squid Service
@@ -100,7 +103,7 @@ else
     done
     sleep "${sleep_time}"
     systemctl start squid.service
-    log "FIX: squid restarted"
+    log "INFO: squid restarted -- fixed"
 fi
 
 # rsyslog
@@ -110,7 +113,7 @@ else
     systemctl stop syslog.socket rsyslog.service &>/dev/null
     sleep "${sleep_time}"
     systemctl start syslog.socket rsyslog.service
-    log "FIX: rsyslog restarted"
+    log "INFO: rsyslog restarted -- fixed"
 fi
 
 # End

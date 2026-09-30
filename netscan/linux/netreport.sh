@@ -4,40 +4,23 @@
 ################################################################################
 #
 # Net Report
-# ------------
-# Brief: Simple menu-driven nmap wrapper that produces timestamped HTML reports
-# in ~/Report (owned by the non-root local user). No automatic browser open.
 #
-# Requirements:
-# - Run as root (sudo) because scans use -sS and -O.
-# - Packages: nmap, xsltproc, iproute2, util-linux (script will check if missing).
+# DESCRIPTION:
+# Menu-driven nmap wrapper that produces timestamped HTML scan reports,
+# owned by the non-root local user. No automatic browser open.
 #
-# Outputs:
-# - /home/<user>/Report/scan_TIMESTAMP.html
-# - Intermediate .xml/.nmap/.gnmap files are deleted after each scan.
+# REQUIREMENTS:
+# Run as root (sudo). Packages: nmap, xsltproc, iproute2, util-linux.
 #
-# Log file:
-# /var/log/netreport.log -- truncated on every run (single-run tool, no rotation).
+# OUTPUT:
+# /home/<user>/Report/scan*_TIMESTAMP.html
+# Intermediate .xml/.nmap/.gnmap files are deleted after each scan.
 #
-# Menu options:
-# 1) LAN Scan
-# Lists available interfaces and asks user to select one.
-# nmap -sS -T4 -F -sV <selected-network>
-# -> output: scan_TIMESTAMP.html
-# 2) Advanced LAN Scan
-# Lists available interfaces and asks user to select one.
-# nmap -sS -T4 -p- -sV -sC --max-retries 3 --host-timeout 5m <network>
-# -> output: scan_deep_TIMESTAMP.html
-# 3) IP/Host Scan
-# Lists available interfaces, asks user to select one, performs a quick
-# ping sweep to show active hosts, then asks for the target IP or hostname.
-# nmap -Pn -sS -T4 -p- -sV --version-intensity 8 -sC -O --script vuln --traceroute \
-# -oA <base> --max-retries 3 --host-timeout 10m <target>
-# -> output: scan_ip_TIMESTAMP.html
-# 4) Exit
-#
-# Usage:
+# USAGE:
 # sudo /path/to/netreport.sh
+#
+# LOG: /var/log/netreport.log
+#      Truncated on every run (single-run tool, no rotation).
 #
 ################################################################################
 
@@ -415,7 +398,7 @@ show_spinner_for_pid() {
     fi
     printf "\r[-] Done. \n"
     if [ "$exit_code" -ne 0 ]; then
-        log "WARNING: nmap (PID $pid) exited with code $exit_code"
+        log "WARNING: nmap (PID $pid) exited with code $exit_code -- alert"
     fi
     return 0
 }
@@ -432,12 +415,12 @@ xml_to_html() {
 
     # Verify XML file exists and is not empty
     if [ ! -f "$xml" ]; then
-        log "WARNING: XML file does not exist: $xml -- skip"
+        log "WARNING: XML file does not exist: $xml -- alert"
         return 1
     fi
 
     if [ ! -s "$xml" ]; then
-        log "WARNING: XML file is empty: $xml -- skip"
+        log "WARNING: XML file is empty: $xml -- alert"
         return 1
     fi
 
@@ -543,14 +526,14 @@ select_interface() {
                 SEL_IFACE="${SEL_IFACE:-$DEFAULT_IFACE}"
                 SEL_IFACE="${SEL_IFACE#"${SEL_IFACE%%[![:space:]]*}"}"
                 SEL_IFACE="${SEL_IFACE%"${SEL_IFACE##*[![:space:]]}"}"
-                [ -n "$SEL_IFACE" ] || { log "WARNING: no interface specified -- retry"; continue; }
+                [ -n "$SEL_IFACE" ] || { log "INFO: no interface specified -- retry"; continue; }
                 if ! ip link show "$SEL_IFACE" &>/dev/null; then
-                        log "WARNING: Interface '$SEL_IFACE' does not exist -- retry"
+                        log "INFO: Interface '$SEL_IFACE' does not exist -- retry"
                         continue
                 fi
                 SEL_NET=$(ip -4 addr show dev "$SEL_IFACE" scope global | sed -n 's/.*inet \([0-9.]\{1,\}\/[0-9]\{1,\}\).*/\1/p' | head -n1)
                 if [ -z "$SEL_NET" ]; then
-                        log "WARNING: No IPv4 address found on '$SEL_IFACE' -- retry"
+                        log "INFO: No IPv4 address found on '$SEL_IFACE' -- retry"
                         continue
                 fi
                 break
@@ -575,7 +558,7 @@ while true; do
     read -rp "Select [1-4] (default: 4): " opt
     opt="${opt:-4}"
     [[ "$opt" =~ ^[1-4]$ ]] && break
-    log "WARNING: invalid option '$opt' -- retry"
+    log "INFO: invalid option '$opt' -- retry"
 done
 echo ""
 
@@ -598,7 +581,7 @@ case "$opt" in
         show_spinner_for_pid "$pid"
 
         # Convert and finalize
-        xml_to_html "$xml_file" "$html_file" || { log "ERROR: Failed to convert XML to HTML"; exit 1; }
+        xml_to_html "$xml_file" "$html_file" || { log "ERROR: Failed to convert XML to HTML -- abort"; exit 1; }
         finalize_html_report "$html_file"
         cleanup_intermediate_files "${report_dir}/scan_${TS}"
         ;;
@@ -622,7 +605,7 @@ case "$opt" in
         show_spinner_for_pid "$pid"
 
         # Convert and finalize
-        xml_to_html "$xml_file" "$html_file" || { log "ERROR: Failed to convert XML to HTML"; exit 1; }
+        xml_to_html "$xml_file" "$html_file" || { log "ERROR: Failed to convert XML to HTML -- abort"; exit 1; }
         finalize_html_report "$html_file"
         cleanup_intermediate_files "${report_dir}/scan_deep_${TS}"
         ;;
@@ -642,7 +625,7 @@ case "$opt" in
             target="${target#"${target%%[![:space:]]*}"}"
             target="${target%"${target##*[![:space:]]}"}"
             [ -n "$target" ] && break
-            log "WARNING: No target specified -- retry"
+            log "INFO: No target specified -- retry"
         done
 
         # Validate target format (IPv4 or FQDN)
@@ -700,7 +683,7 @@ case "$opt" in
 
         # Verify XML is not empty
         if [ ! -s "$xml_file" ]; then
-            log "ERROR: XML file is empty: $xml_file"
+            log "ERROR: XML file is empty: $xml_file -- abort"
             exit 1
         fi
 
@@ -708,7 +691,7 @@ case "$opt" in
 
         # Convert to HTML
         if ! xml_to_html "$xml_file" "$html_file"; then
-            log "ERROR: Failed to convert XML to HTML"
+            log "ERROR: Failed to convert XML to HTML -- abort"
             exit 1
         fi
 

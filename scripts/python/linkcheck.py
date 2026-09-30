@@ -9,7 +9,7 @@ Classifies every error by type: HTTP errors (4xx/5xx),
 broken redirects, timeouts, SSL failures, DNS failures,
 and connection errors.
 
-Usage: python linkcheck.py
+Usage: python linkcheck.py [URL]
 Replace: BASE_URL
 """
 
@@ -169,7 +169,7 @@ def scan():
 
     parsed = urlparse(url)
     if not parsed.scheme or not parsed.netloc:
-        print(f"Error: '{url}' is not a valid URL.")
+        print(f"ERROR: '{url}' is not a valid URL -- abort")
         sys.exit(1)
 
     domain = parsed.netloc

@@ -5,27 +5,16 @@
 #
 # Internet Watchdog Script
 #
-# This script monitors Internet connectivity by pinging a public IP (default: 1.1.1.1)
-# every 60 seconds. It logs connection status, packet loss, and average latency
-# to a file (`connection.log`). The script supports start/stop/status controls,
-# runs safely in the background, and avoids multiple instances.
+# DESCRIPTION:
+# Monitors Internet connectivity by periodically pinging a public IP and
+# logs connection status, packet loss and average latency. Runs safely in
+# the background and avoids multiple instances.
 #
-# Usage:
-# ./watchdog.sh start # Launch watchdog in background
-# ./watchdog.sh status # Check if watchdog is running
-# ./watchdog.sh stop # Stop the running watchdog
+# USAGE:
+# ./watchdog.sh {start|stop|status}
 #
-# Log output:
-# connection.log
-# Format: [YYYY-MM-DD HH:MM:SS] Internet OK | Loss: X% | Avg latency: Y ms
-# or [YYYY-MM-DD HH:MM:SS] Internet DOWN
-#
-# Note:
-# - Target IP can be changed by editing the TARGET variable.
-# - PID is tracked in /tmp/watchdog.pid
-#
-# Command to check real-time logs:
-# tail -f connection.log
+# LOG: connection.log, next to this script
+#      PID file under /run/user/<uid>/watchdog.pid
 #
 ################################################################################
 

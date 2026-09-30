@@ -57,7 +57,7 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: No valid local user found. Create one with sudo access."
+    echo "ERROR: no valid local user found, create one with sudo access -- abort"
     exit 1
 fi
 echo "Using local user: $local_user"
@@ -80,7 +80,8 @@ install_docker() {
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$DOCKER_GPG_TMP"
     DOCKER_GPG_ACTUAL_FPR=$(gpg --with-colons --import-options show-only --import --fingerprint "$DOCKER_GPG_TMP" 2>/dev/null | awk -F: '/^fpr:/{print $10; exit}')
     if [ "$DOCKER_GPG_ACTUAL_FPR" != "$DOCKER_GPG_EXPECTED_FPR" ]; then
-        echo "ERROR: Docker GPG key fingerprint mismatch (got: ${DOCKER_GPG_ACTUAL_FPR:-none}, expected: $DOCKER_GPG_EXPECTED_FPR)"
+        echo "ERROR: Docker GPG fingerprint mismatch, got: ${DOCKER_GPG_ACTUAL_FPR:-none}"
+        echo "ERROR: expected: $DOCKER_GPG_EXPECTED_FPR -- abort"
         rm -f "$DOCKER_GPG_TMP"
         exit 1
     fi

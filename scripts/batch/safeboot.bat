@@ -3,7 +3,7 @@
 
 :: script to boot PC in mode: safe with network/safe minimal/normal
 :: for win 7/8/10/11
-:: Run with Administrador Privileges
+:: Run with Administrator Privileges
 
 REM Checking privileges
 net session >nul 2>&1

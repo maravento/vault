@@ -43,10 +43,10 @@ retry_cmd() {
     local attempt=1
     until "$@"; do
         if [ "$attempt" -ge "$max_attempts" ]; then
-            echo "ERROR: command failed after $max_attempts attempts: $*"
+            echo "ERROR: command failed after $max_attempts attempts: $* -- abort"
             exit 1
         fi
-        echo "WARNING: command failed (attempt $attempt/$max_attempts), retrying in 10s: $*"
+        echo "INFO: attempt $attempt/$max_attempts failed: $* -- retry"
         attempt=$((attempt + 1))
         sleep 10
     done
@@ -64,7 +64,7 @@ check_dependencies() {
     for c in wget dpkg systemctl; do
         command -v "$c" &>/dev/null && continue
         if [ "$c" = "systemctl" ]; then
-            echo "ERROR: systemd (systemctl) not found. This script requires a systemd-based system."
+            echo "ERROR: systemd (systemctl) not found, this script requires it -- abort"
             exit 1
         fi
     done
@@ -81,7 +81,7 @@ check_dependencies() {
         apt_lock_files="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
         while lsof $apt_lock_files >/dev/null 2>&1; do
             if [ "$apt_lock_elapsed" -ge "$apt_lock_timeout" ]; then
-                echo "ERROR: APT/DPKG locks still held after ${apt_lock_timeout}s. Aborting."
+                echo "ERROR: APT/DPKG locks still held after ${apt_lock_timeout}s -- abort"
                 exit 1
             fi
             echo "   Locks still held, waiting... (${apt_lock_elapsed}s elapsed)"
@@ -89,7 +89,7 @@ check_dependencies() {
             apt_lock_elapsed=$((apt_lock_elapsed + 5))
         done
         if ! retry_cmd apt-get -qq update || ! retry_cmd apt-get install -y "${missing[@]}"; then
-            echo "ERROR: Failed to install dependencies: ${missing[*]}"
+            echo "ERROR: failed to install dependencies: ${missing[*]} -- abort"
             exit 1
         fi
     fi
@@ -107,7 +107,7 @@ ensure_service_user() {
 # and restart the services. Safe to re-run: each sed replaces the whole line.
 patch_units() {
     if [ -z "${relay_host:-}" ]; then
-        echo "ERROR: relay_host is not set, cannot configure the services."
+        echo "INFO: relay_host is not set, cannot configure services -- skip"
         return 1
     fi
 
@@ -125,7 +125,7 @@ patch_units() {
 
 apply_config() {
     if [ ! -f "$conf_file" ]; then
-        echo "ERROR: No configuration found. Run 'Configure Relay Host' first."
+        echo "INFO: no configuration found, run 'Configure Relay Host' first -- skip"
         return 1
     fi
     relay_host=""
@@ -142,7 +142,7 @@ configure_relay_host() {
     read -rp "Server address for clients (IP/domain): " relay_host
     relay_host="${relay_host:-$suggested}"
     if [ -z "$relay_host" ]; then
-        echo "WARNING: No host provided, configuration canceled."
+        echo "INFO: no host provided, configuration canceled -- skip"
         return 1
     fi
 
@@ -158,7 +158,7 @@ install_server() {
     release_json=$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk-server/releases/latest || true)
     ver_tag=$(echo "$release_json" | jq -r '.tag_name' 2>/dev/null || true)
     if [ -z "$ver_tag" ] || [ "$ver_tag" = "null" ]; then
-        echo "ERROR: Failed to fetch latest version"
+        echo "ERROR: failed to fetch latest version -- abort"
         exit 1
     fi
 
@@ -185,20 +185,20 @@ install_server() {
     for deb in "$hbbs_deb" "$hbbr_deb"; do
         expected_sha256=$(echo "$release_json" | jq -r --arg name "$deb" '.assets[] | select(.name == $name) | .digest' | sed 's/^sha256://')
         if [ -z "$expected_sha256" ] || [ "$expected_sha256" = "null" ]; then
-            echo "ERROR: Failed to obtain the expected checksum for ${deb} from GitHub. Aborting."
+            echo "ERROR: failed to obtain checksum for ${deb} -- abort"
             rm -f "$hbbs_deb" "$hbbr_deb"
             exit 1
         fi
 
         if ! retry_cmd wget -q "${base_url}/${deb}"; then
-            echo "ERROR: Download failed: $deb"
+            echo "ERROR: download failed: $deb -- abort"
             rm -f "$hbbs_deb" "$hbbr_deb"
             exit 1
         fi
 
         actual_sha256=$(sha256sum "$deb" | awk '{print $1}')
         if [ "$actual_sha256" != "$expected_sha256" ]; then
-            echo "ERROR: Integrity check failed for $deb. Aborting."
+            echo "ERROR: integrity check failed for $deb -- abort"
             rm -f "$hbbs_deb" "$hbbr_deb"
             exit 1
         fi
@@ -209,7 +209,7 @@ install_server() {
     if dpkg -i "./$hbbs_deb" "./$hbbr_deb" >"$dpkg_out" 2>&1; then
         rm -f "$hbbs_deb" "$hbbr_deb" "$dpkg_out"
     else
-        echo "ERROR: Installation failed"
+        echo "ERROR: installation failed -- abort"
         cat "$dpkg_out" >&2
         rm -f "$hbbs_deb" "$hbbr_deb" "$dpkg_out"
         exit 1
@@ -240,13 +240,13 @@ remove_server() {
     if apt-get remove --purge -y rustdesk-server-hbbs rustdesk-server-hbbr >"$apt_out" 2>&1; then
         rm -f "$apt_out"
     else
-        echo "ERROR: Failed to remove RustDesk Server"
+        echo "ERROR: failed to remove RustDesk Server -- abort"
         cat "$apt_out" >&2
         rm -f "$apt_out"
         exit 1
     fi
 
-    echo "WARNING: this invalidates the key for ALL connected clients."
+    echo "INFO: this invalidates the key for ALL connected clients"
     read -rp "Also delete server data (key) at $rd_data_dir? (y/n): " user_response
     if [[ "$user_response" =~ ^[Yy]$ ]]; then
         rm -rf "$rd_data_dir" "$rd_log_dir" "$conf_dir"
@@ -278,7 +278,7 @@ status_server() {
 show_public_key() {
     key_file="$rd_data_dir/id_ed25519.pub"
     if [ ! -f "$key_file" ]; then
-        echo "WARNING: Public key not found yet at $key_file (start the server first so hbbs can generate it)."
+        echo "INFO: public key not found at $key_file, start the server first -- skip"
         return 1
     fi
     echo "INFO: Set as Key + ID/Relay Server in RustDesk client settings:"
@@ -333,7 +333,7 @@ case $option in
         exit 0
         ;;
     *)
-        echo "ERROR: Invalid option"
+        echo "ERROR: invalid option -- abort"
         exit 1
         ;;
 esac

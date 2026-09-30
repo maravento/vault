@@ -96,7 +96,7 @@ ssl_bump_setup() {
         chown -R proxy:proxy "$SSL_DB"
         chmod 700 "$SSL_DB"
     else
-        echo "Error: security_file_certgen not found. Is squid-openssl properly installed?"
+        echo "ERROR: security_file_certgen not found, is squid-openssl installed? -- abort"
         exit 1
     fi
 }

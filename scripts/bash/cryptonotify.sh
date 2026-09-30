@@ -4,14 +4,13 @@
 ################################################################################
 #
 # Top 5 Crypto Price Notifier
-# ---------------------------
-# This script fetches the current USD prices of the top 5 cryptocurrencies by market capitalization
-# directly from the CoinGecko API and sends a desktop notification with their symbols and prices.
-# It maintains the order based on market cap descending.
-
-# Usage:
-# Add this script to your crontab to get periodic price updates, for example every 30 minutes:
-# */30 * * * * /path_to/cryptonotify.sh
+#
+# DESCRIPTION:
+# Fetches the current USD prices of the top 5 cryptocurrencies by market
+# cap and sends a desktop notification with their symbols and prices.
+#
+# USAGE:
+# Run periodically via crontab.
 #
 ################################################################################
 

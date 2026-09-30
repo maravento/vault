@@ -5,7 +5,7 @@
 #
 # Network Bridge Manager Script
 #
-# Usage: sudo ./bridge.sh [on|off|status|clean]
+# USAGE: sudo ./bridge.sh [on|off|status|clean]
 #
 ################################################################################
 

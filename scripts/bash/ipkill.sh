@@ -5,6 +5,10 @@
 #
 # IP Kill
 #
+# DESCRIPTION: Interactively cuts off a target host's TCP connections on a
+# chosen network interface for a fixed time window. Run as root.
+#
+# LOG: system log (via logger, tag ipkill)
 ################################################################################
 
 set -uo pipefail
@@ -46,13 +50,13 @@ fi
 read -r -p "Enter IP to close: " target_ip
 
 if ! [[ "$target_ip" =~ $UH_IPV4 ]]; then
-    echo "Invalid IP address: '$target_ip'"
+    echo "ERROR: invalid IP address: '$target_ip' -- abort"
     exit 1
 fi
 target_ip_validated="$target_ip"
 case "$target_ip_validated" in
     0.0.0.0|255.255.255.255|127.*|224.*|225.*|226.*|227.*|228.*|229.*|230.*|231.*|232.*|233.*|234.*|235.*|236.*|237.*|238.*|239.*)
-        echo "Warning: '$target_ip_validated' is a special/reserved address. Continuing anyway."
+        echo "WARNING: '$target_ip_validated' is a special/reserved address -- alert"
         ;;
 esac
 

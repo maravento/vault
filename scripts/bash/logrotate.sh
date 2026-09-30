@@ -3,8 +3,14 @@
 #
 ################################################################################
 #
-# Force Log Rotate
-# You should only use it if logrotate fails.
+# DESCRIPTION:
+# Forces a log rotation via logrotate. Use only if scheduled logrotate fails.
+#
+# USAGE:
+# sudo ./logrotate.sh
+#
+# LOG:
+# Errors are reported via syslog/journal (logger -t logrotate)
 #
 ################################################################################
 

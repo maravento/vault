@@ -370,14 +370,14 @@ apt-get install -y avahi-utils nbtscan
     <td style="width: 50%; vertical-align: top;">
       <strong>Important</strong>
       <ul>
-        <li>nginx must not be running.</li>
+        <li><code>nginx</code>, <code>lighttpd</code> and <code>caddy</code> must not be installed.</li>
         <li>The web panel listens on port <code>3126</code>, registered by <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> as Unassigned.</li>
       </ul>
     </td>
     <td style="width: 50%; vertical-align: top;">
       <strong>Importante</strong>
       <ul>
-        <li>nginx no debe estar en ejecución.</li>
+        <li><code>nginx</code>, <code>lighttpd</code> y <code>caddy</code> no deben estar instalados.</li>
         <li>El panel web escucha en el puerto <code>3126</code>, registrado por <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> como Sin asignar.</li>
       </ul>
     </td>

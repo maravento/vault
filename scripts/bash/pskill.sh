@@ -29,13 +29,13 @@ echo "Kill Process Starting. Wait..."
 read -rp "Set process name (e.g. vlc): " process_name
 
 if [ -z "$process_name" ]; then
-    echo "ERROR: Process name cannot be empty"
+    echo "ERROR: process name cannot be empty -- abort"
     exit 1
 fi
 
 protected_pattern="^(systemd|init|kernel|kthreadd|ksoftirqd|migration|watchdog)$"
 if [[ "$process_name" =~ $protected_pattern ]]; then
-    echo "ERROR: '$process_name' is a protected system process and cannot be killed"
+    echo "ERROR: '$process_name' is a protected system process -- abort"
     exit 1
 fi
 

@@ -2,36 +2,16 @@
 # maravento.com
 #
 ################################################################################
-# Netplan Manager module installation/uninstallation script for Webmin
 #
-# Description:
-# Netplan Manager module for Webmin. Provides a graphical and scriptable
-# interface to manage network configuration through Netplan directly from Webmin.
-# Enables real-time editing, validation, and application of network settings
-# without manual YAML file handling.
+# DESCRIPTION:
+# Installs or uninstalls the Netplan Manager module for Webmin, a graphical
+# interface to view, edit, validate and apply Netplan YAML configuration
+# files without manual file handling.
 #
-# Features:
-# - Reads and edits Netplan configuration files (/etc/netplan/*.yaml)
-# - Creates automatic YAML backups before applying any changes
-# - Applies configuration instantly using "netplan apply"
-# - Validates YAML syntax and warns of possible errors
-# - Displays current interface status and active configuration
-# - Installs and integrates seamlessly into Webmin's Network category
-# - Works with both systemd-netplanmgr and NetworkManager backends
-# - Includes responsive layout and action buttons for quick management
+# USAGE:
+# sudo ./netplanmgr.sh [install|uninstall|-h|--help]
+# Without arguments, shows an interactive menu.
 #
-# Usage:
-# sudo ./netplanmgr.sh [OPTIONS]
-#
-# Options:
-# install Install the module
-# uninstall Uninstall the module
-# -h, --help Show help message
-#
-# Examples:
-# sudo ./netplanmgr.sh # Interactive menu
-# sudo ./netplanmgr.sh install # Direct installation
-# sudo ./netplanmgr.sh uninstall # Direct uninstallation
 ################################################################################
 
 set -uo pipefail
@@ -61,7 +41,7 @@ done
 
 mod_name="netplanmgr"
 if ! [[ "$mod_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-    echo "ERROR: mod_name contains invalid characters"
+    echo "ERROR: mod_name contains invalid characters -- abort"
     exit 1
 fi
 mod_dir="/usr/share/webmin/$mod_name"
@@ -1067,7 +1047,7 @@ ICONEOF
             echo "Module added to webmin.acl"
         fi
     else
-        echo "Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
+        echo "WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -- alert"
     fi
 
     # Clear cache
@@ -1118,7 +1098,7 @@ uninstall_module() {
             echo "Module removed from webmin.acl"
         fi
     else
-        echo "Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
+        echo "WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -- alert"
     fi
 
     # Clear cache
@@ -1158,7 +1138,7 @@ show_usage() {
 # ============================================================
 main() {
     if [ ! -d "/usr/share/webmin" ] && [ ! -d "/etc/webmin" ]; then
-        echo "Error: Webmin is not installed on this system"
+        echo "ERROR: Webmin is not installed on this system -- abort"
         exit 1
     fi
 
@@ -1177,7 +1157,7 @@ main() {
                 exit 0
                 ;;
             *)
-                echo "Error: Invalid option '$1'"
+                echo "ERROR: invalid option '$1' -- abort"
                 echo ""
                 show_usage
                 exit 1

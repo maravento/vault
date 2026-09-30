@@ -3,13 +3,12 @@
 #
 ################################################################################
 #
-# phpvirtualbox install
-# https://www.maravento.com/2015/02/administrando-vms.html
-# Requires Virtualbox 7x
+# DESCRIPTION:
+# Installs phpVirtualBox, a web interface for VirtualBox, under Apache.
+# Requires VirtualBox 7.x already installed.
 #
-# special thanks to:
-# https://github.com/BartekSz95
-# https://github.com/phpvirtualbox/phpvirtualbox
+# USAGE:
+# sudo ./phpvbox.sh
 #
 ################################################################################
 
@@ -74,7 +73,7 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: No valid local user found. Create one with sudo access."
+    echo "ERROR: no valid local user found, create one with sudo access -- abort"
     exit 1
 fi
 echo "Using local user: $local_user"
@@ -86,10 +85,10 @@ retry_cmd() {
     local attempt=1
     until "$@"; do
         if [ "$attempt" -ge "$max_attempts" ]; then
-            echo "ERROR: command failed after $max_attempts attempts: $*"
+            echo "ERROR: command failed after $max_attempts attempts: $* -- abort"
             exit 1
         fi
-        echo "WARNING: command failed (attempt $attempt/$max_attempts), retrying in 10s: $*"
+        echo "INFO: attempt $attempt/$max_attempts failed: $* -- retry"
         attempt=$((attempt + 1))
         sleep 10
     done
@@ -212,7 +211,7 @@ echo "Script and cron task added successfully."
 echo
 echo "Access: http://localhost/phpvirtualbox"
 echo "Default user: admin / Default password: admin"
-echo "WARNING: Change the default password immediately after first login."
+echo "INFO: change the default password immediately after first login"
 echo "Go to: Admin menu -> Change Password"
 echo "Leaving the default password exposes VirtualBox to unauthorized access."
 echo "Use vinagre or remmina to connect (activate Enable Server into Remote Display of VM)"

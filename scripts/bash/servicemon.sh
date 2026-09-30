@@ -5,32 +5,13 @@
 #
 # Services Monitor module installation/uninstallation script for Webmin
 #
-# Description:
-# This script installs or uninstalls the Services Monitor module for Webmin.
-# The module provides a modern interface to monitor and manage systemd services,
-# with real-time status updates and syslog integration.
+# DESCRIPTION:
+# Installs or uninstalls the Services Monitor module for Webmin, a web
+# interface to monitor, start, stop and restart systemd services.
 #
-# Features:
-# - Modern and user-friendly web interface
-# - Monitor enabled system services
-# - Start, stop, and restart services
-# - Multi-language support (English and Spanish)
-# - Syslog integration for service events
-# - Automatic dependency checking
-# - Configurable service filtering (Default/Active/Failed)
-#
-# Usage:
-# sudo ./servicemon.sh [OPTIONS]
-#
-# Options:
-# install Install the module
-# uninstall Uninstall the module
-# -h, --help Show help message
-#
-# Examples:
-# sudo ./servicemon.sh # Interactive menu
-# sudo ./servicemon.sh install # Direct installation
-# sudo ./servicemon.sh uninstall # Direct uninstallation
+# USAGE:
+# sudo ./servicemon.sh [install|uninstall|-h|--help]
+# Run with no argument for an interactive menu.
 #
 ################################################################################
 
@@ -825,7 +806,7 @@ ICONEOF
             echo "Module added to webmin.acl"
         fi
     else
-        echo "Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
+        echo "WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -- alert"
     fi
 
     rm -f /var/webmin/module.infos.cache
@@ -881,7 +862,7 @@ uninstall_module() {
             echo "Module removed from webmin.acl"
         fi
     else
-        echo "Warning: /etc/webmin/webmin.acl not found, skipping ACL update"
+        echo "WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -- alert"
     fi
 
     rm -f /var/webmin/module.infos.cache
@@ -930,7 +911,7 @@ show_usage() {
 
 main() {
     if [ ! -d "/usr/share/webmin" ] && [ ! -d "/etc/webmin" ]; then
-        echo "Error: Webmin is not installed on this system"
+        echo "ERROR: Webmin is not installed on this system -- abort"
         exit 1
     fi
 
@@ -949,7 +930,7 @@ main() {
                 exit 0
                 ;;
             *)
-                echo "Error: Invalid option '$1'"
+                echo "ERROR: invalid option '$1' -- abort"
                 echo ""
                 show_usage
                 exit 1

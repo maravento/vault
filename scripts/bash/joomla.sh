@@ -4,8 +4,14 @@
 ################################################################################
 #
 # Joomla install | remove
-# Included: Apache/MySQL/PHP/mkcert
 #
+# DESCRIPTION: Interactive menu to install Joomla with its Apache/MySQL/PHP
+# stack and local mkcert certificates, remove Joomla only, or remove the
+# whole stack. Run as root.
+#
+# USAGE: ./joomla.sh
+#
+# Included: Apache/MySQL/PHP/mkcert
 ################################################################################
 
 set -uo pipefail

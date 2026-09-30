@@ -39,15 +39,19 @@
 # result in the firewall blocking your own gateway, WAN uplink, or LAN
 # hosts. On every run, any LAN/WAN IP already present from before this
 # exclusion existed is also purged from suridata.txt and from the live
-# ipset. SERV_SUBNET follows the same "${VAR:-default}" fallback pattern
-# already used by iptables.sh, so this script can run standalone even if
-# nothing exports it. The WAN side has no such fixed value (DHCP/ISP-
-# assigned, can change), so its /24 is resolved at runtime from wan_iface
-# via `ip addr show` instead of a fallback constant.
+# ipset. SERV_SUBNET and the WAN interface name are read from
+# /etc/pydhcp/pydhcp.env; if a key is missing the script warns and falls back
+# to a built-in value. The WAN side has no fixed value (DHCP/ISP-assigned,
+# can change), so its /24 is resolved at runtime from wan_iface via
+# `ip addr show` instead of a fallback constant.
 #
 ################################################################################
 
 set -uo pipefail
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # PATH for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -106,10 +110,51 @@ offset_file="/var/lib/suricata/suridata.offset"
 sids_file="/var/lib/suricata/suridata.sids"
 out_file="/etc/suricata/suridata.txt"
 
-# network identity -- same "${VAR:-default}" fallback style as iptables.sh,
-# so this script still runs standalone if nothing exports these first.
-wan_iface="eth0"
+# network identity -- read from pydhcp.env, where pysetup.sh writes it. The
+# "${VAR:-default}" fallback keeps this script running standalone, and says so.
+pydhcp_conf="/etc/pydhcp/pydhcp.env"
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
+# LOAD_CONF
+# Read known key=value pairs from a config file, without sourcing it
+load_conf() {
+    local conf_file="$1" env_key env_value env_line
+    [[ ! -f "$conf_file" ]] && { log "WARNING: $conf_file not found -- fallback"; return 1; }
+    while IFS= read -r env_line || [[ -n "$env_line" ]]; do
+        [[ "$env_line" =~ ^[[:space:]]*[#] ]] && continue
+        [[ "$env_line" =~ ^[[:space:]]*$ ]] && continue
+        env_key="${env_line%%=*}"
+        env_value="${env_line#*=}"
+        if [[ ! "$env_line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] \
+           || [[ "$env_value" == [[:space:]\"\']* ]] \
+           || [[ "$env_value" == *[[:space:]\"\'] ]]; then
+            log "ERROR: malformed line in $conf_file: '$env_line' -- abort"
+            exit 1
+        fi
+        case "$env_key" in
+            WAN_IFACE|SERV_SUBNET)
+                printf -v "$env_key" '%s' "$env_value"
+                ;;
+        esac
+    done < "$conf_file"
+}
+load_conf "$pydhcp_conf" || true
+
+if [ -z "${WAN_IFACE:-}" ]; then
+    log "WARNING: no WAN_IFACE in pydhcp.env -- fallback"
+fi
+wan_iface="${WAN_IFACE:-eth0}"
+if [ -z "${SERV_SUBNET:-}" ]; then
+    log "WARNING: no SERV_SUBNET in pydhcp.env -- fallback"
+fi
 SERV_SUBNET="${SERV_SUBNET:-192.168.0.0}"
+
+# ------------------------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------------------------
 
 for f in "$rules_file" "$eve_log"; do
     if [ ! -f "$f" ]; then
@@ -129,7 +174,7 @@ touch "$out_file"
 if [[ "$SERV_SUBNET" =~ $UH_IPV4 ]]; then
     lan_prefix="${SERV_SUBNET%.*}."
 else
-    log "WARNING: SERV_SUBNET '$SERV_SUBNET' is not a valid IPv4 -- LAN exclusion disabled this run"
+    log "WARNING: SERV_SUBNET '$SERV_SUBNET' is not a valid IPv4 -- fallback"
     lan_prefix=""
 fi
 
@@ -137,7 +182,7 @@ wan_ip=$(ip -4 -o addr show "$wan_iface" 2>/dev/null | awk '{print $4}' | cut -d
 if [[ "$wan_ip" =~ $UH_IPV4 ]]; then
     wan_prefix="${wan_ip%.*}."
 else
-    log "WARNING: could not resolve IP for wan_iface=$wan_iface -- WAN exclusion disabled this run"
+    log "WARNING: could not resolve IP for wan_iface=$wan_iface -- fallback"
     wan_prefix=""
 fi
 
@@ -171,21 +216,20 @@ fi
 # -- Step 1: SIDs currently resolved to "drop" by suricata-update ------------
 mapfile -t drop_sids < <(grep '^drop ' "$rules_file" 2>/dev/null | grep -oP 'sid:\K\d+' | sort -u)
 if [ "${#drop_sids[@]}" -eq 0 ]; then
-    log "WARNING: no drop-action SIDs found in $rules_file"
-    log "WARNING: nothing to match this run -- skip"
+    log "INFO: no drop-action SIDs found in $rules_file"
+    log "INFO: nothing to match this run -- skip"
     exit 0
 fi
 
 # SID maps are passed to jq via --slurpfile (file), never --argjson (argv):
 # drop.conf's broad re: categories (ET MALWARE, ET PHISHING, ...) resolve to
 # tens of thousands of SIDs, and that JSON blob blows past the shell's
-# argument-length limit -- jq fails with "argument list too long" and, since
-# earlier versions of this script piped stderr to /dev/null, that failure
-# was silent and every run just logged "No new IPs this run".
+# argument-length limit -- jq fails with "argument list too long".
 sid_map_file=$(mktemp)
 new_sid_map_file=$(mktemp)
 sid_grep_file=$(mktemp)
-trap 'rm -f "$sid_map_file" "$new_sid_map_file" "$sid_grep_file"' EXIT
+backfill_raw_file=$(mktemp)
+trap 'rm -f "$sid_map_file" "$new_sid_map_file" "$sid_grep_file" "$backfill_raw_file"' EXIT
 printf '%s\n' "${drop_sids[@]}" | jq -R 'select(length>0)' | jq -s 'map({(.): true}) | add' > "$sid_map_file"
 
 # -- Step 1b: SIDs newly resolved to drop since the last run -----------------
@@ -195,9 +239,9 @@ printf '%s\n' "${drop_sids[@]}" | jq -R 'select(length>0)' | jq -s 'map({(.): tr
 # one-time full scan restricted to just the newly-dropped SIDs.
 touch "$sids_file"
 mapfile -t new_sids < <(comm -23 <(printf '%s\n' "${drop_sids[@]}") <(sort -u "$sids_file"))
-printf '%s\n' "${drop_sids[@]}" > "$sids_file"
 
 backfill_ips=""
+backfill_failed=0
 if [ "${#new_sids[@]}" -gt 0 ]; then
     log "INFO: ${#new_sids[@]} SID(s) newly resolved to drop"
     log "INFO: rescanning full eve.json for them"
@@ -208,13 +252,26 @@ if [ "${#new_sids[@]}" -gt 0 ]; then
     # jq's exact-key lookup below still discards anything that isn't a
     # real match, this step only cuts down how much jq has to parse.
     printf '"signature_id":%s\n' "${new_sids[@]}" > "$sid_grep_file"
-    backfill_ips=$(grep -aF -f "$sid_grep_file" "$eve_log" | jq -r --slurpfile sids "$new_sid_map_file" '
+    # grep's exit status is discarded on purpose: no match means the SID has
+    # no history in eve.json, which is normal. Only jq's status is read, so
+    # the two cases stay apart.
+    grep -aF -f "$sid_grep_file" "$eve_log" > "$backfill_raw_file" || true
+    backfill_ips=$(jq -r --slurpfile sids "$new_sid_map_file" '
         select(.event_type=="alert")
         | select(.alert.signature_id != null)
         | select($sids[0][(.alert.signature_id|tostring)] == true)
         | .dest_ip
-    ' 2>>"$log_file")
+    ' "$backfill_raw_file" 2>>"$log_file") || backfill_failed=1
     backfill_ips=$(printf '%s' "$backfill_ips" | sort -u)
+fi
+
+# the SID list only advances when its rescan finished: a failed backfill stays
+# pending so the next run retries it, same criterion Step 2 uses for its offset
+if (( backfill_failed )); then
+    log "WARNING: jq failed rescanning eve.json for the new SIDs"
+    log "WARNING: they stay pending, retried next run -- alert"
+else
+    printf '%s\n' "${drop_sids[@]}" > "$sids_file"
 fi
 
 # -- Step 2: read only what's new in eve.json since the last run -------------
@@ -240,7 +297,7 @@ if (( current_size > last_offset )); then
     ' 2>>"$log_file" | sort -u) || jq_failed=1
 fi
 if (( jq_failed )); then
-    log "WARNING: jq failed parsing new eve.json content -- offset NOT advanced, will retry this segment next run"
+    log "WARNING: jq failed parsing eve.json, retrying next run -- alert"
 else
     echo "$current_size" > "$offset_file"
 fi
@@ -280,7 +337,11 @@ if ipset list suridata &>/dev/null; then
         [[ "$ip" =~ $UH_IPV4 ]] && ipset add suridata "$ip" -exist
     done < "$out_file"
 else
-    log "INFO: ipset 'suridata' does not exist yet -- run iptables.sh once to create it"
+    log "INFO: ipset 'suridata' does not exist yet -- skip"
 fi
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
 
 log "suridata done at: $(date '+%Y-%m-%d %H:%M:%S')"

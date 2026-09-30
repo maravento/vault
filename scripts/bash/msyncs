@@ -3,19 +3,14 @@
 #
 ################################################################################
 #
-# Launch MEGAsync Instances
-# Tested: Ubuntu 24.04 LTS
-# Fork: https://github.com/NicoVarg99/MEGA-Instances
-
-# Dependencies:
-# sudo apt install zenity libatk-adaptor libgail-common libgtk2.0-0 (or libgtk2.0-0t64 for Ubuntu 24.04)
-# Download and Install:
-# sudo wget -O /usr/bin/msyncs https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/msyncs
-# sudo chmod 755 /usr/bin/msyncs
-# Run:
-# msyncs start|stop|status
-# Remove:
-# sudo rm -rf /home/$USER/.config/msyncs /usr/bin/msyncs
+# msyncs - Launch multiple MEGAsync instances, one per configured account
+#
+# DESCRIPTION:
+# Creates and launches independent MEGAsync instances, each with its own
+# home folder and account. Configuration is interactive on first run.
+#
+# USAGE:
+# msyncs {start|stop|status}
 #
 ################################################################################
 

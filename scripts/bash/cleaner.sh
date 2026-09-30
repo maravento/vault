@@ -8,7 +8,12 @@
 # - Windows ADS files (e.g., :Zone.Identifier, :encryptable, Thumbs.db)
 # - macOS and Linux system files (e.g., .fuse_hidden*, .spotlight-*, .fseventsd*, .DS_Store, ~lock.*)
 # - Extended attributes and metadata streams (e.g., :attributes:)
-# - Crash reports from Apport (/var/crash/*.crash)
+#
+# USAGE: sudo ./cleaner.sh [search_path]
+# Without arguments, searches from /
+#
+# LOG: /var/log/cleaner.log
+#      /var/log/syslog
 #
 ################################################################################
 

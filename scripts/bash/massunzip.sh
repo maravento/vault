@@ -3,8 +3,13 @@
 #
 ################################################################################
 #
-# Mass decompression with password
-# https://www.maravento.com/2020/05/descompresion-masiva-de-archivos.html
+# DESCRIPTION:
+# Mass decompression of password-protected archives in the current
+# directory, trying a predefined list of passwords against each file.
+#
+# USAGE:
+# ./massunzip.sh
+# Run (as a non-root user) from the directory containing the archives.
 #
 ################################################################################
 

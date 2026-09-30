@@ -111,7 +111,7 @@ load_conf() {
             exit 1
         fi
         case "$env_key" in
-            INTERFACESv4|SERVER_IP|SERV_SUBNET|SERV_MASK|SERV_DNS|ACL_PATH|WPAD_PORT)
+            INTERFACESv4|SERVER_IP|SERV_SUBNET|SERV_MASK|SERV_DNS|ACL_PATH|WAN_IFACE|WPAD_PORT)
                 printf -v "$env_key" '%s' "$env_value"
                 ;;
             *)
@@ -122,14 +122,29 @@ load_conf() {
 load_conf "$pydhcp_conf" || true
 
 # paths (ACL_PATH comes from $pydhcp_conf)
+if [ -z "${ACL_PATH:-}" ]; then
+    log "WARNING: no ACL_PATH in pydhcp.env -- fallback"
+fi
 acl_mac_path="${ACL_PATH:-/etc/acl}/mac"
 acl_ipt_path="${ACL_PATH:-/etc/acl}/ipt"
 # interfaces
-wan_iface="eth0"
+if [ -z "${WAN_IFACE:-}" ]; then
+    log "WARNING: no WAN_IFACE in pydhcp.env -- fallback"
+fi
+wan_iface="${WAN_IFACE:-eth0}"
+if [ -z "${INTERFACESv4:-}" ]; then
+    log "WARNING: no INTERFACESv4 in pydhcp.env -- fallback"
+fi
 INTERFACESv4="${INTERFACESv4:-eth1}"
 # LAN SERV_SUBNET/NETMASK (CIDR prefix derived from pydhcp's own SERV_MASK,
 # no separate gateproxy key to keep in sync by hand)
+if [ -z "${SERV_SUBNET:-}" ]; then
+    log "WARNING: no SERV_SUBNET in pydhcp.env -- fallback"
+fi
 SERV_SUBNET="${SERV_SUBNET:-192.168.0.0}"
+if [ -z "${SERV_MASK:-}" ]; then
+    log "WARNING: no SERV_MASK in pydhcp.env -- fallback"
+fi
 SERV_MASK="${SERV_MASK:-255.255.255.0}"
 if [[ " $UH_PREFIX " =~ [[:space:]]${SERV_MASK//./\\.}:([0-9]+)[[:space:]] ]]; then
     netmask_int="${BASH_REMATCH[1]}"
@@ -138,12 +153,18 @@ else
     exit 1
 fi
 # server IP
+if [ -z "${SERVER_IP:-}" ]; then
+    log "WARNING: no SERVER_IP in pydhcp.env -- fallback"
+fi
 SERVER_IP="${SERVER_IP:-192.168.0.10}"
 # squid proxy port
 squid_port="3128"
 # squid intercept port (NAT-redirected HTTP, not exposed to explicit proxy clients)
 squid_intercept_port="3129"
 # PAC port announced by pydhcpd in DHCP option 252
+if [ -z "${WPAD_PORT:-}" ]; then
+    log "WARNING: no WPAD_PORT in pydhcp.env -- fallback"
+fi
 WPAD_PORT="${WPAD_PORT:-18100}"
 [[ "$WPAD_PORT" =~ $UH_UINT ]] && (( WPAD_PORT >= 1 && WPAD_PORT <= 65535 )) || { log "ERROR: WPAD_PORT is not a valid port: '$WPAD_PORT' -- abort"; exit 1; }
 
@@ -188,7 +209,7 @@ mac_set() {
         fi
     done
     if [ "$invalid_count" -gt 0 ]; then
-        log "WARNING: $invalid_count invalid MACs in $(basename "$src_file") -- skip"
+        log "WARNING: $invalid_count invalid MACs in $(basename "$src_file") -- alert"
     fi
     return 0
 }
@@ -477,6 +498,9 @@ iptables -A FORWARD -p tcp --tcp-flags SYN,ACK SYN,ACK -m conntrack --ctstate NE
 # Burst limit
 iptables -A FORWARD -i "$INTERFACESv4" -p udp --dport 53 -m state --state NEW -m recent --set --name DNS_DROPPER
 iptables -A FORWARD -i "$INTERFACESv4" -p udp --dport 53 -m state --state NEW -m recent --update --seconds 1 --hitcount 15 --name DNS_DROPPER -j DROP
+if [ -z "${SERV_DNS:-}" ]; then
+    log "WARNING: no SERV_DNS in pydhcp.env -- fallback"
+fi
 SERV_DNS="${SERV_DNS:-$SERVER_IP}"
 for dns_ip in ${SERV_DNS//,/ }; do
     for proto_name in tcp udp; do
@@ -553,7 +577,7 @@ if [ -n "$mac2ip_rules" ]; then
             { arptables -A INPUT -i "$INTERFACESv4" --source-ip "$arp_ip" ! --source-mac "$arp_mac" -j DROP || true; }
     done
 else
-    log "WARNING: no static DHCP entries in $dhcp_conf -- skip"
+    log "WARNING: no static DHCP entries in $dhcp_conf -- alert"
 fi
 
 # MACUNLIMITED (MAC + IP for Access Points, Switch, etc.)
@@ -672,7 +696,7 @@ if [ -f "$suridata_file" ]; then
         [[ "$suridata_ip" =~ $UH_IPV4 ]] && ipset add suridata "$suridata_ip" -exist
     done
 else
-    log "WARNING: $suridata_file not found -- skip"
+    log "WARNING: $suridata_file not found -- alert"
 fi
 iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set suridata dst -j NFLOG --nflog-prefix "SURIDATA DROP: "
 iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set suridata dst -j DROP

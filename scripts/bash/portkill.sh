@@ -3,8 +3,11 @@
 #
 ################################################################################
 #
-# Port Kill
-# check port with: sudo netstat -lnp | grep "port"
+# DESCRIPTION:
+# Kills the process(es) listening on a port number entered by the user.
+#
+# USAGE:
+# sudo ./portkill.sh
 #
 ################################################################################
 
@@ -32,11 +35,11 @@ echo "Port Kill Starting. Wait..."
 read -rp "Enter Port Number to close: " port
 
 if [ -z "$port" ]; then
-    echo "ERROR: Port number cannot be empty"
+    echo "ERROR: port number cannot be empty -- abort"
     exit 1
 fi
 if ! [[ "$port" =~ $UH_UINT ]] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
-    echo "ERROR: '$port' is not a valid port number (1-65535)"
+    echo "ERROR: '$port' is not a valid port number (1-65535) -- abort"
     exit 1
 fi
 
@@ -47,7 +50,7 @@ else
     if kill $pids 2>/dev/null; then
         echo "Done"
     else
-        echo "ERROR: Failed to kill process(es) on port $port"
+        echo "ERROR: failed to kill process(es) on port $port -- abort"
         exit 1
     fi
 fi

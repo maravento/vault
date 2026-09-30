@@ -3,40 +3,20 @@
 #
 ################################################################################
 #
-# Rclone Manager (Gdrive, PCloud, Dropbox, OneDrive, Mega...)
-# https://www.maravento.com/2023/09/2-way-sync-con-rclone.html
-#
-# Cloud mount and 2-way folder sync in a single menu/CLI.
-#
+# DESCRIPTION:
+# Manages Rclone cloud remotes (Gdrive, PCloud, Dropbox, OneDrive, Mega...):
+# mounts configured remotes as local folders and performs 2-way sync between
+# local upload/download folders and the mounted cloud folders.
 # Requires Rclone remotes already configured (rclone config) for each
-# service in the `services` array below.
+# service.
 #
-# MOUNT
-# Mounts each configured remote as a folder under /home/$local_user/rclone/cloud
-# (e.g. cloud/drive, cloud/dropbox) using rclone mount + fuse3.
-# sudo ./rclonemgr.sh mount start     mount all configured remotes
-# sudo ./rclonemgr.sh mount stop      unmount all
-# sudo ./rclonemgr.sh mount restart   stop + start
-# sudo ./rclonemgr.sh mount status    show mount/process status
+# USAGE:
+# sudo ./rclonemgr.sh mount { start | stop | restart | status }
+# sudo ./rclonemgr.sh sync { run | status }
+# Without arguments, shows an interactive menu.
 #
-# Once remotes are configured, mount start can be scheduled in root's
-# crontab to run on boot:
-# @reboot /etc/scr/rclonemgr.sh mount start
-#
-# SYNC
-# 2-way syncs local /home/$local_user/rclone/sync/<service>/{upload,download}
-# against the mounted cloud/<service>/{upload,download} folders, per
-# service, using `rclone sync`. Only acts on services that are both
-# configured in Rclone and currently mounted (run mount start first).
-# sudo ./rclonemgr.sh sync run        run one sync pass
-# sudo ./rclonemgr.sh sync status     show configured/mounted status
-#
-# Sync is not scheduled by this script -- add your own cron entry
-# (e.g. */15 * * * * /etc/scr/rclonemgr.sh sync run) once mount is set up
-# and the upload/download folders are in place.
-#
-# Interactive menu (no arguments):
-# sudo ./rclonemgr.sh
+# LOG:
+# /var/log/rclonemgr.log
 #
 ################################################################################
 
@@ -58,7 +38,7 @@ SYNC_LOCK="/var/lock/$(basename "$0" .sh)-sync.lock"
 lock_mount() {
     exec 200>"$MOUNT_LOCK"
     if ! flock -n 200; then
-        echo "ERROR: another mount operation is running, try again when it finishes"
+        echo "ERROR: another mount operation is running -- abort"
         exit 1
     fi
 }
@@ -66,7 +46,7 @@ lock_mount() {
 lock_sync() {
     exec 201>"$SYNC_LOCK"
     if ! flock -n 201; then
-        echo "ERROR: a sync pass is running, try again when it finishes"
+        echo "ERROR: a sync pass is already running -- abort"
         exit 1
     fi
 }
@@ -109,7 +89,7 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: No valid local user found. Create one with sudo access."
+    echo "ERROR: no valid local user found, create one with sudo access -- abort"
     exit 1
 fi
 echo "Using local user: $local_user"
@@ -124,8 +104,8 @@ done
 
 # dependencies (curl install)
 if ! command -v rclone &>/dev/null; then
-    echo "ERROR: 'rclone' is not installed. Install it with:" >&2
-    echo "curl https://rclone.org/install.sh | sudo bash" >&2
+    echo "ERROR: 'rclone' is not installed" >&2
+    echo "ERROR: install it with: curl https://rclone.org/install.sh | sudo bash -- abort" >&2
     exit 1
 fi
 
@@ -186,12 +166,12 @@ mount_start() {
         echo "Mounting $service_name to $service_path"
 
         if ! is_service_configured "$service_name"; then
-            echo "ERROR: Rclone remote '$service_name' not configured"
+            echo "WARNING: rclone remote '$service_name' not configured -- alert"
             continue
         fi
 
         if mount | grep -q "$service_path"; then
-            echo "WARNING: $service_name is already mounted at $service_path, skipping"
+            echo "INFO: $service_name is already mounted at $service_path -- skip"
             continue
         fi
 
@@ -208,7 +188,7 @@ mount_start() {
         if mount | grep -q "$service_path"; then
             echo "SUCCESS: $service_name mounted"
         else
-            echo "WARNING: $service_name may not be mounted correctly"
+            echo "WARNING: $service_name may not be mounted correctly -- alert"
         fi
     done
 
@@ -223,7 +203,7 @@ mount_stop() {
             if fusermount -u "$service_path" 2>/dev/null; then
                 echo "$service_name unmounted"
             else
-                echo "WARNING: Graceful unmount failed for $service_name, forcing..."
+                echo "WARNING: graceful unmount failed for $service_name, forcing -- alert"
                 fusermount -uz "$service_path"
                 echo "$service_name force-unmounted"
             fi

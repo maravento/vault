@@ -4,22 +4,13 @@
 ################################################################################
 #
 # File Report
-# ------------
-# Brief: Disk usage report for headless servers, readable in a browser.
-# Asks for the folder to scan, defaulting to /home/<local_user>, and writes
-# a timestamped HTML report owned by the non-root local user.
 #
-# Requirements:
-# - Run as root (sudo) to read every file of the scanned folder.
-# - Packages: findutils, util-linux (script will check if missing).
+# DESCRIPTION: Disk usage report for headless servers, readable in a browser.
+# Asks for the folder to scan, defaulting to the local user's home, and
+# writes a timestamped HTML report owned by the non-root local user. Run
+# as root.
 #
-# Output:
-# - /home/<local_user>/Report/filereport_TIMESTAMP.html
-#
-# Report content:
-# - Top 30 extensions by size, with file count and share of the total.
-# - Top 30 folders by size, with file count.
-# - Top 50 largest files, with full path.
+# OUTPUT: /home/<local_user>/Report/filereport_TIMESTAMP.html
 #
 ################################################################################
 
@@ -76,7 +67,7 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: No valid local user found. Create one with sudo access."
+    echo "ERROR: no valid local user found, create one with sudo access -- abort"
     exit 1
 fi
 echo "Using local user: $local_user"

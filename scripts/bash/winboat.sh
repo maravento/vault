@@ -5,23 +5,10 @@
 #
 # Winboat (Install | Remove)
 #
-# RDP connection recovery
-#
-# If the RDP window closes unexpectedly and reconnection fails, run:
-#   pkill -f freerdp
-# or:
-#   flatpak kill com.freerdp.FreeRDP
-#
-# RDP limitations
-#
-# Winboat does NOT bypass Windows RDP session limits.
-# FreeRDP is used strictly as an RDP client.
-#
-# Windows limits:
-#   Windows 10/11 (all editions): 1 RDP session
-#   Windows Server              : 2 admin sessions
-#
-# More sessions require RDS and valid CALs.
+# DESCRIPTION:
+# Installs or removes Winboat, a Windows-in-a-container runner that uses
+# FreeRDP strictly as an RDP client -- it does not bypass Windows RDP
+# session limits.
 #
 ################################################################################
 
@@ -75,7 +62,7 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: No valid local user found. Create one with sudo access."
+    echo "ERROR: no valid local user found, create one with sudo access -- abort"
     exit 1
 fi
 echo "Using local user: $local_user"
@@ -100,7 +87,7 @@ install_winboat() {
     if ! command -v docker &> /dev/null; then
         docker_script=$(mktemp /tmp/docker.XXXXXX.sh)
         if ! wget --timeout=30 --show-progress https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh -O "$docker_script"; then
-            echo "ERROR: Failed to download docker.sh"
+            echo "ERROR: failed to download docker.sh -- abort"
             exit 1
         fi
         chmod +x "$docker_script"
@@ -146,7 +133,7 @@ install_winboat() {
         deb_url=$(curl -sL https://api.github.com/repos/TibixDev/winboat/releases/latest | grep -oP '"browser_download_url": "\K[^"]*\.deb')
 
         if [ -z "$deb_url" ]; then
-            echo "Error: Could not fetch Winboat download URL"
+            echo "ERROR: could not fetch Winboat download URL -- abort"
             exit 1
         fi
 
@@ -185,7 +172,7 @@ uninstall_winboat() {
     echo "=== Uninstalling Winboat ==="
     printf "\n"
 
-    echo "WARNING: This will remove:"
+    echo "This will remove:"
     echo "  - Winboat application"
     echo "  - Docker containers and volumes"
     echo "  - Configuration files (.winboat, .config/winboat)"
@@ -283,7 +270,7 @@ uninstall_winboat() {
             echo "Removing Docker..."
             docker_script=$(mktemp /tmp/docker.XXXXXX.sh)
             if ! wget --timeout=30 --show-progress https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh -O "$docker_script"; then
-                echo "ERROR: Failed to download docker.sh"
+                echo "ERROR: failed to download docker.sh -- abort"
                 exit 1
             fi
             chmod +x "$docker_script"

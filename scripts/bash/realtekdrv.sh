@@ -12,9 +12,6 @@
 # The proprietary drivers may provide better compatibility and performance for certain Realtek NICs,
 # but require installation and maintenance outside the kernel.
 #
-# Realtek Ethernet Family Controller Software:
-# https://www.realtek.com/Download/List?cate_id=585
-#
 ################################################################################
 
 set -uo pipefail

@@ -4,9 +4,11 @@
 ################################################################################
 #
 # Hardware Clock Sync
-# Syncs the hardware clock (hwclock) with the system clock.
-# Intended to run at boot via cron (@reboot).
 #
+# DESCRIPTION: Syncs the hardware clock with the system clock. Run as root,
+# intended to run at boot via cron (@reboot).
+#
+# LOG: /var/log/syslog
 ################################################################################
 
 set -uo pipefail
@@ -39,6 +41,6 @@ done
 
 echo "Update HWClock. Wait..."
 
-hwclock -w || echo "WARNING: hwclock -w failed (VM or container?)"
+hwclock -w || echo "WARNING: hwclock -w failed, VM or container? -- alert"
 echo "HWClock Update: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
 

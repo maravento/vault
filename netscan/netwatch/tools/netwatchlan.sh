@@ -28,12 +28,11 @@
 # than the LAN's physical NICs. If none is up after 2 minutes, the daemon
 # starts anyway and keeps retrying each interface every poll cycle.
 #
-# Log file:
-# /var/log/netwatch.log (root:root, 640) -- shared by both daemons
-# (netwatchlan.sh + netwatchports.sh). The installer writes its own
-# netwatchsetup.log next to itself.
+# LOG: /var/log/netwatch.log (root:root, 640) -- shared by both daemons
+#      (netwatchlan.sh + netwatchports.sh). The installer writes its own
+#      netwatchsetup.log next to itself.
 #
-# Usage:
+# USAGE:
 # ./netwatchlan.sh {start|stop|status}
 #
 ################################################################################
@@ -197,7 +196,7 @@ check_interfaces() {
 # ONE SCAN CYCLE
 run_scan() {
     if [ -z "${LAN_IFACES:-}" ]; then
-        log "ERROR: LAN_IFACES is not set -- skip"
+        log "WARNING: LAN_IFACES is not set -- alert"
         return 1
     fi
 
@@ -221,7 +220,7 @@ run_scan() {
     IFS=',' read -ra ifaces <<< "$LAN_IFACES"
     for iface in "${ifaces[@]}"; do
         if ! ip link show "$iface" &>/dev/null; then
-            log "WARNING: interface '$iface' does not exist -- skip"
+            log "WARNING: interface '$iface' does not exist -- alert"
             continue
         fi
 

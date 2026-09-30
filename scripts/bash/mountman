@@ -3,9 +3,7 @@
 #
 ################################################################################
 #
-# remote-mount.sh - Nautilus/Caja script to mount/unmount SMB (and FUSE/SFTP)
-# Improved: mount SMB with progressive SMB version, clean Unmount list, elevation support.
-# Added: Save/Load connection profiles
+# mountman - Nautilus/Caja script to mount/unmount SMB (and FUSE/SFTP)
 #
 ################################################################################
 
