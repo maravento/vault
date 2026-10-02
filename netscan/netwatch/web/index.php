@@ -210,10 +210,10 @@ if (!in_array($tab, $allowed_tabs)) $tab = 'lan';
         </div>
     </div>
     <div class="tabs">
-        <a class="tab <?= $tab === 'lan' ? 'active' : '' ?>" href="?tab=lan" data-tab="lan">
+        <a class="tab <?= $tab === 'lan' ? 'active' : '' ?>" href="?tab=lan" data-tab="lan" aria-selected="<?= $tab === 'lan' ? 'true' : 'false' ?>">
             <span class="tab-icon">🌐</span> LAN
         </a>
-        <a class="tab <?= $tab === 'ports' ? 'active' : '' ?>" href="?tab=ports" data-tab="ports">
+        <a class="tab <?= $tab === 'ports' ? 'active' : '' ?>" href="?tab=ports" data-tab="ports" aria-selected="<?= $tab === 'ports' ? 'true' : 'false' ?>">
             <span class="tab-icon">🔌</span> Ports
         </a>
     </div>
@@ -279,7 +279,9 @@ if (!in_array($tab, $allowed_tabs)) $tab = 'lan';
     // DB / PHP workers.
     function showTab(tabName, push) {
         document.querySelectorAll('.tab').forEach(a => {
-            a.classList.toggle('active', a.dataset.tab === tabName);
+            const active = a.dataset.tab === tabName;
+            a.classList.toggle('active', active);
+            a.setAttribute('aria-selected', active ? 'true' : 'false');
         });
         document.querySelectorAll('.frame-container iframe').forEach(f => {
             const isTarget = f.id === 'frame-' + tabName;

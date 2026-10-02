@@ -68,6 +68,7 @@ fi
 netwatch_env="/etc/netwatch/netwatch.env"
 db_file="/var/www/netwatch/data/netwatch.db"
 ports_mode_file="/var/www/netwatch/data/ports_mode.conf"
+scan_status_file="/var/www/netwatch/data/port_scan_status.conf"
 pid_file="/run/netwatchports.pid"
 
 # dependencies
@@ -78,37 +79,111 @@ for dep in sqlite3 nmap iproute2 procps coreutils util-linux; do
     fi
 done
 
-# LOAD ENV
-if [ ! -f "$netwatch_env" ]; then
-    log "ERROR: netwatch is not installed"
+# validation -- one variable per thing validated; use directly with =~
+UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+UH_HOST='^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$'
+UH_UINT='^(0|[1-9][0-9]*)$'
+
+valid_host() {
+    [[ "$1" =~ $UH_IPV4 ]] || [[ "$1" =~ $UH_FQDN ]] || [[ "$1" =~ $UH_HOST ]]
+}
+
+# ------------------------------------------------------------------------------
+# ENV
+# ------------------------------------------------------------------------------
+
+# PERMS
+# Owner and mode of every .env this script reads
+env_specs=("$netwatch_env root:www-data 640")
+for env_spec in "${env_specs[@]}"; do
+    read -r env_path env_owner_want env_perms_want <<< "$env_spec"
+    if [ ! -f "$env_path" ]; then
+        log "ERROR: $(basename "$env_path") not found -- abort"
+        exit 1
+    fi
+    env_owner=$(stat -c '%U:%G' "$env_path" 2>/dev/null)
+    env_perms=$(stat -c '%a' "$env_path" 2>/dev/null)
+    if [[ "$env_owner" != "$env_owner_want" ]] \
+       || [[ "$env_perms" != "$env_perms_want" ]]; then
+        if chown "$env_owner_want" "$env_path" 2>/dev/null \
+           && chmod "$env_perms_want" "$env_path" 2>/dev/null; then
+            log "INFO: $(basename "$env_path") perms fixed -- fixed"
+        else
+            log "ERROR: cannot fix $(basename "$env_path") perms -- abort"
+            exit 1
+        fi
+    fi
+done
+unset env_specs env_spec env_path env_owner_want env_perms_want
+unset env_owner env_perms
+
+# LOAD_CONF
+# Read known key=value pairs from a config file, without sourcing it
+load_conf() {
+    local conf_file="$1" env_key env_value env_line
+    [[ ! -f "$conf_file" ]] && { log "WARNING: $conf_file not found -- fallback"; return 1; }
+    while IFS= read -r env_line || [[ -n "$env_line" ]]; do
+        [[ "$env_line" =~ ^[[:space:]]*[#] ]] && continue
+        [[ "$env_line" =~ ^[[:space:]]*$ ]] && continue
+        env_key="${env_line%%=*}"
+        env_value="${env_line#*=}"
+        if [[ ! "$env_line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] \
+           || [[ "$env_value" == [[:space:]\"\']* ]] \
+           || [[ "$env_value" == *[[:space:]\"\'] ]]; then
+            log "ERROR: malformed line in $(basename "$conf_file"): '$env_line' -- abort"
+            exit 1
+        fi
+        case "$env_key" in
+            SERVER_IP|PORT_POLL_INTERVAL|PURGE_CLOSED_AFTER_HOURS)
+                printf -v "$env_key" '%s' "$env_value"
+                ;;
+        esac
+    done < "$conf_file"
+}
+
+# LOAD
+load_conf "$netwatch_env" || true
+
+# KEY CHECK
+# Collect every failure first, then decide -- a single abort reports them all
+key_errors=()
+for env_key in SERVER_IP; do
+    if ! grep -q "^${env_key}=" "$netwatch_env"; then
+        key_errors+=("$env_key missing line")
+    elif [[ -z "${!env_key:-}" ]]; then
+        key_errors+=("$env_key not set")
+    fi
+done
+for env_key in PORT_POLL_INTERVAL PURGE_CLOSED_AFTER_HOURS; do
+    if ! grep -q "^${env_key}=" "$netwatch_env"; then
+        key_errors+=("$env_key missing line")
+    elif [[ -z "${!env_key:-}" ]]; then
+        key_errors+=("$env_key not set")
+    elif ! [[ "${!env_key}" =~ $UH_UINT ]] || (( ${!env_key} == 0 )); then
+        key_errors+=("$env_key invalid count")
+    fi
+done
+if (( ${#key_errors[@]} > 0 )); then
+    for key_error in "${key_errors[@]}"; do
+        log "ERROR: $key_error"
+    done
+    log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$netwatch_env")"
     log "ERROR: run netwatchsetup.sh --install first -- abort"
     exit 1
 fi
+unset key_errors key_error env_key
 
-load_env() {
-    while IFS= read -r line; do
-        if [[ "$line" =~ ^[A-Z_]+=.* ]]; then
-            key="${line%%=*}"
-            val="${line#*=}"
-            val="${val//\"}"
-            export "$key=$val"
-        fi
-    done < "$netwatch_env"
-}
-load_env
-
-set_env_var() {
-    local key="$1" val="$2"
-    local esc_val esc_key
-    val=$(printf '%s' "$val" | tr -d '\r\n')
-    esc_val=$(printf '%s' "$val" | sed -e 's/[\&|]/\\&/g')
-    esc_key=$(printf '%s' "$key" | sed 's/[.[\*^$]/\\&/g')
-    if grep -q "^${esc_key}=" "$netwatch_env"; then
-        sed -i "s|^${esc_key}=.*|${key}=\"${esc_val}\"|" "$netwatch_env"
-    else
-        echo "${key}=\"${val}\"" >> "$netwatch_env"
-    fi
-}
+# FALLBACK
+# Second layer of protection, behind KEY CHECK -- by design never reached
+if [ -z "${PORT_POLL_INTERVAL:-}" ]; then
+    log "WARNING: no PORT_POLL_INTERVAL in netwatch.env -- fallback"
+fi
+PORT_POLL_INTERVAL="${PORT_POLL_INTERVAL:-30}"
+if [ -z "${PURGE_CLOSED_AFTER_HOURS:-}" ]; then
+    log "WARNING: no PURGE_CLOSED_AFTER_HOURS in netwatch.env -- fallback"
+fi
+PURGE_CLOSED_AFTER_HOURS="${PURGE_CLOSED_AFTER_HOURS:-6}"
 
 # DB CHECK
 if [ ! -f "$db_file" ]; then
@@ -120,16 +195,6 @@ fi
 now_iso() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
 
 sql_escape() { printf '%s' "$1" | sed "s/'/''/g"; }
-
-# validation -- one variable per thing validated; use directly with =~
-UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
-UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
-UH_HOST='^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$'
-UH_UINT='^(0|[1-9][0-9]*)$'
-
-valid_host() {
-    [[ "$1" =~ $UH_IPV4 ]] || [[ "$1" =~ $UH_FQDN ]] || [[ "$1" =~ $UH_HOST ]]
-}
 
 # PORTS MODE (server | target <ip>) -- kept in its own file, not
 # netwatch.env, so the web-facing PHP process can write it without
@@ -167,6 +232,27 @@ EOF
     chown www-data:www-data "$tmp_file" 2>/dev/null || true
     chmod 664 "$tmp_file"
     mv -f "$tmp_file" "$ports_mode_file"
+}
+
+# Records that a poll cycle finished for (source, host), whether or not it
+# found anything -- this is what lets the panel tell "no scan yet" apart
+# from "scanned, nothing open", instead of showing "Scanning..." forever.
+write_scan_marker() {
+    local source="$1" host="$2" now="$3" found="$4"
+    local dir tmp_file
+    dir="$(dirname "$scan_status_file")"
+    mkdir -p "$dir"
+
+    tmp_file=$(mktemp "${scan_status_file}.XXXXXX")
+    cat > "$tmp_file" <<EOF
+LAST_SCAN_SOURCE="${source}"
+LAST_SCAN_HOST="${host}"
+LAST_SCAN_TIME="${now}"
+LAST_SCAN_FOUND="${found}"
+EOF
+    chown www-data:www-data "$tmp_file" 2>/dev/null || true
+    chmod 664 "$tmp_file"
+    mv -f "$tmp_file" "$scan_status_file"
 }
 
 cmd_mode() {
@@ -291,11 +377,25 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('se
     done
 
     run_batch "$sql"
+    write_scan_marker "server" "$host" "$now" "${#seen[@]}"
 }
 
 # POLL: TARGET MODE
 poll_target() {
     local target="$1" now="$2"
+
+    local esc_target
+    esc_target=$(sql_escape "$target")
+
+    # current state (proto:port -> status), loaded once for the whole cycle --
+    # loaded before the nmap call (not after) so it's also available to the
+    # "nothing reported" branch below.
+    declare -A prev=() seen=()
+    local p_proto p_port p_stat
+    while IFS='|' read -r p_proto p_port p_stat; do
+        [ -z "$p_port" ] && continue
+        prev["${p_proto}:${p_port}"]="$p_stat"
+    done < <(sqlite3 -separator '|' "$db_file" "SELECT proto, port, status FROM port_scan_state WHERE source='target' AND host='$esc_target';" 2>>"$log_file")
 
     local nmap_out
     nmap_out=$(nmap -Pn -sT -sU -F -T4 --host-timeout 60s -oG - "$target" 2>>"$log_file") || true
@@ -304,22 +404,29 @@ poll_target() {
     ports_field=$(printf '%s\n' "$nmap_out" | grep '^Host:' | sed -n 's/.*Ports: //p')
 
     if [ -z "$ports_field" ]; then
-        log "WARNING: no port data for '$target' -- alert"
+        # -F rolls most/all ports under "Ignored State" when they share one
+        # state, so "Ports:" is often empty even on a clean scan -- that's
+        # not a failure, just nothing to report individually. Still close
+        # out anything that was previously open, and always record that the
+        # cycle completed (write_scan_marker) so the panel can tell "no scan
+        # yet" apart from "scanned, nothing open" instead of waiting forever.
+        log "INFO: scan completed for '$target' -- no open/reported ports found"
+        local sql="" key proto port
+        for key in "${!prev[@]}"; do
+            [ "${prev[$key]}" = "open" ] || continue
+            proto="${key%%:*}"
+            port="${key##*:}"
+            sql+="UPDATE port_scan_state SET status='closed', last_checked='$now', last_changed='$now' WHERE source='target' AND host='$esc_target' AND port=${port} AND proto='$proto';
+INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('target', '$esc_target', ${port}, 'closed', '$now');
+"
+            log "INFO: target port closed ${target}:${port}/${proto}"
+        done
+        run_batch "$sql"
+        write_scan_marker "target" "$target" "$now" 0
         return
     fi
 
-    local esc_target
-    esc_target=$(sql_escape "$target")
-
-    # current state (proto:port -> status), loaded once for the whole cycle
-    declare -A prev=() seen=()
-    local p_proto p_port p_stat
-    while IFS='|' read -r p_proto p_port p_stat; do
-        [ -z "$p_port" ] && continue
-        prev["${p_proto}:${p_port}"]="$p_stat"
-    done < <(sqlite3 -separator '|' "$db_file" "SELECT proto, port, status FROM port_scan_state WHERE source='target' AND host='$esc_target';" 2>>"$log_file")
-
-    local sql=""
+    local sql="" open_count=0
     local entries entry
     IFS=',' read -ra entries <<< "$ports_field"
     for entry in "${entries[@]}"; do
@@ -336,6 +443,7 @@ poll_target() {
         # anything other than a clean 'open' as closed for this audit view.
         local status="closed"
         [ "$state" = "open" ] && status="open"
+        [ "$status" = "open" ] && open_count=$((open_count + 1))
         local esc_service
         esc_service=$(sql_escape "$service")
 
@@ -381,6 +489,7 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('ta
     done
 
     run_batch "$sql"
+    write_scan_marker "target" "$target" "$now" "$open_count"
 }
 
 # ONE POLL CYCLE
@@ -437,22 +546,6 @@ start() {
 
     if [ ! -f "$ports_mode_file" ]; then
         write_ports_mode "server" ""
-    fi
-
-    # A non-numeric value here (e.g. hand-edited netwatch.env) would make
-    # `sleep "$PORT_POLL_INTERVAL"` fail every cycle without actually
-    # sleeping, turning the loop into a busy-spin -- fall back to the
-    # default instead of just checking for empty.
-    if [ -z "${PORT_POLL_INTERVAL:-}" ] || ! [[ "$PORT_POLL_INTERVAL" =~ $UH_UINT ]]; then
-        [ -n "${PORT_POLL_INTERVAL:-}" ] && log "WARNING: invalid PORT_POLL_INTERVAL -- fallback"
-        PORT_POLL_INTERVAL=30
-        set_env_var "PORT_POLL_INTERVAL" "$PORT_POLL_INTERVAL"
-    fi
-
-    if [ -z "${PURGE_CLOSED_AFTER_HOURS:-}" ] || ! [[ "$PURGE_CLOSED_AFTER_HOURS" =~ $UH_UINT ]]; then
-        [ -n "${PURGE_CLOSED_AFTER_HOURS:-}" ] && log "WARNING: invalid PURGE_CLOSED_AFTER_HOURS -- fallback"
-        PURGE_CLOSED_AFTER_HOURS=6
-        set_env_var "PURGE_CLOSED_AFTER_HOURS" "$PURGE_CLOSED_AFTER_HOURS"
     fi
 
     load_ports_mode

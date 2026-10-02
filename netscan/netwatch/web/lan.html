@@ -252,15 +252,19 @@ var sortDir = 1;
 var refreshTimer = null;
 var liveOn = true;
 
+var loadCtrl = null;
 async function loadDevices() {
+    if (loadCtrl) loadCtrl.abort();
+    loadCtrl = new AbortController();
     try {
-        const res = await fetch('/lan/netwatchapi.php?action=listDevices');
+        const res = await fetch('/lan/netwatchapi.php?action=listDevices', { signal: loadCtrl.signal });
         const json = await res.json();
         if (!json.success) throw new Error(json.error || 'Request failed');
         ALL = json.data;
         populateIfaceFilter();
         applyFilters();
     } catch (e) {
+        if (e.name === 'AbortError') return;
         document.getElementById('summary').textContent = 'Error loading devices';
     }
 }
@@ -304,6 +308,9 @@ function ipToNum(ip) {
 function sortCur() {
     CUR.sort((a, b) => {
         if (sortKey === 'ip') {
+            const statusA = a.status === 'online' ? 0 : 1;
+            const statusB = b.status === 'online' ? 0 : 1;
+            if (statusA !== statusB) return statusA - statusB;
             return (ipToNum(a.ip) - ipToNum(b.ip)) * sortDir;
         }
         let va = a[sortKey], vb = b[sortKey];
@@ -418,7 +425,11 @@ function toggleLive() {
     } catch (e) { /* ignore */ }
 })();
 
-document.getElementById('q').addEventListener('input', applyFilters);
+let searchTimeout = null;
+document.getElementById('q').addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(applyFilters, 150);
+});
 document.getElementById('fIface').addEventListener('change', applyFilters);
 document.getElementById('fStatus').addEventListener('change', applyFilters);
 document.getElementById('fRefresh').addEventListener('change', setupRefresh);

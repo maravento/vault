@@ -228,7 +228,7 @@
     }
     .badge-open { background: rgba(72,187,120,0.15); color: var(--status-open); }
     .badge-closed { background: rgba(245,101,101,0.15); color: var(--status-closed); }
-    .empty { text-align: center; padding: 2rem; color: var(--text-muted); }
+    .empty { text-align: center; padding: 2rem; color: var(--text-data); }
 
     .col-host { font-weight: 600; }
     .col-port { font-weight: 600; }
@@ -336,16 +336,23 @@ async function loadMode() {
     }
 }
 
+var loadCtrl = null;
 async function loadPorts() {
+    if (loadCtrl) loadCtrl.abort();
+    loadCtrl = new AbortController();
     try {
-        const res = await fetch('/ports/netwatchapi.php?action=listPorts');
+        const res = await fetch('/ports/netwatchapi.php?action=listPorts', { signal: loadCtrl.signal });
         const json = await res.json();
         if (!json.success) throw new Error(json.error || 'Request failed');
         ALL = json.data;
-        if (ALL.length > 0) justApplied = false;
+        // Cleared once the daemon confirms a completed cycle for this
+        // mode/host (json.last_scan), not just when rows show up -- a
+        // target with zero open ports confirms exactly the same way.
+        if (ALL.length > 0 || json.last_scan) justApplied = false;
         populateProtoFilter();
         applyFilters();
     } catch (e) {
+        if (e.name === 'AbortError') return;
         document.getElementById('summary').textContent = 'Error loading ports';
     }
 }
@@ -420,7 +427,7 @@ function renderTable() {
     if (CUR.length === 0) {
         let emptyMsg = 'No ports match the current filters';
         if (ALL.length === 0) {
-            emptyMsg = justApplied ? 'Scanning ports. Wait...' : 'No ports observed yet in this mode';
+            emptyMsg = justApplied ? 'Scanning ports. Wait...' : 'No Open Ports';
         }
         rows.innerHTML = `<tr><td colspan="6" class="empty">${emptyMsg}</td></tr>`;
     } else {
@@ -509,7 +516,11 @@ function toggleLive() {
     } catch (e) { /* ignore */ }
 })();
 
-document.getElementById('q').addEventListener('input', applyFilters);
+let searchTimeout = null;
+document.getElementById('q').addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(applyFilters, 150);
+});
 document.getElementById('fStatus').addEventListener('change', applyFilters);
 document.getElementById('fProto').addEventListener('change', applyFilters);
 document.getElementById('fRefresh').addEventListener('change', setupRefresh);
@@ -534,14 +545,24 @@ document.getElementById('applyModeBtn').addEventListener('click', async () => {
         return;
     }
 
-    const body = new URLSearchParams({ mode, target_ip: targetIp, csrf_token: csrfToken });
-    try {
+    async function postMode() {
+        const body = new URLSearchParams({ mode, target_ip: targetIp, csrf_token: csrfToken });
         const res = await fetch('/ports/netwatchapi.php?action=setPortsMode', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body
         });
-        const json = await res.json();
+        return res.json();
+    }
+
+    try {
+        let json = await postMode();
+        // The session's CSRF token can go stale (expired session); renew it
+        // once and retry before surfacing the error to the user.
+        if (!json.success && /csrf/i.test(json.error || '')) {
+            await getCsrfToken();
+            json = await postMode();
+        }
         if (json.success) {
             msg.textContent = 'Mode applied.';
             msg.className = 'ok';

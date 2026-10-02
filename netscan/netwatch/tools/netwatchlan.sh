@@ -70,37 +70,101 @@ done
 
 # validation -- integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
-# LOAD ENV
-if [ ! -f "$netwatch_env" ]; then
-    log "ERROR: netwatch is not installed -- abort"
-    log "Run netwatchsetup.sh --install first"
+# ------------------------------------------------------------------------------
+# ENV
+# ------------------------------------------------------------------------------
+
+# PERMS
+# Owner and mode of every .env this script reads
+env_specs=("$netwatch_env root:www-data 640")
+for env_spec in "${env_specs[@]}"; do
+    read -r env_path env_owner_want env_perms_want <<< "$env_spec"
+    if [ ! -f "$env_path" ]; then
+        log "ERROR: $(basename "$env_path") not found -- abort"
+        exit 1
+    fi
+    env_owner=$(stat -c '%U:%G' "$env_path" 2>/dev/null)
+    env_perms=$(stat -c '%a' "$env_path" 2>/dev/null)
+    if [[ "$env_owner" != "$env_owner_want" ]] \
+       || [[ "$env_perms" != "$env_perms_want" ]]; then
+        if chown "$env_owner_want" "$env_path" 2>/dev/null \
+           && chmod "$env_perms_want" "$env_path" 2>/dev/null; then
+            log "INFO: $(basename "$env_path") perms fixed -- fixed"
+        else
+            log "ERROR: cannot fix $(basename "$env_path") perms -- abort"
+            exit 1
+        fi
+    fi
+done
+unset env_specs env_spec env_path env_owner_want env_perms_want
+unset env_owner env_perms
+
+# LOAD_CONF
+# Read known key=value pairs from a config file, without sourcing it
+load_conf() {
+    local conf_file="$1" env_key env_value env_line
+    [[ ! -f "$conf_file" ]] && { log "WARNING: $conf_file not found -- fallback"; return 1; }
+    while IFS= read -r env_line || [[ -n "$env_line" ]]; do
+        [[ "$env_line" =~ ^[[:space:]]*[#] ]] && continue
+        [[ "$env_line" =~ ^[[:space:]]*$ ]] && continue
+        env_key="${env_line%%=*}"
+        env_value="${env_line#*=}"
+        if [[ ! "$env_line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] \
+           || [[ "$env_value" == [[:space:]\"\']* ]] \
+           || [[ "$env_value" == *[[:space:]\"\'] ]]; then
+            log "ERROR: malformed line in $(basename "$conf_file"): '$env_line' -- abort"
+            exit 1
+        fi
+        case "$env_key" in
+            LAN_IFACES|LAN_POLL_INTERVAL|LAN_OFFLINE_GRACE)
+                printf -v "$env_key" '%s' "$env_value"
+                ;;
+        esac
+    done < "$conf_file"
+}
+
+# LOAD
+load_conf "$netwatch_env" || true
+
+# KEY CHECK
+# Collect every failure first, then decide -- a single abort reports them all
+key_errors=()
+for env_key in LAN_IFACES; do
+    if ! grep -q "^${env_key}=" "$netwatch_env"; then
+        key_errors+=("$env_key missing line")
+    elif [[ -z "${!env_key:-}" ]]; then
+        key_errors+=("$env_key not set")
+    fi
+done
+for env_key in LAN_POLL_INTERVAL LAN_OFFLINE_GRACE; do
+    if ! grep -q "^${env_key}=" "$netwatch_env"; then
+        key_errors+=("$env_key missing line")
+    elif [[ -z "${!env_key:-}" ]]; then
+        key_errors+=("$env_key not set")
+    elif ! [[ "${!env_key}" =~ $UH_UINT ]] || (( ${!env_key} == 0 )); then
+        key_errors+=("$env_key invalid count")
+    fi
+done
+if (( ${#key_errors[@]} > 0 )); then
+    for key_error in "${key_errors[@]}"; do
+        log "ERROR: $key_error"
+    done
+    log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$netwatch_env")"
+    log "ERROR: run netwatchsetup.sh --install first -- abort"
     exit 1
 fi
+unset key_errors key_error env_key
 
-load_env() {
-    while IFS= read -r line; do
-        if [[ "$line" =~ ^[A-Z_]+=.* ]]; then
-            key="${line%%=*}"
-            val="${line#*=}"
-            val="${val//\"}"
-            export "$key=$val"
-        fi
-    done < "$netwatch_env"
-}
-load_env
-
-set_env_var() {
-    local key="$1" val="$2"
-    local esc_val esc_key
-    val=$(printf '%s' "$val" | tr -d '\r\n')
-    esc_val=$(printf '%s' "$val" | sed -e 's/[\&|]/\\&/g')
-    esc_key=$(printf '%s' "$key" | sed 's/[.[\*^$]/\\&/g')
-    if grep -q "^${esc_key}=" "$netwatch_env"; then
-        sed -i "s|^${esc_key}=.*|${key}=\"${esc_val}\"|" "$netwatch_env"
-    else
-        echo "${key}=\"${val}\"" >> "$netwatch_env"
-    fi
-}
+# FALLBACK
+# Second layer of protection, behind KEY CHECK -- by design never reached
+if [ -z "${LAN_POLL_INTERVAL:-}" ]; then
+    log "WARNING: no LAN_POLL_INTERVAL in netwatch.env -- fallback"
+fi
+LAN_POLL_INTERVAL="${LAN_POLL_INTERVAL:-60}"
+if [ -z "${LAN_OFFLINE_GRACE:-}" ]; then
+    log "WARNING: no LAN_OFFLINE_GRACE in netwatch.env -- fallback"
+fi
+LAN_OFFLINE_GRACE="${LAN_OFFLINE_GRACE:-3}"
 
 # DB CHECK
 if [ ! -f "$db_file" ]; then
@@ -310,29 +374,9 @@ start() {
     chmod 640 "$log_file"
     chown root:root "$log_file"
 
-    # CHECK LAN_IFACES
-    if [ -z "${LAN_IFACES:-}" ]; then
-        log "ERROR: LAN_IFACES is not set in $netwatch_env -- abort"
-        exit 1
-    fi
-
     # CHECK INTERFACES (essential for @reboot)
     if ! check_interfaces "$LAN_IFACES"; then
         log "WARNING: no operational interface -- alert"
-    fi
-
-    # CHECK AND SET LAN_POLL_INTERVAL
-    if [ -z "${LAN_POLL_INTERVAL:-}" ] || ! [[ "$LAN_POLL_INTERVAL" =~ $UH_UINT ]]; then
-        [ -n "${LAN_POLL_INTERVAL:-}" ] && log "WARNING: invalid LAN_POLL_INTERVAL -- fallback"
-        LAN_POLL_INTERVAL=60
-        set_env_var "LAN_POLL_INTERVAL" "$LAN_POLL_INTERVAL"
-    fi
-
-    # CHECK AND SET LAN_OFFLINE_GRACE
-    if [ -z "${LAN_OFFLINE_GRACE:-}" ] || ! [[ "$LAN_OFFLINE_GRACE" =~ $UH_UINT ]]; then
-        [ -n "${LAN_OFFLINE_GRACE:-}" ] && log "WARNING: invalid LAN_OFFLINE_GRACE -- fallback"
-        LAN_OFFLINE_GRACE=3
-        set_env_var "LAN_OFFLINE_GRACE" "$LAN_OFFLINE_GRACE"
     fi
 
     log "netwatchlan start..."

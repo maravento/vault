@@ -767,7 +767,7 @@ log "Localnet: $SERV_SUBNET (from Server IP and Netmask)"
 
 if [ "$SERV_SUBNET" != "192.168.0.0" ]; then
     find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$SERV_SUBNET:g" "{}"
-    sed -i "s:192\.168\.0\.\*:$(echo "$SERV_SUBNET" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/apache2/wpad.pac"
+    sed -i "s:192\.168\.0\.\*:$(echo "$SERV_SUBNET" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/wpad/wpad.pac"
 fi
 
 # wan_iface and PORTNEW (the proxy port) are substituted into conf/ with sed
@@ -1106,6 +1106,28 @@ else
     log "WARNING: cannot clone proxymon -- alert"
 fi
 
+echo -e "\n"
+log "WPAD Config..."
+
+# pysetup.sh below probes http://SERVER_IP:18100/wpad.pac to decide whether to
+# announce DHCP option 252. The PAC must already be served when it runs, so
+# this block goes before pydhcp and reloads apache2 to apply the new Listen.
+mkdir -p /var/www/wpad
+chown www-data:www-data /var/www/wpad
+cp -f "$gp_path/conf/wpad/wpad.pac" /var/www/wpad/wpad.pac
+chown www-data:www-data /var/www/wpad/wpad.pac
+chmod 644 /var/www/wpad/wpad.pac
+cp -f "$gp_path/conf/wpad/wpad.conf" /etc/apache2/sites-available/wpad.conf
+chmod 644 /etc/apache2/sites-available/wpad.conf
+a2ensite -q wpad.conf
+grep -qxF "Listen $SERVER_IP:18100" /etc/apache2/ports.conf || grep -qxF 'Listen 18100' /etc/apache2/ports.conf || echo "Listen $SERVER_IP:18100" >> /etc/apache2/ports.conf
+apachectl -t -D DUMP_INCLUDES -S || true
+systemctl reload apache2 || log "WARNING: cannot reload apache2, WPAD not served -- alert"
+log "WPAD-PAC: http://$SERVER_IP:18100/wpad.pac"
+log "INFO: OK"
+sleep 1
+
+echo -e "\n"
 # DHCP SECTION
 # pydhcp
 log "Installing pydhcp..."
@@ -1513,23 +1535,14 @@ log "Proxy Apache Config..."
 
 cp -f /etc/apache2/sites-available/000-default.conf{,.bak} &>/dev/null || true
 sed -i "s_\(#LogLevel info ssl:warn\)_\1\n\tLogLevel warn_" /etc/apache2/sites-available/000-default.conf
-add_txt="$gp_path/conf/apache2/000-add.txt"
-sed -i "/DocumentRoot/{
-    s/\(DocumentRoot.*\)/\1/g
-    r $add_txt
-}" /etc/apache2/sites-available/000-default.conf
-
-mkdir -p /var/www/wpad
-chown www-data:www-data /var/www/wpad
-cp -f "$gp_path/conf/apache2/wpad.pac" /var/www/wpad/wpad.pac
-chown www-data:www-data /var/www/wpad/wpad.pac
-chmod 644 /var/www/wpad/wpad.pac
-cp -f "$gp_path/conf/apache2/wpad.conf" /etc/apache2/sites-available/wpad.conf
-chmod 644 /etc/apache2/sites-available/wpad.conf
-a2ensite -q wpad.conf
-grep -qxF "Listen $SERVER_IP:18100" /etc/apache2/ports.conf || grep -qxF 'Listen 18100' /etc/apache2/ports.conf || echo "Listen $SERVER_IP:18100" >> /etc/apache2/ports.conf
-apachectl -t -D DUMP_INCLUDES -S || true
-log "WPAD-PAC: http://$SERVER_IP:18100/wpad.pac"
+# httpoxy (CVE-2016-5387): a client-supplied "Proxy:" header reaches PHP and
+# CGI as HTTP_PROXY, and many HTTP libraries obey it. Apache does not strip it
+# on its own, and mod_headers is enabled above. This is the only directive
+# worth injecting here: everything else apache2 already ships enabled, or it
+# only reorders DirectoryIndex.
+grep -qF 'RequestHeader unset Proxy early' /etc/apache2/sites-available/000-default.conf \
+    || sed -i '0,/DocumentRoot/s|^\([[:space:]]*DocumentRoot.*\)|\1\n\n\tRequestHeader unset Proxy early|' \
+       /etc/apache2/sites-available/000-default.conf
 log "INFO: OK"
 sleep 1
 
@@ -1567,8 +1580,6 @@ sysctl --system >/dev/null || log "INFO: some sysctl parameters failed to apply"
 log "Apache Config..."
 cp -f /etc/apache2/apache2.conf{,.bak} &>/dev/null || true
 #echo 'RequestReadTimeout header=10-20,MinRate=500 body=20,MinRate=500' | tee -a /etc/apache2/apache2.conf # optional
-cp -f "$gp_path/conf/apache2/servername.conf" /etc/apache2/conf-available/servername.conf
-a2enconf servername
 
 # Hardening
 if [ -f /etc/apache2/conf-available/security.conf ]; then

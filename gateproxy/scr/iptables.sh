@@ -64,35 +64,52 @@ for dep_pkg in iptables ipset arptables ebtables kmod procps util-linux ulogd2 c
     fi
 done
 
-log "iptables start..."
-
 # ------------------------------------------------------------------------------
 # VARIABLES
 # ------------------------------------------------------------------------------
 
 # validation -- one variable per thing validated; use directly with =~
-UH_OCT='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
-UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
 UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
 UH_DNS='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(,(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9]))*$'
 UH_UINT='^(0|[1-9][0-9]*)$'
-UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
 UH_MAC_RE='([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}'
 UH_MAC="^${UH_MAC_RE}$"
 UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5 252.0.0.0:6 254.0.0.0:7 255.0.0.0:8 255.128.0.0:9 255.192.0.0:10 255.224.0.0:11 255.240.0.0:12 255.248.0.0:13 255.252.0.0:14 255.254.0.0:15 255.255.0.0:16 255.255.128.0:17 255.255.192.0:18 255.255.224.0:19 255.255.240.0:20 255.255.248.0:21 255.255.252.0:22 255.255.254.0:23 255.255.255.0:24 255.255.255.128:25 255.255.255.192:26 255.255.255.224:27 255.255.255.240:28 255.255.255.248:29 255.255.255.252:30 255.255.255.254:31 255.255.255.255:32'
 
-# Network config -- pydhcp.env holds pydhcp's own values and is read here;
-# gateproxy never writes into it. gateproxy's own values (WAN interface and
-# proxy ports) are the literals below: gpsetup.sh replaces them with sed
-# during install, from the answers given there. Safe key=value parsing (the
-# file is never sourced): a malformed line aborts, and a missing file or an
-# absent key falls back to the built-in default.
-pydhcp_conf="/etc/pydhcp/pydhcp.env"
+# ------------------------------------------------------------------------------
+# ENV
+# ------------------------------------------------------------------------------
 
-# ------------------------------------------------------------------------------
-# FUNCTIONS
-# ------------------------------------------------------------------------------
+# Network config -- pydhcp.env holds pydhcp's own values and is read here;
+# gateproxy never writes into it. The proxy ports are gateproxy's own and
+# live in OWN VALUES below.
+
+# PERMS
+# Owner and mode of every .env this script reads
+pydhcp_env="/etc/pydhcp/pydhcp.env"
+env_specs=("$pydhcp_env root:pydhcpd 640")
+for env_spec in "${env_specs[@]}"; do
+    read -r env_path env_owner_want env_perms_want <<< "$env_spec"
+    if [ ! -f "$env_path" ]; then
+        log "ERROR: $(basename "$env_path") not found -- abort"
+        exit 1
+    fi
+    env_owner=$(stat -c '%U:%G' "$env_path" 2>/dev/null)
+    env_perms=$(stat -c '%a' "$env_path" 2>/dev/null)
+    if [[ "$env_owner" != "$env_owner_want" ]] \
+       || [[ "$env_perms" != "$env_perms_want" ]]; then
+        if chown "$env_owner_want" "$env_path" 2>/dev/null \
+           && chmod "$env_perms_want" "$env_path" 2>/dev/null; then
+            log "INFO: $(basename "$env_path") perms fixed -- fixed"
+        else
+            log "ERROR: cannot fix $(basename "$env_path") perms -- abort"
+            exit 1
+        fi
+    fi
+done
+unset env_specs env_spec env_path env_owner_want env_perms_want
+unset env_owner env_perms
 
 # LOAD_CONF
 # Read known key=value pairs from a config file, without sourcing it
@@ -107,7 +124,7 @@ load_conf() {
         if [[ ! "$env_line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] \
            || [[ "$env_value" == [[:space:]\"\']* ]] \
            || [[ "$env_value" == *[[:space:]\"\'] ]]; then
-            log "ERROR: malformed line in $conf_file: '$env_line' -- abort"
+            log "ERROR: malformed line in $(basename "$conf_file"): '$env_line' -- abort"
             exit 1
         fi
         case "$env_key" in
@@ -119,14 +136,62 @@ load_conf() {
         esac
     done < "$conf_file"
 }
-load_conf "$pydhcp_conf" || true
 
-# paths (ACL_PATH comes from $pydhcp_conf)
-if [ -z "${ACL_PATH:-}" ]; then
-    log "WARNING: no ACL_PATH in pydhcp.env -- fallback"
+# LOAD
+load_conf "$pydhcp_env" || true
+
+# KEY CHECK
+# Collect every failure first, then decide -- a single abort reports them all
+key_errors=()
+for env_key in WAN_IFACE INTERFACESv4 ACL_PATH; do
+    if ! grep -q "^${env_key}=" "$pydhcp_env"; then
+        key_errors+=("$env_key missing line")
+    elif [[ -z "${!env_key:-}" ]]; then
+        key_errors+=("$env_key not set")
+    fi
+done
+for env_key in SERVER_IP SERV_SUBNET; do
+    if ! grep -q "^${env_key}=" "$pydhcp_env"; then
+        key_errors+=("$env_key missing line")
+    elif [[ -z "${!env_key:-}" ]]; then
+        key_errors+=("$env_key not set")
+    elif ! [[ "${!env_key}" =~ $UH_IPV4 ]]; then
+        key_errors+=("$env_key invalid IPv4")
+    fi
+done
+if ! grep -q "^SERV_MASK=" "$pydhcp_env"; then
+    key_errors+=("SERV_MASK missing line")
+elif [[ -z "${SERV_MASK:-}" ]]; then
+    key_errors+=("SERV_MASK not set")
+elif ! [[ "$SERV_MASK" =~ $UH_NETMASK ]]; then
+    key_errors+=("SERV_MASK invalid netmask")
 fi
-acl_mac_path="${ACL_PATH:-/etc/acl}/mac"
-acl_ipt_path="${ACL_PATH:-/etc/acl}/ipt"
+if ! grep -q "^SERV_DNS=" "$pydhcp_env"; then
+    key_errors+=("SERV_DNS missing line")
+elif [[ -z "${SERV_DNS:-}" ]]; then
+    key_errors+=("SERV_DNS not set")
+elif ! [[ "$SERV_DNS" =~ $UH_DNS ]]; then
+    key_errors+=("SERV_DNS invalid DNS list")
+fi
+if ! grep -q "^WPAD_PORT=" "$pydhcp_env"; then
+    key_errors+=("WPAD_PORT missing line")
+elif [[ -z "${WPAD_PORT:-}" ]]; then
+    key_errors+=("WPAD_PORT not set")
+elif ! [[ "$WPAD_PORT" =~ $UH_UINT ]] \
+     || (( WPAD_PORT < 1 || WPAD_PORT > 65535 )); then
+    key_errors+=("WPAD_PORT invalid port")
+fi
+if (( ${#key_errors[@]} > 0 )); then
+    for key_error in "${key_errors[@]}"; do
+        log "ERROR: $key_error"
+    done
+    log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$pydhcp_env") -- abort"
+    exit 1
+fi
+unset key_errors key_error env_key
+
+# FALLBACK
+# Second layer of protection, behind KEY CHECK -- by design never reached
 # interfaces
 if [ -z "${WAN_IFACE:-}" ]; then
     log "WARNING: no WAN_IFACE in pydhcp.env -- fallback"
@@ -146,27 +211,43 @@ if [ -z "${SERV_MASK:-}" ]; then
     log "WARNING: no SERV_MASK in pydhcp.env -- fallback"
 fi
 SERV_MASK="${SERV_MASK:-255.255.255.0}"
-if [[ " $UH_PREFIX " =~ [[:space:]]${SERV_MASK//./\\.}:([0-9]+)[[:space:]] ]]; then
-    netmask_int="${BASH_REMATCH[1]}"
-else
-    log "ERROR: SERV_MASK is not a valid NETMASK -- abort"
-    exit 1
-fi
-# server IP
+# CIDR prefix derived from SERV_MASK, already validated by KEY CHECK
+[[ " $UH_PREFIX " =~ [[:space:]]${SERV_MASK//./\.}:([0-9]+)[[:space:]] ]]
+netmask_int="${BASH_REMATCH[1]}"
 if [ -z "${SERVER_IP:-}" ]; then
     log "WARNING: no SERVER_IP in pydhcp.env -- fallback"
 fi
 SERVER_IP="${SERVER_IP:-192.168.0.10}"
-# squid proxy port
-squid_port="3128"
-# squid intercept port (NAT-redirected HTTP, not exposed to explicit proxy clients)
-squid_intercept_port="3129"
+if [ -z "${SERV_DNS:-}" ]; then
+    log "WARNING: no SERV_DNS in pydhcp.env -- fallback"
+fi
+SERV_DNS="${SERV_DNS:-$SERVER_IP}"
 # PAC port announced by pydhcpd in DHCP option 252
 if [ -z "${WPAD_PORT:-}" ]; then
     log "WARNING: no WPAD_PORT in pydhcp.env -- fallback"
 fi
 WPAD_PORT="${WPAD_PORT:-18100}"
-[[ "$WPAD_PORT" =~ $UH_UINT ]] && (( WPAD_PORT >= 1 && WPAD_PORT <= 65535 )) || { log "ERROR: WPAD_PORT is not a valid port: '$WPAD_PORT' -- abort"; exit 1; }
+
+# ------------------------------------------------------------------------------
+# OWN VALUES
+# ------------------------------------------------------------------------------
+
+# Values this script declares itself -- not read from any .env
+# squid proxy port
+squid_port="3128"
+# squid intercept port (NAT-redirected HTTP, not exposed to explicit proxy clients)
+squid_intercept_port="3129"
+
+# ------------------------------------------------------------------------------
+# ACL
+# ------------------------------------------------------------------------------
+
+# PATHS
+if [ -z "${ACL_PATH:-}" ]; then
+    log "WARNING: no ACL_PATH in pydhcp.env -- fallback"
+fi
+acl_mac_path="${ACL_PATH:-/etc/acl}/mac"
+acl_ipt_path="${ACL_PATH:-/etc/acl}/ipt"
 
 # ACL/config files used by this script (existence verified below)
 ACL_MAC_LIMITED="$acl_mac_path/mac-limited.txt"
@@ -176,16 +257,20 @@ dhcp_conf="/etc/pydhcp/core/pydhcpd.conf"
 path_ips="$acl_ipt_path/dhcp_ip.txt"
 path_macs="$acl_ipt_path/dhcp_mac.txt"
 
-for conf_file in "$ACL_MAC_LIMITED" "$ACL_MAC_UNLIMITED" "$blockports_file" "$dhcp_conf"; do
-    if [ ! -f "$conf_file" ]; then
-        log "ERROR: required file not found: $conf_file -- abort"
+for required_file in "$ACL_MAC_LIMITED" "$ACL_MAC_UNLIMITED" "$blockports_file" "$dhcp_conf"; do
+    if [ ! -f "$required_file" ]; then
+        log "ERROR: required file not found: $required_file -- abort"
         exit 1
     fi
 done
+unset required_file
 if [ ! -d "$acl_mac_path" ] || [ -z "$(ls -A "$acl_mac_path" 2>/dev/null)" ]; then
     log "ERROR: ACL_MAC_PATH missing or empty -- abort"
     exit 1
 fi
+
+# start
+log "iptables start..."
 
 # ------------------------------------------------------------------------------
 # MAC SETS
@@ -498,10 +583,6 @@ iptables -A FORWARD -p tcp --tcp-flags SYN,ACK SYN,ACK -m conntrack --ctstate NE
 # Burst limit
 iptables -A FORWARD -i "$INTERFACESv4" -p udp --dport 53 -m state --state NEW -m recent --set --name DNS_DROPPER
 iptables -A FORWARD -i "$INTERFACESv4" -p udp --dport 53 -m state --state NEW -m recent --update --seconds 1 --hitcount 15 --name DNS_DROPPER -j DROP
-if [ -z "${SERV_DNS:-}" ]; then
-    log "WARNING: no SERV_DNS in pydhcp.env -- fallback"
-fi
-SERV_DNS="${SERV_DNS:-$SERVER_IP}"
 for dns_ip in ${SERV_DNS//,/ }; do
     for proto_name in tcp udp; do
         iptables -A INPUT -i "$INTERFACESv4" -d "$dns_ip" -p "$proto_name" --dport 53 -j ACCEPT

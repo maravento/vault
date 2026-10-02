@@ -422,14 +422,22 @@ PMODE
     systemctl daemon-reload
     systemctl restart apache2
 
-    # save install config; poll intervals are left unset here and get their
-    # defaults from the daemons themselves (see LAN_POLL_INTERVAL,
-    # LAN_OFFLINE_GRACE, PORT_POLL_INTERVAL, PURGE_CLOSED_AFTER_HOURS).
+    # save install config. The four tuning keys are written here with their
+    # defaults, not left for the daemons to create on first start: a .env is
+    # written by its installer or by the administrator, never by a script in
+    # normal operation.
+    #
+    # Values are bare, without quotes: that is the only form the shared
+    # load_conf parser accepts, and a bare value never needs escaping.
     cat > "$netwatch_env" <<ENV
-LAN_IFACES="$ifaces_answer"
-MGMT_IFACE="$mgmt_answer"
-NET_CIDR="$net_cidr_value"
-SERVER_IP="$detected_ip"
+LAN_IFACES=$ifaces_answer
+MGMT_IFACE=$mgmt_answer
+NET_CIDR=$net_cidr_value
+SERVER_IP=$detected_ip
+LAN_POLL_INTERVAL=60
+LAN_OFFLINE_GRACE=3
+PORT_POLL_INTERVAL=30
+PURGE_CLOSED_AFTER_HOURS=6
 ENV
     chown root:www-data "$netwatch_env"
     chmod 640 "$netwatch_env"

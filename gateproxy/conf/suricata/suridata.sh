@@ -86,23 +86,13 @@ for dep in jq ipset iptables coreutils grep; do
     fi
 done
 
-# validation -- one variable per thing validated; use directly with =~
-UH_OCT='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
-UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
-UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
-UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
-UH_DNS='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(,(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9]))*$'
-UH_UINT='^(0|[1-9][0-9]*)$'
-UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
-UH_MAC_RE='([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}'
-UH_MAC="^${UH_MAC_RE}$"
-UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5 252.0.0.0:6 254.0.0.0:7 255.0.0.0:8 255.128.0.0:9 255.192.0.0:10 255.224.0.0:11 255.240.0.0:12 255.248.0.0:13 255.252.0.0:14 255.254.0.0:15 255.255.0.0:16 255.255.128.0:17 255.255.192.0:18 255.255.224.0:19 255.255.240.0:20 255.255.248.0:21 255.255.252.0:22 255.255.254.0:23 255.255.255.0:24 255.255.255.128:25 255.255.255.192:26 255.255.255.224:27 255.255.255.240:28 255.255.255.248:29 255.255.255.252:30 255.255.255.254:31 255.255.255.255:32'
-
-log "suridata start..."
-
 # ------------------------------------------------------------------------------
 # VARIABLES
 # ------------------------------------------------------------------------------
+
+# validation -- one variable per thing validated; use directly with =~
+UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+UH_UINT='^(0|[1-9][0-9]*)$'
 
 rules_file="/var/lib/suricata/rules/suricata.rules"
 eve_log="/var/log/suricata/eve.json"
@@ -110,13 +100,35 @@ offset_file="/var/lib/suricata/suridata.offset"
 sids_file="/var/lib/suricata/suridata.sids"
 out_file="/etc/suricata/suridata.txt"
 
-# network identity -- read from pydhcp.env, where pysetup.sh writes it. The
-# "${VAR:-default}" fallback keeps this script running standalone, and says so.
-pydhcp_conf="/etc/pydhcp/pydhcp.env"
+# ------------------------------------------------------------------------------
+# ENV
+# ------------------------------------------------------------------------------
 
-# ------------------------------------------------------------------------------
-# FUNCTIONS
-# ------------------------------------------------------------------------------
+# PERMS
+# Owner and mode of every .env this script reads
+pydhcp_env="/etc/pydhcp/pydhcp.env"
+env_specs=("$pydhcp_env root:pydhcpd 640")
+for env_spec in "${env_specs[@]}"; do
+    read -r env_path env_owner_want env_perms_want <<< "$env_spec"
+    if [ ! -f "$env_path" ]; then
+        log "ERROR: $(basename "$env_path") not found -- abort"
+        exit 1
+    fi
+    env_owner=$(stat -c '%U:%G' "$env_path" 2>/dev/null)
+    env_perms=$(stat -c '%a' "$env_path" 2>/dev/null)
+    if [[ "$env_owner" != "$env_owner_want" ]] \
+       || [[ "$env_perms" != "$env_perms_want" ]]; then
+        if chown "$env_owner_want" "$env_path" 2>/dev/null \
+           && chmod "$env_perms_want" "$env_path" 2>/dev/null; then
+            log "INFO: $(basename "$env_path") perms fixed -- fixed"
+        else
+            log "ERROR: cannot fix $(basename "$env_path") perms -- abort"
+            exit 1
+        fi
+    fi
+done
+unset env_specs env_spec env_path env_owner_want env_perms_want
+unset env_owner env_perms
 
 # LOAD_CONF
 # Read known key=value pairs from a config file, without sourcing it
@@ -131,7 +143,7 @@ load_conf() {
         if [[ ! "$env_line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] \
            || [[ "$env_value" == [[:space:]\"\']* ]] \
            || [[ "$env_value" == *[[:space:]\"\'] ]]; then
-            log "ERROR: malformed line in $conf_file: '$env_line' -- abort"
+            log "ERROR: malformed line in $(basename "$conf_file"): '$env_line' -- abort"
             exit 1
         fi
         case "$env_key" in
@@ -141,8 +153,35 @@ load_conf() {
         esac
     done < "$conf_file"
 }
-load_conf "$pydhcp_conf" || true
 
+# LOAD
+load_conf "$pydhcp_env" || true
+
+# KEY CHECK
+# Collect every failure first, then decide -- a single abort reports them all
+key_errors=()
+if ! grep -q "^WAN_IFACE=" "$pydhcp_env"; then
+    key_errors+=("WAN_IFACE missing line")
+elif [[ -z "${WAN_IFACE:-}" ]]; then
+    key_errors+=("WAN_IFACE not set")
+fi
+if ! grep -q "^SERV_SUBNET=" "$pydhcp_env"; then
+    key_errors+=("SERV_SUBNET missing line")
+elif [[ -z "${SERV_SUBNET:-}" ]]; then
+    key_errors+=("SERV_SUBNET not set")
+elif ! [[ "$SERV_SUBNET" =~ $UH_IPV4 ]]; then
+    key_errors+=("SERV_SUBNET invalid IPv4")
+fi
+if (( ${#key_errors[@]} > 0 )); then
+    for key_error in "${key_errors[@]}"; do
+        log "ERROR: $key_error"
+    done
+    log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$pydhcp_env") -- abort"
+    exit 1
+fi
+unset key_errors key_error
+
+# FALLBACK
 if [ -z "${WAN_IFACE:-}" ]; then
     log "WARNING: no WAN_IFACE in pydhcp.env -- fallback"
 fi
@@ -155,6 +194,8 @@ SERV_SUBNET="${SERV_SUBNET:-192.168.0.0}"
 # ------------------------------------------------------------------------------
 # MAIN
 # ------------------------------------------------------------------------------
+
+log "suridata start..."
 
 for f in "$rules_file" "$eve_log"; do
     if [ ! -f "$f" ]; then
@@ -171,12 +212,7 @@ touch "$out_file"
 # ISP/DHCP-assigned and can change, so it's resolved at runtime from
 # wan_iface. If it can't be resolved (interface down, not yet up), WAN
 # exclusion is simply skipped for this run and logged, without aborting.
-if [[ "$SERV_SUBNET" =~ $UH_IPV4 ]]; then
-    lan_prefix="${SERV_SUBNET%.*}."
-else
-    log "WARNING: SERV_SUBNET '$SERV_SUBNET' is not a valid IPv4 -- fallback"
-    lan_prefix=""
-fi
+lan_prefix="${SERV_SUBNET%.*}."
 
 wan_ip=$(ip -4 -o addr show "$wan_iface" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)
 if [[ "$wan_ip" =~ $UH_IPV4 ]]; then

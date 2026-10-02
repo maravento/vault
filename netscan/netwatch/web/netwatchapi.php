@@ -109,6 +109,7 @@ function get_db() {
     $pdo = new PDO('sqlite:' . DB_FILE);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->exec('PRAGMA busy_timeout=5000;');
+    $pdo->exec('PRAGMA journal_mode=WAL;');
     return $pdo;
 }
 
@@ -140,6 +141,29 @@ function read_ports_mode() {
         }
     }
     return ['mode' => $mode, 'target_ip' => $target];
+}
+
+// Written by netwatchports.sh after every poll cycle (both modes), whether
+// or not it found anything open. Lets listPorts tell "no scan yet" apart
+// from "scanned, nothing open" instead of the panel waiting forever.
+define('SCAN_STATUS_FILE', '/var/www/netwatch/data/port_scan_status.conf');
+
+function read_scan_marker() {
+    $marker = ['source' => '', 'host' => '', 'time' => '', 'found' => 0];
+    if (file_exists(SCAN_STATUS_FILE)) {
+        foreach (file(SCAN_STATUS_FILE, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+            if (strpos($line, 'LAST_SCAN_SOURCE=') === 0) {
+                $marker['source'] = str_replace(array('"', "'"), '', trim(substr($line, strlen('LAST_SCAN_SOURCE='))));
+            } elseif (strpos($line, 'LAST_SCAN_HOST=') === 0) {
+                $marker['host'] = str_replace(array('"', "'"), '', trim(substr($line, strlen('LAST_SCAN_HOST='))));
+            } elseif (strpos($line, 'LAST_SCAN_TIME=') === 0) {
+                $marker['time'] = str_replace(array('"', "'"), '', trim(substr($line, strlen('LAST_SCAN_TIME='))));
+            } elseif (strpos($line, 'LAST_SCAN_FOUND=') === 0) {
+                $marker['found'] = (int) str_replace(array('"', "'"), '', trim(substr($line, strlen('LAST_SCAN_FOUND='))));
+            }
+        }
+    }
+    return $marker;
 }
 
 // Atomic write: build the new content in a temp file in the same
@@ -242,7 +266,14 @@ try {
             $stmt = $pdo->prepare("SELECT host, port, proto, service, status, last_checked, last_changed FROM port_scan_state WHERE source = :source AND host = :host AND (status = 'open' OR julianday(last_changed) >= julianday('now', :purge_modifier)) ORDER BY port");
             $stmt->execute([':source' => $pm['mode'], ':host' => $host, ':purge_modifier' => $purge_modifier]);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            json_out(['success' => true, 'data' => $rows, 'count' => count($rows), 'mode' => $pm['mode'], 'host' => $host]);
+            // Only trust the marker when it matches the mode/host being
+            // queried right now -- otherwise a scan from before a mode
+            // switch could wrongly tell the panel "already scanned".
+            $marker = read_scan_marker();
+            $last_scan = ($marker['source'] === $pm['mode'] && $marker['host'] === $host && $marker['time'] !== '')
+                ? $marker['time']
+                : null;
+            json_out(['success' => true, 'data' => $rows, 'count' => count($rows), 'mode' => $pm['mode'], 'host' => $host, 'last_scan' => $last_scan]);
             break;
 
         default:
