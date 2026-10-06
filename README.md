@@ -74,7 +74,7 @@ python3 gitfolder.py https://github.com/maravento/vault/project_name
 - [blackusb](https://github.com/maravento/vault/tree/master/blackusb)
 - [gateproxy](https://github.com/maravento/vault/tree/master/gateproxy)
 - [itsm](https://github.com/maravento/vault/tree/master/itsm)
-- [netscan](https://github.com/maravento/vault/tree/master/netscan)
+- [nmapstack](https://github.com/maravento/vault/tree/master/nmapstack)
 - [scripts](https://github.com/maravento/vault/tree/master/scripts)
 - [trek](https://github.com/maravento/vault/tree/master/trek)
 - [winzenity](https://github.com/maravento/vault/tree/master/winzenity)
