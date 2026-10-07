@@ -6,15 +6,7 @@
 # N Report
 #
 # DESCRIPTION:
-# Menu-driven nmap wrapper that produces timestamped HTML scan reports,
-# owned by the non-root local user. No automatic browser open.
-#
-# REQUIREMENTS:
-# Run as root (sudo). Packages: nmap, xsltproc, iproute2, util-linux.
-#
-# OUTPUT:
-# /home/<user>/Report/scan*_TIMESTAMP.html
-# Intermediate .xml/.nmap/.gnmap files are deleted after each scan.
+# Menu-driven nmap wrapper that produces timestamped HTML scan reports.
 #
 # USAGE:
 # sudo /path/to/nreport.sh
@@ -398,7 +390,7 @@ show_spinner_for_pid() {
     fi
     printf "\r[-] Done. \n"
     if [ "$exit_code" -ne 0 ]; then
-        log "WARNING: nmap (PID $pid) exited with code $exit_code -- alert"
+        log "WARNING: nmap PID $pid exited $exit_code -- alert"
     fi
     return 0
 }
@@ -666,7 +658,7 @@ case "$opt" in
                     echo '<style>body{font-family:monospace;padding:20px;background:#f5f5f5}pre{background:#fff;padding:15px;border:1px solid #ddd;overflow:auto;line-height:1.4}</style>'
                     echo '</head><body><h1>Nmap Scan Report: '"$target_html"'</h1>'
                     echo '<p><strong>Note:</strong> XML output not available, displaying text format.</p><pre>'
-                    cat "${base}.nmap"
+                    sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' "${base}.nmap"
                     echo '</pre></body></html>'
                 } > "$html_file"
 

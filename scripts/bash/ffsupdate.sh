@@ -80,7 +80,7 @@ trap 'rm -f "$ffsfile" "$ffsrun"; log "ERROR: aborted, temporary files cleaned u
 
 link=$(wget -q "$url" -O - | grep -Pio '/download/[^"]+Linux[^"]+gz') || true
 if [ -z "$link" ]; then
-    log "ERROR: could not find download link, site may have changed -- abort"
+    log "ERROR: download link missing; site may have changed -- abort"
     exit 1
 fi
 
@@ -98,14 +98,14 @@ if ! wget -qO "$ffsfile" "https://www.freefilesync.org$link" \
 fi
 
 if ! tar xf "$ffsfile" >/dev/null 2>&1; then
-    log "ERROR: failed to extract $ffsfile, file may be corrupt -- abort"
+    log "ERROR: extraction failed; archive may be corrupt -- abort"
     rm -f "$ffsfile"
     exit 1
 fi
 
 extracted=$(ls FreeFileSync*.run 2>/dev/null | head -1)
 if [ -z "$extracted" ]; then
-    log "ERROR: no FreeFileSync*.run file found after extraction -- abort"
+    log "ERROR: no FreeFileSync installer after extraction -- abort"
     rm -f "$ffsfile"
     exit 1
 fi

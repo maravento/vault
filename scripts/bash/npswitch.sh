@@ -58,19 +58,16 @@ nm_file="$netplan_dir/99-networkmanager.yaml"
 
 # Detect current renderer
 detect_current_renderer() {
-    local renderer="unknown"
+    local renderer="unknown" value
 
-    # Check all yaml files
-    for yaml_file in "$netplan_dir"/*.yaml; do
-        [ -f "$yaml_file" ] || continue
-        if grep -q "renderer.*networkd" "$yaml_file" 2>/dev/null; then
-            renderer="networkd"
-            break
-        elif grep -q "renderer.*NetworkManager" "$yaml_file" 2>/dev/null; then
-            renderer="NetworkManager"
-            break
-        fi
-    done
+    # Ask netplan instead of parsing the yaml. It merges every file under
+    # /etc/netplan and resolves the precedence itself, and the dotted key
+    # returns the global renderer only, never a per-device one. An unset
+    # key returns 'null' and a missing config fails, both left as unknown.
+    value=$(netplan get renderer 2>/dev/null)
+    case "$value" in
+        networkd|NetworkManager) renderer="$value" ;;
+    esac
 
     echo "$renderer"
 }

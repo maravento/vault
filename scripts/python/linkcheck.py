@@ -101,46 +101,45 @@ def check_link(url, session):
         if 300 <= resp.status_code < 400:
             location = resp.headers.get("Location", "").strip()
             if not location:
-                return resp.status_code, "redirect_broken"
+                return resp.status_code, "redirect_broken", None
             try:
                 final = session.get(url, timeout=TIMEOUT, allow_redirects=True)
                 error = classify_http(final.status_code)
-                return final.status_code, error if error else None
+                return final.status_code, error if error else None, final
             except KeyboardInterrupt:
                 raise
             except Timeout:
-                return None, "timeout"
+                return None, "timeout", None
             except SSLError:
-                return None, "ssl"
+                return None, "ssl", None
             except TooManyRedirects:
-                return None, "too_many_redirects"
+                return None, "too_many_redirects", None
             except Exception:
-                return None, "redirect_broken"
+                return None, "redirect_broken", None
 
         error = classify_http(resp.status_code)
-        return resp.status_code, error
+        return resp.status_code, error, resp
 
     except KeyboardInterrupt:
         raise
     except Timeout:
-        return None, "timeout"
+        return None, "timeout", None
     except SSLError:
-        return None, "ssl"
+        return None, "ssl", None
     except ConnectionError as e:
         msg = str(e).lower()
         if any(x in msg for x in ["nodename nor servname", "name or service not known",
                                    "getaddrinfo", "name resolution"]):
-            return None, "dns"
+            return None, "dns", None
         if any(x in msg for x in ["connection refused", "actively refused"]):
-            return None, "refused"
-        return None, "conn"
+            return None, "refused", None
+        return None, "conn", None
     except Exception:
-        return None, "conn"
+        return None, "conn", None
 
 
-def collect_links(url, session, domain):
+def collect_links(resp, domain):
     try:
-        resp = session.get(url, timeout=TIMEOUT, allow_redirects=True)
         resp.raise_for_status()
         resp.encoding = resp.apparent_encoding or resp.encoding
         content_type = resp.headers.get("Content-Type", "")
@@ -196,7 +195,7 @@ def scan():
         count += 1
         print(f"[{count:>4}] {current_url}")
 
-        status, error_key = check_link(current_url, session)
+        status, error_key, resp = check_link(current_url, session)
 
         if error_key:
             label = ERROR_LABELS.get(error_key, "Unknown Error")
@@ -204,7 +203,7 @@ def scan():
             by_type[error_key].append((current_url, status))
             print(f"        ❌ {label}")
         else:
-            new_links = collect_links(current_url, session, domain)
+            new_links = collect_links(resp, domain)
             for link in new_links:
                 if link not in visited:
                     pending.append(link)

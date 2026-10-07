@@ -92,6 +92,30 @@ sudo /path_to/blackusb.sh s
 
 `'poweroff'`
 
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+     <code>'sync'</code> runs by default on an unknown device, before any other command in the list. <code>'poweroff'</code> can be added alongside it, not only as a replacement.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+     <code>'sync'</code> se ejecuta por defecto ante un dispositivo desconocido, antes de cualquier otro comando de la lista. <code>'poweroff'</code> puede agregarse junto a él, no solo como reemplazo.
+    </td>
+  </tr>
+</table>
+
+### Demo Mode
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+     Logs an unknown device without running the commands in <code>commands_list</code>. Useful to test the whitelist before enabling real blocking. Edit the script and set <code>demo='yes'</code>.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+     Registra un dispositivo desconocido sin ejecutar los comandos de <code>commands_list</code>. Útil para probar la lista blanca antes de activar el bloqueo real. Edite el script y defina <code>demo='yes'</code>.
+    </td>
+  </tr>
+</table>
+
 ### Logs
 
 `/var/log/blackusb.log`
@@ -144,9 +168,9 @@ Cruzer Blade
   </tr>
 </table>
 
-> **Note:** This is requested because this project uses batch scripts packaged into a .exe, and antivirus software may flag this as a false positive. If in doubt, you can unzip the .exe and audit the scripts, run the packages manually, or choose not to use this project.
+> This is requested because this project uses batch scripts packaged into a .exe, and antivirus software may flag this as a false positive. If in doubt, you can unzip the .exe and audit the scripts, run the packages manually, or choose not to use this project.
 >
-> **Nota:** Esto se solicita porque este proyecto usa scripts batch empaquetados en un .exe, y los antivirus pueden detectarlo como falso positivo. Si tiene dudas, puede descomprimir el .exe y auditar los scripts, ejecutar los paquetes manualmente, o no usar este proyecto.
+> Esto se solicita porque este proyecto usa scripts batch empaquetados en un .exe, y los antivirus pueden detectarlo como falso positivo. Si tiene dudas, puede descomprimir el .exe y auditar los scripts, ejecutar los paquetes manualmente, o no usar este proyecto.
 
 ### Important Before Use
 

@@ -134,9 +134,10 @@ fi
 
 temp_dir=$(mktemp -d)
 manifest_file="$temp_dir/files.txt"
-trap 'rm -rf "$temp_dir"' EXIT
-
 checksum_dir=$(dirname "$checksum_file")
+
+out_file="${checksum_file}.tmp"
+trap 'rm -rf "$temp_dir"; rm -f "$out_file"' EXIT
 for file in "${files[@]}"; do
     if [[ "$file" == "$checksum_dir"* ]]; then
         rel_path=$(realpath --relative-to="$checksum_dir" "$file")
@@ -153,7 +154,7 @@ done
     total_files=${#files[@]}
     current=0
 
-    > "$checksum_file"
+    > "$out_file" || exit 1
 
     while IFS= read -r file_path; do
         current=$((current + 1))
@@ -170,12 +171,14 @@ done
 
         if hash=$(sha256sum "$actual_file" 2>/dev/null); then
             checksum_only=$(echo "$hash" | awk '{print $1}')
-            printf '%s %s\n' "$checksum_only" "$file_path" >> "$checksum_file"
+            printf '%s %s\n' "$checksum_only" "$file_path" >> "$out_file"
         else
             echo "Error processing $file_path" >&2
             exit 1
         fi
     done < "$manifest_file"
+
+    mv -f "$out_file" "$checksum_file" || exit 1
 
     echo "100"
     echo "# Complete!"

@@ -105,21 +105,31 @@ find "$targetfolder" -type f -printf '%s\t%p\n' 2>/dev/null > "$scan_list"
 total_files=$(wc -l < "$scan_list")
 total_bytes=$(awk -F'\t' '{s+=$1} END{printf "%.0f", s+0}' "$scan_list")
 
+# HTML-escape a value that goes into element content.
+awk_esc='function esc(s) { gsub(/&/, "\\&amp;", s); gsub(/</, "\\&lt;", s); gsub(/>/, "\\&gt;", s); return s }'
+html_escape() {
+    local s="$1"
+    s="${s//&/\&amp;}"
+    s="${s//</\&lt;}"
+    s="${s//>/\&gt;}"
+    printf '%s' "$s"
+}
+
 row_ext=$(awk -F'\t' '
     { name = $2; sub(/.*\//, "", name)
       if (name ~ /.\./) { ext = tolower(name); sub(/.*\./, "", ext) } else ext = "(none)"
       count[ext]++; bytes[ext] += $1 }
     END { for (e in count) printf "%d\t%s\t%d\n", bytes[e], e, count[e] }' "$scan_list" |
     sort -t "$(printf '\t')" -k1,1nr | head -30 |
-    awk -F'\t' -v total="$total_bytes" '{share = (total>0 ? $1*100/total : 0); avg = ($3>0 ? $1/$3 : 0); printf "<tr><td>%s</td><td class=\"bar-cell\"><div class=\"bar\"><span style=\"width:%.1f%%\"></span></div></td><td>%d</td><td>%.1f</td><td>%.1f</td><td>%.1f%%</td></tr>\n", $2, share, $3, avg/1048576, $1/1048576, share}')
+    awk -F'\t' -v total="$total_bytes" "$awk_esc"'{share = (total>0 ? $1*100/total : 0); avg = ($3>0 ? $1/$3 : 0); printf "<tr><td>%s</td><td class=\"bar-cell\"><div class=\"bar\"><span style=\"width:%.1f%%\"></span></div></td><td>%d</td><td>%.1f</td><td>%.1f</td><td>%.1f%%</td></tr>\n", esc($2), share, $3, avg/1048576, $1/1048576, share}')
 
 row_dir=$(awk -F'\t' '{ dir = $2; sub(/\/[^\/]*$/, "", dir); bytes[dir] += $1; count[dir]++ }
     END { for (d in bytes) printf "%d\t%s\t%d\n", bytes[d], d, count[d] }' "$scan_list" |
     sort -t "$(printf '\t')" -k1,1nr | head -30 |
-    awk -F'\t' '{printf "<tr><td>%s</td><td>%d</td><td>%.1f</td></tr>\n", $2, $3, $1/1048576}')
+    awk -F'\t' "$awk_esc"'{printf "<tr><td>%s</td><td>%d</td><td>%.1f</td></tr>\n", esc($2), $3, $1/1048576}')
 
 row_file=$(sort -t "$(printf '\t')" -k1,1nr "$scan_list" | head -50 |
-    awk -F'\t' '{printf "<tr><td>%s</td><td>%.1f</td></tr>\n", $2, $1/1048576}')
+    awk -F'\t' "$awk_esc"'{printf "<tr><td>%s</td><td>%.1f</td></tr>\n", esc($2), $1/1048576}')
 
 {
     cat <<'HTMLHEAD'
@@ -164,7 +174,7 @@ row_file=$(sort -t "$(printf '\t')" -k1,1nr "$scan_list" | head -50 |
 HTMLHEAD
     echo '<div class="header">'
     echo '<h1>File Report</h1>'
-    echo "<div class=\"info\">$targetfolder</div>"
+    echo "<div class=\"info\">$(html_escape "$targetfolder")</div>"
     echo '</div>'
     echo '<div class="summary"><div class="summary-grid">'
     echo "<div class=\"summary-item\"><strong>Files</strong><span>$total_files</span></div>"

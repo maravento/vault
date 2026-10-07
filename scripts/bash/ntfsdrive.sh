@@ -5,6 +5,11 @@
 #
 # Mount | Umount NTFS Disk Drive (HDD/SSD)
 #
+# DESCRIPTION: Mounts or unmounts an NTFS disk by label or UUID, owned by the
+# local user. Asks for the identifier and the mount folder name.
+#
+# USAGE: sudo bash ntfsdrive.sh
+#
 ################################################################################
 
 set -uo pipefail

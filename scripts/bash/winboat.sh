@@ -91,7 +91,11 @@ install_winboat() {
             exit 1
         fi
         chmod +x "$docker_script"
-        "$docker_script" install
+        if ! "$docker_script" install; then
+            echo "ERROR: docker.sh install failed -- abort"
+            rm -f "$docker_script"
+            exit 1
+        fi
         rm "$docker_script"
     else
         echo "Docker is already installed. Skipping..."
@@ -112,14 +116,22 @@ install_winboat() {
     # Install FreeRDP from Flatpak (fixes bugs present in Ubuntu 24.04 repository version)
     if ! flatpak list 2>/dev/null | grep -q "com.freerdp.FreeRDP"; then
         echo "Installing Flatpak if not present..."
-        apt-get update
-        apt-get install -y flatpak
+        if ! apt-get update; then
+            echo "WARNING: apt-get update failed -- fallback"
+        fi
+        if ! apt-get install -y flatpak; then
+            echo "ERROR: failed to install flatpak -- abort"
+            exit 1
+        fi
 
         echo "Adding Flathub repository..."
         flatpak remote-add --if-not-exists --system flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
 
         echo "Installing FreeRDP from Flatpak..."
-        flatpak install --system -y flathub com.freerdp.FreeRDP
+        if ! flatpak install --system -y flathub com.freerdp.FreeRDP; then
+            echo "ERROR: failed to install FreeRDP from Flatpak -- abort"
+            exit 1
+        fi
         echo "FreeRDP3 installed successfully from Flatpak"
     else
         echo "FreeRDP3 (Flatpak) is already installed. Skipping..."
@@ -139,13 +151,26 @@ install_winboat() {
 
         echo "Downloading Winboat..."
         winboat_deb=$(mktemp /tmp/winboat.XXXXXX.deb)
-        wget -q --timeout=30 --show-progress "$deb_url" -O "$winboat_deb"
+        if ! wget -q --timeout=30 --show-progress \
+                "$deb_url" -O "$winboat_deb"; then
+            echo "ERROR: failed to download Winboat package -- abort"
+            rm -f "$winboat_deb"
+            exit 1
+        fi
 
         echo "Installing Winboat package..."
-        dpkg -i "$winboat_deb"
-        apt-get install -f -y
+        dpkg -i "$winboat_deb" || true
+        if ! apt-get install -f -y; then
+            echo "ERROR: failed to resolve Winboat dependencies -- abort"
+            rm -f "$winboat_deb"
+            exit 1
+        fi
         rm -f "$winboat_deb"
 
+        if ! command -v winboat &> /dev/null; then
+            echo "ERROR: Winboat is not installed after setup -- abort"
+            exit 1
+        fi
         echo "Winboat installed successfully!"
     else
         echo "Winboat is already installed. Skipping..."

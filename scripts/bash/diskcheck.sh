@@ -103,11 +103,11 @@ done
 the_ppa=malcscott/ppa
 if ! dpkg -s hddtemp &>/dev/null; then
     if ! add-apt-repository -y ppa:$the_ppa >/dev/null 2>&1; then
-        log "WARNING: failed to add PPA $the_ppa, hddtemp unavailable -- alert"
+        log "WARNING: add PPA $the_ppa failed; hddtemp absent -- alert"
     else
         apt-get update -qq
         if ! apt-get install -y hddtemp >/dev/null 2>&1; then
-            log "WARNING: failed to install hddtemp from PPA $the_ppa -- alert"
+            log "WARNING: hddtemp install from $the_ppa failed -- alert"
         fi
     fi
 fi

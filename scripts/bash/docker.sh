@@ -5,6 +5,11 @@
 #
 # Docker + Portainer (Install | Remove)
 #
+# DESCRIPTION: Installs Docker CE together with Portainer, or removes Docker.
+# Without an argument it opens an interactive menu.
+#
+# USAGE: sudo bash docker.sh [install|remove|--help]
+#
 ################################################################################
 
 set -uo pipefail

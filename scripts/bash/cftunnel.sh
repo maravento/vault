@@ -108,7 +108,7 @@ preflight_check() {
             return 0
         fi
 
-        echo "[$ts] WARNING: Preflight attempt $attempt/$max_retries failed: $reason" | tee -a "$log_file"
+        echo "[$ts] WARNING: preflight $attempt/$max_retries failed: $reason" | tee -a "$log_file"
         sleep "$interval"
         ((attempt++))
     done
@@ -220,10 +220,10 @@ start_tunnel() {
     local log_file="$CONFIG_DIR/${tunnel_name}.log"
 
     echo "Starting tunnel: $tunnel_name"
-    echo "Config: $config_file"
+    echo "Config: ${config_file/#$USER_HOME/\~}"
 
     if [[ ! -f "$config_file" ]]; then
-        echo "WARNING: config file does not exist: $config_file -- alert"
+        echo "WARNING: config file does not exist: ${config_file/#$USER_HOME/\~} -- alert"
         return 1
     fi
 
@@ -258,7 +258,7 @@ start_tunnel() {
         return 1
     fi
 
-    echo "Running: cloudflared --config $config_file tunnel run $tunnel_id"
+    echo "Running: cloudflared --config ${config_file/#$USER_HOME/\~} tunnel run $tunnel_id"
     nohup "$CLOUDFLARED_BIN" --config "$config_file" tunnel run "$tunnel_id" >> "$log_file" 2>&1 &
 
     local new_pid=$!
@@ -269,7 +269,7 @@ start_tunnel() {
         sleep 1
         if _pid_is_valid "$new_pid" && kill -0 "$new_pid" 2>/dev/null; then
             echo "[UP] Tunnel '$tunnel_name' started (PID $new_pid)"
-            echo "Log file: $log_file"
+            echo "Log file: ${log_file/#$USER_HOME/\~}"
             return 0
         fi
         ((retries--))
@@ -293,7 +293,7 @@ stop_tunnel() {
     local pid
     pid=$(cat "$pid_file")
     if ! _pid_is_valid "$pid"; then
-        echo "INFO: invalid PID in $pid_file ('$pid'), removed stale file -- fixed"
+        echo "INFO: invalid PID in ${pid_file/#$USER_HOME/\~} ('$pid'), removed stale file -- fixed"
         rm -f "$pid_file"
         return
     fi
@@ -314,7 +314,7 @@ stop_all_tunnels() {
     mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
 
     if [[ ${#tunnels[@]} -eq 0 ]]; then
-        echo "WARNING: no tunnel configuration files found in $CONFIG_DIR/ -- alert"
+        echo "WARNING: no tunnel configuration files found in ${CONFIG_DIR/#$USER_HOME/\~}/ -- alert"
         return 1
     fi
 
@@ -353,35 +353,6 @@ stop_all_tunnels() {
     fi
 }
 
-status_tunnel() {
-    local tunnel_name="$1"
-    local pid_file="$CONFIG_DIR/${tunnel_name}.pid"
-    local log_file="$CONFIG_DIR/${tunnel_name}.log"
-
-    if [[ ! -f "$pid_file" ]]; then
-        echo "[DOWN] Tunnel '$tunnel_name' not running."
-        return
-    fi
-
-    local pid
-    pid=$(cat "$pid_file")
-    if ! _pid_is_valid "$pid"; then
-        echo "INFO: invalid PID in $pid_file, removed stale file -- fixed"
-        rm -f "$pid_file"
-        return
-    fi
-
-    if kill -0 "$pid" 2>/dev/null; then
-        echo "[UP] Tunnel '$tunnel_name' running (PID $pid)"
-        echo ""
-        echo "Recent log:"
-        tail -10 "$log_file" 2>/dev/null
-    else
-        echo "[DOWN] Tunnel '$tunnel_name' not running."
-        rm -f "$pid_file"
-    fi
-}
-
 create_tunnel() {
     echo "Cloudflare Tunnel - Create New Tunnel"
     echo "======================================"
@@ -416,7 +387,7 @@ create_tunnel() {
 
     local config_file="$CONFIG_DIR/${tunnel_name}.yml"
     if [[ -f "$config_file" ]]; then
-        echo "WARNING: config file already exists: $config_file -- alert"
+        echo "WARNING: config file already exists: ${config_file/#$USER_HOME/\~} -- alert"
         return 1
     fi
 
@@ -502,7 +473,7 @@ create_tunnel() {
         echo "  - service: http_status:404"
     } > "$config_file"
 
-    echo "[OK] Config file created: $config_file"
+    echo "[OK] Config file created: ${config_file/#$USER_HOME/\~}"
 
     local do_route
     read -r -p "Route DNS '$tunnel_hostname' to this tunnel now? (y/n): " do_route
@@ -533,7 +504,7 @@ start_multiple_tunnels() {
     local tunnel_count=${#tunnels[@]}
 
     if [[ $tunnel_count -eq 0 ]]; then
-        echo "WARNING: no tunnel configuration files found in $CONFIG_DIR/ -- alert"
+        echo "WARNING: no tunnel configuration files found in ${CONFIG_DIR/#$USER_HOME/\~}/ -- alert"
         echo "Tip: Create configuration files with .yml extension"
         return 1
     fi
@@ -567,7 +538,7 @@ startall_tunnels() {
     mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
 
     if [[ ${#tunnels[@]} -eq 0 ]]; then
-        echo "WARNING: no tunnel configuration files found in $CONFIG_DIR/ -- alert"
+        echo "WARNING: no tunnel configuration files found in ${CONFIG_DIR/#$USER_HOME/\~}/ -- alert"
         return 1
     fi
 
@@ -593,7 +564,7 @@ status_all_tunnels() {
     mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
 
     if [[ ${#tunnels[@]} -eq 0 ]]; then
-        echo "WARNING: no tunnel configuration files found in $CONFIG_DIR/ -- alert"
+        echo "WARNING: no tunnel configuration files found in ${CONFIG_DIR/#$USER_HOME/\~}/ -- alert"
         return 1
     fi
 
@@ -623,7 +594,7 @@ delete_tunnel() {
     mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
 
     if [[ ${#tunnels[@]} -eq 0 ]]; then
-        echo "WARNING: no tunnel configuration files found in $CONFIG_DIR/ -- alert"
+        echo "WARNING: no tunnel configuration files found in ${CONFIG_DIR/#$USER_HOME/\~}/ -- alert"
         return 1
     fi
 
@@ -651,7 +622,7 @@ delete_tunnel() {
 
     local config_file="$CONFIG_DIR/${tunnel_name}.yml"
     if [[ ! -f "$config_file" ]]; then
-        echo "WARNING: config file does not exist: $config_file -- alert"
+        echo "WARNING: config file does not exist: ${config_file/#$USER_HOME/\~} -- alert"
         return 1
     fi
 

@@ -4,45 +4,20 @@
 ################################################################################
 #
 # nwatchports - Port Auditing Daemon + CLI
-# https://github.com/maravento/vault
 #
-# Watches TCP and UDP ports in one of two mutually exclusive modes (only one
-# runs at a time, to avoid mixing self-audit and target-audit traffic/noise
-# into the same audit trail):
-#
-# server (default) -- reads the server's own listening TCP+UDP sockets live
-# via `ss -tulnp` (kernel-accurate, no probing).
-# target -- runs a fast nmap TCP+UDP scan (top ~100 ports each,
-# -sT -sU -F) against a user-chosen external host
-# every poll cycle.
-#
-# Active mode + target IP are stored in ports_mode.conf (NOT nwatch.env --
-# that file also holds the panel's access-control CIDR, and ports_mode.conf
-# must be writable by the web-facing PHP process, which must never be able
-# to touch access control).
-#
-# Both modes write to the same "port_scan_state" table (current state) in
-# nwatch.db, appending a row to "port_events" only when a port's status
-# actually transitions (opened / closed) -- not on every poll.
-#
-# nwatch.env variables:
-# PORT_POLL_INTERVAL : seconds between poll cycles (default: 30)
-# PURGE_CLOSED_AFTER_HOURS : how long closed ports are kept before being
-#                            purged from port_scan_state (default: 6)
-#
-# ports_mode.conf variables:
-# PORTS_MODE : "server" or "target"
-# PORTS_TARGET_IP : target host/IP, only used when PORTS_MODE=target
-#
-# LOG: /var/log/nwatch.log (root:root, 640) -- shared by both daemons
-#      (nwatchlan.sh + nwatchports.sh). The installer writes its own
-#      nwatchsetup.log next to itself.
+# DESCRIPTION:
+# Audits this server's listening ports, or a chosen target's, and
+# keeps port history in nwatch.db.
 #
 # USAGE:
 # ./nwatchports.sh {start|stop|status}
 # ./nwatchports.sh mode server
 # ./nwatchports.sh mode target <host>
 # ./nwatchports.sh list
+#
+# LOG: /var/log/nwatch.log (root:root, 640) -- shared by both daemons
+#      (nwatchlan.sh + nwatchports.sh). The installer writes its own
+#      nwatchsetup.log next to itself.
 #
 ################################################################################
 
@@ -181,7 +156,7 @@ if [ -z "${PORT_POLL_INTERVAL:-}" ]; then
 fi
 PORT_POLL_INTERVAL="${PORT_POLL_INTERVAL:-30}"
 if [ -z "${PURGE_CLOSED_AFTER_HOURS:-}" ]; then
-    log "WARNING: no PURGE_CLOSED_AFTER_HOURS in nwatch.env -- fallback"
+    log "WARNING: purge hours unset; check nwatch.env -- fallback"
 fi
 PURGE_CLOSED_AFTER_HOURS="${PURGE_CLOSED_AFTER_HOURS:-6}"
 
@@ -234,25 +209,43 @@ EOF
     mv -f "$tmp_file" "$ports_mode_file"
 }
 
-# Records that a poll cycle finished for (source, host), whether or not it
-# found anything -- this is what lets the panel tell "no scan yet" apart
-# from "scanned, nothing open", instead of showing "Scanning..." forever.
 write_scan_marker() {
-    local source="$1" host="$2" now="$3" found="$4"
+    local source="$1" host="$2" now="$3" found="$4" status="${5:-complete}"
+    local scan_source="$source" scan_host="$host" scan_time="$now" scan_found="$found"
     local dir tmp_file
+
+    if [ "$status" = "failed" ]; then
+        scan_source=$(awk -F'"' '$1 == "LAST_SCAN_SOURCE=" { print $2 }' "$scan_status_file" 2>/dev/null)
+        scan_host=$(awk -F'"' '$1 == "LAST_SCAN_HOST=" { print $2 }' "$scan_status_file" 2>/dev/null)
+        scan_time=$(awk -F'"' '$1 == "LAST_SCAN_TIME=" { print $2 }' "$scan_status_file" 2>/dev/null)
+        scan_found=$(awk -F'"' '$1 == "LAST_SCAN_FOUND=" { print $2 }' "$scan_status_file" 2>/dev/null)
+        scan_found="${scan_found:-0}"
+    fi
+
     dir="$(dirname "$scan_status_file")"
     mkdir -p "$dir"
-
     tmp_file=$(mktemp "${scan_status_file}.XXXXXX")
     cat > "$tmp_file" <<EOF
-LAST_SCAN_SOURCE="${source}"
-LAST_SCAN_HOST="${host}"
-LAST_SCAN_TIME="${now}"
-LAST_SCAN_FOUND="${found}"
+LAST_SCAN_SOURCE="${scan_source}"
+LAST_SCAN_HOST="${scan_host}"
+LAST_SCAN_TIME="${scan_time}"
+LAST_SCAN_FOUND="${scan_found}"
+LAST_ATTEMPT_SOURCE="${source}"
+LAST_ATTEMPT_HOST="${host}"
+LAST_ATTEMPT_TIME="${now}"
+LAST_ATTEMPT_STATUS="${status}"
 EOF
     chown www-data:www-data "$tmp_file" 2>/dev/null || true
     chmod 664 "$tmp_file"
     mv -f "$tmp_file" "$scan_status_file"
+}
+
+scan_attempt_failed() {
+    local source="$1" host="$2"
+    [ -f "$scan_status_file" ] || return 1
+    grep -Fxq "LAST_ATTEMPT_SOURCE=\"$source\"" "$scan_status_file" &&
+        grep -Fxq "LAST_ATTEMPT_HOST=\"$host\"" "$scan_status_file" &&
+        grep -Fxq 'LAST_ATTEMPT_STATUS="failed"' "$scan_status_file"
 }
 
 cmd_mode() {
@@ -302,7 +295,7 @@ cmd_list() {
 # not re-expanded); an empty batch is a no-op.
 run_batch() {
     [ -z "${1:-}" ] && return 0
-    sqlite3 -cmd "PRAGMA busy_timeout=5000;" "$db_file" >/dev/null 2>>"$log_file" <<SQL
+    sqlite3 -cmd ".bail on" -cmd "PRAGMA busy_timeout=5000;" "$db_file" >/dev/null 2>>"$log_file" <<SQL
 BEGIN IMMEDIATE;
 ${1}COMMIT;
 SQL
@@ -348,7 +341,8 @@ poll_server() {
             sql+="INSERT INTO port_scan_state (source, host, port, proto, service, status, last_checked, last_changed) VALUES ('server', '$esc_host', ${port}, '$proto', '$esc_service', 'open', '$now', '$now');
 INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('server', '$esc_host', ${port}, 'opened', '$now');
 "
-            log "INFO: server port opened ${host}:${port}/${proto} (${service:-unknown})"
+            log "server port ${host}:${port}/${proto}"
+            log "INFO: server port opened; service=${service:-unknown}"
         else
             sql+="UPDATE port_scan_state SET service='$esc_service', status='open', last_checked='$now' WHERE source='server' AND host='$esc_host' AND port=${port} AND proto='$proto';
 "
@@ -356,7 +350,8 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('se
                 sql+="UPDATE port_scan_state SET last_changed='$now' WHERE source='server' AND host='$esc_host' AND port=${port} AND proto='$proto';
 INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('server', '$esc_host', ${port}, 'opened', '$now');
 "
-                log "INFO: server port opened ${host}:${port}/${proto} (${service:-unknown})"
+                log "server port ${host}:${port}/${proto}"
+                log "INFO: server port opened; service=${service:-unknown}"
             fi
         fi
     done < <(ss -Htulnp 2>/dev/null)
@@ -376,7 +371,13 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('se
         log "INFO: server port closed ${host}:${port}/${proto}"
     done
 
-    run_batch "$sql"
+    if ! run_batch "$sql"; then
+        if ! scan_attempt_failed "server" "$host"; then
+            log "WARNING: could not store server scan for '$host' -- alert"
+        fi
+        write_scan_marker "server" "$host" "$now" 0 "failed"
+        return
+    fi
     write_scan_marker "server" "$host" "$now" "${#seen[@]}"
 }
 
@@ -397,20 +398,34 @@ poll_target() {
         prev["${p_proto}:${p_port}"]="$p_stat"
     done < <(sqlite3 -separator '|' "$db_file" "SELECT proto, port, status FROM port_scan_state WHERE source='target' AND host='$esc_target';" 2>>"$log_file")
 
-    local nmap_out
-    nmap_out=$(nmap -Pn -sT -sU -F -T4 --host-timeout 60s -oG - "$target" 2>>"$log_file") || true
+    local nmap_out nmap_err_file
+    nmap_err_file=$(mktemp "/tmp/nwatchports-nmap.XXXXXX") || {
+        if ! scan_attempt_failed "target" "$target"; then
+            log "WARNING: no nmap output for '$target' -- alert"
+        fi
+        write_scan_marker "target" "$target" "$now" 0 "failed"
+        return
+    }
+    nmap_out=$(nmap -Pn -sT -sU -F -T4 --host-timeout 60s -oG - "$target" 2>"$nmap_err_file") || true
+
+    if ! printf '%s\n' "$nmap_out" | grep '^Host:.*Ports:' >/dev/null; then
+        if ! scan_attempt_failed "target" "$target"; then
+            log "WARNING: nmap did not complete for '$target' -- alert"
+            [ ! -s "$nmap_err_file" ] || cat "$nmap_err_file" >> "$log_file"
+        fi
+        rm -f "$nmap_err_file"
+        write_scan_marker "target" "$target" "$now" 0 "failed"
+        return
+    fi
+
+    [ ! -s "$nmap_err_file" ] || cat "$nmap_err_file" >> "$log_file"
+    rm -f "$nmap_err_file"
 
     local ports_field
     ports_field=$(printf '%s\n' "$nmap_out" | grep '^Host:' | sed -n 's/.*Ports: //p')
 
     if [ -z "$ports_field" ]; then
-        # -F rolls most/all ports under "Ignored State" when they share one
-        # state, so "Ports:" is often empty even on a clean scan -- that's
-        # not a failure, just nothing to report individually. Still close
-        # out anything that was previously open, and always record that the
-        # cycle completed (write_scan_marker) so the panel can tell "no scan
-        # yet" apart from "scanned, nothing open" instead of waiting forever.
-        log "INFO: scan completed for '$target' -- no open/reported ports found"
+        log "INFO: scan '$target' complete; no open ports reported"
         local sql="" key proto port
         for key in "${!prev[@]}"; do
             [ "${prev[$key]}" = "open" ] || continue
@@ -421,7 +436,13 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('ta
 "
             log "INFO: target port closed ${target}:${port}/${proto}"
         done
-        run_batch "$sql"
+        if ! run_batch "$sql"; then
+            if ! scan_attempt_failed "target" "$target"; then
+                log "WARNING: could not store target scan for '$target' -- alert"
+            fi
+            write_scan_marker "target" "$target" "$now" 0 "failed"
+            return
+        fi
         write_scan_marker "target" "$target" "$now" 0
         return
     fi
@@ -453,7 +474,8 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('ta
             if [ "$status" = "open" ]; then
                 sql+="INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('target', '$esc_target', ${port}, 'opened', '$now');
 "
-                log "INFO: target port opened ${target}:${port}/${proto} (${service:-unknown})"
+                log "target port ${target}:${port}/${proto}"
+                log "INFO: target port opened; service=${service:-unknown}"
             fi
         else
             sql+="UPDATE port_scan_state SET service='$esc_service', status='$status', last_checked='$now' WHERE source='target' AND host='$esc_target' AND port=${port} AND proto='$proto';
@@ -466,7 +488,8 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('ta
                 sql+="UPDATE port_scan_state SET last_changed='$now' WHERE source='target' AND host='$esc_target' AND port=${port} AND proto='$proto';
 INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('target', '$esc_target', ${port}, '$event_type', '$now');
 "
-                log "INFO: target port ${event_type} ${target}:${port}/${proto} (${service:-unknown})"
+                log "target port ${target}:${port}/${proto}"
+                log "INFO: target port ${event_type}; service=${service:-unknown}"
             fi
         fi
     done
@@ -488,7 +511,13 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('ta
         log "INFO: target port closed ${target}:${port}/${proto}"
     done
 
-    run_batch "$sql"
+    if ! run_batch "$sql"; then
+        if ! scan_attempt_failed "target" "$target"; then
+            log "WARNING: could not store target scan for '$target' -- alert"
+        fi
+        write_scan_marker "target" "$target" "$now" 0 "failed"
+        return
+    fi
     write_scan_marker "target" "$target" "$now" "$open_count"
 }
 

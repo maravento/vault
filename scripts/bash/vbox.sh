@@ -5,6 +5,11 @@
 #
 # Virtualbox 7.x install | remove
 #
+# DESCRIPTION: Installs VirtualBox 7.x from the Oracle repository, or purges
+# it if a version is already present.
+#
+# USAGE: sudo bash vbox.sh
+#
 ################################################################################
 
 set -uo pipefail

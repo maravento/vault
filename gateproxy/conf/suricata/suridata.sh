@@ -4,46 +4,14 @@
 ################################################################################
 #
 # Suridata
-# Captures dest_ip from Suricata alerts matching drop.conf signatures and
-# feeds /etc/suricata/suridata.txt -- the same plain IP-list format
-# blockports.txt already uses. Suricata itself never blocks anything (it
-# runs passive/IDS, see steps.md in caso_suricata for why NFQUEUE/IPS mode
-# was rejected): this script is what turns drop.conf into a real block,
-# via the ipset+iptables rule already declared in iptables.sh (uiptables.sh
-# equivalent), which rebuilds the ipset from suridata.txt on every reload.
 #
-# Between reloads, this script also patches the live ipset directly with
-# any newly found IP, so a new block takes effect within one cron cycle
-# instead of waiting for the next full firewall reload.
+# DESCRIPTION:
+# Turns drop.conf matches into real blocks via the suridata ipset.
 #
-# SID SOURCE: drop.conf entries are matched against ET Open's ruleset by
-# suricata-update (literal SIDs or "re:" message-regex patterns) and the
-# result is compiled into suricata.rules with the final action already
-# resolved -- this script reads THAT file (not drop.conf) so it never has
-# to re-implement regex expansion itself, and stays in sync automatically
-# whenever suricataupdate.sh runs.
+# USAGE:
+# sudo ./suridata.sh
 #
-# BACKFILL: suricataupdate.sh runs once a day, so a SID can generate alerts
-# for hours before it's converted to drop. On the run right after a SID
-# newly becomes drop (tracked via suridata.sids), this script does a one-time
-# full eve.json scan for just that SID to catch anything already logged --
-# the normal tail-from-offset logic below only sees NEW alerts.
-#
-# NO EXPIRY: once an IP is added, it stays -- same model as blockports.txt
-# (manually curated, never auto-pruned). If a false positive slips in,
-# remove it by hand from suridata.txt and re-run this script.
-#
-# LOCAL EXCLUSION: dest_ip values inside the server's own LAN (SERV_SUBNET,
-# assumed /24) or inside the WAN interface's own /24 are never written to
-# suridata.txt -- a false/positive alert against your own network must not
-# result in the firewall blocking your own gateway, WAN uplink, or LAN
-# hosts. On every run, any LAN/WAN IP already present from before this
-# exclusion existed is also purged from suridata.txt and from the live
-# ipset. SERV_SUBNET and the WAN interface name are read from
-# /etc/pydhcp/pydhcp.env; if a key is missing the script warns and falls back
-# to a built-in value. The WAN side has no fixed value (DHCP/ISP-assigned,
-# can change), so its /24 is resolved at runtime from wan_iface via
-# `ip addr show` instead of a fallback constant.
+# LOG: /var/log/suricata/suricatacron.log
 #
 ################################################################################
 
@@ -218,7 +186,7 @@ wan_ip=$(ip -4 -o addr show "$wan_iface" 2>/dev/null | awk '{print $4}' | cut -d
 if [[ "$wan_ip" =~ $UH_IPV4 ]]; then
     wan_prefix="${wan_ip%.*}."
 else
-    log "WARNING: could not resolve IP for wan_iface=$wan_iface -- fallback"
+    log "WARNING: WAN IP unresolved; exclusion skipped -- fallback"
     wan_prefix=""
 fi
 
@@ -266,7 +234,10 @@ new_sid_map_file=$(mktemp)
 sid_grep_file=$(mktemp)
 backfill_raw_file=$(mktemp)
 trap 'rm -f "$sid_map_file" "$new_sid_map_file" "$sid_grep_file" "$backfill_raw_file"' EXIT
-printf '%s\n' "${drop_sids[@]}" | jq -R 'select(length>0)' | jq -s 'map({(.): true}) | add' > "$sid_map_file"
+if ! printf '%s\n' "${drop_sids[@]}" | jq -R 'select(length>0)' | jq -s 'map({(.): true}) | add' > "$sid_map_file"; then
+    log "ERROR: failed to build the drop SID map -- abort"
+    exit 1
+fi
 
 # -- Step 1b: SIDs newly resolved to drop since the last run -----------------
 # suricataupdate.sh runs once a day; any alert for a SID that already
@@ -333,7 +304,7 @@ if (( current_size > last_offset )); then
     ' 2>>"$log_file" | sort -u) || jq_failed=1
 fi
 if (( jq_failed )); then
-    log "WARNING: jq failed parsing eve.json, retrying next run -- alert"
+    log "WARNING: eve.json parse failed; retry next run -- alert"
 else
     echo "$current_size" > "$offset_file"
 fi

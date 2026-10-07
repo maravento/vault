@@ -116,7 +116,7 @@ function get_db() {
 // Validate a hostname or IPv4 address (port_scan_state.host / target IP)
 function is_valid_host($host) {
     if ($host === '' || strlen($host) > 253) return false;
-    if (filter_var($host, FILTER_VALIDATE_IP)) return true;
+    if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) return true;
     if (preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/', $host)) return true;
     return (bool) preg_match('/^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/', $host);
 }
@@ -143,13 +143,10 @@ function read_ports_mode() {
     return ['mode' => $mode, 'target_ip' => $target];
 }
 
-// Written by nwatchports.sh after every poll cycle (both modes), whether
-// or not it found anything open. Lets listPorts tell "no scan yet" apart
-// from "scanned, nothing open" instead of the panel waiting forever.
 define('SCAN_STATUS_FILE', '/var/www/nwatch/data/port_scan_status.conf');
 
 function read_scan_marker() {
-    $marker = ['source' => '', 'host' => '', 'time' => '', 'found' => 0];
+    $marker = ['source' => '', 'host' => '', 'time' => '', 'found' => 0, 'attempt_source' => '', 'attempt_host' => '', 'attempt_time' => '', 'attempt_status' => ''];
     if (file_exists(SCAN_STATUS_FILE)) {
         foreach (file(SCAN_STATUS_FILE, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
             if (strpos($line, 'LAST_SCAN_SOURCE=') === 0) {
@@ -160,6 +157,14 @@ function read_scan_marker() {
                 $marker['time'] = str_replace(array('"', "'"), '', trim(substr($line, strlen('LAST_SCAN_TIME='))));
             } elseif (strpos($line, 'LAST_SCAN_FOUND=') === 0) {
                 $marker['found'] = (int) str_replace(array('"', "'"), '', trim(substr($line, strlen('LAST_SCAN_FOUND='))));
+            } elseif (strpos($line, 'LAST_ATTEMPT_SOURCE=') === 0) {
+                $marker['attempt_source'] = str_replace(array('"', "'"), '', trim(substr($line, strlen('LAST_ATTEMPT_SOURCE='))));
+            } elseif (strpos($line, 'LAST_ATTEMPT_HOST=') === 0) {
+                $marker['attempt_host'] = str_replace(array('"', "'"), '', trim(substr($line, strlen('LAST_ATTEMPT_HOST='))));
+            } elseif (strpos($line, 'LAST_ATTEMPT_TIME=') === 0) {
+                $marker['attempt_time'] = str_replace(array('"', "'"), '', trim(substr($line, strlen('LAST_ATTEMPT_TIME='))));
+            } elseif (strpos($line, 'LAST_ATTEMPT_STATUS=') === 0) {
+                $marker['attempt_status'] = str_replace(array('"', "'"), '', trim(substr($line, strlen('LAST_ATTEMPT_STATUS='))));
             }
         }
     }
@@ -237,7 +242,11 @@ try {
             session_write_close(); // token validated; release the lock before the file write below
             $mode = trim((string)($_POST['mode'] ?? ''));
             if ($mode === 'server') {
-                write_ports_mode('server', '');
+                if (!write_ports_mode('server', '')) {
+                    http_response_code(500);
+                    json_out(['success' => false, 'error' => 'Failed to save ports mode']);
+                    break;
+                }
                 json_out(['success' => true]);
             } elseif ($mode === 'target') {
                 $target = trim((string)($_POST['target_ip'] ?? ''));
@@ -246,7 +255,11 @@ try {
                     json_out(['success' => false, 'error' => 'Invalid target host']);
                     break;
                 }
-                write_ports_mode('target', $target);
+                if (!write_ports_mode('target', $target)) {
+                    http_response_code(500);
+                    json_out(['success' => false, 'error' => 'Failed to save ports mode']);
+                    break;
+                }
                 json_out(['success' => true]);
             } else {
                 http_response_code(400);
@@ -273,7 +286,9 @@ try {
             $last_scan = ($marker['source'] === $pm['mode'] && $marker['host'] === $host && $marker['time'] !== '')
                 ? $marker['time']
                 : null;
-            json_out(['success' => true, 'data' => $rows, 'count' => count($rows), 'mode' => $pm['mode'], 'host' => $host, 'last_scan' => $last_scan]);
+            $attempt_matches = ($marker['attempt_source'] === $pm['mode'] && $marker['attempt_host'] === $host && $marker['attempt_time'] !== '');
+            $last_attempt_status = $attempt_matches ? $marker['attempt_status'] : null;
+            json_out(['success' => true, 'data' => $rows, 'count' => count($rows), 'mode' => $pm['mode'], 'host' => $host, 'last_scan' => $last_scan, 'last_attempt_status' => $last_attempt_status]);
             break;
 
         default:

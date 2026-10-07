@@ -5,19 +5,17 @@
 #
 # RustDesk Self-Hosted Server Manager (hbbs + hbbr)
 #
-# Installs the official rustdesk-server .deb packages (hbbs = ID/rendezvous
-# server, hbbr = relay server), runs both under a dedicated non-root system
-# user, and configures hbbs with the public relay address so clients only
-# need one "ID/Relay Server" entry plus the server's public key.
+# DESCRIPTION: Installs the official rustdesk-server packages, hbbs for ID and
+# rendezvous and hbbr for relay, under a dedicated non-root system user. Sets
+# the public relay address, so a client needs one entry plus the public key.
 #
-################################################################################
+# USAGE: sudo bash rdserver.sh
 #
-# NOTE on firewall:
-# - hbbs (ID/rendezvous server) listens on: 21115/tcp, 21116/tcp+udp
-# - hbbr (relay server) listens on: 21117/tcp, 21118/tcp, 21119/tcp (last two
-#   are only needed for the web client)
-# - This script does NOT open firewall ports automatically. Open them
-#   manually (ufw/iptables/cloud security group) before clients can connect.
+# Ports: hbbs, the ID and rendezvous server, listens on 21115/tcp and
+#        21116/tcp+udp. hbbr, the relay server, listens on 21117/tcp,
+#        21118/tcp and 21119/tcp. The last two serve the web client only.
+#        The script does not open any of them. Open them by hand, with ufw,
+#        iptables or the cloud security group, before a client connects.
 #
 ################################################################################
 

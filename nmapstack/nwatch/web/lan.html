@@ -283,6 +283,8 @@ var sortKey = 'ip';
 var sortDir = 1;
 var refreshTimer = null;
 var liveOn = true;
+var pageVisible = false;
+var dataLoaded = false;
 
 var loadCtrl = null;
 async function loadDevices() {
@@ -293,6 +295,7 @@ async function loadDevices() {
         const json = await res.json();
         if (!json.success) throw new Error(json.error || 'Request failed');
         ALL = json.data;
+        dataLoaded = true;
         populateIfaceFilter();
         applyFilters();
     } catch (e) {
@@ -365,6 +368,7 @@ function sortBy(key) {
 }
 
 function renderTable() {
+    if (!dataLoaded) return;
     const rows = document.getElementById('rows');
     const summary = document.getElementById('summary');
 
@@ -412,7 +416,7 @@ function formatDate(iso) {
 function setupRefresh() {
     const val = parseInt(document.getElementById('fRefresh').value, 10);
     if (refreshTimer) clearInterval(refreshTimer);
-    if (liveOn) refreshTimer = setInterval(loadDevices, val);
+    if (pageVisible && liveOn) refreshTimer = setInterval(loadDevices, val);
     try { localStorage.setItem('nwatch-lan-refresh', String(val)); } catch (e) { /* ignore */ }
 }
 
@@ -422,10 +426,12 @@ function setupRefresh() {
 // tab's polling while it's hidden so it doesn't compete with the visible tab
 // for the DB / PHP workers.
 function onShow() {
-    renderTable();
+    pageVisible = true;
+    if (dataLoaded) renderTable();
     if (liveOn) { setupRefresh(); loadDevices(); }
 }
 function onHide() {
+    pageVisible = false;
     if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
 }
 window.onShow = onShow;
@@ -440,8 +446,10 @@ function toggleLive() {
         badge.className = 'live-badge';
         dot.className   = 'live-dot pulse';
         label.textContent = 'LIVE';
-        loadDevices();
-        setupRefresh();
+        if (pageVisible) {
+            loadDevices();
+            setupRefresh();
+        }
     } else {
         badge.className = 'live-badge paused';
         dot.className   = 'live-dot paused';
@@ -518,7 +526,7 @@ function exportCurrent(fmt) {
         // HTML-table trick: Excel opens an .xls file whose content is an HTML
         // table when served with this MIME type -- no external library needed.
         const header = '<tr>' + EXPORT_COLUMNS.map(c => `<th>${escapeHtml(c.label)}</th>`).join('') + '</tr>';
-        const rows = CUR.map(d => '<tr>' + EXPORT_COLUMNS.map(c => `<td>${escapeHtml(d[c.key])}</td>`).join('') + '</tr>').join('');
+        const rows = CUR.map(d => '<tr>' + EXPORT_COLUMNS.map(c => `<td>${escapeHtml(d[c.key] ?? '')}</td>`).join('') + '</tr>').join('');
         const html = `<html><head><meta charset="UTF-8"></head><body><table>${header}${rows}</table></body></html>`;
         downloadBlob(`nwatch-lan-${stamp}.xls`, html, 'application/vnd.ms-excel');
     }
@@ -548,8 +556,6 @@ window.addEventListener('storage', (e) => {
     }
 });
 
-loadDevices();
-setupRefresh();
 </script>
 
 </body>

@@ -111,12 +111,16 @@ sub read_file_content {
 
 sub write_file_content {
     my ($f, $content) = @_;
-    if (open(my $fh, '>', $f)) {
-        print $fh $content;
-        close($fh);
-        return 1;
+    my $tmp = "$f.tmp.$$";
+    open(my $fh, '>', $tmp) or return 0;
+    unless (print $fh $content) { close($fh); unlink($tmp); return 0; }
+    unless (close($fh)) { unlink($tmp); return 0; }
+    if (my @st = stat($f)) {
+        chmod($st[2] & 07777, $tmp);
+        chown($st[4], $st[5], $tmp);
     }
-    return 0;
+    unless (rename($tmp, $f)) { unlink($tmp); return 0; }
+    return 1;
 }
 
 # Restrict all file operations to .yaml/.yml files that resolve inside the
@@ -163,6 +167,10 @@ if (defined $in{'ajax'} && $in{'ajax'} eq '1') {
 if (defined $in{'save'}) {
     my $file = $in{'file'} || '';
     my $content = $in{'content'} || '';
+    if ($file && is_safe_netplan_file($file)
+        && ($config{'netplan_backup'} // '1') eq '1' && -f $file) {
+        system("cp -f \"$file\" \"${file}.bak\" 2>/dev/null");
+    }
     if ($file && is_safe_netplan_file($file) && write_file_content($file, $content)) {
         &redirect("index.cgi?saved=1&file=" . &urlize($file));
     } else {
@@ -203,12 +211,10 @@ if (defined $in{'validate'}) {
 if (defined $in{'apply'}) {
     my $file = $in{'file'} || '';
     if ($file && is_safe_netplan_file($file)) {
-        # Backup if enabled in config (before overwriting, so it's a real restore point)
-        if (($config{'netplan_backup'} // '1') eq '1') {
-            system("cp -f \"$file\" \"${file}.bak\" 2>/dev/null");
-        }
-        # Save first if content present
         if (defined $in{'content'}) {
+            if (($config{'netplan_backup'} // '1') eq '1' && -f $file) {
+                system("cp -f \"$file\" \"${file}.bak\" 2>/dev/null");
+            }
             if (!write_file_content($file, $in{'content'})) {
                 &redirect("index.cgi?error=save");
                 exit;
@@ -893,7 +899,7 @@ EOF
     # ============================================================
     cat > "$mod_dir/config.info" <<'EOF'
 netplan_path=Netplan configuration directory,0
-netplan_backup=Create backup before applying,1,1-Yes,0-No
+netplan_backup=Create backup before overwriting,1,1-Yes,0-No
 EOF
 
     # ============================================================
@@ -901,7 +907,7 @@ EOF
     # ============================================================
     cat > "$mod_dir/config.info.es" <<'EOF'
 netplan_path=Directorio de configuracion Netplan,0
-netplan_backup=Crear respaldo antes de aplicar,1,1-Si,0-No
+netplan_backup=Crear respaldo antes de sobrescribir,1,1-Si,0-No
 EOF
 
     # ============================================================

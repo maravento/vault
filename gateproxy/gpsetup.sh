@@ -6,6 +6,11 @@
 # Gateproxy
 # A simple proxy/firewall server
 #
+# DESCRIPTION:
+# Installs and configures the gateproxy components. Requires root.
+#
+# USAGE:
+# sudo bash gpsetup.sh
 #
 # LOG: gpsetup.log, in the directory this script is run from
 #      (rewritten on each run)
@@ -89,7 +94,7 @@ warn_overlap() {
     local dep_pkg
     for dep_pkg in "$@"; do
         if dpkg-query -W -f='${Status}' "$dep_pkg" 2>/dev/null | grep -q "ok installed"; then
-            log "WARNING: $dep_pkg installed, keep its $feature disabled -- alert"
+            log "WARNING: $dep_pkg installed; $feature disabled -- alert"
         fi
     done
 }
@@ -173,7 +178,7 @@ check_conflicts "mail"        exim4
 check_port udp 67 "DHCP server"
 warn_overlap "dhcp" dnsmasq
 if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "^Status: active"; then
-    log "ERROR: ufw is active, conflicts with gateproxy's iptables rules"
+    log "ERROR: active ufw conflicts with Gateproxy iptables rules"
     log "ERROR: disable it with: ufw disable -- abort"
     exit 1
 fi
@@ -341,7 +346,7 @@ done
 if [ -n "$unavailable" ]; then
     log "Missing dependencies not found in APT:"
     for u in $unavailable; do log "   - $u"; done
-    log "Please install them manually or enable the required repositories."
+    log "Install them manually or enable required repositories."
     exit 1
 fi
 if [ -n "$missing" ]; then
@@ -353,7 +358,7 @@ if [ -n "$missing" ]; then
             log "ERROR: apt/dpkg lock not released -- abort"
             exit 1
         fi
-        log "Waiting for apt/dpkg to finish... ($apt_wait/$apt_wait_limit)"
+        log "Waiting for apt/dpkg ($apt_wait/$apt_wait_limit)"
         sleep 5
         apt_wait=$((apt_wait + 1))
     done
@@ -394,14 +399,6 @@ DISK=$(lsblk -dno NAME,TYPE | awk '$2=="disk"{print "/dev/"$1; exit}')
 ifconfig lo 127.0.0.1
 #systemctl disable avahi-daemon cups-browser &> /dev/null # optional
 cp /etc/apt/sources.list{,.bak} &>/dev/null || true
-
-# legacy cron entries, from versions before /etc/cron.d
-for legacy_path in /etc/scr/ffsupdate.sh /etc/suricata/suricataupdate.sh \
-    /etc/suricata/suricataclean.sh /etc/suricata/suridata.sh \
-    /etc/scr/hwclock.sh /etc/scr/blackusb.sh /etc/scr/serviceswatch.sh \
-    /etc/scr/cleaner.sh "systemctl daemon-reload"; do
-    crontab -l 2>/dev/null | { grep -vF "$legacy_path" || true; } | crontab - 2>/dev/null || true
-done
 
 # CLEAN | UPDATE | FIX
 echo -e "\n"
@@ -512,7 +509,7 @@ local_interface() {
         if [[ "$SEL" =~ $UH_UINT ]] && (( SEL >= 1 && SEL <= ${#IFACES[@]} )); then
             CANDIDATE="${IFACES[$((SEL-1))]}"
             if [ "$CANDIDATE" = "$wan_iface" ]; then
-                log "That interface is already assigned to WAN. Choose a different one."
+                log "Interface already assigned to WAN; choose another."
                 continue
             fi
             while true; do
@@ -588,7 +585,7 @@ while true; do
                 # rule (see "Block Windows ICS network range"); a server IP in that
                 # range would have its own LAN traffic dropped by that rule.
                 if [[ "$serveripNEW" == 192.168.137.* ]]; then
-                    log "IP $serveripNEW is in 192.168.137.0/24 (Windows ICS block range)"
+                    log "IP $serveripNEW is in ICS range 192.168.137.0/24"
                     log "choose a different range"
                     continue
                 fi
@@ -670,7 +667,7 @@ is_mask1() {
     if [[ " $UH_PREFIX " =~ [[:space:]]${SERV_MASK//./\\.}:([0-9]+)[[:space:]] ]]; then
         MASKNEW2="${BASH_REMATCH[1]}"
     else
-        log "WARNING: SERV_MASK '$SERV_MASK' is not a valid netmask, keeping /24 -- fallback"
+        log "WARNING: mask '$SERV_MASK' invalid; /24 -- fallback"
         MASKNEW2=24
     fi
     find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:/24:/$MASKNEW2:g" "{}"
@@ -808,7 +805,7 @@ NETPLAN_WAIT_LIMIT=30
 until ip -4 addr show "$LAN_IF" 2>/dev/null | grep -qF "inet $SERVER_IP/"; do
     if [ "$NETPLAN_WAIT" -ge "$NETPLAN_WAIT_LIMIT" ]; then
         log "ERROR: $LAN_IF did not come up with an IP"
-        log "ERROR: wait a few minutes and run: sudo bash gpsetup.sh -- abort"
+        log "ERROR: wait a few minutes; run sudo bash gpsetup.sh -- abort"
         exit 1
     fi
     sleep 2
@@ -819,7 +816,7 @@ log "Network OK: $LAN_IF has $SERVER_IP"
 ip -4 -o addr show dev "$LAN_IF" | awk '{print $4}' | while read -r extra_addr; do
     if [ "${extra_addr%%/*}" != "$SERVER_IP" ]; then
         ip addr del "$extra_addr" dev "$LAN_IF" 2>/dev/null \
-            && log "WARNING: removed leftover address $extra_addr from $LAN_IF -- alert"
+            && log "WARNING: removed $extra_addr from $LAN_IF -- alert"
     fi
 done
 
@@ -1161,7 +1158,7 @@ EOF
             dump_module_log "$pydhcp_path/pysetup.log" "pydhcp"
 
             cd "$gp_path"
-            log "DHCP pool range: 220-235 (default). To modify edit /etc/pydhcp/pydhcp.env"
+            log "DHCP pool: 220-235 (default); edit pydhcp.env to change"
             log "DHCP clients will use $SERVER_IP (unbound) as DNS"
 
         else
@@ -1195,7 +1192,7 @@ retry_cmd nala install -y timeshift
 retry_cmd nala install -y libatk-adaptor libgail-common
 retry_cmd wget -O "$gp_path/scr/ffsupdate.sh" --timeout=15 --tries=1 https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh
 chmod +x "$gp_path/scr/ffsupdate.sh"
-"$gp_path/scr/ffsupdate.sh" || log "WARNING: ffsupdate.sh failed, FreeFileSync not installed -- alert"
+"$gp_path/scr/ffsupdate.sh" || log "WARNING: ffsupdate failed; FreeFileSync absent -- alert"
 cron_d_set "/etc/scr/ffsupdate.sh" "@weekly root /etc/scr/ffsupdate.sh"
 log "INFO: OK"
 sleep 1
@@ -1433,8 +1430,8 @@ if [ -n "$UNIFI_DETECTED_TYPE" ]; then
         esac
     done
 else
-    log "No UniFi Network controller detected (classic or unifi-os). Skipping uhm prompt."
-    log "To install UniFi Network self-hosted / UniFi OS Server first,"
+    log "No UniFi Network/OS controller; skipping UHM prompt."
+    log "Install self-hosted UniFi Network or OS Server first:"
     log "use unifisetup.sh (check README)."
 fi
 log "INFO: OK"

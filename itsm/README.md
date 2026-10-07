@@ -17,7 +17,9 @@
   </tr>
 </table>
 
-## iTop
+## ITOP
+
+---
 
 <table width="100%">
   <tr>
@@ -31,6 +33,8 @@
 </table>
 
 ## GLPI
+
+---
 
 <table width="100%">
   <tr>
@@ -51,7 +55,9 @@
 | :---: | :---: | :---: |
 | [itsm.exe (.zip)](https://mega.nz/file/SJ0DzLSZ#kDRYpVEOwACvcumPxMEUvBccYY3YdI97NX6xs6VFD10) | Windows 10/11 x64 | 167,7 MB |
 
-## Supported Versions
+## SUPPORTED VERSIONS
+
+---
 
 <table width="100%">
   <tr>
@@ -101,9 +107,9 @@
   </tr>
 </table>
 
-> **Note:** This is requested because this project uses batch scripts packaged into a .exe, and antivirus software may flag this as a false positive. If in doubt, you can unzip the .exe and audit the scripts, run the packages manually, or choose not to use this project.
+> This is requested because this project uses batch scripts packaged into a .exe, and antivirus software may flag this as a false positive. If in doubt, you can unzip the .exe and audit the scripts, run the packages manually, or choose not to use this project.
 >
-> **Nota:** Esto se solicita porque este proyecto usa scripts batch empaquetados en un .exe, y los antivirus pueden detectarlo como falso positivo. Si tiene dudas, puede descomprimir el .exe y auditar los scripts, ejecutar los paquetes manualmente, o no usar este proyecto.
+> Esto se solicita porque este proyecto usa scripts batch empaquetados en un .exe, y los antivirus pueden detectarlo como falso positivo. Si tiene dudas, puede descomprimir el .exe y auditar los scripts, ejecutar los paquetes manualmente, o no usar este proyecto.
 
 ### ⚠️ WARNING: STOP SERVICES
 
@@ -346,17 +352,17 @@ Package: ITSM
 | [iTop License](https://raw.githubusercontent.com/Combodo/iTop/refs/heads/develop/license.txt) | ![AGPLv3 License](https://img.shields.io/badge/License-AGPLv3-blue.svg) |
 | [GLPI License](https://raw.githubusercontent.com/glpi-project/glpi/refs/heads/main/LICENSE) | ![GPLv3 License](https://img.shields.io/badge/License-GPLv3-blue.svg) |
 
-## End-of-Life (EOL) | End-of-Support (EOS)
+## EOL | EOS
 
 ---
 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     This project has reached EOL - EOS. No longer supported or updated.
+     This project has reached End-of-Life (EOL) and End-of-Support (EOS). No longer supported or updated.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Este proyecto ha alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.
+     Este proyecto ha alcanzado el fin de vida (EOL) y el fin de soporte (EOS). Ya no cuenta con soporte o actualizaciones.
     </td>
   </tr>
 </table>

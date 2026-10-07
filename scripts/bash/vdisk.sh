@@ -3,8 +3,14 @@
 #
 ################################################################################
 #
-# Virtual Hard Disk (VHD) image (.img) with loop or kpartx - Create and Mount | Umount
-# https://www.maravento.com/2018/03/disco-virtual.html
+# Virtual Hard Disk (VHD) image (.img) with loop or kpartx
+#
+# DESCRIPTION: Creates a VHD image file, then mounts or unmounts it through a
+# loop device or kpartx. Asks for the file system on creation.
+#
+# USAGE: sudo bash vdisk.sh
+#
+# LOG: /var/log/syslog
 #
 ################################################################################
 

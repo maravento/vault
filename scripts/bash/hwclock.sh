@@ -43,4 +43,3 @@ echo "Update HWClock. Wait..."
 
 hwclock -w || echo "WARNING: hwclock -w failed, VM or container? -- alert"
 echo "HWClock Update: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
-

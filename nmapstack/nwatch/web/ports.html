@@ -336,7 +336,11 @@ var sortKey = 'port';
 var sortDir = 1;
 var refreshTimer = null;
 var liveOn = true;
-var justApplied = false; // set on Apply, cleared once a load returns any row
+var justApplied = false;
+var lastAttemptFailed = false;
+var pageVisible = false;
+var dataLoaded = false;
+var initPromise = null;
 
 async function getCsrfToken() {
     try {
@@ -377,10 +381,9 @@ async function loadPorts() {
         const json = await res.json();
         if (!json.success) throw new Error(json.error || 'Request failed');
         ALL = json.data;
-        // Cleared once the daemon confirms a completed cycle for this
-        // mode/host (json.last_scan), not just when rows show up -- a
-        // target with zero open ports confirms exactly the same way.
-        if (ALL.length > 0 || json.last_scan) justApplied = false;
+        lastAttemptFailed = json.last_attempt_status === 'failed';
+        if (ALL.length > 0 || json.last_scan || lastAttemptFailed) justApplied = false;
+        dataLoaded = true;
         populateProtoFilter();
         applyFilters();
     } catch (e) {
@@ -455,13 +458,16 @@ function sortBy(key) {
 }
 
 function renderTable() {
+    if (!dataLoaded) return;
     const rows = document.getElementById('rows');
     const summary = document.getElementById('summary');
 
     if (CUR.length === 0) {
         let emptyMsg = 'No ports match the current filters';
         if (ALL.length === 0) {
-            emptyMsg = justApplied ? 'Scanning ports. Wait...' : 'No Open Ports';
+            emptyMsg = lastAttemptFailed
+                ? 'Scan failed; port data unchanged.'
+                : justApplied ? 'Scanning ports. Wait...' : 'No Open Ports';
         }
         rows.innerHTML = `<tr><td colspan="6" class="empty">${emptyMsg}</td></tr>`;
     } else {
@@ -478,9 +484,12 @@ function renderTable() {
     }
 
     const open = ALL.filter(p => p.status === 'open').length;
-    summary.textContent = CUR.length === ALL.length
+    const countSummary = CUR.length === ALL.length
         ? `${ALL.length} ports — ${open} open, ${ALL.length - open} closed`
         : `${CUR.length} of ${ALL.length} ports — ${open} open, ${ALL.length - open} closed`;
+    summary.textContent = lastAttemptFailed
+        ? `${countSummary} — Scan failed; showing last known data.`
+        : countSummary;
 }
 
 // String-based escaping, not document.createElement('div') + textContent:
@@ -505,7 +514,7 @@ function formatDate(iso) {
 function setupRefresh() {
     const val = parseInt(document.getElementById('fRefresh').value, 10);
     if (refreshTimer) clearInterval(refreshTimer);
-    if (liveOn) refreshTimer = setInterval(loadPorts, val);
+    if (pageVisible && liveOn) refreshTimer = setInterval(loadPorts, val);
     try { localStorage.setItem('nwatch-ports-refresh', String(val)); } catch (e) { /* ignore */ }
 }
 
@@ -514,11 +523,19 @@ function setupRefresh() {
 // or waits on the network, then refreshes in the background. onHide stops this
 // tab's polling while it's hidden so it doesn't compete with the visible tab
 // for the DB / PHP workers.
-function onShow() {
-    renderTable();
-    if (liveOn) { setupRefresh(); loadPorts(); }
+async function onShow() {
+    pageVisible = true;
+    if (dataLoaded) renderTable();
+    if (!initPromise) {
+        initPromise = Promise.all([getCsrfToken(), loadMode(), loadPorts()]);
+    } else if (liveOn) {
+        loadPorts();
+    }
+    await initPromise;
+    if (pageVisible && liveOn) setupRefresh();
 }
 function onHide() {
+    pageVisible = false;
     if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
 }
 window.onShow = onShow;
@@ -533,8 +550,10 @@ function toggleLive() {
         badge.className = 'live-badge';
         dot.className   = 'live-dot pulse';
         label.textContent = 'LIVE';
-        loadPorts();
-        setupRefresh();
+        if (pageVisible) {
+            loadPorts();
+            setupRefresh();
+        }
     } else {
         badge.className = 'live-badge paused';
         dot.className   = 'live-dot paused';
@@ -611,7 +630,7 @@ function exportCurrent(fmt) {
         // HTML-table trick: Excel opens an .xls file whose content is an HTML
         // table when served with this MIME type -- no external library needed.
         const header = '<tr>' + cols.map(c => `<th>${escapeHtml(c.label)}</th>`).join('') + '</tr>';
-        const rows = CUR.map(p => '<tr>' + cols.map(c => `<td>${escapeHtml(p[c.key])}</td>`).join('') + '</tr>').join('');
+        const rows = CUR.map(p => '<tr>' + cols.map(c => `<td>${escapeHtml(p[c.key] ?? '')}</td>`).join('') + '</tr>').join('');
         const html = `<html><head><meta charset="UTF-8"></head><body><table>${header}${rows}</table></body></html>`;
         downloadBlob(`nwatch-ports-${stamp}.xls`, html, 'application/vnd.ms-excel');
     }
@@ -694,12 +713,6 @@ window.addEventListener('storage', (e) => {
     }
 });
 
-(async () => {
-    // These three are independent (the CSRF token is only needed later, when
-    // "Apply" is clicked), so fire them together instead of in series.
-    await Promise.all([getCsrfToken(), loadMode(), loadPorts()]);
-    setupRefresh();
-})();
 </script>
 
 </body>

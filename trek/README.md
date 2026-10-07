@@ -38,9 +38,9 @@
   </tr>
 </table>
 
-> **Note:** This is requested because this project uses batch scripts packaged into a .exe, and antivirus software may flag this as a false positive. If in doubt, you can unzip the .exe and audit the scripts, run the packages manually, or choose not to use this project.
+> This is requested because this project uses batch scripts packaged into a .exe, and antivirus software may flag this as a false positive. If in doubt, you can unzip the .exe and audit the scripts, run the packages manually, or choose not to use this project.
 >
-> **Nota:** Esto se solicita porque este proyecto usa scripts batch empaquetados en un .exe, y los antivirus pueden detectarlo como falso positivo. Si tiene dudas, puede descomprimir el .exe y auditar los scripts, ejecutar los paquetes manualmente, o no usar este proyecto.
+> Esto se solicita porque este proyecto usa scripts batch empaquetados en un .exe, y los antivirus pueden detectarlo como falso positivo. Si tiene dudas, puede descomprimir el .exe y auditar los scripts, ejecutar los paquetes manualmente, o no usar este proyecto.
 
 ### DUMP/RAW SELECTOR
 
@@ -300,17 +300,17 @@ MySQL (Community Server): \Program Files\MySQL\MySQL(version)
 - [stahlworks ZipUnzip](http://stahlworks.com/dev/index.php?tool=zipunzip)
 - [WinZenity](https://github.com/maravento/vault/tree/master/winzenity)
 
-## End-of-Life (EOL) | End-of-Support (EOS)
+## EOL | EOS
 
 ---
 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     This project has reached EOL - EOS. No longer supported or updated.
+     This project has reached End-of-Life (EOL) and End-of-Support (EOS). No longer supported or updated.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Este proyecto ha alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.
+     Este proyecto ha alcanzado el fin de vida (EOL) y el fin de soporte (EOS). Ya no cuenta con soporte o actualizaciones.
     </td>
   </tr>
 </table>

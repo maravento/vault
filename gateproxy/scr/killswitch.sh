@@ -5,12 +5,12 @@
 #
 # Iptables Kill Switch
 #
-# Warning
-# Use it only in case of attack or illegal access to your network
+# DESCRIPTION:
+# Blocks all traffic. Use only in case of attack or illegal access to
+# your network.
 #
-# Verify: iptables -L -n / iptables -nvL / iptables -Ln -t mangle / iptables -Ln -t nat
-# Ports: /etc/services
-# https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt
+# USAGE:
+# sudo ./killswitch.sh
 #
 # LOG: /var/log/iptables.log, shared with scr/iptables.sh
 #      Rotation is self-installed there, /etc/logrotate.d/iptables

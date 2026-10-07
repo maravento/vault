@@ -83,10 +83,12 @@ ARPSTATIC_FILE="$(dirname "$(realpath "$0")")/arpstatic"
 
 # ip2mac
 ip2mac() {
-    echo '#!/bin/bash' > "$ARPSTATIC_FILE"
+    local tmp_file="${ARPSTATIC_FILE}.tmp"
+    echo '#!/bin/bash' > "$tmp_file" || return 1
     awk -F";" '$1 == "a" {print "ip neigh replace " $3 " lladdr " $2 " nud permanent dev '"$lan"'"}' "$acl_path"/mac* \
         | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n \
-        | uniq >> "$ARPSTATIC_FILE"
+        | uniq >> "$tmp_file" || { rm -f "$tmp_file"; return 1; }
+    mv -f "$tmp_file" "$ARPSTATIC_FILE" || { rm -f "$tmp_file"; return 1; }
 }
 
 # arpon run
@@ -118,7 +120,10 @@ duplicate() {
     local dupes
     dupes=$(for field in 2 3 4; do cut -d\; -f"${field}" "$acl_path"/mac* | sort | uniq -d; done)
     if [ -z "$dupes" ]; then
-        ip2mac
+        if ! ip2mac; then
+            echo "ERROR: failed to generate arpstatic -- abort" | tee -a /var/log/syslog
+            exit 1
+        fi
         arponrun
         echo "Done"
     else

@@ -15,7 +15,7 @@
   </tr>
 </table>
 
-## Requirements
+## REQUIREMENTS
 
 ---
 
@@ -212,11 +212,6 @@ gateproxy/
 ├── acl/                        # Access control lists for MAC, Squid and iptables rules (see ACL STRUCTURE)
 │
 ├── conf/
-│   ├── apache2/
-│   │   ├── 000-add.txt             # Apache VirtualHost additions
-│   │   ├── servername.conf         # Apache ServerName config
-│   │   ├── wpad.conf               # Apache WPAD virtual host
-│   │   └── wpad.pac                # Proxy auto-config script
 │   ├── evebox/
 │   │   ├── evebox.service          # EveBox systemd unit
 │   │   └── evebox.yaml             # EveBox configuration
@@ -237,8 +232,11 @@ gateproxy/
 │   │   └── ttyd.service            # ttyd (web terminal) systemd unit
 │   ├── unbound/
 │   │   └── forward.conf            # Unbound DNS forwarder configuration
-│   └── webmin/
-│       └── text-editor.wbm         # Webmin Text Editor module
+│   ├── webmin/
+│   │   └── text-editor.wbm         # Webmin Text Editor module
+│   └── wpad/
+│       ├── wpad.conf               # Apache WPAD virtual host
+│       └── wpad.pac                # Proxy auto-config script
 │
 ├── scr/                        # Scripts (deployed to /etc/scr/)
 │   ├── bkconf.sh                   # Backup configuration files
@@ -331,20 +329,13 @@ Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/et
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     The following categories are blocked outbound from LAN by default.
+     <code>blockports.txt</code> holds the ports blocked outbound from the LAN by default, one per line. They cover VPNs and tunnels, P2P, cryptomining, Tor, alternate proxies and legacy or risky protocols. The list is the ACL itself, so consult the file for the current entries.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Las siguientes categorías están bloqueadas por defecto en tráfico saliente desde la LAN.
+     <code>blockports.txt</code> contiene los puertos bloqueados por defecto en tráfico saliente desde la LAN, uno por línea. Cubren VPN y túneles, P2P, criptominería, Tor, proxies alternativos y protocolos antiguos o riesgosos. La lista es la ACL misma, así que las entradas vigentes se consultan en el archivo.
     </td>
   </tr>
 </table>
-
-- **VPN / Tunnels** — HTTPS (443), DoT (853), DoQ (784), OpenVPN (1194), WireGuard (51820), L2TP (1701), IPsec (500, 4500), PPTP (1723), SOCKS5 (1080), Shadowsocks (7300), 6to4 (41–60, 3544)
-- **P2P / Bittorrent** — ports 6881–6889, 6969, 58251, 58252, 58687
-- **Cryptomining** — ports 3333, 5555, 6666, 7777, 8848, 9999, 14433, 14444, 45560
-- **Tor** — ports 9001–9004, 9030, 9031, 9050, 9090, 9101–9103, 9150
-- **Alternate proxies** — ports 8000, 3130
-- **Legacy / risky** — FTP (20–21), SSH (22), Finger (79), IRC (6660–6669), CHARGEN (19), Echo (7), WINS (42), IPP (631), BTC/ETH (8332, 8333, 8545, 30303)
 
 ### Suricata-driven IP Blocking (`suridata`)
 
@@ -359,6 +350,22 @@ Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/et
      Suricata corre en modo pasivo (AF-PACKET, IDS) — nunca puede bloquear tráfico por sí solo, sin importar lo que diga <code>drop.conf</code>. <code>suridata.sh</code> (cron, cada 5 minutos) es lo que convierte un match de <code>drop.conf</code> en un bloqueo real: lee los SIDs que <code>suricata-update</code> ya resolvió a acción <code>drop</code> en <code>suricata.rules</code> (cubre tanto SIDs literales como entradas <code>re:</code> de regex de mensaje en <code>drop.conf</code>), lee solo las líneas nuevas de <code>eve.json</code> desde su última corrida, y por cada alerta cuyo <code>signature_id</code> coincide, agrega el <code>dest_ip</code> del flujo a <code>suridata.txt</code>. <code>iptables.sh</code> carga ese archivo al ipset <code>suridata</code> y bloquea los destinos que coincidan en <code>mangle PREROUTING</code> — de forma silenciosa, sin página de aviso (a diferencia de <code>bandata</code>, esto bloquea un destino, no un cliente). Sin expiración: las entradas se retiran a mano, mismo modelo que <code>blockports.txt</code>. Los miembros de <code>macunlimited</code> (APs, switches) quedan exentos, igual que con <code>blockports</code>.
      <br><br>
      <strong>Al editar <code>drop.conf</code> / <code>disable.conf</code>:</strong> <code>suricataupdate.sh</code> es el único script que lee estos archivos y los aplica a <code>suricata.rules</code>; corre una sola vez al día por cron (2 AM). Una SID recién agregada a <code>drop.conf</code> queda como <code>alert</code> plano (sin bloquear) hasta que corra ese cron. Para aplicar el cambio de inmediato, corre ambos en orden: <code>sudo /etc/suricata/suricataupdate.sh && sudo /etc/suricata/suridata.sh</code> — en esa primera corrida de <code>suridata.sh</code> después de que la SID pasa a <code>drop</code>, también hace un escaneo completo único de <code>eve.json</code> para esa SID (rastreado vía <code>suridata.sids</code>), así que las alertas que ya habían ocurrido ese mismo día también quedan agregadas a <code>suridata.txt</code>, no solo las de ahí en adelante.
+    </td>
+  </tr>
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+     Between reloads, <code>suridata.sh</code> also patches the live <code>suridata</code> ipset directly with any newly found IP, so a new block takes effect within one cron cycle instead of waiting for the next full firewall reload.
+     <br><br>
+     <strong>Log cleanup:</strong> <code>suricataclean.sh</code> runs monthly via cron and truncates Suricata's own logs. It is the third and last cron entry of the Suricata component, alongside <code>suricataupdate.sh</code> (daily, 2 AM) and <code>suridata.sh</code> (every 5 minutes).
+     <br><br>
+     <strong>Local exclusion:</strong> a <code>dest_ip</code> inside the server's own LAN (<code>SERV_SUBNET</code>, assumed /24) or inside the WAN interface's own /24 is never written to <code>suridata.txt</code>, so a false positive against your own network can't block your gateway, WAN uplink or LAN hosts. On every run, any LAN/WAN IP already present from before this exclusion existed is purged from <code>suridata.txt</code> and from the live ipset. <code>SERV_SUBNET</code> and the WAN interface name come from <code>/etc/pydhcp/pydhcp.env</code>; if a key is missing, the script warns and falls back to a built-in value.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+     Entre recargas, <code>suridata.sh</code> también aplica directamente al ipset <code>suridata</code> en vivo cualquier IP recién encontrada, para que un nuevo bloqueo surta efecto en el mismo ciclo de cron, sin esperar la siguiente recarga completa del firewall.
+     <br><br>
+     <strong>Limpieza de logs:</strong> <code>suricataclean.sh</code> corre por cron una vez al mes y trunca los logs propios de Suricata. Es la tercera y última entrada de cron del componente Suricata, junto a <code>suricataupdate.sh</code> (diaria, 2 AM) y <code>suridata.sh</code> (cada 5 minutos).
+     <br><br>
+     <strong>Exclusión local:</strong> un <code>dest_ip</code> dentro de la LAN propia del servidor (<code>SERV_SUBNET</code>, se asume /24) o dentro del /24 propio de la interfaz WAN nunca se escribe en <code>suridata.txt</code>, para que un falso positivo contra la propia red no bloquee el gateway, el enlace WAN ni hosts de la LAN. En cada corrida, cualquier IP LAN/WAN ya presente desde antes de esta exclusión se purga de <code>suridata.txt</code> y del ipset en vivo. <code>SERV_SUBNET</code> y el nombre de la interfaz WAN vienen de <code>/etc/pydhcp/pydhcp.env</code>; si falta una clave, el script advierte y usa un valor por defecto incorporado.
     </td>
   </tr>
 </table>
@@ -478,7 +485,7 @@ The installer also downloads the following scripts from external repositories / 
 | Script | Trigger | Purpose |
 | :--- | :--- | :--- |
 | `hwclock.sh` | `@reboot` | Sync hardware clock |
-| `blackusb.sh` | `@reboot` | USB device access control |
+| `blackusb.sh` | `@reboot` | USB device access control. The cron entry runs `blackusb.sh off`, so the udev rule is moved aside on every boot and the control starts deactivated. Activate it with `blackusb.sh on` |
 | `cleaner.sh` | `@weekly` | System cleanup |
 | `ffsupdate.sh` | `@weekly` | Update FreeFileSync |
 | `filereport.sh` | manual | Generate file system report |
@@ -506,6 +513,9 @@ iptables -nvL -t mangle
 
 # Check active ipsets
 ipset list -n
+
+# Check listening sockets
+ss -ltuna
 
 # Check Squid cache
 squidclient mgr:info

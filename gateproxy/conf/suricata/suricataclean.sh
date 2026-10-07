@@ -5,6 +5,15 @@
 #
 # Suricata Clean
 #
+# DESCRIPTION:
+# Truncates Suricata's logs and clears EveBox's database, restarting
+# Suricata around the truncation.
+#
+# USAGE:
+# sudo ./suricataclean.sh
+#
+# LOG: /var/log/suricata/suricatacron.log
+#
 ################################################################################
 
 set -uo pipefail

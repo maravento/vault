@@ -45,17 +45,17 @@
 - [The Moluccas (used for making binaries)](https://sourceforge.net/projects/tumagcc/)
 - [Wikipedia: Zenity and WinZenity](https://en.wikipedia.org/wiki/Zenity#:~:text=Tyler%5B4%5D-,Cross%2Dplatform%20compatibility,-%5Bedit%5D)
 
-## End-of-Life (EOL) | End-of-Support (EOS)
+## EOL | EOS
 
 ---
 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     This project has reached EOL - EOS. No longer supported or updated.
+     This project has reached End-of-Life (EOL) and End-of-Support (EOS). No longer supported or updated.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Este proyecto ha alcanzado EOL - EOS. Ya no cuenta con soporte o actualizaciones.
+     Este proyecto ha alcanzado el fin de vida (EOL) y el fin de soporte (EOS). Ya no cuenta con soporte o actualizaciones.
     </td>
   </tr>
 </table>

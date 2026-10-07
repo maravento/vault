@@ -101,8 +101,10 @@ elif [[ -n "${THUNAR_SCRIPT_SELECTED_FILE_PATHS:-}" ]]; then
     # Thunar (XFCE) - not standard, but some configs use it
     selected_paths="$THUNAR_SCRIPT_SELECTED_FILE_PATHS"
 elif [[ $# -gt 0 ]]; then
-    # Fallback: paths passed as arguments (Dolphin, PCManFM, others)
-    selected_paths="$*"
+    # Fallback: paths passed as arguments (Dolphin, PCManFM, others).
+    # One path per line, like the file manager variables deliver them,
+    # so a path containing blanks keeps its boundary.
+    selected_paths=$(printf '%s\n' "$@")
 else
     # No files selected
     if command -v zenity &>/dev/null; then

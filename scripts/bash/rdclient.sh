@@ -5,6 +5,11 @@
 #
 # RustDesk Client Install
 #
+# DESCRIPTION: Installs or removes the RustDesk client, and sets the keyboard
+# layout that matches the system language.
+#
+# USAGE: sudo bash rdclient.sh
+#
 ################################################################################
 
 set -euo pipefail

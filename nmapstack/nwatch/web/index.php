@@ -277,6 +277,7 @@ if (!in_array($tab, $allowed_tabs)) $tab = 'lan';
     // flight) and then refreshes in the background. onHide stops the hidden
     // tab's auto-refresh so it doesn't compete with the visible tab for the
     // DB / PHP workers.
+    const initializedTabs = new Set();
     function showTab(tabName, push) {
         document.querySelectorAll('.tab').forEach(a => {
             const active = a.dataset.tab === tabName;
@@ -288,7 +289,10 @@ if (!in_array($tab, $allowed_tabs)) $tab = 'lan';
             f.style.display = isTarget ? '' : 'none';
             try {
                 const hook = isTarget ? f.contentWindow.onShow : f.contentWindow.onHide;
-                hook && hook();
+                if (hook) {
+                    hook();
+                    if (isTarget) initializedTabs.add(tabName);
+                }
             } catch (e) { /* cross-origin or not yet loaded, ignore */ }
         });
         if (push) {
@@ -307,6 +311,11 @@ if (!in_array($tab, $allowed_tabs)) $tab = 'lan';
     window.addEventListener('popstate', (e) => {
         const tabName = (e.state && e.state.tab) || 'lan';
         showTab(tabName, false);
+    });
+
+    window.addEventListener('load', () => {
+        const tabName = document.querySelector('.tab.active')?.dataset.tab || 'lan';
+        if (!initializedTabs.has(tabName)) showTab(tabName, false);
     });
 </script>
 

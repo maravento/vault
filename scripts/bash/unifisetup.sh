@@ -8,10 +8,15 @@
 # DESCRIPTION:
 # Installs, updates, and removes UniFi Network Application and UniFi OS
 # Server on Ubuntu, using Ubiquiti's own official release catalog to detect
-# and download versions. Menu-driven, no command-line parameters accepted.
+# and download versions. Menu-driven with no arguments, or scriptable with
+# a direct action argument. Only considers NICs with an IPv4 address
+# assigned; IPv6-only interfaces are not detected.
 #
 # USAGE:
 # sudo ./unifisetup.sh
+# sudo ./unifisetup.sh <action>
+# actions: install-network, install-osserver, update-network,
+#          update-osserver, uninstall-network, uninstall-osserver, status
 #
 # LOG: unifisetup.log, next to this script (rewritten on each run)
 #
@@ -43,24 +48,47 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
 }
 
-################################################################################
-# Constants
-################################################################################
+# ------------------------------------------------------------------------------
+# OWN VALUES
+# ------------------------------------------------------------------------------
 
+# Values this script declares itself -- not read from any .env
 downloads_api="https://download.svc.ui.com/v1/software-downloads"
 work_dir="${script_dir}/.unifisetup-work"
 downloads_json="${work_dir}/downloads.json"
 min_major="24"
 min_minor="04"
 
-################################################################################
-# OS / architecture checks
-################################################################################
+# ------------------------------------------------------------------------------
+# PLATFORM
+# ------------------------------------------------------------------------------
 
 get_server_address() {
-    local addr
-    addr="$(hostname -I 2>/dev/null | awk '{print $1}')"
-    if [ -z "${addr}" ]; then
+    local iface_list addr iface lan_choice i
+    mapfile -t iface_list < <(ip -4 -o addr show 2>/dev/null | awk '$2 != "lo" {print $2}' | sort -u)
+    if [ "${#iface_list[@]}" -le 1 ]; then
+        iface="${iface_list[0]:-}"
+    else
+        echo "Available network interfaces:" >&2
+        for i in "${!iface_list[@]}"; do
+            addr="$(ip -4 -o addr show dev "${iface_list[$i]}" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)"
+            printf " [%d] %s (%s)\n" "$((i+1))" "${iface_list[$i]}" "${addr:-no IPv4}" >&2
+        done
+        echo "" >&2
+        while true; do
+            read -rp " Select LAN interface number [1-${#iface_list[@]}] [Default: 1]: " lan_choice
+            lan_choice="${lan_choice:-1}"
+            if [[ "$lan_choice" =~ ^[0-9]+$ ]] && [ "$lan_choice" -ge 1 ] && [ "$lan_choice" -le "${#iface_list[@]}" ]; then
+                break
+            fi
+            echo " Invalid selection, try again." >&2
+        done
+        iface="${iface_list[$((lan_choice-1))]}"
+    fi
+    if [ -n "$iface" ]; then
+        addr="$(ip -4 -o addr show dev "$iface" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)"
+    fi
+    if [ -z "${addr:-}" ]; then
         addr="$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if ($i=="src") print $(i+1)}')"
     fi
     echo "${addr:-localhost}"
@@ -76,17 +104,17 @@ os_check() {
     . /etc/os-release
 
     if [ "${ID:-}" != "ubuntu" ]; then
-        log "WARNING: this script targets Ubuntu (detected: ${ID:-unknown})"
+        log "WARNING: Ubuntu required; detected ${ID:-unknown}"
         log "WARNING: continuing anyway -- alert"
     fi
 
     if [ "$(printf '%s\n' "${VERSION_ID:-0}" "${min_major}.${min_minor}" | sort -V | head -n1)" != "${min_major}.${min_minor}" ]; then
         log "WARNING: untested below Ubuntu ${min_major}.${min_minor}"
-        log "WARNING: detected ${VERSION_ID:-unknown}, continuing anyway -- alert"
+        log "WARNING: Ubuntu ${VERSION_ID:-unknown} untested -- alert"
     fi
 
     os_codename="${VERSION_CODENAME:-noble}"
-    log "OS check done: Ubuntu ${VERSION_ID:-unknown} (${os_codename})"
+    log "Ubuntu ${VERSION_ID:-unknown} (${os_codename}) detected"
 }
 
 arch_check() {
@@ -101,9 +129,9 @@ arch_check() {
     esac
 }
 
-################################################################################
-# Prerequisites
-################################################################################
+# ------------------------------------------------------------------------------
+# PREREQUISITES
+# ------------------------------------------------------------------------------
 
 ensure_prereqs() {
     local missing=()
@@ -121,9 +149,9 @@ ensure_prereqs() {
     mkdir -p -m 700 "${work_dir}"
 }
 
-################################################################################
-# Ubiquiti release catalog
-################################################################################
+# ------------------------------------------------------------------------------
+# VERSIONS
+# ------------------------------------------------------------------------------
 
 fetch_downloads_json() {
     log "Fetching official Ubiquiti release catalog..."
@@ -163,17 +191,19 @@ get_installed_osserver() {
     fi
 }
 
-################################################################################
-# Repositories
-################################################################################
+# ------------------------------------------------------------------------------
+# REPOSITORIES
+# ------------------------------------------------------------------------------
 
 ensure_mongodb_repo() {
+    local pipe_status
     if [ -f /etc/apt/sources.list.d/mongodb-org-8.0.list ]; then
         return 0
     fi
     log "Adding MongoDB 8.0 repository..."
     curl -fsSL https://pgp.mongodb.com/server-8.0.asc | gpg -o /etc/apt/keyrings/mongodb-server-8.0.gpg --dearmor --yes >>"$log_file" 2>&1
-    if [ "${PIPESTATUS[0]}" -ne 0 ] || [ "${PIPESTATUS[1]}" -ne 0 ]; then
+    pipe_status=("${PIPESTATUS[@]}")
+    if [ "${pipe_status[0]}" -ne 0 ] || [ "${pipe_status[1]}" -ne 0 ]; then
         log "WARNING: failed to add MongoDB repository key -- alert"
         return 1
     fi
@@ -195,16 +225,18 @@ ensure_adoptium_repo() {
     # yet. Check its dists listing first (same check Glenn's script does)
     # and fall back to noble, our guaranteed-supported baseline, if the
     # detected codename isn't published there.
-    local adoptium_codename="${os_codename}"
+    local adoptium_codename="${os_codename}" pipe_status
     if ! curl -fsSL "https://packages.adoptium.net/artifactory/deb/dists/" \
         | sed -e 's/<[^>]*>//g' -e '/^$/d' | awk '{print $1}' | sed 's#/$##' \
         | grep -iq "^${adoptium_codename}$"; then
-        log "WARNING: Adoptium has no ${adoptium_codename} suite, using noble -- fallback"
+        log "Adoptium suite requested: ${adoptium_codename}"
+        log "WARNING: Adoptium suite missing; using noble -- fallback"
         adoptium_codename="noble"
     fi
 
     curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg -o /etc/apt/keyrings/packages-adoptium.gpg --dearmor --yes >>"$log_file" 2>&1
-    if [ "${PIPESTATUS[0]}" -ne 0 ] || [ "${PIPESTATUS[1]}" -ne 0 ]; then
+    pipe_status=("${PIPESTATUS[@]}")
+    if [ "${pipe_status[0]}" -ne 0 ] || [ "${pipe_status[1]}" -ne 0 ]; then
         log "WARNING: failed to add Adoptium repository key -- alert"
         return 1
     fi
@@ -235,9 +267,9 @@ determine_java_package() {
     fi
 }
 
-################################################################################
-# UniFi Network Application
-################################################################################
+# ------------------------------------------------------------------------------
+# NETWORK
+# ------------------------------------------------------------------------------
 
 install_network() {
     local target_version="$1"
@@ -316,7 +348,7 @@ install_network() {
 action_install_network() {
     get_installed_network
     if [ -n "${installed_network_version}" ]; then
-        log "UniFi Network already installed (v${installed_network_version})."
+        log "UniFi Network v${installed_network_version} installed."
         log "Use update instead."
         return 1
     fi
@@ -328,7 +360,7 @@ action_install_network() {
     fi
     get_latest_network
     if [ -z "${latest_network_version}" ]; then
-        log "WARNING: could not fetch latest UniFi Network version -- alert"
+        log "WARNING: latest UniFi Network version unavailable -- alert"
         return 1
     fi
     if install_network "${latest_network_version}" "${latest_network_url}"; then
@@ -345,11 +377,11 @@ action_update_network() {
     fi
     get_latest_network
     if [ -z "${latest_network_version}" ]; then
-        log "WARNING: could not fetch latest UniFi Network version -- alert"
+        log "WARNING: latest UniFi Network version unavailable -- alert"
         return 1
     fi
     if dpkg --compare-versions "${installed_network_version}" ge "${latest_network_version}"; then
-        log "UniFi Network already up to date (v${installed_network_version})"
+        log "UniFi Network v${installed_network_version} is current"
         return 0
     fi
     log "Updating UniFi Network:"
@@ -431,14 +463,14 @@ action_uninstall_network() {
     update-alternatives --auto java >>"$log_file" 2>&1 || true
 
     log "UniFi Network removed"
-    log "Java runtime and the Adoptium repo, if added, were left in place"
+    log "Java and Adoptium repo remain; other apps may need them"
     log "in case another app on this host depends on them."
     log "The 'java' alternative was reset to auto-selection."
 }
 
-################################################################################
-# UniFi OS Server
-################################################################################
+# ------------------------------------------------------------------------------
+# OS SERVER
+# ------------------------------------------------------------------------------
 
 ensure_osserver_prereqs() {
     local pkgs=(podman slirp4netns uidmap dbus libpam-systemd)
@@ -483,7 +515,7 @@ install_osserver() {
 action_install_osserver() {
     get_installed_osserver
     if [ -n "${installed_osserver_version}" ]; then
-        log "OS Server already installed (v${installed_osserver_version})."
+        log "UniFi OS Server v${installed_osserver_version} installed."
         log "Use update instead."
         return 1
     fi
@@ -495,7 +527,7 @@ action_install_osserver() {
     fi
     get_latest_osserver
     if [ -z "${latest_osserver_version}" ]; then
-        log "WARNING: could not fetch latest UniFi OS Server version -- alert"
+        log "WARNING: latest UniFi OS Server version unavailable -- alert"
         return 1
     fi
     if install_osserver "${latest_osserver_version}" "${latest_osserver_url}"; then
@@ -512,14 +544,15 @@ action_update_osserver() {
     fi
     get_latest_osserver
     if [ -z "${latest_osserver_version}" ]; then
-        log "WARNING: could not fetch latest UniFi OS Server version -- alert"
+        log "WARNING: latest UniFi OS Server version unavailable -- alert"
         return 1
     fi
     if dpkg --compare-versions "${installed_osserver_version}" ge "${latest_osserver_version}"; then
-        log "OS Server already up to date (v${installed_osserver_version})"
+        log "UniFi OS Server v${installed_osserver_version} is current"
         return 0
     fi
-    log "Updating OS Server: ${installed_osserver_version} -> ${latest_osserver_version}"
+    log "OS Server current: ${installed_osserver_version}"
+    log "INFO: OS Server target: ${latest_osserver_version}"
     install_osserver "${latest_osserver_version}" "${latest_osserver_url}"
 }
 
@@ -530,7 +563,7 @@ action_update_osserver() {
 # state directory, /var/lib/uosserver.
 backup_osserver_config() {
     if [ ! -d /var/lib/uosserver ]; then
-        log "WARNING: /var/lib/uosserver not found, skipping backup -- alert"
+        log "WARNING: uosserver data dir missing; backup skipped -- alert"
         return 1
     fi
     local dest
@@ -601,7 +634,7 @@ action_uninstall_osserver() {
 
     if id -u uosserver >/dev/null 2>&1; then
         if ! userdel -r uosserver 2>>"$log_file"; then
-            log "WARNING: could not remove user uosserver, check ${log_file} -- alert"
+            log "WARNING: userdel uosserver failed, see unifisetup.log -- alert"
         fi
     fi
     if getent group uosserver >/dev/null 2>&1; then
@@ -613,9 +646,9 @@ action_uninstall_osserver() {
     log "OS Server removed"
 }
 
-################################################################################
-# Status
-################################################################################
+# ------------------------------------------------------------------------------
+# STATUS
+# ------------------------------------------------------------------------------
 
 action_status() {
     get_installed_network
@@ -644,9 +677,9 @@ action_status() {
     echo ""
 }
 
-################################################################################
-# Menu
-################################################################################
+# ------------------------------------------------------------------------------
+# MENU
+# ------------------------------------------------------------------------------
 
 menu() {
     while true; do
@@ -681,15 +714,19 @@ menu() {
     done
 }
 
-################################################################################
-# Main
-################################################################################
+# ------------------------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------------------------
 
-if [ -n "${1:-}" ]; then
-    echo "This script does not accept parameters."
-    echo "See the header comments for usage."
-    exit 1
-fi
+action="${1:-}"
+case "$action" in
+    ""|install-network|install-osserver|update-network|update-osserver|uninstall-network|uninstall-osserver|status) ;;
+    *)
+        echo "Unknown action: $action"
+        echo "See the header comments for usage."
+        exit 1
+        ;;
+esac
 
 # Start
 log "unifisetup start..."
@@ -698,4 +735,14 @@ os_check
 arch_check
 ensure_prereqs
 fetch_downloads_json
-menu
+
+case "$action" in
+    install-network) action_install_network ;;
+    install-osserver) action_install_osserver ;;
+    update-network) action_update_network ;;
+    update-osserver) action_update_osserver ;;
+    uninstall-network) action_uninstall_network ;;
+    uninstall-osserver) action_uninstall_osserver ;;
+    status) action_status ;;
+    *) menu ;;
+esac

@@ -5,6 +5,11 @@
 #
 # Squid SSL-Bump Installer
 #
+# DESCRIPTION: Installs squid-openssl, replacing a plain squid if it is
+# present, and generates the CA certificate that SSL-Bump needs.
+#
+# USAGE: sudo bash sslbump.sh
+#
 ################################################################################
 
 set -uo pipefail

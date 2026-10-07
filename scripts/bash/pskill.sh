@@ -5,6 +5,11 @@
 #
 # Kill Process By Name
 #
+# DESCRIPTION: Kills every process matching a name. Sends TERM, waits three
+# seconds, then sends KILL to the survivors. Refuses core system processes.
+#
+# USAGE: sudo bash pskill.sh
+#
 ################################################################################
 
 set -uo pipefail

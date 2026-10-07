@@ -5,6 +5,15 @@
 #
 # Suricata Update
 #
+# DESCRIPTION:
+# Runs suricata-update against drop.conf/disable.conf and reloads
+# Suricata's rules.
+#
+# USAGE:
+# sudo ./suricataupdate.sh
+#
+# LOG: /var/log/suricata/suricatacron.log
+#
 ################################################################################
 
 set -uo pipefail

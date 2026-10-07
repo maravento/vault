@@ -5,6 +5,11 @@
 #
 # CPU Limit (start / stop / status)
 #
+# DESCRIPTION: Caps the CPU usage of a program with cpulimit. Asks for the
+# program name and the percentage to allow.
+#
+# USAGE: sudo bash cpulimit.sh {start|stop|status}
+#
 ################################################################################
 
 set -uo pipefail
@@ -126,7 +131,7 @@ case "${1:-}" in
         status_limit
         ;;
     *)
-        echo "Uso: $0 {start|stop|status}"
+        echo "Usage: $0 {start|stop|status}"
         exit 1
         ;;
 esac

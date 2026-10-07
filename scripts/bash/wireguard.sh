@@ -5,6 +5,11 @@
 #
 # WireGuard Install Server or Client | Uninstall
 #
+# DESCRIPTION: Installs WireGuard as a server or as a client, generating the
+# key pair and the interface configuration. Also uninstalls it.
+#
+# USAGE: sudo bash wireguard.sh
+#
 ################################################################################
 
 set -uo pipefail

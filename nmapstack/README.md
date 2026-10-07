@@ -15,7 +15,7 @@
   </tr>
 </table>
 
-## Repository Structure
+## REPOSITORY STRUCTURE
 
 ---
 
@@ -311,6 +311,9 @@ Package: Nscan
         according to the scan type.<br> Each report includes a timestamp
         with the date and time of the scan.
       </p>
+      <p>
+        Intermediate <code>.xml</code>/<code>.nmap</code>/<code>.gnmap</code> files are deleted after each scan; only the final HTML report is kept. The report is never opened automatically in a browser.
+      </p>
     </td>
     <td style="width: 50%; white-space: nowrap; vertical-align: top; padding-left: 10px;">
       <p><strong>Nreport puede ejecutarse en Linux con los mismos modos de escaneo:</strong></p>
@@ -323,6 +326,9 @@ Package: Nscan
         Nreport guarda los informes de escaneo en la carpeta <code>/home/$USER/Report</code>,
         según el tipo de escaneo.<br> Cada informe incluye la fecha y la hora
         en que se ejecutó el escaneo.
+      </p>
+      <p>
+        Los archivos intermedios <code>.xml</code>/<code>.nmap</code>/<code>.gnmap</code> se eliminan al terminar cada escaneo; solo queda el informe HTML final. El informe nunca se abre automáticamente en un navegador.
       </p>
     </td>
   </tr>
@@ -379,10 +385,10 @@ sudo ./nreport.sh
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Files and directories created at runtime. They are not included in the repository. See <a href="#repository-structure">Repository Structure</a> for the files included in the project:
+      Files and directories created at runtime. They are not included in the repository. See the section REPOSITORY STRUCTURE for the files included in the project:
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Archivos y directorios creados durante la ejecución. No están incluidos en el repositorio. Consulte <a href="#repository-structure">Estructura del repositorio</a> para ver los archivos incluidos en el proyecto:
+      Archivos y directorios creados durante la ejecución. No están incluidos en el repositorio. Consulte la sección REPOSITORY STRUCTURE para ver los archivos incluidos en el proyecto:
     </td>
   </tr>
 </table>
@@ -412,6 +418,41 @@ sudo ./nreport.sh
 > `nwatchsetup.sh` stores all project cron jobs in `/etc/cron.d/nwatch`. Adding or removing a job changes only that file, leaving other projects' cron jobs untouched. `--uninstall` removes the file. Earlier installations keep their jobs in root's crontab. The installer removes them by matching the full script path.
 >
 > `nwatchsetup.sh` guarda todas las tareas cron del proyecto en `/etc/cron.d/nwatch`. Al agregar o quitar una tarea, solo modifica ese archivo; las tareas de otros proyectos quedan intactas. `--uninstall` elimina el archivo. Las instalaciones anteriores guardan sus tareas en el crontab de root. El instalador las elimina al identificar la ruta completa del script.
+
+#### Daemon Configuration
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Both daemons read their poll settings from <code>nwatch.env</code> and write an event row (<code>device_events</code> or <code>port_events</code>) only when a device or port actually changes state, not on every poll cycle.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Ambos demonios leen su configuración de sondeo desde <code>nwatch.env</code> y escriben una fila de evento (<code>device_events</code> o <code>port_events</code>) solo cuando un dispositivo o puerto cambia realmente de estado, no en cada ciclo.
+    </td>
+  </tr>
+</table>
+
+| Variable | Daemon | Default | Meaning |
+|----------|--------|---------|---------|
+| `LAN_IFACES` | `nwatchlan.sh` | — | Comma-separated interfaces to arp-scan |
+| `MGMT_IFACE` | `nwatchsetup.sh` | — | Management interface, chosen during install. `SERVER_IP` and `NET_CIDR` are read from it |
+| `NET_CIDR` | `nwatchapi.php` | — | Management subnet in CIDR form, used as Apache's `Require ip` and by the API |
+| `SERVER_IP` | `nwatchports.sh`, `nwatchapi.php` | — | IPv4 of the management interface. `nwatchports.sh` scans it as the server target; falls back to `localhost` if unset |
+| `LAN_POLL_INTERVAL` | `nwatchlan.sh` | `60` (seconds) | Time between scans |
+| `LAN_OFFLINE_GRACE` | `nwatchlan.sh` | `3` (polls) | Consecutive missed polls before marking a device offline |
+| `PORT_POLL_INTERVAL` | `nwatchports.sh` | `30` (seconds) | Time between poll cycles |
+| `PURGE_CLOSED_AFTER_HOURS` | `nwatchports.sh` | `6` (hours) | How long closed ports are kept before being purged |
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      On start, <code>nwatchlan.sh</code> waits up to 2 minutes for at least one interface in <code>LAN_IFACES</code> to report link state <code>UP</code> before scanning — needed for <code>@reboot</code>, since bonded/aggregated interfaces can come up later than the LAN's physical NICs. If none is up after 2 minutes, the daemon starts anyway and keeps retrying each interface every poll cycle.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Al iniciar, <code>nwatchlan.sh</code> espera hasta 2 minutos a que al menos una interfaz de <code>LAN_IFACES</code> reporte estado de enlace <code>UP</code> antes de escanear — necesario para <code>@reboot</code>, porque las interfaces bonded/agregadas pueden tardar más en estar listas que las NIC físicas de la LAN. Si ninguna está lista tras 2 minutos, el demonio arranca de todos modos y sigue reintentando cada interfaz en cada ciclo.
+    </td>
+  </tr>
+</table>
 
 #### Requirements
 
@@ -447,6 +488,7 @@ apt-get install -y avahi-utils nbtscan
       <ul>
         <li><code>nginx</code>, <code>lighttpd</code> and <code>caddy</code> must not be installed.</li>
         <li>The web panel listens on port <code>3126</code>, registered by <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> as Unassigned.</li>
+        <li>The VirtualHost only accepts connections from <code>127.0.0.1</code>. Open it at <code>http://localhost:3126/</code> on the server itself, or through a local tunnel (e.g. Cloudflare Tunnel with Zero Trust).</li>
       </ul>
     </td>
     <td style="width: 50%; vertical-align: top;">
@@ -454,6 +496,7 @@ apt-get install -y avahi-utils nbtscan
       <ul>
         <li><code>nginx</code>, <code>lighttpd</code> y <code>caddy</code> no deben estar instalados.</li>
         <li>El panel web escucha en el puerto <code>3126</code>, registrado por <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> como Sin asignar.</li>
+        <li>El VirtualHost solo acepta conexiones desde <code>127.0.0.1</code>. Accede en <code>http://localhost:3126/</code> desde el propio servidor, o mediante un túnel local (por ejemplo, Cloudflare Tunnel con Zero Trust).</li>
       </ul>
     </td>
   </tr>
@@ -669,15 +712,17 @@ sudo /var/www/nwatch/tools/nwatchports.sh list
   </tr>
 </table>
 
-#### ⚠️ WARNING: Network Access
+## ⚠️ WARNING: NETWORK ACCESS
+
+---
 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      NWatch is designed for local use and access over a LAN. Do not expose it directly to the internet; it lacks the protections required for public-facing deployments. If you still need remote access, use an on-demand tunnel instead of opening ports directly.
+      This project is designed for use on a local network (LAN). It does not include the security hardening needed for direct exposure to the internet. If internet access is required, an on-demand tunnel is recommended instead of opening ports directly. This enables access when needed without leaving the server permanently exposed.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      NWatch está diseñado para ejecutarse localmente y accederse desde una LAN. No lo exponga directamente a internet; carece de las protecciones necesarias para un servicio público. Si necesita acceso remoto, use un túnel bajo demanda en vez de abrir puertos directamente.
+      Este proyecto está diseñado para usarse en una red local (LAN). No cuenta con las medidas de seguridad necesarias para exponerlo directamente a Internet. Si se requiere acceso desde Internet, se recomienda utilizar un túnel bajo demanda en lugar de abrir puertos directamente. Así, el acceso se habilita cuando hace falta y el servidor no queda expuesto permanentemente.
     </td>
   </tr>
 </table>

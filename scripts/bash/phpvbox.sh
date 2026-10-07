@@ -200,9 +200,6 @@ cron_tmp=$(mktemp)
 printf '%s\n' "*/30 * * * * root /etc/init.d/phpvbox_port.sh" > "$cron_tmp"
 install -m 644 -o root -g root "$cron_tmp" /etc/cron.d/phpvbox
 rm -f "$cron_tmp"
-
-# legacy entry in root's crontab, from versions before /etc/cron.d
-crontab -l 2>/dev/null | { grep -vF "/etc/init.d/phpvbox_port.sh" || true; } | crontab - 2>/dev/null || true
 if ! service cron restart; then
     echo "Failed to restart cron"
     exit 1

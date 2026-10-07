@@ -4,7 +4,15 @@
 ################################################################################
 #
 # nwatch - LAN device inventory & watched ports dashboard
-# https://github.com/maravento/vault
+#
+# DESCRIPTION:
+# Installs the nwatch web dashboard and its two daemons. Requires root.
+#
+# USAGE:
+# sudo bash nwatchsetup.sh --install
+# sudo bash nwatchsetup.sh --update
+# sudo bash nwatchsetup.sh --uninstall
+# sudo bash nwatchsetup.sh --status
 #
 # LOG: nwatchsetup.log, next to this script (rewritten on each run)
 #      The daemons nwatchlan.sh / nwatchports.sh log to the shared
@@ -138,7 +146,7 @@ list_candidate_interfaces() {
         candidate_addrs+=("$addr")
     done < <(ip -4 addr show scope global | awk '/inet /{print $NF, $2}')
     if [ "${#candidate_names[@]}" -eq 0 ]; then
-        log "ERROR: no physical interface with a global IPv4 address -- abort"
+        log "ERROR: no physical interface has global IPv4 -- abort"
         exit 1
     fi
 }
@@ -186,8 +194,8 @@ select_scan_interfaces() {
 # Computes the actual network address for an "ip/prefix" pair (e.g.
 # 192.168.0.24/24 -> 192.168.0.0/24) by zeroing the host bits -- `ip addr
 # show` reports the interface's own host address with its prefix length,
-# not the network address, and NET_CIDR (used as the Apache "Require ip"
-# argument and stored in nwatch.env) is supposed to be the latter.
+# not the network address, and NET_CIDR (the scan scope, stored in
+# nwatch.env) is supposed to be the latter.
 compute_network_cidr() {
     local ip_prefix="$1"
     local ip="${ip_prefix%/*}" prefix="${ip_prefix#*/}"
@@ -345,11 +353,6 @@ add_reboot_cron() {
     cron_d_set "$nwatch_tools/nwatchlan.sh" "@reboot root $nwatch_tools/nwatchlan.sh start"
     cron_d_set "$nwatch_tools/nwatchports.sh" "@reboot root $nwatch_tools/nwatchports.sh start"
     log "INFO: added to cron @reboot"
-
-    # legacy entries, from versions before /etc/cron.d
-    for legacy_path in "$nwatch_tools/nwatchlan.sh start" "$nwatch_tools/nwatchports.sh start"; do
-        crontab -l 2>/dev/null | { grep -vF "$legacy_path" || true; } | crontab - 2>/dev/null || true
-    done
 }
 
 do_install() {
@@ -366,7 +369,7 @@ do_install() {
         exit 1
     fi
 
-    check_port tcp 3126 "web interface"
+    check_port tcp "$vhost_port" "web interface"
 
     # The vhost needs mod_php (SetHandler application/x-httpd-php), not PHP-FPM.
     if ! apache2ctl -M 2>/dev/null | grep -qi 'php_module'; then
@@ -415,8 +418,8 @@ PMODE
     # apache vhost
     cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
     sed -i "/^Listen .*:${vhost_port}\$/d" /etc/apache2/ports.conf
-    printf 'Listen %s:%s\nListen 127.0.0.1:%s\n' "$detected_ip" "$vhost_port" "$vhost_port" | tee -a /etc/apache2/ports.conf
-    sed "s|192.168.0.0/24|${net_cidr_value}|" "$web_dir/nwatch.conf" > /etc/apache2/sites-available/nwatch.conf
+    printf 'Listen 127.0.0.1:%s\n' "$vhost_port" | tee -a /etc/apache2/ports.conf
+    cp -f "$web_dir/nwatch.conf" /etc/apache2/sites-available/nwatch.conf
     a2ensite -q nwatch.conf
 
     systemctl daemon-reload
@@ -477,53 +480,12 @@ EOF
 do_update() {
     log "nwatchsetup start (update)..."
 
-    # Migration: nwatch.env from $nwatch_www to /etc/nwatch
-    local legacy_env="$nwatch_www/nwatch.env"
-    if [ ! -f "$nwatch_env" ] && [ -f "$legacy_env" ]; then
-        log "INFO: migrating nwatch.env to $nwatch_env"
-        mkdir -p "$nwatch_etc"
-        chown root:www-data "$nwatch_etc"
-        chmod 750 "$nwatch_etc"
-        mv -f "$legacy_env" "$nwatch_env"
-        chown root:www-data "$nwatch_env"
-        chmod 640 "$nwatch_env"
-    fi
-
     if [ ! -f "$nwatch_env" ]; then
         log "ERROR: nwatch is not installed -- abort"
         exit 1
     fi
 
-    # Migration: add proto to the port_scan_state UNIQUE constraint
     if [ -f "$db_file" ]; then
-        local current_schema
-        current_schema=$(sqlite3 "$db_file" "SELECT sql FROM sqlite_master WHERE type='table' AND name='port_scan_state';" 2>/dev/null)
-        if [ -n "$current_schema" ] && ! printf '%s' "$current_schema" | grep -q "UNIQUE(source, host, port, proto)"; then
-            log "INFO: migrating port_scan_state constraint"
-            sqlite3 "$db_file" >/dev/null <<'SQL'
-BEGIN TRANSACTION;
-CREATE TABLE port_scan_state_new (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    source TEXT NOT NULL CHECK(source IN ('server','target')),
-    host TEXT NOT NULL,
-    port INTEGER NOT NULL CHECK(port BETWEEN 1 AND 65535),
-    proto TEXT NOT NULL DEFAULT 'tcp',
-    service TEXT,
-    status TEXT NOT NULL CHECK(status IN ('open','closed')),
-    last_checked TEXT NOT NULL,
-    last_changed TEXT NOT NULL,
-    UNIQUE(source, host, port, proto)
-);
-INSERT INTO port_scan_state_new (id, source, host, port, proto, service, status, last_checked, last_changed)
-    SELECT id, source, host, port, proto, service, status, last_checked, last_changed FROM port_scan_state;
-DROP TABLE port_scan_state;
-ALTER TABLE port_scan_state_new RENAME TO port_scan_state;
-CREATE INDEX IF NOT EXISTS idx_port_scan_state_source ON port_scan_state(source);
-CREATE INDEX IF NOT EXISTS idx_port_scan_state_status ON port_scan_state(status);
-COMMIT;
-SQL
-        fi
-
         chown root:www-data "$db_file"
         chmod 640 "$db_file"
     fi
@@ -579,17 +541,12 @@ do_uninstall() {
     sed -i "/^Listen .*:${vhost_port}\$/d" /etc/apache2/ports.conf
     rm -f /etc/apache2/sites-available/nwatch.conf
 
+    rm -f /etc/logrotate.d/nwatch /etc/logrotate.d/nwatch.bak
+
     rm -rf "$nwatch_www"
     rm -rf "$nwatch_etc"
 
-    rm -f /etc/logrotate.d/nwatch /etc/logrotate.d/nwatch.bak
-
     rm -f /etc/cron.d/nwatch
-
-    # legacy entries in root's crontab, from versions before /etc/cron.d
-    for legacy_path in "$nwatch_tools/nwatchlan.sh start" "$nwatch_tools/nwatchports.sh start"; do
-        crontab -l 2>/dev/null | { grep -vF "$legacy_path" || true; } | crontab - 2>/dev/null || true
-    done
 
     systemctl daemon-reload
     systemctl restart apache2

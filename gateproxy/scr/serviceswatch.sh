@@ -5,6 +5,13 @@
 #
 # Services Watchdog
 #
+# DESCRIPTION:
+# Checks gateproxy's services and restarts any that are down. Runs
+# every 5 minutes via cron.
+#
+# USAGE:
+# ./serviceswatch.sh
+#
 # LOG: /var/log/serviceswatch.log, its own log, not shared
 #
 ################################################################################

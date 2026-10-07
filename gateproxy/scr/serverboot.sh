@@ -5,6 +5,14 @@
 #
 # Server Boot
 #
+# DESCRIPTION:
+# Starts or restarts all gateproxy server services.
+#
+# USAGE:
+# sudo ./serverboot.sh
+#
+# LOG: /var/log/serverboot.log
+#
 ################################################################################
 
 set -uo pipefail
@@ -86,14 +94,14 @@ net_ready=0
 for i in $(seq 1 10); do
     if network_ready; then
         net_ready=1
-        log "INFO: Attempt $i/10: $iface_count iface(s) UP (required $required), ready"
+        log "INFO: try $i/10: $iface_count UP; need $required -- ready"
         while IFS= read -r iface; do
             [[ -n "$iface" ]] && log "INFO: $iface"
         done <<< "$iface_list"
         break
     fi
 
-    log "INFO: Attempt $i/10: $iface_count iface(s) UP (required $required) -- retry"
+    log "INFO: try $i/10: $iface_count UP; need $required -- retry"
     while IFS= read -r iface; do
         [[ -n "$iface" ]] && log "INFO: $iface"
     done <<< "$iface_list"

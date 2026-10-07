@@ -3,28 +3,16 @@
 #
 ################################################################################
 #
-## Iptables/Ipset Firewall O(1)
-## Verify: iptables -L -n / iptables -nvL / iptables -Ln -t mangle / iptables -Ln -t nat
-## Sockets: ss -ltuna
-# Ports: /etc/services
-# ============================
-# Ports 0-1023: "Well-known ports" (System/Privileged)
-# - Require superuser privileges to bind
-# - Standard services: HTTP(80), HTTPS(443), SSH(22), DNS(53)
-# - FTP(21), Telnet(23), SMTP(25), etc.
-# Ports 1024-49151: "Registered ports" (IANA Assigned)
-# - Assigned by Internet Assigned Numbers Authority
-# - User/application services without root privileges
-# - Examples: MySQL(3306), PostgreSQL(5432), Skype(1000-10000)
-# Ports 49152-65535: "Dynamic/Private ports" (Ephemeral)
-# - Available for any use, not registered by IANA
-# - Used for temporary/outbound connections
-# - Client-side dynamic port assignments
-# REFERENCES:
-# - https://gutl.jovenclub.cu/wiki/doku.php?id=definiciones:puertos_tcp_udp
-# - https://en.wikipedia.org/wiki/List_of_TCP_and_UDP_port_numbers
-# - RFC 6335 - Internet Assigned Numbers Authority (IANA) Procedures
-# - https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt
+# Iptables/Ipset Firewall O(1)
+#
+# DESCRIPTION:
+# Loads the ipset-based firewall: MAC/IP bindings, ACLs and the
+# iptables rules that enforce them.
+#
+# USAGE:
+# sudo ./iptables.sh
+#
+# LOG: /var/log/iptables.log
 #
 ################################################################################
 

@@ -4,36 +4,17 @@
 ################################################################################
 #
 # nwatchlan - LAN Devices Watchdog
-# https://github.com/maravento/vault
 #
-# Periodically arp-scans every configured interface (LAN and/or WAN -- a
-# server can have more than one) and keeps the "devices" table in
-# nwatch.db up to date (current state), appending a row to
-# "device_events" only when a device's state actually transitions
-# (new_device / online / offline) -- not on every poll.
+# DESCRIPTION:
+# Arp-scans the configured LAN/WAN interfaces and keeps the device
+# inventory in nwatch.db up to date.
 #
-# Hostname resolution tries, in order: reverse DNS (getent), then mDNS
-# (avahi-resolve-address) and NetBIOS (nbtscan) if those optional packages
-# are installed -- see resolve_hostname(). Neither is required for the
-# daemon to run; without them it just falls back to DNS-only resolution.
-#
-# nwatch.env variables:
-# LAN_IFACES : comma-separated network interfaces to arp-scan
-# LAN_POLL_INTERVAL : seconds between scans (default: 60)
-# LAN_OFFLINE_GRACE : consecutive missed polls before marking offline (default: 3)
-#
-# On start, waits up to 2 minutes for at least one interface in LAN_IFACES to
-# report link state "up" before entering the scan loop (see check_interfaces())
-# -- needed for @reboot, since bonded/aggregated interfaces can come up later
-# than the LAN's physical NICs. If none is up after 2 minutes, the daemon
-# starts anyway and keeps retrying each interface every poll cycle.
+# USAGE:
+# ./nwatchlan.sh {start|stop|status}
 #
 # LOG: /var/log/nwatch.log (root:root, 640) -- shared by both daemons
 #      (nwatchlan.sh + nwatchports.sh). The installer writes its own
 #      nwatchsetup.log next to itself.
-#
-# USAGE:
-# ./nwatchlan.sh {start|stop|status}
 #
 ################################################################################
 
@@ -184,7 +165,7 @@ sql_escape() { printf '%s' "$1" | sed "s/'/''/g"; }
 # a no-op.
 run_batch() {
     [ -z "${1:-}" ] && return 0
-    sqlite3 -cmd "PRAGMA busy_timeout=5000;" "$db_file" >/dev/null 2>>"$log_file" <<SQL
+    sqlite3 -cmd ".bail on" -cmd "PRAGMA busy_timeout=5000;" "$db_file" >/dev/null 2>>"$log_file" <<SQL
 BEGIN IMMEDIATE;
 ${1}COMMIT;
 SQL
@@ -267,16 +248,17 @@ run_scan() {
     local now
     now=$(now_iso)
 
-    # Load the devices table once (mac -> status / miss_count / ip) so both the
+    # Load the devices table once (mac -> status / miss_count / ip / iface) so both the
     # scan loop and the offline sweep decide transitions in bash.
-    declare -A dev_status=() dev_miss=() dev_ip=() seen_macs=()
-    local d_mac d_status d_miss d_ip
-    while IFS='|' read -r d_mac d_status d_miss d_ip; do
+    declare -A dev_status=() dev_miss=() dev_ip=() dev_iface=() seen_macs=() failed_ifaces=()
+    local d_mac d_status d_miss d_ip d_iface
+    while IFS='|' read -r d_mac d_status d_miss d_ip d_iface; do
         [ -z "$d_mac" ] && continue
         dev_status["$d_mac"]="$d_status"
         dev_miss["$d_mac"]="$d_miss"
         dev_ip["$d_mac"]="$d_ip"
-    done < <(sqlite3 -separator '|' "$db_file" "SELECT mac, status, miss_count, ip FROM devices;" 2>>"$log_file")
+        dev_iface["$d_mac"]="$d_iface"
+    done < <(sqlite3 -separator '|' "$db_file" "SELECT mac, status, miss_count, ip, iface FROM devices;" 2>>"$log_file")
 
     local sql=""
 
@@ -285,12 +267,17 @@ run_scan() {
     for iface in "${ifaces[@]}"; do
         if ! ip link show "$iface" &>/dev/null; then
             log "WARNING: interface '$iface' does not exist -- alert"
+            failed_ifaces["$iface"]=1
             continue
         fi
 
         # arp-scan -x -g: plain tab-separated output, without -q (-q strips vendor).
         local scan_out
-        scan_out=$(arp-scan --interface="$iface" --localnet -x -g 2>>"$log_file") || true
+        scan_out=$(arp-scan --interface="$iface" --localnet -x -g 2>>"$log_file") || {
+            log "WARNING: arp-scan failed on '$iface' -- alert"
+            failed_ifaces["$iface"]=1
+            scan_out=""
+        }
 
         local ip mac vendor
         while IFS=$'\t' read -r ip mac vendor; do
@@ -329,9 +316,14 @@ INSERT INTO device_events (mac, ip, event_type, event_time) VALUES ('$esc_mac', 
         done <<< "$scan_out"
     done
 
-    # mark devices not seen this cycle on ANY configured interface
-    local mac new_miss esc_mac ip_addr esc_ip_addr
+    # mark devices not seen this cycle on ANY configured interface -- a device
+    # whose interface failed this cycle is skipped, because an empty scan is
+    # not evidence of absence
+    local mac new_miss esc_mac ip_addr esc_ip_addr device_iface
     for mac in "${!dev_status[@]}"; do
+        device_iface="${dev_iface[$mac]:-}"
+        [ -n "$device_iface" ] || continue
+        [ -z "${failed_ifaces[$device_iface]:-}" ] || continue
         [ "${dev_status[$mac]}" = "online" ] || continue
         [ -n "${seen_macs[$mac]:-}" ] && continue
         new_miss=$(( ${dev_miss[$mac]:-0} + 1 ))
@@ -348,7 +340,10 @@ INSERT INTO device_events (mac, ip, event_type, event_time) VALUES ('$esc_mac', 
         fi
     done
 
-    run_batch "$sql"
+    if ! run_batch "$sql"; then
+        log "WARNING: could not store lan scan results -- alert"
+        return
+    fi
 }
 
 # START

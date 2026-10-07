@@ -192,7 +192,15 @@ switch ($choice) {
 				if ($localIP) {
 					$prefix = $localIP.PrefixLength
 					$ipParts = $localIP.IPAddress.Split('.')
-					$network = "$($ipParts[0]).$($ipParts[1]).$($ipParts[2]).0/$prefix"
+					$netParts = @(0, 0, 0, 0)
+					for ($b = 0; $b -lt 4; $b++) {
+						$bits = $prefix - ($b * 8)
+						if ($bits -ge 8) { $maskByte = 255 }
+						elseif ($bits -le 0) { $maskByte = 0 }
+						else { $maskByte = 256 - [math]::Pow(2, 8 - $bits) }
+						$netParts[$b] = [int]$ipParts[$b] -band [int]$maskByte
+					}
+					$network = "$($netParts[0]).$($netParts[1]).$($netParts[2]).$($netParts[3])/$prefix"
 					$requireRule = "Require ip $network"
 				} else {
 					Write-Host "Could not detect local network, defaulting to Require local."

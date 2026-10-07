@@ -3,14 +3,13 @@
 #
 ################################################################################
 #
-# This script allows installing or restoring realtek drivers.
-# - r8169: Default in-kernel driver included with Linux kernel.
-# - r8168: Realtek's proprietary, out-of-tree driver installed via DKMS (for RTL8111/8168 series).
-# - r8125: Realtek's proprietary, out-of-tree driver installed via DKMS (for RTL8125 2.5G NICs).
+# Realtek Driver Manager
 #
-# Notice:
-# The proprietary drivers may provide better compatibility and performance for certain Realtek NICs,
-# but require installation and maintenance outside the kernel.
+# DESCRIPTION: Switches the Realtek NIC driver between the in-kernel r8169 and
+# the proprietary DKMS drivers r8168 (RTL8111/8168) and r8125 (RTL8125 2.5G).
+# The proprietary ones can perform better, but need maintenance out of tree.
+#
+# USAGE: sudo bash realtekdrv.sh
 #
 ################################################################################
 

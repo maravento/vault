@@ -6,10 +6,14 @@
 # BlackUSB
 # USB device access control via udev rules
 #
-# Monitors USB connections and blocks unauthorized devices not in the whitelist.
-# Executes configurable commands (e.g. sync, poweroff) on unknown device events.
-# Logs both blocked (unknown) and allowed (whitelisted) device connections.
-# Manages udev rules for whitelisting, activation/deactivation and demo mode.
+# DESCRIPTION:
+# Whitelists USB/HID devices with udev rules and blocks any other
+# device on insertion.
+#
+# USAGE:
+# sudo bash blackusb.sh {show|on|eject|off|gen|del|trigger|edit}
+#
+# LOG: /var/log/blackusb.log
 #
 ################################################################################
 
@@ -153,8 +157,8 @@ read_values() {
         [[ -f "${devdir}idVendor" ]] || continue
         vendors+=("$(<"${devdir}idVendor")")
         products+=("$(<"${devdir}idProduct")")
-        serials+=("$(cat "${devdir}serial" 2>/dev/null | tr -d '"' || true)")
-        products_name+=("$(cat "${devdir}product" 2>/dev/null | tr -d '"' || true)")
+        serials+=("$(cat "${devdir}serial" 2>/dev/null | tr -d '"\\' | tr -d '[:cntrl:]' || true)")
+        products_name+=("$(cat "${devdir}product" 2>/dev/null | tr -d '"\\' | tr -d '[:cntrl:]' || true)")
     done
 }
 
