@@ -467,7 +467,7 @@ create_docker_compose() {
     local OLLAMA_RUNTIME=""
     local OLLAMA_GPU_DEVICES=""
     if [ "$HAS_NVIDIA_DOCKER" = true ]; then
-        OLLAMA_RUNTIME=" runtime: nvidia"
+        OLLAMA_RUNTIME="    runtime: nvidia"
         OLLAMA_GPU_DEVICES="
     deploy:
       resources:

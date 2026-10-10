@@ -57,7 +57,7 @@ while IFS= read -r -d '' f; do
         deleted_count=$((deleted_count + 1))
     fi
 done < <(find "$search_path" -type f -regextype posix-egrep -iregex \
-'^.*(:encryptable|Zone\.identifier|\.fuse_hidden.*|goutputstream.*|\.spotlight-.*|\.fseventsd.*|\.ds_store.*|~lock\..*|Thumbs\.db|attributes:).*$' \
+'^(.*/)?[^/]*(:encryptable|Zone\.identifier|\.fuse_hidden[^/]*|goutputstream[^/]*|\.spotlight-[^/]*|\.fseventsd[^/]*|\.ds_store[^/]*|~lock\.[^/]*|Thumbs\.db|attributes:)[^/]*$' \
 -print0 2>>/var/log/cleaner.log)
 
 end=$(date +%s)
