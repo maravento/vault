@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "CaptureFox \u2014 Local Screen Recorder",
+  "version": "0.1.1",
+  "description": "Record your screen, camera, microphone, and system audio input. Save recordings locally.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "captura-local@localhost",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
+  },
+  "permissions": [
+    "unlimitedStorage"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "action": {
+    "default_title": "Open CaptureFox",
+    "default_icon": "assets/icon.svg"
+  },
+  "icons": {
+    "48": "assets/icon.svg",
+    "96": "assets/icon.svg"
+  },
+  "options_ui": {
+    "page": "index.html#settings",
+    "open_in_tab": true
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src 'none'; media-src 'self' blob:; img-src 'self' data:; style-src 'self';"
+  }
+}

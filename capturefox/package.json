@@ -1,0 +1,18 @@
+{
+  "name": "capturefox",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Local Firefox screen recorder with microphone and Linux system audio support.",
+  "scripts": {
+    "test": "node --test tests/recorder.test.mjs tests/storage.test.mjs tests/webm.test.mjs && node tests/ui.test.mjs",
+    "test:audio": "PYTHONDONTWRITEBYTECODE=1 python3 tests/test_audio_bridge.py",
+    "build": "python3 tools/build.py"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "6.2.5",
+    "jsdom": "30.1.2"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

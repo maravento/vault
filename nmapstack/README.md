@@ -134,100 +134,29 @@ nmapstack/
 
 #### Installation Messages
 
-<table width="100%">
-  <thead>
-    <tr>
-      <th width="250">Message</th>
-      <th>Description</th>
-      <th>Descripción</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td width="250"><img src="img/nscan-extract.png" width="250" alt="Image"></td>
-      <td>Extracting Nscan files during setup.</td>
-      <td>Extrayendo los archivos de Nscan durante la instalación.</td>
-    </tr>
-    <tr>
-      <td width="250"><img src="img/nscan-visual.png" width="250" alt="Image"></td>
-      <td>Installing the Microsoft Visual C++ runtimes.</td>
-      <td>Instalando los runtimes de Microsoft Visual C++.</td>
-    </tr>
-  </tbody>
-</table>
+| Message | Description | Descripción |
+| --- | --- | --- |
+| <img src="img/nscan-extract.png" width="250" alt="Image"> | Extracting Nscan files during setup. | Extrayendo los archivos de Nscan durante la instalación. |
+| <img src="img/nscan-visual.png" width="250" alt="Image"> | Installing the Microsoft Visual C++ runtimes. | Instalando los runtimes de Microsoft Visual C++. |
 
 #### Scan Messages
 
-<table width="100%">
-  <thead>
-    <tr>
-      <th width="250">Message</th>
-      <th>Description</th>
-      <th>Descripción</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td width="250"><img src="img/nscan-ipscan.png" width="250" alt="Image"></td>
-      <td>Option 3: Scan a single IPv4 address. IP ranges are not accepted.</td>
-      <td>Opción 3: Escanea una dirección IPv4 específica. No se aceptan rangos.</td>
-    </tr>
-    <tr>
-      <td width="250"><img src="img/nscan-invalidip.png" width="250" alt="Image"></td>
-      <td>The entered IPv4 address is invalid.</td>
-      <td>La dirección IPv4 ingresada no es válida.</td>
-    </tr>
-    <tr>
-      <td width="250"><img src="img/nscan-scanning.png" width="250" alt="Image"></td>
-      <td>Scanning the IP address or network.</td>
-      <td>Escaneando la dirección IP o la red.</td>
-    </tr>
-    <tr>
-      <td width="250"><img src="img/nscan-advanced.png" width="250" alt="Image"></td>
-      <td>Running an intensive scan.</td>
-      <td>Ejecutando un escaneo intensivo.</td>
-    </tr>
-    <tr>
-      <td width="250"><img src="img/nscan-end.png" width="250" alt="Image"></td>
-      <td>The scan completed successfully.</td>
-      <td>El escaneo finalizó correctamente.</td>
-    </tr>
-  </tbody>
-</table>
+| Message | Description | Descripción |
+| --- | --- | --- |
+| <img src="img/nscan-ipscan.png" width="250" alt="Image"> | Option 3: Scan a single IPv4 address. IP ranges are not accepted. | Opción 3: Escanea una dirección IPv4 específica. No se aceptan rangos. |
+| <img src="img/nscan-invalidip.png" width="250" alt="Image"> | The entered IPv4 address is invalid. | La dirección IPv4 ingresada no es válida. |
+| <img src="img/nscan-scanning.png" width="250" alt="Image"> | Scanning the IP address or network. | Escaneando la dirección IP o la red. |
+| <img src="img/nscan-advanced.png" width="250" alt="Image"> | Running an intensive scan. | Ejecutando un escaneo intensivo. |
+| <img src="img/nscan-end.png" width="250" alt="Image"> | The scan completed successfully. | El escaneo finalizó correctamente. |
 
 #### Error Messages
 
-<table width="100%">
-  <thead>
-    <tr>
-      <th width="250">Message</th>
-      <th>Description</th>
-      <th>Descripción</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td width="250"><img src="img/nscan-cancel.png" width="250" alt="Image"></td>
-      <td>You clicked "Cancel" or an error occurred during installation.</td>
-      <td>Hizo clic en "Cancelar" o ocurrió un error durante la instalación.</td>
-    </tr>
-    <tr>
-      <td width="250"><img src="img/nscan-errordependencies.png" width="250" alt="Image"></td>
-      <td>A dependency could not be installed.</td>
-      <td>No se pudo instalar una dependencia.</td>
-    </tr>
-    <tr>
-      <td width="250"><img src="img/nscan-nointernet.png" width="250" alt="Image"></td>
-      <td>No internet connectivity detected.</td>
-      <td>No se detectó conectividad a internet.</td>
-    </tr>
-    <tr>
-      <td width="250"><img src="img/nscan-osincompatible.png" width="250" alt="Image"></td>
-      <td>The installer is running on an incompatible operating system.</td>
-      <td>El instalador se está ejecutando en un sistema operativo incompatible.</td>
-    </tr>
-  </tbody>
-</table>
+| Message | Description | Descripción |
+| --- | --- | --- |
+| <img src="img/nscan-cancel.png" width="250" alt="Image"> | You clicked "Cancel" or an error occurred during installation. | Hizo clic en "Cancelar" o ocurrió un error durante la instalación. |
+| <img src="img/nscan-errordependencies.png" width="250" alt="Image"> | A dependency could not be installed. | No se pudo instalar una dependencia. |
+| <img src="img/nscan-nointernet.png" width="250" alt="Image"> | No internet connectivity detected. | No se detectó conectividad a internet. |
+| <img src="img/nscan-osincompatible.png" width="250" alt="Image"> | The installer is running on an incompatible operating system. | El instalador se está ejecutando en un sistema operativo incompatible. |
 
 #### Npcap
 
@@ -336,7 +265,18 @@ Package: Nscan
 
 #### Requirements
 
-**⚠️ WARNING:** Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
+##### ⚠️ WARNING
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Probado en Ubuntu 24.04/26.04 LTS. El uso en otras versiones o distribuciones queda bajo responsabilidad de quien lo instale.
+    </td>
+  </tr>
+</table>
 
 - nmap, xsltproc, iproute2, util-linux
 
@@ -415,9 +355,18 @@ sudo ./nreport.sh
 /etc/cron.d/nwatch          # All cron entries of the project, one file
 ```
 
-> `nwatchsetup.sh` stores all project cron jobs in `/etc/cron.d/nwatch`. Adding or removing a job changes only that file, leaving other projects' cron jobs untouched. `--uninstall` removes the file. Earlier installations keep their jobs in root's crontab. The installer removes them by matching the full script path.
->
-> `nwatchsetup.sh` guarda todas las tareas cron del proyecto en `/etc/cron.d/nwatch`. Al agregar o quitar una tarea, solo modifica ese archivo; las tareas de otros proyectos quedan intactas. `--uninstall` elimina el archivo. Las instalaciones anteriores guardan sus tareas en el crontab de root. El instalador las elimina al identificar la ruta completa del script.
+#### Scheduled Tasks
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <code>nwatchsetup.sh</code> stores all project cron jobs in <code>/etc/cron.d/nwatch</code>. Adding or removing a job changes only that file, leaving other projects' cron jobs untouched. <code>--uninstall</code> removes the file. Earlier installations keep their jobs in root's crontab. The installer removes them by matching the full script path.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <code>nwatchsetup.sh</code> guarda todas las tareas cron del proyecto en <code>/etc/cron.d/nwatch</code>. Al agregar o quitar una tarea, solo modifica ese archivo; las tareas de otros proyectos quedan intactas. <code>--uninstall</code> elimina el archivo. Las instalaciones anteriores guardan sus tareas en el crontab de root. El instalador las elimina al identificar la ruta completa del script.
+    </td>
+  </tr>
+</table>
 
 #### Daemon Configuration
 
@@ -456,7 +405,18 @@ sudo ./nreport.sh
 
 #### Requirements
 
-**⚠️ WARNING:** Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
+##### ⚠️ WARNING
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Probado en Ubuntu 24.04/26.04 LTS. El uso en otras versiones o distribuciones queda bajo responsabilidad de quien lo instale.
+    </td>
+  </tr>
+</table>
 
 - Apache2 with mod_php (not PHP-FPM — the vhost uses `SetHandler application/x-httpd-php`)
 - arp-scan, sqlite3, php-sqlite3, php-cli, nmap, iproute2 (`ss`), logrotate, util-linux
@@ -727,9 +687,18 @@ sudo /var/www/nwatch/tools/nwatchports.sh list
   </tr>
 </table>
 
-> **CSRF protection:** The Ports tab's mode-switch form does not require a login; guest access across the LAN is intentional. The state-changing POST request includes a per-session CSRF token. The server accepts the request only when the form was loaded from the page first.
->
-> **Protección CSRF:** El formulario para cambiar de modo en la pestaña Ports no requiere iniciar sesión; el acceso de invitado en toda la LAN es intencional. La solicitud POST que cambia el estado incluye un token CSRF por sesión. El servidor solo la acepta si el formulario se cargó antes desde la página.
+### CSRF Protection
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>CSRF protection:</strong> The Ports tab's mode-switch form does not require a login; guest access across the LAN is intentional. The state-changing POST request includes a per-session CSRF token. The server accepts the request only when the form was loaded from the page first.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Protección CSRF:</strong> El formulario para cambiar de modo en la pestaña Ports no requiere iniciar sesión; el acceso de invitado en toda la LAN es intencional. La solicitud POST que cambia el estado incluye un token CSRF por sesión. El servidor solo la acepta si el formulario se cargó antes desde la página.
+    </td>
+  </tr>
+</table>
 
 **Optional tunnel:**
 - [Cloudflare Tunnel with Zero Trust Recommended](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cftunnel.sh)

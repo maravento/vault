@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CaptureFox</title>
+  <link rel="icon" href="assets/icon.svg">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html"><img src="assets/icon.svg" width="40" height="40" alt=""><span>CaptureFox<small>Your screen. Your file.</small></span></a>
+  <nav aria-label="Sections"><button data-view="recorder" aria-current="page">Record</button><button data-view="library">Library</button><button data-view="settings">Settings</button></nav>
+  <span class="badge">● Saved locally</span>
+</header>
+<main>
+  <div id="notice" role="alert" hidden></div>
+  <section data-panel="recorder">
+    <div class="heading"><div><p class="eyebrow">RECORDING STUDIO</p><h1>Share what you see.</h1><p>Record your screen, camera, and voice.</p></div><span id="storage-state">Preparing storage…</span></div>
+    <div class="studio">
+      <aside class="card">
+        <h2>Prepare your capture</h2>
+        <fieldset><legend>What to record</legend><div class="modes">
+          <label><input type="radio" name="captureMode" value="screen" checked><span>Screen<small>Window or entire screen</small></span></label>
+          <label><input type="radio" name="captureMode" value="camera"><span>Camera<small>Record yourself</small></span></label>
+          <label><input type="radio" name="captureMode" value="screen-camera"><span>Screen and camera<small>Add your camera to the recording</small></span></label>
+        </div></fieldset>
+        <label class="field" for="audioMode">Audio<select id="audioMode"><option value="none">No audio</option><option value="microphone">Microphone</option><option value="system">System audio</option><option value="both" selected>Microphone and system audio</option></select></label>
+        <label class="field" for="micSelect">Microphone<select id="micSelect"><option value="">Default</option></select></label>
+        <label class="field" for="cameraSelect">Camera<select id="cameraSelect"><option value="">Default</option></select></label>
+        <label class="field" for="systemSelect">System audio input<select id="systemSelect"><option value="">Select CaptureFox_System_Audio</option></select></label>
+        <button id="refreshDevices">Refresh devices</button>
+        <p id="audio-help" class="help">Enable CaptureFox_System_Audio with the local helper. Refresh devices and select it to record system audio.</p>
+      </aside>
+      <div>
+        <div class="preview-frame"><video id="preview" autoplay muted playsinline aria-label="Recording preview"></video><canvas id="composition" hidden></canvas></div>
+        <div class="card record-bar">
+          <div class="state"><span class="dot"></span><div><span id="status" role="status" aria-live="polite">Ready to record</span><time id="timer">00:00</time></div></div>
+          <div class="actions"><button id="startBtn" class="primary">● Start recording</button><button id="pauseBtn" disabled>Pause</button><button id="stopBtn" class="danger" disabled>Stop</button></div>
+        </div>
+        <p class="help footnote">Recordings are stored in this browser. Download the files you want to keep.</p>
+      </div>
+    </div>
+  </section>
+  <section data-panel="library" hidden>
+    <div class="heading"><div><p class="eyebrow">YOUR FILES</p><h1>Library</h1><p>Play and download your recordings.</p></div><button id="refreshLibrary">Refresh library</button></div>
+    <div id="empty-state" class="card empty"><span class="empty-icon">▣</span><h2>Your first capture starts here</h2><p>Finished recordings will appear in this library.</p></div>
+    <div id="library-grid" class="library-grid"></div>
+  </section>
+  <section data-panel="settings" hidden>
+    <div class="heading"><div><p class="eyebrow">MAKE IT YOURS</p><h1>Settings</h1><p>Choose quality and composition before recording.</p></div></div>
+    <div class="settings-grid">
+      <section class="card"><h2>Video</h2>
+        <label class="field" for="quality">Maximum resolution<select id="quality"><option value="native">Original</option><option value="1080" selected>1080p</option><option value="720">720p</option></select></label>
+        <label class="field" for="frameRate">Frames per second<select id="frameRate"><option value="30">30 fps</option><option value="60">60 fps</option></select></label>
+        <p class="help">Quality depends on your device and selected source.</p>
+      </section>
+      <section class="card"><h2>Camera overlay</h2>
+        <label class="field" for="cameraPosition">Position<select id="cameraPosition"><option value="bottom-right">Bottom right</option><option value="bottom-left">Bottom left</option><option value="top-right">Top right</option><option value="top-left">Top left</option></select></label>
+        <label class="field" for="cameraShape">Shape<select id="cameraShape"><option value="circle">Circle</option><option value="rectangle">Rectangle</option></select></label>
+        <label class="field" for="cameraSize">Size<select id="cameraSize"><option value="small">Small</option><option value="medium" selected>Medium</option><option value="large">Large</option></select></label>
+      </section>
+      <section class="card"><h2>Recording volume</h2>
+        <label class="field" for="micGain">Microphone<input id="micGain" type="range" min="0" max="2" step="0.05" value="1"></label>
+        <label class="field" for="systemGain">System audio<input id="systemGain" type="range" min="0" max="2" step="0.05" value="1"></label>
+        <p class="help">The center keeps the original volume. Higher values may distort audio.</p>
+      </section>
+      <section class="card"><h2>System audio on Linux</h2>
+        <p class="help">From the CaptureFox project folder, enable the virtual input before recording. Then select CaptureFox_System_Audio.</p>
+        <pre><code>python3 tools/audio-bridge.py start</code></pre>
+        <p class="help">Disable the virtual input when finished:</p>
+        <pre><code>python3 tools/audio-bridge.py stop</code></pre>
+      </section>
+    </div>
+  </section>
+</main>
+<dialog id="player-dialog"><div class="dialog-heading"><h2 id="playback-title">Recording</h2><button id="closePlayer" aria-label="Close playback">Close</button></div><video id="playback" controls playsinline></video></dialog>
+</body>
+</html>

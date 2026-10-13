@@ -19,7 +19,18 @@
 
 ---
 
-**⚠️ WARNING:** Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
+### ⚠️ WARNING
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Probado en Ubuntu 24.04/26.04 LTS. El uso en otras versiones o distribuciones queda bajo responsabilidad de quien lo instale.
+    </td>
+  </tr>
+</table>
 
 | CPU | NIC | RAM | Storage |
 | :---: | :---: | :---: | :---: |
@@ -290,7 +301,7 @@ Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/et
      MAC list files use pydhcp's own entry format: <code>a;MAC;IP;HOSTNAME;</code>. The leading <code>a</code> marks an active entry — <code>iptables.sh</code> only reads lines starting with <code>a;</code> and a non-empty MAC field; anything else (including a different leading character or a commented-out <code>#a;...</code> line) is ignored.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Los archivos de listas MAC usan el mismo formato de entrada que pydhcp: <code>a;MAC;IP;HOSTNAME;</code>. La `a` inicial marca una entrada activa — <code>iptables.sh</code> sólo lee líneas que empiecen con <code>a;</code> y tengan el campo MAC no vacío; cualquier otra cosa (incluido un carácter inicial distinto o una línea comentada <code>#a;...</code>) se ignora.
+     Los archivos de listas MAC usan el mismo formato de entrada que pydhcp: <code>a;MAC;IP;HOSTNAME;</code>. La <code>a</code> inicial marca una entrada activa — <code>iptables.sh</code> sólo lee líneas que empiecen con <code>a;</code> y tengan el campo MAC no vacío; cualquier otra cosa (incluido un carácter inicial distinto o una línea comentada <code>#a;...</code>) se ignora.
     </td>
   </tr>
 </table>

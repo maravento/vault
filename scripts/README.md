@@ -33,7 +33,18 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 
 #### Requirements
 
-**⚠️ WARNING:** Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
+##### ⚠️ WARNING
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Probado en Ubuntu 24.04/26.04 LTS. El uso en otras versiones o distribuciones queda bajo responsabilidad de quien lo instale.
+    </td>
+  </tr>
+</table>
 
 #### AI
 

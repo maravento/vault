@@ -1,0 +1,7 @@
+node_modules/
+test-dependencies/
+__pycache__/
+*.py[cod]
+*.xpi
+*.wav
+*.webm
