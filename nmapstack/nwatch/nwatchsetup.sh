@@ -389,8 +389,14 @@ do_install() {
     chmod -R 755 "$nwatch_web"
     chown -R www-data:www-data "$nwatch_web"
 
+    if ! install -m 644 -o root -g root "$tools_dir/nwatchenv.sh" "$nwatch_tools/nwatchenv.sh"; then
+        log "ERROR: cannot deploy nwatchenv.sh -- abort"
+        exit 1
+    fi
+
     cp -f "$tools_dir"/*.sh "$nwatch_tools/"
     chmod +x "$nwatch_tools"/*.sh
+    chmod 644 "$nwatch_tools/nwatchenv.sh"
 
     init_schema
     chown -R www-data:www-data "$nwatch_data"
@@ -431,7 +437,7 @@ PMODE
     # normal operation.
     #
     # Values are bare, without quotes: that is the only form the shared
-    # load_conf parser accepts, and a bare value never needs escaping.
+    # configuration reader accepts, and a bare value never needs escaping.
     cat > "$nwatch_env" <<ENV
 LAN_IFACES=$ifaces_answer
 MGMT_IFACE=$mgmt_answer
@@ -503,8 +509,15 @@ do_update() {
     done
     chown -R www-data:www-data "$nwatch_web"
 
+    if ! install -m 644 -o root -g root "$tools_dir/nwatchenv.sh" "$nwatch_tools/nwatchenv.sh"; then
+        log "ERROR: cannot deploy nwatchenv.sh -- abort"
+        exit 1
+    fi
+    log "INFO: updated nwatchenv.sh"
+
     for f in "$tools_dir"/*.sh; do
         [ -f "$f" ] || continue
+        [ "$(basename "$f")" = nwatchenv.sh ] && continue
         fname="$(basename "$f")"
         cp -f "$f" "$nwatch_tools/$fname"
         chmod +x "$nwatch_tools/$fname"

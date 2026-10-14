@@ -1046,7 +1046,7 @@ squid -z
 cp -f /etc/logrotate.d/squid{,.bak} &>/dev/null || true
 sed -i '/sharedscripts/a \    create 0644 proxy proxy' /etc/logrotate.d/squid
 sed -i 's/rotate 2/rotate 7/' /etc/logrotate.d/squid
-sed -i 's/^	daily$/	monthly/' /etc/logrotate.d/squid
+sed -i -E 's/^	(daily|monthly)$/	weekly/' /etc/logrotate.d/squid
 # Let's Encrypt certificate for client to Squid proxy encryption (Optional)
 #nala install -y certbot python3-certbot-apache
 
@@ -1537,7 +1537,7 @@ sed -i "s_\(#LogLevel info ssl:warn\)_\1\n\tLogLevel warn_" /etc/apache2/sites-a
 # on its own, and mod_headers is enabled above. This is the only directive
 # worth injecting here: everything else apache2 already ships enabled, or it
 # only reorders DirectoryIndex.
-grep -qF 'RequestHeader unset Proxy early' /etc/apache2/sites-available/000-default.conf \
+grep -qE '^[[:space:]]*RequestHeader unset Proxy early[[:space:]]*$' /etc/apache2/sites-available/000-default.conf \
     || sed -i '0,/DocumentRoot/s|^\([[:space:]]*DocumentRoot.*\)|\1\n\n\tRequestHeader unset Proxy early|' \
        /etc/apache2/sites-available/000-default.conf
 log "INFO: OK"

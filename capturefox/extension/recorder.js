@@ -1,5 +1,7 @@
-export function recordingMime(Recorder = MediaRecorder) {
-  return ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+export function recordingMime(Recorder = MediaRecorder, audio = true) {
+  return (audio
+    ? ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+    : ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'])
     .find(type => Recorder.isTypeSupported(type)) || '';
 }
 
@@ -94,7 +96,7 @@ export class CaptureSession extends EventTarget {
         audioTracks.push(...this.destination.stream.getAudioTracks());
       }
       this.output = this.makeStream([videoTrack, ...audioTracks]);
-      const mimeType = recordingMime(this.Recorder);
+      const mimeType = recordingMime(this.Recorder, audioTracks.length > 0);
       this.recorder = new this.Recorder(this.output, {
         ...(mimeType ? { mimeType } : {}), videoBitsPerSecond: options.fps === 60 ? 8000000 : 5000000
       });

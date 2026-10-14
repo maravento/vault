@@ -108,7 +108,6 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 #### System, Hardware & Monitoring
 
 - [Crypto Notify (Top 5)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cryptonotify.sh)
-- [Force Logrotate](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/logrotate.sh)
 - [Hardware Clock Sync](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/hwclock.sh)
 - [Kill Process By Name](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/pskill.sh)
 - [Kworker Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/kworker.sh)

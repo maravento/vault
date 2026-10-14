@@ -28,6 +28,7 @@ nmapstack/
 │   ├── nwatchsetup.sh         # Installer: --install|--update|--uninstall|--status
 │   │
 │   ├── tools/               # Background daemons for LAN/port scanning
+│   │   ├── nwatchenv.sh       # Shared Bash configuration reader (sourced, not executed)
 │   │   ├── nwatchlan.sh       # LAN discovery daemon (arp-scan)
 │   │   └── nwatchports.sh     # Port auditing daemon (ss / nmap) + mode CLI
 │   │
@@ -368,6 +369,19 @@ sudo ./nreport.sh
   </tr>
 </table>
 
+#### nwatchenv.sh
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Shared Bash reader installed at <code>/var/www/nwatch/tools/nwatchenv.sh</code> (root:root, 644). <code>nwatchlan.sh</code> and <code>nwatchports.sh</code> load it with <code>source</code> and pass their allowed keys. It reads <code>/etc/nwatch/nwatch.env</code> without executing its contents. File permissions, key validation and fallbacks remain in each daemon. <code>nwatchsetup.sh</code> deploys the reader before the daemon scripts during installation and update. Deployment failure aborts the operation. Do not run the reader separately or schedule it in cron.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Lector Bash compartido instalado en <code>/var/www/nwatch/tools/nwatchenv.sh</code> (root:root, 644). <code>nwatchlan.sh</code> y <code>nwatchports.sh</code> lo cargan mediante <code>source</code> y pasan sus claves permitidas. Lee <code>/etc/nwatch/nwatch.env</code> sin ejecutar su contenido. Los permisos, la validación de claves y los fallbacks permanecen en cada demonio. <code>nwatchsetup.sh</code> despliega el lector antes de los scripts durante la instalación y la actualización. Un fallo de despliegue aborta la operación. No se ejecuta el lector por separado ni se programa en cron.
+    </td>
+  </tr>
+</table>
+
 #### Daemon Configuration
 
 <table width="100%">
@@ -516,6 +530,7 @@ sudo bash nwatchsetup.sh --uninstall
 | `web/nwatch.conf` | ⛔ not touched (user-customized) | ✅ removed |
 | `web/index.php`, `lan.html`, `ports.html`, `nwatchapi.php` | ✅ overwritten | ✅ removed |
 | `tools/nwatchlan.sh`, `tools/nwatchports.sh` | ✅ overwritten (daemons restarted) | ✅ removed (daemons stopped) |
+| `tools/nwatchenv.sh` | ✅ overwritten (root:root, 644) | ✅ removed |
 | `/etc/nwatch/nwatch.env` | ⛔ preserved | ✅ removed |
 | `/var/www/nwatch/data/nwatch.db`, `ports_mode.conf`, `port_scan_status.conf` | ⛔ preserved | ✅ removed |
 
@@ -714,6 +729,7 @@ sudo /var/www/nwatch/tools/nwatchports.sh list
       <ul>
         <li>May include third-party components.</li>
         <li>Does not accept Pull Requests. Changes must be proposed via Issues.</li>
+        <li>This project does not support backward compatibility. New versions may require configuration changes or reinstallation.</li>
       </ul>
     </td>
     <td style="width: 50%; vertical-align: top;">
@@ -721,6 +737,7 @@ sudo /var/www/nwatch/tools/nwatchports.sh list
       <ul>
         <li>Puede incluir componentes de terceros.</li>
         <li>No acepta Pull Requests. Los cambios deben proponerse mediante Issues.</li>
+        <li>Este proyecto no soporta retrocompatibilidad. Las nuevas versiones pueden requerir cambios de configuración o una reinstalación.</li>
       </ul>
     </td>
   </tr>

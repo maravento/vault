@@ -5,7 +5,7 @@ const { JSDOM } = await testDependency('jsdom');
 const { indexedDB, IDBKeyRange } = await testDependency('fake-indexeddb');
 const root = new URL('../extension/', import.meta.url);
 const dom = new JSDOM(await readFile(new URL('index.html', root), 'utf8'), { url:'https://capturefox.invalid/' });
-Object.assign(globalThis, { document:dom.window.document, window:dom.window, indexedDB, IDBKeyRange });
+Object.assign(globalThis, { document:dom.window.document, window:dom.window, location:dom.window.location, indexedDB, IDBKeyRange });
 Object.defineProperty(globalThis, 'navigator', { value: {
   mediaDevices: { enumerateDevices:async () => [
     { kind:'audioinput', deviceId:'mic', label:'Microphone' },

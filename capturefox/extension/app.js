@@ -76,7 +76,8 @@ async function library() {
       }],
       ['Download', async () => {
         const original = await store.getBlob(row.id);
-        const result = await makeSeekable(original, row.durationMs);
+        const result = row.durationMs > 0
+          ? await makeSeekable(original, row.durationMs) : { blob: original };
         const url = URL.createObjectURL(result.blob);
         const anchor = document.createElement('a'); anchor.href = url;
         anchor.download = `CaptureFox-${new Date(row.createdAt).toISOString().replace(/[:.]/g,'-')}.webm`;
@@ -129,6 +130,8 @@ document.querySelectorAll('[data-view]').forEach(button => button.addEventListen
     item.setAttribute('aria-selected', String(item === button));
   });
 }));
+[...document.querySelectorAll('[data-view]')]
+  .find(button => button.dataset.view === location.hash.slice(1))?.click();
 async function initialize() {
   await store.open();
   const recovered = await store.recoverInterrupted();

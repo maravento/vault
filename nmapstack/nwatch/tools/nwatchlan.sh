@@ -82,30 +82,11 @@ unset env_owner env_perms
 
 # LOAD_CONF
 # Read known key=value pairs from a config file, without sourcing it
-load_conf() {
-    local conf_file="$1" env_key env_value env_line
-    [[ ! -f "$conf_file" ]] && { log "WARNING: $conf_file not found -- fallback"; return 1; }
-    while IFS= read -r env_line || [[ -n "$env_line" ]]; do
-        [[ "$env_line" =~ ^[[:space:]]*[#] ]] && continue
-        [[ "$env_line" =~ ^[[:space:]]*$ ]] && continue
-        env_key="${env_line%%=*}"
-        env_value="${env_line#*=}"
-        if [[ ! "$env_line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] \
-           || [[ "$env_value" == [[:space:]\"\']* ]] \
-           || [[ "$env_value" == *[[:space:]\"\'] ]]; then
-            log "ERROR: malformed line in $(basename "$conf_file"): '$env_line' -- abort"
-            exit 1
-        fi
-        case "$env_key" in
-            LAN_IFACES|LAN_POLL_INTERVAL|LAN_OFFLINE_GRACE)
-                printf -v "$env_key" '%s' "$env_value"
-                ;;
-        esac
-    done < "$conf_file"
-}
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/nwatchenv.sh"
+env_keys='LAN_IFACES LAN_POLL_INTERVAL LAN_OFFLINE_GRACE'
 
 # LOAD
-load_conf "$nwatch_env" || true
+load_nwatch_env "$nwatch_env" "$env_keys" || true
 
 # KEY CHECK
 # Collect every failure first, then decide -- a single abort reports them all

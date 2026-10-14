@@ -17,21 +17,6 @@
 
 ![capturefox](https://raw.githubusercontent.com/maravento/vault/master/capturefox/img/capturefox.png)
 
-## BETA STATUS
-
----
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      CaptureFox is a beta project within <b>vault</b>. Several security audits are pending before it can be considered for stable distribution. Use temporary loading in Firefox for testing during this stage. Licensing is managed by vault; see the <a href="../README.md">vault documentation</a>.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      CaptureFox es un proyecto beta dentro de <b>vault</b>. Quedan pendientes varias auditorías de seguridad antes de considerar su distribución estable. Durante esta etapa, utiliza la carga temporal en Firefox para realizar pruebas. Las licencias las gestiona vault; consulta la <a href="../README.md">documentación de vault</a>.
-    </td>
-  </tr>
-</table>
-
 ## FEATURES
 
 ---
@@ -87,20 +72,21 @@
 
 ### Load temporarily in Firefox
 
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      <ol><li>Download the vault repository ZIP from GitHub using <b>Code → Download ZIP</b> and extract it.</li><li>Locate the <code>capturefox/</code> folder inside the extracted repository.</li><li>Open <code>about:debugging#/runtime/this-firefox</code> in Firefox.</li><li>Click <b>Load Temporary Add-on</b> and select <code>capturefox/extension/manifest.json</code> from the extracted repository.</li><li>Open CaptureFox from the extensions menu or its toolbar icon.</li></ol>
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      <ol><li>Descarga el ZIP del repositorio vault desde GitHub mediante <b>Code → Download ZIP</b> y extráelo.</li><li>Localiza la carpeta <code>capturefox/</code> dentro del repositorio extraído.</li><li>Abre <code>about:debugging#/runtime/this-firefox</code> en Firefox.</li><li>Pulsa <b>Cargar complemento temporal</b> y selecciona <code>capturefox/extension/manifest.json</code> dentro del repositorio extraído.</li><li>Abre CaptureFox desde el menú de extensiones o su icono en la barra de herramientas.</li></ol>
-    </td>
-  </tr>
-</table>
+| Step | Action | Acción |
+|---|---|---|
+| 1 | Open the [vault repository](https://github.com/maravento/vault) on GitHub. | Abre el [repositorio vault](https://github.com/maravento/vault) en GitHub. |
+| 2 | Click **Code → Download ZIP**. | Pulsa **Code → Download ZIP**. |
+| 3 | Extract the downloaded ZIP. | Extrae el ZIP descargado. |
+| 4 | Choose one file: `capturefox/extension/manifest.json` or `capturefox/capturefox-0.1.1.xpi` inside the extracted folder. | Elige un archivo: `capturefox/extension/manifest.json` o `capturefox/capturefox-0.1.1.xpi` dentro de la carpeta extraída. |
+| 5 | Open Firefox. | Abre Firefox. |
+| 6 | Enter `about:debugging#/runtime/this-firefox` in the address bar and press **Enter**. | Escribe `about:debugging#/runtime/this-firefox` en la barra de direcciones y pulsa **Enter**. |
+| 7 | Click **Load Temporary Add-on**. | Pulsa **Cargar complemento temporal**. |
+| 8 | Select the file chosen in step 4 and open it. Both `manifest.json` and the XPI can be loaded temporarily. Do not extract the XPI. | Selecciona el archivo elegido en el paso 4 y ábrelo. Tanto `manifest.json` como el XPI se pueden cargar temporalmente. No extraigas el XPI. |
+| 9 | Open the Firefox extensions menu and select **CaptureFox**. | Abre el menú de extensiones de Firefox y selecciona **CaptureFox**. |
 
-> The temporary add-on is removed when Firefox closes. Load it again for the next test session. The unsigned XPI is not a permanent installer for standard Firefox.
+> Both options are temporary. Firefox removes the add-on when it closes. Repeat steps 5–9 to load it again. The unsigned XPI cannot be installed permanently in standard Firefox.
 >
-> El complemento temporal se elimina al cerrar Firefox. Cárgalo otra vez en la siguiente sesión de pruebas. El XPI sin firmar no es un instalador permanente para Firefox normal.
+> Ambas opciones son temporales. Firefox elimina el complemento al cerrarse. Repite los pasos 5–9 para cargarlo nuevamente. El XPI sin firmar no se puede instalar permanentemente en Firefox normal.
 
 ### Reload or remove the temporary add-on
 
@@ -115,15 +101,53 @@
   </tr>
 </table>
 
+### Default settings
+
+| Setting | Default | Valor inicial |
+|---|---|---|
+| What to record | Screen | Screen |
+| Audio | Microphone | Microphone |
+| Microphone | First input reported by Firefox | Primera entrada que informa Firefox |
+| Camera | First camera reported by Firefox | Primera cámara que informa Firefox |
+| System audio input | Empty | Vacío |
+| Quality | 1080p | 1080p |
+| Frames per second | 30 fps | 30 fps |
+
+> With these values the extension records the screen and the microphone. It needs no helper, no terminal and no external package.
+>
+> Con estos valores la extensión graba la pantalla y el micrófono. No necesita ayudante, ni terminal, ni paquete externo.
+
+### System audio limitation
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Firefox exposes no interface for internal audio. <code>getDisplayMedia</code> returns video only, and the <code>desktopCapture</code> and <code>tabCapture</code> extension APIs do not exist in Firefox. Chrome recorders capture internal audio because Chrome does provide those interfaces.<br><br>CaptureFox works around this on Linux. The helper <code>tools/audio-bridge.py</code> creates a virtual input named <code>CaptureFox_System_Audio</code>. Firefox reads that input as one more microphone, so the extension never calls the helper and never talks to Python.<br><br>System audio is therefore an optional extra. The other four combinations of mode and audio work without it.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Firefox no expone ninguna interfaz para el audio interno. <code>getDisplayMedia</code> devuelve solo vídeo, y las API de extensión <code>desktopCapture</code> y <code>tabCapture</code> no existen en Firefox. Los grabadores de Chrome capturan audio interno porque Chrome sí ofrece esas interfaces.<br><br>CaptureFox lo resuelve en Linux por otra vía. El ayudante <code>tools/audio-bridge.py</code> crea una entrada virtual llamada <code>CaptureFox_System_Audio</code>. Firefox lee esa entrada como un micrófono más, así que la extensión nunca llama al ayudante ni habla con Python.<br><br>El audio del sistema es por eso un extra opcional. Las otras cuatro combinaciones de modo y audio funcionan sin él.
+    </td>
+  </tr>
+</table>
+
+| Mode | Audio | Helper required | Ayudante necesario |
+|---|---|---|---|
+| Screen | No audio | No | No |
+| Screen | Microphone | No | No |
+| Camera | Microphone | No | No |
+| Screen and camera | Microphone | No | No |
+| Any | System audio | Yes | Sí |
+| Any | Microphone and system audio | Yes | Sí |
+
 ### Enable system audio
 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Open a terminal in the extracted repository’s <code>capturefox/</code> folder. Run the following command to enable the Linux virtual input.
+      Follow these steps only to record internal audio. Open a terminal in the extracted repository’s <code>capturefox/</code> folder. Run the following command to enable the Linux virtual input. It requires <code>python3</code> and PipeWire or PulseAudio.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Abre una terminal en la carpeta <code>capturefox/</code> del repositorio extraído. Ejecuta el siguiente comando para activar la entrada virtual de Linux.
+      Sigue estos pasos solo para grabar audio interno. Abre una terminal en la carpeta <code>capturefox/</code> del repositorio extraído. Ejecuta el siguiente comando para activar la entrada virtual de Linux. Requiere <code>python3</code> y PipeWire o PulseAudio.
     </td>
   </tr>
 </table>
@@ -206,6 +230,7 @@ python3 tools/audio-bridge.py status --json
 | WebM metadata | Downloads add duration when safe. They do not add Cues or guarantee precise seeking in every player. | La descarga añade duración cuando es seguro. No añade índices Cues ni garantiza búsqueda precisa en todos los reproductores. |
 | Camera overlay | Canvas and timers may be affected by background tab throttling. | Las restricciones de pestañas en segundo plano pueden reducir la frecuencia de canvas y temporizadores. |
 | Tab audio | Direct Chrome-style tab audio capture is not provided. | No se ofrece captura directa de audio de pestaña equivalente a Chrome. |
+| System audio | Firefox provides no interface for internal audio. On Linux it requires the virtual input created by `tools/audio-bridge.py`. | Firefox no ofrece ninguna interfaz para el audio interno. En Linux requiere la entrada virtual que crea `tools/audio-bridge.py`. |
 
 ## DEVELOPMENT
 
@@ -302,6 +327,7 @@ python3 tools/build.py
       <ul>
         <li>May include third-party components.</li>
         <li>Does not accept Pull Requests. Changes must be proposed via Issues.</li>
+        <li>This project does not support backward compatibility. New versions may require configuration changes or reinstallation.</li>
       </ul>
     </td>
     <td style="width: 50%; vertical-align: top;">
@@ -309,6 +335,7 @@ python3 tools/build.py
       <ul>
         <li>Puede incluir componentes de terceros.</li>
         <li>No acepta Pull Requests. Los cambios deben proponerse mediante Issues.</li>
+        <li>Este proyecto no soporta retrocompatibilidad. Las nuevas versiones pueden requerir cambios de configuración o una reinstalación.</li>
       </ul>
     </td>
   </tr>
