@@ -56,7 +56,7 @@ nmapstack/
 
 | File |  OS  | Size |
 | :--: | :--: | :--: |
-| [nscan.exe (.zip)](https://mega.nz/file/3M0jiCJZ#mjpJLQyi1kKmx7M9R6FiUBGV9Z9NajebQIcYCc7tk08) | Windows 10/11 x64 | 44.4 MB |
+| [nscan.exe (.zip)](https://mega.nz/file/DAFXVCTD#fTY5jxPvqSxA_Gsb0wKqQn8P5i2nr_sh55pRkrgN7w4) | Windows 10/11 x64 | 44.8 MB |
 
 #### Package Contents
 

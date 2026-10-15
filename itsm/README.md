@@ -53,7 +53,7 @@
 
 | File | OS | Size |
 | :---: | :---: | :---: |
-| [itsm.exe (.zip)](https://mega.nz/file/SJ0DzLSZ#kDRYpVEOwACvcumPxMEUvBccYY3YdI97NX6xs6VFD10) | Windows 10/11 x64 | 167,7 MB |
+| [itsm.exe (.zip)](https://mega.nz/file/3ENlwDRI#3uK57yAS3BvpvFqwHrpzLTYpToYIct1ehnSt5W_hn1A) | Windows 10/11 x64 | 183,4 MB |
 
 ## SUPPORTED VERSIONS
 
@@ -72,7 +72,7 @@
 
 ### Web-based ITSM solutions
 
-- [glpi-11.x](https://glpi-project.org/downloads/)
+- [glpi-12.x](https://glpi-project.org/downloads/)
 - [iTop-3.x.x](https://sourceforge.net/projects/itop/files/itop/)
 
 ### Stacks
@@ -84,7 +84,7 @@
 ### Dependencies (Included)
 
 - [Microsoft Visual C++ Redistributable Runtimes](https://github.com/abbodi1406/vcredist)
-- [graphviz v14 x64](https://graphviz.org/download/)
+- [graphviz v16.x x64](https://graphviz.org/download/)
 - [apcu v8.3 x64 ts](https://github.com/krakjoe/apcu)
 
 ### Prerequisites
