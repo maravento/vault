@@ -153,7 +153,7 @@
 </table>
 
 ```bash
-python3 tools/audio-bridge.py start
+python3 tools/audio-bridge.py --start
 ```
 
 ### Record microphone and system audio
@@ -183,7 +183,7 @@ python3 tools/audio-bridge.py start
 </table>
 
 ```bash
-python3 tools/audio-bridge.py stop
+python3 tools/audio-bridge.py --stop
 ```
 
 ### Check system audio status
@@ -200,7 +200,7 @@ python3 tools/audio-bridge.py stop
 </table>
 
 ```bash
-python3 tools/audio-bridge.py status --json
+python3 tools/audio-bridge.py --status --json
 ```
 
 ### Output devices and runtime state

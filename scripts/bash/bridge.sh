@@ -5,42 +5,61 @@
 #
 # Network Bridge Manager Script
 #
-# USAGE: sudo ./bridge.sh [on|off|status|clean]
+# DESCRIPTION: Detects the active Ethernet interface and turns it into a
+# NetworkManager bridge, so a virtual machine can reach the LAN directly.
+# Waits for DHCP on the bridge, and restores the original connection on off.
+#
+# USAGE: sudo ./bridge.sh [--on|--off|--status|--clean]
 #
 ################################################################################
 
 set -uo pipefail
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
 # dependencies
 for dep in iproute2 bridge-utils util-linux network-manager; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
 
+# ------------------------------------------------------------------------------
 # VARIABLES
+# ------------------------------------------------------------------------------
+
+# Declare the configuration values used by this script
 BRIDGE_NAME="br0"
 BRIDGE_SLAVE="${BRIDGE_NAME}-slave"
 INTERFACE=""
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
 
 detect_ethernet_interface() {
     local wifi_interfaces
@@ -153,7 +172,7 @@ show_final_status() {
 }
 
 cleanup_all_connections() {
-    echo "Cleaning up all bridge connections..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Cleaning up all bridge connections..."
     nmcli connection delete "$BRIDGE_SLAVE" 2>/dev/null || true
     nmcli connection delete "$BRIDGE_NAME" 2>/dev/null || true
     ip link set dev "$BRIDGE_NAME" down 2>/dev/null || true
@@ -166,7 +185,7 @@ cleanup_all_connections() {
 }
 
 create_bridge_connection() {
-    echo "Creating bridge configuration..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Creating bridge configuration..."
     local original_conn
     original_conn=$(get_original_connection_name "$INTERFACE")
     [ -n "$original_conn" ] && echo "Original connection detected: $original_conn"
@@ -192,7 +211,7 @@ create_bridge_connection() {
 }
 
 force_interface_to_bridge() {
-    echo "Forcing link of $INTERFACE to $BRIDGE_NAME..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Forcing link of $INTERFACE to $BRIDGE_NAME..."
 
     ip link set dev "$INTERFACE" down 2>/dev/null || true
     sleep 1
@@ -202,7 +221,7 @@ force_interface_to_bridge() {
     sleep 2
 
     if ! bridge link show dev "$INTERFACE" 2>/dev/null | grep -q "$BRIDGE_NAME"; then
-        echo "Retrying link..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') Retrying link..."
         ip link set dev "$INTERFACE" nomaster 2>/dev/null || true
         sleep 1
         ip link set dev "$INTERFACE" master "$BRIDGE_NAME" 2>/dev/null || true
@@ -211,7 +230,7 @@ force_interface_to_bridge() {
 }
 
 activate_bridge() {
-    echo "Activating bridge..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Activating bridge..."
 
     ip link set dev "$INTERFACE" down 2>/dev/null || true
     ip addr flush dev "$INTERFACE" 2>/dev/null || true
@@ -226,7 +245,7 @@ activate_bridge() {
         sleep 2
     fi
 
-    echo "Activating bridge first..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Activating bridge first..."
     if ! nmcli connection up "$BRIDGE_NAME" 2>&1; then
         echo "Error activating bridge"
         return 1
@@ -235,9 +254,9 @@ activate_bridge() {
 
     force_interface_to_bridge
 
-    echo "Activating slave..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Activating slave..."
     if ! nmcli connection up "$BRIDGE_SLAVE" 2>&1; then
-        echo "Problem activating slave, but continuing..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') Problem activating slave, but continuing..."
     fi
     sleep 3
 
@@ -251,7 +270,7 @@ activate_bridge() {
 }
 
 wait_for_dhcp() {
-    echo "Waiting for DHCP configuration..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Waiting for DHCP configuration..."
     local max_attempts=6
     local attempt=0
 
@@ -262,10 +281,10 @@ wait_for_dhcp() {
         fi
 
         attempt=$((attempt + 1))
-        echo "Attempt $attempt/$max_attempts..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') Attempt $attempt/$max_attempts..."
 
         if [ $((attempt % 2)) -eq 0 ]; then
-            echo "Forcing DHCP renewal..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') Forcing DHCP renewal..."
             nmcli device reapply "$BRIDGE_NAME" 2>/dev/null || true
         fi
 
@@ -277,7 +296,7 @@ wait_for_dhcp() {
 }
 
 restore_normal_network() {
-    echo "Restoring normal network configuration..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Restoring normal network configuration..."
     nmcli connection down "$BRIDGE_SLAVE" 2>/dev/null || true
     nmcli connection down "$BRIDGE_NAME" 2>/dev/null || true
     sleep 2
@@ -306,20 +325,27 @@ restore_normal_network() {
     echo "Normal configuration restored"
 }
 
+# ------------------------------------------------------------------------------
+# ACTIONS
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') bridge start..."
+
 # Main
 case "${1:-}" in
-    on)
-        echo "Scanning for active Ethernet interface..."
+    --on)
+        echo "$(date '+%Y-%m-%d %H:%M:%S') Scanning for active Ethernet interface..."
         INTERFACE=$(detect_ethernet_interface) || exit 1
         echo "Found active Ethernet interface: $INTERFACE"
 
         if bridge_exists; then
             echo "Bridge $BRIDGE_NAME is already active or exists"
-            echo "Use '$0 off' to deactivate it first"
+            echo "Use '$0 --off' to deactivate it first"
             exit 1
         fi
 
-        echo "Activating bridge ${BRIDGE_NAME} on ${INTERFACE}..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') Activating bridge ${BRIDGE_NAME} on ${INTERFACE}..."
         cleanup_all_connections
 
         if ! create_bridge_connection; then
@@ -338,19 +364,19 @@ case "${1:-}" in
         show_final_status
         ;;
 
-    off)
+    --off)
         INTERFACE=$(get_ethernet_interface_for_status)
         if ! bridge_exists; then
             echo "Bridge $BRIDGE_NAME is not active, nothing to do"
             exit 0
         fi
-        echo "Deactivating bridge and restoring normal configuration..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') Deactivating bridge and restoring normal configuration..."
         cleanup_all_connections
         restore_normal_network
         show_restored_status
         ;;
 
-    status)
+    --status)
         INTERFACE=$(get_ethernet_interface_for_status)
         echo "=== CONNECTION STATUS ==="
         nmcli connection show | grep -E "(${BRIDGE_NAME}|${BRIDGE_SLAVE})" \
@@ -381,15 +407,15 @@ case "${1:-}" in
         fi
         ;;
 
-    clean)
+    --clean)
         INTERFACE=$(get_ethernet_interface_for_status)
-        echo "Complete cleanup of bridge connections..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') Complete cleanup of bridge connections..."
         cleanup_all_connections
         echo "Cleanup completed"
         ;;
 
     *)
-        echo "Usage: sudo $0 [on|off|status|clean]"
+        echo "Usage: sudo $0 [--on|--off|--status|--clean]"
         echo ""
         echo "Options:"
         echo "on - Activate bridge ${BRIDGE_NAME}"
@@ -399,5 +425,12 @@ case "${1:-}" in
         exit 1
         ;;
 esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') bridge done at: $(date '+%Y-%m-%d %H:%M:%S')"
 
 exit 0

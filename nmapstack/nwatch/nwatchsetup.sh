@@ -5,9 +5,6 @@
 #
 # nwatch - LAN device inventory & watched ports dashboard
 #
-# DESCRIPTION:
-# Installs the nwatch web dashboard and its two daemons. Requires root.
-#
 # USAGE:
 # sudo bash nwatchsetup.sh --install
 # sudo bash nwatchsetup.sh --update
@@ -23,16 +20,44 @@
 
 set -uo pipefail
 
-# PATHS
-script_dir="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
+# root check
+if [ "$(id -u)" != "0" ]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
+    exit 1
+fi
+
+# prevent overlapping runs
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
+exec 200>"$script_lock"
+if ! flock -n 200; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
+    exit 1
+fi
 
 # logging
+script_dir="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
 log_file="$script_dir/nwatchsetup.log"
 { > "$log_file"; } 2>/dev/null || true
 log() {
-    local msg="$1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+    local msg="$(date '+%Y-%m-%d %H:%M:%S') $1"
+    echo "$msg" >> "$log_file" 2>/dev/null || true
+    if [[ "$1" == ERROR:* ]]; then echo "$msg" >&2; else echo "$msg"; fi
 }
+touch "$log_file"
+chmod 640 "$log_file"
+chown root:root "$log_file"
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
 
 # conflicting packages
 check_conflicts() {
@@ -45,9 +70,9 @@ check_conflicts() {
     done
     if [ "${#found[@]}" -gt 0 ]; then
         for dep_pkg in "${found[@]}"; do
-            log "ERROR: conflicting $role package: $dep_pkg"
+            log "WARNING: conflicting $role: $dep_pkg -alert"
         done
-        log "ERROR: remove them with apt purge -- abort"
+        log "ERROR: remove them with apt purge -abort"
         exit 1
     fi
 }
@@ -57,29 +82,14 @@ check_port() {
     local proto="$1" port="$2" role="$3"
     if [ -n "$(ss -lnH "-${proto,,}" "sport = :$port" 2>/dev/null)" ]; then
         log "ERROR: ${proto^^} port $port in use by another $role"
-        log "ERROR: stop that service before installing -- abort"
+        log "ERROR: stop that service before installing -abort"
         exit 1
     fi
 }
 
-# root check
-if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root -- abort"
-    exit 1
-fi
-
-touch "$log_file"
-chmod 640 "$log_file"
-chown root:root "$log_file"
-
-# prevent overlapping runs
-script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
-exec 200>"$script_lock"
-if ! flock -n 200; then
-    log "ERROR: script $(basename "$0") is already running -- abort"
-    exit 1
-fi
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
 
 web_dir="$script_dir/web"
 tools_dir="$script_dir/tools"
@@ -99,6 +109,7 @@ ports_mode_file="$nwatch_data/ports_mode.conf"
 vhost_port="3126"
 
 # REPOSITORY STRUCTURE CHECK
+# Check that the required repository files are present
 check_repo() {
     local missing=0
     for dir in "$web_dir" "$tools_dir"; do
@@ -109,7 +120,7 @@ check_repo() {
     done
     if [ "$missing" -eq 1 ]; then
         log "ERROR: repository files not found"
-        log "ERROR: clone it from github.com/maravento/vault -- abort"
+        log "ERROR: clone it from github.com/maravento/vault -abort"
         exit 1
     fi
 }
@@ -118,7 +129,7 @@ check_repo
 # dependencies
 for dep in systemd apache2 libapache2-mod-php php-cli php-sqlite3 arp-scan sqlite3 nmap iproute2 logrotate cron procps coreutils findutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: dependency '$dep' is not installed -- abort"
+        log "ERROR: '$dep' is not installed -abort"
         exit 1
     fi
 done
@@ -146,7 +157,7 @@ list_candidate_interfaces() {
         candidate_addrs+=("$addr")
     done < <(ip -4 addr show scope global | awk '/inet /{print $NF, $2}')
     if [ "${#candidate_names[@]}" -eq 0 ]; then
-        log "ERROR: no physical interface has global IPv4 -- abort"
+        log "ERROR: no physical interface has global IPv4 -abort"
         exit 1
     fi
 }
@@ -177,8 +188,9 @@ select_scan_interfaces() {
         chosen=()
         ok=1
         for idx in "${idxs[@]}"; do
-            if ! [[ "$idx" =~ $UH_UINT ]] || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#candidate_names[@]}" ]; then
-                log "INFO: invalid selection '$idx' -- retry"
+            if ! [[ "$idx" =~ $UH_UINT ]] || [ "${#idx}" -gt 5 ] \
+               || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#candidate_names[@]}" ]; then
+                log "INFO: invalid selection '$idx' -retry"
                 ok=0
                 break
             fi
@@ -213,15 +225,16 @@ compute_network_cidr() {
 # interfaces so the panel is never accidentally exposed over a WAN NIC.
 select_management_interface() {
     echo ""
-    echo "Select the management interface the web panel will trust for access control."
-    echo "This should be your LAN/admin interface -- never select a WAN interface here."
+    echo "Select management interface web panel will trust for access control"
+    echo "This should be your LAN/admin interface -- never select a WAN interface here"
     print_candidate_interfaces
     echo ""
     while true; do
         read -rp "Select management interface number (default: 1): " idx
         idx="${idx:-1}"
-        if ! [[ "$idx" =~ $UH_UINT ]] || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#candidate_names[@]}" ]; then
-            log "INFO: invalid selection -- retry"
+        if ! [[ "$idx" =~ $UH_UINT ]] || [ "${#idx}" -gt 5 ] \
+           || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#candidate_names[@]}" ]; then
+            log "INFO: invalid selection -retry"
             continue
         fi
         mgmt_answer="${candidate_names[$((idx - 1))]}"
@@ -230,7 +243,7 @@ select_management_interface() {
     local ip_with_prefix
     ip_with_prefix=$(ip -4 addr show dev "$mgmt_answer" scope global | sed -n 's/.*inet \([0-9.]\{1,\}\/[0-9]\{1,\}\).*/\1/p' | head -n1)
     if ! [[ "$ip_with_prefix" =~ $UH_CIDR ]]; then
-        log "ERROR: no valid IPv4/CIDR on '$mgmt_answer' -- abort"
+        log "ERROR: no valid IPv4/CIDR on '$mgmt_answer' -abort"
         exit 1
     fi
     net_cidr_value=$(compute_network_cidr "$ip_with_prefix")
@@ -241,6 +254,7 @@ select_management_interface() {
 }
 
 # INITIALIZE DB SCHEMA
+# Create the database tables and indexes
 init_schema() {
     sqlite3 "$db_file" >/dev/null <<'SQL'
 PRAGMA journal_mode=WAL;
@@ -303,28 +317,34 @@ CREATE INDEX IF NOT EXISTS idx_port_events_hostport ON port_events(source, host,
 SQL
 }
 
+# ------------------------------------------------------------------------------
 # INSTALL
+# ------------------------------------------------------------------------------
+
+# Install the project files and configuration
 # CHECK ALREADY INSTALLED
+# Reject installation when project files already exist
 check_already_installed() {
     local installed=0
-    local reasons=""
+    local reasons="" reason
 
     if [ -f "$nwatch_env" ]; then
         installed=1
-        reasons+=" - nwatch.env already exists: $nwatch_env\n"
+        reasons+="nwatch.env already exists\n"
     fi
 
     if [ -f "/etc/apache2/sites-available/nwatch.conf" ]; then
         installed=1
-        reasons+=" - vhost already configured: /etc/apache2/sites-available/nwatch.conf\n"
+        reasons+="nwatch.conf already exists\n"
     fi
 
     if [ "$installed" -eq 1 ]; then
         echo ""
-        printf "%b" "$reasons"
+        while IFS= read -r reason; do
+            [ -n "$reason" ] && log "WARNING: nwatch: $reason -alert"
+        done < <(printf "%b" "$reasons")
         echo ""
-        log "ERROR: nwatch is already installed (see reasons above)"
-        log "ERROR: run: sudo bash nwatchsetup.sh --update -- abort"
+        log "ERROR: nwatch: use --update for this installation -abort"
         exit 1
     fi
 }
@@ -336,11 +356,23 @@ cron_d_set() {
     local cron_file="/etc/cron.d/nwatch"
     local cron_tmp
 
-    cron_tmp=$(mktemp)
-    [ -f "$cron_file" ] && { grep -vF "$match" "$cron_file" > "$cron_tmp" || true; }
-    [ -n "$line" ] && printf '%s\n' "$line" >> "$cron_tmp"
+    cron_tmp=$(mktemp) || return 1
+    if [ -f "$cron_file" ]; then
+        grep -vF "$match" "$cron_file" > "$cron_tmp" || {
+            [ "$?" -eq 1 ] || { rm -f "$cron_tmp"; return 1; }
+        }
+    fi
+    if [ -n "$line" ]; then
+        printf '%s\n' "$line" >> "$cron_tmp" || {
+            rm -f "$cron_tmp"
+            return 1
+        }
+    fi
     if [ -s "$cron_tmp" ]; then
-        install -m 644 -o root -g root "$cron_tmp" "$cron_file"
+        if ! install -m 644 -o root -g root "$cron_tmp" "$cron_file"; then
+            rm -f "$cron_tmp"
+            return 1
+        fi
     else
         rm -f "$cron_file"
     fi
@@ -350,13 +382,11 @@ cron_d_set() {
 # add one @reboot cron entry per daemon, so a failure in one never keeps
 # the other from starting
 add_reboot_cron() {
-    cron_d_set "$nwatch_tools/nwatchlan.sh" "@reboot root $nwatch_tools/nwatchlan.sh start"
-    cron_d_set "$nwatch_tools/nwatchports.sh" "@reboot root $nwatch_tools/nwatchports.sh start"
-    log "INFO: added to cron @reboot"
+    cron_d_set "$nwatch_tools/nwatchlan.sh" "@reboot root $nwatch_tools/nwatchlan.sh --start" || return 1
+    cron_d_set "$nwatch_tools/nwatchports.sh" "@reboot root $nwatch_tools/nwatchports.sh --start" || return 1
 }
 
 do_install() {
-    log "nwatchsetup start (install)..."
 
     check_already_installed
 
@@ -365,7 +395,7 @@ do_install() {
 
     if ! systemctl is-active --quiet apache2; then
         log "ERROR: apache2 is not running"
-        log "ERROR: start it first: systemctl start apache2 -- abort"
+        log "ERROR: start it first: systemctl start apache2 -abort"
         exit 1
     fi
 
@@ -374,7 +404,7 @@ do_install() {
     # The vhost needs mod_php (SetHandler application/x-httpd-php), not PHP-FPM.
     if ! apache2ctl -M 2>/dev/null | grep -qi 'php_module'; then
         log "ERROR: Apache mod_php is not loaded"
-        log "ERROR: run: apt-get install -y libapache2-mod-php -- abort"
+        log "ERROR: run: apt-get install -y libapache2-mod-php -abort"
         exit 1
     fi
 
@@ -385,31 +415,55 @@ do_install() {
 
     mkdir -p "$nwatch_web" "$nwatch_tools" "$nwatch_data" "$nwatch_etc"
 
-    cp -f "$web_dir"/*.php "$web_dir"/*.html "$nwatch_web/"
-    chmod -R 755 "$nwatch_web"
-    chown -R www-data:www-data "$nwatch_web"
-
-    if ! install -m 644 -o root -g root "$tools_dir/nwatchenv.sh" "$nwatch_tools/nwatchenv.sh"; then
-        log "ERROR: cannot deploy nwatchenv.sh -- abort"
+    if ! { cp -f "$web_dir"/*.php "$web_dir"/*.html "$nwatch_web/" \
+        && chmod -R 755 "$nwatch_web" \
+        && chown -R www-data:www-data "$nwatch_web"; }; then
+        log "ERROR: cannot deploy web files -abort"
         exit 1
     fi
 
-    cp -f "$tools_dir"/*.sh "$nwatch_tools/"
-    chmod +x "$nwatch_tools"/*.sh
-    chmod 644 "$nwatch_tools/nwatchenv.sh"
+    if ! install -m 644 -o root -g root "$tools_dir/nwatchenv.sh" "$nwatch_tools/nwatchenv.sh"; then
+        log "ERROR: cannot deploy nwatchenv.sh -abort"
+        exit 1
+    fi
+
+    if ! { cp -f "$tools_dir"/*.sh "$nwatch_tools/" \
+        && chmod +x "$nwatch_tools"/*.sh \
+        && chmod 644 "$nwatch_tools/nwatchenv.sh"; }; then
+        log "ERROR: cannot deploy tools -abort"
+        exit 1
+    fi
 
     init_schema
-    chown -R www-data:www-data "$nwatch_data"
-    chmod 775 "$nwatch_data"
+    if ! chown -R www-data:www-data "$nwatch_data"; then
+        log "ERROR: cannot set nwatch data owner and group -abort"
+        exit 1
+    fi
+    if ! chmod 775 "$nwatch_data"; then
+        log "ERROR: cannot set nwatch data permissions -abort"
+        exit 1
+    fi
     # nwatch.db: root:www-data 640 -- daemons (root) read/write, web reads only.
-    chown root:www-data "$db_file"
-    chmod 640 "$db_file"
+    if ! chown root:www-data "$db_file"; then
+        log "ERROR: cannot set nwatch.db owner and group -abort"
+        exit 1
+    fi
+    if ! chmod 640 "$db_file"; then
+        log "ERROR: cannot set nwatch.db permissions -abort"
+        exit 1
+    fi
 
     # Config dir /etc/nwatch: same model as proxymon's /etc/proxymon --
     # root:www-data 750, holds only read-only config (nwatch.env). The
     # web process must never be the writer of anything under /etc.
-    chown root:www-data "$nwatch_etc"
-    chmod 750 "$nwatch_etc"
+    if ! chown root:www-data "$nwatch_etc"; then
+        log "ERROR: cannot set nwatch config owner and group -abort"
+        exit 1
+    fi
+    if ! chmod 750 "$nwatch_etc"; then
+        log "ERROR: cannot set nwatch config permissions -abort"
+        exit 1
+    fi
 
     # ports_mode.conf: mutable, web-writable state (active watch mode +
     # target IP) -- stays in the data dir, www-data:www-data, same as any
@@ -418,8 +472,14 @@ do_install() {
 PORTS_MODE="server"
 PORTS_TARGET_IP=""
 PMODE
-    chown www-data:www-data "$ports_mode_file"
-    chmod 664 "$ports_mode_file"
+    if ! chown www-data:www-data "$ports_mode_file"; then
+        log "ERROR: cannot set ports_mode.conf owner and group -abort"
+        exit 1
+    fi
+    if ! chmod 664 "$ports_mode_file"; then
+        log "ERROR: cannot set ports_mode.conf permissions -abort"
+        exit 1
+    fi
 
     # apache vhost
     cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
@@ -429,7 +489,10 @@ PMODE
     a2ensite -q nwatch.conf
 
     systemctl daemon-reload
-    systemctl restart apache2
+    systemctl restart apache2 || {
+        log "ERROR: cannot restart apache2 -abort"
+        exit 1
+    }
 
     # save install config. The four tuning keys are written here with their
     # defaults, not left for the daemons to create on first start: a .env is
@@ -447,6 +510,9 @@ LAN_POLL_INTERVAL=60
 LAN_OFFLINE_GRACE=3
 PORT_POLL_INTERVAL=30
 PURGE_CLOSED_AFTER_HOURS=6
+# Database defaults
+# Changing these defaults is not recommended
+NWATCH_DB_TIMEOUT_MS=5000
 ENV
     chown root:www-data "$nwatch_env"
     chmod 640 "$nwatch_env"
@@ -467,9 +533,18 @@ EOF
 
     # start daemons -- they are nwatch's core, not an optional extra, so
     # they auto-start right after install.
-    "$nwatch_tools/nwatchlan.sh" start
-    "$nwatch_tools/nwatchports.sh" start
-    add_reboot_cron
+    if ! "$nwatch_tools/nwatchlan.sh" --start; then
+        log "ERROR: cannot start nwatchlan.sh -abort"
+        exit 1
+    fi
+    if ! "$nwatch_tools/nwatchports.sh" --start; then
+        log "ERROR: cannot start nwatchports.sh -abort"
+        exit 1
+    fi
+    if ! add_reboot_cron; then
+        log "ERROR: cannot write /etc/cron.d/nwatch -abort"
+        exit 1
+    fi
 
     echo ""
     echo "LAN tab : http://localhost:${vhost_port}/?tab=lan"
@@ -478,39 +553,61 @@ EOF
     echo "Database : $db_file"
     echo "Tools dir : $nwatch_tools"
     echo ""
-
-    log "nwatchsetup done at: $(date '+%Y-%m-%d %H:%M:%S')"
 }
 
+# ------------------------------------------------------------------------------
 # UPDATE
+# ------------------------------------------------------------------------------
+
+# Refresh the installed application files
 do_update() {
-    log "nwatchsetup start (update)..."
+    local update_failed=0
+    local -a update_failures=()
+    local update_failure
 
     if [ ! -f "$nwatch_env" ]; then
-        log "ERROR: nwatch is not installed -- abort"
+        log "ERROR: nwatch is not installed -abort"
         exit 1
     fi
 
     if [ -f "$db_file" ]; then
-        chown root:www-data "$db_file"
-        chmod 640 "$db_file"
+        if ! chown root:www-data "$db_file"; then
+            log "WARNING: cannot set owner and group on $(basename "$db_file") -alert"
+            update_failed=1
+            update_failures+=("cannot set owner and group on $(basename "$db_file")")
+        fi
+        if ! chmod 640 "$db_file"; then
+            log "WARNING: cannot set permissions on $(basename "$db_file") -alert"
+            update_failed=1
+            update_failures+=("cannot set permissions on $(basename "$db_file")")
+        fi
     fi
 
-    "$nwatch_tools/nwatchlan.sh" stop 2>/dev/null || true
-    "$nwatch_tools/nwatchports.sh" stop 2>/dev/null || true
+    "$nwatch_tools/nwatchlan.sh" --stop 2>/dev/null || true
+    "$nwatch_tools/nwatchports.sh" --stop 2>/dev/null || true
 
     # web files (application code only -- nwatch.conf is never overwritten,
     # it may contain manual edits after install)
     for src in "$web_dir"/*.php "$web_dir"/*.html; do
         [ -f "$src" ] || continue
         fname="$(basename "$src")"
-        cp -f "$src" "$nwatch_web/$fname"
-        log "INFO: updated $fname"
+        if cp -f "$src" "$nwatch_web/$fname" \
+            && chown www-data:www-data "$nwatch_web/$fname"; then
+            log "INFO: updated $fname"
+        else
+            log "WARNING: cannot update $fname -alert"
+            update_failed=1
+            update_failures+=("cannot update $fname")
+        fi
     done
-    chown -R www-data:www-data "$nwatch_web"
+    if ! chown -R www-data:www-data "$nwatch_web"; then
+        log "WARNING: cannot set nwatch web owner and group -alert"
+        update_failed=1
+        update_failures+=("cannot set nwatch web owner and group")
+    fi
 
     if ! install -m 644 -o root -g root "$tools_dir/nwatchenv.sh" "$nwatch_tools/nwatchenv.sh"; then
-        log "ERROR: cannot deploy nwatchenv.sh -- abort"
+        log "ERROR: cannot deploy nwatchenv.sh -abort"
         exit 1
     fi
     log "INFO: updated nwatchenv.sh"
@@ -519,21 +616,51 @@ do_update() {
         [ -f "$f" ] || continue
         [ "$(basename "$f")" = nwatchenv.sh ] && continue
         fname="$(basename "$f")"
-        cp -f "$f" "$nwatch_tools/$fname"
-        chmod +x "$nwatch_tools/$fname"
-        log "INFO: updated $fname"
+        if cp -f "$f" "$nwatch_tools/$fname" \
+            && chmod +x "$nwatch_tools/$fname"; then
+            log "INFO: updated $fname"
+        else
+            log "WARNING: cannot update $fname -alert"
+            update_failed=1
+            update_failures+=("cannot update $fname")
+        fi
     done
 
-    "$nwatch_tools/nwatchlan.sh" start
-    "$nwatch_tools/nwatchports.sh" start
-    add_reboot_cron
+    if ! "$nwatch_tools/nwatchlan.sh" --start; then
+        log "WARNING: cannot start nwatchlan.sh -alert"
+        update_failed=1
+        update_failures+=("cannot start nwatchlan.sh")
+    fi
+    if ! "$nwatch_tools/nwatchports.sh" --start; then
+        log "WARNING: cannot start nwatchports.sh -alert"
+        update_failed=1
+        update_failures+=("cannot start nwatchports.sh")
+    fi
+    if ! add_reboot_cron; then
+        log "WARNING: cannot write /etc/cron.d/nwatch -alert"
+        update_failed=1
+        update_failures+=("cannot write /etc/cron.d/nwatch")
+    fi
 
-    systemctl restart apache2
+    if ! systemctl restart apache2; then
+        log "WARNING: cannot restart apache2 -alert"
+        update_failed=1
+        update_failures+=("cannot restart apache2")
+    fi
 
-    log "nwatchsetup done at: $(date '+%Y-%m-%d %H:%M:%S')"
+    if [ "$update_failed" -ne 0 ]; then
+        for update_failure in "${update_failures[@]}"; do
+            log "ERROR: $update_failure -abort"
+        done
+        return 1
+    fi
 }
 
+# ------------------------------------------------------------------------------
 # UNINSTALL
+# ------------------------------------------------------------------------------
+
+# Remove the installed project files and configuration
 do_uninstall() {
     # Confirm before the rm -rf below (interactive runs only)
     if [ -t 0 ]; then
@@ -545,10 +672,9 @@ do_uninstall() {
         esac
     fi
 
-    log "nwatchsetup start (uninstall)..."
 
-    "$nwatch_tools/nwatchlan.sh" stop 2>/dev/null || true
-    "$nwatch_tools/nwatchports.sh" stop 2>/dev/null || true
+    "$nwatch_tools/nwatchlan.sh" --stop 2>/dev/null || true
+    "$nwatch_tools/nwatchports.sh" --stop 2>/dev/null || true
 
     a2dissite -q nwatch.conf &>/dev/null
     sed -i "/^Listen .*:${vhost_port}\$/d" /etc/apache2/ports.conf
@@ -562,19 +688,39 @@ do_uninstall() {
     rm -f /etc/cron.d/nwatch
 
     systemctl daemon-reload
-    systemctl restart apache2
-
-    log "nwatchsetup done at: $(date '+%Y-%m-%d %H:%M:%S')"
+    systemctl restart apache2 || {
+        log "ERROR: cannot restart apache2 -abort"
+        exit 1
+    }
 }
 
+# ------------------------------------------------------------------------------
 # STATUS
+# ------------------------------------------------------------------------------
+
+# PID CHECK
+# Check whether the recorded process belongs to this daemon
+daemon_alive() {
+    local pid="$1" self="$2" args=() i
+    [ -n "$pid" ] || return 1
+    mapfile -d '' -t args < "/proc/$pid/cmdline" 2>/dev/null || return 1
+    case "$(basename -- "${args[0]:-}")" in
+        "$self") i=0 ;;
+        bash|sh) i=1 ;;
+        *) return 1 ;;
+    esac
+    [ "$(basename -- "${args[i]:-}")" = "$self" ] || return 1
+    [ "${args[i+1]:-}" = --start ]
+}
+
+# DO STATUS
+# Report the current daemon or installation state
 do_status() {
-    log "nwatchsetup start (status)..."
 
     echo "=== nwatch Daemons ==="
     for name in nwatchlan nwatchports; do
         pidfile="/run/${name}.pid"
-        if [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
+        if [ -f "$pidfile" ] && daemon_alive "$(cat "$pidfile" 2>/dev/null)" "${name}.sh"; then
             echo "$name: RUNNING (PID $(cat "$pidfile"))"
         else
             echo "$name: STOPPED"
@@ -617,11 +763,13 @@ do_status() {
     else
         echo "$db_file not found"
     fi
-
-    log "nwatchsetup done at: $(date '+%Y-%m-%d %H:%M:%S')"
 }
 
+# ------------------------------------------------------------------------------
 # MENU
+# ------------------------------------------------------------------------------
+
+# Display the available actions and read the selected option
 show_menu() {
     while true; do
         echo ""
@@ -637,19 +785,27 @@ show_menu() {
         opt="${opt:-5}"
         case "$opt" in
             1) do_install; break ;;
-            2) do_update; break ;;
+            2) do_update || exit 1; break ;;
             3) do_uninstall; break ;;
             4) do_status; break ;;
-            5) exit 0 ;;
-            *) log "INFO: invalid option -- retry" ;;
+            5)
+                log "nwatchsetup done at: $(date '+%Y-%m-%d %H:%M:%S')"
+                exit 0
+                ;;
+            *) log "INFO: invalid option -retry" ;;
         esac
     done
 }
 
+# ------------------------------------------------------------------------------
 # ACTIONS
+# ------------------------------------------------------------------------------
+
+# Dispatch the requested command to its action
+log "nwatchsetup start..."
 case "${1:-}" in
     --install) do_install ;;
-    --update) do_update ;;
+    --update) do_update || exit 1 ;;
     --uninstall) do_uninstall ;;
     --status) do_status ;;
     "") show_menu ;;
@@ -658,3 +814,9 @@ case "${1:-}" in
         exit 1
         ;;
 esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+log "nwatchsetup done at: $(date '+%Y-%m-%d %H:%M:%S')"

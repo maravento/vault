@@ -168,7 +168,7 @@ def scan():
 
     parsed = urlparse(url)
     if not parsed.scheme or not parsed.netloc:
-        print(f"ERROR: '{url}' is not a valid URL -- abort")
+        print(f"ERROR: '{url}' is not a valid URL -abort")
         sys.exit(1)
 
     domain = parsed.netloc

@@ -6,10 +6,10 @@
 # bwmon - Bandwidth Watchdog
 # Source: https://github.com/sivel/speedtest-cli
 #
-# Runs a speedtest and alerts (syslog + log file + desktop notification, if
-# a desktop session is available) when download/upload falls below the
-# configured minimum (dlmin/ulmin below, user-editable). Exits 1 if either
-# value is below the minimum, 0 otherwise -- usable as a cron watchdog.
+# DESCRIPTION: Runs a speedtest and alerts (syslog + log file + desktop
+# notification, if a desktop session is available) when download/upload falls
+# below the configured minimum (dlmin/ulmin below, user-editable). Exits 1 if
+# either value is below the minimum, 0 otherwise -- usable as a cron watchdog.
 #
 # USAGE:
 # Add this script to your crontab to run periodically, e.g. every 30 minutes:
@@ -21,21 +21,28 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
@@ -76,7 +83,13 @@ local_user=$(detect_local_user || true)
 log_file="/var/log/bwmon.log"
 log() {
     local msg="$1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+    local log_msg="$(date '+%Y-%m-%d %H:%M:%S') $msg"
+    echo "$log_msg" >> "$log_file" 2>/dev/null || true
+    if [[ "$msg" == ERROR:* ]]; then
+        echo "$log_msg" >&2
+    else
+        echo "$log_msg"
+    fi
 }
 
 # desktop notification to another user (X11 and Wayland, silent if no session)
@@ -111,7 +124,7 @@ log "bwmon start..."
 # dependencies
 for dep in speedtest-cli libnotify-bin systemd util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
@@ -134,22 +147,30 @@ check_internet() {
 }
 
 if ! check_internet; then
-    log "ERROR: no internet connection -- abort"
+    log "ERROR: no internet connection -abort"
     exit 1
 fi
 
-# VARIABLES (user-editable)
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
+
+# User-editable thresholds, in Mbit/s
 # Minimum Download value (Mbit/s)
 dlmin="1.00"
 # Minimum Upload value (Mbit/s)
 ulmin="1.00"
 
+# ------------------------------------------------------------------------------
 # SPEEDTEST
+# ------------------------------------------------------------------------------
+
+# Measure the current download and upload speeds
 log "Running speedtest (this may take ~30s)..."
 resume=$(speedtest-cli --secure --simple 2>&1)
 
 if ! echo "$resume" | grep -q "^Download:"; then
-    log "ERROR: speedtest-cli failed: ${resume//$'\n'/ | } -- abort"
+    log "ERROR: speedtest-cli failed: ${resume//$'\n'/ | } -abort"
     exit 1
 fi
 
@@ -162,7 +183,7 @@ dlmb=$(echo "$dl" | awk '{print $3}')
 ulmb=$(echo "$ul" | awk '{print $3}')
 
 if [ -z "$dlvalue" ] || [ -z "$ulvalue" ]; then
-    log "ERROR: could not parse speedtest output: ${resume//$'\n'/ | } -- abort"
+    log "ERROR: could not parse speedtest output: ${resume//$'\n'/ | } -abort"
     exit 1
 fi
 
@@ -184,8 +205,8 @@ ulvalue_mbit=$(normalize_to_mbit "$ulvalue" "$ulmb")
 check_metric() {
     local label="$1" value="$2" unit="$3" min="$4" mbit="$5"
     if (($(echo "$mbit $min" | awk '{print ($1 < $2)}'))); then
-        log "WARNING: $label slow: $value $unit < $min Mbit/s -- alert"
-        logger -t bwmon "WARNING: $label slow: $value $unit < $min Mbit/s -- alert"
+        log "WARNING: $label slow: $value $unit < $min Mbit/s -alert"
+        logger -t bwmon "WARNING: $label slow: $value $unit < $min Mbit/s -alert"
         return 1
     fi
     log "$label OK: $value $unit (min: $min Mbit/s)"
@@ -202,5 +223,10 @@ if [ "$below_threshold" -eq 1 ]; then
 fi
 
 log "Full result: $resume"
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
 log "bwmon done at: $(date '+%Y-%m-%d %H:%M:%S')"
 exit "$below_threshold"

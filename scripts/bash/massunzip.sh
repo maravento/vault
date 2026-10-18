@@ -15,22 +15,29 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # no-root check
 if [ "$(id -u)" == "0" ]; then
-    echo "ERROR: This script should not be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script should not be run as root -abort" >&2
     exit 1
 fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
-echo "Unzip Files With Pass Starting. Wait..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') Unzip Files With Pass Starting. Wait..."
 
 if ! apt-cache policy | grep -qE '/multiverse'; then
     echo "The 'multiverse' repository is not enabled. Run:"
@@ -41,13 +48,22 @@ fi
 # dependencies
 for dep in p7zip-full p7zip-rar util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
 
+# ------------------------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') massunzip start..."
+
 # PASSWORDS
-# add and replace "passfoo, passbar, etc" with the passwords of your files to unzip
+# These passwords are placeholders, not credentials for real archives.
+# Replace them with your archive passwords before running this script.
+# This editable example list is intentionally kept inside the script.
 shopt -s extglob nullglob nocaseglob
 passw=(
   passfoo
@@ -61,6 +77,7 @@ passw=(
 )
 
 # CHECK
+# Try the configured passwords against each supported archive
 found_files=0
 for f in *.@(gz|rar|zip|zip.001|7z|7z.001); do
     found_files=1
@@ -86,5 +103,12 @@ for f in *.@(gz|rar|zip|zip.001|7z|7z.001); do
 done
 
 if [ "$found_files" -eq 0 ]; then
-    echo "No compressed files found in current directory."
+    echo "No compressed files found in current directory"
 fi
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') massunzip done at: $(date '+%Y-%m-%d %H:%M:%S')"

@@ -5,16 +5,23 @@
 #
 # Start | Stop VMs Virtualbox
 #
-# USAGE: /path_to/vm.sh {start|stop|shutdown|reset|status}
+# DESCRIPTION: Drives one VirtualBox machine headless through VBoxManage, as
+# the detected local user. Asks for the VM name or UUID at the prompt.
+#
+# USAGE: /path_to/vm.sh {--start|--stop|--shutdown|--reset|--status}
 # Add user to vboxusers: usermod -a -G vboxusers $USER
 #
 ################################################################################
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
@@ -51,60 +58,83 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: no valid local user found, create one with sudo access -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
     exit 1
 fi
 echo "Using local user: $local_user"
 
 # dependencies (version-variable package)
 if ! command -v VBoxManage &>/dev/null; then
-    echo "ERROR: VirtualBox (VBoxManage) is not installed." >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: VBoxManage is not installed -abort" >&2
     exit 1
 fi
 
-echo "Virtualbox Starting. Wait..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') Virtualbox Starting. Wait..."
 
+# ------------------------------------------------------------------------------
 # VARIABLES
+# ------------------------------------------------------------------------------
+
 # Set name of VM (e.g: win10) or UUID (e.g.: 4ec6acc1-a232-566d-a040-6bc4aadc19a6)
 read -rp "Enter the VM name or UUID to manage: " vm_name
 if [ -z "$vm_name" ]; then
-    echo "ERROR: VM name cannot be empty"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: VM name cannot be empty -abort"
     exit 1
 fi
 
-# FUNCTIONS
+# ------------------------------------------------------------------------------
+# CHECKS
+# ------------------------------------------------------------------------------
+
+# Require an existing virtual machine before processing its action
 if ! sudo -H -u "$local_user" VBoxManage showvminfo "$vm_name" &>/dev/null; then
-    echo "ERROR: VM '$vm_name' not found or not accessible"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: VM '$vm_name' unavailable -abort"
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# ACTIONS
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') vm start..."
 
 case "${1:-}" in
-start)
-    echo "Starting $vm_name..."
+--start)
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Starting $vm_name..."
     sudo -H -u "$local_user" VBoxManage startvm "$vm_name" --type headless
     ;;
-stop)
-    echo "Saving State $vm_name..."
+--stop)
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Saving State $vm_name..."
     sudo -H -u "$local_user" VBoxManage controlvm "$vm_name" savestate
     sleep 20
     ;;
-shutdown)
-    echo "Shutting Down $vm_name..."
+--shutdown)
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Shutting Down $vm_name..."
     sudo -H -u "$local_user" VBoxManage controlvm "$vm_name" acpipowerbutton
     sleep 20
     ;;
-reset)
-    echo "Resetting $vm_name..."
+--reset)
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Resetting $vm_name..."
     sudo -H -u "$local_user" VBoxManage controlvm "$vm_name" reset
     ;;
-status)
+--status)
     echo -n "VM->"
     sudo -H -u "$local_user" VBoxManage showvminfo "$vm_name" --machinereadable | grep 'VMState=' | cut -d '=' -f2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') vm done at: $(date '+%Y-%m-%d %H:%M:%S')"
     exit 0
     ;;
 *)
-    echo "Usage: $0 {start|stop|shutdown|reset|status}"
+    echo "Usage: $0 {--start|--stop|--shutdown|--reset|--status}"
     exit 1
     ;;
 esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') vm done at: $(date '+%Y-%m-%d %H:%M:%S')"
+
 exit 0

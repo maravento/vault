@@ -14,39 +14,57 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
 # dependencies
 for dep in iproute2 util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
 
 # validation -- integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
-echo "WireGuard Install | Remove Starting. Wait..."
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') wireguard start..."
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
 
 # Function to install WireGuard as Server
 install_wireguard_server() {
   if ! command -v wg &> /dev/null; then
     # WireGuard Install
-    apt update
-    apt install -y wireguard wireguard-tools
+    apt update || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
+        exit 1
+    }
+    apt install -y wireguard wireguard-tools || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install WireGuard packages -abort" >&2
+        exit 1
+    }
 
     # qrcode (Optional)
     # e.g: sudo qrencode -t ansiutf8 < qr.conf
@@ -74,7 +92,7 @@ install_wireguard_server() {
 
     # Verify that the keys have been read correctly
     if [ -z "$server_private_key" ] || [ -z "$server_public_key" ]; then
-      echo "ERROR: failed to read keys -- abort"
+      echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to read keys -abort"
       exit 1
     fi
 
@@ -88,7 +106,7 @@ install_wireguard_server() {
     # Prompt the user to choose an interface by number
     read -rp "Enter the public network interface number: " num
     if ! [[ "$num" =~ $UH_UINT ]]; then
-        echo "ERROR: please enter a valid number -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: please enter a valid number -abort"
         exit 1
     fi
 
@@ -97,7 +115,7 @@ install_wireguard_server() {
 
     # Verify the selected public interface
     if [ -z "$public_eth" ]; then
-        echo "ERROR: no interface selected or invalid number -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no interface selected or invalid number -abort"
         exit 1
     fi
 
@@ -121,8 +139,14 @@ PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING 
 EOL
 
     # Permissions for files and keys
-    chmod 600 /etc/wireguard/{private.key,wg0.conf}
-    chmod 644 /etc/wireguard/public.key
+    if ! chmod 600 /etc/wireguard/{private.key,wg0.conf}; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot set private.key/wg0.conf permissions -abort" >&2
+        exit 1
+    fi
+    if ! chmod 644 /etc/wireguard/public.key; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot set public.key permissions -abort" >&2
+        exit 1
+    fi
 
     # restore the umask that was active before key generation
     umask "$prev_umask"
@@ -156,8 +180,14 @@ EOT
 install_wireguard_client() {
   if ! command -v wg &> /dev/null; then
     # WireGuard Install
-    apt update
-    apt install -y wireguard wireguard-tools
+    apt update || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
+        exit 1
+    }
+    apt install -y wireguard wireguard-tools || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install WireGuard packages -abort" >&2
+        exit 1
+    }
 
     # Generate private and public keys for the client
     client_private_key=$(wg genkey)
@@ -179,19 +209,22 @@ PersistentKeepalive = 25 # Optional" > /etc/wireguard/wg0.conf
     umask "$prev_umask"
 
     # Permissions for files and keys
-    chmod 600 /etc/wireguard/wg0.conf
+    if ! chmod 600 /etc/wireguard/wg0.conf; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot set wg0.conf permissions -abort" >&2
+        exit 1
+    fi
 
     # Show completion message
-    echo "WireGuard client installation complete."
+    echo "WireGuard client installation complete"
     echo
     echo "Client's Public Key: $client_public_key"
     echo
-    echo "Please edit the following file and replace the placeholders:"
+    echo "Please edit following file and replace placeholders:"
     echo "/etc/wireguard/wg0.conf"
-    echo "  - Replace <Client IP>/32 with your assigned client IP (e.g., 10.0.0.2/32)."
-    echo "  - Replace <Server's Public Key> with the server's public key."
-    echo "  - Replace <Server's Public IP>:51820 with the server's IP address (e.g., 192.168.0.10:51820)."
-    echo "Once you have made the changes, enable and start WireGuard with:"
+    echo "  - Replace <Client IP>/32 with your assigned client IP (e.g., 10.0.0.2/32)"
+    echo "  - Replace <Server's Public Key> with server's public key"
+    echo "  - Replace <Server's Public IP>:51820 with server's IP address (e.g., 192.168.0.10:51820)"
+    echo "Once you have made changes, enable and start WireGuard with:"
     echo "  sudo systemctl enable wg-quick@wg0"
     echo "  sudo wg-quick up wg0"
   else
@@ -202,7 +235,7 @@ PersistentKeepalive = 25 # Optional" > /etc/wireguard/wg0.conf
 # WireGuard Uninstaller Feature
 uninstall_wireguard() {
   if command -v wg &> /dev/null; then
-    echo "Uninstalling WireGuard..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Uninstalling WireGuard..."
 
     # Stop WireGuard interface
     wg-quick down wg0 2>/dev/null || true
@@ -225,6 +258,10 @@ uninstall_wireguard() {
   fi
 }
 
+# ------------------------------------------------------------------------------
+# MENU
+# ------------------------------------------------------------------------------
+
 # Options
 echo "What action do you want to perform?"
 echo "1) Install WireGuard Server"
@@ -246,3 +283,10 @@ case $option in
     echo "Invalid option"
     ;;
 esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') wireguard done at: $(date '+%Y-%m-%d %H:%M:%S')"

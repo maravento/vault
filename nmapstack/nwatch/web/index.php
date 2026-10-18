@@ -308,6 +308,10 @@ if (!in_array($tab, $allowed_tabs)) $tab = 'lan';
         });
     });
 
+    history.replaceState({
+        tab: document.querySelector('.tab.active')?.dataset.tab || 'lan'
+    }, '');
+
     window.addEventListener('popstate', (e) => {
         const tabName = (e.state && e.state.tab) || 'lan';
         showTab(tabName, false);

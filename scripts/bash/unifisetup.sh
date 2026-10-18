@@ -11,12 +11,15 @@
 # and download versions. Menu-driven with no arguments, or scriptable with
 # a direct action argument. Only considers NICs with an IPv4 address
 # assigned; IPv6-only interfaces are not detected.
+# Status checks local installation and service state without online queries.
 #
 # USAGE:
 # sudo ./unifisetup.sh
-# sudo ./unifisetup.sh <action>
-# actions: install-network, install-osserver, update-network,
-#          update-osserver, uninstall-network, uninstall-osserver, status
+# sudo ./unifisetup.sh --install {network|osserver}
+# sudo ./unifisetup.sh --update {network|osserver}
+# sudo ./unifisetup.sh --uninstall {network|osserver}
+# sudo ./unifisetup.sh --status
+# sudo ./unifisetup.sh --help
 #
 # LOG: unifisetup.log, next to this script (rewritten on each run)
 #
@@ -26,16 +29,19 @@ set -uo pipefail
 
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
@@ -44,17 +50,26 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 log_file="${script_dir}/unifisetup.log"
 { > "$log_file"; } 2>/dev/null || true
 log() {
-    local msg="$1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+    local msg="$(date '+%Y-%m-%d %H:%M:%S') $1"
+    echo "$msg" >> "$log_file" 2>/dev/null || true
+    if [[ "$1" == ERROR:* ]]; then echo "$msg" >&2; else echo "$msg"; fi
 }
+
+info() { log "INFO: $*"; }
+warn() { log "WARNING: $*"; }
+err() { log "ERROR: $*"; }
+abort() { err "$*"; exit 1; }
 
 # ------------------------------------------------------------------------------
 # OWN VALUES
 # ------------------------------------------------------------------------------
 
+# validation - integer only; use directly with =~
+UH_UINT='^(0|[1-9][0-9]*)$'
+
 # Values this script declares itself -- not read from any .env
 downloads_api="https://download.svc.ui.com/v1/software-downloads"
-work_dir="${script_dir}/.unifisetup-work"
+work_dir="${script_dir}/unifisetup-work"
 downloads_json="${work_dir}/downloads.json"
 min_major="24"
 min_minor="04"
@@ -78,7 +93,7 @@ get_server_address() {
         while true; do
             read -rp " Select LAN interface number [1-${#iface_list[@]}] [Default: 1]: " lan_choice
             lan_choice="${lan_choice:-1}"
-            if [[ "$lan_choice" =~ ^[0-9]+$ ]] && [ "$lan_choice" -ge 1 ] && [ "$lan_choice" -le "${#iface_list[@]}" ]; then
+            if [[ "$lan_choice" =~ $UH_UINT ]] && [ "$lan_choice" -ge 1 ] && [ "$lan_choice" -le "${#iface_list[@]}" ]; then
                 break
             fi
             echo " Invalid selection, try again." >&2
@@ -96,7 +111,7 @@ get_server_address() {
 
 os_check() {
     if [ ! -f /etc/os-release ]; then
-        log "ERROR: /etc/os-release not found, cannot detect OS -- abort"
+        err "/etc/os-release not found, cannot detect OS -abort"
         exit 1
     fi
 
@@ -104,17 +119,17 @@ os_check() {
     . /etc/os-release
 
     if [ "${ID:-}" != "ubuntu" ]; then
-        log "WARNING: Ubuntu required; detected ${ID:-unknown}"
-        log "WARNING: continuing anyway -- alert"
+        warn "Ubuntu required; detected ${ID:-unknown}"
+        warn "continuing anyway -alert"
     fi
 
     if [ "$(printf '%s\n' "${VERSION_ID:-0}" "${min_major}.${min_minor}" | sort -V | head -n1)" != "${min_major}.${min_minor}" ]; then
-        log "WARNING: untested below Ubuntu ${min_major}.${min_minor}"
-        log "WARNING: Ubuntu ${VERSION_ID:-unknown} untested -- alert"
+        warn "untested below Ubuntu ${min_major}.${min_minor}"
+        warn "Ubuntu ${VERSION_ID:-unknown} untested -alert"
     fi
 
     os_codename="${VERSION_CODENAME:-noble}"
-    log "Ubuntu ${VERSION_ID:-unknown} (${os_codename}) detected"
+    info "Ubuntu ${VERSION_ID:-unknown} (${os_codename}) detected"
 }
 
 arch_check() {
@@ -123,14 +138,14 @@ arch_check() {
         amd64) osserver_arch="x64" ;;
         arm64) osserver_arch="arm64" ;;
         *)
-            log "ERROR: unsupported architecture: ${architecture} -- abort"
+            err "unsupported architecture: ${architecture} -abort"
             exit 1
             ;;
     esac
 }
 
 # ------------------------------------------------------------------------------
-# PREREQUISITES
+# REQUIREMENTS
 # ------------------------------------------------------------------------------
 
 ensure_prereqs() {
@@ -141,12 +156,20 @@ ensure_prereqs() {
 
     if [ "${#missing[@]}" -gt 0 ]; then
         log "Installing prerequisites..."
-        apt-get update -qq >>"$log_file" 2>&1
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >>"$log_file" 2>&1
+        apt-get update -qq >>"$log_file" 2>&1 || {
+            err "cannot update package lists -abort"
+            exit 1
+        }
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >>"$log_file" 2>&1 || {
+            err "cannot install prerequisites -abort"
+            exit 1
+        }
     fi
 
-    mkdir -p /etc/apt/keyrings
-    mkdir -p -m 700 "${work_dir}"
+    if ! { mkdir -p /etc/apt/keyrings && mkdir -p -m 700 "${work_dir}"; }; then
+        err "cannot create prerequisite directories -abort"
+        exit 1
+    fi
 }
 
 # ------------------------------------------------------------------------------
@@ -156,8 +179,7 @@ ensure_prereqs() {
 fetch_downloads_json() {
     log "Fetching official Ubiquiti release catalog..."
     if ! curl -fsSL "${downloads_api}" -o "${downloads_json}"; then
-        log "ERROR: failed to fetch release catalog"
-        log "ERROR: URL: ${downloads_api} -- abort"
+        err "release catalog download failed -abort"
         exit 1
     fi
 }
@@ -204,7 +226,7 @@ ensure_mongodb_repo() {
     curl -fsSL https://pgp.mongodb.com/server-8.0.asc | gpg -o /etc/apt/keyrings/mongodb-server-8.0.gpg --dearmor --yes >>"$log_file" 2>&1
     pipe_status=("${PIPESTATUS[@]}")
     if [ "${pipe_status[0]}" -ne 0 ] || [ "${pipe_status[1]}" -ne 0 ]; then
-        log "WARNING: failed to add MongoDB repository key -- alert"
+        err "failed to add MongoDB repository key -abort"
         return 1
     fi
     # "noble" is intentionally fixed, not the detected codename: MongoDB only
@@ -229,15 +251,15 @@ ensure_adoptium_repo() {
     if ! curl -fsSL "https://packages.adoptium.net/artifactory/deb/dists/" \
         | sed -e 's/<[^>]*>//g' -e '/^$/d' | awk '{print $1}' | sed 's#/$##' \
         | grep -iq "^${adoptium_codename}$"; then
-        log "Adoptium suite requested: ${adoptium_codename}"
-        log "WARNING: Adoptium suite missing; using noble -- fallback"
+        info "Adoptium suite requested: ${adoptium_codename}"
+        warn "Adoptium suite missing; using noble -fallback"
         adoptium_codename="noble"
     fi
 
     curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg -o /etc/apt/keyrings/packages-adoptium.gpg --dearmor --yes >>"$log_file" 2>&1
     pipe_status=("${PIPESTATUS[@]}")
     if [ "${pipe_status[0]}" -ne 0 ] || [ "${pipe_status[1]}" -ne 0 ]; then
-        log "WARNING: failed to add Adoptium repository key -- alert"
+        err "failed to add Adoptium repository key -abort"
         return 1
     fi
     echo "deb [signed-by=/etc/apt/keyrings/packages-adoptium.gpg] https://packages.adoptium.net/artifactory/deb ${adoptium_codename} main" \
@@ -280,7 +302,10 @@ install_network() {
     fi
 
     log "Updating apt package lists..."
-    apt-get update -qq >>"$log_file" 2>&1
+    apt-get update -qq >>"$log_file" 2>&1 || {
+        err "cannot update package lists -abort"
+        return 1
+    }
 
     # Needs a populated apt cache to know if openjdk-25 is available,
     # otherwise it always falls back to Adoptium on a fresh install.
@@ -289,12 +314,15 @@ install_network() {
         if ! ensure_adoptium_repo; then
             return 1
         fi
-        apt-get update -qq >>"$log_file" 2>&1
+        apt-get update -qq >>"$log_file" 2>&1 || {
+            err "cannot update package lists -abort"
+            return 1
+        }
     fi
 
     log "Installing Java runtime (${java_package})..."
     if ! DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${java_package}" ca-certificates-java >>"$log_file" 2>&1; then
-        log "WARNING: failed to install ${java_package} -- alert"
+        err "failed to install ${java_package} -abort"
         return 1
     fi
 
@@ -305,8 +333,14 @@ install_network() {
     local java_bin
     java_bin="$(dpkg -L "${java_package}" 2>/dev/null | grep -E '/bin/java$' | head -n1)"
     if [ -n "${java_bin}" ]; then
-        log "Setting ${java_package} as the default java..."
-        update-alternatives --set java "${java_bin}" >>"$log_file" 2>&1 || true
+        info "Setting ${java_package} as default java"
+        update-alternatives --set java "${java_bin}" >>"$log_file" 2>&1 || {
+            err "cannot set default Java -abort"
+            return 1
+        }
+    else
+        err "cannot locate Java binary for ${java_package} -abort"
+        return 1
     fi
 
     # ca-certificates-java can leave a fresh JRE's cacerts keystore empty
@@ -322,23 +356,21 @@ install_network() {
             /var/lib/dpkg/info/ca-certificates-java.postinst configure >>"$log_file" 2>&1 || true
         fi
     else
-        log "WARNING: failed to refresh CA certificates -- alert"
+        warn "failed to refresh CA certificates -alert"
     fi
 
     local deb_file="${work_dir}/unifi_${target_version}_all.deb"
     log "Downloading UniFi Network ${target_version}..."
     if ! curl -fL --progress-bar -o "${deb_file}" "${target_url}"; then
-        log "WARNING: failed to download package"
-        log "WARNING: URL: ${target_url} -- alert"
+        err "UniFi Network package download failed -abort"
         return 1
     fi
 
     log "Installing UniFi Network ${target_version}..."
     if DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' "${deb_file}" >>"$log_file" 2>&1; then
-        log "UniFi Network ${target_version} installed"
+        info "UniFi Network ${target_version} installed"
     else
-        log "WARNING: failed to install package"
-        log "WARNING: file: ${deb_file} -- alert"
+        err "UniFi Network package installation failed -abort"
         rm -f "${deb_file}"
         return 1
     fi
@@ -348,70 +380,86 @@ install_network() {
 action_install_network() {
     get_installed_network
     if [ -n "${installed_network_version}" ]; then
-        log "UniFi Network v${installed_network_version} installed."
-        log "Use update instead."
+        info "UniFi Network v${installed_network_version} installed"
+        err "use update instead -abort"
         return 1
     fi
     get_installed_osserver
     if [ -n "${installed_osserver_version}" ]; then
-        log "WARNING: OS Server (v${installed_osserver_version}) present, can't coexist"
-        log "WARNING: remove UniFi OS Server first -- alert"
+        info "UniFi OS Server version: ${installed_osserver_version}"
+        err "remove UniFi OS Server first -abort"
         return 1
     fi
     get_latest_network
     if [ -z "${latest_network_version}" ]; then
-        log "WARNING: latest UniFi Network version unavailable -- alert"
+        err "latest UniFi Network version unavailable -abort"
         return 1
     fi
     if install_network "${latest_network_version}" "${latest_network_url}"; then
         echo ""
-        echo "UniFi Network Application is available at: https://$(get_server_address):8443"
+        info "UniFi Network URL: https://$(get_server_address):8443"
+    else
+        return 1
     fi
 }
 
 action_update_network() {
     get_installed_network
     if [ -z "${installed_network_version}" ]; then
-        log "UniFi Network not installed. Use install instead."
+        err "UniFi Network not installed; use install -abort"
         return 1
     fi
     get_latest_network
     if [ -z "${latest_network_version}" ]; then
-        log "WARNING: latest UniFi Network version unavailable -- alert"
+        err "latest UniFi Network version unavailable -abort"
         return 1
     fi
     if dpkg --compare-versions "${installed_network_version}" ge "${latest_network_version}"; then
-        log "UniFi Network v${installed_network_version} is current"
+        info "UniFi Network v${installed_network_version} is current"
         return 0
     fi
-    log "Updating UniFi Network:"
-    log "${installed_network_version} -> ${latest_network_version}"
     install_network "${latest_network_version}" "${latest_network_url}"
 }
 
 # Backs up the latest UniFi autobackup (.unf), the same format UniFi itself generates
 backup_network_config() {
     local autobackup_dir
-    autobackup_dir="$(grep -s '^autobackup\.dir' /usr/lib/unifi/data/system.properties 2>/dev/null | cut -d'=' -f2)"
+    autobackup_dir="$(grep -s '^autobackup\.dir=' /usr/lib/unifi/data/system.properties 2>/dev/null | cut -d'=' -f2-)"
     autobackup_dir="${autobackup_dir:-/usr/lib/unifi/data/backup/autobackup}"
 
-    local latest_unf
-    latest_unf="$(find "${autobackup_dir}" -type f -name '*.unf' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n1 | awk '{print $2}')"
+    local latest_unf candidates=""
+    if [ -d "${autobackup_dir}" ]; then
+        candidates="$(find "${autobackup_dir}" -type f -name '*.unf' \
+            -printf '%T@ %p\n' 2>/dev/null)" || {
+            err "cannot search UniFi autobackups -abort"
+            return 1
+        }
+    fi
+    latest_unf="$(printf '%s\n' "$candidates" |
+        sort -nr | head -n1 | cut -d' ' -f2-)"
 
     if [ -z "${latest_unf}" ]; then
-        log "WARNING: no UniFi autobackup (.unf) found, skipping backup"
-        log "WARNING: looked in: ${autobackup_dir} -- alert"
-        return 1
+        warn "UniFi Network: no .unf autobackup found -alert"
+        return 0
     fi
 
-    local dest
+    local dest tmp_dir
     dest="${script_dir}/unifi-backup-$(basename "${latest_unf}")"
-    if cp "${latest_unf}" "${dest}" 2>>"$log_file"; then
-        log "Backup saved: ${dest}"
+    tmp_dir="$(mktemp -d "${dest}.XXXXXX" 2>>"$log_file")" || {
+        err "cannot create temporary backup directory -abort"
+        return 1
+    }
+
+    if { [ ! -e "${dest}" ] ||
+            cp --attributes-only -p -- "${dest}" "${tmp_dir}/backup" 2>>"$log_file"; } &&
+        cp -- "${latest_unf}" "${tmp_dir}/backup" 2>>"$log_file" &&
+        mv -T -- "${tmp_dir}/backup" "${dest}" 2>>"$log_file"; then
+        rmdir -- "${tmp_dir}" 2>>"$log_file"
+        info "Backup saved: ${dest}"
     else
-        log "WARNING: failed to create backup"
-        log "WARNING: path: ${dest} -- alert"
-        rm -f "${dest}"
+        err "UniFi Network backup could not be saved -abort"
+        rm -f -- "${tmp_dir}/backup"
+        rmdir -- "${tmp_dir}" 2>>"$log_file"
         return 1
     fi
 }
@@ -419,37 +467,51 @@ backup_network_config() {
 action_uninstall_network() {
     get_installed_network
     if [ -z "${installed_network_version}" ]; then
-        log "UniFi Network not installed, nothing to remove"
+        info "UniFi Network not installed, nothing to remove"
         return 0
     fi
 
     read -rp "Remove UniFi Network Application ${installed_network_version}? (y/N) " confirm
     case "$confirm" in
         [Yy]*) ;;
-        *) log "Uninstall cancelled by user"; return 0 ;;
+        *) info "Uninstall cancelled by user"; return 0 ;;
     esac
 
-    echo "Back up the current configuration (latest .unf autobackup)"
+    echo "Back up current configuration (latest .unf autobackup)"
     read -rp "before removing? (y/N) " do_backup
     case "$do_backup" in
-        [Yy]*) backup_network_config ;;
+        [Yy]*) backup_network_config || return 1 ;;
     esac
 
     local remove_mongo="n"
+    local mongo_failed="no"
     echo "MongoDB was installed as a UniFi dependency, may be shared"
     read -rp "Do you want to remove MongoDB? (y/N) " remove_mongo
 
+    local was_active="no"
+    systemctl is-active --quiet unifi && was_active="yes"
     systemctl stop unifi 2>/dev/null || true
 
     log "Purging unifi package..."
-    DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq unifi >>"$log_file" 2>&1 || true
+    DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq unifi >>"$log_file" 2>&1 || {
+        err "cannot purge unifi package, uninstall aborted -abort"
+        if [ "${was_active}" = "yes" ]; then
+            systemctl start unifi >>"$log_file" 2>&1 ||
+                warn "cannot restart unifi -alert"
+        fi
+        return 1
+    }
 
     case "$remove_mongo" in
         [Yy]*)
             log "Purging MongoDB packages..."
-            DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq 'mongodb-org*' >>"$log_file" 2>&1 || true
-            rm -rf /var/lib/mongodb /etc/mongod.conf* /var/log/mongodb
-            rm -f /etc/apt/sources.list.d/mongodb-org-8.0.list /etc/apt/keyrings/mongodb-server-8.0.gpg
+            if DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq 'mongodb-org*' >>"$log_file" 2>&1; then
+                rm -rf /var/lib/mongodb /etc/mongod.conf* /var/log/mongodb
+                rm -f /etc/apt/sources.list.d/mongodb-org-8.0.list /etc/apt/keyrings/mongodb-server-8.0.gpg
+            else
+                warn "MongoDB purge failed; its data is kept -alert"
+                mongo_failed="yes"
+            fi
             ;;
     esac
 
@@ -459,13 +521,17 @@ action_uninstall_network() {
     # Release the manual "java" pin install_network() set, so this host
     # goes back to auto-selecting a default instead of staying locked to
     # the JRE UniFi needed, now that UniFi is gone.
-    log "Releasing the default java pin..."
-    update-alternatives --auto java >>"$log_file" 2>&1 || true
+    info "Releasing default java pin"
+    update-alternatives --auto java >>"$log_file" 2>&1 \
+        || warn "cannot set Java to automatic selection -alert"
 
-    log "UniFi Network removed"
-    log "Java and Adoptium repo remain; other apps may need them"
-    log "in case another app on this host depends on them."
-    log "The 'java' alternative was reset to auto-selection."
+    if [ "${mongo_failed}" = "yes" ]; then
+        err "UniFi Network removed; MongoDB packages remain -abort"
+        return 1
+    fi
+
+    info "UniFi Network removed"
+    info "Java and Adoptium repo kept; other apps may need them"
 }
 
 # ------------------------------------------------------------------------------
@@ -488,14 +554,13 @@ install_osserver() {
     local target_version="$1"
     local target_url="$2"
 
-    ensure_osserver_prereqs
+    ensure_osserver_prereqs || return 1
 
     local installer_file="${work_dir}/uosserver-${target_version}"
     log "Downloading UniFi OS Server ${target_version}..."
-    log "This is a large file, it may take a while."
+    info "This is a large file, it may take a while"
     if ! curl -fL --progress-bar -o "${installer_file}" "${target_url}"; then
-        log "WARNING: failed to download package"
-        log "WARNING: URL: ${target_url} -- alert"
+        err "UniFi OS Server download failed -abort"
         return 1
     fi
 
@@ -503,9 +568,9 @@ install_osserver() {
 
     log "Running UniFi OS Server installer..."
     if "${installer_file}" --non-interactive --force-install 200>&- >>"$log_file" 2>&1; then
-        log "OS Server ${target_version} installed"
+        info "OS Server ${target_version} installed"
     else
-        log "WARNING: UniFi OS Server installer failed -- alert"
+        err "UniFi OS Server installer failed -abort"
         rm -f "${installer_file}"
         return 1
     fi
@@ -515,44 +580,46 @@ install_osserver() {
 action_install_osserver() {
     get_installed_osserver
     if [ -n "${installed_osserver_version}" ]; then
-        log "UniFi OS Server v${installed_osserver_version} installed."
-        log "Use update instead."
+        info "UniFi OS Server v${installed_osserver_version} installed"
+        err "use update instead -abort"
         return 1
     fi
     get_installed_network
     if [ -n "${installed_network_version}" ]; then
-        log "WARNING: Network (v${installed_network_version}) present, can't coexist"
-        log "WARNING: remove UniFi Network first -- alert"
+        info "UniFi Network version: ${installed_network_version}"
+        err "remove UniFi Network first -abort"
         return 1
     fi
     get_latest_osserver
     if [ -z "${latest_osserver_version}" ]; then
-        log "WARNING: latest UniFi OS Server version unavailable -- alert"
+        err "latest UniFi OS Server version unavailable -abort"
         return 1
     fi
     if install_osserver "${latest_osserver_version}" "${latest_osserver_url}"; then
         echo ""
-        echo "UniFi OS Server is available at: https://$(get_server_address):11443"
+        info "UniFi OS Server URL: https://$(get_server_address):11443"
+    else
+        return 1
     fi
 }
 
 action_update_osserver() {
     get_installed_osserver
     if [ -z "${installed_osserver_version}" ]; then
-        log "OS Server not installed. Use install instead."
+        err "OS Server not installed; use install -abort"
         return 1
     fi
     get_latest_osserver
     if [ -z "${latest_osserver_version}" ]; then
-        log "WARNING: latest UniFi OS Server version unavailable -- alert"
+        err "latest UniFi OS Server version unavailable -abort"
         return 1
     fi
     if dpkg --compare-versions "${installed_osserver_version}" ge "${latest_osserver_version}"; then
-        log "UniFi OS Server v${installed_osserver_version} is current"
+        info "UniFi OS Server v${installed_osserver_version} is current"
         return 0
     fi
-    log "OS Server current: ${installed_osserver_version}"
-    log "INFO: OS Server target: ${latest_osserver_version}"
+    info "OS Server current: ${installed_osserver_version}"
+    info "OS Server target: ${latest_osserver_version}"
     install_osserver "${latest_osserver_version}" "${latest_osserver_url}"
 }
 
@@ -563,17 +630,26 @@ action_update_osserver() {
 # state directory, /var/lib/uosserver.
 backup_osserver_config() {
     if [ ! -d /var/lib/uosserver ]; then
-        log "WARNING: uosserver data dir missing; backup skipped -- alert"
-        return 1
+        warn "uosserver data dir missing; backup skipped -alert"
+        return 0
     fi
-    local dest
+    local dest tmp_dir
     dest="${script_dir}/uosserver-backup-${installed_osserver_version}-$(date +%Y%m%d%H%M%S).tar.gz"
-    if tar -czf "${dest}" -C /var/lib uosserver 2>>"$log_file"; then
-        log "Backup saved: ${dest}"
+    tmp_dir="$(mktemp -d "${dest}.XXXXXX" 2>>"$log_file")" || {
+        err "cannot create temporary backup directory -abort"
+        return 1
+    }
+
+    if { [ ! -e "${dest}" ] ||
+            cp --attributes-only -p -- "${dest}" "${tmp_dir}/backup" 2>>"$log_file"; } &&
+        tar -czf "${tmp_dir}/backup" -C /var/lib uosserver 2>>"$log_file" &&
+        mv -T -- "${tmp_dir}/backup" "${dest}" 2>>"$log_file"; then
+        rmdir -- "${tmp_dir}" 2>>"$log_file"
+        info "Backup saved: ${dest}"
     else
-        log "WARNING: failed to create backup"
-        log "WARNING: path: ${dest} -- alert"
-        rm -f "${dest}"
+        warn "UniFi OS Server backup could not be saved -alert"
+        rm -f -- "${tmp_dir}/backup"
+        rmdir -- "${tmp_dir}" 2>>"$log_file"
         return 1
     fi
 }
@@ -581,38 +657,61 @@ backup_osserver_config() {
 action_uninstall_osserver() {
     get_installed_osserver
     if [ -z "${installed_osserver_version}" ]; then
-        log "OS Server not installed, nothing to remove"
+        info "OS Server not installed, nothing to remove"
         return 0
     fi
 
     read -rp "Remove UniFi OS Server ${installed_osserver_version}? (y/N) " confirm
     case "$confirm" in
         [Yy]*) ;;
-        *) log "Uninstall cancelled by user"; return 0 ;;
+        *) info "Uninstall cancelled by user"; return 0 ;;
     esac
 
     local unit_path
     unit_path="$(systemctl show -p FragmentPath --value uosserver 2>/dev/null || true)"
 
-    # Stop everything first so the backup below (and the removal after it)
-    # sees a quiescent state, not a live container writing to it mid-tar.
-    systemctl disable --now uosserver 2>/dev/null || true
+    # Quiesce before the backup, recording whether it was running: a failed
+    # backup below must leave the service exactly as it was found. Stopping
+    # the unit stops its container, and starting it back brings the
+    # container up again. The disable and
+    # the container removal come after the backup.
+    local was_active="no"
+    systemctl is-active --quiet uosserver && was_active="yes"
+    if ! systemctl stop uosserver >>"$log_file" 2>&1; then
+        err "cannot stop uosserver, uninstall aborted"
+        err "uosserver: run systemctl status uosserver -abort"
+        return 1
+    fi
+    # A successful stop is not proof on its own, so the state is read back.
+    # Aborting while the unit is still up leaves the service exactly as it
+    # was found, so there is nothing to restore.
+    if systemctl is-active --quiet uosserver; then
+        err "uosserver still active after stop, uninstall aborted"
+        err "uosserver: run systemctl status uosserver -abort"
+        return 1
+    fi
+
+    echo "Note: UniFi OS Server does not keep a .unifi backup file on disk (UI"
+    echo "generates it on demand and streams it straight to your browser)"
+    echo "This backs up its persistent state directory (/var/lib/uosserver) instead,"
+    echo "which is not same file format as UI's Backup button"
+    read -rp "Back up /var/lib/uosserver before removing? (y/N) " do_backup
+    case "$do_backup" in
+        [Yy]*) backup_osserver_config || {
+            err "uosserver backup failed; uninstall stopped -abort"
+            if [ "${was_active}" = "yes" ]; then
+                systemctl start uosserver >>"$log_file" 2>&1 ||
+                    warn "cannot restart uosserver -alert"
+            fi
+            return 1
+        } ;;
+    esac
+
+    systemctl disable --now uosserver >>"$log_file" 2>&1 || true
 
     if id -u uosserver >/dev/null 2>&1; then
         runuser -u uosserver -- podman stop -a 2>/dev/null || true
         runuser -u uosserver -- podman rm -fa 2>/dev/null || true
-    fi
-
-    echo "Note: UniFi OS Server does not keep a .unifi backup file on disk (the UI"
-    echo "generates it on demand and streams it straight to your browser)."
-    echo "This backs up its persistent state directory (/var/lib/uosserver) instead,"
-    echo "which is not the same file format as the UI's Backup button."
-    read -rp "Back up /var/lib/uosserver before removing? (y/N) " do_backup
-    case "$do_backup" in
-        [Yy]*) backup_osserver_config ;;
-    esac
-
-    if id -u uosserver >/dev/null 2>&1; then
         # Rootless podman keeps a "systemd --user" instance alive via
         # linger, so containers survive without a login session. That
         # instance holds the uosserver UID open until it's torn down,
@@ -634,16 +733,16 @@ action_uninstall_osserver() {
 
     if id -u uosserver >/dev/null 2>&1; then
         if ! userdel -r uosserver 2>>"$log_file"; then
-            log "WARNING: userdel uosserver failed, see unifisetup.log -- alert"
+            warn "userdel uosserver failed, see unifisetup.log -alert"
         fi
     fi
     if getent group uosserver >/dev/null 2>&1; then
         if ! groupdel uosserver 2>>"$log_file"; then
-            log "WARNING: could not remove group uosserver -- alert"
+            warn "could not remove group uosserver -alert"
         fi
     fi
 
-    log "OS Server removed"
+    info "OS Server removed"
 }
 
 # ------------------------------------------------------------------------------
@@ -651,30 +750,83 @@ action_uninstall_osserver() {
 # ------------------------------------------------------------------------------
 
 action_status() {
-    get_installed_network
-    get_latest_network
-    get_installed_osserver
-    get_latest_osserver
+    local unit label properties load_state active_state key value query_status
+    local installed
 
-    echo ""
-    echo "==========================================="
-    echo "UniFi Network Application"
-    echo "==========================================="
-    echo "Installed: ${installed_network_version:-not installed}"
-    echo "Latest online: ${latest_network_version:-unknown}"
-    if [ -n "${installed_network_version}" ] && [ -n "${latest_network_version}" ] && dpkg --compare-versions "${installed_network_version}" lt "${latest_network_version}"; then
-        echo "Update available"
+    if [ "$(dpkg-query -W -f='${db:Status-Status}' systemd 2>/dev/null)" != installed ]; then
+        err "dependency 'systemd' is not installed -abort"
+        return 1
     fi
-    echo ""
-    echo "==========================================="
-    echo "UniFi OS Server"
-    echo "==========================================="
-    echo "Installed: ${installed_osserver_version:-not installed}"
-    echo "Latest online: ${latest_osserver_version:-unknown}"
-    if [ -n "${installed_osserver_version}" ] && [ -n "${latest_osserver_version}" ] && dpkg --compare-versions "${installed_osserver_version}" lt "${latest_osserver_version}"; then
-        echo "Update available"
+    if ! command -v systemctl >/dev/null 2>&1; then
+        err "systemctl command not found -abort"
+        return 1
     fi
-    echo ""
+
+    for unit in unifi.service uosserver.service; do
+        installed=0
+        case "$unit" in
+            unifi.service)
+                label="UniFi Network"
+                if [ "$(dpkg-query -W -f='${db:Status-Status}' unifi 2>/dev/null)" = installed ]; then
+                    installed=1
+                fi
+                ;;
+            uosserver.service)
+                label="UniFi OS Server"
+                [ -f /var/lib/uosserver/server.conf ] && installed=1
+                ;;
+        esac
+
+        query_status=0
+        properties="$(systemctl show "$unit" --property=LoadState --property=ActiveState 2>/dev/null)" || query_status=$?
+        load_state=""
+        active_state=""
+        while IFS='=' read -r key value; do
+            case "$key" in
+                LoadState) load_state="$value" ;;
+                ActiveState) active_state="$value" ;;
+            esac
+        done <<< "$properties"
+
+        if [ "$load_state" = not-found ]; then
+            if [ "$installed" -eq 1 ]; then
+                echo "$label: not running ($unit not found)"
+            else
+                echo "$label: not installed"
+            fi
+            continue
+        fi
+        if [ "$query_status" -ne 0 ]; then
+            err "cannot read $unit state -abort"
+            return 1
+        fi
+        case "$load_state" in
+            loaded|masked|error|bad-setting) ;;
+            *)
+                err "$unit: cannot determine unit load state -abort"
+                return 1
+                ;;
+        esac
+        case "$active_state" in
+            active|reloading) echo "$label: running" ;;
+            inactive|maintenance) echo "$label: not running" ;;
+            failed) echo "$label: not running (failed)" ;;
+            activating) echo "$label: starting" ;;
+            deactivating) echo "$label: stopping" ;;
+            *)
+                err "$unit: cannot determine service state -abort"
+                return 1
+                ;;
+        esac
+    done
+}
+
+run_action() {
+    if [ "$1" != action_status ]; then
+        ensure_prereqs
+        fetch_downloads_json
+    fi
+    "$1"
 }
 
 # ------------------------------------------------------------------------------
@@ -694,23 +846,21 @@ menu() {
         echo "4. Update UniFi OS Server"
         echo "5. Uninstall UniFi Network Application"
         echo "6. Uninstall UniFi OS Server"
-        echo "7. Show status (installed vs. latest online)"
+        echo "7. Show local installation and service status"
         echo "8. Exit"
         echo ""
-        read -rp "Select an option (1-8): " choice
+        read -rp "Select an option (1-8): " choice || return 1
         case "$choice" in
-            1) action_install_network ;;
-            2) action_install_osserver ;;
-            3) action_update_network ;;
-            4) action_update_osserver ;;
-            5) action_uninstall_network ;;
-            6) action_uninstall_osserver ;;
-            7) action_status ;;
-            8) log "unifisetup done at: $(date '+%Y-%m-%d %H:%M:%S')"; exit 0 ;;
+            1) run_action action_install_network || exit 1; break ;;
+            2) run_action action_install_osserver || exit 1; break ;;
+            3) run_action action_update_network || exit 1; break ;;
+            4) run_action action_update_osserver || exit 1; break ;;
+            5) run_action action_uninstall_network || exit 1; break ;;
+            6) run_action action_uninstall_osserver || exit 1; break ;;
+            7) run_action action_status || exit 1; break ;;
+            8) exit 0 ;;
             *) echo "Invalid option" ;;
         esac
-        echo ""
-        read -n1 -rsp "Press any key to continue..."
     done
 }
 
@@ -719,30 +869,38 @@ menu() {
 # ------------------------------------------------------------------------------
 
 action="${1:-}"
-case "$action" in
-    ""|install-network|install-osserver|update-network|update-osserver|uninstall-network|uninstall-osserver|status) ;;
+component="${2:-}"
+case "$action:$component" in
+    :|--status:|--help:|-h:) ;;
+    --install:network|--install:osserver|--update:network|--update:osserver|--uninstall:network|--uninstall:osserver) ;;
     *)
-        echo "Unknown action: $action"
-        echo "See the header comments for usage."
+        echo "Usage: $0 [--install|--update|--uninstall] {network|osserver}"
+        echo "       $0 [--status|--help]"
         exit 1
         ;;
 esac
+if [ "$action" = --help ] || [ "$action" = -h ]; then
+    echo "Usage: $0 [--install|--update|--uninstall] {network|osserver}"
+    echo "       $0 [--status|--help]"
+    echo "Without arguments, opens the interactive menu"
+    exit 0
+fi
 
 # Start
 log "unifisetup start..."
 
 os_check
 arch_check
-ensure_prereqs
-fetch_downloads_json
 
-case "$action" in
-    install-network) action_install_network ;;
-    install-osserver) action_install_osserver ;;
-    update-network) action_update_network ;;
-    update-osserver) action_update_osserver ;;
-    uninstall-network) action_uninstall_network ;;
-    uninstall-osserver) action_uninstall_osserver ;;
-    status) action_status ;;
-    *) menu ;;
+case "$action:$component" in
+    --install:network) run_action action_install_network || exit 1 ;;
+    --install:osserver) run_action action_install_osserver || exit 1 ;;
+    --update:network) run_action action_update_network || exit 1 ;;
+    --update:osserver) run_action action_update_osserver || exit 1 ;;
+    --uninstall:network) run_action action_uninstall_network || exit 1 ;;
+    --uninstall:osserver) run_action action_uninstall_osserver || exit 1 ;;
+    --status:) run_action action_status || exit 1 ;;
+    :) menu || exit 1 ;;
 esac
+
+log "unifisetup done at: $(date '+%Y-%m-%d %H:%M:%S')"

@@ -11,7 +11,7 @@
 # the background and avoids multiple instances.
 #
 # USAGE:
-# ./watchdog.sh {start|stop|status}
+# ./watchdog.sh {--start|--stop|--status}
 #
 # LOG: connection.log, next to this script
 #      PID file under /run/user/<uid>/watchdog.pid
@@ -20,19 +20,23 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # no-root check
 if [ "$(id -u)" == "0" ]; then
-    echo "ERROR: This script should not be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script should not be run as root -abort" >&2
     exit 1
 fi
 
 # dependencies
 for dep in libnotify-bin iputils-ping util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
@@ -63,6 +67,10 @@ notify_send_self() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
+
 RUN_DIR="/run/user/${UID}"
 mkdir -p "$RUN_DIR"
 PIDFILE="${RUN_DIR}/watchdog.pid"
@@ -70,22 +78,42 @@ SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 LOGFILE="$SCRIPT_DIR/connection.log"
 TARGET="1.1.1.1"
 
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
+# PID CHECK
+# Check whether the recorded process belongs to this daemon
+daemon_alive() {
+    local pid="$1" args=() self i
+    [ -n "$pid" ] || return 1
+    mapfile -d '' -t args < "/proc/$pid/cmdline" 2>/dev/null || return 1
+    self="$(basename -- "$0")"
+    case "$(basename -- "${args[0]:-}")" in
+        "$self") i=0 ;;
+        bash|sh) i=1 ;;
+        *) return 1 ;;
+    esac
+    [ "$(basename -- "${args[i]:-}")" = "$self" ] || return 1
+    [ "${args[i+1]:-}" = --start ]
+}
+
 start() {
     # prevent overlapping runs
     script_lock="/var/lock/$(basename "$0" .sh).lock"
     exec 200>"$script_lock"
     if ! flock -n 200; then
-        echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
         exit 1
     fi
 
     watchdog_pid=$(cat "$PIDFILE" 2>/dev/null)
-    if [ -f "$PIDFILE" ] && [[ "$watchdog_pid" =~ $UH_UINT ]] && kill -0 "$watchdog_pid" 2>/dev/null; then
+    if [ -f "$PIDFILE" ] && [[ "$watchdog_pid" =~ $UH_UINT ]] && daemon_alive "$watchdog_pid"; then
         echo "[!] Watchdog already running (PID $watchdog_pid)"
         exit 1
     fi
 
-    echo "[+] Starting watchdog in background..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [+] Starting watchdog in background..."
     (
         while true; do
             timestamp=$(date '+%F %T')
@@ -108,7 +136,7 @@ start() {
 
     echo $! > "$PIDFILE"
     sleep 0.2
-    if ! kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    if ! daemon_alive "$(cat "$PIDFILE")"; then
         echo "[!] Watchdog failed to start"
         rm -f "$PIDFILE"
         exit 1
@@ -124,7 +152,7 @@ stop() {
             rm -f "$PIDFILE"
             exit 1
         fi
-        if kill "$PID" 2>/dev/null; then
+        if daemon_alive "$PID" && kill "$PID" 2>/dev/null; then
             echo "[ ] Watchdog stopped (PID $PID)"
             rm -f "$PIDFILE"
         else
@@ -137,19 +165,33 @@ stop() {
 
 status() {
     watchdog_pid=$(cat "$PIDFILE" 2>/dev/null)
-    if [ -f "$PIDFILE" ] && [[ "$watchdog_pid" =~ $UH_UINT ]] && kill -0 "$watchdog_pid" 2>/dev/null; then
+    if [ -f "$PIDFILE" ] && [[ "$watchdog_pid" =~ $UH_UINT ]] && daemon_alive "$watchdog_pid"; then
         echo "[ ] Watchdog is running (PID $watchdog_pid)"
     else
         echo "[ ] Watchdog is not running"
     fi
 }
 
+# ------------------------------------------------------------------------------
+# ACTIONS
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') watchdog start..."
+
 case "${1:-}" in
-    start) start ;;
-    stop) stop ;;
-    status) status ;;
+    --start) start ;;
+    --stop) stop ;;
+    --status) status ;;
     *)
-        echo "Usage: $0 {start|stop|status}"
+        echo "Usage: $0 {--start|--stop|--status}"
         exit 1
         ;;
 esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') watchdog done at: $(date '+%Y-%m-%d %H:%M:%S')"

@@ -1,0 +1,145 @@
+#!/bin/bash
+# maravento.com
+#
+################################################################################
+#
+# send2phone -- FMS phone transfer
+#
+# DESCRIPTION:
+# Sends selected files as a normal desktop user.
+#
+# USAGE:
+# bash send2phone [file ...]
+#
+# LOG: send2phone.log, in this script's directory
+#
+################################################################################
+
+set -uo pipefail
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
+script_dir="$(cd "$(dirname "$0")" 2>/dev/null && pwd)" || exit 1
+log_file="${script_dir}/send2phone.log"
+log() {
+    local message="$*"
+    if [ "${#message}" -gt 60 ]; then
+        message="${message% -alert}"
+        message="${message% -abort}"
+    fi
+    printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$message" 2>/dev/null >> "$log_file" || true
+}
+
+log "send2phone start..."
+
+# no-root check
+if [ "$(id -u)" == "0" ]; then
+    log "ERROR: run send2phone as a normal user -abort"
+    exit 1
+fi
+
+# ------------------------------------------------------------------------------
+# FILES
+# ------------------------------------------------------------------------------
+
+files=()
+if [ -n "${NAUTILUS_SCRIPT_SELECTED_FILE_PATHS:-}" ]; then
+    IFS=$'\n' read -d '' -r -a files <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+elif [ -n "${THUNAR_SELECTION:-}" ]; then
+    IFS=$'\n' read -d '' -r -a files <<< "$THUNAR_SELECTION"
+elif [ -n "${NEMO_SCRIPT_SELECTED_FILE_PATHS:-}" ]; then
+    IFS=$'\n' read -d '' -r -a files <<< "$NEMO_SCRIPT_SELECTED_FILE_PATHS"
+elif [ "$#" -gt 0 ]; then
+    files=("$@")
+else
+    log "ERROR: no files selected for sending -abort"
+    exit 1
+fi
+if [ "${#files[@]}" -eq 0 ]; then
+    log "ERROR: no files selected for sending -abort"
+    exit 1
+fi
+
+# ------------------------------------------------------------------------------
+# DEVICES
+# ------------------------------------------------------------------------------
+
+devices="$(kdeconnect-cli -a 2>/dev/null)"
+if [[ -z "$devices" ]]; then
+    log "ERROR: KDE Connect found no available devices -abort"
+    exit 1
+fi
+mapfile -t phone_ids < <(kdeconnect-cli -a --id-only 2>/dev/null)
+if [ "${#phone_ids[@]}" -eq 0 ]; then
+    log "ERROR: KDE Connect returned no device IDs -abort"
+    exit 1
+elif [ "${#phone_ids[@]}" -eq 1 ]; then
+    phone_id="${phone_ids[0]}"
+    log "INFO: sending to device $phone_id"
+else    send_files=()
+    for file in "${files[@]}"; do
+        base="$(basename -- "$file")"
+        if [ -d "$file" ]; then
+            log "WARNING: cannot send directory: $base -alert"
+        elif [ ! -f "$file" ]; then
+            log "WARNING: file not found: $base -alert"
+        else
+            send_files+=("$file")
+        fi
+    done
+    if [ "${#send_files[@]}" -eq 0 ]; then
+        log "ERROR: no existing files selected for sending -abort"
+        exit 1
+    fi
+    kdeconnect-handler "${send_files[@]}" >/dev/null 2>&1
+    handler_rc=$?
+    if [ "$handler_rc" -ne 0 ]; then
+        log "INFO: KDE Connect send request was not confirmed"
+        exit "$handler_rc"
+    fi
+    log "INFO: KDE Connect accepted ${#send_files[@]} files for sending"
+    log "send2phone done at: $(date '+%Y-%m-%d %H:%M:%S')"
+    exit 0
+fi
+
+# ------------------------------------------------------------------------------
+# SEND
+# ------------------------------------------------------------------------------
+
+total_files="${#files[@]}"
+current=0
+sent=0
+for file in "${files[@]}"; do
+    current=$((current + 1))
+    base="$(basename -- "$file")"
+
+    if [ -d "$file" ]; then
+        log "WARNING: cannot send directory: $base -alert"
+        continue
+    fi
+
+    if [ ! -f "$file" ]; then
+        log "WARNING: file not found: $base -alert"
+        continue
+    fi
+
+    if kdeconnect-cli --device "$phone_id" --share "$file" >/dev/null 2>&1; then
+        sent=$((sent + 1))
+    else
+        log "WARNING: KDE Connect send failed: $base -alert"
+    fi
+
+    if [ $current -lt $total_files ]; then
+        sleep 2
+    fi
+done
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+log "INFO: KDE Connect accepted $sent of $total_files files for sending"
+
+log "send2phone done at: $(date '+%Y-%m-%d %H:%M:%S')"

@@ -16,18 +16,25 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
@@ -64,22 +71,26 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: no valid local user found, create one with sudo access -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
     exit 1
 fi
 echo "Using local user: $local_user"
 
-echo "Virtual Hard Disk Starting. Wait..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') Virtual Hard Disk Starting. Wait..."
 
 # dependencies
 for dep in kpartx pv ntfs-3g dosfstools e2fsprogs util-linux coreutils; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
 
+# ------------------------------------------------------------------------------
 # VARIABLES
+# ------------------------------------------------------------------------------
+
+# Declare the configuration values used by this script
 # CHANGE VALUES AND PATHS
 # path to mount point folder (change it)
 mountpoint="/home/$local_user/vdisk"
@@ -107,6 +118,10 @@ if [ ! -d "$myvhd" ]; then
     chown "$local_user": "$myvhd"
     chmod 750 "$myvhd"
 fi
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
 
 # format ntfs
 pntfs() {
@@ -139,7 +154,7 @@ create_img() {
     printf "\n"
     read -r -p "Enter File System (e.g. ntfs, fat32, ext4): " pset
     if [ -z "$pset" ]; then
-        echo "No file system selected. Exiting."
+        echo "No file system selected. Exiting"
         exit 1
     fi
     case $pset in
@@ -153,7 +168,7 @@ create_img() {
         pext4
         ;;
     *)
-        echo "Unknown file system: $pset. Exiting."
+        echo "Unknown file system: $pset. Exiting"
         exit 1
         ;;
     esac
@@ -172,7 +187,7 @@ mount_img() {
         case "$choice" in
         1)
             # mount .img
-            echo "Mount VHD-IMG..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') Mount VHD-IMG..."
             mount -o loop,rw,sync "$myimg" "$mountpoint"
             chown -R "$local_user": "$mountpoint"
             chmod 750 "$mountpoint"
@@ -180,12 +195,12 @@ mount_img() {
             ;;
         2)
             # umount .img
-            echo "Umount VHD-IMG..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') Umount VHD-IMG..."
             umount "$mountpoint"
             echo "VHD-IMG Umount: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
             ;;
         *)
-            echo "Invalid choice. Exiting."
+            echo "Invalid choice. Exiting"
             ;;
         esac
     else
@@ -203,9 +218,9 @@ mount_img_kpartx() {
         case "$choice" in
         1)
             # mount .img
-            echo "Mount VHD-IMG..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') Mount VHD-IMG..."
             if ! kpartx -a -v "$myimg"; then
-                echo "kpartx failed to map partitions for $myimg. Exiting."
+                echo "kpartx failed to map partitions for $myimg. Exiting"
                 exit 1
             fi
             for f in $(losetup --list | grep "$myvhd" | awk '{print $1}'); do mount $f $mountpoint; done
@@ -215,7 +230,7 @@ mount_img_kpartx() {
             ;;
         2)
             # umount .img
-            echo "Umount VHD-IMG..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') Umount VHD-IMG..."
             umount "$mountpoint"
             if [ -n "$(kpartx -d -v "$myimg")" ]; then
                 echo "VHD-IMG Umount: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
@@ -224,13 +239,20 @@ mount_img_kpartx() {
             fi
             ;;
         *)
-            echo "Invalid choice. Exiting."
+            echo "Invalid choice. Exiting"
             ;;
         esac
     else
         echo "Usage: $0"
     fi
 }
+
+# ------------------------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') vdisk start..."
 
 # Selection menu
 printf "\n"
@@ -250,3 +272,10 @@ case "$choice" in
     echo "Invalid option. Exiting"
     ;;
 esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') vdisk done at: $(date '+%Y-%m-%d %H:%M:%S')"

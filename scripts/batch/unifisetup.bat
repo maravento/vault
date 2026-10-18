@@ -24,7 +24,8 @@ for /f "tokens=*" %%I in ('powershell -Command "Get-Date -Format yyyyMMddHHmmss"
 set "logname=unifi_install_%datetime:~0,8%_%datetime:~8,6%.log"
 set "logfile=%logspath%\%logname%"
 
-echo [%date% %time%] Script started > "%logfile%"
+> "%logfile%" echo [%date% %time%] unifisetup start...
+echo unifisetup start...
 echo =========================================== >> "%logfile%"
 echo UNIFI INSTALLATION LOG >> "%logfile%"
 echo Started: %date% %time% >> "%logfile%"
@@ -113,7 +114,6 @@ if "%var%"=="5" (
 echo Invalid option. Please select a valid number from 1 to 5
 echo [%date% %time%] ERROR: Invalid option selected: %var% >> "%logfile%"
 echo.
-pause
 goto :menu
 
 :: ===========================================
@@ -129,8 +129,7 @@ if %errorlevel% equ 0 (
         echo Uninstall java and run the script again
         echo [%date% %time%] ERROR: Java already installed: %%v >> "%logfile%"
         echo.
-        pause
-        goto :menu
+        exit /b 1
     )
 )
 echo [%date% %time%] No existing Java found, OK to proceed >> "%logfile%"
@@ -259,7 +258,8 @@ echo Press any key to exit...
 echo.
 echo [%date% %time%] Installation finished successfully >> "%logfile%"
 echo =========================================== >> "%logfile%"
-pause >nul
+echo [%date% %time%] unifisetup done at: %date% %time% >> "%logfile%"
+echo unifisetup done at: %date% %time%
 exit /b 0
 
 :: ===========================================
@@ -368,7 +368,6 @@ if "!choice!"=="4" (
 )
 
 echo Invalid option. Please try again.
-pause
 goto :version_menu
 
 :custom_version
@@ -392,7 +391,6 @@ if !version_exists! equ 0 (
     echo Version !custom_ver! not found in available versions.
     echo [%date% %time%] ERROR: Custom version not found: !custom_ver! >> "%logfile%"
     echo.
-    pause
     goto :version_menu
 )
 
@@ -505,8 +503,7 @@ if %errorlevel% equ 0 (
     echo Please uninstall UniFi first using option 4.
     echo [%date% %time%] ERROR: UniFi service is running >> "%logfile%"
     echo.
-    pause
-    goto :menu
+    exit /b 1
 )
 
 :: Check if folder exists but allow if it's empty or from failed installation
@@ -526,8 +523,7 @@ if exist "%UserProfile%\Ubiquiti UniFi\" (
         echo Please use option 4 to uninstall it first.
         echo [%date% %time%] ERROR: Complete UniFi installation found >> "%logfile%"
         echo.
-        pause
-        goto :menu
+        exit /b 1
     )
     
     :: It's incomplete or leftover - offer to clean
@@ -535,7 +531,7 @@ if exist "%UserProfile%\Ubiquiti UniFi\" (
     echo.
     echo Options:
     echo 1. Clean up and continue with fresh installation
-    echo 2. Cancel and return to main menu
+    echo 2. Cancel and exit
     echo.
     set /p "cleanup_choice=Enter your choice (1 or 2): "
     
@@ -554,8 +550,7 @@ if exist "%UserProfile%\Ubiquiti UniFi\" (
             echo Then run the script again.
             echo [%date% %time%] ERROR: Failed to clean up folder >> "%logfile%"
             echo.
-            pause
-            goto :menu
+            exit /b 1
         )
         
         echo Cleanup successful! Continuing with installation...
@@ -565,14 +560,13 @@ if exist "%UserProfile%\Ubiquiti UniFi\" (
         echo Installation cancelled.
         echo [%date% %time%] User cancelled installation >> "%logfile%"
         echo.
-        pause
-        goto :menu
+        exit /b 1
     )
 )
 
 :check_java_network
 call :check_java
-if errorlevel 1 goto :menu
+if errorlevel 1 exit /b 1
 
 call :check_curl
 if errorlevel 1 exit /b 1
@@ -586,7 +580,7 @@ call :get_version_selection "temp_network.json" "network"
 if errorlevel 1 (
     del temp_network.json
     echo [%date% %time%] Version selection cancelled or failed >> "%logfile%"
-    goto :menu
+    exit /b 1
 )
 
 echo.
@@ -595,7 +589,7 @@ echo [%date% %time%] Downloading UniFi Network version: !selected_version! >> "%
 cd /d "%installpath%" || (
     del temp_network.json
     echo [%date% %time%] ERROR: Failed to change to install directory >> "%logfile%"
-    goto :menu
+    exit /b 1
 )
 curl -# -L -o "UniFi-installer.exe" "!selected_url!"
 set "unifi_dl_error=!errorlevel!"
@@ -604,8 +598,7 @@ if !unifi_dl_error! neq 0 (
     echo [%date% %time%] ERROR: UniFi download failed with error !unifi_dl_error! >> "%logfile%"
     del temp_network.json
     echo.
-    pause
-    goto :menu
+    exit /b 1
 )
 
 del temp_network.json
@@ -651,7 +644,6 @@ echo [%date% %time%] Setting up UniFi as Windows Service... >> "%logfile%"
 cd "%UserProfile%\Ubiquiti UniFi\" || (
     echo Failed to change directory
     echo [%date% %time%] ERROR: Failed to change to UniFi directory >> "%logfile%"
-    pause
     goto :cleanup_network
 )
 set "JAVA_PATH=%ProgramFiles%\Temurin\bin\java.exe"
@@ -666,7 +658,6 @@ set "service_error=!errorlevel!"
 if !service_error! neq 0 (
     echo Error setting up service
     echo [%date% %time%] ERROR: Service setup failed with error !service_error! >> "%logfile%"
-    pause
     goto :cleanup_network
 )
 echo [%date% %time%] Service setup successful >> "%logfile%"
@@ -681,9 +672,8 @@ goto :final_installation
 echo Installation failed. Cleaning up...
 echo [%date% %time%] INSTALLATION FAILED - CLEANING UP >> "%logfile%"
 call :force_remove_folder "%UserProfile%\Ubiquiti UniFi"
-echo [%date% %time%] Cleanup complete, returning to menu >> "%logfile%"
-pause
-goto :menu
+echo [%date% %time%] Cleanup complete, exiting >> "%logfile%"
+exit /b 1
 
 :: ===========================================
 :: REMOVE UNIFI + JRE FUNCTION
@@ -724,8 +714,9 @@ if %found_any_folder% equ 0 (
     echo No UniFi installations or folders detected.
     echo Everything is already clean.
     echo.
-    pause
-    goto :menu
+    echo [%date% %time%] unifisetup done at: %date% %time% >> "%logfile%"
+    echo unifisetup done at: %date% %time%
+    exit /b 0
 )
 
 cls
@@ -746,8 +737,7 @@ if /i not "%confirm%"=="y" (
     echo.
     echo Operation cancelled.
     echo.
-    pause
-    goto :menu
+    exit /b 1
 )
 
 echo.
@@ -851,8 +841,9 @@ echo.
 echo IMPORTANT: Please reboot your system to complete the process.
 echo.
 echo [%date% %time%] Removal process completed successfully >> "%logfile%"
-pause
-goto :menu
+echo [%date% %time%] unifisetup done at: %date% %time% >> "%logfile%"
+echo unifisetup done at: %date% %time%
+exit /b 0
 
 :: ===========================================
 :: BACKUP CONFIGURATION
@@ -866,8 +857,7 @@ if exist "%UserProfile%\Ubiquiti UniFi\" set "backup_network=1"
 if %backup_network% equ 0 (
     echo No UniFi products found installed.
     echo.
-    pause
-    goto :menu
+    exit /b 1
 )
 
 set "unifidir=%UserProfile%\Ubiquiti UniFi\data\backup"
@@ -878,8 +868,7 @@ if not exist "%unifidir%" (
     echo No backup directory found for %product_name%
     echo Directory: %unifidir%
     echo.
-    pause
-    goto :menu
+    exit /b 1
 )
 
 set "backupdir=%installpath%\backup"
@@ -898,8 +887,7 @@ if not defined latest (
     echo TIP: Create a backup from the UniFi Controller web interface first:
     echo Settings ^> System ^> Backup ^> Download Backup
     echo.
-    pause
-    goto :menu
+    exit /b 1
 )
 
 set "sourcefile=%unifidir%\%latest%"
@@ -912,8 +900,7 @@ copy "%sourcefile%" "%destfile%" /Y
 if %ERRORLEVEL% NEQ 0 (
     echo Error copying the backup file
     echo.
-    pause
-    goto :menu
+    exit /b 1
 )
 
 echo.
@@ -924,8 +911,9 @@ echo.
 echo Source: %sourcefile%
 echo Destination: %destfile%
 echo.
-pause
-goto :menu
+echo [%date% %time%] unifisetup done at: %date% %time% >> "%logfile%"
+echo unifisetup done at: %date% %time%
+exit /b 0
 
 :: ===========================================
 :: ADD IP ADDRESS
@@ -938,8 +926,7 @@ if not exist "%propsFile%" (
     echo UniFi Network Controller not found
     echo Please install it first
     echo.
-    pause
-    goto :menu
+    exit /b 1
 )
 
 set /p "system_ip=Enter the IPv4 address (e.g. 192.168.1.10): "
@@ -951,8 +938,7 @@ if %errorlevel% == 0 (
 ) else (
     echo Error creating backup
     echo.
-    pause
-    goto :menu
+    exit /b 1
 )
 
 findstr /R "^system_ip=" "%propsFile%" >nul
@@ -960,8 +946,7 @@ if %errorlevel% == 0 (
     echo.
     echo ERROR: The IP already exists in the config file
     echo.
-    pause
-    goto :menu
+    exit /b 1
 )
 
 echo system_ip=%system_ip%>> "%propsFile%"
@@ -969,5 +954,6 @@ echo.
 echo Reboot to apply changes
 echo You can now access the URL: https://%system_ip%:8443
 echo.
-pause
-goto :menu
+echo [%date% %time%] unifisetup done at: %date% %time% >> "%logfile%"
+echo unifisetup done at: %date% %time%
+exit /b 0

@@ -58,7 +58,7 @@ def process_page(url, email, session):
         links = set()
         domain = urlparse(url).netloc
         for tag in soup.find_all("a", href=True):
-            href = urljoin(url, tag["href"])
+            href = urljoin(resp.url, tag["href"])
             norm = normalize_url(href)
             if norm.startswith("http") and same_domain(norm, domain):
                 path = norm.split("?")[0].lower()

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Manage an owned virtual system-audio input without changing defaults."""
+"""Manage an owned virtual system-audio input without changing defaults.
+
+Usage: python3 audio-bridge.py {--start|--status|--stop} [--json]
+"""
 
 import argparse
 import contextlib
@@ -223,7 +226,10 @@ def operate(command, directory):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("start", "status", "stop"))
+    actions = parser.add_mutually_exclusive_group(required=True)
+    for command in ("start", "status", "stop"):
+        actions.add_argument(f"--{command}", action="store_const",
+                             dest="command", const=command)
     parser.add_argument("--json", action="store_true", dest="as_json")
     options = parser.parse_args()
     try:
@@ -232,7 +238,7 @@ def main():
         if options.as_json:
             print(json.dumps({"ok": False, "error": str(error)}))
         else:
-            print(f"ERROR: {error}", file=sys.stderr)
+            print(f"ERROR: {error} -abort", file=sys.stderr)
         return 1
     result = {"ok": True, **result}
     print(json.dumps(result) if options.as_json else

@@ -21,34 +21,59 @@
 
 set -euo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
 retry_cmd() {
     local max_attempts=10
     local attempt=1
+    local retry_name retry_failure retry_arg
+    retry_name="$(basename "$1")"
+    retry_failure="$retry_name failed"
+    case "$retry_name" in
+        apt-get)
+            for retry_arg in "$@"; do
+                case "$retry_arg" in
+                    install) retry_failure="package installation failed"; break ;;
+                    update) retry_failure="package list update failed"; break ;;
+                esac
+            done
+            ;;
+        curl|wget) retry_failure="$retry_name download failed" ;;
+    esac
     until "$@"; do
         if [ "$attempt" -ge "$max_attempts" ]; then
-            echo "ERROR: command failed after $max_attempts attempts: $* -- abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: $retry_failure -abort" >&2
             exit 1
         fi
-        echo "INFO: attempt $attempt/$max_attempts failed: $* -- retry"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $retry_name: retry $((attempt + 1))/$max_attempts"
         attempt=$((attempt + 1))
         sleep 10
     done
 }
+
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
 
 rd_user="rustdesk"
 rd_data_dir="/var/lib/rustdesk-server"
@@ -58,11 +83,15 @@ conf_file="$conf_dir/rdserver.conf"
 hbbs_unit="/lib/systemd/system/rustdesk-hbbs.service"
 hbbr_unit="/lib/systemd/system/rustdesk-hbbr.service"
 
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
 check_dependencies() {
     for c in wget dpkg systemctl; do
         command -v "$c" &>/dev/null && continue
         if [ "$c" = "systemctl" ]; then
-            echo "ERROR: systemd (systemctl) not found, this script requires it -- abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: systemd (systemctl) not found, this script requires it -abort"
             exit 1
         fi
     done
@@ -79,7 +108,7 @@ check_dependencies() {
         apt_lock_files="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
         while lsof $apt_lock_files >/dev/null 2>&1; do
             if [ "$apt_lock_elapsed" -ge "$apt_lock_timeout" ]; then
-                echo "ERROR: APT/DPKG locks still held after ${apt_lock_timeout}s -- abort"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: APT/DPKG locks still held after ${apt_lock_timeout}s -abort" >&2
                 exit 1
             fi
             echo "   Locks still held, waiting... (${apt_lock_elapsed}s elapsed)"
@@ -87,7 +116,7 @@ check_dependencies() {
             apt_lock_elapsed=$((apt_lock_elapsed + 5))
         done
         if ! retry_cmd apt-get -qq update || ! retry_cmd apt-get install -y "${missing[@]}"; then
-            echo "ERROR: failed to install dependencies: ${missing[*]} -- abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install dependencies: ${missing[*]} -abort"
             exit 1
         fi
     fi
@@ -105,7 +134,7 @@ ensure_service_user() {
 # and restart the services. Safe to re-run: each sed replaces the whole line.
 patch_units() {
     if [ -z "${relay_host:-}" ]; then
-        echo "INFO: relay_host is not set, cannot configure services -- skip"
+        echo "INFO: relay_host is not set, cannot configure services -skip"
         return 1
     fi
 
@@ -123,7 +152,7 @@ patch_units() {
 
 apply_config() {
     if [ ! -f "$conf_file" ]; then
-        echo "INFO: no configuration found, run 'Configure Relay Host' first -- skip"
+        echo "INFO: no configuration found, run 'Configure Relay Host' first -skip"
         return 1
     fi
     relay_host=""
@@ -140,7 +169,7 @@ configure_relay_host() {
     read -rp "Server address for clients (IP/domain): " relay_host
     relay_host="${relay_host:-$suggested}"
     if [ -z "$relay_host" ]; then
-        echo "INFO: no host provided, configuration canceled -- skip"
+        echo "INFO: no host provided, configuration canceled -skip"
         return 1
     fi
 
@@ -156,7 +185,7 @@ install_server() {
     release_json=$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk-server/releases/latest || true)
     ver_tag=$(echo "$release_json" | jq -r '.tag_name' 2>/dev/null || true)
     if [ -z "$ver_tag" ] || [ "$ver_tag" = "null" ]; then
-        echo "ERROR: failed to fetch latest version -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to fetch latest version -abort"
         exit 1
     fi
 
@@ -171,7 +200,7 @@ install_server() {
     echo "INFO: Latest version: $ver_tag"
 
     if [ "$installed_ver" = "$ver_tag" ]; then
-        echo "OK: You already have the latest version. Nothing to do."
+        echo "OK: You already have latest version. Nothing to do"
         return
     fi
 
@@ -183,31 +212,31 @@ install_server() {
     for deb in "$hbbs_deb" "$hbbr_deb"; do
         expected_sha256=$(echo "$release_json" | jq -r --arg name "$deb" '.assets[] | select(.name == $name) | .digest' | sed 's/^sha256://')
         if [ -z "$expected_sha256" ] || [ "$expected_sha256" = "null" ]; then
-            echo "ERROR: failed to obtain checksum for ${deb} -- abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to obtain checksum for ${deb} -abort"
             rm -f "$hbbs_deb" "$hbbr_deb"
             exit 1
         fi
 
         if ! retry_cmd wget -q "${base_url}/${deb}"; then
-            echo "ERROR: download failed: $deb -- abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: download failed: $deb -abort"
             rm -f "$hbbs_deb" "$hbbr_deb"
             exit 1
         fi
 
         actual_sha256=$(sha256sum "$deb" | awk '{print $1}')
         if [ "$actual_sha256" != "$expected_sha256" ]; then
-            echo "ERROR: integrity check failed for $deb -- abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: integrity check failed for $deb -abort"
             rm -f "$hbbs_deb" "$hbbr_deb"
             exit 1
         fi
     done
 
-    echo "INFO: Installing packages..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Installing packages..."
     dpkg_out=$(mktemp)
     if dpkg -i "./$hbbs_deb" "./$hbbr_deb" >"$dpkg_out" 2>&1; then
         rm -f "$hbbs_deb" "$hbbr_deb" "$dpkg_out"
     else
-        echo "ERROR: installation failed -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: installation failed -abort"
         cat "$dpkg_out" >&2
         rm -f "$hbbs_deb" "$hbbr_deb" "$dpkg_out"
         exit 1
@@ -222,7 +251,7 @@ install_server() {
     fi
 
     echo "OK: RustDesk Server $ver_tag installed successfully"
-    echo "TIP: Use option 6 to show the server's public key for client configuration."
+    echo "TIP: Use option 6 to show server's public key for client configuration"
 }
 
 remove_server() {
@@ -231,24 +260,24 @@ remove_server() {
         return
     fi
 
-    echo "INFO: Removing RustDesk Server..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Removing RustDesk Server..."
     systemctl stop rustdesk-hbbs.service rustdesk-hbbr.service 2>/dev/null || true
 
     apt_out=$(mktemp)
     if apt-get remove --purge -y rustdesk-server-hbbs rustdesk-server-hbbr >"$apt_out" 2>&1; then
         rm -f "$apt_out"
     else
-        echo "ERROR: failed to remove RustDesk Server -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to remove RustDesk Server -abort"
         cat "$apt_out" >&2
         rm -f "$apt_out"
         exit 1
     fi
 
-    echo "INFO: this invalidates the key for ALL connected clients"
+    echo "INFO: this invalidates key for ALL connected clients"
     read -rp "Also delete server data (key) at $rd_data_dir? (y/n): " user_response
     if [[ "$user_response" =~ ^[Yy]$ ]]; then
         rm -rf "$rd_data_dir" "$rd_log_dir" "$conf_dir"
-        echo "OK: Server data removed."
+        echo "OK: Server data removed"
     fi
 
     if id "$rd_user" &>/dev/null; then
@@ -261,12 +290,12 @@ remove_server() {
 
 start_server() {
     systemctl start rustdesk-hbbs.service rustdesk-hbbr.service
-    echo "OK: Started."
+    echo "OK: Started"
 }
 
 stop_server() {
     systemctl stop rustdesk-hbbs.service rustdesk-hbbr.service
-    echo "OK: Stopped."
+    echo "OK: Stopped"
 }
 
 status_server() {
@@ -276,7 +305,7 @@ status_server() {
 show_public_key() {
     key_file="$rd_data_dir/id_ed25519.pub"
     if [ ! -f "$key_file" ]; then
-        echo "INFO: public key not found at $key_file, start the server first -- skip"
+        echo "INFO: public key not found at $key_file, start server first -skip"
         return 1
     fi
     echo "INFO: Set as Key + ID/Relay Server in RustDesk client settings:"
@@ -300,6 +329,13 @@ show_menu() {
     echo "================================"
     echo -n "Select an option: "
 }
+
+# ------------------------------------------------------------------------------
+# MENU
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') rdserver start..."
 
 show_menu
 read -r option
@@ -331,7 +367,14 @@ case $option in
         exit 0
         ;;
     *)
-        echo "ERROR: invalid option -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort"
         exit 1
         ;;
 esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') rdserver done at: $(date '+%Y-%m-%d %H:%M:%S')"

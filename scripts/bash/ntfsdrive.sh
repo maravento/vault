@@ -14,9 +14,13 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
@@ -53,20 +57,24 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: no valid local user found, create one with sudo access -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
     exit 1
 fi
 echo "Using local user: $local_user"
 
-echo "Auto Mount/Unmount NTFS Starting. Wait..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') Auto Mount/Unmount NTFS Starting. Wait..."
 
 # dependencies
 for dep in ntfs-3g util-linux bsdextrautils; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
 
 list_drives() {
     echo "Connected Devices"
@@ -78,7 +86,7 @@ mount_drive() {
     list_drives
     read -r -p "Enter the label or UUID of the disk to be mounted ('exit' to exit): " disk_id
 
-    [ -z "$disk_id" ] || [ "$disk_id" == "exit" ] && echo "Exiting..." && return
+    [ -z "$disk_id" ] || [ "$disk_id" == "exit" ] && echo "$(date '+%Y-%m-%d %H:%M:%S') Exiting..." && return
 
     device_path=$(blkid -L "$disk_id" 2>/dev/null || blkid -U "$disk_id" 2>/dev/null)
 
@@ -89,7 +97,7 @@ mount_drive() {
         mount_point="/media/$local_user/$disk_label"
 
         if mountpoint -q "$mount_point" 2>/dev/null; then
-            echo "Device is already mounted at $mount_point."
+            echo "Device is already mounted at $mount_point"
             return
         fi
 
@@ -97,13 +105,13 @@ mount_drive() {
         chown "$local_user:$local_user" "$mount_point"
 
         if mount -o uid=$(id -u "$local_user"),gid=$(id -g "$local_user"),fmask=0022,dmask=0022,windows_names -t ntfs-3g "$device_path" "$mount_point"; then
-            echo "Device mounted on $mount_point."
+            echo "Device mounted on $mount_point"
         else
             echo "Error mounting device"
             rmdir "$mount_point" 2>/dev/null || true
         fi
     else
-        echo "No disk found with LABEL/UUID '$disk_id'."
+        echo "No disk found with LABEL/UUID '$disk_id'"
     fi
 }
 
@@ -120,29 +128,44 @@ umount_drive() {
     echo ""
 
     read -r -p "Enter the name of the folder where the disk is mounted ('exit' to exit): " folder_name
-    [ "$folder_name" == "exit" ] && echo "Exiting..." && return
+    [ "$folder_name" == "exit" ] && echo "$(date '+%Y-%m-%d %H:%M:%S') Exiting..." && return
 
     if [ -z "$folder_name" ] || [[ "$folder_name" == */* ]]; then
-        echo "Invalid folder name."
+        echo "Invalid folder name"
         return
     fi
 
     mount_point=$(echo "$mount_points" | awk -F/ -v f="$folder_name" '$NF == f')
 
     if [ -n "$mount_point" ]; then
-        echo "Unmounting $mount_point..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') Unmounting $mount_point..."
         umount "$mount_point" && echo "Device unmounted" || echo "Error unmounting device"
     else
-        echo "No mounted disk found at '/$folder_name'."
+        echo "No mounted disk found at '/$folder_name'"
     fi
 }
 
 echo "Do you want to mount or unmount an NTFS disk?"
+
+# ------------------------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') ntfsdrive start..."
+
 select choice in "Mount" "Unmount" "Exit"; do
     case $choice in
         "Mount") mount_drive; break ;;
         "Unmount") umount_drive; break ;;
-        "Exit") echo "Exiting..."; exit 0 ;;
+        "Exit") echo "$(date '+%Y-%m-%d %H:%M:%S') Exiting..."; exit 0 ;;
         *) echo "Invalid option, please try again" ;;
     esac
 done
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') ntfsdrive done at: $(date '+%Y-%m-%d %H:%M:%S')"

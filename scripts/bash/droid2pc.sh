@@ -8,7 +8,7 @@
 # DESCRIPTION: Starts, stops or checks the status of scrcpy for an Android
 # device connected via ADB/USB debugging. Not run as root.
 #
-# USAGE: ./droid2pc.sh { start | stop | status }
+# USAGE: ./droid2pc.sh { --start | --stop | --status }
 #
 # ENV: PID file under /run/user/<uid>/
 #
@@ -16,22 +16,38 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # no-root check
 if [ "$(id -u)" == "0" ]; then
-    echo "ERROR: This script should not be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script should not be run as root -abort" >&2
     exit 1
 fi
 
 # dependencies
 for dep in zenity adb scrcpy procps util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
 
 # validation -- integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
+# Confirms the PID still belongs to scrcpy: the PID file can outlive its
+# process and the number may have been reused by an unrelated program.
+_pid_is_scrcpy() {
+    local pid="$1"
+    [[ -n "$pid" && "$pid" =~ $UH_UINT ]] || return 1
+    [[ "$(cat "/proc/$pid/comm" 2>/dev/null)" == "scrcpy" ]]
+}
 show_error() {
     echo -e "$1"
     zenity --error --title="droid2pc Error" --text="$1" --timeout=5 2>/dev/null
@@ -58,7 +74,7 @@ start() {
     (umask 077; : >> "$script_lock")
     exec 200>"$script_lock"
     if ! flock -n 200; then
-        echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
         exit 1
     fi
 
@@ -82,10 +98,10 @@ stop() {
     if [ -f "$PIDFILE" ]; then
         local pid
         pid=$(cat "$PIDFILE")
-        if [[ -n "$pid" && "$pid" =~ $UH_UINT ]]; then
+        if _pid_is_scrcpy "$pid"; then
             kill "$pid" 2>/dev/null
             sleep 1
-            kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
+            _pid_is_scrcpy "$pid" && kill -9 "$pid" 2>/dev/null
         fi
         rm -f "$PIDFILE"
         show_info "scrcpy stopped."
@@ -105,11 +121,25 @@ status() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# ACTIONS
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') droid2pc start..."
+
 case "${1:-}" in
-    start) start ;;
-    stop) stop ;;
-    status) status ;;
+    --start) start ;;
+    --stop) stop ;;
+    --status) status ;;
     *)
-        show_error "Usage: $0 {start|stop|status}"
+        show_error "Usage: $0 {--start|--stop|--status}"
         ;;
 esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') droid2pc done at: $(date '+%Y-%m-%d %H:%M:%S')"

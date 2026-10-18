@@ -16,12 +16,16 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # no-root check
 if [ "$(id -u)" == "0" ]; then
-    echo "ERROR: This script should not be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script should not be run as root -abort" >&2
     exit 1
 fi
 
@@ -29,19 +33,26 @@ fi
 script_lock="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
-echo "Top 5 Crypto Price Notifier Starting. Wait..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') Top 5 Crypto Price Notifier Starting. Wait..."
 
 # dependencies
 for dep in curl jq libnotify-bin util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') cryptonotify start..."
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
 
 # check internet
 check_internet() {
@@ -61,7 +72,7 @@ check_internet() {
 }
 
 if ! check_internet; then
-    echo "ERROR: no internet connection -- abort" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no internet connection -abort" >&2
     exit 1
 fi
 
@@ -88,6 +99,10 @@ notify_send_self() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------------------------
+
 # Crypto Top 5
 top5_response=$(curl -s --max-time 15 --connect-timeout 10 \
     -w "\n%{http_code}" \
@@ -96,7 +111,7 @@ top5_http_code=$(echo "$top5_response" | tail -n1)
 top5=$(echo "$top5_response" | head -n -1)
 
 if [ "$top5_http_code" != "200" ]; then
-    echo "CoinGecko API error (HTTP $top5_http_code). Cannot fetch market data."
+    echo "CoinGecko API error (HTTP $top5_http_code). Cannot fetch market data"
     notify_send_self -i dialog-error "Crypto Prices" "API error (HTTP $top5_http_code). Try again later."
     exit 1
 fi
@@ -105,7 +120,7 @@ fi
 mapfile -t ids < <(echo "$top5" | jq -r '.[].id')
 
 if [ ${#ids[@]} -eq 0 ]; then
-    echo "No data returned from CoinGecko API."
+    echo "No data returned from CoinGecko API"
     notify_send_self -i dialog-error "Crypto Prices" "No data returned from API. Try again later."
     exit 1
 fi
@@ -128,7 +143,7 @@ prices_http_code=$(echo "$prices_response" | tail -n1)
 prices=$(echo "$prices_response" | head -n -1)
 
 if [ "$prices_http_code" != "200" ]; then
-    echo "CoinGecko prices API error (HTTP $prices_http_code)."
+    echo "CoinGecko prices API error (HTTP $prices_http_code)"
     notify_send_self -i dialog-error "Crypto Prices" "Price API error (HTTP $prices_http_code). Try again later."
     exit 1
 fi
@@ -144,3 +159,10 @@ done
 # Notify
 echo -e "$PRICE"
 notify_send_self -i checkbox "Crypto Prices" "$PRICE"
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') cryptonotify done at: $(date '+%Y-%m-%d %H:%M:%S')"

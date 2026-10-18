@@ -14,18 +14,25 @@
 
 set -euo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
@@ -62,7 +69,7 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: no valid local user found, create one with sudo access -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
     exit 1
 fi
 echo "Using local user: $local_user"
@@ -72,15 +79,33 @@ user_lang=$(locale | grep LANG= | cut -d= -f2 | cut -d_ -f1) || true
 export LANG=${LANG:-C.UTF-8}
 export LC_ALL=${LC_ALL:-C.UTF-8}
 
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
 retry_cmd() {
     local max_attempts=10
     local attempt=1
+    local retry_name retry_failure retry_arg
+    retry_name="$(basename "$1")"
+    retry_failure="$retry_name failed"
+    case "$retry_name" in
+        apt-get)
+            for retry_arg in "$@"; do
+                case "$retry_arg" in
+                    install) retry_failure="package installation failed"; break ;;
+                    update) retry_failure="package list update failed"; break ;;
+                esac
+            done
+            ;;
+        curl|wget) retry_failure="$retry_name download failed" ;;
+    esac
     until "$@"; do
         if [ "$attempt" -ge "$max_attempts" ]; then
-            echo "ERROR: command failed after $max_attempts attempts: $* -- abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: $retry_failure -abort" >&2
             exit 1
         fi
-        echo "INFO: attempt $attempt/$max_attempts failed: $* -- retry"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $retry_name: retry $((attempt + 1))/$max_attempts"
         attempt=$((attempt + 1))
         sleep 10
     done
@@ -89,11 +114,11 @@ retry_cmd() {
 check_dependencies() {
     if ! dpkg -s curl >/dev/null 2>&1; then
         if ! retry_cmd apt-get -qq update; then
-            echo "ERROR: failed to update package lists while preparing curl -- abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to update package lists while preparing curl -abort"
             exit 1
         fi
         if ! retry_cmd apt-get install -y curl; then
-            echo "ERROR: failed to install curl -- abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install curl -abort"
             exit 1
         fi
     fi
@@ -109,8 +134,8 @@ check_dependencies() {
     done
 
     if [ ${#unavailable[@]} -gt 0 ]; then
-        for u in "${unavailable[@]}"; do echo "ERROR: dependency not found in APT: $u"; done
-        echo "ERROR: install them manually, or enable the required repos -- abort"
+        for u in "${unavailable[@]}"; do echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: dependency not found in APT: $u -alert"; done
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: install them manually, or enable required repos -abort"
         exit 1
     fi
 
@@ -121,7 +146,7 @@ check_dependencies() {
         apt_lock_files="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
         while lsof $apt_lock_files >/dev/null 2>&1; do
             if [ "$apt_lock_elapsed" -ge "$apt_lock_timeout" ]; then
-                echo "ERROR: APT/DPKG locks still held after ${apt_lock_timeout}s -- abort"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: APT/DPKG locks still held after ${apt_lock_timeout}s -abort" >&2
                 exit 1
             fi
             echo "   Locks still held, waiting... (${apt_lock_elapsed}s elapsed)"
@@ -129,11 +154,11 @@ check_dependencies() {
             apt_lock_elapsed=$((apt_lock_elapsed + 5))
         done
         if ! retry_cmd apt-get -qq update; then
-            echo "ERROR: failed to update package lists -- abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to update package lists -abort"
             exit 1
         fi
         if ! retry_cmd apt-get install -y "${missing[@]}"; then
-            echo "ERROR: failed to install dependencies -- abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install dependencies -abort"
             exit 1
         fi
     fi
@@ -142,7 +167,7 @@ check_dependencies() {
     if ! dpkg -s libxdo3 &>/dev/null && ! dpkg -s libxdo4 &>/dev/null; then
         echo "INFO: Installing missing dependency: libxdo3"
         if ! retry_cmd apt-get install -y libxdo3; then
-            echo "ERROR: failed to install libxdo3 -- abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install libxdo3 -abort"
             exit 1
         fi
     fi
@@ -150,7 +175,7 @@ check_dependencies() {
 
 setup_keyboard() {
     if [ -z "$local_user" ]; then
-        echo "INFO: could not detect local user, skipping keyboard setup -- skip"
+        echo "INFO: could not detect local user, skipping keyboard setup -skip"
         return
     fi
 
@@ -203,7 +228,7 @@ install_rustdesk() {
 
     ver_tag=$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//' || true)
     if [ -z "$ver_tag" ]; then
-        echo "ERROR: failed to fetch latest version -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to fetch latest version -abort"
         exit 1
     fi
 
@@ -218,7 +243,7 @@ install_rustdesk() {
     echo "INFO: Latest version: $ver_tag"
 
     if [ "$installed_ver" = "$ver_tag" ]; then
-        echo "OK: You already have the latest version. Nothing to do."
+        echo "OK: You already have latest version. Nothing to do"
         return
     fi
 
@@ -227,12 +252,12 @@ install_rustdesk() {
 
     cd /tmp
     if ! retry_cmd wget -q "${base_url}/${deb_file}"; then
-        echo "ERROR: download failed -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: download failed -abort"
         rm -f "$deb_file"
         exit 1
     fi
 
-    echo "INFO: Installing package..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Installing package..."
     dpkg_out=$(mktemp)
     if dpkg -i "./$deb_file" >"$dpkg_out" 2>&1; then
         setup_keyboard
@@ -246,7 +271,7 @@ install_rustdesk() {
         echo "INFO: Service stopped. To start it now: sudo systemctl start rustdesk"
         echo "INFO: To start it on every boot: sudo systemctl enable rustdesk"
     else
-        echo "ERROR: installation failed -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: installation failed -abort"
         cat "$dpkg_out" >&2
         rm -f "$deb_file" "$dpkg_out"
         exit 1
@@ -259,13 +284,13 @@ remove_rustdesk() {
         return
     fi
 
-    echo "INFO: Removing RustDesk..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Removing RustDesk..."
     apt_out=$(mktemp)
     if apt-get remove --purge -y rustdesk >"$apt_out" 2>&1; then
         rm -f "$apt_out"
         echo "OK: RustDesk removed successfully"
     else
-        echo "ERROR: failed to remove RustDesk -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to remove RustDesk -abort"
         cat "$apt_out" >&2
         rm -f "$apt_out"
         exit 1
@@ -307,6 +332,13 @@ show_menu() {
     echo -n "Select an option: "
 }
 
+# ------------------------------------------------------------------------------
+# MENU
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') rdclient start..."
+
 show_menu
 read -r option
 
@@ -322,7 +354,14 @@ case $option in
         exit 0
         ;;
     *)
-        echo "ERROR: invalid option -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort"
         exit 1
         ;;
 esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') rdclient done at: $(date '+%Y-%m-%d %H:%M:%S')"

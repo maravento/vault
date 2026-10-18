@@ -5,9 +5,6 @@
 #
 # Server Boot
 #
-# DESCRIPTION:
-# Starts or restarts all gateproxy server services.
-#
 # USAGE:
 # sudo ./serverboot.sh
 #
@@ -17,38 +14,54 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
+# root check
+if [ "$(id -u)" != "0" ]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
+    exit 1
+fi
+
 # logging
 log_file="/var/log/serverboot.log"
 log() {
     local msg="$1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+    local log_msg="$(date '+%Y-%m-%d %H:%M:%S') $msg"
+    echo "$log_msg" >> "$log_file" 2>/dev/null || true
+    if [[ "$msg" == ERROR:* ]]; then
+        echo "$log_msg" >&2
+    else
+        echo "$log_msg"
+    fi
 }
-
-# root check
-if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root -- abort"
-    exit 1
-fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    log "ERROR: script $(basename "$0") is already running -- abort"
+    log "ERROR: script $(basename "$0") is already running -abort"
     exit 1
 fi
 
 # dependencies (samba/winbind excluded -- Samba install is optional in gpsetup.sh)
 for dep in iproute2 systemd squid-openssl apache2 rsyslog util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: missing dependency '$dep' -- abort"
+        log "ERROR: dependency '$dep' is not installed -abort"
         exit 1
     fi
 done
 
-log "===================================================="
 log "serverboot start..."
+
+# ------------------------------------------------------------------------------
+# NETWORK
+# ------------------------------------------------------------------------------
 
 # Wait until the required network topology is available.
 #
@@ -88,57 +101,82 @@ network_ready() {
     ((iface_count >= required))
 }
 
-log "INFO: Waiting for network interfaces..."
+log "Waiting for network interfaces..."
 
 net_ready=0
 for i in $(seq 1 10); do
     if network_ready; then
         net_ready=1
-        log "INFO: try $i/10: $iface_count UP; need $required -- ready"
+        log "INFO: network check $i/10: $iface_count interfaces up; $required required"
         while IFS= read -r iface; do
-            [[ -n "$iface" ]] && log "INFO: $iface"
+            [[ -n "$iface" ]] && log "INFO: interface $iface is up"
         done <<< "$iface_list"
         break
     fi
 
-    log "INFO: try $i/10: $iface_count UP; need $required -- retry"
+    log "INFO: network check $i/10: $iface_count interfaces up; $required required"
     while IFS= read -r iface; do
-        [[ -n "$iface" ]] && log "INFO: $iface"
+        [[ -n "$iface" ]] && log "INFO: interface $iface is up"
     done <<< "$iface_list"
 
     sleep 5
 done
 
 if ((net_ready)); then
-    log "INFO: Network ready."
+    log "INFO: Network ready"
 else
-    log "ERROR: network not ready after 10 retries"
-    log "ERROR: $iface_count/$required interfaces UP -- abort"
+    log "ERROR: $iface_count interfaces up; at least $required required -abort"
     exit 1
 fi
 
+# ------------------------------------------------------------------------------
 # SERVERS
-log "INFO: DHCP..."
-systemctl reload pydhcpd.service
+# ------------------------------------------------------------------------------
+
+# Start the configured server services
+service_failures=()
+run_service_action() {
+    local action="$1"
+    shift
+    if ! systemctl "$action" "$@"; then
+        local failure="$* $action failed"
+        log "WARNING: $failure -alert"
+        service_failures+=("$failure")
+    fi
+}
+
+log "Reloading pydhcpd.service..."
+run_service_action reload pydhcpd.service
 sleep 5
-log "INFO: Squid Reload..."
-systemctl reload squid.service
+log "Reloading squid.service..."
+run_service_action reload squid.service
 sleep 5
-log "INFO: Apache2 Restart..."
-systemctl restart apache2.service
+log "Restarting apache2.service..."
+run_service_action restart apache2.service
 sleep 5
 if systemctl list-unit-files smbd.service &>/dev/null; then
-    log "INFO: Samba Restart..."
-    systemctl restart smbd.service
+    log "Restarting smbd.service..."
+    run_service_action restart smbd.service
     sleep 5
 fi
 if systemctl list-unit-files winbind.service &>/dev/null; then
-    log "INFO: Winbind Reload..."
-    systemctl restart winbind.service
+    log "Restarting winbind.service..."
+    run_service_action restart winbind.service
     sleep 5
 fi
-log "INFO: Rsyslog Reload..."
-systemctl restart syslog.socket rsyslog.service
+log "Restarting syslog.socket and rsyslog.service..."
+run_service_action restart syslog.socket rsyslog.service
 sleep 5
+
+if (( ${#service_failures[@]} > 0 )); then
+    for service_failure in "${service_failures[@]}"; do
+        log "ERROR: $service_failure -abort"
+    done
+    exit 1
+fi
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
 
 log "serverboot done at: $(date '+%Y-%m-%d %H:%M:%S')"

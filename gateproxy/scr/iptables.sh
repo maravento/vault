@@ -5,10 +5,6 @@
 #
 # Iptables/Ipset Firewall O(1)
 #
-# DESCRIPTION:
-# Loads the ipset-based firewall: MAC/IP bindings, ACLs and the
-# iptables rules that enforce them.
-#
 # USAGE:
 # sudo ./iptables.sh
 #
@@ -22,32 +18,41 @@ set -euo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# root check
+if [ "$(id -u)" != "0" ]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
+    exit 1
+fi
+
 # logging
 log_file="/var/log/iptables.log"
 log() {
     local msg="$1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+    local log_msg="$(date '+%Y-%m-%d %H:%M:%S') $msg"
+    echo "$log_msg" >> "$log_file" 2>/dev/null || true
+    if [[ "$msg" == ERROR:* ]]; then
+        echo "$log_msg" >&2
+    else
+        echo "$log_msg"
+    fi
 }
-
-# root check
-if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root -- abort"
-    exit 1
-fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    log "ERROR: script $(basename "$0") is already running -- abort"
+    log "ERROR: script $(basename "$0") is already running -abort"
     exit 1
 fi
 
 # dependencies
 for dep_pkg in iptables ipset arptables ebtables kmod procps util-linux ulogd2 coreutils grep; do
     if ! dpkg -s "$dep_pkg" &>/dev/null; then
-        log "ERROR: missing dependency '$dep_pkg' -- abort"
+        log "ERROR: dependency '$dep_pkg' is not installed -abort"
         exit 1
     fi
 done
@@ -80,7 +85,7 @@ env_specs=("$pydhcp_env root:pydhcpd 640")
 for env_spec in "${env_specs[@]}"; do
     read -r env_path env_owner_want env_perms_want <<< "$env_spec"
     if [ ! -f "$env_path" ]; then
-        log "ERROR: $(basename "$env_path") not found -- abort"
+        log "ERROR: $(basename "$env_path") not found -abort"
         exit 1
     fi
     env_owner=$(stat -c '%U:%G' "$env_path" 2>/dev/null)
@@ -89,9 +94,9 @@ for env_spec in "${env_specs[@]}"; do
        || [[ "$env_perms" != "$env_perms_want" ]]; then
         if chown "$env_owner_want" "$env_path" 2>/dev/null \
            && chmod "$env_perms_want" "$env_path" 2>/dev/null; then
-            log "INFO: $(basename "$env_path") perms fixed -- fixed"
+            log "INFO: $(basename "$env_path") perms fixed -fixed"
         else
-            log "ERROR: cannot fix $(basename "$env_path") perms -- abort"
+            log "ERROR: cannot fix $(basename "$env_path") perms -abort"
             exit 1
         fi
     fi
@@ -103,7 +108,7 @@ unset env_owner env_perms
 # Read known key=value pairs from a config file, without sourcing it
 load_conf() {
     local conf_file="$1" env_key env_value env_line
-    [[ ! -f "$conf_file" ]] && { log "WARNING: $conf_file not found -- fallback"; return 1; }
+    [[ ! -f "$conf_file" ]] && { log "WARNING: $conf_file not found -fallback"; return 1; }
     while IFS= read -r env_line || [[ -n "$env_line" ]]; do
         [[ "$env_line" =~ ^[[:space:]]*[#] ]] && continue
         [[ "$env_line" =~ ^[[:space:]]*$ ]] && continue
@@ -112,11 +117,11 @@ load_conf() {
         if [[ ! "$env_line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] \
            || [[ "$env_value" == [[:space:]\"\']* ]] \
            || [[ "$env_value" == *[[:space:]\"\'] ]]; then
-            log "ERROR: malformed line in $(basename "$conf_file"): '$env_line' -- abort"
+            log "ERROR: malformed line in $(basename "$conf_file"): '$env_line' -abort"
             exit 1
         fi
         case "$env_key" in
-            INTERFACESv4|SERVER_IP|SERV_SUBNET|SERV_MASK|SERV_DNS|ACL_PATH|WAN_IFACE|WPAD_PORT)
+            INTERFACESv4|SERVER_IP|SERV_SUBNET|SERV_MASK|SERV_DNS|ACL_PATH|WAN_IFACE|WPAD_PORT|SQUID_MGR_PORT|SQUID_INTERCEPT_PORT)
                 printf -v "$env_key" '%s' "$env_value"
                 ;;
             *)
@@ -126,6 +131,7 @@ load_conf() {
 }
 
 # LOAD
+# Reads pydhcp.env; a missing key is handled by the check below
 load_conf "$pydhcp_env" || true
 
 # KEY CHECK
@@ -166,14 +172,15 @@ if ! grep -q "^WPAD_PORT=" "$pydhcp_env"; then
 elif [[ -z "${WPAD_PORT:-}" ]]; then
     key_errors+=("WPAD_PORT not set")
 elif ! [[ "$WPAD_PORT" =~ $UH_UINT ]] \
-     || (( WPAD_PORT < 1 || WPAD_PORT > 65535 )); then
+     || [ "${#WPAD_PORT}" -gt 5 ] \
+     || [ "$WPAD_PORT" -lt 1 ] || [ "$WPAD_PORT" -gt 65535 ]; then
     key_errors+=("WPAD_PORT invalid port")
 fi
 if (( ${#key_errors[@]} > 0 )); then
     for key_error in "${key_errors[@]}"; do
-        log "ERROR: $key_error"
+        log "ERROR: $key_error -abort"
     done
-    log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$pydhcp_env") -- abort"
+    log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$pydhcp_env") -abort"
     exit 1
 fi
 unset key_errors key_error env_key
@@ -182,57 +189,94 @@ unset key_errors key_error env_key
 # Second layer of protection, behind KEY CHECK -- by design never reached
 # interfaces
 if [ -z "${WAN_IFACE:-}" ]; then
-    log "WARNING: no WAN_IFACE in pydhcp.env -- fallback"
+    log "WARNING: no WAN_IFACE in pydhcp.env -fallback"
 fi
 wan_iface="${WAN_IFACE:-eth0}"
 if [ -z "${INTERFACESv4:-}" ]; then
-    log "WARNING: no INTERFACESv4 in pydhcp.env -- fallback"
+    log "WARNING: no INTERFACESv4 in pydhcp.env -fallback"
 fi
 INTERFACESv4="${INTERFACESv4:-eth1}"
 # LAN SERV_SUBNET/NETMASK (CIDR prefix derived from pydhcp's own SERV_MASK,
 # no separate gateproxy key to keep in sync by hand)
 if [ -z "${SERV_SUBNET:-}" ]; then
-    log "WARNING: no SERV_SUBNET in pydhcp.env -- fallback"
+    log "WARNING: no SERV_SUBNET in pydhcp.env -fallback"
 fi
 SERV_SUBNET="${SERV_SUBNET:-192.168.0.0}"
 if [ -z "${SERV_MASK:-}" ]; then
-    log "WARNING: no SERV_MASK in pydhcp.env -- fallback"
+    log "WARNING: no SERV_MASK in pydhcp.env -fallback"
 fi
 SERV_MASK="${SERV_MASK:-255.255.255.0}"
 # CIDR prefix derived from SERV_MASK, already validated by KEY CHECK
 [[ " $UH_PREFIX " =~ [[:space:]]${SERV_MASK//./\.}:([0-9]+)[[:space:]] ]]
 netmask_int="${BASH_REMATCH[1]}"
 if [ -z "${SERVER_IP:-}" ]; then
-    log "WARNING: no SERVER_IP in pydhcp.env -- fallback"
+    log "WARNING: no SERVER_IP in pydhcp.env -fallback"
 fi
 SERVER_IP="${SERVER_IP:-192.168.0.10}"
 if [ -z "${SERV_DNS:-}" ]; then
-    log "WARNING: no SERV_DNS in pydhcp.env -- fallback"
+    log "WARNING: no SERV_DNS in pydhcp.env -fallback"
 fi
 SERV_DNS="${SERV_DNS:-$SERVER_IP}"
 # PAC port announced by pydhcpd in DHCP option 252
 if [ -z "${WPAD_PORT:-}" ]; then
-    log "WARNING: no WPAD_PORT in pydhcp.env -- fallback"
+    log "WARNING: no WPAD_PORT in pydhcp.env -fallback"
 fi
 WPAD_PORT="${WPAD_PORT:-18100}"
 
-# ------------------------------------------------------------------------------
-# OWN VALUES
-# ------------------------------------------------------------------------------
-
-# Values this script declares itself -- not read from any .env
-# squid proxy port
-squid_port="3128"
-# squid intercept port (NAT-redirected HTTP, not exposed to explicit proxy clients)
-squid_intercept_port="3129"
+# SQUID PORTS
+# Read optional shared ports without changing this script's network variables
+proxymon_env="/etc/proxymon/proxymon.env"
+if [ -e "$proxymon_env" ]; then
+    if [ ! -f "$proxymon_env" ]; then
+        log "ERROR: proxymon.env is not a regular file -abort"
+        exit 1
+    fi
+    squid_env_owner=$(stat -c %u "$proxymon_env") || {
+        log "ERROR: cannot read proxymon.env owner -abort"; exit 1;
+    }
+    squid_env_mode=$(stat -c %a "$proxymon_env") || {
+        log "ERROR: cannot read proxymon.env permissions -abort"; exit 1;
+    }
+    if [[ "$squid_env_owner" != 0 ]] || (( (8#$squid_env_mode & 022) != 0 )); then
+        log "ERROR: proxymon.env: unsafe owner or permissions -abort"
+        exit 1
+    fi
+    if ! squid_ports=$(
+        unset SQUID_MGR_PORT SQUID_INTERCEPT_PORT
+        load_conf "$proxymon_env" >/dev/null || exit 1
+        printf '%s|%s' "${SQUID_MGR_PORT:-}" "${SQUID_INTERCEPT_PORT:-}"
+    ); then
+        log "ERROR: cannot read ports from proxymon.env -abort"
+        exit 1
+    fi
+    IFS='|' read -r squid_port squid_intercept_port <<< "$squid_ports"
+    for squid_key in SQUID_MGR_PORT SQUID_INTERCEPT_PORT; do
+        if [[ "$squid_key" == SQUID_MGR_PORT ]]; then
+            squid_value="$squid_port"
+        else
+            squid_value="$squid_intercept_port"
+        fi
+        if ! [[ "$squid_value" =~ $UH_UINT ]] || [ "${#squid_value}" -gt 5 ] || [ "$squid_value" -lt 1 ] || [ "$squid_value" -gt 65535 ]; then
+            log "ERROR: proxymon.env: invalid $squid_key -abort"
+            exit 1
+        fi
+    done
+    unset squid_ports squid_key squid_value squid_env_owner squid_env_mode
+else
+    squid_port="3128"
+    squid_intercept_port="3129"
+    log "WARNING: no proxymon.env; Squid port $squid_port -fallback"
+    log "WARNING: no proxymon.env; intercept port $squid_intercept_port -fallback"
+fi
 
 # ------------------------------------------------------------------------------
 # ACL
 # ------------------------------------------------------------------------------
 
 # PATHS
+# Declare the file and directory paths used below
 if [ -z "${ACL_PATH:-}" ]; then
-    log "WARNING: no ACL_PATH in pydhcp.env -- fallback"
+    log "WARNING: no ACL_PATH in pydhcp.env -fallback"
 fi
 acl_mac_path="${ACL_PATH:-/etc/acl}/mac"
 acl_ipt_path="${ACL_PATH:-/etc/acl}/ipt"
@@ -247,15 +291,40 @@ path_macs="$acl_ipt_path/dhcp_mac.txt"
 
 for required_file in "$ACL_MAC_LIMITED" "$ACL_MAC_UNLIMITED" "$blockports_file" "$dhcp_conf"; do
     if [ ! -f "$required_file" ]; then
-        log "ERROR: required file not found: $required_file -- abort"
+        log "ERROR: required file not found: $required_file -abort"
         exit 1
     fi
 done
 unset required_file
 if [ ! -d "$acl_mac_path" ] || [ -z "$(ls -A "$acl_mac_path" 2>/dev/null)" ]; then
-    log "ERROR: ACL_MAC_PATH missing or empty -- abort"
+    log "ERROR: ACL_MAC_PATH missing or empty -abort"
     exit 1
 fi
+
+# REQUIRED DIRS
+# This script writes its own lists here, so an empty dir is enough
+if [ ! -d "$acl_ipt_path" ]; then
+    if mkdir -p "$acl_ipt_path"; then
+        log "WARNING: $acl_ipt_path was missing -alert"
+    else
+        log "ERROR: cannot create $acl_ipt_path -abort"
+        exit 1
+    fi
+fi
+for ipt_file in "$path_ips" "$path_macs"; do
+    if [ ! -e "$ipt_file" ]; then
+        if ! touch "$ipt_file"; then
+            log "ERROR: cannot create $ipt_file -abort"
+            exit 1
+        fi
+        log "WARNING: $ipt_file was missing -alert"
+    fi
+    if [ ! -f "$ipt_file" ]; then
+        log "ERROR: not a regular file: $ipt_file -abort"
+        exit 1
+    fi
+done
+unset ipt_file
 
 # start
 log "iptables start..."
@@ -263,6 +332,7 @@ log "iptables start..."
 # ------------------------------------------------------------------------------
 # MAC SETS
 # ------------------------------------------------------------------------------
+
 # The MAC sets are declared and filled here, in one place, before any rule
 # uses them. macports has no list of its own: it is a set of sets, so adding a
 # member costs no file read and no duplicated address.
@@ -271,7 +341,7 @@ mac_set() {
     ipset create "$set_name" hash:mac -exist
     ipset flush "$set_name"
     if [ ! -f "$src_file" ]; then
-        log "WARNING: $src_file not found -- alert"
+        log "WARNING: $src_file not found -alert"
         return 0
     fi
     for mac_addr in $(awk -F";" 'NF>=2 && $1 == "a" && $2 != "" {print $2}' "$src_file"); do
@@ -282,7 +352,7 @@ mac_set() {
         fi
     done
     if [ "$invalid_count" -gt 0 ]; then
-        log "WARNING: $invalid_count invalid MACs in $(basename "$src_file") -- alert"
+        log "WARNING: $invalid_count invalid MACs in $(basename "$src_file") -alert"
     fi
     return 0
 }
@@ -349,6 +419,7 @@ ebtables -X 2>/dev/null || true
 # ------------------------------------------------------------------------------
 # IPv4
 # ------------------------------------------------------------------------------
+
 # SYSTEM OPTIMIZATION
 # File handle, inotify and socket queue limits raised for a router under load
 sysctl -w fs.file-max=2097152 >/dev/null 2>&1 || true
@@ -432,7 +503,7 @@ sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
 # its resulting state, not by sysctl's exit code, so a value already set
 # by another means is accepted.
 if [ "$(sysctl -n net.ipv4.ip_forward 2>/dev/null)" != "1" ]; then
-    log "ERROR: IPv4 forwarding is off, LAN cannot route -- abort"
+    log "ERROR: IPv4 forwarding is off, LAN cannot route -abort"
     exit 1
 fi
 
@@ -493,6 +564,7 @@ sysctl -w net.ipv4.icmp_ratelimit=100 >/dev/null 2>&1 || true
 # ------------------------------------------------------------------------------
 # IPv6
 # ------------------------------------------------------------------------------
+
 sysctl -w net.ipv6.conf.all.disable_ipv6=0 >/dev/null 2>&1 || true
 sysctl -w net.ipv6.conf.default.disable_ipv6=0 >/dev/null 2>&1 || true
 sysctl -w net.ipv6.conf.lo.disable_ipv6=0 >/dev/null 2>&1 || true
@@ -544,6 +616,7 @@ iptables -t nat -A POSTROUTING -s "$SERV_SUBNET/$netmask_int" -o "$wan_iface" -j
 # iptables -t nat -A POSTROUTING -s "$SERV_SUBNET/$netmask_int" -o "$wan_iface" -j SNAT --to-source "$wan_ip"
 
 # LAN ---> PROXY <--- WAN
+# Configure DHCP traffic and proxy routing between LAN and WAN
 iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -A OUTPUT -m conntrack --ctstate NEW,ESTABLISHED,RELATED -j ACCEPT
@@ -583,6 +656,7 @@ for proto_name in tcp udp; do
 done
 
 # MAC2IP
+# Enforce the configured MAC and IPv4 address bindings
 mac2ip_rules=$(awk '
     /host [^{]+ \{/ { in_block=1; mac=""; ip="" }
     in_block && /hardware ethernet/ { mac=$3; gsub(/;/, "", mac) }
@@ -646,7 +720,7 @@ if [ -n "$mac2ip_rules" ]; then
             { arptables -A INPUT -i "$INTERFACESv4" --source-ip "$arp_ip" ! --source-mac "$arp_mac" -j DROP || true; }
     done
 else
-    log "WARNING: no static DHCP entries in $dhcp_conf -- alert"
+    log "WARNING: no static DHCP entries in $dhcp_conf -alert"
 fi
 
 # MACUNLIMITED (MAC + IP for Access Points, Switch, etc.)
@@ -674,7 +748,7 @@ done
 #    if curl -fL --retry 3 --retry-delay 2 --progress-bar -o "$bogons_file" "$bogons_url"; then
 #        chown root:root "$bogons_file"
 #    else
-#        log "WARNING: cannot download $bogons_file -- skip"
+#        log "WARNING: cannot download $bogons_file -skip"
 #    fi
 #fi
 
@@ -688,7 +762,7 @@ done
 #        ipset add bogons "$bogons_cidr" -exist
 #    done
 #else
-#    log "WARNING: $bogons_file not found, bogons -- skip"
+#    log "WARNING: $bogons_file not found, bogons -skip"
 #fi
 
 # Allow 255.255.255.0/24 before BOGONS DROP
@@ -746,7 +820,7 @@ else
     ipset flush blockports
 fi
 for blocked_ports in $(sort -V -u "$blockports_file" 2>/dev/null); do
-    [[ "$blocked_ports" =~ $UH_UINT ]] && (( blocked_ports <= 65535 )) && ipset add blockports "$blocked_ports" -exist
+    [[ "$blocked_ports" =~ $UH_UINT ]] && [ "${#blocked_ports}" -le 5 ] && [ "$blocked_ports" -le 65535 ] && ipset add blockports "$blocked_ports" -exist
 done
 for proto_name in tcp udp; do
     iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -p "$proto_name" -m set --match-set blockports dst -j DROP
@@ -765,7 +839,7 @@ if [ -f "$suridata_file" ]; then
         [[ "$suridata_ip" =~ $UH_IPV4 ]] && ipset add suridata "$suridata_ip" -exist
     done
 else
-    log "WARNING: $suridata_file not found -- alert"
+    log "WARNING: $suridata_file not found -alert"
 fi
 iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set suridata dst -j NFLOG --nflog-prefix "SURIDATA DROP: "
 iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set suridata dst -j DROP
@@ -921,7 +995,7 @@ for check_file in "$acl_mac_path"/mac-*.txt; do
         client_mac_lc="${client_mac,,}"
         if ! grep -qxF "$client_mac_lc" <<< "$mac2ip_macs"; then
             log "WARNING: $client_mac ($(basename "$check_file")) has no static reservation"
-            log "WARNING: MACCHECK drops it until added or reloaded -- alert"
+            log "WARNING: MACCHECK drops it until added or reloaded -alert"
         fi
     done < "$check_file"
 done

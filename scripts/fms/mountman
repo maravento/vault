@@ -3,21 +3,34 @@
 #
 ################################################################################
 #
-# mountman - Nautilus/Caja script to mount/unmount SMB (and FUSE/SFTP)
+# mountman -- FMS mount manager
+#
+# DESCRIPTION:
+# Mounts or unmounts resources from a desktop session.
+#
+# USAGE:
+# bash mountman
 #
 ################################################################################
 
 set -euo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # no-root check
 if [ "$(id -u)" == "0" ]; then
-    echo "[ERROR] This script should not be run as root."
+    zenity --error --title="Mount Manager" \
+        --text="This script should not be run as root." 2>/dev/null || true
     exit 1
 fi
 
-echo "Start Mountman. Wait..."
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
 
-# --- Helpers ---
+# Helpers
 err() {
     zenity --error --title="Error" --text="$1"
     exit 1
@@ -27,15 +40,7 @@ info() {
     zenity --info --title="$2" --text="$1"
 }
 
-# --- Dependency check (minimal) ---
-for cmd in zenity mount umount; do
-    if ! command -v "$cmd" &>/dev/null; then
-        zenity --error --title="Missing dependency" --text="Command '$cmd' not found. Please install it."
-        exit 1
-    fi
-done
-
-# --- Elevation command (pkexec preferred, fallback to sudo) ---
+# Elevation command (pkexec preferred, fallback to sudo)
 elevate_cmd=""
 if command -v pkexec &>/dev/null; then
     elevate_cmd="pkexec"
@@ -45,7 +50,7 @@ else
     err "Neither pkexec nor sudo found. Cannot elevate privileges."
 fi
 
-# --- Function to check if resource is already mounted ---
+# Function to check if resource is already mounted
 check_resource_mounted() {
     local resource="$1"
     local protocol="$2"
@@ -61,14 +66,21 @@ check_resource_mounted() {
     return 1
 }
 
-# --- Main menu ---
+# ------------------------------------------------------------------------------
+# MENU
+# ------------------------------------------------------------------------------
+
+# Main menu
 action=$(zenity --list --radiolist \
     --title="Remote Mount" \
     --text="Choose an action:" \
     --column="Select" --column="Action" \
     TRUE "Mount" FALSE "Unmount") || exit 0
 
-# === Unmount Section (improved & clean) ===
+# ------------------------------------------------------------------------------
+# UNMOUNT
+# ------------------------------------------------------------------------------
+
 if [[ "$action" == "Unmount" ]]; then
     mount_map=()
     # Read /proc/mounts: source mountpoint fstype ...
@@ -128,9 +140,11 @@ if [[ "$action" == "Unmount" ]]; then
     exit 0
 fi
 
-# === Mount Section ===
+# ------------------------------------------------------------------------------
+# MOUNT
+# ------------------------------------------------------------------------------
 
-# --- Ask if user wants to load a saved connection ---
+# Ask if user wants to load a saved connection
 load_connection=$(zenity --question \
     --title="Load Connection" \
     --text="Do you want to load a saved connection profile?" \
@@ -193,7 +207,7 @@ else
         TRUE "smb" FALSE "sftp" FALSE "fuse") || exit 0
 fi
 
-# --- SMB Mount (smart, no creds-file prompt) ---
+# SMB Mount (smart, no creds-file prompt)
 if [[ "$PROTOCOL" == "smb" ]]; then
     # If not loaded from file, ask for connection details
     if [[ "$load_connection" != "yes" ]]; then
@@ -323,7 +337,7 @@ EOF
     exit 0
 fi
 
-# --- SFTP mount using sshfs (FUSE) ---
+# SFTP mount using sshfs (FUSE)
 if [[ "$PROTOCOL" == "sftp" ]]; then
     # If not loaded from file, ask for connection details
     if [[ "$load_connection" != "yes" ]]; then
@@ -369,10 +383,6 @@ EOF
         err "Invalid connection: SFTP_HOST is required."
     fi
 
-    if ! command -v sshfs &>/dev/null; then
-        err "sshfs not installed. Please install sshfs to mount SFTP shares."
-    fi
-
     # Check if SFTP host is already mounted
     if check_resource_mounted "$SFTP_HOST" "sftp"; then
         mount_info=$(mount | grep -F "@$SFTP_HOST")
@@ -413,7 +423,7 @@ EOF
     exit 0
 fi
 
-# --- Generic FUSE command entry (advanced) ---
+# Generic FUSE command entry (advanced)
 if [[ "$PROTOCOL" == "fuse" ]]; then
     # If not loaded from file, ask for connection details
     if [[ "$load_connection" != "yes" ]]; then
@@ -483,6 +493,10 @@ EOF
     rm -f "$tmp_err"
     exit 0
 fi
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
 
 # If reached here, nothing matched (shouldn't happen)
 exit 0

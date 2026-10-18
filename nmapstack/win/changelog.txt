@@ -1,15 +1,6 @@
-﻿## CHANGELOG
-# Nscan
+## CHANGELOG
+# NetScan
 # maravento.com
-
-2026.10.15
-Update: Visual C++ v0.106.0
-
-2026.10.05
-Update: nmap-7.991
-Update: npcap-1.89
-Fixed: Rename Project to nscan
-Fixed: Bugs
 
 2026.06.06
 Update: Visual C++ v0.105.0

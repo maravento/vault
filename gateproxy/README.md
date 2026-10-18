@@ -24,10 +24,10 @@
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
+      WARNING: Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Probado en Ubuntu 24.04/26.04 LTS. El uso en otras versiones o distribuciones queda bajo responsabilidad de quien lo instale.
+      ADVERTENCIA: Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
     </td>
   </tr>
 </table>
@@ -68,6 +68,29 @@ wget -qO gpsetup.sh https://raw.githubusercontent.com/maravento/vault/master/gat
   </tr>
 </table>
 
+### Optional Temporary-Memory Mounts
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+     <p>These settings are optional and disabled in <code>gpsetup.sh</code>. By default, the installer preserves the existing mounts and adds none of these entries to <code>/etc/fstab</code>.</p>
+     <p>Before running the installer, decide whether to enable an option or leave all disabled. For <code>/tmp</code>, choose either a 2 GB limit or 30% of physical RAM, never both. Check existing <code>fstab</code> entries to avoid duplicate mounts. The read-only <code>/run/shm</code> option is independent and can affect applications that write to shared memory. Files stored in tmpfs are lost on reboot.</p>
+     <p>To enable an option, download the script and edit its optional mount block before executing it. For the 2 GB option, uncomment all three lines: <code>failure_message</code>, <code>grep</code> and <code>echo</code>. The examples below show the resulting <code>fstab</code> entries.</p>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+     <p>Estas opciones son voluntarias y están desactivadas en <code>gpsetup.sh</code>. Por defecto, el instalador conserva los montajes existentes y no agrega estas entradas a <code>/etc/fstab</code>.</p>
+     <p>Antes de ejecutar el instalador, decida si necesita alguna opción o prefiere mantenerlas todas desactivadas. Para <code>/tmp</code>, elija un límite de 2 GB o el 30 % de la RAM física, nunca ambos. Revise las entradas existentes de <code>fstab</code> para evitar montajes duplicados. La opción de <code>/run/shm</code> en solo lectura es independiente y puede afectar a las aplicaciones que escriben en memoria compartida. Los archivos almacenados en tmpfs se pierden al reiniciar.</p>
+     <p>Para habilitar una opción, descargue el script y edite su bloque de montajes opcionales antes de ejecutarlo. Para la opción de 2 GB, descomente las tres líneas: <code>failure_message</code>, <code>grep</code> y <code>echo</code>. Los ejemplos siguientes muestran las entradas resultantes de <code>fstab</code>.</p>
+    </td>
+  </tr>
+</table>
+
+```bash
+tmpfs /tmp tmpfs defaults,size=2G,nofail,noatime,mode=1777 0 0      # /tmp as tmpfs, 2 GB limit / /tmp como tmpfs, límite de 2 GB
+tmpfs /tmp tmpfs defaults,size=30%,nofail,noatime,mode=1777 0 0     # /tmp as tmpfs, 30% of RAM / /tmp como tmpfs, 30 % de la RAM
+none /run/shm tmpfs defaults,ro 0 0                                 # read-only shared memory / memoria compartida de solo lectura
+```
+
 ## SETUP PARAMETERS
 
 ---
@@ -92,12 +115,13 @@ wget -qO gpsetup.sh https://raw.githubusercontent.com/maravento/vault/master/gat
 | DNS Primary | `1.1.1.2` | Primary DNS server / DNS primario |
 | DNS Secondary | `1.0.0.2` | Secondary DNS server / DNS secundario |
 | Proxy Port | `3128` | Squid proxy port / Puerto del proxy Squid |
+| Squid Intercept Port | `3129` | Squid intercept port / Puerto transparente de Squid |
 
 Localnet (`192.168.0.0`) is derived automatically from the Server IP and Netmask together, not asked separately / Localnet (`192.168.0.0`) se deriva automáticamente del Server IP y la Netmask en conjunto, no se pregunta por separado.
 
-DNS Primary/Secondary above only configure Unbound's own forwarders (`conf/unbound/forward.conf`) — where Unbound sends queries it can't answer locally. They do **not** control which DNS server LAN clients are allowed to query directly; that is pydhcp's own `SERV_DNS` key in `pydhcp.env` (the same value pydhcp hands out via DHCP), which `iptables.sh` reads to open the matching firewall access — no separate gateproxy key to keep in sync by hand. It defaults to the Server IP (Unbound); leaving it unset or empty falls back to the Server IP as well, never to `1.1.1.2`/`1.0.0.2`. To have clients use and reach external DNS directly instead of Unbound, edit `SERV_DNS` in `pydhcp.env` by hand, regenerate `pydhcpd.conf` with pydhcp's `pyleases.sh`, restart `pydhcpd`, and re-run `iptables.sh`.
+DNS Primary/Secondary above only configure Unbound's own forwarders (`conf/unbound/forward.conf`) — where Unbound sends queries it can't answer locally. They do **not** control which DNS server LAN clients are allowed to query directly; that is pydhcp's own `SERV_DNS` key in `pydhcp.env` (the same value pydhcp hands out via DHCP), which `iptables.sh` reads to open the matching firewall access — no separate gateproxy key to keep in sync by hand. Installation sets it to the Server IP (Unbound). If `SERV_DNS` is missing, empty or malformed, `iptables.sh` aborts during key validation. The retained fallback is not reached in these cases. To have clients use and reach external DNS directly instead of Unbound, edit `SERV_DNS` in `pydhcp.env` by hand, regenerate `pydhcpd.conf` with pydhcp's `pyleases.sh`, restart `pydhcpd`, and re-run `iptables.sh`.
 
-Los DNS Primario/Secundario de arriba sólo configuran los reenviadores propios de Unbound (`conf/unbound/forward.conf`) — a dónde manda Unbound las consultas que no puede resolver localmente. **No** controlan a qué servidor DNS pueden consultar directamente los clientes de la LAN; eso lo controla la propia clave `SERV_DNS` de pydhcp en `pydhcp.env` (el mismo valor que pydhcp entrega por DHCP), que `iptables.sh` lee para abrir el acceso correspondiente en el firewall — no hay una clave aparte de gateproxy que sincronizar a mano. Por defecto es el Server IP (Unbound); dejarla sin definir o vacía también cae en el Server IP, nunca en `1.1.1.2`/`1.0.0.2`. Para que los clientes usen y puedan alcanzar DNS externo en vez de Unbound, hay que editar `SERV_DNS` a mano en `pydhcp.env`, regenerar `pydhcpd.conf` con `pyleases.sh` de pydhcp, reiniciar `pydhcpd`, y volver a correr `iptables.sh`.
+Los DNS Primario/Secundario de arriba sólo configuran los reenviadores propios de Unbound (`conf/unbound/forward.conf`) — a dónde manda Unbound las consultas que no puede resolver localmente. **No** controlan a qué servidor DNS pueden consultar directamente los clientes de la LAN; eso lo controla la propia clave `SERV_DNS` de pydhcp en `pydhcp.env` (el mismo valor que pydhcp entrega por DHCP), que `iptables.sh` lee para abrir el acceso correspondiente en el firewall — no hay una clave aparte de gateproxy que sincronizar a mano. La instalación asigna el Server IP (Unbound). Si `SERV_DNS` falta, está vacía o tiene un formato inválido, `iptables.sh` aborta durante la validación de claves. El fallback conservado no se alcanza en estos casos. Para que los clientes usen y puedan alcanzar DNS externo en vez de Unbound, hay que editar `SERV_DNS` a mano en `pydhcp.env`, regenerar `pydhcpd.conf` con `pyleases.sh` de pydhcp, reiniciar `pydhcpd`, y volver a correr `iptables.sh`.
 
 <table width="100%">
   <tr>
@@ -141,6 +165,10 @@ join <(ip -o -br link | sort) <(ip -o -br addr | sort) | awk '$2=="UP" {print $1
 </table>
 
 ### Proxy
+
+| Description | Descripción |
+|---|---|
+| During installation, the Squid port configuration asks for both ports. Defaults: proxy `3128`, intercept `3129`. Gateproxy applies the selected ports to its configuration files and passes both values to Proxymon. Proxymon writes them as `SQUID_MGR_PORT` and `SQUID_INTERCEPT_PORT` in `proxymon.env`, without asking again. | Durante la instalación, la configuración de puertos Squid pregunta ambos valores. Valores iniciales: proxy `3128`, transparente `3129`. Gateproxy aplica los puertos elegidos a sus archivos y pasa ambos valores a Proxymon. Proxymon los escribe como `SQUID_MGR_PORT` y `SQUID_INTERCEPT_PORT` en `proxymon.env`, sin volver a preguntar. |
 
 | Component | Port | Notes |
 | :--- | :---: | :--- |
@@ -189,7 +217,7 @@ Pool range and other DHCP settings can be changed in `/etc/pydhcp/pydhcp.env` af
 | Component | Port | Notes |
 | :--- | :---: | :--- |
 | **Suricata IDS** | — | Network intrusion detection in AF-PACKET mode with auto-update rules; community-id enabled |
-| **suridata** | — | Turns `drop.conf` matches into real blocks via the `suridata` ipset (see [FIREWALL](#firewall)); cron every 5 minutes |
+| **suridata** | — | Turns `drop.conf` matches into real blocks via the `suridata` ipset (see FIREWALL); cron every 5 minutes |
 | **EveBox** | `5636` | Suricata event browser (`http://localhost:5636`) |
 | **fail2ban** | — | Brute-force protection with custom jail config |
 | **ttyd** | `7681` | Web terminal, loopback-only (`http://localhost:7681`) |
@@ -331,7 +359,7 @@ Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/et
 | `macip` | `hash:ip,mac` | MAC+IP binding, parsed from `pydhcpd.conf`. Gatekeeper for every other list below — a device not in `macip` is dropped before `macunlimited`/`maclimited`/`macports` are ever evaluated |
 | `blockports` | `bitmap:port` | Blocked port ranges (VPN tunnels, P2P, cryptomining, legacy protocols) |
 | `suridata` | `hash:ip` | Dest IPs flagged by Suricata alerts matching a `drop.conf` signature — silent `DROP`, see below |
-| `bandata` | `hash:ip` | IPs over bandwidth quota — DNS and port 80 only, redirected to warning page. Created and populated by Proxymon, not by `iptables.sh` — Proxymon is installed by `gpsetup.sh` as a bundled component (see [COMPONENTS](#components)); `iptables.sh` only opens the warning-page port (18081) for it |
+| `bandata` | `hash:ip` | IPs over bandwidth quota — DNS and port 80 only, redirected to warning page. Created and populated by Proxymon, not by `iptables.sh` — Proxymon is installed by `gpsetup.sh` as a bundled component (see COMPONENTS); `iptables.sh` only opens the warning-page port (18081) for it |
 
 `macip` is built from `pydhcpd.conf`'s static `host {}` blocks, not from `mac-*.txt` directly. Adding a MAC to `mac-unlimited.txt`/`mac-limited.txt` classifies it, but does **not** by itself grant it network access — it still needs a matching static reservation in `pydhcpd.conf`, or the firewall's `MACCHECK` step drops its traffic regardless of classification. pydhcp ships an optional tool, `tools/pyleases.sh`, that generates those reservations from the same `mac-*.txt` files — run it after editing any of them (it is not scheduled automatically by any installer, see the Scripts section below).
 
@@ -369,14 +397,14 @@ Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/et
      <br><br>
      <strong>Log cleanup:</strong> <code>suricataclean.sh</code> runs monthly via cron and truncates Suricata's own logs. It is the third and last cron entry of the Suricata component, alongside <code>suricataupdate.sh</code> (daily, 2 AM) and <code>suridata.sh</code> (every 5 minutes).
      <br><br>
-     <strong>Local exclusion:</strong> a <code>dest_ip</code> inside the server's own LAN (<code>SERV_SUBNET</code>, assumed /24) or inside the WAN interface's own /24 is never written to <code>suridata.txt</code>, so a false positive against your own network can't block your gateway, WAN uplink or LAN hosts. On every run, any LAN/WAN IP already present from before this exclusion existed is purged from <code>suridata.txt</code> and from the live ipset. <code>SERV_SUBNET</code> and the WAN interface name come from <code>/etc/pydhcp/pydhcp.env</code>; if a key is missing, the script warns and falls back to a built-in value.
+     <strong>Local exclusion:</strong> a <code>dest_ip</code> inside the server's own LAN (<code>SERV_SUBNET</code>, assumed /24) or inside the WAN interface's own /24 is never written to <code>suridata.txt</code>, so a false positive against your own network can't block your gateway, WAN uplink or LAN hosts. On every run, any LAN/WAN IP already present from before this exclusion existed is purged from <code>suridata.txt</code> and from the live ipset. <code>SERV_SUBNET</code> and <code>WAN_IFACE</code> come from <code>/etc/pydhcp/pydhcp.env</code>. Missing or empty keys abort the script; an invalid <code>SERV_SUBNET</code> also aborts. If the WAN IPv4 address cannot be resolved, the script warns and skips only the WAN exclusion for that run.
     </td>
     <td style="width: 50%; vertical-align: top;">
      Entre recargas, <code>suridata.sh</code> también aplica directamente al ipset <code>suridata</code> en vivo cualquier IP recién encontrada, para que un nuevo bloqueo surta efecto en el mismo ciclo de cron, sin esperar la siguiente recarga completa del firewall.
      <br><br>
      <strong>Limpieza de logs:</strong> <code>suricataclean.sh</code> corre por cron una vez al mes y trunca los logs propios de Suricata. Es la tercera y última entrada de cron del componente Suricata, junto a <code>suricataupdate.sh</code> (diaria, 2 AM) y <code>suridata.sh</code> (cada 5 minutos).
      <br><br>
-     <strong>Exclusión local:</strong> un <code>dest_ip</code> dentro de la LAN propia del servidor (<code>SERV_SUBNET</code>, se asume /24) o dentro del /24 propio de la interfaz WAN nunca se escribe en <code>suridata.txt</code>, para que un falso positivo contra la propia red no bloquee el gateway, el enlace WAN ni hosts de la LAN. En cada corrida, cualquier IP LAN/WAN ya presente desde antes de esta exclusión se purga de <code>suridata.txt</code> y del ipset en vivo. <code>SERV_SUBNET</code> y el nombre de la interfaz WAN vienen de <code>/etc/pydhcp/pydhcp.env</code>; si falta una clave, el script advierte y usa un valor por defecto incorporado.
+     <strong>Exclusión local:</strong> un <code>dest_ip</code> dentro de la LAN propia del servidor (<code>SERV_SUBNET</code>, se asume /24) o dentro del /24 propio de la interfaz WAN nunca se escribe en <code>suridata.txt</code>, para que un falso positivo contra la propia red no bloquee el gateway, el enlace WAN ni hosts de la LAN. En cada corrida, cualquier IP LAN/WAN ya presente desde antes de esta exclusión se purga de <code>suridata.txt</code> y del ipset en vivo. <code>SERV_SUBNET</code> y <code>WAN_IFACE</code> vienen de <code>/etc/pydhcp/pydhcp.env</code>. Las claves ausentes o vacías abortan el script; un <code>SERV_SUBNET</code> inválido también aborta. Si no se obtiene la dirección IPv4 WAN, el script advierte y omite únicamente la exclusión WAN durante esa ejecución.
     </td>
   </tr>
 </table>
@@ -385,7 +413,7 @@ Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/et
 
 - SYN flood protection via rate-limited `syn_flood` chain
 - TCP scan / malformed packet drops (SYN+FIN, SYN+RST, NEW with SYN+ACK)
-- Bittorrent/Tor and other protocol-level detection is handled by Suricata (see [COMPONENTS](#components)), not by hex-string matching in `iptables.sh`
+- Bittorrent/Tor and other protocol-level detection is handled by Suricata (see COMPONENTS), not by hex-string matching in `iptables.sh`
 - GRE (protocol 47) and 6to4 (protocol 41) blocked from LAN
 - Windows ICS network range (192.168.137.0/24) blocked
 - NetBIOS NMBD (137–139), CoAP (5683–5684), mDNS noise, WUDO WAN traffic blocked
@@ -496,7 +524,7 @@ The installer also downloads the following scripts from external repositories / 
 | Script | Trigger | Purpose |
 | :--- | :--- | :--- |
 | `hwclock.sh` | `@reboot` | Sync hardware clock |
-| `blackusb.sh` | `@reboot` | USB device access control. The cron entry runs `blackusb.sh off`, so the udev rule is moved aside on every boot and the control starts deactivated. Activate it with `blackusb.sh on` |
+| `blackusb.sh` | `@reboot` | USB device access control. The cron entry runs `blackusb.sh --off`, so the udev rule is moved aside on every boot and the control starts deactivated. Activate it with `blackusb.sh --on` |
 | `cleaner.sh` | `@weekly` | System cleanup |
 | `ffsupdate.sh` | `@weekly` | Update FreeFileSync |
 | `filereport.sh` | manual | Generate file system report |
@@ -542,10 +570,48 @@ curl http://SERVER_IP:18100/wpad.pac
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
+     <strong>WARNING: MANUAL CONFIGURATION CHANGES</strong><br><br>
+     During installation, <code>gpsetup.sh</code> uses <code>sed -i</code> to replace placeholders with the selected values. Later edits are not synchronized automatically between files. If you change Squid ports after installation, keep <code>proxymon.env</code>, <code>squid.conf</code> and the corresponding WPAD/PAC settings aligned. <code>iptables.sh</code> reads the shared ports when it runs; editing <code>proxymon.env</code> alone does not apply firewall rules or update Squid. Editing only one file can leave the settings inconsistent and interrupt proxy access.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+     <strong>ADVERTENCIA: CAMBIOS MANUALES DE CONFIGURACIÓN</strong><br><br>
+     Durante la instalación, <code>gpsetup.sh</code> utiliza <code>sed -i</code> para sustituir marcadores por los valores elegidos. Los cambios posteriores no se sincronizan automáticamente entre archivos. Si cambia los puertos de Squid, mantenga alineados <code>proxymon.env</code>, <code>squid.conf</code> y la configuración WPAD/PAC correspondiente. <code>iptables.sh</code> lee los puertos compartidos cuando se ejecuta. Editar solamente <code>proxymon.env</code> no aplica reglas del firewall ni actualiza Squid. Modificar solamente un archivo puede dejar valores incompatibles e interrumpir el acceso al proxy.
+    </td>
+  </tr>
+</table>
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
      Gateproxy is a script designed for very specific network environments (see Requirements above for the supported OS/version). It is not intended for general or production use. Using it outside the environment for which it was designed may cause unexpected behavior or system misconfiguration. Use at your own risk.
     </td>
     <td style="width: 50%; vertical-align: top;">
      Gateproxy es un script diseñado para entornos de red muy específicos (ver Requirements arriba para el SO/versión soportada). No está destinado para uso general ni en producción. Usarlo fuera del entorno para el que fue diseñado puede causar comportamientos inesperados o una mala configuración del sistema. Úselo bajo su propio riesgo.
+    </td>
+  </tr>
+</table>
+
+## NOTICE
+
+---
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>This repository</strong>
+      <ul>
+        <li>May include third-party components.</li>
+        <li>Does not accept Pull Requests. Changes must be proposed via Issues.</li>
+        <li>This project does not support backward compatibility. New versions may require configuration changes or reinstallation.</li>
+      </ul>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Este repositorio</strong>
+      <ul>
+        <li>Puede incluir componentes de terceros.</li>
+        <li>No acepta Pull Requests. Los cambios deben proponerse mediante Issues.</li>
+        <li>Este proyecto no soporta retrocompatibilidad. Las nuevas versiones pueden requerir cambios de configuración o una reinstalación.</li>
+      </ul>
     </td>
   </tr>
 </table>

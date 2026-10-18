@@ -8,37 +8,53 @@
 # DESCRIPTION: Caps the CPU usage of a program with cpulimit. Asks for the
 # program name and the percentage to allow.
 #
-# USAGE: sudo bash cpulimit.sh {start|stop|status}
+# USAGE: sudo bash cpulimit.sh {--start|--stop|--status}
 #
 ################################################################################
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # root check
 if [ "$(id -u)" -ne 0 ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
-echo "CPU limit Starting. Wait..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') CPU limit Starting. Wait..."
 
 # dependencies
 for dep in cpulimit procps util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
 
 # validation -- integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
+# Confirms the PID still belongs to cpulimit: the PID file can outlive its
+# process and the number may have been reused by an unrelated program.
+_pid_is_cpulimit() {
+    local pid="$1"
+    [[ -n "$pid" && "$pid" =~ $UH_UINT ]] || return 1
+    [[ "$(cat "/proc/$pid/comm" 2>/dev/null)" == "cpulimit" ]]
+}
 start_limit() {
     # prevent overlapping runs
     script_lock="/var/lock/$(basename "$0" .sh).lock"
     (umask 077; : >> "$script_lock")
     exec 200>"$script_lock"
     if ! flock -n 200; then
-        echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
         exit 1
     fi
 
@@ -49,30 +65,31 @@ start_limit() {
     read -r -p "Enter the program name: " program_name
 
     if [ -z "$program_name" ]; then
-        echo "ERROR: program name cannot be empty -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: program name cannot be empty -abort"
         exit 1
     fi
 
     # Sanitize program name to prevent regex abuse
     if [[ "$program_name" =~ [^a-zA-Z0-9_\-\.] ]]; then
-        echo "Invalid program name: only alphanumeric characters, hyphens, underscores and dots are allowed."
+        echo "Invalid program name: only alphanumeric characters, hyphens, underscores and dots are allowed"
         exit 1
     fi
 
     # Verify process exists
     if ! pgrep -f "^(/[^[:space:]]*/)?$program_name([[:space:]]|$)" &>/dev/null; then
-        echo "No running process found for '$program_name'."
+        echo "No running process found for '$program_name'"
         exit 1
     fi
 
     pid_count=$(pgrep -f "^(/[^[:space:]]*/)?$program_name([[:space:]]|$)" | wc -l)
-    echo "Found $pid_count process(es) matching '$program_name'."
+    echo "Found $pid_count process(es) matching '$program_name'"
 
     # CPU %
     read -r -p "Enter the CPU % number for '$program_name' (1-100): " cpu_limit
 
     # Check CPU %
-    if ! [[ "$cpu_limit" =~ $UH_UINT ]] || [ "$cpu_limit" -lt 1 ] || [ "$cpu_limit" -gt 100 ]; then
+    if ! [[ "$cpu_limit" =~ $UH_UINT ]] || [ "${#cpu_limit}" -gt 3 ] \
+        || [ "$cpu_limit" -lt 1 ] || [ "$cpu_limit" -gt 100 ]; then
         echo "Invalid percentage. It must be a number between 1 and 100"
         exit 1
     fi
@@ -98,7 +115,7 @@ status_limit() {
             process=$(ps -p "$target_pid" -o comm= 2>/dev/null || echo "unknown")
             echo "CPU Limit active over PID $target_pid ($process)"
         else
-            echo "CPU Limit active, but cannot determine the associated process"
+            echo "CPU Limit active, but cannot determine associated process"
         fi
     done < <(pgrep -ax "cpulimit")
 }
@@ -106,7 +123,7 @@ status_limit() {
 stop_limit() {
     if [ -f /run/cpulimit_managed.pid ]; then
         while IFS= read -r saved_pid; do
-            if kill -0 "$saved_pid" 2>/dev/null; then
+            if _pid_is_cpulimit "$saved_pid"; then
                 kill "$saved_pid"
             fi
         done < /run/cpulimit_managed.pid
@@ -118,22 +135,36 @@ stop_limit() {
     echo "All CPU Limit have been stopped"
 }
 
+# ------------------------------------------------------------------------------
+# ACTIONS
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') cpulimit start..."
+
 # start|stop|status
 
 case "${1:-}" in
-    start)
+    --start)
         start_limit
         ;;
-    stop)
+    --stop)
         stop_limit
         ;;
-    status)
+    --status)
         status_limit
         ;;
     *)
-        echo "Usage: $0 {start|stop|status}"
+        echo "Usage: $0 {--start|--stop|--status}"
         exit 1
         ;;
 esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') cpulimit done at: $(date '+%Y-%m-%d %H:%M:%S')"
 
 exit 0

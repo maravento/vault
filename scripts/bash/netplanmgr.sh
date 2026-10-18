@@ -9,7 +9,7 @@
 # files without manual file handling.
 #
 # USAGE:
-# sudo ./netplanmgr.sh [install|uninstall|-h|--help]
+# sudo ./netplanmgr.sh [--install|--uninstall|-h|--help]
 # Without arguments, shows an interactive menu.
 #
 ################################################################################
@@ -18,38 +18,42 @@ set -uo pipefail
 
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
 # dependencies
 for dep in coreutils systemd netplan.io util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
 
 mod_name="netplanmgr"
 if ! [[ "$mod_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-    echo "ERROR: mod_name contains invalid characters -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: mod_name contains invalid characters -abort" >&2
     exit 1
 fi
 mod_dir="/usr/share/webmin/$mod_name"
 etc_dir="/etc/webmin/$mod_name"
 
-# ============================================================
-# Function: Install Module
-# ============================================================
+# ------------------------------------------------------------------------------
+# INSTALL
+# ------------------------------------------------------------------------------
+
 install_module() {
     echo ""
     echo "=========================================="
@@ -57,7 +61,7 @@ install_module() {
     echo "=========================================="
     echo ""
 
-    echo "Creating Netplan Manager module structure..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Creating Netplan Manager module structure..."
 
     # Create directories
     mkdir -p "$mod_dir/images"
@@ -65,9 +69,7 @@ install_module() {
     mkdir -p "$mod_dir/help"
     mkdir -p "$etc_dir"
 
-    # ============================================================
-    # 1. index.cgi (main file)
-    # ============================================================
+    # Write index.cgi (main file)
     cat > "$mod_dir/index.cgi" <<'INDEXCGI'
 #!/usr/bin/perl
 # Netplan Manager - Main interface
@@ -116,8 +118,10 @@ sub write_file_content {
     unless (print $fh $content) { close($fh); unlink($tmp); return 0; }
     unless (close($fh)) { unlink($tmp); return 0; }
     if (my @st = stat($f)) {
-        chmod($st[2] & 07777, $tmp);
-        chown($st[4], $st[5], $tmp);
+        unless (chmod($st[2] & 07777, $tmp) && chown($st[4], $st[5], $tmp)) {
+            unlink($tmp);
+            return 0;
+        }
     }
     unless (rename($tmp, $f)) { unlink($tmp); return 0; }
     return 1;
@@ -818,9 +822,7 @@ INDEXCGI
 
     chmod 755 "$mod_dir/index.cgi"
 
-    # ============================================================
-    # 2. module.info (English)
-    # ============================================================
+    # Write module.info (English)
     cat > "$mod_dir/module.info" <<'EOF'
 desc=Netplan Manager
 longdesc=View, edit and apply Netplan YAML configuration files
@@ -830,9 +832,7 @@ version=1.2
 depends=webmin
 EOF
 
-    # ============================================================
-    # 3. module.info.es (Spanish)
-    # ============================================================
+    # Write module.info.es (Spanish)
     cat > "$mod_dir/module.info.es" <<'EOF'
 desc=Administrador de Netplan
 longdesc=Ver, editar y aplicar archivos YAML de Netplan
@@ -842,9 +842,7 @@ version=1.2
 depends=webmin
 EOF
 
-    # ============================================================
-    # 4. lang/en (English strings)
-    # ============================================================
+    # Write lang/en (English strings)
     cat > "$mod_dir/lang/en" <<'EOF'
 index_title=Netplan Manager
 index_desc=Manage Netplan network configuration files under /etc/netplan
@@ -868,9 +866,7 @@ applying=Applying configuration...
 index=Webmin Index
 EOF
 
-    # ============================================================
-    # 5. lang/es (Spanish strings)
-    # ============================================================
+    # Write lang/es (Spanish strings)
     cat > "$mod_dir/lang/es" <<'EOF'
 index_title=Administrador de Netplan
 index_desc=Gestiona los archivos de configuracion Netplan en /etc/netplan
@@ -894,41 +890,31 @@ applying=Aplicando configuracion...
 index=Indice de Webmin
 EOF
 
-    # ============================================================
-    # 6. config.info (Configuration options - English)
-    # ============================================================
+    # Write config.info (Configuration options - English)
     cat > "$mod_dir/config.info" <<'EOF'
 netplan_path=Netplan configuration directory,0
 netplan_backup=Create backup before overwriting,1,1-Yes,0-No
 EOF
 
-    # ============================================================
-    # 6b. config.info.es (Configuration options - Spanish)
-    # ============================================================
+    # Write config.info.es (Configuration options - Spanish)
     cat > "$mod_dir/config.info.es" <<'EOF'
 netplan_path=Directorio de configuracion Netplan,0
 netplan_backup=Crear respaldo antes de sobrescribir,1,1-Si,0-No
 EOF
 
-    # ============================================================
-    # 7. defaultconfig (Default configuration values)
-    # ============================================================
+    # Write defaultconfig (Default configuration values)
     cat > "$mod_dir/defaultconfig" <<'EOF'
 netplan_path=/etc/netplan
 netplan_backup=1
 EOF
 
-    # ============================================================
-    # 8. config (Initial configuration - same as defaults)
-    # ============================================================
+    # Write config (Initial configuration - same as defaults)
     cat > "$etc_dir/config" <<'EOF'
 netplan_path=/etc/netplan
 netplan_backup=1
 EOF
 
-    # ============================================================
-    # 9. install_check.pl
-    # ============================================================
+    # Write install_check.pl
     cat > "$mod_dir/install_check.pl" <<'EOF'
 #!/usr/bin/perl
 # Check if netplan is available
@@ -945,9 +931,7 @@ EOF
 
     chmod 755 "$mod_dir/install_check.pl"
 
-    # ============================================================
-    # 10. help/intro.html
-    # ============================================================
+    # Write help/intro.html
     cat > "$mod_dir/help/intro.html" <<'EOF'
 <header>Netplan Manager</header>
 
@@ -972,9 +956,7 @@ EOF
 <footer>
 EOF
 
-    # ============================================================
-    # 11. help/intro.es.html
-    # ============================================================
+    # Write help/intro.es.html
     cat > "$mod_dir/help/intro.es.html" <<'EOF'
 <header>Administrador de Netplan</header>
 
@@ -999,9 +981,7 @@ EOF
 <footer>
 EOF
 
-    # ============================================================
-    # 12. CHANGELOG
-    # ============================================================
+    # Write CHANGELOG
     cat > "$mod_dir/CHANGELOG" <<'EOF'
 Version 1.2 (2025)
 - Added modal popup editor for better UX with long file lists
@@ -1023,9 +1003,7 @@ Version 1.0 (2025)
 - Multi-language (en/es)
 EOF
 
-    # ============================================================
-    # 13. Create icon.gif
-    # ============================================================
+    # Create icon.gif
     icon_b64=$(mktemp)
     cat > "$icon_b64" << 'ICONEOF'
 R0lGODlhMAAwAPAAAAAAAAAAACH5BAEAAAAALAAAAAAwADAAAAKrhI+py+0Po5wqJEszCpyf7mkUiAGkOJJqiUKr2krvGS/zDdYGzusmj6vdLjPfynb0/XIVmnLZQTKfsOZU95I6W8NNUQj8yq5hcWRbzk62xOA5BIX/Pj0XML6rP9JuvJ3v4cTGAChncpFR+JSXtshIlgSm5mWWWPlYJdLVFqmxSdlpOQmayRU6isXnGHfnqEhVyBITazgbuxiFWXKlxFJ6uGpVGywsS3yMHFMAADs=
@@ -1034,18 +1012,20 @@ ICONEOF
     base64 -d "$icon_b64" > "$mod_dir/images/icon.gif" || true
     rm -f "$icon_b64"
 
-    # ============================================================
     # Set permissions
-    # ============================================================
-    chown -R root:root "$mod_dir" "$etc_dir"
-    chmod -R 755 "$mod_dir"
+    if ! chown -R root:root "$mod_dir" "$etc_dir"; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot set netplanmgr owner and group -abort" >&2
+        exit 1
+    fi
+    if ! chmod -R 755 "$mod_dir"; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot set netplanmgr permissions -abort" >&2
+        exit 1
+    fi
     chmod 644 "$mod_dir"/*.info* "$mod_dir/lang/"* "$mod_dir/help/"* "$mod_dir/CHANGELOG" 2>/dev/null || true
     chmod 755 "$mod_dir"/*.cgi "$mod_dir"/*.pl 2>/dev/null || true
     chmod 644 "$mod_dir/images/"* 2>/dev/null || true
 
-    # ============================================================
     # Register in Webmin ACL
-    # ============================================================
     if [ -f /etc/webmin/webmin.acl ]; then
         if ! grep -qE "^root:.*\b${mod_name}\b" /etc/webmin/webmin.acl 2>/dev/null; then
             sed -i.bak 's/\(^root:.*\)/\1 '"$mod_name"'/' /etc/webmin/webmin.acl
@@ -1053,14 +1033,14 @@ ICONEOF
             echo "Module added to webmin.acl"
         fi
     else
-        echo "WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -- alert"
+        echo "WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -alert"
     fi
 
     # Clear cache
     rm -f /var/webmin/module.infos.cache
 
     # Restart Webmin
-    echo "Restarting Webmin service..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
 
     echo ""
@@ -1071,14 +1051,15 @@ ICONEOF
     echo "Module location: $mod_dir"
     echo "Config location: $etc_dir"
     echo ""
-    echo "Please refresh your browser to see the module."
-    echo "Find it under the 'Network' category."
+    echo "Please refresh your browser to see module"
+    echo "Find it under 'Network' category"
     echo ""
 }
 
-# ============================================================
-# Function: Uninstall Module
-# ============================================================
+# ------------------------------------------------------------------------------
+# UNINSTALL
+# ------------------------------------------------------------------------------
+
 uninstall_module() {
     echo ""
     echo "=========================================="
@@ -1087,12 +1068,12 @@ uninstall_module() {
     echo ""
 
     if [ ! -d "$mod_dir" ]; then
-        echo "Module is not installed."
+        echo "Module is not installed"
         echo ""
         return 1
     fi
 
-    echo "Removing module files..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Removing module files..."
     rm -rf "$mod_dir"
     rm -rf "$etc_dir"
 
@@ -1104,7 +1085,7 @@ uninstall_module() {
             echo "Module removed from webmin.acl"
         fi
     else
-        echo "WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -- alert"
+        echo "WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -alert"
     fi
 
     # Clear cache
@@ -1112,7 +1093,7 @@ uninstall_module() {
     echo "Module cache cleared"
 
     # Restart Webmin
-    echo "Restarting Webmin service..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
 
     echo ""
@@ -1122,40 +1103,44 @@ uninstall_module() {
     echo ""
 }
 
-# ============================================================
-# Show usage
-# ============================================================
+# ------------------------------------------------------------------------------
+# USAGE
+# ------------------------------------------------------------------------------
+
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "install Install the Netplan Manager module"
-    echo "uninstall Uninstall the Netplan Manager module"
+    echo "--install Install Netplan Manager module"
+    echo "--uninstall Uninstall Netplan Manager module"
     echo "-h, --help Show this help message"
     echo ""
     echo "Examples:"
-    echo "$0 install"
-    echo "$0 uninstall"
+    echo "$0 --install"
+    echo "$0 --uninstall"
     echo ""
 }
 
-# ============================================================
-# Main
-# ============================================================
+# ------------------------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------------------------
+
 main() {
     if [ ! -d "/usr/share/webmin" ] && [ ! -d "/etc/webmin" ]; then
-        echo "ERROR: Webmin is not installed on this system -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Webmin is not installed on this system -abort"
         exit 1
     fi
 
     if [ $# -gt 0 ]; then
         case "$1" in
-            install)
-                install_module
+            --install)
+                install_module || exit 1
+                echo "$(date '+%Y-%m-%d %H:%M:%S') netplanmgr done at: $(date '+%Y-%m-%d %H:%M:%S')"
                 exit 0
                 ;;
-            uninstall)
-                uninstall_module
+            --uninstall)
+                uninstall_module || exit 1
+                echo "$(date '+%Y-%m-%d %H:%M:%S') netplanmgr done at: $(date '+%Y-%m-%d %H:%M:%S')"
                 exit 0
                 ;;
             -h|--help)
@@ -1163,7 +1148,7 @@ main() {
                 exit 0
                 ;;
             *)
-                echo "ERROR: invalid option '$1' -- abort"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option '$1' -abort"
                 echo ""
                 show_usage
                 exit 1
@@ -1184,28 +1169,26 @@ main() {
         echo "3) Exit"
         echo ""
         echo -n "Select an option [1-3]: "
-        read -r option
+        read -r option || return 1
 
         case $option in
             1)
                 install_module
-                echo ""
-                read -p "Press Enter to continue..."
+                break
                 ;;
             2)
                 uninstall_module
-                echo ""
-                read -p "Press Enter to continue..."
+                break
                 ;;
             3)
                 echo ""
-                echo "Exiting..."
+                echo "$(date '+%Y-%m-%d %H:%M:%S') Exiting..."
                 echo ""
                 exit 0
                 ;;
             *)
                 echo ""
-                echo "Invalid option. Please select 1, 2, or 3."
+                echo "Invalid option. Please select 1, 2, or 3"
                 echo ""
                 sleep 2
                 ;;
@@ -1213,4 +1196,10 @@ main() {
     done
 }
 
-main "$@"
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') netplanmgr start..."
+
+main "$@" || exit 1
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') netplanmgr done at: $(date '+%Y-%m-%d %H:%M:%S')"

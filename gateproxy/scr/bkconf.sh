@@ -5,14 +5,10 @@
 #
 # bkconf -- configuration backup for gateproxy
 #
-# DESCRIPTION:
-# Creates one compressed archive with the gateproxy installation and its
-# system configuration. Requires root.
-#
 # USAGE:
 # sudo bash bkconf.sh            Create a backup now
-# sudo bash bkconf.sh install    Register the @monthly cron entry
-# sudo bash bkconf.sh uninstall  Remove the cron entry (keeps archives)
+# sudo bash bkconf.sh --install    Register the @monthly cron entry
+# sudo bash bkconf.sh --uninstall  Remove the cron entry (keeps archives)
 #
 # LOG: /var/log/bkconf.log
 #
@@ -27,31 +23,40 @@ set -euo pipefail
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# logging
-log_file="/var/log/bkconf.log"
-log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $1" | tee -a "$log_file" 2>/dev/null || true
-}
-
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
+# logging
+log_file="/var/log/bkconf.log"
+log() {
+    local log_msg="$(date '+%Y-%m-%d %H:%M:%S') $1"
+    echo "$log_msg" >> "$log_file" 2>/dev/null || true
+    if [[ "$1" == ERROR:* ]]; then
+        echo "$log_msg" >&2
+    else
+        echo "$log_msg"
+    fi
+}
+
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    log "ERROR: script $(basename "$0") is already running -- abort"
+    log "ERROR: script $(basename "$0") is already running -abort"
     exit 1
 fi
 
 # dependencies
 for dep_pkg in zip coreutils util-linux cron; do
     if ! dpkg -s "$dep_pkg" &>/dev/null; then
-        log "ERROR: missing dependency '$dep_pkg' -- abort"
+        log "ERROR: dependency '$dep_pkg' is not installed -abort"
         exit 1
     fi
 done
@@ -77,11 +82,23 @@ cron_d_set() {
     local cron_file="/etc/cron.d/gateproxy"
     local cron_tmp
 
-    cron_tmp=$(mktemp)
-    [ -f "$cron_file" ] && { grep -vF "$match" "$cron_file" > "$cron_tmp" || true; }
-    [ -n "$line" ] && printf '%s\n' "$line" >> "$cron_tmp"
+    cron_tmp=$(mktemp) || return 1
+    if [ -f "$cron_file" ]; then
+        grep -vF "$match" "$cron_file" > "$cron_tmp" || {
+            [ "$?" -eq 1 ] || { rm -f "$cron_tmp"; return 1; }
+        }
+    fi
+    if [ -n "$line" ]; then
+        printf '%s\n' "$line" >> "$cron_tmp" || {
+            rm -f "$cron_tmp"
+            return 1
+        }
+    fi
     if [ -s "$cron_tmp" ]; then
-        install -m 644 -o root -g root "$cron_tmp" "$cron_file"
+        if ! install -m 644 -o root -g root "$cron_tmp" "$cron_file"; then
+            rm -f "$cron_tmp"
+            return 1
+        fi
     else
         rm -f "$cron_file"
     fi
@@ -95,7 +112,7 @@ register_cron() {
     script_path="$(readlink -f "$0")"
     if [ "$script_path" != "$installed_path" ]; then
         if ! mkdir -p "$(dirname "$installed_path")"; then
-            log "ERROR: cannot create $(dirname "$installed_path") -- abort"
+            log "ERROR: cannot create $(dirname "$installed_path") -abort"
             exit 1
         fi
         install -m 755 -o root -g root "$script_path" "$installed_path"
@@ -103,42 +120,39 @@ register_cron() {
     fi
 
     cron_d_set "$installed_path" "@monthly root $installed_path"
-    log "INFO: cron entry registered, runs @monthly"
-    log "INFO: $installed_path"
+    log "INFO: bkconf backup cron registered, runs @monthly"
 }
 
 deregister_cron() {
     cron_d_set "$installed_path" ""
-    log "INFO: cron entry removed, archives kept"
+    log "INFO: bkconf backup cron removed, archives kept"
 }
 
+# Start
 case "${1:-}" in
-    install)
+    --install)
         register_cron
         exit 0
         ;;
-    uninstall)
+    --uninstall)
         deregister_cron
         exit 0
         ;;
     "")
+        log "bkconf start..."
         ;;
     *)
-        log "ERROR: use no argument, 'install' or 'uninstall'"
-        log "ERROR: unknown action '$1' -- abort"
+        log "ERROR: '$1' invalid; --install/--uninstall or none -abort"
         exit 1
         ;;
 esac
-
-# Start
-log "bkconf start..."
 
 # ------------------------------------------------------------------------------
 # BACKUP
 # ------------------------------------------------------------------------------
 
 if ! mkdir -p "$backup_dir"; then
-    log "ERROR: cannot create $backup_dir -- abort"
+    log "ERROR: cannot create $backup_dir -abort"
     exit 1
 fi
 
@@ -166,13 +180,13 @@ do
     if [ -e "$backup_item" ]; then
         backup_list+=("$backup_item")
     else
-        log "INFO: $backup_item not present -- skip"
+        log "INFO: $backup_item not present -skip"
     fi
 done
 
 if (( ${#backup_list[@]} == 0 )); then
-    log "ERROR: none of the expected paths exist"
-    log "ERROR: is gateproxy installed? -- abort"
+    log "ERROR: none of expected paths exist"
+    log "ERROR: is gateproxy installed? -abort"
     exit 1
 fi
 
@@ -186,7 +200,7 @@ if (umask 077; zip -r -q -y "$backup_part" "${backup_list[@]}"); then
     if ! mv -f "$backup_part" "$backup_zip"; then
         rm -f "$backup_part"
         log "ERROR: cannot name archive $(basename "$backup_zip")"
-        log "ERROR: check free space and permissions -- abort"
+        log "ERROR: check free space and permissions -abort"
         exit 1
     fi
     log "INFO: backup written to $(basename "$backup_zip")"
@@ -199,7 +213,7 @@ if (umask 077; zip -r -q -y "$backup_part" "${backup_list[@]}"); then
 else
     rm -f "$backup_part"
     log "ERROR: cannot write archive $(basename "$backup_zip")"
-    log "ERROR: check free space and permissions -- abort"
+    log "ERROR: check free space and permissions -abort"
     exit 1
 fi
 

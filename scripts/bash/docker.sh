@@ -8,24 +8,31 @@
 # DESCRIPTION: Installs Docker CE together with Portainer, or removes Docker.
 # Without an argument it opens an interactive menu.
 #
-# USAGE: sudo bash docker.sh [install|remove|--help]
+# USAGE: sudo bash docker.sh [--install|--uninstall|--help]
 #
 ################################################################################
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
@@ -62,31 +69,45 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: no valid local user found, create one with sudo access -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
     exit 1
 fi
 echo "Using local user: $local_user"
 
-echo "Docker Install | Remove Starting. Wait..."
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') docker start..."
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
 
 # Function to install Docker and docker-compose-plugin
 install_docker() {
   if ! command -v docker &> /dev/null; then
-    echo "Docker is not installed. Proceeding with installation..."
-    apt-get install -y ca-certificates curl gnupg lsb-release
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Docker is not installed. Proceeding with installation..."
+    apt-get install -y ca-certificates curl gnupg lsb-release || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install prerequisites -abort" >&2
+        exit 1
+    }
 
     # GPG
+    # Replace the Docker repository signing key
     rm -f /etc/apt/keyrings/docker.gpg > /dev/null
     mkdir -p /etc/apt/keyrings
 
     # Download the key to a temp file and verify its fingerprint before trusting it
     DOCKER_GPG_EXPECTED_FPR="9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
     DOCKER_GPG_TMP=$(mktemp)
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$DOCKER_GPG_TMP"
+    if ! curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$DOCKER_GPG_TMP"; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') PARTIAL: https://download.docker.com/linux/ubuntu/gpg"
+        rm -f "$DOCKER_GPG_TMP"
+        exit 1
+    fi
+    echo "$(date '+%Y-%m-%d %H:%M:%S') SAVED: gpg"
     DOCKER_GPG_ACTUAL_FPR=$(gpg --with-colons --import-options show-only --import --fingerprint "$DOCKER_GPG_TMP" 2>/dev/null | awk -F: '/^fpr:/{print $10; exit}')
     if [ "$DOCKER_GPG_ACTUAL_FPR" != "$DOCKER_GPG_EXPECTED_FPR" ]; then
-        echo "ERROR: Docker GPG fingerprint mismatch, got: ${DOCKER_GPG_ACTUAL_FPR:-none}"
-        echo "ERROR: expected: $DOCKER_GPG_EXPECTED_FPR -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Docker GPG fingerprint mismatch, got: ${DOCKER_GPG_ACTUAL_FPR:-none}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: expected: $DOCKER_GPG_EXPECTED_FPR -abort"
         rm -f "$DOCKER_GPG_TMP"
         exit 1
     fi
@@ -102,9 +123,17 @@ install_docker() {
       tee /etc/apt/sources.list.d/docker.list > /dev/null
 
     # Install
-    apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    #apt install -y docker.io docker-compose-plugin
+    apt-get update || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
+        exit 1
+    }
+    # Method 1: install Docker CE and Compose from the Docker repository.
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install Docker packages -abort" >&2
+        exit 1
+    }
+    # Method 2: alternative docker.io installation; replace Method 1.
+    #apt install -y docker.io docker-compose-plugin # Optional
     mkdir -p /etc/docker
     docker compose version
     systemctl start docker
@@ -125,7 +154,7 @@ install_docker() {
 # Docker uninstall function
 uninstall_docker() {
   if command -v docker &> /dev/null; then
-    echo "Docker is installed. Proceeding with uninstallation..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Docker is installed. Proceeding with uninstallation..."
 
     # Stop and kill all running containers
     CONTAINERS=$(docker ps -q)
@@ -158,7 +187,7 @@ uninstall_docker() {
 
     # Uninstall Docker packages
     for pkg in docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do
-        echo "Removing Dockers Packages..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') Removing Dockers Packages..."
         dpkg -s "$pkg" &>/dev/null && apt-get purge -y "$pkg"
     done
 
@@ -178,14 +207,18 @@ uninstall_docker() {
 
 # Show help
 show_help() {
-    echo "Usage: $0 [COMMAND]"
+    echo "Usage: $0 [--install|--uninstall|--help]"
     echo "Commands:"
-    echo "  install    Install Docker + Portainer"
-    echo "  remove     Uninstall Docker"
+    echo "  --install    Install Docker + Portainer"
+    echo "  --uninstall  Uninstall Docker"
     echo ""
-    echo "If no command is provided, interactive mode will start."
+    echo "If no command is provided, interactive mode will start"
     exit 0
 }
+
+# ------------------------------------------------------------------------------
+# ACTIONS
+# ------------------------------------------------------------------------------
 
 # Main execution logic
 if [ $# -eq 0 ]; then
@@ -205,7 +238,7 @@ if [ $# -eq 0 ]; then
         uninstall_docker
         ;;
       3)
-        echo "Exiting..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') Exiting..."
         exit 0
         ;;
       *)
@@ -216,10 +249,10 @@ if [ $# -eq 0 ]; then
 else
     # Command line mode
     case $1 in
-        install)
+        --install)
             install_docker
             ;;
-        remove)
+        --uninstall)
             uninstall_docker
             ;;
         --help|-h)
@@ -232,3 +265,10 @@ else
             ;;
     esac
 fi
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') docker done at: $(date '+%Y-%m-%d %H:%M:%S')"

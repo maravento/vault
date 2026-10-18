@@ -9,7 +9,7 @@
 # bindfs, auto-detecting the local sudo user and installing Cryptomator
 # if missing.
 #
-# USAGE: ./drivecrypt.sh { start | stop }
+# USAGE: ./drivecrypt.sh { --start | --stop }
 #
 # LOG: system log (via logger, tag drivecrypt)
 #
@@ -17,20 +17,27 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
@@ -67,17 +74,17 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: no valid local user found, create one with sudo access -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
     exit 1
 fi
 echo "Using local user: $local_user"
 
-echo "DriveCrypt Starting. Wait..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') DriveCrypt Starting. Wait..."
 
 # dependencies
 for dep in bindfs fuse3 software-properties-common util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
@@ -85,9 +92,19 @@ done
 the_ppa="sebastian-stenzel/cryptomator"
 if ! dpkg -s cryptomator &>/dev/null; then
     add-apt-repository -y "ppa:$the_ppa" >/dev/null 2>&1
-    apt-get update -qq
-    apt-get install -y cryptomator >/dev/null 2>&1
+    apt-get update -qq || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
+        exit 1
+    }
+    apt-get install -y cryptomator >/dev/null 2>&1 || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install cryptomator -abort" >&2
+        exit 1
+    }
 fi
+
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
 
 dstpath="/home/$local_user/dcrypt"
 if [ ! -d "$dstpath" ]; then
@@ -97,9 +114,16 @@ fi
 
 originpath="/home/$local_user/.local/share/Cryptomator/mnt"
 
+# ------------------------------------------------------------------------------
+# ACTIONS
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') drivecrypt start..."
+
 case "${1:-}" in
-'start')
-    echo "Mounting DriveCrypt..."
+'--start')
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Mounting DriveCrypt..."
     if [ ! -d "$originpath" ]; then
         echo "Source path does not exist: $originpath"
         exit 1
@@ -109,14 +133,21 @@ case "${1:-}" in
     echo "$msg"
     logger -t drivecrypt "$msg"
     ;;
-'stop')
-    echo "Umounting DriveCrypt..."
+'--stop')
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Umounting DriveCrypt..."
     sudo -u "$local_user" fusermount -u "$dstpath"
     msg="DriveCrypt Umount: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "$msg"
     logger -t drivecrypt "$msg"
     ;;
 *)
-    echo "Usage: $0 { start | stop }"
+    echo "Usage: $0 { --start | --stop }"
     ;;
 esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') drivecrypt done at: $(date '+%Y-%m-%d %H:%M:%S')"

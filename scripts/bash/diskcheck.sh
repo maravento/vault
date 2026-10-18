@@ -4,9 +4,10 @@
 ################################################################################
 #
 # Disk Check Monitor
-# Checks temperature, SMART status and degradation indicators on HDD, SSD and NVMe.
-# Sends desktop alert and logs to syslog if any issue is detected.
+# DESCRIPTION: Checks temperature, SMART status and degradation indicators on
+# HDD, SSD and NVMe. Sends a desktop alert and logs to syslog on any issue.
 # Requires: inxi, smartmontools, util-linux, libnotify-bin
+#
 # USAGE: sudo ./diskcheck.sh
 # Intended to run periodically via root's crontab.
 # Log rotate: /etc/logrotate.d/diskcheck
@@ -25,29 +26,36 @@ set -uo pipefail
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# root check
+if [ "$(id -u)" != "0" ]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
+    exit 1
+fi
+
 # logging
 log_file="/var/log/diskcheck.log"
 log() {
     local msg="$1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+    local log_msg="$(date '+%Y-%m-%d %H:%M:%S') $msg"
+    echo "$log_msg" >> "$log_file" 2>/dev/null || true
+    if [[ "$msg" == ERROR:* ]]; then
+        echo "$log_msg" >&2
+    else
+        echo "$log_msg"
+    fi
 }
-
-# root check
-if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root -- abort"
-    exit 1
-fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    log "ERROR: script $(basename "$0") is already running -- abort"
+    log "ERROR: script $(basename "$0") is already running -abort"
     exit 1
 fi
-
-echo "----------------------------------------------------------------" | tee -a "$log_file"
 
 # Start
 log "diskcheck start..."
@@ -85,8 +93,7 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    log "ERROR: no valid local user found"
-    log "ERROR: create one with sudo access -- abort"
+    log "ERROR: no local user; create one with sudo access -abort"
     exit 1
 fi
 log "Using local user: $local_user"
@@ -94,7 +101,7 @@ log "Using local user: $local_user"
 # dependencies
 for dep in inxi smartmontools util-linux libnotify-bin; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: dependency '$dep' is not installed -- abort"
+        log "ERROR: dependency '$dep' is not installed -abort"
         exit 1
     fi
 done
@@ -103,18 +110,19 @@ done
 the_ppa=malcscott/ppa
 if ! dpkg -s hddtemp &>/dev/null; then
     if ! add-apt-repository -y ppa:$the_ppa >/dev/null 2>&1; then
-        log "WARNING: add PPA $the_ppa failed; hddtemp absent -- alert"
+        log "WARNING: add PPA $the_ppa failed; hddtemp absent -alert"
     else
         apt-get update -qq
         if ! apt-get install -y hddtemp >/dev/null 2>&1; then
-            log "WARNING: hddtemp install from $the_ppa failed -- alert"
+            log "WARNING: hddtemp install from $the_ppa failed -alert"
         fi
     fi
 fi
 
-# ---------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # LOGROTATE
-# ---------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+
 LOGROTATE_CONF=/etc/logrotate.d/diskcheck
 if [ ! -f "$LOGROTATE_CONF" ]; then
     cat > "$LOGROTATE_CONF" << 'EOF'
@@ -128,16 +136,25 @@ if [ ! -f "$LOGROTATE_CONF" ]; then
     create 640 root adm
 }
 EOF
-    chmod 644 "$LOGROTATE_CONF"
-    chown root:root "$LOGROTATE_CONF"
-    log "Logrotate config created: $LOGROTATE_CONF"
+    logrotate_ok=$?
+    chmod 644 "$LOGROTATE_CONF" || logrotate_ok=1
+    chown root:root "$LOGROTATE_CONF" || logrotate_ok=1
+    if [ "$logrotate_ok" -eq 0 ]; then
+        log "Logrotate config created: $LOGROTATE_CONF"
+    else
+        log "WARNING: cannot create logrotate config -alert"
+    fi
 else
     log "Logrotate config: OK"
 fi
 
-# ---------------------------------------------------------------------
-# HELPER: send desktop notification + syslog
-# desktop notification to another user (X11 and Wayland, silent if no session)
+# ------------------------------------------------------------------------------
+# ALERTS
+# ------------------------------------------------------------------------------
+
+# NOTIFY SEND
+# Sends a desktop notification to another user, on X11 and on Wayland.
+# Stays silent when that user has no graphical session open.
 notify_send() {
     local target_user="$1"; shift
     [ -z "$target_user" ] && return 0
@@ -164,6 +181,8 @@ notify_send() {
     fi
 }
 
+# NOTIFY ALERT
+# Writes the message to syslog and to the log, then raises the desktop alert
 notify_alert() {
     local msg="$1"
     local icon="${2:-dialog-warning}"
@@ -173,9 +192,10 @@ notify_alert() {
         || log " notify-send failed (no desktop session?)"
 }
 
-# ---------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # TEMPERATURE CHECK
-# ---------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+
 degrees=50
 
 # option 1 (ssd sata and nvme)
@@ -200,10 +220,11 @@ fi
 # notify_alert "ALERT: hard drive's temperature is above: $temperature" "checkbox"
 #fi
 
-# ---------------------------------------------------------------------
-# SMART DISK HEALTH CHECK
+# ------------------------------------------------------------------------------
+# SMART HEALTH
+# ------------------------------------------------------------------------------
+
 # Detects HDD/SSD/NVMe degradation and alerts for timely replacement
-# ---------------------------------------------------------------------
 log "Check Disk SMART Health. Wait..."
 
 # Alert thresholds

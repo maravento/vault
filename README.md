@@ -77,6 +77,7 @@ python3 gitfolder.py https://github.com/maravento/vault/project_name
 - [itsm](https://github.com/maravento/vault/tree/master/itsm)
 - [nmapstack](https://github.com/maravento/vault/tree/master/nmapstack)
 - [scripts](https://github.com/maravento/vault/tree/master/scripts)
+- [FMS: File Manager Scripts](scripts/README.md)
 - [trek](https://github.com/maravento/vault/tree/master/trek)
 - [winzenity](https://github.com/maravento/vault/tree/master/winzenity)
 
@@ -90,7 +91,6 @@ python3 gitfolder.py https://github.com/maravento/vault/project_name
       <strong>This repository</strong>
       <ul>
         <li>May include third-party components.</li>
-        <li>Follows a non-standard workflow. Published commits may be rewritten or removed without notice as part of the debugging and improvement process.</li>
         <li>Does not accept Pull Requests. Changes must be proposed via Issues.</li>
         <li>This project does not support backward compatibility. New versions may require configuration changes or reinstallation.</li>
       </ul>
@@ -99,9 +99,27 @@ python3 gitfolder.py https://github.com/maravento/vault/project_name
       <strong>Este repositorio</strong>
       <ul>
         <li>Puede incluir componentes de terceros.</li>
-        <li>Utiliza un flujo de trabajo no convencional. Los commits publicados pueden ser reescritos o eliminados sin previo aviso como parte del proceso de depuración y mejora.</li>
         <li>No acepta Pull Requests. Los cambios deben proponerse mediante Issues.</li>
         <li>Este proyecto no soporta retrocompatibilidad. Las nuevas versiones pueden requerir cambios de configuración o una reinstalación.</li>
+      </ul>
+    </td>
+  </tr>
+</table>
+
+## LIMITATIONS
+
+---
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <ul>
+        <li>Follows a non-standard workflow. Published commits may be rewritten or removed without notice as part of the debugging and improvement process.</li>
+      </ul>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <ul>
+        <li>Utiliza un flujo de trabajo no convencional. Los commits publicados pueden ser reescritos o eliminados sin previo aviso como parte del proceso de depuración y mejora.</li>
       </ul>
     </td>
   </tr>

@@ -5,10 +5,6 @@
 #
 # Iptables Kill Switch
 #
-# DESCRIPTION:
-# Blocks all traffic. Use only in case of attack or illegal access to
-# your network.
-#
 # USAGE:
 # sudo ./killswitch.sh
 #
@@ -23,32 +19,41 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# root check
+if [ "$(id -u)" != "0" ]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
+    exit 1
+fi
+
 # logging
 log_file="/var/log/iptables.log"
 log() {
     local msg="$1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+    local log_msg="$(date '+%Y-%m-%d %H:%M:%S') $msg"
+    echo "$log_msg" >> "$log_file" 2>/dev/null || true
+    if [[ "$msg" == ERROR:* ]]; then
+        echo "$log_msg" >&2
+    else
+        echo "$log_msg"
+    fi
 }
-
-# root check
-if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root -- abort"
-    exit 1
-fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    log "ERROR: script $(basename "$0") is already running -- abort"
+    log "ERROR: script $(basename "$0") is already running -abort"
     exit 1
 fi
 
 # dependencies
 for dep in iptables iproute2 conntrack util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: missing dependency '$dep' -- abort"
+        log "ERROR: dependency '$dep' is not installed -abort"
         exit 1
     fi
 done

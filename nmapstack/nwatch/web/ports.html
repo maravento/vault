@@ -381,6 +381,9 @@ async function loadPorts() {
         const json = await res.json();
         if (!json.success) throw new Error(json.error || 'Request failed');
         ALL = json.data;
+        document.getElementById('modeCurrent').textContent = json.mode === 'target'
+            ? `Currently watching target: ${json.host || '(not set)'}`
+            : `Currently watching server: ${json.host === 'localhost' ? 'this host' : json.host}`;
         lastAttemptFailed = json.last_attempt_status === 'failed';
         if (ALL.length > 0 || json.last_scan || lastAttemptFailed) justApplied = false;
         dataLoaded = true;

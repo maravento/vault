@@ -8,17 +8,21 @@
 # DESCRIPTION: Mounts/unmounts the local user's Google Drive folder,
 # auto-detecting the local sudo user. Not run as root.
 #
-# USAGE: ./gdrive.sh { start | stop }
+# USAGE: ./gdrive.sh { --start | --stop }
 #
 ################################################################################
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # no-root check
 if [ "$(id -u)" == "0" ]; then
-    echo "ERROR: This script should not be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script should not be run as root -abort" >&2
     exit 1
 fi
 
@@ -26,14 +30,14 @@ fi
 script_lock="/var/lock/$(basename "$0" .sh).lock"
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
 # dependencies
 for dep in libcurl3-gnutls libfuse2t64 libsqlite3-0 fuse3 util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
@@ -41,8 +45,8 @@ done
 # dependencies (external repo)
 for dep in google-drive-ocamlfuse; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: 'google-drive-ocamlfuse' is not installed" >&2
-        echo "ERROR: run: add-apt-repository ppa:alessandro-strada/ppa -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: 'google-drive-ocamlfuse' is not installed" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: run: add-apt-repository ppa:alessandro-strada/ppa -abort" >&2
         exit 1
     fi
 done
@@ -80,17 +84,21 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: no valid local user found, create one with sudo access -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
     exit 1
 fi
 
 echo "Using local user: $local_user"
 
-echo "Gdrive Starting. Wait..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') Gdrive Starting. Wait..."
+
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
 
 GD="/home/$local_user/gdrive"
 if [ -e "$GD" ] && [ ! -d "$GD" ]; then
-    echo "ERROR: $GD exists but is not a directory -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: $GD exists but is not a directory -abort" >&2
     exit 1
 fi
 if [ ! -d "$GD" ]; then
@@ -98,35 +106,46 @@ if [ ! -d "$GD" ]; then
     chmod 755 "$GD"
 fi
 
+# ------------------------------------------------------------------------------
+# ACTIONS
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') gdrive start..."
+
 case "${1:-}" in
-start)
-    echo 'Mount Google Drive...'
+--start)
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Mount Google Drive..."
     if mountpoint -q "$GD"; then
-        echo "$GD is already mounted."
+        echo "$GD is already mounted"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') gdrive done at: $(date '+%Y-%m-%d %H:%M:%S')"
         exit 0
     fi
     if ! google-drive-ocamlfuse "$GD"; then
-        echo "Failed to mount Google Drive."
+        echo "Failed to mount Google Drive"
         exit 1
     fi
     echo "OK"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') gdrive done at: $(date '+%Y-%m-%d %H:%M:%S')"
     exit 0
     ;;
-stop)
-    echo 'Umount Google Drive...'
+--stop)
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Umount Google Drive..."
     if ! mountpoint -q "$GD"; then
-        echo "$GD is not mounted."
+        echo "$GD is not mounted"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') gdrive done at: $(date '+%Y-%m-%d %H:%M:%S')"
         exit 0
     fi
     if ! fusermount -u "$GD"; then
-        echo "Failed to unmount Google Drive."
+        echo "Failed to unmount Google Drive"
         exit 1
     fi
     echo "OK"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') gdrive done at: $(date '+%Y-%m-%d %H:%M:%S')"
     exit 0
     ;;
 *)
-    echo "Usage: $0 {start|stop}"
+    echo "Usage: $0 {--start|--stop}"
     exit 1
     ;;
 esac

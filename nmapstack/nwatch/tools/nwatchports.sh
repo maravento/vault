@@ -5,15 +5,11 @@
 #
 # nwatchports - Port Auditing Daemon + CLI
 #
-# DESCRIPTION:
-# Audits this server's listening ports, or a chosen target's, and
-# keeps port history in nwatch.db.
-#
 # USAGE:
-# ./nwatchports.sh {start|stop|status}
-# ./nwatchports.sh mode server
-# ./nwatchports.sh mode target <host>
-# ./nwatchports.sh list
+# ./nwatchports.sh {--start|--stop|--status}
+# ./nwatchports.sh --mode server
+# ./nwatchports.sh --mode target <host>
+# ./nwatchports.sh --list
 #
 # LOG: /var/log/nwatch.log (root:root, 640) -- shared by both daemons
 #      (nwatchlan.sh + nwatchports.sh). The installer writes its own
@@ -23,36 +19,51 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# root check
+if [ "$(id -u)" != "0" ]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
+    exit 1
+fi
 
 # logging
 log_file="/var/log/nwatch.log"
 log() {
     local msg="$1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+    local log_msg="$(date '+%Y-%m-%d %H:%M:%S') $msg"
+    echo "$log_msg" >> "$log_file" 2>/dev/null || true
+    if [[ "$msg" == ERROR:* ]]; then
+        echo "$log_msg" >&2
+    else
+        echo "$log_msg"
+    fi
 }
 
-# root check
-if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root -- abort"
-    exit 1
-fi
+# dependencies
+for dep in sqlite3 nmap iproute2 procps coreutils util-linux; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        log "ERROR: dependency '$dep' is not installed -abort"
+        exit 1
+    fi
+done
+
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
 
 # PATHS
+# Declare the file and directory paths used below
 nwatch_env="/etc/nwatch/nwatch.env"
 db_file="/var/www/nwatch/data/nwatch.db"
 ports_mode_file="/var/www/nwatch/data/ports_mode.conf"
 scan_status_file="/var/www/nwatch/data/port_scan_status.conf"
 pid_file="/run/nwatchports.pid"
-
-# dependencies
-for dep in sqlite3 nmap iproute2 procps coreutils util-linux; do
-    if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: dependency '$dep' is not installed -- abort"
-        exit 1
-    fi
-done
 
 # validation -- one variable per thing validated; use directly with =~
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
@@ -60,93 +71,29 @@ UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
 UH_HOST='^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$'
 UH_UINT='^(0|[1-9][0-9]*)$'
 
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
 valid_host() {
     [[ "$1" =~ $UH_IPV4 ]] || [[ "$1" =~ $UH_FQDN ]] || [[ "$1" =~ $UH_HOST ]]
 }
 
-# ------------------------------------------------------------------------------
-# ENV
-# ------------------------------------------------------------------------------
-
-# PERMS
-# Owner and mode of every .env this script reads
-env_specs=("$nwatch_env root:www-data 640")
-for env_spec in "${env_specs[@]}"; do
-    read -r env_path env_owner_want env_perms_want <<< "$env_spec"
-    if [ ! -f "$env_path" ]; then
-        log "ERROR: $(basename "$env_path") not found -- abort"
-        exit 1
-    fi
-    env_owner=$(stat -c '%U:%G' "$env_path" 2>/dev/null)
-    env_perms=$(stat -c '%a' "$env_path" 2>/dev/null)
-    if [[ "$env_owner" != "$env_owner_want" ]] \
-       || [[ "$env_perms" != "$env_perms_want" ]]; then
-        if chown "$env_owner_want" "$env_path" 2>/dev/null \
-           && chmod "$env_perms_want" "$env_path" 2>/dev/null; then
-            log "INFO: $(basename "$env_path") perms fixed -- fixed"
-        else
-            log "ERROR: cannot fix $(basename "$env_path") perms -- abort"
-            exit 1
-        fi
-    fi
-done
-unset env_specs env_spec env_path env_owner_want env_perms_want
-unset env_owner env_perms
-
-# LOAD_CONF
-# Read known key=value pairs from a config file, without sourcing it
-source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/nwatchenv.sh"
-env_keys='SERVER_IP PORT_POLL_INTERVAL PURGE_CLOSED_AFTER_HOURS'
-
-# LOAD
-load_nwatch_env "$nwatch_env" "$env_keys" || true
-
-# KEY CHECK
-# Collect every failure first, then decide -- a single abort reports them all
-key_errors=()
-for env_key in SERVER_IP; do
-    if ! grep -q "^${env_key}=" "$nwatch_env"; then
-        key_errors+=("$env_key missing line")
-    elif [[ -z "${!env_key:-}" ]]; then
-        key_errors+=("$env_key not set")
-    fi
-done
-for env_key in PORT_POLL_INTERVAL PURGE_CLOSED_AFTER_HOURS; do
-    if ! grep -q "^${env_key}=" "$nwatch_env"; then
-        key_errors+=("$env_key missing line")
-    elif [[ -z "${!env_key:-}" ]]; then
-        key_errors+=("$env_key not set")
-    elif ! [[ "${!env_key}" =~ $UH_UINT ]] || (( ${!env_key} == 0 )); then
-        key_errors+=("$env_key invalid count")
-    fi
-done
-if (( ${#key_errors[@]} > 0 )); then
-    for key_error in "${key_errors[@]}"; do
-        log "ERROR: $key_error"
-    done
-    log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$nwatch_env")"
-    log "ERROR: run nwatchsetup.sh --install first -- abort"
-    exit 1
-fi
-unset key_errors key_error env_key
-
-# FALLBACK
-# Second layer of protection, behind KEY CHECK -- by design never reached
-if [ -z "${PORT_POLL_INTERVAL:-}" ]; then
-    log "WARNING: no PORT_POLL_INTERVAL in nwatch.env -- fallback"
-fi
-PORT_POLL_INTERVAL="${PORT_POLL_INTERVAL:-30}"
-if [ -z "${PURGE_CLOSED_AFTER_HOURS:-}" ]; then
-    log "WARNING: purge hours unset; check nwatch.env -- fallback"
-fi
-PURGE_CLOSED_AFTER_HOURS="${PURGE_CLOSED_AFTER_HOURS:-6}"
-
-# DB CHECK
-if [ ! -f "$db_file" ]; then
-    log "ERROR: database not found at $db_file"
-    log "ERROR: run nwatchsetup.sh --install first -- abort"
-    exit 1
-fi
+# PID CHECK
+# Check whether the recorded process belongs to this daemon
+daemon_alive() {
+    local pid="$1" args=() self i
+    [ -n "$pid" ] || return 1
+    mapfile -d '' -t args < "/proc/$pid/cmdline" 2>/dev/null || return 1
+    self="$(basename -- "$0")"
+    case "$(basename -- "${args[0]:-}")" in
+        "$self") i=0 ;;
+        bash|sh) i=1 ;;
+        *) return 1 ;;
+    esac
+    [ "$(basename -- "${args[i]:-}")" = "$self" ] || return 1
+    [ "${args[i+1]:-}" = --start ]
+}
 
 now_iso() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
 
@@ -176,24 +123,25 @@ load_ports_mode() {
 
 write_ports_mode() {
     local mode="$1" target="$2"
-    local dir tmp_file
+    local dir tmp_file=""
     dir="$(dirname "$ports_mode_file")"
-    mkdir -p "$dir"
-
-    tmp_file=$(mktemp "${ports_mode_file}.XXXXXX")
-    cat > "$tmp_file" <<EOF
-PORTS_MODE="${mode}"
-PORTS_TARGET_IP="${target}"
-EOF
-    chown www-data:www-data "$tmp_file" 2>/dev/null || true
-    chmod 664 "$tmp_file"
-    mv -f "$tmp_file" "$ports_mode_file"
+    if mkdir -p "$dir" \
+        && tmp_file=$(mktemp "${ports_mode_file}.XXXXXX") \
+        && printf 'PORTS_MODE="%s"\nPORTS_TARGET_IP="%s"\n' "$mode" "$target" > "$tmp_file" \
+        && { chown www-data:www-data "$tmp_file" 2>/dev/null || true; } \
+        && chmod 664 "$tmp_file" \
+        && mv -f "$tmp_file" "$ports_mode_file"; then
+        return 0
+    fi
+    log "ERROR: cannot save $(basename "$ports_mode_file") -abort"
+    rm -f "$tmp_file"
+    return 1
 }
 
 write_scan_marker() {
     local source="$1" host="$2" now="$3" found="$4" status="${5:-complete}"
     local scan_source="$source" scan_host="$host" scan_time="$now" scan_found="$found"
-    local dir tmp_file
+    local dir tmp_file=""
 
     if [ "$status" = "failed" ]; then
         scan_source=$(awk -F'"' '$1 == "LAST_SCAN_SOURCE=" { print $2 }' "$scan_status_file" 2>/dev/null)
@@ -204,9 +152,12 @@ write_scan_marker() {
     fi
 
     dir="$(dirname "$scan_status_file")"
-    mkdir -p "$dir"
-    tmp_file=$(mktemp "${scan_status_file}.XXXXXX")
-    cat > "$tmp_file" <<EOF
+    if mkdir -p "$dir" \
+        && tmp_file=$(mktemp "${scan_status_file}.XXXXXX") \
+        && cat > "$tmp_file" <<EOF \
+        && { chown www-data:www-data "$tmp_file" 2>/dev/null || true; } \
+        && chmod 664 "$tmp_file" \
+        && mv -f "$tmp_file" "$scan_status_file"
 LAST_SCAN_SOURCE="${scan_source}"
 LAST_SCAN_HOST="${scan_host}"
 LAST_SCAN_TIME="${scan_time}"
@@ -216,9 +167,12 @@ LAST_ATTEMPT_HOST="${host}"
 LAST_ATTEMPT_TIME="${now}"
 LAST_ATTEMPT_STATUS="${status}"
 EOF
-    chown www-data:www-data "$tmp_file" 2>/dev/null || true
-    chmod 664 "$tmp_file"
-    mv -f "$tmp_file" "$scan_status_file"
+    then
+        return 0
+    fi
+    log "WARNING: cannot save $(basename "$scan_status_file") -alert"
+    rm -f "$tmp_file"
+    return 1
 }
 
 scan_attempt_failed() {
@@ -232,21 +186,21 @@ scan_attempt_failed() {
 cmd_mode() {
     case "${2:-}" in
         server)
-            write_ports_mode "server" ""
-            echo "Mode set to: server"
+            write_ports_mode "server" "" || exit 1
+            log "INFO: Mode set to: server"
             ;;
         target)
             local ip="${3:-}"
             if [ -z "$ip" ]; then
-                echo "Usage: $(basename "$0") mode target <host>"
+                echo "Usage: $(basename "$0") --mode target <host>"
                 exit 1
             fi
-            valid_host "$ip" || { log "ERROR: invalid target: $ip -- abort"; exit 1; }
-            write_ports_mode "target" "$ip"
-            echo "Mode set to: target ($ip)"
+            valid_host "$ip" || { log "ERROR: invalid target: $ip -abort"; exit 1; }
+            write_ports_mode "target" "$ip" || exit 1
+            log "INFO: Mode set to: target ($ip)"
             ;;
         *)
-            echo "Usage: $(basename "$0") mode {server|target <host>}"
+            echo "Usage: $(basename "$0") --mode {server|target <host>}"
             exit 1
             ;;
     esac
@@ -276,13 +230,14 @@ cmd_list() {
 # not re-expanded); an empty batch is a no-op.
 run_batch() {
     [ -z "${1:-}" ] && return 0
-    sqlite3 -cmd ".bail on" -cmd "PRAGMA busy_timeout=5000;" "$db_file" >/dev/null 2>>"$log_file" <<SQL
+    sqlite3 -cmd ".bail on" -cmd "PRAGMA busy_timeout=${NWATCH_DB_TIMEOUT_MS};" "$db_file" >/dev/null 2>>"$log_file" <<SQL
 BEGIN IMMEDIATE;
 ${1}COMMIT;
 SQL
 }
 
 # POLL: SERVER MODE
+# Read the local listening sockets and record port state changes
 poll_server() {
     local now="$1"
     local host="${SERVER_IP:-localhost}"
@@ -298,6 +253,15 @@ poll_server() {
     done < <(sqlite3 -separator '|' "$db_file" "SELECT proto, port, status FROM port_scan_state WHERE source='server' AND host='$esc_host';" 2>>"$log_file")
 
     local sql=""
+
+    local ss_out
+    if ! ss_out=$(ss -Htulnp 2>/dev/null); then
+        if ! scan_attempt_failed "server" "$host"; then
+            log "WARNING: ss did not complete for '$host' -alert"
+        fi
+        write_scan_marker "server" "$host" "$now" 0 "failed"
+        return
+    fi
 
     # ss -Htulnp: no header, tcp+udp, listening, numeric ports, show owning
     # process. Fields: Netid State Recv-Q Send-Q LocalAddress:Port PeerAddress:Port Process
@@ -335,7 +299,7 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('se
                 log "INFO: server port opened; service=${service:-unknown}"
             fi
         fi
-    done < <(ss -Htulnp 2>/dev/null)
+    done <<< "$ss_out"
 
     # ss never reports closed ports, it just omits them, so anything previously
     # 'open' that's absent this cycle must be closed explicitly. seen[] keys are
@@ -354,7 +318,7 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('se
 
     if ! run_batch "$sql"; then
         if ! scan_attempt_failed "server" "$host"; then
-            log "WARNING: could not store server scan for '$host' -- alert"
+            log "WARNING: could not store server scan for '$host' -alert"
         fi
         write_scan_marker "server" "$host" "$now" 0 "failed"
         return
@@ -363,6 +327,7 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('se
 }
 
 # POLL: TARGET MODE
+# Scan the selected remote target and record port state changes
 poll_target() {
     local target="$1" now="$2"
 
@@ -382,16 +347,15 @@ poll_target() {
     local nmap_out nmap_err_file
     nmap_err_file=$(mktemp "/tmp/nwatchports-nmap.XXXXXX") || {
         if ! scan_attempt_failed "target" "$target"; then
-            log "WARNING: no nmap output for '$target' -- alert"
+            log "WARNING: no nmap output for '$target' -alert"
         fi
         write_scan_marker "target" "$target" "$now" 0 "failed"
         return
     }
-    nmap_out=$(nmap -Pn -sT -sU -F -T4 --host-timeout 60s -oG - "$target" 2>"$nmap_err_file") || true
-
-    if ! printf '%s\n' "$nmap_out" | grep '^Host:.*Ports:' >/dev/null; then
+    if ! nmap_out=$(nmap -Pn -sT -sU -F -T4 --host-timeout 60s -oG - "$target" 2>"$nmap_err_file") \
+        || ! printf '%s\n' "$nmap_out" | grep '^Host:.*Ports:' >/dev/null; then
         if ! scan_attempt_failed "target" "$target"; then
-            log "WARNING: nmap did not complete for '$target' -- alert"
+            log "WARNING: nmap did not complete for '$target' -alert"
             [ ! -s "$nmap_err_file" ] || cat "$nmap_err_file" >> "$log_file"
         fi
         rm -f "$nmap_err_file"
@@ -419,7 +383,7 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('ta
         done
         if ! run_batch "$sql"; then
             if ! scan_attempt_failed "target" "$target"; then
-                log "WARNING: could not store target scan for '$target' -- alert"
+                log "WARNING: could not store target scan for '$target' -alert"
             fi
             write_scan_marker "target" "$target" "$now" 0 "failed"
             return
@@ -494,7 +458,7 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('ta
 
     if ! run_batch "$sql"; then
         if ! scan_attempt_failed "target" "$target"; then
-            log "WARNING: could not store target scan for '$target' -- alert"
+            log "WARNING: could not store target scan for '$target' -alert"
         fi
         write_scan_marker "target" "$target" "$now" 0 "failed"
         return
@@ -503,8 +467,9 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('ta
 }
 
 # ONE POLL CYCLE
+# Remove old closed-port records before subsequent polling
 purge_stale_closed_ports() {
-    sqlite3 -cmd "PRAGMA busy_timeout=5000;" "$db_file" \
+    sqlite3 -cmd "PRAGMA busy_timeout=${NWATCH_DB_TIMEOUT_MS};" "$db_file" \
         "DELETE FROM port_scan_state WHERE status='closed' AND julianday(last_changed) < julianday('now', '-${PURGE_CLOSED_AFTER_HOURS} hours');" \
         2>>"$log_file"
 }
@@ -516,11 +481,11 @@ run_poll() {
 
     if [ "$PORTS_MODE" = "target" ]; then
         if [ -z "$PORTS_TARGET_IP" ]; then
-            log "WARNING: mode is target with no target host -- alert"
+            log "WARNING: mode is target with no target host -alert"
             return
         fi
         if ! valid_host "$PORTS_TARGET_IP"; then
-            log "WARNING: invalid target host '$PORTS_TARGET_IP' -- alert"
+            log "WARNING: invalid target host '$PORTS_TARGET_IP' -alert"
             return
         fi
         poll_target "$PORTS_TARGET_IP" "$now"
@@ -532,18 +497,19 @@ run_poll() {
 }
 
 # START
+# Start the configured daemon
 start() {
     # prevent overlapping runs
     script_lock="/var/lock/$(basename "$0" .sh).lock"
     (umask 077; : >> "$script_lock")
     exec 200>"$script_lock"
     if ! flock -n 200; then
-        log "ERROR: script $(basename "$0") is already running -- abort"
+        log "ERROR: script $(basename "$0") is already running -abort"
         exit 1
     fi
 
-    if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file" 2>/dev/null)" 2>/dev/null; then
-        log "ERROR: nwatchports is already running -- abort"
+    if [ -f "$pid_file" ] && daemon_alive "$(cat "$pid_file" 2>/dev/null)"; then
+        log "ERROR: nwatchports is already running -abort"
         exit 1
     fi
 
@@ -555,15 +521,13 @@ start() {
     chown root:root "$log_file"
 
     if [ ! -f "$ports_mode_file" ]; then
-        write_ports_mode "server" ""
+        write_ports_mode "server" "" || exit 1
     fi
 
     load_ports_mode
-    log "nwatchports start..."
     log "INFO: Mode : $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
     log "INFO: Interval : ${PORT_POLL_INTERVAL}s"
     log "INFO: Database : $db_file"
-    log "INFO: Log : $log_file"
 
     rm -f "$pid_file"
     (
@@ -586,12 +550,13 @@ start() {
 }
 
 # STOP
+# Stop the recorded daemon process
 stop() {
-    log "INFO: Stopping nwatchports..."
+    log "Stopping nwatchports..."
     if [ -f "$pid_file" ]; then
         local daemon_pid
         daemon_pid=$(cat "$pid_file")
-        if kill -0 "$daemon_pid" 2>/dev/null; then
+        if daemon_alive "$daemon_pid"; then
             kill "$daemon_pid" 2>/dev/null
             log "INFO: nwatchports stopped (PID $daemon_pid)"
         else
@@ -604,10 +569,11 @@ stop() {
 }
 
 # STATUS
+# Report the current daemon or installation state
 status() {
     log "nwatchports status..."
     load_ports_mode
-    if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
+    if [ -f "$pid_file" ] && daemon_alive "$(cat "$pid_file")"; then
         log "INFO: nwatchports is RUNNING (PID $(cat "$pid_file"))"
         log "INFO: Mode : $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
         log "INFO: Interval : ${PORT_POLL_INTERVAL:-30}s"
@@ -623,12 +589,109 @@ status() {
     fi
 }
 
-# MAIN
+# ------------------------------------------------------------------------------
+# ENV
+# ------------------------------------------------------------------------------
+
+# stop() needs only the PID file, so these checks are skipped for it
+if [ "${1:-}" != --stop ]; then
+    # PERMS
+    # Owner and mode of every .env this script reads
+    env_specs=("$nwatch_env root:www-data 640")
+    for env_spec in "${env_specs[@]}"; do
+        read -r env_path env_owner_want env_perms_want <<< "$env_spec"
+        if [ ! -f "$env_path" ]; then
+            log "ERROR: $(basename "$env_path") not found -abort"
+            exit 1
+        fi
+        env_owner=$(stat -c '%U:%G' "$env_path" 2>/dev/null)
+        env_perms=$(stat -c '%a' "$env_path" 2>/dev/null)
+        if [[ "$env_owner" != "$env_owner_want" ]] \
+           || [[ "$env_perms" != "$env_perms_want" ]]; then
+            if chown "$env_owner_want" "$env_path" 2>/dev/null \
+               && chmod "$env_perms_want" "$env_path" 2>/dev/null; then
+                log "INFO: $(basename "$env_path") perms fixed -fixed"
+            else
+                log "ERROR: cannot fix $(basename "$env_path") perms -abort"
+                exit 1
+            fi
+        fi
+    done
+    unset env_specs env_spec env_path env_owner_want env_perms_want
+    unset env_owner env_perms
+
+    # LOAD_CONF
+    # Read known key=value pairs from a config file, without sourcing it
+    source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/nwatchenv.sh"
+    env_keys='SERVER_IP PORT_POLL_INTERVAL PURGE_CLOSED_AFTER_HOURS NWATCH_DB_TIMEOUT_MS'
+
+    # LOAD
+    load_nwatch_env "$nwatch_env" "$env_keys" || true
+
+    # KEY CHECK
+    # Collect every failure first, then decide -- a single abort reports them all
+    key_errors=()
+    for env_key in SERVER_IP; do
+        if ! grep -q "^${env_key}=" "$nwatch_env"; then
+            key_errors+=("$env_key missing line")
+        elif [[ -z "${!env_key:-}" ]]; then
+            key_errors+=("$env_key not set")
+        fi
+    done
+    for env_key in PORT_POLL_INTERVAL PURGE_CLOSED_AFTER_HOURS NWATCH_DB_TIMEOUT_MS; do
+        if ! grep -q "^${env_key}=" "$nwatch_env"; then
+            key_errors+=("$env_key missing line")
+        elif [[ -z "${!env_key:-}" ]]; then
+            key_errors+=("$env_key not set")
+        elif ! [[ "${!env_key}" =~ $UH_UINT ]] || (( ${!env_key} == 0 )); then
+            key_errors+=("$env_key invalid count")
+        fi
+    done
+    if (( ${#key_errors[@]} > 0 )); then
+        for key_error in "${key_errors[@]}"; do
+            log "ERROR: $key_error -abort"
+        done
+        log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$nwatch_env") -abort"
+        log "ERROR: run nwatchsetup first -abort"
+        exit 1
+    fi
+    unset key_errors key_error env_key
+
+    # FALLBACK
+    # Second layer of protection, behind KEY CHECK -- by design never reached
+    if [ -z "${PORT_POLL_INTERVAL:-}" ]; then
+        log "WARNING: no PORT_POLL_INTERVAL in nwatch.env -fallback"
+    fi
+    PORT_POLL_INTERVAL="${PORT_POLL_INTERVAL:-30}"
+    if [ -z "${PURGE_CLOSED_AFTER_HOURS:-}" ]; then
+        log "WARNING: purge hours unset; check nwatch.env -fallback"
+    fi
+    PURGE_CLOSED_AFTER_HOURS="${PURGE_CLOSED_AFTER_HOURS:-6}"
+
+    # DB CHECK
+    # Require an existing database before continuing
+    if [ ! -f "$db_file" ]; then
+        log "ERROR: $(basename "$db_file") missing; run nwatchsetup -abort"
+        exit 1
+    fi
+fi
+
+# ------------------------------------------------------------------------------
+# ACTIONS
+# ------------------------------------------------------------------------------
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') nwatchports start..."
 case "${1:-}" in
-    start) start ;;
-    stop) stop ;;
-    status) status ;;
-    mode) cmd_mode "$@" ;;
-    list) cmd_list ;;
-    *) log "INFO: Usage: $(basename "$0") {start|stop|status|mode server|mode target <host>|list}" ;;
-esac
+    --start) start ;;
+    --stop) stop ;;
+    --status) status ;;
+    --mode) cmd_mode "$@" ;;
+    --list) cmd_list ;;
+    *) log "INFO: Usage: $(basename "$0") {--start|--stop|--status|--mode server|--mode target <host>|--list}"; exit 1 ;;
+esac || exit 1
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') nwatchports done at: $(date '+%Y-%m-%d %H:%M:%S')"

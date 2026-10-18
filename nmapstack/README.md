@@ -50,13 +50,11 @@ nmapstack/
 
 ### WINDOWS (Nscan)
 
----
-
 #### Data Sheet
 
 | File |  OS  | Size |
 | :--: | :--: | :--: |
-| [nscan.exe (.zip)](https://mega.nz/file/DAFXVCTD#fTY5jxPvqSxA_Gsb0wKqQn8P5i2nr_sh55pRkrgN7w4) | Windows 10/11 x64 | 44.8 MB |
+| [nscan.exe (.zip)](https://mega.nz/file/3M0jiCJZ#mjpJLQyi1kKmx7M9R6FiUBGV9Z9NajebQIcYCc7tk08) | Windows 10/11 x64 | 44.4 MB |
 
 #### Package Contents
 
@@ -225,8 +223,6 @@ Package: Nscan
 
 ### LINUX (nreport.sh)
 
----
-
 <table width="100%">
   <tr>
     <td style="width: 50%; white-space: nowrap; vertical-align: top; padding-right: 10px;">
@@ -271,10 +267,10 @@ Package: Nscan
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
+      WARNING: Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Probado en Ubuntu 24.04/26.04 LTS. El uso en otras versiones o distribuciones queda bajo responsabilidad de quien lo instale.
+      ADVERTENCIA: Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
     </td>
   </tr>
 </table>
@@ -303,8 +299,6 @@ sudo ./nreport.sh
 ```
 
 ### WEB (nwatch)
-
----
 
 [<img src="img/nwatch-top.png" width="100%" alt="NWatch dashboard header">](https://www.maravento.com)
 
@@ -361,10 +355,10 @@ sudo ./nreport.sh
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <code>nwatchsetup.sh</code> stores all project cron jobs in <code>/etc/cron.d/nwatch</code>. Adding or removing a job changes only that file, leaving other projects' cron jobs untouched. <code>--uninstall</code> removes the file. Earlier installations keep their jobs in root's crontab. The installer removes them by matching the full script path.
+      <code>nwatchsetup.sh</code> stores all project cron jobs in <code>/etc/cron.d/nwatch</code>. Adding or removing a job changes only that file, leaving other projects' cron jobs untouched. <code>--uninstall</code> removes the file. The installer does not read or modify root's crontab.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <code>nwatchsetup.sh</code> guarda todas las tareas cron del proyecto en <code>/etc/cron.d/nwatch</code>. Al agregar o quitar una tarea, solo modifica ese archivo; las tareas de otros proyectos quedan intactas. <code>--uninstall</code> elimina el archivo. Las instalaciones anteriores guardan sus tareas en el crontab de root. El instalador las elimina al identificar la ruta completa del script.
+      <code>nwatchsetup.sh</code> guarda todas las tareas cron del proyecto en <code>/etc/cron.d/nwatch</code>. Al agregar o quitar una tarea, solo modifica ese archivo; las tareas de otros proyectos quedan intactas. <code>--uninstall</code> elimina el archivo. El instalador no lee ni modifica el crontab de root.
     </td>
   </tr>
 </table>
@@ -400,8 +394,9 @@ sudo ./nreport.sh
 | `LAN_IFACES` | `nwatchlan.sh` | — | Comma-separated interfaces to arp-scan |
 | `MGMT_IFACE` | `nwatchsetup.sh` | — | Management interface, chosen during install. `SERVER_IP` and `NET_CIDR` are read from it |
 | `NET_CIDR` | `nwatchapi.php` | — | Management subnet in CIDR form, used as Apache's `Require ip` and by the API |
-| `SERVER_IP` | `nwatchports.sh`, `nwatchapi.php` | — | IPv4 of the management interface. `nwatchports.sh` scans it as the server target; falls back to `localhost` if unset |
+| `SERVER_IP` | `nwatchports.sh`, `nwatchapi.php` | — | IPv4 of the management interface. `nwatchports.sh` uses it to identify server-mode records. A missing or empty key aborts before polling; the retained `localhost` fallback is not reached |
 | `LAN_POLL_INTERVAL` | `nwatchlan.sh` | `60` (seconds) | Time between scans |
+| `NWATCH_DB_TIMEOUT_MS` | `nwatchlan.sh`, `nwatchports.sh`, `nwatchapi.php` | `5000` (milliseconds) | SQLite lock wait, written automatically without questions. Positive integer without leading zeros. Changing this default is not recommended. / Espera por bloqueos SQLite, escrita automáticamente sin preguntas. Entero positivo sin ceros iniciales. No se recomienda modificarlo. |
 | `LAN_OFFLINE_GRACE` | `nwatchlan.sh` | `3` (polls) | Consecutive missed polls before marking a device offline |
 | `PORT_POLL_INTERVAL` | `nwatchports.sh` | `30` (seconds) | Time between poll cycles |
 | `PURGE_CLOSED_AFTER_HOURS` | `nwatchports.sh` | `6` (hours) | How long closed ports are kept before being purged |
@@ -424,10 +419,10 @@ sudo ./nreport.sh
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
+      WARNING: Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Probado en Ubuntu 24.04/26.04 LTS. El uso en otras versiones o distribuciones queda bajo responsabilidad de quien lo instale.
+      ADVERTENCIA: Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
     </td>
   </tr>
 </table>
@@ -478,12 +473,9 @@ apt-get install -y avahi-utils nbtscan
 
 #### HOW TO USE
 
-##### Install
-
 ```bash
 git clone --depth=1 https://github.com/maravento/vault.git
 cd vault/nmapstack/nwatch
-sudo bash nwatchsetup.sh --install
 
 # or
 
@@ -491,7 +483,21 @@ wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/s
 chmod +x gitfolder.py
 python3 gitfolder.py https://github.com/maravento/vault/nmapstack
 cd nmapstack/nwatch
+
+# Install
 sudo bash nwatchsetup.sh --install
+
+# Update
+sudo bash nwatchsetup.sh --update
+
+# Uninstall
+sudo bash nwatchsetup.sh --uninstall
+
+# Status
+sudo bash nwatchsetup.sh --status
+
+# Interactive menu
+sudo bash nwatchsetup.sh
 ```
 
 <table width="100%">
@@ -518,13 +524,6 @@ sudo bash nwatchsetup.sh --install
 
 ##### Update & Uninstall
 
-```bash
-cd vault/nmapstack/nwatch
-sudo bash nwatchsetup.sh --update
-# or | o
-sudo bash nwatchsetup.sh --uninstall
-```
-
 | File | `--update` | `--uninstall` |
 |------|-----------|---------------|
 | `web/nwatch.conf` | ⛔ not touched (user-customized) | ✅ removed |
@@ -535,10 +534,6 @@ sudo bash nwatchsetup.sh --uninstall
 | `/var/www/nwatch/data/nwatch.db`, `ports_mode.conf`, `port_scan_status.conf` | ⛔ preserved | ✅ removed |
 
 ##### Status
-
-```bash
-sudo bash nwatchsetup.sh --status
-```
 
 Displays the daemon status (running or stopped), Apache's port (3126), the last 10 lines of the shared log, the active ports mode and target, and device and port counts from the database.
 
@@ -597,18 +592,18 @@ Displays the daemon status (running or stopped), Apache's port (3126), the last 
 ##### Switching Modes
 
 ```bash
-sudo /var/www/nwatch/tools/nwatchports.sh mode server
-sudo /var/www/nwatch/tools/nwatchports.sh mode target 192.168.1.10
-sudo /var/www/nwatch/tools/nwatchports.sh list
+sudo /var/www/nwatch/tools/nwatchports.sh --mode server
+sudo /var/www/nwatch/tools/nwatchports.sh --mode target 192.168.1.10
+sudo /var/www/nwatch/tools/nwatchports.sh --list
 ```
 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Clicking Apply (or running <code>mode target</code>) writes the new mode or target to <code>ports_mode.conf</code>; it does not start a scan immediately. The background loop in <code>nwatchports.sh</code> reads the change on its next cycle, after up to <code>PORT_POLL_INTERVAL</code> (30 seconds by default). The table may remain empty during that time. The browser's <code>Refresh: 15s</code> setting controls a separate poll of the database; it does not run the scan.
+      Clicking Apply (or running <code>--mode target</code>) writes the new mode or target to <code>ports_mode.conf</code>; it does not start a scan immediately. The background loop in <code>nwatchports.sh</code> reads the change on its next cycle, after up to <code>PORT_POLL_INTERVAL</code> (30 seconds by default). The table may remain empty during that time. The browser's <code>Refresh: 15s</code> setting controls a separate poll of the database; it does not run the scan.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Al hacer clic en Apply (o ejecutar <code>mode target</code>), se guarda el nuevo modo o destino en <code>ports_mode.conf</code>; el escaneo no comienza de inmediato. El ciclo en segundo plano de <code>nwatchports.sh</code> lee el cambio en el siguiente intervalo, que puede tardar hasta <code>PORT_POLL_INTERVAL</code> (30 segundos por defecto). Durante ese tiempo, la tabla puede aparecer vacía. El ajuste <code>Refresh: 15s</code> del navegador actualiza por separado los datos de la base de datos; no ejecuta el escaneo.
+      Al hacer clic en Apply (o ejecutar <code>--mode target</code>), se guarda el nuevo modo o destino en <code>ports_mode.conf</code>; el escaneo no comienza de inmediato. El ciclo en segundo plano de <code>nwatchports.sh</code> lee el cambio en el siguiente intervalo, que puede tardar hasta <code>PORT_POLL_INTERVAL</code> (30 segundos por defecto). Durante ese tiempo, la tabla puede aparecer vacía. El ajuste <code>Refresh: 15s</code> del navegador actualiza por separado los datos de la base de datos; no ejecuta el escaneo.
     </td>
   </tr>
   <tr>

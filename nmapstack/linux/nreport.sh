@@ -5,9 +5,6 @@
 #
 # N Report
 #
-# DESCRIPTION:
-# Menu-driven nmap wrapper that produces timestamped HTML scan reports.
-#
 # USAGE:
 # sudo /path/to/nreport.sh
 #
@@ -18,31 +15,44 @@
 
 set -euo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # validation -- one variable per thing validated; use directly with =~
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
 
 timestamp() { date +%F-%H_%M_%S; }
 
+# root check
+if [ "$(id -u)" != "0" ]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
+    exit 1
+fi
+
 # logging
 log_file="/var/log/nreport.log"
 log() {
     local msg="$1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+    local log_msg="$(date '+%Y-%m-%d %H:%M:%S') $msg"
+    echo "$log_msg" >> "$log_file" 2>/dev/null || true
+    if [[ "$msg" == ERROR:* ]]; then
+        echo "$log_msg" >&2
+    else
+        echo "$log_msg"
+    fi
 }
-
-# root check
-if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root -- abort"
-    exit 1
-fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    log "ERROR: script $(basename "$0") is already running -- abort"
+    log "ERROR: script $(basename "$0") is already running -abort"
     exit 1
 fi
 
@@ -83,7 +93,7 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    log "ERROR: no valid local user found -- abort"
+    log "ERROR: no valid local user found -abort"
     exit 1
 fi
 log "INFO: Using local user: $local_user"
@@ -101,10 +111,14 @@ trap 'rm -rf "$SCRIPT_TMPDIR"' EXIT
 # dependencies
 for dep in nmap xsltproc iproute2 util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: dependency '$dep' is not installed -- abort"
+        log "ERROR: dependency '$dep' is not installed -abort"
         exit 1
     fi
 done
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
 
 # Create embedded custom XSL stylesheet
 create_custom_xsl() {
@@ -390,7 +404,7 @@ show_spinner_for_pid() {
     fi
     printf "\r[-] Done. \n"
     if [ "$exit_code" -ne 0 ]; then
-        log "WARNING: nmap PID $pid exited $exit_code -- alert"
+        log "WARNING: nmap PID $pid exited $exit_code -alert"
     fi
     return 0
 }
@@ -407,49 +421,49 @@ xml_to_html() {
 
     # Verify XML file exists and is not empty
     if [ ! -f "$xml" ]; then
-        log "WARNING: XML file does not exist: $xml -- alert"
+        log "WARNING: XML file does not exist: $xml -alert"
         return 1
     fi
 
     if [ ! -s "$xml" ]; then
-        log "WARNING: XML file is empty: $xml -- alert"
+        log "WARNING: XML file is empty: $xml -alert"
         return 1
     fi
 
     # Create custom XSL if not present
     if [ ! -f "$xsl" ]; then
-        log "INFO: Creating custom XSL stylesheet..."
+        log "Creating custom XSL stylesheet..."
         create_custom_xsl "$xsl"
     fi
 
     # Try conversion with custom XSL
-    log "INFO: Converting with custom XSL..."
+    log "Converting with custom XSL..."
     if xsltproc -o "$html" "$xsl" "$xml" 2>"$xsl_error"; then
         log "INFO: Conversion successful"
         rm -f "$xsl_error"
         return 0
     else
-        log "WARNING: Custom XSL conversion failed -- fallback"
+        log "WARNING: Custom XSL conversion failed -fallback"
         head -5 "$xsl_error" | while read -r line; do log "WARNING: $line"; done
     fi
 
     # Fallback: try default nmap XSL
     if [ -f "$default_xsl" ]; then
-        log "INFO: Attempting conversion with default nmap XSL..."
+        log "Attempting conversion with default nmap XSL..."
         if xsltproc -o "$html" "$default_xsl" "$xml" 2>"$xsl_error"; then
             log "INFO: Conversion successful with default XSL"
             rm -f "$xsl_error"
             return 0
         else
-            log "WARNING: Default XSL conversion failed -- fallback"
+            log "WARNING: Default XSL conversion failed -fallback"
             head -5 "$xsl_error" | while read -r line; do log "WARNING: $line"; done
         fi
     else
-        log "WARNING: default nmap XSL not found -- fallback"
+        log "WARNING: default nmap XSL not found -fallback"
     fi
 
     # Last resort: create basic HTML wrapper
-    log "WARNING: all XSL conversions failed -- fallback"
+    log "WARNING: all XSL conversions failed -fallback"
     {
         echo '<!DOCTYPE html>'
         echo '<html><head><meta charset="UTF-8">'
@@ -476,12 +490,12 @@ finalize_html_report() {
     local html_file="$1"
 
     if [ ! -f "$html_file" ]; then
-        log "ERROR: HTML report was not created: $html_file -- abort"
+        log "ERROR: HTML report was not created: $html_file -abort"
         exit 1
     fi
 
     if [ ! -s "$html_file" ]; then
-        log "ERROR: HTML report is empty: $html_file -- abort"
+        log "ERROR: HTML report is empty: $html_file -abort"
         exit 1
     fi
 
@@ -507,7 +521,7 @@ select_interface() {
     local iface_list
     iface_list=$(ip -4 addr show scope global | awk '/inet /{ip=$2} /inet /{iface=$NF; printf " %-12s %s\n", iface, ip}')
     if [ -z "$iface_list" ]; then
-        log "ERROR: no interface with a global IPv4 address -- abort"
+        log "ERROR: no interface with a global IPv4 address -abort"
         exit 1
     fi
     echo "$iface_list"
@@ -518,14 +532,14 @@ select_interface() {
                 SEL_IFACE="${SEL_IFACE:-$DEFAULT_IFACE}"
                 SEL_IFACE="${SEL_IFACE#"${SEL_IFACE%%[![:space:]]*}"}"
                 SEL_IFACE="${SEL_IFACE%"${SEL_IFACE##*[![:space:]]}"}"
-                [ -n "$SEL_IFACE" ] || { log "INFO: no interface specified -- retry"; continue; }
+                [ -n "$SEL_IFACE" ] || { log "INFO: no interface specified -retry"; continue; }
                 if ! ip link show "$SEL_IFACE" &>/dev/null; then
-                        log "INFO: Interface '$SEL_IFACE' does not exist -- retry"
+                        log "INFO: Interface '$SEL_IFACE' does not exist -retry"
                         continue
                 fi
                 SEL_NET=$(ip -4 addr show dev "$SEL_IFACE" scope global | sed -n 's/.*inet \([0-9.]\{1,\}\/[0-9]\{1,\}\).*/\1/p' | head -n1)
                 if [ -z "$SEL_NET" ]; then
-                        log "INFO: No IPv4 address found on '$SEL_IFACE' -- retry"
+                        log "INFO: No IPv4 address found on '$SEL_IFACE' -retry"
                         continue
                 fi
                 break
@@ -534,7 +548,11 @@ select_interface() {
 
 log "nreport start..."
 
+# ------------------------------------------------------------------------------
 # MENU
+# ------------------------------------------------------------------------------
+
+# Display the available actions and read the selected option
 TS=$(timestamp)
 echo ""
 echo "----------------------------------------"
@@ -550,7 +568,7 @@ while true; do
     read -rp "Select [1-4] (default: 4): " opt
     opt="${opt:-4}"
     [[ "$opt" =~ ^[1-4]$ ]] && break
-    log "INFO: invalid option '$opt' -- retry"
+    log "INFO: invalid option '$opt' -retry"
 done
 echo ""
 
@@ -573,7 +591,7 @@ case "$opt" in
         show_spinner_for_pid "$pid"
 
         # Convert and finalize
-        xml_to_html "$xml_file" "$html_file" || { log "ERROR: Failed to convert XML to HTML -- abort"; exit 1; }
+        xml_to_html "$xml_file" "$html_file" || { log "ERROR: Failed to convert XML to HTML -abort"; exit 1; }
         finalize_html_report "$html_file"
         cleanup_intermediate_files "${report_dir}/scan_${TS}"
         ;;
@@ -589,7 +607,7 @@ case "$opt" in
         html_file="${report_dir}/scan_deep_${TS}.html"
 
         log "INFO: Starting Advanced LAN Scan on $net"
-        log "INFO: This may take several minutes..."
+        log "This may take several minutes..."
 
         # Run nmap in background
         nmap -sS -T4 -p- -sV -sC --max-retries 3 --host-timeout 5m "$net" -oX "$xml_file" > "$SCRIPT_TMPDIR/nmap_out" 2>&1 &
@@ -597,7 +615,7 @@ case "$opt" in
         show_spinner_for_pid "$pid"
 
         # Convert and finalize
-        xml_to_html "$xml_file" "$html_file" || { log "ERROR: Failed to convert XML to HTML -- abort"; exit 1; }
+        xml_to_html "$xml_file" "$html_file" || { log "ERROR: Failed to convert XML to HTML -abort"; exit 1; }
         finalize_html_report "$html_file"
         cleanup_intermediate_files "${report_dir}/scan_deep_${TS}"
         ;;
@@ -608,7 +626,7 @@ case "$opt" in
         select_interface
         iface="$SEL_IFACE"
         net="$SEL_NET"
-        log "INFO: Discovering active hosts on $net ..."
+        log "Discovering active hosts on $net ..."
         echo ""
         nmap -sn "$net" 2>/dev/null | awk '/report for/{ip=$5} /MAC/{printf " %-18s %s %s %s\n", ip, $3, $4, $5}' | sort -t. -k4 -n
         echo ""
@@ -617,12 +635,12 @@ case "$opt" in
             target="${target#"${target%%[![:space:]]*}"}"
             target="${target%"${target##*[![:space:]]}"}"
             [ -n "$target" ] && break
-            log "INFO: No target specified -- retry"
+            log "INFO: No target specified -retry"
         done
 
         # Validate target format (IPv4 or FQDN)
         if ! [[ "$target" =~ $UH_IPV4 ]] && ! [[ "$target" =~ $UH_FQDN ]]; then
-            log "ERROR: Invalid target format: $target -- abort"
+            log "ERROR: Invalid target format: $target -abort"
             exit 1
         fi
 
@@ -632,7 +650,7 @@ case "$opt" in
 
         log "INFO: Starting IP/Host Scan on: $target"
         log "INFO: all ports, with vulnerability detection"
-        log "INFO: May take 20-30 minutes..."
+        log "May take 20-30 minutes..."
 
         # Full scan: all 65535 ports, OS detection, version intensity, vuln scripts and traceroute
         nmap -Pn -sS -T4 -p- -sV --version-intensity 8 -sC -O \
@@ -645,11 +663,11 @@ case "$opt" in
 
         # Verify XML was created
         if [ ! -f "$xml_file" ]; then
-            log "WARNING: XML file not found: $xml_file -- fallback"
+            log "WARNING: XML file not found: $xml_file -fallback"
 
             # Check if .nmap file exists as fallback
             if [ -f "${base}.nmap" ]; then
-                log "WARNING: Found .nmap file, converting to HTML -- fallback"
+                log "WARNING: Found .nmap file, converting to HTML -fallback"
                 target_html=$(printf '%s' "$target" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
                 {
                     echo '<!DOCTYPE html>'
@@ -668,14 +686,14 @@ case "$opt" in
                 exit 0
             else
                 cp -f "$SCRIPT_TMPDIR/nmap_out" "${base}_nmap_out.log" 2>/dev/null || true
-                log "ERROR: no nmap output found -- abort"
+                log "ERROR: no nmap output found -abort"
                 exit 1
             fi
         fi
 
         # Verify XML is not empty
         if [ ! -s "$xml_file" ]; then
-            log "ERROR: XML file is empty: $xml_file -- abort"
+            log "ERROR: XML file is empty: $xml_file -abort"
             exit 1
         fi
 
@@ -683,7 +701,7 @@ case "$opt" in
 
         # Convert to HTML
         if ! xml_to_html "$xml_file" "$html_file"; then
-            log "ERROR: Failed to convert XML to HTML -- abort"
+            log "ERROR: Failed to convert XML to HTML -abort"
             exit 1
         fi
 
@@ -699,6 +717,10 @@ case "$opt" in
         exit 0
         ;;
 esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
 
 log "nreport done at: $(date '+%Y-%m-%d %H:%M:%S')"
 echo ""

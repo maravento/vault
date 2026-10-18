@@ -3,13 +3,16 @@
 #
 ################################################################################
 #
-# ARP table filter
+# arponscan -- ARP table filter
 # v3.0-ng or higher
 #
-# Reads mac*.txt files (format: status;MAC;IP;HOSTNAME; -- same convention
-# as gateproxy/pydhcp/uhm's mac-limited.txt/mac-unlimited.txt) from the path
-# given at the prompt, and builds static ARP entries (IP<->MAC) enforced by
-# arpon against those known devices.
+# DESCRIPTION: Reads mac*.txt files (format: status;MAC;IP;HOSTNAME; -- same
+# convention as gateproxy/pydhcp/uhm's mac-limited.txt/mac-unlimited.txt) from
+# the path given at the prompt, and builds static ARP entries (IP<->MAC)
+# enforced by arpon against those known devices.
+#
+# USAGE: sudo ./arponscan.sh
+# Asks for the ACL path, the LAN interface and the server IP.
 #
 # LOG: /var/log/syslog
 #
@@ -17,27 +20,34 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
-echo "ARP table filter Starting. Wait..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') ARP table filter Starting. Wait..."
 
 # dependencies
 for dep in arpon net-tools iproute2 procps systemd findutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
@@ -45,43 +55,54 @@ done
 mkdir -p /var/log/arpon
 touch /var/log/arpon/arpon.log
 
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
+
 # validation -- one variable per thing validated; use directly with =~
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 
-# VARIABLES
-# path mac addresses
+# ACL FILES
+# Read the directory containing the administrator MAC lists
 while :; do
     read -r -p "Enter the path for MAC addresses [/etc/acl/mac]: " acl_path
     acl_path="${acl_path:-/etc/acl/mac}"
     if [ -z "$acl_path" ] || ! compgen -G "$acl_path/mac*" >/dev/null; then
-        echo "INFO: path does not exist or has no mac* files -- retry"
+        echo "INFO: path does not exist or has no mac* files -retry"
         continue
     fi
     break
 done
 printf "\n"
-# local net interface
+# LAN INTERFACE
+# Read and verify the local network interface
 while :; do
     read -r -p "Enter the local network interface (e.g. eth1): " lan
     if [ -z "$lan" ] || ! ip link show "$lan" &>/dev/null; then
-        echo "INFO: interface does not exist -- retry"
+        echo "INFO: interface does not exist -retry"
         continue
     fi
     break
 done
 printf "\n"
-# Local IP Server
+# SERVER ADDRESS
+# Read and validate the server IPv4 address
 while :; do
     read -r -p "Enter the local IP server (e.g. 192.168.0.10): " localip
     if [[ "$localip" =~ $UH_IPV4 ]]; then
         break
     fi
-    echo "INFO: invalid IPv4 address -- retry"
+    echo "INFO: invalid IPv4 address -retry"
 done
 
 ARPSTATIC_FILE="$(dirname "$(realpath "$0")")/arpstatic"
 
-# ip2mac
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
+# STATIC ENTRIES
+# Generate the script that installs permanent IP and MAC bindings
 ip2mac() {
     local tmp_file="${ARPSTATIC_FILE}.tmp"
     echo '#!/bin/bash' > "$tmp_file" || return 1
@@ -91,12 +112,17 @@ ip2mac() {
     mv -f "$tmp_file" "$ARPSTATIC_FILE" || { rm -f "$tmp_file"; return 1; }
 }
 
-# arpon run
-# change mode (darpi, sarpi, harpi)
+# ARPON MODE
+# Select the ArpON mode used when starting the daemon
 mode=darpi
 
+# ARPON SERVICE
+# Apply static entries and reload or start ArpON
 arponrun() {
-    chmod +x "$ARPSTATIC_FILE"
+    if ! chmod +x "$ARPSTATIC_FILE"; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot make arpstatic executable -abort" >&2
+        exit 1
+    fi
 
     # optional rule: flush ARP table
     ip -s -s neigh flush all >/dev/null 2>&1
@@ -115,13 +141,14 @@ arponrun() {
     fi
 }
 
-# Stops the service if there are duplicates
+# DUPLICATE CHECK
+# Reject duplicate MAC, IP or hostname fields before applying entries
 duplicate() {
     local dupes
     dupes=$(for field in 2 3 4; do cut -d\; -f"${field}" "$acl_path"/mac* | sort | uniq -d; done)
     if [ -z "$dupes" ]; then
         if ! ip2mac; then
-            echo "ERROR: failed to generate arpstatic -- abort" | tee -a /var/log/syslog
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to generate arpstatic -abort" | tee -a /var/log/syslog
             exit 1
         fi
         arponrun
@@ -132,4 +159,18 @@ duplicate() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') arponscan start..."
+
 duplicate
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') arponscan done at: $(date '+%Y-%m-%d %H:%M:%S')"

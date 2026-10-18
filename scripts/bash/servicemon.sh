@@ -10,32 +10,39 @@
 # interface to monitor, start, stop and restart systemd services.
 #
 # USAGE:
-# sudo ./servicemon.sh [install|uninstall|-h|--help]
+# sudo ./servicemon.sh [--install|--uninstall|-h|--help]
 # Run with no argument for an interactive menu.
 #
 ################################################################################
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
 # dependencies
 for dep in coreutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
@@ -44,6 +51,10 @@ mod_name="servicemon"
 mod_dir="/usr/share/webmin/$mod_name"
 etc_dir="/etc/webmin/$mod_name"
 
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
 install_module() {
     echo ""
     echo "=========================================="
@@ -51,7 +62,7 @@ install_module() {
     echo "=========================================="
     echo ""
 
-    echo "Creating Services Monitor module structure..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Creating Services Monitor module structure..."
 
     mkdir -p "$mod_dir/images"
     mkdir -p "$mod_dir/lang"
@@ -793,8 +804,14 @@ ICONEOF
     base64 -d "$icon_b64" > "$mod_dir/images/icon.gif" || true
     rm -f "$icon_b64"
 
-    chown -R root:root "$mod_dir" "$etc_dir"
-    chmod -R 755 "$mod_dir"
+    if ! chown -R root:root "$mod_dir" "$etc_dir"; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot set servicemon owner and group -abort" >&2
+        exit 1
+    fi
+    if ! chmod -R 755 "$mod_dir"; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot set servicemon permissions -abort" >&2
+        exit 1
+    fi
     chmod 644 "$mod_dir"/*.info* "$mod_dir/lang/"* "$mod_dir/help/"* "$mod_dir/CHANGELOG" 2>/dev/null || true
     chmod 755 "$mod_dir"/*.cgi "$mod_dir"/*.pl 2>/dev/null || true
     chmod 644 "$mod_dir/images/"* 2>/dev/null || true
@@ -806,12 +823,12 @@ ICONEOF
             echo "Module added to webmin.acl"
         fi
     else
-        echo "WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -- alert"
+        echo "WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -alert"
     fi
 
     rm -f /var/webmin/module.infos.cache
 
-    echo "Restarting Webmin service..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
 
     echo ""
@@ -829,8 +846,8 @@ ICONEOF
     echo "Configuration page available"
     echo "Configurable service filtering"
     echo ""
-    echo "Please log out and log back into Webmin to see the new module."
-    echo "You can find it under the 'System' category."
+    echo "Please log out and log back into Webmin to see new module"
+    echo "You can find it under 'System' category"
     echo "https://localhost:10000/servicemon/"
     echo ""
     echo "To view syslog entries: grep servicemon /var/log/syslog"
@@ -845,12 +862,12 @@ uninstall_module() {
     echo ""
 
     if [ ! -d "$mod_dir" ]; then
-        echo "Module is not installed."
+        echo "Module is not installed"
         echo ""
         return 1
     fi
 
-    echo "Removing module directories..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Removing module directories..."
     rm -rf "$mod_dir"
     rm -rf "$etc_dir"
     echo "Module directories removed"
@@ -862,13 +879,13 @@ uninstall_module() {
             echo "Module removed from webmin.acl"
         fi
     else
-        echo "WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -- alert"
+        echo "WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -alert"
     fi
 
     rm -f /var/webmin/module.infos.cache
     echo "Module cache cleared"
 
-    echo "Restarting Webmin service..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
 
     echo ""
@@ -896,33 +913,35 @@ show_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "install Install the Services Monitor module"
-    echo "uninstall Uninstall the Services Monitor module"
+    echo "--install Install Services Monitor module"
+    echo "--uninstall Uninstall Services Monitor module"
     echo "-h, --help Show this help message"
     echo ""
-    echo "If no option is provided, interactive menu will be shown."
+    echo "If no option is provided, interactive menu will be shown"
     echo ""
     echo "Examples:"
-    echo "$0 install # Install module without menu"
-    echo "$0 uninstall # Uninstall module without menu"
+    echo "$0 --install # Install module without menu"
+    echo "$0 --uninstall # Uninstall module without menu"
     echo "$0 # Show interactive menu"
     echo ""
 }
 
 main() {
     if [ ! -d "/usr/share/webmin" ] && [ ! -d "/etc/webmin" ]; then
-        echo "ERROR: Webmin is not installed on this system -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Webmin is not installed on this system -abort"
         exit 1
     fi
 
     if [ $# -gt 0 ]; then
         case "$1" in
-            install)
-                install_module
+            --install)
+                install_module || exit 1
+                echo "$(date '+%Y-%m-%d %H:%M:%S') servicemon done at: $(date '+%Y-%m-%d %H:%M:%S')"
                 exit 0
                 ;;
-            uninstall)
-                uninstall_module
+            --uninstall)
+                uninstall_module || exit 1
+                echo "$(date '+%Y-%m-%d %H:%M:%S') servicemon done at: $(date '+%Y-%m-%d %H:%M:%S')"
                 exit 0
                 ;;
             -h|--help)
@@ -930,7 +949,7 @@ main() {
                 exit 0
                 ;;
             *)
-                echo "ERROR: invalid option '$1' -- abort"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option '$1' -abort"
                 echo ""
                 show_usage
                 exit 1
@@ -940,28 +959,26 @@ main() {
 
     while true; do
         show_menu
-        read -r option
+        read -r option || return 1
 
         case $option in
             1)
                 install_module
-                echo ""
-                read -p "Press Enter to continue..."
+                break
                 ;;
             2)
                 uninstall_module
-                echo ""
-                read -p "Press Enter to continue..."
+                break
                 ;;
             3)
                 echo ""
-                echo "Exiting..."
+                echo "$(date '+%Y-%m-%d %H:%M:%S') Exiting..."
                 echo ""
                 exit 0
                 ;;
             *)
                 echo ""
-                echo "Invalid option. Please select 1, 2, or 3."
+                echo "Invalid option. Please select 1, 2, or 3"
                 echo ""
                 sleep 2
                 ;;
@@ -969,4 +986,18 @@ main() {
     done
 }
 
-main "$@"
+# ------------------------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') servicemon start..."
+
+main "$@" || exit 1
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') servicemon done at: $(date '+%Y-%m-%d %H:%M:%S')"

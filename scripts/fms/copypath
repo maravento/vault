@@ -3,79 +3,34 @@
 #
 ################################################################################
 #
-# copypath - Universal script to copy file/folder paths to clipboard
-# Compatible with: Nautilus, Caja, Nemo, Thunar, Dolphin, PCManFM
+# copypath -- FMS path copy
+#
+# DESCRIPTION:
+# Copies selected paths as a normal desktop user.
+#
+# USAGE:
+# bash copypath [file ...]
 #
 ################################################################################
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # no-root check
 if [ "$(id -u)" == "0" ]; then
-    echo "[ERROR] This script should not be run as root."
+    zenity --error --title="Copy Path" \
+        --text="This script should not be run as root." 2>/dev/null || true
     exit 1
 fi
 
-echo "Copy Path Starting. Wait..."
+# ------------------------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------------------------
 
-# --- Dependency checker ---
-check_dependencies() {
-    local missing=()
-    local clip_tools=0
-    local notify_tools=0
-
-    command -v python3 &>/dev/null || missing+=("python3")
-
-    # Check clipboard tools (at least one required)
-    command -v xclip &>/dev/null && clip_tools=1
-    command -v xsel &>/dev/null && clip_tools=1
-    command -v wl-copy &>/dev/null && clip_tools=1
-
-    if [[ $clip_tools -eq 0 ]]; then
-        missing+=("clipboard tool (xclip, xsel, or wl-clipboard)")
-    fi
-
-    # Check notification tools (at least one required)
-    command -v zenity &>/dev/null && notify_tools=1
-    command -v notify-send &>/dev/null && notify_tools=1
-
-    if [[ $notify_tools -eq 0 ]]; then
-        missing+=("notification tool (zenity or libnotify/notify-send)")
-    fi
-
-    # If dependencies are missing, show error and exit
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        local msg="Missing required dependencies:\n\n"
-        for dep in "${missing[@]}"; do
-            msg+="* $dep\n"
-        done
-        msg+="\nInstall with:\n"
-
-        command -v python3 &>/dev/null || msg+="sudo apt install python3\n"
-        if [[ $clip_tools -eq 0 ]]; then
-            msg+="sudo apt install xclip\n"
-        fi
-        if [[ $notify_tools -eq 0 ]]; then
-            msg+="sudo apt install zenity\n"
-        fi
-
-        # Try to show error with any available method
-        if command -v zenity &>/dev/null; then
-            echo -e "$msg" | zenity --text-info --title="Copy Path - Missing Dependencies" --width=500 --height=300
-        elif command -v notify-send &>/dev/null; then
-            notify-send "Copy Path Error" "Missing dependencies. Check terminal." -u critical
-            echo -e "$msg"
-        else
-            echo -e "$msg" >&2
-        fi
-        exit 1
-    fi
-}
-
-# Run dependency check
-check_dependencies
-
-# --- Select clipboard tool ---
+# Select clipboard tool
 if command -v xclip &>/dev/null; then
     clip_cmd="xclip -selection clipboard"
 elif command -v xsel &>/dev/null; then
@@ -84,7 +39,7 @@ elif command -v wl-copy &>/dev/null; then
     clip_cmd="wl-copy"
 fi
 
-# --- Detect file manager and get selected paths ---
+# Detect file manager and get selected paths
 selected_paths=""
 
 # Try different file manager environment variables
@@ -136,6 +91,10 @@ fi
 
 # Copy to clipboard
 echo -n "$selected_paths" | $clip_cmd
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
 
 # Show success notification
 if command -v zenity &>/dev/null; then

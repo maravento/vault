@@ -11,23 +11,26 @@
 # service.
 #
 # USAGE:
-# sudo ./rclonemgr.sh mount { start | stop | restart | status }
-# sudo ./rclonemgr.sh sync { run | status }
+# sudo ./rclonemgr.sh mount { --start | --stop | --restart | --status }
+# sudo ./rclonemgr.sh sync { --run | --status }
 # Without arguments, shows an interactive menu.
 #
-# LOG:
-# /var/log/rclonemgr.log
+# LOG: /var/log/rclonemgr.log
 #
 ################################################################################
 
 set -uo pipefail
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
@@ -38,7 +41,7 @@ SYNC_LOCK="/var/lock/$(basename "$0" .sh)-sync.lock"
 lock_mount() {
     exec 200>"$MOUNT_LOCK"
     if ! flock -n 200; then
-        echo "ERROR: another mount operation is running -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: another mount operation is running -abort" >&2
         exit 1
     fi
 }
@@ -46,7 +49,7 @@ lock_mount() {
 lock_sync() {
     exec 201>"$SYNC_LOCK"
     if ! flock -n 201; then
-        echo "ERROR: a sync pass is already running -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: a sync pass is already running -abort" >&2
         exit 1
     fi
 }
@@ -89,7 +92,7 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: no valid local user found, create one with sudo access -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
     exit 1
 fi
 echo "Using local user: $local_user"
@@ -97,15 +100,15 @@ echo "Using local user: $local_user"
 # dependencies
 for dep in fuse3 curl; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
 
 # dependencies (curl install)
 if ! command -v rclone &>/dev/null; then
-    echo "ERROR: 'rclone' is not installed" >&2
-    echo "ERROR: install it with: curl https://rclone.org/install.sh | sudo bash -- abort" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: 'rclone' is not installed" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: install it with: curl https://rclone.org/install.sh | sudo bash -abort" >&2
     exit 1
 fi
 
@@ -126,7 +129,10 @@ check_internet() {
     return 1
 }
 
+# ------------------------------------------------------------------------------
 # VARIABLES
+# ------------------------------------------------------------------------------
+
 rclone_path="/home/$local_user/rclone"
 cloud_path="$rclone_path/cloud"
 sync_path="$rclone_path/sync"
@@ -149,15 +155,25 @@ services=(
     # Add more services here as needed
 )
 
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
+# SERVICE CHECK
+# Answers whether the remote is already configured in the user's rclone
 is_service_configured() {
     local service_name="$1"
     sudo -u "$local_user" bash -c "rclone listremotes | grep -q '^${service_name}:\$'"
 }
 
-##############################################
-# MOUNT (cloud as a mounted drive)
-##############################################
+# ------------------------------------------------------------------------------
+# MOUNT
+# ------------------------------------------------------------------------------
 
+# Mounts the configured cloud remote as a local drive
+
+# MOUNT START
+# Creates the mount point and starts rclone for each remote
 mount_start() {
     for service_name in "${services[@]}"; do
         local service_path="$cloud_path/$service_name"
@@ -166,12 +182,12 @@ mount_start() {
         echo "Mounting $service_name to $service_path"
 
         if ! is_service_configured "$service_name"; then
-            echo "WARNING: rclone remote '$service_name' not configured -- alert"
+            echo "WARNING: rclone remote '$service_name' not configured -alert"
             continue
         fi
 
         if mount | grep -q "$service_path"; then
-            echo "INFO: $service_name is already mounted at $service_path -- skip"
+            echo "INFO: $service_name is already mounted at $service_path -skip"
             continue
         fi
 
@@ -188,13 +204,15 @@ mount_start() {
         if mount | grep -q "$service_path"; then
             echo "SUCCESS: $service_name mounted"
         else
-            echo "WARNING: $service_name may not be mounted correctly -- alert"
+            echo "WARNING: $service_name may not be mounted correctly -alert"
         fi
     done
 
     echo "Mount started successfully"
 }
 
+# MOUNT STOP
+# Unmounts each mounted remote, forcing it when the graceful way fails
 mount_stop() {
     for service_name in "${services[@]}"; do
         local service_path="$cloud_path/$service_name"
@@ -203,7 +221,7 @@ mount_stop() {
             if fusermount -u "$service_path" 2>/dev/null; then
                 echo "$service_name unmounted"
             else
-                echo "WARNING: graceful unmount failed for $service_name, forcing -- alert"
+                echo "WARNING: graceful unmount failed for $service_name, forcing -alert"
                 fusermount -uz "$service_path"
                 echo "$service_name force-unmounted"
             fi
@@ -215,13 +233,17 @@ mount_stop() {
     echo "Mount stopped"
 }
 
+# MOUNT RESTART
+# Unmounts everything, waits, and mounts again
 mount_restart() {
-    echo "Restarting mount..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Restarting mount..."
     mount_stop
     sleep 3
     mount_start
 }
 
+# MOUNT STATUS
+# Prints which remotes are mounted and lists the rclone mount processes
 mount_status() {
     echo "=== Rclone Mount Status ==="
 
@@ -240,38 +262,44 @@ mount_status() {
     ps aux | grep "[r]clone mount" || echo " No rclone mount processes found"
 }
 
+# RUN MOUNT
+# Takes the mount action, locks what it needs and calls it
 run_mount() {
     case "${1:-}" in
-    start)
+    --start)
         lock_mount
-        check_internet || { echo "ERROR: no internet connection -- abort"; exit 1; }
+        check_internet || { echo "ERROR: no internet connection -abort"; exit 1; }
         mount_start
         ;;
-    stop)
+    --stop)
         lock_mount
         lock_sync
         mount_stop
         ;;
-    restart)
+    --restart)
         lock_mount
         lock_sync
-        check_internet || { echo "ERROR: no internet connection -- abort"; exit 1; }
+        check_internet || { echo "ERROR: no internet connection -abort"; exit 1; }
         mount_restart
         ;;
-    status) mount_status ;;
+    --status) mount_status ;;
     *)
         echo
-        echo "Usage: $0 mount { start | stop | restart | status }"
+        echo "Usage: $0 mount { --start | --stop | --restart | --status }"
         echo
         exit 1
         ;;
     esac
 }
 
-##############################################
-# SYNC (2-way sync of a local upload/download folder)
-##############################################
+# ------------------------------------------------------------------------------
+# SYNC
+# ------------------------------------------------------------------------------
 
+# Two-way sync between the local folders and the mounted cloud
+
+# SYNC TRANSFER
+# Copies one direction between a local folder and the mounted cloud
 sync_transfer() {
     local direction="$1" service_name="$2" src="$3" dst="$4"
     echo "Sync $direction $service_name"
@@ -279,21 +307,23 @@ sync_transfer() {
     echo "OK"
 }
 
+# SYNC RUN
+# Syncs download and upload folders for every mounted remote
 sync_run() {
     echo "Run Sync at $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
 
     for service_name in "${services[@]}"; do
         local service_path="$cloud_path/$service_name"
         if ! is_service_configured "$service_name"; then
-            echo "$service_name is not configured in Rclone. Skipping..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') $service_name is not configured in Rclone. Skipping..."
             continue
         fi
         if ! mount | grep -q "$service_path"; then
-            echo "$service_name is not mounted."
+            echo "$service_name is not mounted"
             continue
         fi
 
-        echo "$service_name is mounted."
+        echo "$service_name is mounted"
         for subfolder in download upload; do
             sudo -u "$local_user" bash -c "mkdir -p '$service_path/$subfolder'"
             sudo -u "$local_user" bash -c "mkdir -p '$sync_path/$service_name/$subfolder'"
@@ -306,6 +336,8 @@ sync_run() {
     echo "Done"
 }
 
+# SYNC STATUS
+# Prints, per remote, whether it is configured and whether it is mounted
 sync_status() {
     echo "=== Rclone Sync Status ==="
     for service_name in "${services[@]}"; do
@@ -321,27 +353,33 @@ sync_status() {
     done
 }
 
+# RUN SYNC
+# Takes the sync action, locks what it needs and calls it
 run_sync() {
     case "${1:-}" in
-    run)
+    --run)
         lock_sync
-        check_internet || { echo "ERROR: no internet connection -- abort"; exit 1; }
+        check_internet || { echo "ERROR: no internet connection -abort"; exit 1; }
         sync_run
         ;;
-    status) sync_status ;;
+    --status) sync_status ;;
     *)
         echo
-        echo "Usage: $0 sync { run | status }"
+        echo "Usage: $0 sync { --run | --status }"
         echo
         exit 1
         ;;
     esac
 }
 
-##############################################
-# MENU / DISPATCH
-##############################################
+# ------------------------------------------------------------------------------
+# MENU
+# ------------------------------------------------------------------------------
 
+# Interactive menu shown when the script runs without arguments
+
+# SHOW MENU
+# Lists the seven options and runs the one chosen
 show_menu() {
     echo
     echo "Rclone Manager"
@@ -355,16 +393,25 @@ show_menu() {
     echo
     read -rp "Select an option [1-7]: " opt
     case "$opt" in
-    1) run_mount start ;;
-    2) run_mount stop ;;
-    3) run_mount restart ;;
-    4) run_mount status ;;
-    5) run_sync run ;;
-    6) run_sync status ;;
+    1) run_mount --start ;;
+    2) run_mount --stop ;;
+    3) run_mount --restart ;;
+    4) run_mount --status ;;
+    5) run_sync --run ;;
+    6) run_sync --status ;;
     7) exit 0 ;;
     *) echo "Invalid option" ;;
     esac
 }
+
+# ------------------------------------------------------------------------------
+# ACTIONS
+# ------------------------------------------------------------------------------
+
+# Dispatch the requested mode and action to its function
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') rclonemgr start..."
 
 MODE="${1:-}"
 ACTION="${2:-}"
@@ -381,10 +428,17 @@ sync)
     ;;
 *)
     echo
-    echo "Usage: $0 { mount { start | stop | restart | status } | sync { run | status } }"
+    echo "Usage: $0 { mount { --start | --stop | --restart | --status } | sync { --run | --status } }"
     echo
     exit 1
     ;;
 esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') rclonemgr done at: $(date '+%Y-%m-%d %H:%M:%S')"
 
 exit 0

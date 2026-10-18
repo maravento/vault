@@ -16,13 +16,17 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # no-root check
 if [ "$(id -u)" == "0" ]; then
     echo "[ERROR] This script should not be run as root."
     exit 1
 fi
 
-echo "MEGAsync Instances Starting. Wait..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') msyncs start..."
 
 # check dependencies
 DEPENDENCIES=("zenity" "libatk-adaptor" "libgail-common" "libgtk2.0-0")
@@ -51,7 +55,10 @@ for pkg in megasync; do
   }
 done
 
-# Variables
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
+
 real_home="$HOME"
 mega_dir="MEGA"
 file_path="$real_home/.config/msyncs"
@@ -61,6 +68,10 @@ echo "real_home = $real_home"
 unset QT_SCALE_FACTOR 2>/dev/null
 export NO_AT_BRIDGE=1
 export QT_ACCESSIBILITY=0
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
 
 # Function to run zenity silently
 zenity () {
@@ -123,6 +134,7 @@ frun () {
                 echo "Launching $(basename "$d")"
                 (exec 200>&-; export HOME="$d"; nohup megasync >/dev/null 2>&1 &)
             done
+            echo "$(date '+%Y-%m-%d %H:%M:%S') msyncs done at: $(date '+%Y-%m-%d %H:%M:%S')"
             exit 0
         fi
     fi
@@ -143,7 +155,7 @@ frun () {
 
     # 1-9 number
     while [[ ! $inst_num =~ ^[1-9]$ ]]; do
-        inst_num=$(zenity --entry --text="How many MEGAsync instances do you need? (1-9)") || { echo "Cancelled."; exit 0; }
+        inst_num=$(zenity --entry --text="How many MEGAsync instances do you need? (1-9)") || { echo "Cancelled."; echo "$(date '+%Y-%m-%d %H:%M:%S') msyncs done at: $(date '+%Y-%m-%d %H:%M:%S')"; exit 0; }
 
         # check valid number
         if [[ ! $inst_num =~ ^[1-9]$ ]]; then
@@ -156,7 +168,7 @@ frun () {
     for (( i=1; i<=inst_num; i++ )); do
         instance_name=""
         while [[ -z "$instance_name" ]]; do
-            instance_name=$(zenity --entry --text="Insert the name for instance $i/$inst_num") || { echo "Cancelled."; exit 0; }
+            instance_name=$(zenity --entry --text="Insert the name for instance $i/$inst_num") || { echo "Cancelled."; echo "$(date '+%Y-%m-%d %H:%M:%S') msyncs done at: $(date '+%Y-%m-%d %H:%M:%S')"; exit 0; }
             if [[ -z "$instance_name" ]]; then
                 zenity --error --text="Instance name cannot be empty."
             fi
@@ -209,6 +221,10 @@ if [ ! -f "$status_file" ]; then
   echo 0 > "$status_file"
 fi
 
+# ------------------------------------------------------------------------------
+# ACTIONS
+# ------------------------------------------------------------------------------
+
 # Handle script arguments
 case "${1:-}" in
   start)
@@ -225,3 +241,11 @@ case "${1:-}" in
     exit 1
     ;;
 esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+action_rc=$?
+[ "$action_rc" -eq 0 ] || exit "$action_rc"
+echo "$(date '+%Y-%m-%d %H:%M:%S') msyncs done at: $(date '+%Y-%m-%d %H:%M:%S')"

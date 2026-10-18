@@ -31,6 +31,7 @@ function ensure_session() {
 $server_ip = '';
 $net_cidr  = '';
 $purge_closed_after_hours = 6;
+$db_timeout_ms = null;
 $env_file  = '/etc/nwatch/nwatch.env';
 if (file_exists($env_file)) {
     foreach (file($env_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
@@ -38,6 +39,11 @@ if (file_exists($env_file)) {
             $server_ip = str_replace(array('"', "'"), '', trim(substr($line, strlen('SERVER_IP='))));
         } elseif (strpos($line, 'NET_CIDR=') === 0) {
             $net_cidr = str_replace(array('"', "'"), '', trim(substr($line, strlen('NET_CIDR='))));
+        } elseif (strpos($line, 'NWATCH_DB_TIMEOUT_MS=') === 0) {
+            $raw = substr($line, strlen('NWATCH_DB_TIMEOUT_MS='));
+            $db_timeout_ms = preg_match('/^[1-9][0-9]*$/D', $raw)
+                ? filter_var($raw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]])
+                : null;
         } elseif (strpos($line, 'PURGE_CLOSED_AFTER_HOURS=') === 0) {
             $raw = str_replace(array('"', "'"), '', trim(substr($line, strlen('PURGE_CLOSED_AFTER_HOURS='))));
             if (ctype_digit($raw)) {
@@ -101,6 +107,12 @@ if (!$allowed) {
 define('DB_FILE', '/var/www/nwatch/data/nwatch.db');
 
 function get_db() {
+    global $db_timeout_ms;
+    if (!is_int($db_timeout_ms)) {
+        http_response_code(500);
+        json_out(['success' => false, 'error' => 'nwatch.env: NWATCH_DB_TIMEOUT_MS missing or invalid']);
+        exit;
+    }
     if (!file_exists(DB_FILE)) {
         http_response_code(500);
         json_out(['success' => false, 'error' => 'Database not found']);
@@ -108,7 +120,7 @@ function get_db() {
     }
     $pdo = new PDO('sqlite:' . DB_FILE);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $pdo->exec('PRAGMA busy_timeout=5000;');
+    $pdo->exec('PRAGMA busy_timeout=' . $db_timeout_ms . ';');
     $pdo->exec('PRAGMA journal_mode=WAL;');
     return $pdo;
 }

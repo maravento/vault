@@ -14,6 +14,10 @@
 
 set -euo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -27,16 +31,19 @@ trap cleanup EXIT
 
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
@@ -73,22 +80,37 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "ERROR: no valid local user found, create one with sudo access -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
     exit 1
 fi
 echo "Using local user: $local_user"
 
-echo "phpVirtualBox Starting. Wait..."
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') phpvbox start..."
 
 retry_cmd() {
     local max_attempts=10
     local attempt=1
+    local retry_name retry_failure retry_arg
+    retry_name="$(basename "$1")"
+    retry_failure="$retry_name failed"
+    case "$retry_name" in
+        apt-get)
+            for retry_arg in "$@"; do
+                case "$retry_arg" in
+                    install) retry_failure="package installation failed"; break ;;
+                    update) retry_failure="package list update failed"; break ;;
+                esac
+            done
+            ;;
+        curl|wget) retry_failure="$retry_name download failed" ;;
+    esac
     until "$@"; do
         if [ "$attempt" -ge "$max_attempts" ]; then
-            echo "ERROR: command failed after $max_attempts attempts: $* -- abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: $retry_failure -abort" >&2
             exit 1
         fi
-        echo "INFO: attempt $attempt/$max_attempts failed: $* -- retry"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $retry_name: retry $((attempt + 1))/$max_attempts"
         attempt=$((attempt + 1))
         sleep 10
     done
@@ -107,17 +129,17 @@ done
 if [ "${#unavailable[@]}" -gt 0 ]; then
     echo "Missing dependencies not found in APT:"
     for u in "${unavailable[@]}"; do echo " - $u"; done
-    echo "Please install them manually or enable the required repositories."
+    echo "Please install them manually or enable required repositories"
     exit 1
 fi
 if [ "${#missing[@]}" -gt 0 ]; then
-    echo "Waiting for APT/DPKG locks to be released..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Waiting for APT/DPKG locks to be released..."
     apt_lock_timeout=120
     apt_lock_elapsed=0
     apt_lock_files=(/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend)
     while lsof "${apt_lock_files[@]}" >/dev/null 2>&1; do
         if [ "$apt_lock_elapsed" -ge "$apt_lock_timeout" ]; then
-            echo "APT/DPKG locks still held after ${apt_lock_timeout}s. Aborting."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: APT/DPKG locks still held after ${apt_lock_timeout}s -abort" >&2
             exit 1
         fi
         echo "Locks still held, waiting... (${apt_lock_elapsed}s elapsed)"
@@ -141,7 +163,10 @@ if ! echo "$output" | grep -q "virtualbox-7"; then
     exit 1
 fi
 
+# ------------------------------------------------------------------------------
 # PHPVBOX
+# ------------------------------------------------------------------------------
+
 # download phpvirtualbox
 retry_cmd wget -q -c https://github.com/phpvirtualbox/phpvirtualbox/archive/master.zip
 download_sha256="$(sha256sum master.zip | awk '{print $1}')"
@@ -181,7 +206,7 @@ echo '#!/bin/bash
 if pgrep -x vboxwebsrv > /dev/null; then
     echo "vboxweb OK"
   else
-    echo "vboxweb starting..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') vboxweb starting..."
     service vboxweb-service start
     sleep 10
     # check again
@@ -204,12 +229,18 @@ if ! service cron restart; then
     echo "Failed to restart cron"
     exit 1
 fi
-echo "Script and cron task added successfully."
+echo "Script and cron task added successfully"
 echo
 echo "Access: http://localhost/phpvirtualbox"
 echo "Default user: admin / Default password: admin"
-echo "INFO: change the default password immediately after first login"
+echo "INFO: change default password immediately after first login"
 echo "Go to: Admin menu -> Change Password"
-echo "Leaving the default password exposes VirtualBox to unauthorized access."
+echo "Leaving default password exposes VirtualBox to unauthorized access"
 echo "Use vinagre or remmina to connect (activate Enable Server into Remote Display of VM)"
-echo "Done"
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') phpvbox done at: $(date '+%Y-%m-%d %H:%M:%S')"

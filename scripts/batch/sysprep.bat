@@ -84,21 +84,21 @@ if /i "%chg%"=="y" set /p "timezone=Enter time zone, e.g. Central Standard Time 
 
 for /f "usebackq delims=" %%a in (`powershell -NoProfile -Command "(Get-LocalUser -Name $env:USERNAME).PrincipalSource"`) do set "acctsource=%%a"
 if /i "%acctsource%"=="MicrosoftAccount" (
-    echo ERROR: This account is a Microsoft account. Sysprep requires a local account -- abort.
+    echo ERROR: This account is a Microsoft account. Sysprep requires a local account -abort.
     pause
     exit /b 1
 )
 
 manage-bde -status %systemdrive% | find "Protection On" >nul 2>&1
 if not errorlevel 1 (
-    echo ERROR: BitLocker is enabled on %systemdrive%. Disable it before running Sysprep -- abort.
+    echo ERROR: BitLocker is enabled on %systemdrive%. Disable it before running Sysprep -abort.
     pause
     exit /b 1
 )
 
 for /f "usebackq delims=" %%a in (`powershell -NoProfile -Command "(Get-NetConnectionProfile | Where-Object {$_.IPv4Connectivity -eq 'Internet' -or $_.IPv6Connectivity -eq 'Internet'}).Count"`) do set "netcount=%%a"
 if not "%netcount%"=="0" (
-    echo ERROR: An active network connection was detected. Disconnect from the network before running Sysprep -- abort.
+    echo ERROR: An active network connection was detected. Disconnect from the network before running Sysprep -abort.
     pause
     exit /b 1
 )

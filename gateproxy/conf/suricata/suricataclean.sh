@@ -5,10 +5,6 @@
 #
 # Suricata Clean
 #
-# DESCRIPTION:
-# Truncates Suricata's logs and clears EveBox's database, restarting
-# Suricata around the truncation.
-#
 # USAGE:
 # sudo ./suricataclean.sh
 #
@@ -18,38 +14,55 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# root check
+if [ "$(id -u)" != "0" ]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
+    exit 1
+fi
 
 # logging
 log_file="/var/log/suricata/suricatacron.log"
 log() {
     local msg="$1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+    local log_msg="$(date '+%Y-%m-%d %H:%M:%S') $msg"
+    echo "$log_msg" >> "$log_file" 2>/dev/null || true
+    if [[ "$msg" == ERROR:* ]]; then
+        echo "$log_msg" >&2
+    else
+        echo "$log_msg"
+    fi
 }
-
-# root check
-if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root -- abort"
-    exit 1
-fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    log "ERROR: script $(basename "$0") is already running -- abort"
+    log "ERROR: script $(basename "$0") is already running -abort"
     exit 1
 fi
 
 # dependencies
 for dep in systemd coreutils findutils; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: missing dependency '$dep' -- abort"
+        log "ERROR: dependency '$dep' is not installed -abort"
         exit 1
     fi
 done
+
+# ------------------------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------------------------
 
 log "suricataclean start..."
 
@@ -64,7 +77,7 @@ log "INFO: Suricata logs cleared"
 if systemctl start suricata; then
     log "INFO: Suricata started"
 else
-    log "WARNING: Suricata failed to start -- alert"
+    log "WARNING: Suricata failed to start -alert"
 fi
 # Clean: EveBox DB. Deleting the files outright (instead of DELETE FROM
 # events; VACUUM;) also clears EveBox's eve.json read bookmark. The bookmark
@@ -86,7 +99,11 @@ log "INFO: EveBox database cleared"
 if systemctl start evebox; then
     log "INFO: EveBox started"
 else
-    log "WARNING: EveBox failed to start -- alert"
+    log "WARNING: EveBox failed to start -alert"
 fi
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
 
 log "suricataclean done at: $(date '+%Y-%m-%d %H:%M:%S')"

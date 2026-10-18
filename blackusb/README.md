@@ -26,10 +26,10 @@
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
+      WARNING: Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Probado en Ubuntu 24.04/26.04 LTS. El uso en otras versiones o distribuciones queda bajo responsabilidad de quien lo instale.
+      ADVERTENCIA: Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
     </td>
   </tr>
 </table>
@@ -63,10 +63,10 @@ sudo bash blackusb.sh
 
 Example:
 
-`blackusb.sh show` or `blackusb.sh s`
+`blackusb.sh --show`
 
 ```bash
-sudo /path_to/blackusb.sh s
+sudo /path_to/blackusb.sh --show
  0 Name=xHCI Host Controller, Vendor=1d6b, Product=0003, Serial=0022:00:14.0
  1 Vendor=8087, Product=07dc
  2 Name=USB2.0-CRW, Vendor=0bda, Product=0129, Serial=20100001396000000
@@ -77,26 +77,27 @@ sudo /path_to/blackusb.sh s
 
 ### Data Sheet (For Linux)
 
-|Full|Short|Description|
-|----|-----|-----------|
-|show|s|Show currently connected usb devices / Muestra los dispositivos conectados|
-|on|o|Turn on blackusb and generate white list of connected USB devices / Activar blackusb y genera lista blanca de dispositivos USB conectados|
-|eject|j|Choose a device from the list to eject or add entry / Elija un dispositivo de la lista para expulsarlo o agregar entrada|
-|off|x|Temporarily deactivate blackusb / Desactiva temporalmente blackusb|
-|gen|g|Generate or refresh whitelist udev rules file / Genera o refresca lista blanca de dispositivos lista udev usb|
-|del|d|Delete udev rules file contain white list usb devices / Elimina archivo udev que contiene lista blanca de dispositivos usb|
-|trigger|t|Trigger event on insertion or removal / Dispara el evento de inserción o remoción|
-|edit|e|Edit udev rules file manually / Edita manualmente las reglas udev|
+|Option|Description|
+|------|-----------|
+|`--show`|Show currently connected usb devices / Muestra los dispositivos conectados|
+|`--on`|Turn on blackusb and generate white list of connected USB devices / Activar blackusb y genera lista blanca de dispositivos USB conectados|
+|`--eject`|Choose a device from the list to eject or add entry / Elija un dispositivo de la lista para expulsarlo o agregar entrada|
+|`--off`|Temporarily deactivate blackusb / Desactiva temporalmente blackusb|
+|`--generate`|Generate or refresh whitelist udev rules file / Genera o refresca lista blanca de dispositivos lista udev usb|
+|`--delete`|Delete udev rules file contain white list usb devices / Elimina archivo udev que contiene lista blanca de dispositivos usb|
+|`--trigger`|Trigger event on insertion or removal / Dispara el evento de inserción o remoción|
+|`--edit`|Edit udev rules file manually / Edita manualmente las reglas udev|
+|`--help`|Show accepted options / Mostrar las opciones aceptadas|
 
 ### Paranoic Mode
 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     It consists of turning off your terminal when inserting an unauthorized and/or unknown usb device, rather than locking it. To activate it, edit the script manually and uncomment the line.
+     It adds system shutdown when an unauthorized USB device is inserted. To enable it, uncomment <code>poweroff</code> in <code>commands_list</code>. The default command list contains only <code>sync</code>; it does not lock the session.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Consiste en apagar su terminal cuando se inserte un dispositivo usb no autorizado y/o desconocido, en lugar de bloquearlo. Para activarlo, edite manualmente el script y descomente la línea. 
+     Añade el apagado del sistema al insertar un dispositivo USB no autorizado. Para activarlo, descomente <code>poweroff</code> en <code>commands_list</code>. La lista predeterminada contiene únicamente <code>sync</code>; no bloquea la sesión. 
     </td>
   </tr>
 </table>
@@ -119,10 +120,10 @@ sudo /path_to/blackusb.sh s
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     Logs an unknown device without running the commands in <code>commands_list</code>. Useful to test the whitelist before enabling real blocking. Edit the script and set <code>demo='yes'</code>.
+     Logs an unknown device without running the commands in <code>commands_list</code>. Set <code>demo='yes'</code> to enable this mode. The generated udev rule still denies unauthorized USB devices with <code>ATTR{authorized}="0"</code>; demo mode does not disable that blocking.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Registra un dispositivo desconocido sin ejecutar los comandos de <code>commands_list</code>. Útil para probar la lista blanca antes de activar el bloqueo real. Edite el script y defina <code>demo='yes'</code>.
+     Registra un dispositivo desconocido sin ejecutar los comandos de <code>commands_list</code>. Defina <code>demo='yes'</code> para activar este modo. La regla udev generada sigue rechazando dispositivos USB no autorizados con <code>ATTR{authorized}="0"</code>; el modo demo no desactiva ese bloqueo.
     </td>
   </tr>
 </table>
@@ -240,6 +241,31 @@ Cruzer Blade
 - [USBOblivion](https://sourceforge.net/projects/usboblivion/)
 - [Windows SDK - Devcon32/64](https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/)
 - [WinZenity](https://github.com/maravento/vault/tree/master/winzenity)
+
+## NOTICE
+
+---
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>This repository</strong>
+      <ul>
+        <li>May include third-party components.</li>
+        <li>Does not accept Pull Requests. Changes must be proposed via Issues.</li>
+        <li>This project does not support backward compatibility. New versions may require configuration changes or reinstallation.</li>
+      </ul>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Este repositorio</strong>
+      <ul>
+        <li>Puede incluir componentes de terceros.</li>
+        <li>No acepta Pull Requests. Los cambios deben proponerse mediante Issues.</li>
+        <li>Este proyecto no soporta retrocompatibilidad. Las nuevas versiones pueden requerir cambios de configuración o una reinstalación.</li>
+      </ul>
+    </td>
+  </tr>
+</table>
 
 ## DISCLAIMER
 

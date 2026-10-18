@@ -5,12 +5,8 @@
 #
 # nwatchlan - LAN Devices Watchdog
 #
-# DESCRIPTION:
-# Arp-scans the configured LAN/WAN interfaces and keeps the device
-# inventory in nwatch.db up to date.
-#
 # USAGE:
-# ./nwatchlan.sh {start|stop|status}
+# ./nwatchlan.sh {--start|--stop|--status}
 #
 # LOG: /var/log/nwatch.log (root:root, 640) -- shared by both daemons
 #      (nwatchlan.sh + nwatchports.sh). The installer writes its own
@@ -20,120 +16,72 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# root check
+if [ "$(id -u)" != "0" ]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
+    exit 1
+fi
 
 # logging
 log_file="/var/log/nwatch.log"
 log() {
     local msg="$1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" | tee -a "$log_file" 2>/dev/null || true
+    local log_msg="$(date '+%Y-%m-%d %H:%M:%S') $msg"
+    echo "$log_msg" >> "$log_file" 2>/dev/null || true
+    if [[ "$msg" == ERROR:* ]]; then
+        echo "$log_msg" >&2
+    else
+        echo "$log_msg"
+    fi
 }
-
-# root check
-if [ "$(id -u)" != "0" ]; then
-    log "ERROR: This script must be run as root -- abort"
-    exit 1
-fi
-
-# PATHS
-nwatch_env="/etc/nwatch/nwatch.env"
-db_file="/var/www/nwatch/data/nwatch.db"
-pid_file="/run/nwatchlan.pid"
 
 # dependencies
 for dep in arp-scan sqlite3 iproute2 procps coreutils util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: dependency '$dep' is not installed -- abort"
+        log "ERROR: dependency '$dep' is not installed -abort"
         exit 1
     fi
 done
+
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
+
+# PATHS
+# Declare the file and directory paths used below
+nwatch_env="/etc/nwatch/nwatch.env"
+db_file="/var/www/nwatch/data/nwatch.db"
+pid_file="/run/nwatchlan.pid"
 
 # validation -- integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
+
 # ------------------------------------------------------------------------------
-# ENV
+# FUNCTIONS
 # ------------------------------------------------------------------------------
 
-# PERMS
-# Owner and mode of every .env this script reads
-env_specs=("$nwatch_env root:www-data 640")
-for env_spec in "${env_specs[@]}"; do
-    read -r env_path env_owner_want env_perms_want <<< "$env_spec"
-    if [ ! -f "$env_path" ]; then
-        log "ERROR: $(basename "$env_path") not found -- abort"
-        exit 1
-    fi
-    env_owner=$(stat -c '%U:%G' "$env_path" 2>/dev/null)
-    env_perms=$(stat -c '%a' "$env_path" 2>/dev/null)
-    if [[ "$env_owner" != "$env_owner_want" ]] \
-       || [[ "$env_perms" != "$env_perms_want" ]]; then
-        if chown "$env_owner_want" "$env_path" 2>/dev/null \
-           && chmod "$env_perms_want" "$env_path" 2>/dev/null; then
-            log "INFO: $(basename "$env_path") perms fixed -- fixed"
-        else
-            log "ERROR: cannot fix $(basename "$env_path") perms -- abort"
-            exit 1
-        fi
-    fi
-done
-unset env_specs env_spec env_path env_owner_want env_perms_want
-unset env_owner env_perms
-
-# LOAD_CONF
-# Read known key=value pairs from a config file, without sourcing it
-source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/nwatchenv.sh"
-env_keys='LAN_IFACES LAN_POLL_INTERVAL LAN_OFFLINE_GRACE'
-
-# LOAD
-load_nwatch_env "$nwatch_env" "$env_keys" || true
-
-# KEY CHECK
-# Collect every failure first, then decide -- a single abort reports them all
-key_errors=()
-for env_key in LAN_IFACES; do
-    if ! grep -q "^${env_key}=" "$nwatch_env"; then
-        key_errors+=("$env_key missing line")
-    elif [[ -z "${!env_key:-}" ]]; then
-        key_errors+=("$env_key not set")
-    fi
-done
-for env_key in LAN_POLL_INTERVAL LAN_OFFLINE_GRACE; do
-    if ! grep -q "^${env_key}=" "$nwatch_env"; then
-        key_errors+=("$env_key missing line")
-    elif [[ -z "${!env_key:-}" ]]; then
-        key_errors+=("$env_key not set")
-    elif ! [[ "${!env_key}" =~ $UH_UINT ]] || (( ${!env_key} == 0 )); then
-        key_errors+=("$env_key invalid count")
-    fi
-done
-if (( ${#key_errors[@]} > 0 )); then
-    for key_error in "${key_errors[@]}"; do
-        log "ERROR: $key_error"
-    done
-    log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$nwatch_env")"
-    log "ERROR: run nwatchsetup.sh --install first -- abort"
-    exit 1
-fi
-unset key_errors key_error env_key
-
-# FALLBACK
-# Second layer of protection, behind KEY CHECK -- by design never reached
-if [ -z "${LAN_POLL_INTERVAL:-}" ]; then
-    log "WARNING: no LAN_POLL_INTERVAL in nwatch.env -- fallback"
-fi
-LAN_POLL_INTERVAL="${LAN_POLL_INTERVAL:-60}"
-if [ -z "${LAN_OFFLINE_GRACE:-}" ]; then
-    log "WARNING: no LAN_OFFLINE_GRACE in nwatch.env -- fallback"
-fi
-LAN_OFFLINE_GRACE="${LAN_OFFLINE_GRACE:-3}"
-
-# DB CHECK
-if [ ! -f "$db_file" ]; then
-    log "ERROR: database not found at $db_file -- abort"
-    log "Run nwatchsetup.sh --install first"
-    exit 1
-fi
+# PID CHECK
+# Check whether the recorded process belongs to this daemon
+daemon_alive() {
+    local pid="$1" args=() self i
+    [ -n "$pid" ] || return 1
+    mapfile -d '' -t args < "/proc/$pid/cmdline" 2>/dev/null || return 1
+    self="$(basename -- "$0")"
+    case "$(basename -- "${args[0]:-}")" in
+        "$self") i=0 ;;
+        bash|sh) i=1 ;;
+        *) return 1 ;;
+    esac
+    [ "$(basename -- "${args[i]:-}")" = "$self" ] || return 1
+    [ "${args[i+1]:-}" = --start ]
+}
 
 now_iso() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
 
@@ -146,7 +94,7 @@ sql_escape() { printf '%s' "$1" | sed "s/'/''/g"; }
 # a no-op.
 run_batch() {
     [ -z "${1:-}" ] && return 0
-    sqlite3 -cmd ".bail on" -cmd "PRAGMA busy_timeout=5000;" "$db_file" >/dev/null 2>>"$log_file" <<SQL
+    sqlite3 -cmd ".bail on" -cmd "PRAGMA busy_timeout=${NWATCH_DB_TIMEOUT_MS};" "$db_file" >/dev/null 2>>"$log_file" <<SQL
 BEGIN IMMEDIATE;
 ${1}COMMIT;
 SQL
@@ -220,9 +168,10 @@ check_interfaces() {
 }
 
 # ONE SCAN CYCLE
+# Discover LAN devices and update their recorded state
 run_scan() {
     if [ -z "${LAN_IFACES:-}" ]; then
-        log "WARNING: LAN_IFACES is not set -- alert"
+        log "WARNING: LAN_IFACES is not set -alert"
         return 1
     fi
 
@@ -247,7 +196,7 @@ run_scan() {
     IFS=',' read -ra ifaces <<< "$LAN_IFACES"
     for iface in "${ifaces[@]}"; do
         if ! ip link show "$iface" &>/dev/null; then
-            log "WARNING: interface '$iface' does not exist -- alert"
+            log "WARNING: interface '$iface' does not exist -alert"
             failed_ifaces["$iface"]=1
             continue
         fi
@@ -255,7 +204,7 @@ run_scan() {
         # arp-scan -x -g: plain tab-separated output, without -q (-q strips vendor).
         local scan_out
         scan_out=$(arp-scan --interface="$iface" --localnet -x -g 2>>"$log_file") || {
-            log "WARNING: arp-scan failed on '$iface' -- alert"
+            log "WARNING: arp-scan failed on '$iface' -alert"
             failed_ifaces["$iface"]=1
             scan_out=""
         }
@@ -322,24 +271,25 @@ INSERT INTO device_events (mac, ip, event_type, event_time) VALUES ('$esc_mac', 
     done
 
     if ! run_batch "$sql"; then
-        log "WARNING: could not store lan scan results -- alert"
+        log "WARNING: could not store lan scan results -alert"
         return
     fi
 }
 
 # START
+# Start the configured daemon
 start() {
     # prevent overlapping runs
     script_lock="/var/lock/$(basename "$0" .sh).lock"
     (umask 077; : >> "$script_lock")
     exec 200>"$script_lock"
     if ! flock -n 200; then
-        log "ERROR: script $(basename "$0") is already running -- abort"
+        log "ERROR: script $(basename "$0") is already running -abort"
         exit 1
     fi
 
-    if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file" 2>/dev/null)" 2>/dev/null; then
-        log "ERROR: nwatchlan is already running -- abort"
+    if [ -f "$pid_file" ] && daemon_alive "$(cat "$pid_file" 2>/dev/null)"; then
+        log "ERROR: nwatchlan is already running -abort"
         exit 1
     fi
 
@@ -352,15 +302,13 @@ start() {
 
     # CHECK INTERFACES (essential for @reboot)
     if ! check_interfaces "$LAN_IFACES"; then
-        log "WARNING: no operational interface -- alert"
+        log "WARNING: no operational interface -alert"
     fi
 
-    log "nwatchlan start..."
     log "INFO: Interfaces : $LAN_IFACES"
     log "INFO: Interval : ${LAN_POLL_INTERVAL}s"
     log "INFO: Offline grace: ${LAN_OFFLINE_GRACE} polls"
     log "INFO: Database : $db_file"
-    log "INFO: Log : $log_file"
 
     rm -f "$pid_file"
     (
@@ -383,12 +331,13 @@ start() {
 }
 
 # STOP
+# Stop the recorded daemon process
 stop() {
-    log "INFO: Stopping nwatchlan..."
+    log "Stopping nwatchlan..."
     if [ -f "$pid_file" ]; then
         local daemon_pid
         daemon_pid=$(cat "$pid_file")
-        if kill -0 "$daemon_pid" 2>/dev/null; then
+        if daemon_alive "$daemon_pid"; then
             kill "$daemon_pid" 2>/dev/null
             log "INFO: nwatchlan stopped (PID $daemon_pid)"
         else
@@ -401,9 +350,10 @@ stop() {
 }
 
 # STATUS
+# Report the current daemon or installation state
 status() {
     log "nwatchlan status..."
-    if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
+    if [ -f "$pid_file" ] && daemon_alive "$(cat "$pid_file")"; then
         log "INFO: nwatchlan is RUNNING (PID $(cat "$pid_file"))"
         log "INFO: Interfaces : ${LAN_IFACES:-unset}"
         log "INFO: Interval : ${LAN_POLL_INTERVAL:-60}s"
@@ -418,10 +368,107 @@ status() {
     fi
 }
 
-# MAIN
+# ------------------------------------------------------------------------------
+# ENV
+# ------------------------------------------------------------------------------
+
+# stop() needs only the PID file, so these checks are skipped for it
+if [ "${1:-}" != --stop ]; then
+    # PERMS
+    # Owner and mode of every .env this script reads
+    env_specs=("$nwatch_env root:www-data 640")
+    for env_spec in "${env_specs[@]}"; do
+        read -r env_path env_owner_want env_perms_want <<< "$env_spec"
+        if [ ! -f "$env_path" ]; then
+            log "ERROR: $(basename "$env_path") not found -abort"
+            exit 1
+        fi
+        env_owner=$(stat -c '%U:%G' "$env_path" 2>/dev/null)
+        env_perms=$(stat -c '%a' "$env_path" 2>/dev/null)
+        if [[ "$env_owner" != "$env_owner_want" ]] \
+           || [[ "$env_perms" != "$env_perms_want" ]]; then
+            if chown "$env_owner_want" "$env_path" 2>/dev/null \
+               && chmod "$env_perms_want" "$env_path" 2>/dev/null; then
+                log "INFO: $(basename "$env_path") perms fixed -fixed"
+            else
+                log "ERROR: cannot fix $(basename "$env_path") perms -abort"
+                exit 1
+            fi
+        fi
+    done
+    unset env_specs env_spec env_path env_owner_want env_perms_want
+    unset env_owner env_perms
+
+    # LOAD_CONF
+    # Read known key=value pairs from a config file, without sourcing it
+    source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/nwatchenv.sh"
+    env_keys='LAN_IFACES LAN_POLL_INTERVAL LAN_OFFLINE_GRACE NWATCH_DB_TIMEOUT_MS'
+
+    # LOAD
+    load_nwatch_env "$nwatch_env" "$env_keys" || true
+
+    # KEY CHECK
+    # Collect every failure first, then decide -- a single abort reports them all
+    key_errors=()
+    for env_key in LAN_IFACES; do
+        if ! grep -q "^${env_key}=" "$nwatch_env"; then
+            key_errors+=("$env_key missing line")
+        elif [[ -z "${!env_key:-}" ]]; then
+            key_errors+=("$env_key not set")
+        fi
+    done
+    for env_key in LAN_POLL_INTERVAL LAN_OFFLINE_GRACE NWATCH_DB_TIMEOUT_MS; do
+        if ! grep -q "^${env_key}=" "$nwatch_env"; then
+            key_errors+=("$env_key missing line")
+        elif [[ -z "${!env_key:-}" ]]; then
+            key_errors+=("$env_key not set")
+        elif ! [[ "${!env_key}" =~ $UH_UINT ]] || (( ${!env_key} == 0 )); then
+            key_errors+=("$env_key invalid count")
+        fi
+    done
+    if (( ${#key_errors[@]} > 0 )); then
+        for key_error in "${key_errors[@]}"; do
+            log "ERROR: $key_error -abort"
+        done
+        log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$nwatch_env") -abort"
+        log "ERROR: run nwatchsetup first -abort"
+        exit 1
+    fi
+    unset key_errors key_error env_key
+
+    # FALLBACK
+    # Second layer of protection, behind KEY CHECK -- by design never reached
+    if [ -z "${LAN_POLL_INTERVAL:-}" ]; then
+        log "WARNING: no LAN_POLL_INTERVAL in nwatch.env -fallback"
+    fi
+    LAN_POLL_INTERVAL="${LAN_POLL_INTERVAL:-60}"
+    if [ -z "${LAN_OFFLINE_GRACE:-}" ]; then
+        log "WARNING: no LAN_OFFLINE_GRACE in nwatch.env -fallback"
+    fi
+    LAN_OFFLINE_GRACE="${LAN_OFFLINE_GRACE:-3}"
+
+    # DB CHECK
+    # Require an existing database before continuing
+    if [ ! -f "$db_file" ]; then
+        log "ERROR: $(basename "$db_file") missing; run nwatchsetup -abort"
+        exit 1
+    fi
+fi
+
+# ------------------------------------------------------------------------------
+# ACTIONS
+# ------------------------------------------------------------------------------
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') nwatchlan start..."
 case "${1:-}" in
-    start) start ;;
-    stop) stop ;;
-    status) status ;;
-    *) log "INFO: Usage: $(basename "$0") {start|stop|status}" ;;
-esac
+    --start) start ;;
+    --stop) stop ;;
+    --status) status ;;
+    *) log "INFO: Usage: $(basename "$0") {--start|--stop|--status}"; exit 1 ;;
+esac || exit 1
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') nwatchlan done at: $(date '+%Y-%m-%d %H:%M:%S')"

@@ -16,22 +16,34 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock")
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    echo "ERROR: script $(basename "$0") is already running -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
 
-echo "Joomla Starting. Wait..."
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') joomla start..."
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
 
 install_joomla() {
     if [ -d "/var/www/html/joomla" ]; then
@@ -50,11 +62,21 @@ install_joomla() {
     SQL_DBPASS="${DBPASS//\\/\\\\}"
     SQL_DBPASS="${SQL_DBPASS//\'/\'\'}"
 
-    apt update && apt upgrade -y
+    apt update || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
+        exit 1
+    }
+    apt upgrade -y
 
-    apt install -y apache2 apache2-doc apache2-utils apache2-dev apache2-suexec-pristine libaprutil1t64 libaprutil1-dev libtest-fatal-perl
+    apt install -y apache2 apache2-doc apache2-utils apache2-dev apache2-suexec-pristine libaprutil1t64 libaprutil1-dev libtest-fatal-perl || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install Apache prerequisites -abort" >&2
+        exit 1
+    }
 
-    apt install -y php php-mysql php-xml php-mbstring php-curl php-zip php-gd libapache2-mod-php php-cli php-intl php-bcmath unzip
+    apt install -y php php-mysql php-xml php-mbstring php-curl php-zip php-gd libapache2-mod-php php-cli php-intl php-bcmath unzip || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install PHP prerequisites -abort" >&2
+        exit 1
+    }
 
     PHP_VER=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;")
     PHP_INI="/etc/php/${PHP_VER}/apache2/php.ini"
@@ -87,7 +109,7 @@ EOF
     USER_EXISTS=$(mysql -u root -p"${ROOTPASS}" -sse "SELECT COUNT(*) FROM mysql.user WHERE user = 'joomla_user' AND host = 'localhost'" 2>/dev/null)
 
     if [ -z "$DB_EXISTS" ]; then
-        echo "Creating joomla_db database..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') Creating joomla_db database..."
         mysql -u root -p"${ROOTPASS}" <<EOF
 CREATE DATABASE joomla_db CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 EOF
@@ -96,7 +118,7 @@ EOF
     fi
 
     if [ "${USER_EXISTS:-1}" -eq 0 ]; then
-        echo "Creating joomla_user user..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') Creating joomla_user user..."
         mysql -u root -p"${ROOTPASS}" <<EOF
 CREATE USER 'joomla_user'@'localhost' IDENTIFIED BY '${SQL_DBPASS}';
 GRANT ALL PRIVILEGES ON joomla_db.* TO 'joomla_user'@'localhost';
@@ -106,13 +128,13 @@ EOF
         echo "The user joomla_user@localhost already exists. Its creation is skipped"
     fi
 
-    echo "Searching for the latest Joomla version..."
+    echo "Searching for latest Joomla version"
     LATEST_VERSION=$(curl -sf "https://api.github.com/repos/joomla/joomla-cms/releases/latest" | grep -oP '"tag_name": "\K[0-9.]+')
 
     if [ -z "$LATEST_VERSION" ]; then
         LATEST_VERSION=$(curl -sf "https://downloads.joomla.org/" | grep -oP 'Joomla_\d+\.\d+\.\d+-Stable-Full_Package\.zip' | sort -V | tail -n 1 | grep -oP '\d+\.\d+\.\d+')
         if [ -z "$LATEST_VERSION" ]; then
-            echo "Could not determine the latest Joomla version."
+            echo "Could not determine latest Joomla version"
             exit 1
         fi
     fi
@@ -120,27 +142,32 @@ EOF
     echo "Latest version found: $LATEST_VERSION"
 
     DOWNLOAD_URL="https://update.joomla.org/releases/$LATEST_VERSION/Joomla_$LATEST_VERSION-Stable-Full_Package.zip"
-    echo "Downloading from: $DOWNLOAD_URL"
 
     if ! curl -L -o joomla.zip "$DOWNLOAD_URL"; then
-        echo "Error downloading Joomla."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') PARTIAL: $DOWNLOAD_URL"
         rm -f joomla.zip
         exit 1
     fi
 
-    echo "Download completed: joomla.zip"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') SAVED: joomla.zip"
 
     mkdir -p /var/www/html/joomla
 
     if ! unzip joomla.zip -d /var/www/html/joomla; then
-        echo "Error extracting joomla.zip. File may be corrupt."
+        echo "Error extracting joomla.zip. File may be corrupt"
         rm -f joomla.zip
         rm -rf /var/www/html/joomla
         exit 1
     fi
 
-    chown -R www-data:www-data /var/www/html/joomla
-    chmod -R 755 /var/www/html/joomla
+    if ! chown -R www-data:www-data /var/www/html/joomla; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot set Joomla owner and group -abort" >&2
+        exit 1
+    fi
+    if ! chmod -R 755 /var/www/html/joomla; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot set Joomla permissions -abort" >&2
+        exit 1
+    fi
     rm -f joomla.zip
 
     if ! command -v mkcert &>/dev/null; then
@@ -148,17 +175,27 @@ EOF
         MKCERT_VER=$(curl -sf "https://api.github.com/repos/FiloSottile/mkcert/releases/latest" | grep -oP '"tag_name": "\K[^"]+')
         MKCERT_VER="${MKCERT_VER:-v1.4.4}"
         if ! curl -L -o mkcert "https://github.com/FiloSottile/mkcert/releases/download/${MKCERT_VER}/mkcert-${MKCERT_VER}-linux-amd64"; then
-            echo "Error downloading mkcert."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') PARTIAL: https://github.com/FiloSottile/mkcert/releases/download/${MKCERT_VER}/mkcert-${MKCERT_VER}-linux-amd64"
             exit 1
         fi
-        chmod +x mkcert
-        mv mkcert /usr/local/bin/mkcert
+        echo "$(date '+%Y-%m-%d %H:%M:%S') SAVED: mkcert"
+        if ! { chmod +x mkcert \
+            && mv mkcert /usr/local/bin/mkcert; }; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot deploy mkcert -abort" >&2
+            exit 1
+        fi
         mkcert -install
     fi
 
     mkcert localhost
-    mkdir -p /etc/ssl/certs && mv localhost.pem /etc/ssl/certs/
-    mkdir -p /etc/ssl/private && mv localhost-key.pem /etc/ssl/private/
+    if ! { mkdir -p /etc/ssl/certs && mv localhost.pem /etc/ssl/certs/; }; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot publish certificate -abort" >&2
+        exit 1
+    fi
+    if ! { mkdir -p /etc/ssl/private && mv localhost-key.pem /etc/ssl/private/; }; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot publish certificate key -abort" >&2
+        exit 1
+    fi
 
     cat <<EOF | tee /etc/apache2/sites-available/joomla.conf > /dev/null
 <VirtualHost *:80>
@@ -205,7 +242,7 @@ EOF
     echo
     echo "DB name: joomla_db"
     echo "DB user: joomla_user"
-    echo "Password: the one you chose at the beginning of the installation"
+    echo "Password: one you chose at beginning of installation"
     echo "Run mkcert -install for certificates to be trusted automatically"
 }
 
@@ -213,10 +250,10 @@ delete_joomla() {
     read -r -sp "Enter the MySQL root password: " ROOTPASS
     echo
     if [ -z "$ROOTPASS" ]; then
-        echo "ERROR: password cannot be empty -- abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: password cannot be empty -abort"
         exit 1
     fi
-    echo "Removing Joomla..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Removing Joomla..."
     rm -rf /var/www/html/joomla
 
     mysql -u root -p"${ROOTPASS}" <<EOF
@@ -233,7 +270,7 @@ EOF
 }
 
 delete_dependencies() {
-    echo "Removing MySQL, Apache2, PHP and mkcert..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Removing MySQL, Apache2, PHP and mkcert..."
     systemctl stop apache2 mysql
     apt purge --auto-remove mysql-server mysql-client mysql-common apache2 'php*' libapache2-mod-php -y
     rm -rf /etc/mysql /var/lib/mysql /var/log/mysql 2>/dev/null
@@ -264,6 +301,11 @@ echo "2) Delete Joomla"
 echo "3) Delete MySQL/Apache2/PHP/mkcert"
 echo "4) Exit"
 read -r -p "Select an option [1-4]: " OPTION
+
+# ------------------------------------------------------------------------------
+# MENU
+# ------------------------------------------------------------------------------
+
 OPTION="${OPTION:-4}"
 
 case "$OPTION" in
@@ -273,3 +315,10 @@ case "$OPTION" in
     4) echo "Exit"; exit 0 ;;
     *) echo "Invalid Option"; exit 1 ;;
 esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') joomla done at: $(date '+%Y-%m-%d %H:%M:%S')"

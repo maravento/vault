@@ -14,33 +14,45 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
 # dependencies
 for dep in procps; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
 
-echo "Kill Process Starting. Wait..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') Kill Process Starting. Wait..."
+
+# ------------------------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') pskill start..."
 
 # KILL PROCESS
+# Read the process name to stop
 read -rp "Set process name (e.g. vlc): " process_name
 
 if [ -z "$process_name" ]; then
-    echo "ERROR: process name cannot be empty -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: process name cannot be empty -abort"
     exit 1
 fi
 
 protected_pattern="^(systemd|init|kernel|kthreadd|ksoftirqd|migration|watchdog)$"
 if [[ "$process_name" =~ $protected_pattern ]]; then
-    echo "ERROR: '$process_name' is a protected system process -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: '$process_name' is a protected system process -abort"
     exit 1
 fi
 
@@ -57,3 +69,10 @@ else
     fi
     echo "Done"
 fi
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') pskill done at: $(date '+%Y-%m-%d %H:%M:%S')"

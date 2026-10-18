@@ -38,10 +38,10 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Tested on Ubuntu 24.04/26.04 LTS. Use on other versions or distributions is at your own risk.
+      WARNING: Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Probado en Ubuntu 24.04/26.04 LTS. El uso en otras versiones o distribuciones queda bajo responsabilidad de quien lo instale.
+      ADVERTENCIA: Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
     </td>
   </tr>
 </table>
@@ -52,26 +52,32 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 
 #### Containers & Virtualization
 
-- [Bridge Management for Virtualization (on|off|status|clean)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bridge.sh)
+- [Bridge Management for Virtualization (--on|--off|--status|--clean)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bridge.sh)
 - [phpVirtualBox Install](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/phpvbox.sh)
 - [Virtual Hard Disk VHD image (.img) (loop or kpartx - create|mount|umount)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vdisk.sh)
-- [VirtualBox 7.x (install|remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vbox.sh)
-- [VMs Virtualbox (start|stop|status|shutdown|reset) (replace `my_vm` with the name of your vm)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vm.sh)
-- [WinBoat (install|remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/winboat.sh)
+- [VirtualBox 7.x (interactive install/remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vbox.sh)
+- [VMs Virtualbox (--start|--stop|--status|--shutdown|--reset) (replace `my_vm` with the name of your vm)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vm.sh)
+- [WinBoat (--install|--uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/winboat.sh)
 
-#### Context Menu Tools (Nautilus, Caja, Thunar, Nemo)
+#### File Manager Scripts (Nautilus, Caja, Thunar, Nemo)
 
-- [check MD5](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/checkmd5)
-- [check sha256](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/checksha256)
-- [copy path](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/copypath)
-- [KDE Connect (Send files to smarthphone)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/send2phone)
-- [make MD5](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/makemd5)
-- [make sha256](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/makesha256)
-- [mount manager (smb, sftp, fuse)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/mountman)
+- [FMS Setup (--install|--update|--uninstall scripts and prepare dependencies)](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/fmssetup.sh)
+- [check MD5](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/checkmd5)
+- [check sha256](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/checksha256)
+- [copy path](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/copypath)
+- [KDE Connect (Send files to smarthphone)](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/send2phone)
+- [make MD5](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/makemd5)
+- [make sha256](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/makesha256)
+- [mount manager (smb, sftp, fuse)](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/mountman)
+
+FMS installation and updates require an X11 or Wayland desktop session. Run the installer as the desktop user, without sudo. Without `DISPLAY` or `WAYLAND_DISPLAY`, it aborts before selecting a file manager or installing scripts. Uninstallation remains available without a graphical session.
+
+La instalación y actualización de FMS requieren una sesión de escritorio X11 o Wayland. Ejecute el instalador como usuario del escritorio, sin sudo. Si no existen `DISPLAY` ni `WAYLAND_DISPLAY`, aborta antes de seleccionar el gestor de archivos o instalar scripts. La desinstalación sigue disponible sin sesión gráfica.
+
 
 #### Networking, Remote Access & Security
 
-- [Android 2 PC via scrcpy (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/droid2pc.sh)
+- [Android 2 PC via scrcpy (--start|--stop|--status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/droid2pc.sh)
 - [ArpON table filter](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arponscan.sh)
 - [Bandwidth Watchdog (bwmon - cron; alerts via syslog + desktop notification when below minimum download|upload)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bwmon.sh)
 - [Internet Watchdog (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/watchdog.sh)
@@ -81,12 +87,12 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 - [Rustdesk Client (install|remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rdclient.sh)
 - [Rustdesk Server (install|update|relay host|start|stop|status|public key|remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rdserver.sh)
 - [Veyon Client Tunnel (connects Veyon Master to a remote Veyon Service via cftunnel.sh)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/veyonclient.sh)
-- [x11vnc (install|uninstall|start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/x11vncmgr.sh)
+- [x11vnc (--install|--uninstall|--start|--stop|--status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/x11vncmgr.sh)
 
 #### Server & Deployment
 
-- [Cloudflare Tunnel (create|start|startall|stop|status|delete) - Zero Trust Activation Recommended](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cftunnel.sh)
-- [Docker + Portainer (install|remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/docker.sh)
+- [Cloudflare Tunnel (--create|--start|--startall|--stop|--status|--delete) - Zero Trust Activation Recommended](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cftunnel.sh)
+- [Docker + Portainer (--install|--uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/docker.sh)
 - [Joomla (install|remove with Apache/MySQL/PHP/mkcert)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/joomla.sh)
 - [Squid-OpenSSL (ssl-bump)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/sslbump.sh)
 - [Wireguard VPN (install|uninstall - server|client)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/wireguard.sh)
@@ -95,14 +101,14 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 
 - [Cleaner - Delete files (Thumbs.db, Zone.identifier, encryptable, etc.)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cleaner.sh)
 - [Disk Check (HDD/SSD/NVMe)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/diskcheck.sh)
-- [Drive Crypt (Cryptomator Encrypted Disk - start|stop - to folder `/home/$USER/dcrypt`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/drivecrypt.sh)
+- [Drive Crypt (Cryptomator Encrypted Disk - --start|--stop - to folder `/home/$USER/dcrypt`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/drivecrypt.sh)
 - [File Report (HTML disk usage report: top extensions, folders and largest files)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/filereport.sh)
 - [FreeFileSync Update](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ffsupdate.sh)
 - [Gdrive (Start | Stop - to folder `/home/$USER/gdrive`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/gdrive.sh)
 - [Mass Unzip with Pass](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/massunzip.sh)
 - [MEGAsync Instances (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/msyncs)
 - [NTFS Disk Drive (mount|umount with ntfs-3g)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ntfsdrive.sh)
-- [Rclone Manager (Google Drive, PCloud, Dropbox, OneDrive, Mega, etc.) - mount|umount and 2-way folder sync](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rclonemgr.sh)
+- [Rclone Manager - mount (--start|--stop|--restart|--status), sync (--run|--status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rclonemgr.sh)
 - [TRIM for SSD/NVMe](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/trim.sh)
 
 #### System, Hardware & Monitoring
@@ -111,14 +117,14 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 - [Hardware Clock Sync](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/hwclock.sh)
 - [Kill Process By Name](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/pskill.sh)
 - [Kworker Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/kworker.sh)
-- [Limit processes with CPU Limit (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cpulimit.sh)
+- [Limit processes with CPU Limit (--start|--stop|--status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cpulimit.sh)
 - [Port Kill (check port with: `sudo netstat -lnp | grep "port"`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/portkill.sh)
 - [Realtek Linux drivers](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/realtekdrv.sh)
 
 #### Webmin Module Installation Tools
 
-- [Netplan Manager - Networking Category (install|uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/netplanmgr.sh)
-- [Services Monitor - System Category (install|uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/servicemon.sh)
+- [Netplan Manager - Networking Category (--install|--uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/netplanmgr.sh)
+- [Services Monitor - System Category (--install|--uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/servicemon.sh)
 
 ### BATCH (Windows)
 
@@ -150,11 +156,80 @@ Tested on: Windows 10/11 x64
 - [Unifi Network Setup for Windows](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/unifisetup.bat)
 - [Unifi Setup for Ubuntu](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/unifisetup.sh)
 
+### Installation Options
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Installation actions use <code>--install</code>, <code>--update</code> and <code>--uninstall</code>. When several components are available, name the component after the option. Each tool accepts only the operations listed below. Run without arguments to use its menu.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Las acciones de instalación usan <code>--install</code>, <code>--update</code> y <code>--uninstall</code>. Si existen varios componentes, indique el componente después de la opción. Cada herramienta acepta únicamente las operaciones indicadas. Ejecute sin argumentos para utilizar su menú.
+    </td>
+  </tr>
+</table>
+
+| Script | Accepted options |
+| --- | --- |
+| `docker.sh`, `winboat.sh` | `--install`, `--uninstall`, `--help` |
+| `aistack.sh` | `--install [component]`, `--update <component>`, `--uninstall [component]`, `--status`, `--model`, `--help` |
+| `unifisetup.sh` | `--install`, `--update` or `--uninstall`, followed by `network` or `osserver`; `--status`, `--help` |
+| `vbox.sh`, `joomla.sh` | Interactive operation; no installation flags |
+
+#### UniFi Examples
+
+```bash
+sudo bash unifisetup.sh --install network
+sudo bash unifisetup.sh --update osserver
+sudo bash unifisetup.sh --uninstall network
+sudo bash unifisetup.sh --status
+```
+
+#### AI Stack Examples
+
+```bash
+sudo bash aistack.sh --install
+sudo bash aistack.sh --install opencode
+sudo bash aistack.sh --update opencode
+sudo bash aistack.sh --install opencode-desktop appimage
+sudo bash aistack.sh --uninstall opencode-desktop
+sudo bash aistack.sh --status
+```
+
+> AI Stack defaults: <code>--install</code> selects <code>stack</code>; <code>--uninstall</code> selects <code>all</code>. The optional <code>appimage</code> or <code>deb</code> format applies only to <code>--install opencode-desktop</code>. CLI updates are available only for <code>opencode</code> and <code>opencode-desktop</code>.
+>
+> Valores predeterminados de AI Stack: <code>--install</code> selecciona <code>stack</code>; <code>--uninstall</code> selecciona <code>all</code>. El formato opcional <code>appimage</code> o <code>deb</code> corresponde únicamente a <code>--install opencode-desktop</code>. La actualización por CLI solo está disponible para <code>opencode</code> y <code>opencode-desktop</code>.
+
 ### Python (Linux)
 
 - [Email Scan (Replaces: BASE_URL and TARGET_EMAIL)](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/emailscan.py)
 - [Git Folder Download](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py)
 - [Link Check - Broken Link Scanner (Replaces: BASE_URL)](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/linkcheck.py)
+
+## NOTICE
+
+---
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>This repository</strong>
+      <ul>
+        <li>May include third-party components.</li>
+        <li>Does not accept Pull Requests. Changes must be proposed via Issues.</li>
+        <li>This project does not support backward compatibility. New versions may require configuration changes or reinstallation.</li>
+      </ul>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Este repositorio</strong>
+      <ul>
+        <li>Puede incluir componentes de terceros.</li>
+        <li>No acepta Pull Requests. Los cambios deben proponerse mediante Issues.</li>
+        <li>Este proyecto no soporta retrocompatibilidad. Las nuevas versiones pueden requerir cambios de configuración o una reinstalación.</li>
+      </ul>
+    </td>
+  </tr>
+</table>
 
 ## DISCLAIMER
 

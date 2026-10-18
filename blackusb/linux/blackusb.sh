@@ -6,12 +6,8 @@
 # BlackUSB
 # USB device access control via udev rules
 #
-# DESCRIPTION:
-# Whitelists USB/HID devices with udev rules and blocks any other
-# device on insertion.
-#
 # USAGE:
-# sudo bash blackusb.sh {show|on|eject|off|gen|del|trigger|edit}
+# sudo bash blackusb.sh {--show|--on|--eject|--off|--generate|--delete|--trigger|--edit|--help}
 #
 # LOG: /var/log/blackusb.log
 #
@@ -19,26 +15,34 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # root check
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: This script must be run as root -- abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
 # dependencies
 for dep in udev systemd util-linux; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "ERROR: dependency '$dep' is not installed -- abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
 
 # validation -- integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
-echo "BlackUSB Start. Wait..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') BlackUSB Start. Wait..."
+
+# ------------------------------------------------------------------------------
+# OWN VALUES
+# ------------------------------------------------------------------------------
 
 # How to Use:
 # block usb except whitelist (00-blackusb.rules)
@@ -93,15 +97,19 @@ program="${0##*/}"
 program_abs="$scr/$program"
 
 # Run this when uknown usb device is added
-trigger_cmd_add="$program_abs trigger"
+trigger_cmd_add="$program_abs --trigger"
 
 # Run this when specified usb device is removed
-trigger_cmd_remove="$program_abs trigger"
+trigger_cmd_remove="$program_abs --trigger"
 
 # Run this when a whitelisted usb device is added (logging only, no block)
 trigger_cmd_allow="$program_abs allow_trigger"
 
-# CODE
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
+# Select the configured graphical or console editor
 if [[ $custom_editor = 'yes' ]]; then
     [[ -n ${DISPLAY:-} ]] && inx=yes
     if [[ -n "${inx:-}" ]]; then
@@ -130,14 +138,14 @@ BlackUSB
 usage: ${0##*/} [action]
 
   action
-    o, on - activate blackusb
-    x, off - temporarily deactivate blackusb
-    j, eject - add entry on eject event
-    g, gen - generate or refresh whitelist udev rules file
-    d, del - delete udev rules file
-    t, trigger - trigger event on insertion or removal
-    e, edit - edit udev rules file manually
-    s, show - show currently connected usb devices
+    --on - activate blackusb
+    --off - temporarily deactivate blackusb
+    --eject - add entry on eject event
+    --generate - generate or refresh whitelist udev rules file
+    --delete - delete udev rules file
+    --trigger - trigger event on insertion or removal
+    --edit - edit udev rules file manually
+    --show - show currently connected usb devices
 
   config (check source)
     udev rule file: $rule_file
@@ -185,6 +193,7 @@ choose_remove() {
     message "\nChoose number to add"
     read -r -e number
     [[ "$number" =~ $UH_UINT ]] || die "wrong number"
+    [ "${#number}" -le 5 ] || die "wrong number"
     [[ -z "${vendors[$number]:-}" ]] && die "wrong number"
 
     string_eject="SUBSYSTEM==\"usb\", ENV{ID_VENDOR_ID}==\"${vendors[$number]}\", ENV{ID_MODEL_ID}==\"${products[$number]}\""
@@ -208,8 +217,8 @@ choose_remove() {
         fi
     fi
 
-    echo -e "$rulevar" >"$rule_file"
-    udevadm control --reload
+    echo -e "$rulevar" >"$rule_file" || die "cannot update udev rules"
+    udevadm control --reload || die "cannot reload udev rules"
     message "\nAdded:\n${products_name[$number]//\?/ } ${vendors[$number]} ${products[$number]} ${serials[$number]}"
 }
 
@@ -247,15 +256,15 @@ gen_whitelist() {
     done
 
     rulevar+="\n$rule_end"
-    echo -e "$rulevar" >"$rule_file"
-    udevadm control --reload
+    echo -e "$rulevar" >"$rule_file" || die "cannot update udev rules"
+    udevadm control --reload || die "cannot reload udev rules"
 }
 
 del_rule() {
     [[ -f "${rule_file}.off" ]] && rule_file="${rule_file}.off"
     if [[ -f "$rule_file" ]]; then
         rm "$rule_file" && message "$rule_file deleted" || die "error deleting $rule_file"
-        udevadm control --reload
+        udevadm control --reload || die "cannot reload udev rules"
     else
         die "$rule_file does not exist"
     fi
@@ -263,8 +272,8 @@ del_rule() {
 
 deactivate() {
     if [[ -f "$rule_file" ]]; then
-        mv "$rule_file" "${rule_file}.off"
-        udevadm control --reload
+        mv "$rule_file" "${rule_file}.off" || die "cannot update udev rules"
+        udevadm control --reload || die "cannot reload udev rules"
         message "blackusb deactivated"
     else
         die "$rule_file does not exist"
@@ -273,8 +282,8 @@ deactivate() {
 
 activate() {
     if [[ -f "${rule_file}.off" ]]; then
-        mv "${rule_file}.off" "$rule_file"
-        udevadm control --reload
+        mv "${rule_file}.off" "$rule_file" || die "cannot update udev rules"
+        udevadm control --reload || die "cannot reload udev rules"
         message "blackusb activated"
     else
         read_values && gen_whitelist && message "rules refreshed, $count rules added, blackusb activated"
@@ -292,7 +301,7 @@ edit_rules() {
 }
 
 trigger() {
-    [[ ! -f "$rule_file" ]] && die "Rules file not found. Run: $(basename "$0") on"
+    [[ ! -f "$rule_file" ]] && die "Rules file not found. Run: $(basename "$0") --on"
     read_values
     rulevar="$(<"$rule_file")"
     newdevice=""
@@ -336,25 +345,32 @@ log_allowed() {
     [[ $log_enabled = 'yes' ]] && echo -e "$allow_msg" >>"$log_file"
 }
 
+# ------------------------------------------------------------------------------
+# ACTIONS
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') blackusb start..."
+
 case "${1:-}" in
-g | gen)
+--generate)
     read_values && gen_whitelist && message "rules refreshed, $count rules added"
     [[ "${rule_file##*.}" = 'off' ]] && message "blackusb inactive"
     ;;
 
-d | del)
+--delete)
     del_rule
     ;;
 
-x | off)
+--off)
     deactivate
     ;;
 
-o | on)
+--on)
     activate
     ;;
 
-t | trigger)
+--trigger)
     setsid "$program_abs" trigger_async </dev/null >/dev/null 2>&1 &
     disown
     ;;
@@ -372,21 +388,31 @@ trigger_async)
     trigger
     ;;
 
-e | edit | editor)
+--edit)
     edit_rules
     ;;
 
-s | show)
+--show)
     read_values && show_values
     ;;
 
-j | eject)
+--eject)
     read_values && show_values && choose_remove
     [[ "${rule_file##*.}" = 'off' ]] && message "blackusb inactive"
+    ;;
+
+--help|-h)
+    usage
     ;;
 
 *)
     usage
     ;;
 esac
-echo "Done"
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
+echo "$(date '+%Y-%m-%d %H:%M:%S') blackusb done at: $(date '+%Y-%m-%d %H:%M:%S')"
