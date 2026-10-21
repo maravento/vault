@@ -3,6 +3,9 @@
 #
 ################################################################################
 #
+# netplanmgr -- Netplan Manager module for Webmin
+# FILE: netplanmgr.sh
+#
 # DESCRIPTION:
 # Installs or uninstalls the Netplan Manager module for Webmin, a graphical
 # interface to view, edit, validate and apply Netplan YAML configuration
@@ -1033,7 +1036,7 @@ ICONEOF
             echo "Module added to webmin.acl"
         fi
     else
-        echo "WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -alert"
     fi
 
     # Clear cache
@@ -1085,7 +1088,7 @@ uninstall_module() {
             echo "Module removed from webmin.acl"
         fi
     else
-        echo "WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -alert"
     fi
 
     # Clear cache
@@ -1145,6 +1148,7 @@ main() {
                 ;;
             -h|--help)
                 show_usage
+                echo "$(date '+%Y-%m-%d %H:%M:%S') netplanmgr done at: $(date '+%Y-%m-%d %H:%M:%S')"
                 exit 0
                 ;;
             *)
@@ -1181,10 +1185,7 @@ main() {
                 break
                 ;;
             3)
-                echo ""
-                echo "$(date '+%Y-%m-%d %H:%M:%S') Exiting..."
-                echo ""
-                exit 0
+                break
                 ;;
             *)
                 echo ""

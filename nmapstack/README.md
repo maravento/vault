@@ -1,3 +1,8 @@
+<!--
+NmapStack documentation
+FILE: nmapstack/README.md
+-->
+
 # [NmapStack](https://github.com/maravento)
 
 [![status-beta](https://img.shields.io/badge/status-beta-magenta.svg)](https://github.com/maravento/vault)

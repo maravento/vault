@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Start | Stop VMs Virtualbox
+# FILE: vm.sh
 #
 # DESCRIPTION: Drives one VirtualBox machine headless through VBoxManage, as
 # the detected local user. Asks for the VM name or UUID at the prompt.

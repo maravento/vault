@@ -3,6 +3,9 @@
 #
 ################################################################################
 #
+# massunzip -- mass decompression of password-protected archives
+# FILE: massunzip.sh
+#
 # DESCRIPTION:
 # Mass decompression of password-protected archives in the current
 # directory, trying a predefined list of passwords against each file.
@@ -10,6 +13,10 @@
 # USAGE:
 # ./massunzip.sh
 # Run (as a non-root user) from the directory containing the archives.
+#
+# NOTE:
+# The password list inside this script holds placeholders, not real
+# credentials. Replace them with your own passwords before running it.
 #
 ################################################################################
 
@@ -54,11 +61,8 @@ for dep in p7zip-full p7zip-rar util-linux; do
 done
 
 # ------------------------------------------------------------------------------
-# MAIN
+# VARIABLES
 # ------------------------------------------------------------------------------
-
-# start
-echo "$(date '+%Y-%m-%d %H:%M:%S') massunzip start..."
 
 # PASSWORDS
 # These passwords are placeholders, not credentials for real archives.
@@ -75,6 +79,13 @@ passw=(
   vodka
   icecream
 )
+
+# ------------------------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------------------------
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') massunzip start..."
 
 # CHECK
 # Try the configured passwords against each supported archive

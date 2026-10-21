@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Joomla install | remove
+# FILE: joomla.sh
 #
 # DESCRIPTION: Interactive menu to install Joomla with its Apache/MySQL/PHP
 # stack and local mkcert certificates, remove Joomla only, or remove the
@@ -312,7 +313,7 @@ case "$OPTION" in
     1) install_joomla ;;
     2) delete_joomla ;;
     3) warning ;;
-    4) echo "Exit"; exit 0 ;;
+    4) ;;
     *) echo "Invalid Option"; exit 1 ;;
 esac
 

@@ -1,3 +1,8 @@
+<!--
+Vault documentation
+FILE: README.md
+-->
+
 # [Vault](https://github.com/maravento)
 
 [![status-maintained](https://img.shields.io/badge/status-maintained-purple.svg)](https://github.com/maravento/vault)

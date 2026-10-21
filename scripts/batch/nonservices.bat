@@ -2,6 +2,7 @@
 :: maravento.com
 
 :: Script to Disable or Auto Non-Essential Services
+:: FILE: nonservices.bat
 :: for win 10/11
 
 REM Checking privileges

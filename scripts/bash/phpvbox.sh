@@ -3,6 +3,9 @@
 #
 ################################################################################
 #
+# phpvbox -- phpVirtualBox web interface installer
+# FILE: phpvbox.sh
+#
 # DESCRIPTION:
 # Installs phpVirtualBox, a web interface for VirtualBox, under Apache.
 # Requires VirtualBox 7.x already installed.
@@ -233,7 +236,7 @@ echo "Script and cron task added successfully"
 echo
 echo "Access: http://localhost/phpvirtualbox"
 echo "Default user: admin / Default password: admin"
-echo "INFO: change default password immediately after first login"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: change default password immediately after first login"
 echo "Go to: Admin menu -> Change Password"
 echo "Leaving default password exposes VirtualBox to unauthorized access"
 echo "Use vinagre or remmina to connect (activate Enable Server into Remote Display of VM)"

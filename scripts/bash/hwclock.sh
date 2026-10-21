@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Hardware Clock Sync
+# FILE: hwclock.sh
 #
 # DESCRIPTION: Syncs the hardware clock with the system clock. Run as root,
 # intended to run at boot via cron (@reboot).
@@ -53,7 +54,7 @@ done
 # start
 echo "$(date '+%Y-%m-%d %H:%M:%S') hwclock start..."
 
-hwclock -w || echo "WARNING: hwclock -w failed, VM or container? -alert"
+hwclock -w || echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: hwclock -w failed, VM or container? -alert"
 echo "HWClock Update: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
 
 # ------------------------------------------------------------------------------

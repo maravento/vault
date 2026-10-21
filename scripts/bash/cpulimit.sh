@@ -4,6 +4,7 @@
 ################################################################################
 #
 # CPU Limit (start / stop / status)
+# FILE: cpulimit.sh
 #
 # DESCRIPTION: Caps the CPU usage of a program with cpulimit. Asks for the
 # program name and the percentage to allow.

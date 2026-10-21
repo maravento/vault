@@ -4,6 +4,7 @@
 ################################################################################
 #
 # WireGuard Install Server or Client | Uninstall
+# FILE: wireguard.sh
 #
 # DESCRIPTION: Installs WireGuard as a server or as a client, generating the
 # key pair and the interface configuration. Also uninstalls it.

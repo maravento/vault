@@ -4,6 +4,7 @@
 ################################################################################
 #
 # nwatchlan - LAN Devices Watchdog
+# FILE: tools/nwatchlan.sh
 #
 # USAGE:
 # ./nwatchlan.sh {--start|--stop|--status}

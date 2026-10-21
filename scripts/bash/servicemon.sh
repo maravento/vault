@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Services Monitor module installation/uninstallation script for Webmin
+# FILE: servicemon.sh
 #
 # DESCRIPTION:
 # Installs or uninstalls the Services Monitor module for Webmin, a web
@@ -823,7 +824,7 @@ ICONEOF
             echo "Module added to webmin.acl"
         fi
     else
-        echo "WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -alert"
     fi
 
     rm -f /var/webmin/module.infos.cache
@@ -879,7 +880,7 @@ uninstall_module() {
             echo "Module removed from webmin.acl"
         fi
     else
-        echo "WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -alert"
     fi
 
     rm -f /var/webmin/module.infos.cache
@@ -946,6 +947,7 @@ main() {
                 ;;
             -h|--help)
                 show_usage
+                echo "$(date '+%Y-%m-%d %H:%M:%S') servicemon done at: $(date '+%Y-%m-%d %H:%M:%S')"
                 exit 0
                 ;;
             *)
@@ -971,10 +973,7 @@ main() {
                 break
                 ;;
             3)
-                echo ""
-                echo "$(date '+%Y-%m-%d %H:%M:%S') Exiting..."
-                echo ""
-                exit 0
+                break
                 ;;
             *)
                 echo ""

@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Kill Process By Name
+# FILE: pskill.sh
 #
 # DESCRIPTION: Kills every process matching a name. Sends TERM, waits three
 # seconds, then sends KILL to the survivors. Refuses core system processes.

@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Virtual Hard Disk (VHD) image (.img) with loop or kpartx
+# FILE: vdisk.sh
 #
 # DESCRIPTION: Creates a VHD image file, then mounts or unmounts it through a
 # loop device or kpartx. Asks for the file system on creation.

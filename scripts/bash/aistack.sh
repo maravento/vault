@@ -4,6 +4,7 @@
 ################################################################################
 #
 # AI STACK MANAGER - Dockerized Version
+# FILE: aistack.sh
 #
 # DESCRIPTION: Installs and manages a local AI stack in Docker, and the LLM
 # models it serves. Models are handled apart from the stack installation, and

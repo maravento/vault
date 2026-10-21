@@ -4,6 +4,7 @@
 ################################################################################
 #
 # bwmon - Bandwidth Watchdog
+# FILE: bwmon.sh
 # Source: https://github.com/sivel/speedtest-cli
 #
 # DESCRIPTION: Runs a speedtest and alerts (syslog + log file + desktop

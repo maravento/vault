@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Mount | Umount Google Drive folder via google-drive-ocamlfuse
+# FILE: gdrive.sh
 #
 # DESCRIPTION: Mounts/unmounts the local user's Google Drive folder,
 # auto-detecting the local sudo user. Not run as root.

@@ -4,6 +4,7 @@
 ################################################################################
 #
 # nwatchports - Port Auditing Daemon + CLI
+# FILE: tools/nwatchports.sh
 #
 # USAGE:
 # ./nwatchports.sh {--start|--stop|--status}

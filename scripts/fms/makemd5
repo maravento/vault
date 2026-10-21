@@ -4,6 +4,7 @@
 ################################################################################
 #
 # makemd5 -- FMS MD5 generation
+# FILE: makemd5
 #
 # DESCRIPTION:
 # Creates MD5 checksums as a normal desktop user.

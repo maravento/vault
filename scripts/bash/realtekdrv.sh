@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Realtek Driver Manager
+# FILE: realtekdrv.sh
 #
 # DESCRIPTION: Switches the Realtek NIC driver between the in-kernel r8169 and
 # the proprietary DKMS drivers r8168 (RTL8111/8168) and r8125 (RTL8125 2.5G).
@@ -202,7 +203,7 @@ while true; do
         1) install_r8168; break ;;
         2) restore_r8169; break ;;
         3) install_r8125; break ;;
-        4) echo " Exiting."; exit 0 ;;
+        4) break ;;
         *) echo " Invalid option"; continue ;;
     esac
 done

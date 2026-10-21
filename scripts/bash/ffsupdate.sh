@@ -4,6 +4,7 @@
 ################################################################################
 #
 # FreeFileSync Update
+# FILE: ffsupdate.sh
 #
 # DESCRIPTION: Downloads and silently installs the latest FreeFileSync
 # release. Run as root, intended for cron/unattended use.

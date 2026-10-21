@@ -4,6 +4,7 @@
 ################################################################################
 #
 # File Report
+# FILE: filereport.sh
 #
 # DESCRIPTION: Disk usage report for headless servers, readable in a browser.
 # Asks for the folder to scan, defaulting to the local user's home, and
@@ -120,7 +121,7 @@ report_file="${report_dir}/filereport_$(date +%F-%H_%M_%S).html"
 scan_list=$(mktemp)
 trap 'rm -f "$scan_list"' EXIT
 if ! find "$targetfolder" -type f -printf '%s\t%p\n' 2>/dev/null > "$scan_list"; then
-    echo "WARNING: scan incomplete; report includes available files -alert" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: scan incomplete; report includes available files -alert" >&2
 fi
 total_files=$(wc -l < "$scan_list")
 total_bytes=$(awk -F'\t' '{s+=$1} END{printf "%.0f", s+0}' "$scan_list")

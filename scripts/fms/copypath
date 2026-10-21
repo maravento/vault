@@ -4,6 +4,7 @@
 ################################################################################
 #
 # copypath -- FMS path copy
+# FILE: copypath
 #
 # DESCRIPTION:
 # Copies selected paths as a normal desktop user.

@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Docker + Portainer (Install | Remove)
+# FILE: docker.sh
 #
 # DESCRIPTION: Installs Docker CE together with Portainer, or removes Docker.
 # Without an argument it opens an interactive menu.
@@ -213,7 +214,6 @@ show_help() {
     echo "  --uninstall  Uninstall Docker"
     echo ""
     echo "If no command is provided, interactive mode will start"
-    exit 0
 }
 
 # ------------------------------------------------------------------------------
@@ -238,8 +238,6 @@ if [ $# -eq 0 ]; then
         uninstall_docker
         ;;
       3)
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Exiting..."
-        exit 0
         ;;
       *)
         echo "Invalid option"

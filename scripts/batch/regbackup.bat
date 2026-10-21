@@ -2,6 +2,7 @@
 :: maravento.com
 
 :: Script to Regedit Backup
+:: FILE: regbackup.bat
 :: for win 7/10/11
 
 REM Checking privileges

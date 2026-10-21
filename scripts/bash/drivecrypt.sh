@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Cryptomator Encrypted Disk - Mount | Umount
+# FILE: drivecrypt.sh
 #
 # DESCRIPTION: Mounts/unmounts the local user's Cryptomator vault path via
 # bindfs, auto-detecting the local sudo user and installing Cryptomator

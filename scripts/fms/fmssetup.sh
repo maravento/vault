@@ -4,6 +4,7 @@
 ################################################################################
 #
 # fmssetup -- installer for FMS
+# FILE: fmssetup.sh
 #
 # DESCRIPTION:
 # Installs or uninstalls FMS. Run without sudo.

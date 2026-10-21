@@ -1,4 +1,5 @@
 """Test the virtual input lifecycle without changing desktop audio."""
+# FILE: capturefox/tests/test_audio_bridge.py
 
 import importlib.util
 import json

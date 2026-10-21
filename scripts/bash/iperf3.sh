@@ -4,6 +4,7 @@
 ################################################################################
 #
 # iperf3 LAN Performance Test
+# FILE: iperf3.sh
 #
 # DESCRIPTION: Interactive LAN throughput and latency tester (ping/TCP/UDP).
 # Prompts for the local interface, target server IPs, duration and

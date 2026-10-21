@@ -1,3 +1,8 @@
+<!--
+Gateproxy documentation
+FILE: gateproxy/README.md
+-->
+
 # [Gateproxy](https://github.com/maravento)
 
 [![status-beta](https://img.shields.io/badge/status-beta-magenta.svg)](https://github.com/maravento/vault)
@@ -241,6 +246,7 @@ Command-line tools for the administrator. No script of the stack invokes them / 
 | :--- | :--- |
 | **Timeshift** | System snapshots |
 | **FreeFileSync** | File mirror sync; auto-updated weekly via `/etc/scr/ffsupdate.sh` |
+| **`bkconf.sh`** | Configuration archive; only the last 3 are kept |
 
 ## REPOSITORY STRUCTURE
 

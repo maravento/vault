@@ -2,6 +2,7 @@
 :: maravento.com
 
 :: Script to SMB Config
+:: FILE: smbconf.bat
 :: for win 10/11
 
 :: Description:

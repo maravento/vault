@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Suridata
+# FILE: suricata/suridata.sh
 #
 # USAGE:
 # sudo ./suridata.sh

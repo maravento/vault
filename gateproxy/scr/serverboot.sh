@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Server Boot
+# FILE: scr/serverboot.sh
 #
 # USAGE:
 # sudo ./serverboot.sh

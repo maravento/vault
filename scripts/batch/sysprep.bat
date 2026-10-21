@@ -2,6 +2,7 @@
 :: maravento.com
 
 :: Sysprep preparation
+:: FILE: sysprep.bat
 :: for win 10/11
 
 :: LIMITATION: Sysprep only supports local user accounts on an unencrypted

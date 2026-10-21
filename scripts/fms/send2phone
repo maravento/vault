@@ -4,6 +4,7 @@
 ################################################################################
 #
 # send2phone -- FMS phone transfer
+# FILE: send2phone
 #
 # DESCRIPTION:
 # Sends selected files as a normal desktop user.

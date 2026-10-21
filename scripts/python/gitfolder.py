@@ -3,6 +3,7 @@
 """
 gitfolder.py
 ------------
+FILE: gitfolder.py
 Downloads a specific folder from a public GitHub repository using the
 GitHub API. Supports recursive download of subfolders and preserves the
 original directory structure locally.

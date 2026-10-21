@@ -3,6 +3,9 @@
 #
 ################################################################################
 #
+# npswitch -- NetworkManager / systemd-networkd renderer switch
+# FILE: npswitch.sh
+#
 # DESCRIPTION:
 # Switches between NetworkManager and systemd-networkd on Netplan-based
 # systems. Detects network interfaces and recommends the best renderer.
@@ -386,6 +389,7 @@ switch_to_networkd() {
 
         if [ "$confirm" != "I UNDERSTAND" ]; then
             echo "Aborted. Good choice!"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') npswitch done at: $(date '+%Y-%m-%d %H:%M:%S')"
             exit 0
         fi
     fi
@@ -423,6 +427,7 @@ switch_to_networkd() {
 
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
         echo "Aborted."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') npswitch done at: $(date '+%Y-%m-%d %H:%M:%S')"
         exit 0
     fi
 
@@ -508,6 +513,7 @@ switch_to_nm() {
 
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
         echo "Aborted."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') npswitch done at: $(date '+%Y-%m-%d %H:%M:%S')"
         exit 0
     fi
 
@@ -691,8 +697,9 @@ show_menu() {
         echo "3) Switch to NetworkManager"
         echo "4) Exit"
         echo ""
-        echo -n "Select [1-4]: "
+        echo -n "Select [1-4] [4]: "
         read -r option || return 1
+        option="${option:-4}"
 
         case $option in
             1)
@@ -708,9 +715,7 @@ show_menu() {
                 break
                 ;;
             4)
-                echo ""
-                echo "$(date '+%Y-%m-%d %H:%M:%S') Exiting..."
-                exit 0
+                break
                 ;;
             *)
                 echo ""

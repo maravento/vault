@@ -1,3 +1,5 @@
+/* CaptureFox capture session
+   FILE: capturefox/extension/recorder.js */
 export function recordingMime(Recorder = MediaRecorder, audio = true) {
   return (audio
     ? ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']

@@ -1,3 +1,8 @@
+<!--
+CaptureFox documentation
+FILE: capturefox/README.md
+-->
+
 # [CaptureFox](https://github.com/maravento)
 
 [![status-beta](https://img.shields.io/badge/status-beta-magenta.svg)](https://github.com/maravento/vault)

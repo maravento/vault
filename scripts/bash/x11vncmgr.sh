@@ -3,7 +3,8 @@
 #
 ################################################################################
 #
-# x11vncmgr.sh
+# x11vncmgr -- x11vnc systemd service manager
+# FILE: x11vncmgr.sh
 #
 # DESCRIPTION: Manages x11vnc as a systemd service: install, uninstall, start,
 # stop, status and restart. Must be run as root.
@@ -149,7 +150,7 @@ Requires=lightdm.service
 [Service]
 Type=forking
 ExecStart=/usr/bin/x11vnc -display ${display_num} -auth ${xauth_path} -rfbauth ${vnc_passwd} -forever -shared -bg -repeat -noxrecord -noxfixes -o ${x11vnc_log_file}
-ExecStop=/usr/bin/pkill x11vnc
+ExecStop=/usr/bin/pkill -x x11vnc
 Restart=on-failure
 User=root
 
@@ -256,7 +257,7 @@ menu() {
         4) do_stop ;;
         5) do_restart ;;
         6) do_status ;;
-        0) exit 0 ;;
+        0) ;;
         *) echo "Invalid option"; exit 1 ;;
     esac
 }

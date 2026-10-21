@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Services Watchdog
+# FILE: scr/serviceswatch.sh
 #
 # USAGE:
 # ./serviceswatch.sh
@@ -85,9 +86,7 @@ sleep_time="5"
 if pgrep -x miniserv.pl > /dev/null; then
     log "INFO: Webmin ONLINE"
 else
-    for pid in $(ps -ef | grep "[m]iniserv.pl" | awk '{print $2}'); do
-        kill -9 "$pid" &>/dev/null
-    done
+    pkill -9 -x miniserv.pl &>/dev/null || true
     sleep "${sleep_time}"
     /etc/webmin/restart-by-force-kill
     log "INFO: Webmin restarted -fixed"
@@ -97,9 +96,7 @@ fi
 if pgrep -x apache2 > /dev/null; then
     log "INFO: apache2 ONLINE"
 else
-    for pid in $(ps -ef | grep "[a]pache2" | awk '{print $2}'); do
-        kill -9 "$pid" &>/dev/null
-    done
+    pkill -9 -x apache2 &>/dev/null || true
     sleep "${sleep_time}"
     systemctl start apache2.service
     log "INFO: apache2 restarted -fixed"
@@ -109,10 +106,8 @@ fi
 if pgrep -x squid > /dev/null; then
     log "INFO: squid ONLINE"
 else
-    for pid in $(ps -ef | grep "[s]quid" | awk '{print $2}'); do
-        kill -9 "$pid" &>/dev/null
-        rm -f /run/squid.pid &>/dev/null
-    done
+    pkill -9 -x squid &>/dev/null || true
+    rm -f /run/squid.pid &>/dev/null
     sleep "${sleep_time}"
     systemctl start squid.service
     log "INFO: squid restarted -fixed"

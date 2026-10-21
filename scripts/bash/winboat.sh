@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Winboat (Install | Remove)
+# FILE: winboat.sh
 #
 # DESCRIPTION:
 # Installs or removes Winboat, a Windows-in-a-container runner that uses
@@ -132,7 +133,7 @@ install_winboat() {
     if ! flatpak list 2>/dev/null | grep -q "com.freerdp.FreeRDP"; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') Installing Flatpak if not present..."
         if ! apt-get update; then
-            echo "WARNING: apt-get update failed -fallback"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: apt-get update failed -fallback"
         fi
         if ! apt-get install -y flatpak; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install flatpak -abort"
@@ -232,7 +233,7 @@ uninstall_winboat() {
 
     # Step 1: Stop Winboat processes
     echo "$(date '+%Y-%m-%d %H:%M:%S') [1/5] Stopping Winboat processes..."
-    pkill -f "^winboat$" 2>/dev/null || true
+    pkill -x winboat 2>/dev/null || true
     pkill -f xfreerdp3 2>/dev/null || true
     sleep 2
     printf "\n"
@@ -335,7 +336,6 @@ show_help() {
     echo "  --uninstall  Uninstall Winboat"
     echo ""
     echo "If no command is provided, interactive mode will start"
-    exit 0
 }
 
 # ------------------------------------------------------------------------------
@@ -360,8 +360,6 @@ if [ $# -eq 0 ]; then
         uninstall_winboat
         ;;
       3)
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Exiting..."
-        exit 0
         ;;
       *)
         echo "Invalid option"

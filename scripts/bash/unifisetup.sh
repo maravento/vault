@@ -4,6 +4,7 @@
 ################################################################################
 #
 # UniFi Setup - Installer / Uninstaller / Updater for Ubuntu
+# FILE: unifisetup.sh
 #
 # DESCRIPTION:
 # Installs, updates, and removes UniFi Network Application and UniFi OS

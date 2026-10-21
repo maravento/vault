@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Manage an owned virtual system-audio input without changing defaults.
+FILE: capturefox/tools/audio-bridge.py
 
 Usage: python3 audio-bridge.py {--start|--status|--stop} [--json]
 """

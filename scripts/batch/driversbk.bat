@@ -1,12 +1,13 @@
 @echo off
 :: maravento.com
 
-REM -------------------------------------------------------
-REM Driver Backup and Restore
-REM
-REM Drivers are saved to / restored from the folder below.
-REM To use a different path, change the DEFAULT variable.
-REM -------------------------------------------------------
+:: -------------------------------------------------------
+:: Driver Backup and Restore
+:: FILE: driversbk.bat
+::
+:: Drivers are saved to / restored from the folder below.
+:: To use a different path, change the DEFAULT variable.
+:: -------------------------------------------------------
 
 setlocal enabledelayedexpansion
 
@@ -59,9 +60,9 @@ timeout /t 2 >nul
 goto :menu
 
 
-REM -------------------------------------------------------
-REM BACKUP - Export installed drivers using DISM
-REM -------------------------------------------------------
+:: -------------------------------------------------------
+:: BACKUP - Export installed drivers using DISM
+:: -------------------------------------------------------
 :backup
 cls
 echo.
@@ -79,9 +80,9 @@ pause
 goto :menu
 
 
-REM -------------------------------------------------------
-REM RESTORE - Install drivers from folder using pnputil
-REM -------------------------------------------------------
+:: -------------------------------------------------------
+:: RESTORE - Install drivers from folder using pnputil
+:: -------------------------------------------------------
 :restore
 cls
 echo.

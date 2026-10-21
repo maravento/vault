@@ -5,6 +5,7 @@
 #
 # BlackUSB
 # USB device access control via udev rules
+# FILE: blackusb/linux/blackusb.sh
 #
 # USAGE:
 # sudo bash blackusb.sh {--show|--on|--eject|--off|--generate|--delete|--trigger|--edit|--help}

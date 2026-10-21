@@ -1,3 +1,8 @@
+<!--
+Scripts documentation
+FILE: scripts/README.md
+-->
+
 # [Scripts](https://github.com/maravento)
 
 [![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento)
@@ -56,7 +61,7 @@ python3 gitfolder.py https://github.com/maravento/vault/scripts
 - [phpVirtualBox Install](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/phpvbox.sh)
 - [Virtual Hard Disk VHD image (.img) (loop or kpartx - create|mount|umount)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vdisk.sh)
 - [VirtualBox 7.x (interactive install/remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vbox.sh)
-- [VMs Virtualbox (--start|--stop|--status|--shutdown|--reset) (replace `my_vm` with the name of your vm)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vm.sh)
+- [VMs Virtualbox (--start|--stop|--status|--shutdown|--reset) (asks for the VM name or UUID)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/vm.sh)
 - [WinBoat (--install|--uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/winboat.sh)
 
 #### File Manager Scripts (Nautilus, Caja, Thunar, Nemo)
@@ -202,7 +207,7 @@ sudo bash aistack.sh --status
 
 ### Python (Linux)
 
-- [Email Scan (Replaces: BASE_URL and TARGET_EMAIL)](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/emailscan.py)
+- [Email Scan (edit CONFIGURATION in emailscan.py before running)](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/emailscan.py)
 - [Git Folder Download](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py)
 - [Link Check - Broken Link Scanner (Replaces: BASE_URL)](https://raw.githubusercontent.com/maravento/vault/master/scripts/python/linkcheck.py)
 

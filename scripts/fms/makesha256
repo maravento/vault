@@ -4,6 +4,7 @@
 ################################################################################
 #
 # makesha256 -- FMS SHA256 generation
+# FILE: makesha256
 #
 # DESCRIPTION:
 # Creates SHA256 checksums as a normal desktop user.

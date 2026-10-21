@@ -2,6 +2,7 @@
 :: maravento.com
 
 :: Autorun Disable
+:: FILE: autorun.bat
 :: For Windows 10/11
 
 :: NOTE: In Windows 10/11, autorun.inf execution on removable/USB drives 

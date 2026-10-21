@@ -4,6 +4,7 @@
 ################################################################################
 #
 # checksha256 -- FMS SHA256 verification
+# FILE: checksha256
 #
 # DESCRIPTION:
 # Verifies a SHA256 checksum as a normal desktop user.

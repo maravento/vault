@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Suricata Clean
+# FILE: suricata/suricataclean.sh
 #
 # USAGE:
 # sudo ./suricataclean.sh

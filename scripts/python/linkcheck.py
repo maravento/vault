@@ -4,6 +4,7 @@
 ------------
 linkcheck.py
 ------------
+FILE: linkcheck.py
 Recursively crawls a public website and detects broken links.
 Classifies every error by type: HTTP errors (4xx/5xx),
 broken redirects, timeouts, SSL failures, DNS failures,

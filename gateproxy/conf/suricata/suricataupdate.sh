@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Suricata Update
+# FILE: suricata/suricataupdate.sh
 #
 # USAGE:
 # sudo ./suricataupdate.sh

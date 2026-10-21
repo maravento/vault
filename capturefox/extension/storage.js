@@ -1,3 +1,5 @@
+/* CaptureFox IndexedDB recording store
+   FILE: capturefox/extension/storage.js */
 const request = req => new Promise((resolve, reject) => {
   req.onsuccess = () => resolve(req.result);
   req.onerror = () => reject(req.error);

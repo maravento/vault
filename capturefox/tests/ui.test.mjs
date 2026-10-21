@@ -1,3 +1,5 @@
+/* CaptureFox panel UI tests
+   FILE: capturefox/tests/ui.test.mjs */
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { testDependency } from './dependencies.mjs';

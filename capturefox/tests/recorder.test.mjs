@@ -1,3 +1,5 @@
+/* CaptureFox recorder tests
+   FILE: capturefox/tests/recorder.test.mjs */
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';

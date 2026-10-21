@@ -1,3 +1,8 @@
+<!--
+BlackUSB documentation
+FILE: blackusb/README.md
+-->
+
 # [BlackUSB](https://github.com/maravento)
 
 [![status-frozen](https://img.shields.io/badge/status-frozen-blue.svg)](https://github.com/maravento)

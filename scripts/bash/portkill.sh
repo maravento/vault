@@ -3,6 +3,9 @@
 #
 ################################################################################
 #
+# portkill -- kills the process listening on a port
+# FILE: portkill.sh
+#
 # DESCRIPTION:
 # Kills the process(es) listening on a port number entered by the user.
 #

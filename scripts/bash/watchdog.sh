@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Internet Watchdog Script
+# FILE: watchdog.sh
 #
 # DESCRIPTION:
 # Monitors Internet connectivity by periodically pinging a public IP and

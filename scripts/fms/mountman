@@ -4,6 +4,7 @@
 ################################################################################
 #
 # mountman -- FMS mount manager
+# FILE: mountman
 #
 # DESCRIPTION:
 # Mounts or unmounts resources from a desktop session.

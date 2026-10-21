@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Cloudflare Tunnel Service Manager (cftunnel)
+# FILE: cftunnel.sh
 #
 # DESCRIPTION:
 # Creates, starts, stops and deletes Cloudflare Tunnels, and manages their
@@ -176,12 +177,12 @@ delete_dns_record() {
     local tunnel_hostname="$1"
 
     if [[ -z "$tunnel_hostname" ]]; then
-        echo "INFO: no hostname found in config, skipping DNS deletion -skip"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no hostname found in config, skipping DNS deletion -skip"
         return 0
     fi
 
     if [[ -z "$token_cloudflare" ]]; then
-        echo "INFO: 'token_cloudflare' not set, skipping automatic DNS deletion -skip"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: 'token_cloudflare' not set, skipping automatic DNS deletion -skip"
         echo "[NOTE] Remove DNS record for '$tunnel_hostname' manually from Cloudflare dashboard"
         return 0
     fi
@@ -190,7 +191,7 @@ delete_dns_record() {
     local zones_response
     zones_response=$(curl -sf -X GET "https://api.cloudflare.com/client/v4/zones?per_page=50" \
         -H "Authorization: Bearer $api_token" -H "Content-Type: application/json") || {
-        echo "INFO: could not reach Cloudflare API to list zones, skipping -skip"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: could not reach Cloudflare API to list zones, skipping -skip"
         return 0
     }
 
@@ -209,14 +210,14 @@ delete_dns_record() {
     done < <(echo "$zones_response" | awk 'match($0,/"id":"[a-f0-9]+"/){id=substr($0,RSTART+6,RLENGTH-7)} match($0,/"name":"[^"]+"/){name=substr($0,RSTART+8,RLENGTH-9); if(id!="") print name"\t"id; id=""}' RS='}' ORS='\n')
 
     if [[ -z "$zone_id" ]]; then
-        echo "INFO: no matching Cloudflare zone for '$tunnel_hostname', skipping -skip"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no matching Cloudflare zone for '$tunnel_hostname', skipping -skip"
         return 0
     fi
 
     local records_response
     records_response=$(curl -sf -X GET "https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records?name=${tunnel_hostname}" \
         -H "Authorization: Bearer $api_token" -H "Content-Type: application/json") || {
-        echo "INFO: could not query DNS records for '$tunnel_hostname', skipping -skip"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: could not query DNS records for '$tunnel_hostname', skipping -skip"
         return 0
     }
 
@@ -233,7 +234,7 @@ delete_dns_record() {
         -H "Authorization: Bearer $api_token" -H "Content-Type: application/json" >/dev/null; then
         echo "[OK] DNS record for '$tunnel_hostname' deleted"
     else
-        echo "WARNING: failed to delete DNS record for '$tunnel_hostname' -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: failed to delete DNS record for '$tunnel_hostname' -alert"
     fi
 }
 
@@ -247,7 +248,7 @@ start_tunnel() {
     echo "Config: ${config_file/#$USER_HOME/\~}"
 
     if [[ ! -f "$config_file" ]]; then
-        echo "WARNING: config file does not exist: ${config_file/#$USER_HOME/\~} -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: config file does not exist: ${config_file/#$USER_HOME/\~} -alert"
         return 1
     fi
 
@@ -256,7 +257,7 @@ start_tunnel() {
         local old_pid
         old_pid=$(cat "$pid_file")
         if _pid_is_valid "$old_pid" && _pid_is_tunnel "$old_pid" "$tunnel_name"; then
-            echo "INFO: tunnel '$tunnel_name' already running (PID $old_pid)"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: tunnel '$tunnel_name' already running (PID $old_pid)"
             local restart
             read -r -p "Stop existing tunnel and start new one? (y/n): " restart
             if [[ ! "$restart" =~ ^[Yy]$ ]]; then
@@ -278,7 +279,7 @@ start_tunnel() {
     local tunnel_id
     tunnel_id=$(get_tunnel_id "$config_file")
     if [[ -z "$tunnel_id" ]]; then
-        echo "WARNING: no 'tunnel:' entry found in config file -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: no 'tunnel:' entry found in config file -alert"
         return 1
     fi
 
@@ -299,7 +300,7 @@ start_tunnel() {
         ((retries--))
     done
 
-    echo "WARNING: failed to start tunnel '$tunnel_name' -alert"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: failed to start tunnel '$tunnel_name' -alert"
     tail -20 "$log_file"
     rm -f "$pid_file"
     return 1
@@ -317,13 +318,13 @@ stop_tunnel() {
     local pid
     pid=$(cat "$pid_file")
     if ! _pid_is_valid "$pid"; then
-        echo "INFO: invalid PID in ${pid_file/#$USER_HOME/\~} ('$pid'), removed stale file -fixed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: invalid PID in ${pid_file/#$USER_HOME/\~} ('$pid'), removed stale file -fixed"
         rm -f "$pid_file"
         return
     fi
 
     if ! _pid_is_tunnel "$pid" "$tunnel_name"; then
-        echo "INFO: PID $pid is not this tunnel, removed stale file -fixed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: PID $pid is not this tunnel, removed stale file -fixed"
         rm -f "$pid_file"
         return
     fi
@@ -344,7 +345,7 @@ stop_all_tunnels() {
     mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
 
     if [[ ${#tunnels[@]} -eq 0 ]]; then
-        echo "WARNING: no tunnel configuration files found in ${CONFIG_DIR/#$USER_HOME/\~}/ -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: no tunnel configuration files found in ${CONFIG_DIR/#$USER_HOME/\~}/ -alert"
         return 1
     fi
 
@@ -399,11 +400,11 @@ create_tunnel() {
         if [[ "$do_login" =~ ^[Yy]$ ]]; then
             "$CLOUDFLARED_BIN" tunnel login
             if [[ ! -f "$CONFIG_DIR/cert.pem" ]]; then
-                echo "WARNING: login did not complete, cert.pem not found -alert"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: login did not complete, cert.pem not found -alert"
                 return 1
             fi
         else
-            echo "WARNING: cannot create a tunnel without logging in first -alert"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot create a tunnel without logging in first -alert"
             return 1
         fi
     fi
@@ -411,13 +412,13 @@ create_tunnel() {
     local tunnel_name
     read -r -p "Tunnel name: " tunnel_name
     if [[ -z "$tunnel_name" ]]; then
-        echo "WARNING: tunnel name cannot be empty -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: tunnel name cannot be empty -alert"
         return 1
     fi
 
     local config_file="$CONFIG_DIR/${tunnel_name}.yml"
     if [[ -f "$config_file" ]]; then
-        echo "WARNING: config file already exists: ${config_file/#$USER_HOME/\~} -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: config file already exists: ${config_file/#$USER_HOME/\~} -alert"
         return 1
     fi
 
@@ -432,7 +433,7 @@ create_tunnel() {
         tunnel_id=$("$CLOUDFLARED_BIN" tunnel list 2>/dev/null | awk -v name="$tunnel_name" '$2==name {print $1}' | head -1)
     fi
     if [[ -z "$tunnel_id" ]]; then
-        echo "WARNING: could not determine tunnel ID, aborting config creation -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: could not determine tunnel ID, aborting config creation -alert"
         return 1
     fi
 
@@ -442,17 +443,17 @@ create_tunnel() {
     while true; do
         read -r -p "Public hostname (e.g. sub.domain.com): " tunnel_hostname
         if [[ -z "$tunnel_hostname" ]]; then
-            echo "WARNING: hostname is required, aborting -alert"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: hostname is required, aborting -alert"
             return 1
         fi
         if [[ ! "$tunnel_hostname" =~ $UH_FQDN ]]; then
-            echo "INFO: invalid hostname format: '$tunnel_hostname' -retry"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: invalid hostname format: '$tunnel_hostname' -retry"
             continue
         fi
         domain="${tunnel_hostname#*.}"
         if ! getent hosts "$domain" >/dev/null 2>&1; then
-            echo "WARNING: domain '$domain' does not resolve"
-            echo "WARNING: a zone apex with no A/AAAA record is normal -alert"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: domain '$domain' does not resolve"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: a zone apex with no A/AAAA record is normal -alert"
         fi
         break
     done
@@ -464,18 +465,18 @@ create_tunnel() {
             read -r -p "Server IP [127.0.0.1]: " svc_ip
             svc_ip="${svc_ip:-127.0.0.1}"
             if [[ ! "$svc_ip" =~ $UH_IPV4 ]]; then
-                echo "WARNING: invalid IP: '$svc_ip' -alert"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: invalid IP: '$svc_ip' -alert"
                 return 1
             fi
             read -r -p "Port: " svc_port
             if ! is_valid_port "$svc_port"; then
-                echo "WARNING: invalid port: '$svc_port' -alert"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: invalid port: '$svc_port' -alert"
                 return 1
             fi
             service="${service_type}://${svc_ip}:${svc_port}"
             ;;
         *)
-            echo "WARNING: invalid service type: $service_type -alert"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: invalid service type: $service_type -alert"
             return 1
             ;;
     esac
@@ -534,7 +535,7 @@ start_multiple_tunnels() {
     local tunnel_count=${#tunnels[@]}
 
     if [[ $tunnel_count -eq 0 ]]; then
-        echo "WARNING: no tunnel configuration files found in ${CONFIG_DIR/#$USER_HOME/\~}/ -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: no tunnel configuration files found in ${CONFIG_DIR/#$USER_HOME/\~}/ -alert"
         echo "Tip: Create configuration files with .yml extension"
         return 1
     fi
@@ -568,7 +569,7 @@ startall_tunnels() {
     mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
 
     if [[ ${#tunnels[@]} -eq 0 ]]; then
-        echo "WARNING: no tunnel configuration files found in ${CONFIG_DIR/#$USER_HOME/\~}/ -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: no tunnel configuration files found in ${CONFIG_DIR/#$USER_HOME/\~}/ -alert"
         return 1
     fi
 
@@ -578,7 +579,7 @@ startall_tunnels() {
             local old_pid
             old_pid=$(cat "$pid_file")
             if _pid_is_valid "$old_pid" && _pid_is_tunnel "$old_pid" "$tunnel"; then
-                echo "INFO: tunnel '$tunnel' already running (PID $old_pid) -skip"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: tunnel '$tunnel' already running (PID $old_pid) -skip"
                 continue
             else
                 rm -f "$pid_file"
@@ -594,7 +595,7 @@ status_all_tunnels() {
     mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
 
     if [[ ${#tunnels[@]} -eq 0 ]]; then
-        echo "WARNING: no tunnel configuration files found in ${CONFIG_DIR/#$USER_HOME/\~}/ -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: no tunnel configuration files found in ${CONFIG_DIR/#$USER_HOME/\~}/ -alert"
         return 1
     fi
 
@@ -624,7 +625,7 @@ delete_tunnel() {
     mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
 
     if [[ ${#tunnels[@]} -eq 0 ]]; then
-        echo "WARNING: no tunnel configuration files found in ${CONFIG_DIR/#$USER_HOME/\~}/ -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: no tunnel configuration files found in ${CONFIG_DIR/#$USER_HOME/\~}/ -alert"
         return 1
     fi
 
@@ -637,14 +638,14 @@ delete_tunnel() {
     local tunnel_name
     read -r -p "Tunnel name or number to delete: " tunnel_name
     if [[ -z "$tunnel_name" ]]; then
-        echo "WARNING: tunnel name cannot be empty -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: tunnel name cannot be empty -alert"
         return 1
     fi
 
     if [[ "$tunnel_name" =~ $UH_UINT ]]; then
         local index=$((tunnel_name - 1))
         if [[ $index -lt 0 || $index -ge ${#tunnels[@]} ]]; then
-            echo "WARNING: invalid selection: $tunnel_name -alert"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: invalid selection: $tunnel_name -alert"
             return 1
         fi
         tunnel_name="${tunnels[$index]}"
@@ -652,7 +653,7 @@ delete_tunnel() {
 
     local config_file="$CONFIG_DIR/${tunnel_name}.yml"
     if [[ ! -f "$config_file" ]]; then
-        echo "WARNING: config file does not exist: ${config_file/#$USER_HOME/\~} -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: config file does not exist: ${config_file/#$USER_HOME/\~} -alert"
         return 1
     fi
 
@@ -672,7 +673,7 @@ delete_tunnel() {
 
     echo "Running: cloudflared tunnel delete $tunnel_name"
     if ! "$CLOUDFLARED_BIN" tunnel delete "$tunnel_name" 2>&1; then
-        echo "WARNING: 'cloudflared tunnel delete' failed, retrying with --force -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: 'cloudflared tunnel delete' failed, retrying with --force -alert"
         "$CLOUDFLARED_BIN" tunnel delete -f "$tunnel_name" 2>&1
     fi
 
@@ -690,7 +691,7 @@ _cron_remove() {
     local script_path="$1"
     if crontab -l 2>/dev/null | grep -qF "$script_path"; then
         crontab -l 2>/dev/null | { grep -vF "$script_path" || true; } | crontab -
-        pkill -HUP crond 2>/dev/null || pkill -HUP cron 2>/dev/null || true
+        pkill -HUP -x crond 2>/dev/null || pkill -HUP -x cron 2>/dev/null || true
         echo "[OK] Autostart entry removed from crontab"
     fi
 }
@@ -723,8 +724,9 @@ if [[ -z "$ACTION" ]]; then
         4) ACTION="--stop" ;;
         5) ACTION="--status" ;;
         6) ACTION="--delete" ;;
-        0) exit 0 ;;
-        *) echo "ERROR: invalid option: $menu_choice -abort"; exit 1 ;;
+        0) echo "$(date '+%Y-%m-%d %H:%M:%S') cftunnel done at: $(date '+%Y-%m-%d %H:%M:%S')"
+           exit 0 ;;
+        *) echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option: $menu_choice -abort"; exit 1 ;;
     esac
 fi
 
@@ -754,11 +756,11 @@ case "$ACTION" in
         startall_tunnels
         if ! crontab -l 2>/dev/null | grep -qF "$script_path"; then
             (crontab -l 2>/dev/null; echo "@reboot $script_path --startall") | crontab -
-            pkill -HUP crond 2>/dev/null || pkill -HUP cron 2>/dev/null || true
+            pkill -HUP -x crond 2>/dev/null || pkill -HUP -x cron 2>/dev/null || true
             echo "[OK] Autostart enabled in crontab"
             echo "Entry: @reboot $script_path --startall"
         else
-            echo "INFO: autostart entry already exists in crontab -skip"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: autostart entry already exists in crontab -skip"
         fi
         ;;
     --stop)

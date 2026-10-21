@@ -4,6 +4,7 @@
 ################################################################################
 #
 # droid2pc - Control and mirror Android devices to PC via scrcpy
+# FILE: droid2pc.sh
 #
 # DESCRIPTION: Starts, stops or checks the status of scrcpy for an Android
 # device connected via ADB/USB debugging. Not run as root.

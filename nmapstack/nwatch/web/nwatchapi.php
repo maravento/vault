@@ -1,7 +1,7 @@
 <?php
 /**
  * NWatch - JSON API
- * File: nwatchapi.php
+ * FILE: web/nwatchapi.php
  */
 
 header('Content-Type: application/json');

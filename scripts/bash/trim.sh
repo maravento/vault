@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Run TRIM for SSD
+# FILE: trim.sh
 #
 # DESCRIPTION: Runs fstrim on every mounted filesystem whose device supports
 # TRIM, and prints the freed space reported for each one.
@@ -64,7 +65,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') trim start..."
 # Execute TRIM
 # -a: all mounted filesystems on devices that support TRIM
 # -v: verbose output
-TRIM_LOG=$(fstrim -av) || { echo "ERROR: fstrim failed -abort"; exit 1; }
+TRIM_LOG=$(fstrim -av) || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: fstrim failed -abort"; exit 1; }
 echo "$TRIM_LOG"
 
 echo ""

@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Cleaner
+# FILE: cleaner.sh
 #
 # DESCRIPTION: Searches and permanently deletes:
 # - Windows ADS files (e.g., :Zone.Identifier, :encryptable, Thumbs.db)

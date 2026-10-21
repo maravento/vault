@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Disk Check Monitor
+# FILE: diskcheck.sh
 # DESCRIPTION: Checks temperature, SMART status and degradation indicators on
 # HDD, SSD and NVMe. Sends a desktop alert and logs to syslog on any issue.
 # Requires: inxi, smartmontools, util-linux, libnotify-bin

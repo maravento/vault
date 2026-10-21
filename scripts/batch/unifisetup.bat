@@ -1,6 +1,7 @@
 @echo off
 :: maravento.com
 :: UniFi Setup + JRE as a Service
+:: FILE: unifisetup.bat
 :: For Windows 10/11
 :: https://www.maravento.com/2025/02/unifi-como-servicio.html
 :: Access:

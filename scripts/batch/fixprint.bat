@@ -2,6 +2,7 @@
 :: maravento.com
 
 :: FixPrint
+:: FILE: fixprint.bat
 :: for win 10/11
 
 :check_admin

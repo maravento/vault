@@ -4,6 +4,7 @@
 ################################################################################
 #
 # msyncs - Launch multiple MEGAsync instances, one per configured account
+# FILE: msyncs
 #
 # DESCRIPTION:
 # Creates and launches independent MEGAsync instances, each with its own

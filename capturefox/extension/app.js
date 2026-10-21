@@ -1,3 +1,5 @@
+/* CaptureFox panel controller
+   FILE: capturefox/extension/app.js */
 import { RecordingStore } from './storage.js';
 import { CaptureSession } from './recorder.js';
 import { makeSeekable } from './webm.js';

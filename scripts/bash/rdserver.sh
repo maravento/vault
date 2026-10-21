@@ -4,6 +4,7 @@
 ################################################################################
 #
 # RustDesk Self-Hosted Server Manager (hbbs + hbbr)
+# FILE: rdserver.sh
 #
 # DESCRIPTION: Installs the official rustdesk-server packages, hbbs for ID and
 # rendezvous and hbbr for relay, under a dedicated non-root system user. Sets
@@ -102,7 +103,7 @@ check_dependencies() {
     command -v lsof &>/dev/null || missing+=("lsof")
 
     if [ ${#missing[@]} -gt 0 ]; then
-        echo "INFO: Installing missing dependencies: ${missing[*]}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing missing dependencies: ${missing[*]}"
         apt_lock_timeout=120
         apt_lock_elapsed=0
         apt_lock_files="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
@@ -134,7 +135,7 @@ ensure_service_user() {
 # and restart the services. Safe to re-run: each sed replaces the whole line.
 patch_units() {
     if [ -z "${relay_host:-}" ]; then
-        echo "INFO: relay_host is not set, cannot configure services -skip"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: relay_host is not set, cannot configure services -skip"
         return 1
     fi
 
@@ -152,7 +153,7 @@ patch_units() {
 
 apply_config() {
     if [ ! -f "$conf_file" ]; then
-        echo "INFO: no configuration found, run 'Configure Relay Host' first -skip"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no configuration found, run 'Configure Relay Host' first -skip"
         return 1
     fi
     relay_host=""
@@ -164,12 +165,12 @@ apply_config() {
 configure_relay_host() {
     local suggested
     suggested=$(curl -fsSL --max-time 5 https://api.ipify.org 2>/dev/null || true)
-    [ -n "$suggested" ] && echo "INFO: Detected public IP: $suggested"
+    [ -n "$suggested" ] && echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Detected public IP: $suggested"
 
     read -rp "Server address for clients (IP/domain): " relay_host
     relay_host="${relay_host:-$suggested}"
     if [ -z "$relay_host" ]; then
-        echo "INFO: no host provided, configuration canceled -skip"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no host provided, configuration canceled -skip"
         return 1
     fi
 
@@ -191,13 +192,13 @@ install_server() {
 
     if dpkg -l rustdesk-server-hbbs 2>/dev/null | grep -q '^ii'; then
         installed_ver=$(dpkg -l rustdesk-server-hbbs | grep '^ii' | awk '{print $3}')
-        echo "INFO: RustDesk Server installed: $installed_ver"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: RustDesk Server installed: $installed_ver"
     else
         installed_ver=""
-        echo "INFO: RustDesk Server not installed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: RustDesk Server not installed"
     fi
 
-    echo "INFO: Latest version: $ver_tag"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Latest version: $ver_tag"
 
     if [ "$installed_ver" = "$ver_tag" ]; then
         echo "OK: You already have latest version. Nothing to do"
@@ -256,7 +257,7 @@ install_server() {
 
 remove_server() {
     if ! dpkg -l rustdesk-server-hbbs 2>/dev/null | grep -q '^ii'; then
-        echo "INFO: RustDesk Server is not installed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: RustDesk Server is not installed"
         return
     fi
 
@@ -273,7 +274,7 @@ remove_server() {
         exit 1
     fi
 
-    echo "INFO: this invalidates key for ALL connected clients"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: this invalidates key for ALL connected clients"
     read -rp "Also delete server data (key) at $rd_data_dir? (y/n): " user_response
     if [[ "$user_response" =~ ^[Yy]$ ]]; then
         rm -rf "$rd_data_dir" "$rd_log_dir" "$conf_dir"
@@ -305,10 +306,10 @@ status_server() {
 show_public_key() {
     key_file="$rd_data_dir/id_ed25519.pub"
     if [ ! -f "$key_file" ]; then
-        echo "INFO: public key not found at $key_file, start server first -skip"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: public key not found at $key_file, start server first -skip"
         return 1
     fi
-    echo "INFO: Set as Key + ID/Relay Server in RustDesk client settings:"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Set as Key + ID/Relay Server in RustDesk client settings:"
     cat "$key_file"
     echo
 }
@@ -363,8 +364,6 @@ case $option in
         remove_server
         ;;
     8)
-        echo "Goodbye!"
-        exit 0
         ;;
     *)
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort"

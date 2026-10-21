@@ -4,12 +4,26 @@
 ------------
 emailscan.py
 ------------
+FILE: emailscan.py
 Recursively crawls a public website and reports every page
 where a given email address appears in the HTML source.
 Follows all internal links up to a configurable page limit.
 Compatible with static sites and SharePoint / GovCo portals.
-Usage: python emailscan.py
-Replace: BASE_URL and TARGET_EMAIL
+USAGE:
+python3 emailscan.py
+
+CONFIGURATION:
+Configure the scan by editing the CONFIGURATION block in this file.
+Set BASE_URL to the starting website URL, including https:// or http://.
+Set TARGET_EMAIL to the email address to find in downloaded HTML.
+The supplied URL and email address are examples; replace both before running.
+Optionally adjust the page limit, request timeout, delay and certificate check.
+The script reads these values directly; it does not load a .conf or .env file.
+
+OUTPUT:
+Print matching page URLs. When matches exist, write scan_results_TIMESTAMP.txt
+in the current working directory. JavaScript is not executed, and attached
+files such as PDFs are not searched.
 """
 import re
 import requests
@@ -18,14 +32,14 @@ from urllib.parse import urljoin, urlparse
 from collections import deque
 from datetime import datetime
 # ============================================================
-#  CONFIGURATION — edit these values before running
+#  CONFIGURATION — edit the URL and email below before running
 # ============================================================
-BASE_URL     = "https://www.anysite.com"      # Target website URL
-TARGET_EMAIL = "anymail@anysite.com"           # Email address to search for
-MAX_PAGES    = 500                             # Maximum number of pages to crawl (set to None for unlimited)
-REQUEST_TIMEOUT  = 15                         # Seconds to wait per request
-REQUEST_DELAY    = 0                          # Seconds between requests (0 = no delay)
-VERIFY_SSL       = True                       # Set to False only for sites with self-signed certs
+BASE_URL     = "https://www.anysite.com"      # Starting URL, including https:// or http://; replace the example
+TARGET_EMAIL = "anymail@anysite.com"           # Email to find in HTML; replace the example
+MAX_PAGES    = 500                             # Maximum URLs attempted; use None for no limit
+REQUEST_TIMEOUT  = 15                         # Request timeout in seconds
+REQUEST_DELAY    = 0                          # Delay between URL attempts, in seconds; 0 disables the delay
+VERIFY_SSL       = True                       # Verify HTTPS certificates; False disables certificate verification
 # ============================================================
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -39,14 +53,22 @@ SKIP_EXTENSIONS = (
     ".pdf", ".docx", ".xlsx", ".zip", ".mp4", ".css", ".js",
     ".woff", ".woff2", ".ttf", ".eot", ".otf",
 )
+
+
 def normalize_url(url):
     p = urlparse(url)
     return p.scheme + "://" + p.netloc + p.path + (("?" + p.query) if p.query else "")
+
+
 def same_domain(url, base_domain):
     return urlparse(url).netloc == base_domain
+
+
 def email_in_html(email, html):
     pattern = r'(?<![A-Za-z0-9._%+\-])' + re.escape(email) + r'(?![A-Za-z0-9._%+\-@])'
     return bool(re.search(pattern, html, re.IGNORECASE))
+
+
 def process_page(url, email, session):
     try:
         resp = session.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True, verify=VERIFY_SSL)
@@ -70,6 +92,8 @@ def process_page(url, email, session):
     except Exception as e:
         print(f"  [ERROR] {url} → {e}")
         return False, set()
+
+
 def scan():
     import time
     visited = set()
@@ -131,5 +155,7 @@ def scan():
         print("    - Content is loaded via JavaScript (SPA/React/Angular)")
         print("    - Email only appears inside PDFs or attached documents")
         print("    - The site blocks automated crawling")
+
+
 if __name__ == "__main__":
     scan()

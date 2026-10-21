@@ -5,6 +5,7 @@
 #
 # Gateproxy
 # A simple proxy/firewall server
+# FILE: gpsetup.sh
 #
 # USAGE:
 # sudo bash gpsetup.sh
@@ -1269,7 +1270,7 @@ a2enmod -q headers mime rewrite || true
 
 # PROXY SECTION
 # squid-cache
-while pgrep squid > /dev/null; do
+while pgrep -x squid > /dev/null; do
     failure_message="cannot stop Squid processes"
     killall -s SIGTERM squid &>/dev/null
     failure_message="cannot wait before the next attempt"

@@ -4,6 +4,7 @@
 ################################################################################
 #
 # nwatch - LAN device inventory & watched ports dashboard
+# FILE: nwatch/nwatchsetup.sh
 #
 # USAGE:
 # sudo bash nwatchsetup.sh --install

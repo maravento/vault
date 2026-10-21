@@ -3,6 +3,9 @@
 #
 ################################################################################
 #
+# rclonemgr -- Rclone cloud remote mount and sync manager
+# FILE: rclonemgr.sh
+#
 # DESCRIPTION:
 # Manages Rclone cloud remotes (Gdrive, PCloud, Dropbox, OneDrive, Mega...):
 # mounts configured remotes as local folders and performs 2-way sync between
@@ -118,10 +121,10 @@ check_internet() {
 
     while (( attempt <= max_attempts )); do
         if getent hosts www.google.com >/dev/null 2>&1; then
-            echo "INFO: internet is available"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: internet is available"
             return 0
         fi
-        echo "INFO: waiting for internet ($attempt/$max_attempts)"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: waiting for internet ($attempt/$max_attempts)"
         attempt=$((attempt + 1))
         sleep 5
     done
@@ -182,12 +185,12 @@ mount_start() {
         echo "Mounting $service_name to $service_path"
 
         if ! is_service_configured "$service_name"; then
-            echo "WARNING: rclone remote '$service_name' not configured -alert"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: rclone remote '$service_name' not configured -alert"
             continue
         fi
 
         if mount | grep -q "$service_path"; then
-            echo "INFO: $service_name is already mounted at $service_path -skip"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $service_name is already mounted at $service_path -skip"
             continue
         fi
 
@@ -204,7 +207,7 @@ mount_start() {
         if mount | grep -q "$service_path"; then
             echo "SUCCESS: $service_name mounted"
         else
-            echo "WARNING: $service_name may not be mounted correctly -alert"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: $service_name may not be mounted correctly -alert"
         fi
     done
 
@@ -221,7 +224,7 @@ mount_stop() {
             if fusermount -u "$service_path" 2>/dev/null; then
                 echo "$service_name unmounted"
             else
-                echo "WARNING: graceful unmount failed for $service_name, forcing -alert"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: graceful unmount failed for $service_name, forcing -alert"
                 fusermount -uz "$service_path"
                 echo "$service_name force-unmounted"
             fi
@@ -268,7 +271,7 @@ run_mount() {
     case "${1:-}" in
     --start)
         lock_mount
-        check_internet || { echo "ERROR: no internet connection -abort"; exit 1; }
+        check_internet || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no internet connection -abort"; exit 1; }
         mount_start
         ;;
     --stop)
@@ -279,7 +282,7 @@ run_mount() {
     --restart)
         lock_mount
         lock_sync
-        check_internet || { echo "ERROR: no internet connection -abort"; exit 1; }
+        check_internet || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no internet connection -abort"; exit 1; }
         mount_restart
         ;;
     --status) mount_status ;;
@@ -359,7 +362,7 @@ run_sync() {
     case "${1:-}" in
     --run)
         lock_sync
-        check_internet || { echo "ERROR: no internet connection -abort"; exit 1; }
+        check_internet || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no internet connection -abort"; exit 1; }
         sync_run
         ;;
     --status) sync_status ;;
@@ -399,7 +402,7 @@ show_menu() {
     4) run_mount --status ;;
     5) run_sync --run ;;
     6) run_sync --status ;;
-    7) exit 0 ;;
+    7) ;;
     *) echo "Invalid option" ;;
     esac
 }

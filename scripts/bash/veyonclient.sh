@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Veyon Client Tunnel (veyonclient)
+# FILE: veyonclient.sh
 #
 # DESCRIPTION:
 # Connects Veyon Master to a remote Veyon Service through a Cloudflare
@@ -66,11 +67,11 @@ echo ""
 while true; do
     read -r -p "Tunnel subdomain (e.g. veyon.example.com): " hostname
     if [[ ! "$hostname" =~ $UH_FQDN ]]; then
-        echo "INFO: invalid subdomain: '$hostname' -retry"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: invalid subdomain: '$hostname' -retry"
         continue
     fi
     if ! getent hosts "$hostname" >/dev/null 2>&1; then
-        echo "INFO: subdomain does not resolve: '$hostname' -retry"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: subdomain does not resolve: '$hostname' -retry"
         continue
     fi
     break
@@ -80,7 +81,7 @@ while true; do
     read -r -p "Local Veyon port (default 11100): " port
     port="${port:-11100}"
     if ! is_valid_port "$port"; then
-        echo "INFO: invalid port: '$port' -retry"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: invalid port: '$port' -retry"
         continue
     fi
     break

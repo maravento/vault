@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Network Bridge Manager Script
+# FILE: bridge.sh
 #
 # DESCRIPTION: Detects the active Ethernet interface and turns it into a
 # NetworkManager bridge, so a virtual machine can reach the LAN directly.
@@ -366,14 +367,14 @@ case "${1:-}" in
 
     --off)
         INTERFACE=$(get_ethernet_interface_for_status)
-        if ! bridge_exists; then
+        if bridge_exists; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') Deactivating bridge and restoring normal configuration..."
+            cleanup_all_connections
+            restore_normal_network
+            show_restored_status
+        else
             echo "Bridge $BRIDGE_NAME is not active, nothing to do"
-            exit 0
         fi
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Deactivating bridge and restoring normal configuration..."
-        cleanup_all_connections
-        restore_normal_network
-        show_restored_status
         ;;
 
     --status)

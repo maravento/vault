@@ -4,6 +4,7 @@
 ################################################################################
 #
 # N Report
+# FILE: linux/nreport.sh
 #
 # USAGE:
 # sudo /path/to/nreport.sh
@@ -710,8 +711,6 @@ case "$opt" in
         ;;
 
     4)
-        log "INFO: exit requested"
-        echo "Goodbye!"
         log "nreport done at: $(date '+%Y-%m-%d %H:%M:%S')"
         exit 0
         ;;

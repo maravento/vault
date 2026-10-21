@@ -1,3 +1,5 @@
+/* CaptureFox WebM duration metadata writer
+   FILE: capturefox/extension/webm.js */
 // Duration metadata only. This module does not construct Cues or guarantee seeking.
 const SEGMENT = 0x18538067, INFO = 0x1549a966, DURATION = 0x4489;
 const SCALE = 0x2ad7b1, SEEK_HEAD = 0x114d9b74, CUES = 0x1c53bb6b;

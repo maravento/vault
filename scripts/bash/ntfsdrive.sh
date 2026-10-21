@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Mount | Umount NTFS Disk Drive (HDD/SSD)
+# FILE: ntfsdrive.sh
 #
 # DESCRIPTION: Mounts or unmounts an NTFS disk by label or UUID, owned by the
 # local user. Asks for the identifier and the mount folder name.
@@ -86,7 +87,7 @@ mount_drive() {
     list_drives
     read -r -p "Enter the label or UUID of the disk to be mounted ('exit' to exit): " disk_id
 
-    [ -z "$disk_id" ] || [ "$disk_id" == "exit" ] && echo "$(date '+%Y-%m-%d %H:%M:%S') Exiting..." && return
+    [ -z "$disk_id" ] || [ "$disk_id" == "exit" ] && return
 
     device_path=$(blkid -L "$disk_id" 2>/dev/null || blkid -U "$disk_id" 2>/dev/null)
 
@@ -128,7 +129,7 @@ umount_drive() {
     echo ""
 
     read -r -p "Enter the name of the folder where the disk is mounted ('exit' to exit): " folder_name
-    [ "$folder_name" == "exit" ] && echo "$(date '+%Y-%m-%d %H:%M:%S') Exiting..." && return
+    [ "$folder_name" == "exit" ] && return
 
     if [ -z "$folder_name" ] || [[ "$folder_name" == */* ]]; then
         echo "Invalid folder name"
@@ -158,7 +159,7 @@ select choice in "Mount" "Unmount" "Exit"; do
     case $choice in
         "Mount") mount_drive; break ;;
         "Unmount") umount_drive; break ;;
-        "Exit") echo "$(date '+%Y-%m-%d %H:%M:%S') Exiting..."; exit 0 ;;
+        "Exit") break ;;
         *) echo "Invalid option, please try again" ;;
     esac
 done

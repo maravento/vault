@@ -1,4 +1,5 @@
 """Package only original extension files; never include reference artifacts."""
+# FILE: capturefox/tools/build.py
 import hashlib
 import json
 import zipfile

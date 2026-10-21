@@ -2,6 +2,7 @@
 :: maravento.com
 
 :: Uniform Server Config
+:: FILE: uzeroconf.bat
 :: Tested  v15_0_2_ZeroXV
 :: Support: Win 10/11
 :: Path Scripts: %HOMEDRIVE%\UniServerZ

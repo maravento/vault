@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Iptables Kill Switch
+# FILE: scr/killswitch.sh
 #
 # USAGE:
 # sudo ./killswitch.sh

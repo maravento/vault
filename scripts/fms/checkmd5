@@ -4,6 +4,7 @@
 ################################################################################
 #
 # checkmd5 -- FMS MD5 verification
+# FILE: checkmd5
 #
 # DESCRIPTION:
 # Verifies an MD5 checksum as a normal desktop user.

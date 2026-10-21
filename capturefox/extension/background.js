@@ -1,3 +1,5 @@
+/* CaptureFox background toolbar action
+   FILE: capturefox/extension/background.js */
 browser.action.onClicked.addListener(async () => {
   const url = browser.runtime.getURL('index.html');
   const tabs = await browser.tabs.query({});

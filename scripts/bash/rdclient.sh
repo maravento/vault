@@ -4,6 +4,7 @@
 ################################################################################
 #
 # RustDesk Client Install
+# FILE: rdclient.sh
 #
 # DESCRIPTION: Installs or removes the RustDesk client, and sets the keyboard
 # layout that matches the system language.
@@ -140,7 +141,7 @@ check_dependencies() {
     fi
 
     if [ ${#missing[@]} -gt 0 ]; then
-        echo "INFO: Installing missing dependencies: ${missing[*]}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing missing dependencies: ${missing[*]}"
         apt_lock_timeout=120
         apt_lock_elapsed=0
         apt_lock_files="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
@@ -165,7 +166,7 @@ check_dependencies() {
 
     # rustdesk depends on libxdo3 | libxdo4 (either one satisfies it)
     if ! dpkg -s libxdo3 &>/dev/null && ! dpkg -s libxdo4 &>/dev/null; then
-        echo "INFO: Installing missing dependency: libxdo3"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing missing dependency: libxdo3"
         if ! retry_cmd apt-get install -y libxdo3; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install libxdo3 -abort"
             exit 1
@@ -175,7 +176,7 @@ check_dependencies() {
 
 setup_keyboard() {
     if [ -z "$local_user" ]; then
-        echo "INFO: could not detect local user, skipping keyboard setup -skip"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: could not detect local user, skipping keyboard setup -skip"
         return
     fi
 
@@ -234,13 +235,13 @@ install_rustdesk() {
 
     if dpkg -l rustdesk 2>/dev/null | grep -q '^ii'; then
         installed_ver=$(dpkg -l rustdesk | grep '^ii' | awk '{print $3}')
-        echo "INFO: RustDesk installed: $installed_ver"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: RustDesk installed: $installed_ver"
     else
         installed_ver=""
-        echo "INFO: RustDesk not installed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: RustDesk not installed"
     fi
 
-    echo "INFO: Latest version: $ver_tag"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Latest version: $ver_tag"
 
     if [ "$installed_ver" = "$ver_tag" ]; then
         echo "OK: You already have latest version. Nothing to do"
@@ -268,8 +269,8 @@ install_rustdesk() {
         systemctl disable rustdesk 2>/dev/null || true
         rm -f "$deb_file" "$dpkg_out"
         echo "OK: RustDesk $ver_tag installed successfully"
-        echo "INFO: Service stopped. To start it now: sudo systemctl start rustdesk"
-        echo "INFO: To start it on every boot: sudo systemctl enable rustdesk"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Service stopped. To start it now: sudo systemctl start rustdesk"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: To start it on every boot: sudo systemctl enable rustdesk"
     else
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: installation failed -abort"
         cat "$dpkg_out" >&2
@@ -280,7 +281,7 @@ install_rustdesk() {
 
 remove_rustdesk() {
     if ! dpkg -l rustdesk 2>/dev/null | grep -q '^ii'; then
-        echo "INFO: RustDesk is not installed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: RustDesk is not installed"
         return
     fi
 
@@ -350,8 +351,6 @@ case $option in
         remove_rustdesk
         ;;
     3)
-        echo "Goodbye!"
-        exit 0
         ;;
     *)
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort"

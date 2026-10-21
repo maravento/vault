@@ -2,6 +2,7 @@
 :: maravento.com
 
 :: Force reset proxy and network interfaces
+:: FILE: netreset.bat
 :: for win 7/8/10/11
 
 REM Checking privileges

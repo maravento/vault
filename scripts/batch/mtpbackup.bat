@@ -2,6 +2,7 @@
 :: maravento.com
 
 :: Thunderbird Email Profiles Backup
+:: FILE: mtpbackup.bat
 :: for win 10/11
 
 setlocal

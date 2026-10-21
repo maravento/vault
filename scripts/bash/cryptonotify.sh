@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Top 5 Crypto Price Notifier
+# FILE: cryptonotify.sh
 #
 # DESCRIPTION:
 # Fetches the current USD prices of the top 5 cryptocurrencies by market
@@ -60,10 +61,10 @@ check_internet() {
 
     while (( attempt <= max_attempts )); do
         if getent hosts www.google.com >/dev/null 2>&1; then
-            echo "INFO: internet is available"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: internet is available"
             return 0
         fi
-        echo "INFO: waiting for internet ($attempt/$max_attempts)"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: waiting for internet ($attempt/$max_attempts)"
         attempt=$((attempt + 1))
         sleep 5
     done

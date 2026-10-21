@@ -4,6 +4,7 @@
 ################################################################################
 #
 # Virtualbox 7.x install | remove
+# FILE: vbox.sh
 #
 # DESCRIPTION: Installs VirtualBox 7.x from the Oracle repository, or purges
 # it if a version is already present.
@@ -136,7 +137,7 @@ vboxinstall() {
 vboxpurge() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') Removing Virtualbox..."
     sudo -u $local_user bash -c "VBoxManage list runningvms | grep -oP '(?<=\{)[0-9a-f-]+(?=\})' | xargs -r -I {} VBoxManage controlvm {} poweroff"
-    ps ax | grep -P 'vboxwebsrv|VirtualBox|Vbox' | awk '{print $1}' | xargs kill -9 &>/dev/null
+    pkill -9 -x 'vboxwebsrv|VirtualBox' &>/dev/null || true
     systemctl stop vboxweb-service.service &>/dev/null
     service vboxdrv stop &>/dev/null
     killall VirtualBox iprt-VBoxTscThread VBoxSVC &>/dev/null

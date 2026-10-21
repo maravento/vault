@@ -1,3 +1,5 @@
+/* CaptureFox WebM tests
+   FILE: capturefox/tests/webm.test.mjs */
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../extension/webm.js', import.meta.url), 'utf8');

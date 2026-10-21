@@ -4,6 +4,7 @@
 ################################################################################
 #
 # IP Kill
+# FILE: ipkill.sh
 #
 # DESCRIPTION: Interactively cuts off a target host's TCP connections on a
 # chosen network interface for a fixed time window. Run as root.
@@ -67,7 +68,7 @@ fi
 target_ip_validated="$target_ip"
 case "$target_ip_validated" in
     0.0.0.0|255.255.255.255|127.*|224.*|225.*|226.*|227.*|228.*|229.*|230.*|231.*|232.*|233.*|234.*|235.*|236.*|237.*|238.*|239.*)
-        echo "WARNING: '$target_ip_validated' is a special/reserved address -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: '$target_ip_validated' is a special/reserved address -alert"
         ;;
 esac
 

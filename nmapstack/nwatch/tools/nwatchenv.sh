@@ -4,6 +4,7 @@
 ################################################################################
 #
 # nwatchenv -- shared Bash configuration reader
+# FILE: tools/nwatchenv.sh
 #
 # USAGE:
 # Loaded by callers with source. Not a standalone command or cron job.

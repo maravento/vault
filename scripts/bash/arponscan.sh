@@ -4,6 +4,7 @@
 ################################################################################
 #
 # arponscan -- ARP table filter
+# FILE: arponscan.sh
 # v3.0-ng or higher
 #
 # DESCRIPTION: Reads mac*.txt files (format: status;MAC;IP;HOSTNAME; -- same
@@ -68,7 +69,7 @@ while :; do
     read -r -p "Enter the path for MAC addresses [/etc/acl/mac]: " acl_path
     acl_path="${acl_path:-/etc/acl/mac}"
     if [ -z "$acl_path" ] || ! compgen -G "$acl_path/mac*" >/dev/null; then
-        echo "INFO: path does not exist or has no mac* files -retry"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: path does not exist or has no mac* files -retry"
         continue
     fi
     break
@@ -79,7 +80,7 @@ printf "\n"
 while :; do
     read -r -p "Enter the local network interface (e.g. eth1): " lan
     if [ -z "$lan" ] || ! ip link show "$lan" &>/dev/null; then
-        echo "INFO: interface does not exist -retry"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: interface does not exist -retry"
         continue
     fi
     break
@@ -92,7 +93,7 @@ while :; do
     if [[ "$localip" =~ $UH_IPV4 ]]; then
         break
     fi
-    echo "INFO: invalid IPv4 address -retry"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: invalid IPv4 address -retry"
 done
 
 ARPSTATIC_FILE="$(dirname "$(realpath "$0")")/arpstatic"
@@ -131,7 +132,7 @@ arponrun() {
     # run script and add ip+mac to ARP table
     "$ARPSTATIC_FILE" >/dev/null 2>&1
 
-    if ps -ef | grep -qw '[a]rpon'; then
+    if pgrep -x arpon > /dev/null; then
         systemctl reload-or-restart arpon >/dev/null 2>&1
         echo "ArpON reloaded $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
     else

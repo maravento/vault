@@ -2,6 +2,7 @@
 :: maravento.com
 
 :: script to boot PC in mode: safe with network/safe minimal/normal
+:: FILE: safeboot.bat
 :: for win 7/8/10/11
 :: Run with Administrator Privileges
 
