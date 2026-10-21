@@ -292,6 +292,29 @@ apt-get install -y nmap xsltproc iproute2 util-linux
   </tr>
 </table>
 
+| Step | Description | Descripción |
+| --- | --- | --- |
+| 1 | The project's own stylesheet, written to the temporary directory. A failure logs `INFO: ... -retry` and step 2 runs | La hoja de estilo propia del proyecto, escrita en el directorio temporal. Un fallo registra `INFO: ... -retry` y corre el paso 2 |
+| 2 | nmap's `/usr/share/nmap/nmap.xsl`, which produces nmap's standard page. A failure or a missing file logs `WARNING: ... -alert` | El `/usr/share/nmap/nmap.xsl` de nmap, que produce la página estándar de nmap. Un fallo o un archivo ausente registra `WARNING: ... -alert` |
+| 3 | A plain page holding the raw XML in a `<pre>` block. It needs no external tool, so it never fails, and logs `WARNING: ... -alert` because the report has no format | Una página simple con el XML crudo en un bloque `<pre>`. No necesita herramienta externa, así que nunca falla, y registra `WARNING: ... -alert` porque el informe queda sin formato |
+
+No step aborts the script. A report is always produced.
+
+Ningún paso aborta el script. Siempre se produce un informe.
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>HTML conversion</strong><br><br>
+      The XML scan is converted to HTML in three steps. First the project's own stylesheet, written to the temporary directory. If <code>xsltproc</code> fails, the log records an <code>INFO: ... -retry</code> and the second step runs. Second, nmap's own <code>/usr/share/nmap/nmap.xsl</code>, which produces nmap's standard page instead of the project's. A failure or a missing file there logs a <code>WARNING: ... -alert</code>. Third, a plain HTML page holding the raw XML inside a <code>&lt;pre&gt;</code> block. It needs no external tool, so it always succeeds, and it logs a <code>WARNING: ... -alert</code> because the report has no format. No step aborts the script: a report is always produced.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Conversión a HTML</strong><br><br>
+      El XML del escaneo se convierte a HTML en tres pasos. Primero la hoja de estilo propia del proyecto, escrita en el directorio temporal. Si <code>xsltproc</code> falla, el log registra un <code>INFO: ... -retry</code> y corre el segundo paso. Segundo, el <code>/usr/share/nmap/nmap.xsl</code> de nmap, que produce la página estándar de nmap en vez de la del proyecto. Un fallo o un archivo ausente ahí registra un <code>WARNING: ... -alert</code>. Tercero, una página HTML simple con el XML crudo dentro de un bloque <code>&lt;pre&gt;</code>. No necesita ninguna herramienta externa, así que nunca falla, y registra un <code>WARNING: ... -alert</code> porque el informe queda sin formato. Ningún paso aborta el script: siempre se produce un informe.
+    </td>
+  </tr>
+</table>
+
 ```bash
 wget -q https://raw.githubusercontent.com/maravento/vault/master/nmapstack/linux/nreport.sh -O nreport.sh
 chmod +x nreport.sh
@@ -345,12 +368,17 @@ sudo ./nreport.sh
 └── nwatchports.pid           # nwatchports.sh
 
 /var/log/nwatch.log         # Shared by both daemons
-/etc/logrotate.d/nwatch     # Weekly rotation for the shared log
+/etc/logrotate.d/nwatch     # Daily rotation; seven previous files, delayed compression
 
 /etc/cron.d/nwatch          # All cron entries of the project, one file
 ```
 
 #### Scheduled Tasks
+
+> Project log: `/var/log/nwatch.log`. Installation and update configure daily rotation in `/etc/logrotate.d/nwatch`, keeping seven previous files plus the active log. Compression starts on the next rotation. Empty logs are not rotated; missing logs are tolerated. Squid and Apache keep their own policies.
+>
+> Log del proyecto: `/var/log/nwatch.log`. La instalación y la actualización configuran rotación diaria en `/etc/logrotate.d/nwatch`. Se conservan siete archivos anteriores y el activo. La compresión comienza en la siguiente rotación. Los logs vacíos no se rotan; los ausentes se toleran. Squid y Apache conservan sus propias políticas.
+
 
 <table width="100%">
   <tr>
@@ -368,10 +396,10 @@ sudo ./nreport.sh
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Shared Bash reader installed at <code>/var/www/nwatch/tools/nwatchenv.sh</code> (root:root, 644). <code>nwatchlan.sh</code> and <code>nwatchports.sh</code> load it with <code>source</code> and pass their allowed keys. It reads <code>/etc/nwatch/nwatch.env</code> without executing its contents. File permissions, key validation and fallbacks remain in each daemon. <code>nwatchsetup.sh</code> deploys the reader before the daemon scripts during installation and update. Deployment failure aborts the operation. Do not run the reader separately or schedule it in cron.
+      Shared Bash reader installed at <code>/var/www/nwatch/tools/nwatchenv.sh</code> (root:root, 644). <code>nwatchlan.sh</code> and <code>nwatchports.sh</code> load it with <code>source</code> and pass their allowed keys. It reads <code>/etc/nwatch/nwatch.env</code> without executing its contents. File permissions and key validation remain in each daemon. <code>nwatchsetup.sh</code> deploys the reader before the daemon scripts during installation and update. Deployment failure aborts the operation. Do not run the reader separately or schedule it in cron.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Lector Bash compartido instalado en <code>/var/www/nwatch/tools/nwatchenv.sh</code> (root:root, 644). <code>nwatchlan.sh</code> y <code>nwatchports.sh</code> lo cargan mediante <code>source</code> y pasan sus claves permitidas. Lee <code>/etc/nwatch/nwatch.env</code> sin ejecutar su contenido. Los permisos, la validación de claves y los fallbacks permanecen en cada demonio. <code>nwatchsetup.sh</code> despliega el lector antes de los scripts durante la instalación y la actualización. Un fallo de despliegue aborta la operación. No se ejecuta el lector por separado ni se programa en cron.
+      Lector Bash compartido instalado en <code>/var/www/nwatch/tools/nwatchenv.sh</code> (root:root, 644). <code>nwatchlan.sh</code> y <code>nwatchports.sh</code> lo cargan mediante <code>source</code> y pasan sus claves permitidas. Lee <code>/etc/nwatch/nwatch.env</code> sin ejecutar su contenido. Los permisos y la validación de claves permanecen en cada demonio. <code>nwatchsetup.sh</code> despliega el lector antes de los scripts durante la instalación y la actualización. Un fallo de despliegue aborta la operación. No se ejecuta el lector por separado ni se programa en cron.
     </td>
   </tr>
 </table>
@@ -394,7 +422,7 @@ sudo ./nreport.sh
 | `LAN_IFACES` | `nwatchlan.sh` | — | Comma-separated interfaces to arp-scan |
 | `MGMT_IFACE` | `nwatchsetup.sh` | — | Management interface, chosen during install. `SERVER_IP` and `NET_CIDR` are read from it |
 | `NET_CIDR` | `nwatchapi.php` | — | Management subnet in CIDR form, used as Apache's `Require ip` and by the API |
-| `SERVER_IP` | `nwatchports.sh`, `nwatchapi.php` | — | IPv4 of the management interface. `nwatchports.sh` uses it to identify server-mode records. A missing or empty key aborts before polling; the retained `localhost` fallback is not reached |
+| `SERVER_IP` | `nwatchports.sh`, `nwatchapi.php` | — | IPv4 of the management interface. `nwatchports.sh` uses it to identify server-mode records. A missing or empty key aborts before polling |
 | `LAN_POLL_INTERVAL` | `nwatchlan.sh` | `60` (seconds) | Time between scans |
 | `NWATCH_DB_TIMEOUT_MS` | `nwatchlan.sh`, `nwatchports.sh`, `nwatchapi.php` | `5000` (milliseconds) | SQLite lock wait, written automatically without questions. Positive integer without leading zeros. Changing this default is not recommended. / Espera por bloqueos SQLite, escrita automáticamente sin preguntas. Entero positivo sin ceros iniciales. No se recomienda modificarlo. |
 | `LAN_OFFLINE_GRACE` | `nwatchlan.sh` | `3` (polls) | Consecutive missed polls before marking a device offline |

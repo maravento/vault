@@ -108,7 +108,6 @@ unset env_owner env_perms
 # Read known key=value pairs from a config file, without sourcing it
 load_conf() {
     local conf_file="$1" env_key env_value env_line
-    [[ ! -f "$conf_file" ]] && { log "WARNING: $conf_file not found -fallback"; return 1; }
     while IFS= read -r env_line || [[ -n "$env_line" ]]; do
         [[ "$env_line" =~ ^[[:space:]]*[#] ]] && continue
         [[ "$env_line" =~ ^[[:space:]]*$ ]] && continue
@@ -178,50 +177,21 @@ elif ! [[ "$WPAD_PORT" =~ $UH_UINT ]] \
 fi
 if (( ${#key_errors[@]} > 0 )); then
     for key_error in "${key_errors[@]}"; do
-        log "ERROR: $key_error -abort"
+        log "WARNING: $key_error -alert"
     done
     log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$pydhcp_env") -abort"
     exit 1
 fi
 unset key_errors key_error env_key
 
-# FALLBACK
-# Second layer of protection, behind KEY CHECK -- by design never reached
 # interfaces
-if [ -z "${WAN_IFACE:-}" ]; then
-    log "WARNING: no WAN_IFACE in pydhcp.env -fallback"
-fi
-wan_iface="${WAN_IFACE:-eth0}"
-if [ -z "${INTERFACESv4:-}" ]; then
-    log "WARNING: no INTERFACESv4 in pydhcp.env -fallback"
-fi
-INTERFACESv4="${INTERFACESv4:-eth1}"
+wan_iface="$WAN_IFACE"
 # LAN SERV_SUBNET/NETMASK (CIDR prefix derived from pydhcp's own SERV_MASK,
 # no separate gateproxy key to keep in sync by hand)
-if [ -z "${SERV_SUBNET:-}" ]; then
-    log "WARNING: no SERV_SUBNET in pydhcp.env -fallback"
-fi
-SERV_SUBNET="${SERV_SUBNET:-192.168.0.0}"
-if [ -z "${SERV_MASK:-}" ]; then
-    log "WARNING: no SERV_MASK in pydhcp.env -fallback"
-fi
-SERV_MASK="${SERV_MASK:-255.255.255.0}"
 # CIDR prefix derived from SERV_MASK, already validated by KEY CHECK
 [[ " $UH_PREFIX " =~ [[:space:]]${SERV_MASK//./\.}:([0-9]+)[[:space:]] ]]
 netmask_int="${BASH_REMATCH[1]}"
-if [ -z "${SERVER_IP:-}" ]; then
-    log "WARNING: no SERVER_IP in pydhcp.env -fallback"
-fi
-SERVER_IP="${SERVER_IP:-192.168.0.10}"
-if [ -z "${SERV_DNS:-}" ]; then
-    log "WARNING: no SERV_DNS in pydhcp.env -fallback"
-fi
-SERV_DNS="${SERV_DNS:-$SERVER_IP}"
 # PAC port announced by pydhcpd in DHCP option 252
-if [ -z "${WPAD_PORT:-}" ]; then
-    log "WARNING: no WPAD_PORT in pydhcp.env -fallback"
-fi
-WPAD_PORT="${WPAD_PORT:-18100}"
 
 # SQUID PORTS
 # Read optional shared ports without changing this script's network variables
@@ -265,8 +235,6 @@ if [ -e "$proxymon_env" ]; then
 else
     squid_port="3128"
     squid_intercept_port="3129"
-    log "WARNING: no proxymon.env; Squid port $squid_port -fallback"
-    log "WARNING: no proxymon.env; intercept port $squid_intercept_port -fallback"
 fi
 
 # ------------------------------------------------------------------------------
@@ -275,9 +243,6 @@ fi
 
 # PATHS
 # Declare the file and directory paths used below
-if [ -z "${ACL_PATH:-}" ]; then
-    log "WARNING: no ACL_PATH in pydhcp.env -fallback"
-fi
 acl_mac_path="${ACL_PATH:-/etc/acl}/mac"
 acl_ipt_path="${ACL_PATH:-/etc/acl}/ipt"
 

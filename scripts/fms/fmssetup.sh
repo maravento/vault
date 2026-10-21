@@ -6,13 +6,12 @@
 # fmssetup -- installer for FMS
 #
 # DESCRIPTION:
-# Installs, updates or uninstalls FMS. Run without sudo.
-# Install and update require an X11 or Wayland desktop session.
+# Installs or uninstalls FMS. Run without sudo.
+# Install requires an X11 or Wayland desktop session.
 #
 # USAGE:
 # bash fmssetup.sh --install      Install for a file manager
-# bash fmssetup.sh --update       Update the shared scripts
-# bash fmssetup.sh --uninstall    Remove file manager integration
+# bash fmssetup.sh --uninstall    Remove FMS from a file manager
 # bash fmssetup.sh                Interactive menu
 #
 # LOG: fmssetup.log, in this script's directory
@@ -33,7 +32,7 @@ fi
 
 case "${1:-}" in
     -h|--help)
-        echo "Usage: bash fmssetup.sh [--install|--update|--uninstall]"
+        echo "Usage: bash fmssetup.sh [--install|--uninstall]"
         echo "Without arguments, opens the action menu"
         exit 0
         ;;
@@ -87,10 +86,10 @@ data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 [[ "$data_home" == /* && "$config_home" == /* ]] \
     || abort "XDG data and config paths must be absolute -abort"
-install_root="${data_home}/fms"
-install_dir="${install_root}/scripts"
-manifest_file="${install_root}/fms.manifest"
-manager_dir="${install_root}/managers"
+install_root="${data_home}/scripts/fms"
+install_dir="$install_root"
+manifest_file="${install_root}/.fms.manifest"
+manager_dir="${install_root}/.managers"
 selected_manager=""
 integration_path=""
 
@@ -230,36 +229,33 @@ prepare_dependencies() {
     done
 }
 
-check_integration() {
-    local script_name entry_file
+remove_integration() {
+    local script_name entry_file link_path
     if [ "$selected_manager" = thunar ]; then
         for script_name in "${script_names[@]}"; do
             entry_file="${integration_path}/fms-${script_name}.desktop"
+            [ -e "$entry_file" ] || [ -L "$entry_file" ] || continue
             [ -f "$entry_file" ] && [ ! -L "$entry_file" ] \
-                || abort "fms-$script_name.desktop is missing or linked -abort"
-            grep -qx 'X-FMS-Managed=true' "$entry_file" \
+                && grep -qx 'X-FMS-Managed=true' "$entry_file" \
                 || abort "fms-$script_name.desktop is not FMS-owned -abort"
+            rm -- "$entry_file" \
+                || abort "cannot remove fms-$script_name.desktop -abort"
         done
-    else
-        [ -L "$integration_path" ] \
-            || abort "$selected_manager FMS link is missing -abort"
-        [ "$(readlink "$integration_path")" = "$install_dir" ] \
-            || abort "$selected_manager FMS link points elsewhere -abort"
+        return 0
     fi
-}
-
-check_integration_free() {
-    local script_name entry_file
-    if [ "$selected_manager" = thunar ]; then
-        for script_name in "${script_names[@]}"; do
-            entry_file="${integration_path}/fms-${script_name}.desktop"
-            if [ -e "$entry_file" ] || [ -L "$entry_file" ]; then
-                abort "fms-$script_name.desktop already exists -abort"
-            fi
-        done
-    elif [ -e "$integration_path" ] || [ -L "$integration_path" ]; then
-        abort "$selected_manager scripts/fms already exists -abort"
-    fi
+    [ -e "$integration_path" ] || [ -L "$integration_path" ] || return 0
+    [ -d "$integration_path" ] && [ ! -L "$integration_path" ] \
+        || abort "$selected_manager FMS path is not a directory -abort"
+    for script_name in "${script_names[@]}"; do
+        link_path="${integration_path}/${script_name}"
+        [ -e "$link_path" ] || [ -L "$link_path" ] || continue
+        [ -L "$link_path" ] \
+            && [ "$(readlink "$link_path")" = "${install_dir}/${script_name}" ] \
+            || abort "$script_name is not an FMS link -abort"
+        rm -- "$link_path" || abort "cannot remove $script_name link -abort"
+    done
+    rmdir -- "$integration_path" \
+        || abort "$selected_manager FMS directory is not empty -abort"
 }
 
 write_thunar_entries() {
@@ -336,20 +332,16 @@ require_desktop() {
 
 do_install() {
     require_desktop
-    local selection_rc=0
+    local selection_rc=0 script_name
     select_manager || selection_rc=$?
     [ "$selection_rc" -ne 2 ] || return 0
     [ "$selection_rc" -eq 0 ] || exit 1
     check_sources
     check_owned_root
-    if [ -e "${manager_dir}/${selected_manager}" ] \
-        || [ -L "${manager_dir}/${selected_manager}" ]; then
-        abort "$selected_manager FMS is already installed -abort"
-    fi
     command -v "$selected_manager" >/dev/null \
         || abort "$selected_manager is not installed -abort"
-    check_integration_free
     prepare_dependencies
+    remove_integration
     mkdir -p -- "$install_dir" "$manager_dir" \
         || abort "cannot create FMS installation directories -abort"
     printf '%s\n' fms-managed-v1 > "$manifest_file" \
@@ -360,35 +352,17 @@ do_install() {
             || abort "cannot create Thunar/sendto -abort"
         write_thunar_entries || abort "cannot create Thunar FMS entries -abort"
     else
-        mkdir -p -- "$(dirname -- "$integration_path")" \
-            || abort "cannot create $selected_manager scripts path -abort"
-        ln -s -- "$install_dir" "$integration_path" \
-            || abort "cannot create $selected_manager FMS link -abort"
+        mkdir -p -- "$integration_path" \
+            || abort "cannot create $selected_manager FMS directory -abort"
+        for script_name in "${script_names[@]}"; do
+            ln -s -- "${install_dir}/${script_name}" \
+                "${integration_path}/${script_name}" \
+                || abort "cannot link $script_name for $selected_manager -abort"
+        done
     fi
     printf '%s\n' fms-managed-v1 > "${manager_dir}/${selected_manager}" \
         || abort "cannot register $selected_manager FMS -abort"
     info "installed FMS for $selected_manager"
-}
-
-do_update() {
-    require_desktop
-    local registered_manager registered_count=0
-    check_sources
-    check_owned_root
-    [ -f "$manifest_file" ] || abort "FMS is not installed -abort"
-    for registered_manager in "${manager_names[@]}"; do
-        if [ -e "${manager_dir}/${registered_manager}" ] \
-            || [ -L "${manager_dir}/${registered_manager}" ]; then
-            selected_manager="$registered_manager"
-            check_registered
-            set_integration_path
-            check_integration
-            registered_count=$((registered_count + 1))
-        fi
-    done
-    [ "$registered_count" -gt 0 ] || abort "FMS has no registered file managers -abort"
-    prepare_dependencies
-    deploy_scripts
 }
 
 do_uninstall() {
@@ -398,20 +372,11 @@ do_uninstall() {
     [ "$selection_rc" -eq 0 ] || exit 1
     check_owned_root
     check_registered
-    check_integration
     echo "Remove FMS from $selected_manager? Logs and profiles will remain"
     read -r -p "Continue? [y/N]: " confirm_answer \
         || abort "cannot read the uninstall choice -abort"
     [[ "$confirm_answer" =~ ^[yY]$ ]] || return 0
-    if [ "$selected_manager" = thunar ]; then
-        for script_name in "${script_names[@]}"; do
-            rm -- "${integration_path}/fms-${script_name}.desktop" \
-                || abort "cannot remove fms-$script_name.desktop -abort"
-        done
-    else
-        rm -- "$integration_path" \
-            || abort "cannot remove $selected_manager FMS link -abort"
-    fi
+    remove_integration
     rm -- "${manager_dir}/${selected_manager}" \
         || abort "cannot remove $selected_manager FMS registration -abort"
     for registered_manager in "${manager_names[@]}"; do
@@ -425,6 +390,10 @@ do_uninstall() {
         rm -f -- "${install_dir}/${script_name}" \
             || abort "cannot remove $script_name -abort"
     done
+    rm -f -- "$manifest_file" \
+        || abort "cannot remove the FMS ownership marker -abort"
+    rmdir -- "$manager_dir" "$install_root" \
+        || abort "FMS installation directory is not empty -abort"
     info "removed FMS from $selected_manager"
 }
 
@@ -438,16 +407,14 @@ show_menu() {
         echo ""
         echo "FMS installer"
         echo "1) Install"
-        echo "2) Update"
-        echo "3) Uninstall"
-        echo "4) Exit"
-        read -r -p "Select option [4]: " menu_option \
+        echo "2) Uninstall"
+        echo "3) Exit"
+        read -r -p "Select option [3]: " menu_option \
             || abort "cannot read the installer menu choice -abort"
-        case "${menu_option:-4}" in
+        case "${menu_option:-3}" in
             1) do_install; break ;;
-            2) do_update; break ;;
-            3) do_uninstall; break ;;
-            4) exit 0 ;;
+            2) do_uninstall; break ;;
+            3) exit 0 ;;
             *) info "invalid option -retry" ;;
         esac
     done
@@ -460,12 +427,11 @@ show_menu() {
 log "fmssetup start..."
 case "${1:-}" in
     --install) do_install ;;
-    --update) do_update ;;
     --uninstall) do_uninstall ;;
     "") show_menu ;;
     *)
         err "unknown option $1 -abort"
-        echo "Usage: bash fmssetup.sh [--install|--update|--uninstall]"
+        echo "Usage: bash fmssetup.sh [--install|--uninstall]"
         exit 1
         ;;
 esac

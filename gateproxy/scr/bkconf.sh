@@ -199,8 +199,7 @@ if (umask 077; zip -r -q -y "$backup_part" "${backup_list[@]}"); then
     chmod 600 "$backup_part"
     if ! mv -f "$backup_part" "$backup_zip"; then
         rm -f "$backup_part"
-        log "ERROR: cannot name archive $(basename "$backup_zip")"
-        log "ERROR: check free space and permissions -abort"
+        log "ERROR: rename $(basename "$backup_zip"). check chmod -abort"
         exit 1
     fi
     log "INFO: backup written to $(basename "$backup_zip")"
@@ -212,8 +211,7 @@ if (umask 077; zip -r -q -y "$backup_part" "${backup_list[@]}"); then
     fi
 else
     rm -f "$backup_part"
-    log "ERROR: cannot write archive $(basename "$backup_zip")"
-    log "ERROR: check free space and permissions -abort"
+    log "ERROR: $(basename "$backup_zip"). check space/chmod -abort"
     exit 1
 fi
 

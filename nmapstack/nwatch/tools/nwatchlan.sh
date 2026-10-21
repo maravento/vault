@@ -428,24 +428,13 @@ if [ "${1:-}" != --stop ]; then
     done
     if (( ${#key_errors[@]} > 0 )); then
         for key_error in "${key_errors[@]}"; do
-            log "ERROR: $key_error -abort"
+            log "WARNING: $key_error -alert"
         done
         log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$nwatch_env") -abort"
         log "ERROR: run nwatchsetup first -abort"
         exit 1
     fi
     unset key_errors key_error env_key
-
-    # FALLBACK
-    # Second layer of protection, behind KEY CHECK -- by design never reached
-    if [ -z "${LAN_POLL_INTERVAL:-}" ]; then
-        log "WARNING: no LAN_POLL_INTERVAL in nwatch.env -fallback"
-    fi
-    LAN_POLL_INTERVAL="${LAN_POLL_INTERVAL:-60}"
-    if [ -z "${LAN_OFFLINE_GRACE:-}" ]; then
-        log "WARNING: no LAN_OFFLINE_GRACE in nwatch.env -fallback"
-    fi
-    LAN_OFFLINE_GRACE="${LAN_OFFLINE_GRACE:-3}"
 
     # DB CHECK
     # Require an existing database before continuing

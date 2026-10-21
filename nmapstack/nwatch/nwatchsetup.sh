@@ -13,7 +13,7 @@
 #
 # LOG: nwatchsetup.log, next to this script (rewritten on each run)
 #      The daemons nwatchlan.sh / nwatchports.sh log to the shared
-#      /var/log/nwatch.log, rotated weekly via /etc/logrotate.d/nwatch
+#      /var/log/nwatch.log, rotated daily via /etc/logrotate.d/nwatch
 #      (deployed by --install, removed by --uninstall).
 #
 ################################################################################
@@ -386,6 +386,31 @@ add_reboot_cron() {
     cron_d_set "$nwatch_tools/nwatchports.sh" "@reboot root $nwatch_tools/nwatchports.sh --start" || return 1
 }
 
+install_project_logrotate() {
+    local rotate_file="/etc/logrotate.d/nwatch"
+    local project_log="/var/log/nwatch.log"
+    if [ ! -f "$project_log" ]; then
+        touch "$project_log" || return 1
+    fi
+    chown root:root "$project_log" || return 1
+    chmod 640 "$project_log" || return 1
+    cat > "$rotate_file" <<EOF
+$project_log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 root root
+}
+EOF
+    [ "$?" -eq 0 ] || return 1
+    chown root:root "$rotate_file" || return 1
+    chmod 644 "$rotate_file" || return 1
+    log "INFO: updated $rotate_file"
+}
+
 do_install() {
 
     check_already_installed
@@ -502,34 +527,34 @@ PMODE
     # Values are bare, without quotes: that is the only form the shared
     # configuration reader accepts, and a bare value never needs escaping.
     cat > "$nwatch_env" <<ENV
+# =============================================================================
+# Nwatch
+# /etc/nwatch/nwatch.env
+# =============================================================================
+
+# Network
 LAN_IFACES=$ifaces_answer
 MGMT_IFACE=$mgmt_answer
 NET_CIDR=$net_cidr_value
 SERVER_IP=$detected_ip
+
+# LAN monitor
 LAN_POLL_INTERVAL=60
 LAN_OFFLINE_GRACE=3
+
+# Port monitor
 PORT_POLL_INTERVAL=30
 PURGE_CLOSED_AFTER_HOURS=6
-# Database defaults
+
+# Database
 # Changing these defaults is not recommended
 NWATCH_DB_TIMEOUT_MS=5000
+# =============================================================================
 ENV
     chown root:www-data "$nwatch_env"
     chmod 640 "$nwatch_env"
 
-    # logrotate: the shared log has no size cap otherwise (both daemons
-    # write to it indefinitely).
-    cp -f /etc/logrotate.d/nwatch{,.bak} &>/dev/null
-    cat > /etc/logrotate.d/nwatch <<'EOF'
-/var/log/nwatch.log {
-    weekly
-    missingok
-    rotate 7
-    create 0640 root root
-    compress
-    notifempty
-}
-EOF
+    install_project_logrotate || { log "ERROR: cannot configure nwatch log rotation -abort"; exit 1; }
 
     # start daemons -- they are nwatch's core, not an optional extra, so
     # they auto-start right after install.
@@ -563,7 +588,6 @@ EOF
 do_update() {
     local update_failed=0
     local -a update_failures=()
-    local update_failure
 
     if [ ! -f "$nwatch_env" ]; then
         log "ERROR: nwatch is not installed -abort"
@@ -626,6 +650,12 @@ do_update() {
         fi
     done
 
+    if ! install_project_logrotate; then
+        log "WARNING: cannot configure nwatch log rotation -alert"
+        update_failed=1
+        update_failures+=("cannot configure nwatch log rotation")
+    fi
+
     if ! "$nwatch_tools/nwatchlan.sh" --start; then
         log "WARNING: cannot start nwatchlan.sh -alert"
         update_failed=1
@@ -649,9 +679,7 @@ do_update() {
     fi
 
     if [ "$update_failed" -ne 0 ]; then
-        for update_failure in "${update_failures[@]}"; do
-            log "ERROR: $update_failure -abort"
-        done
+        log "ERROR: ${#update_failures[@]} update step(s) failed -abort"
         return 1
     fi
 }
@@ -671,7 +699,6 @@ do_uninstall() {
             *) echo "Aborted."; exit 1 ;;
         esac
     fi
-
 
     "$nwatch_tools/nwatchlan.sh" --stop 2>/dev/null || true
     "$nwatch_tools/nwatchports.sh" --stop 2>/dev/null || true

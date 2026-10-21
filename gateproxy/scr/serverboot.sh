@@ -169,9 +169,7 @@ run_service_action restart syslog.socket rsyslog.service
 sleep 5
 
 if (( ${#service_failures[@]} > 0 )); then
-    for service_failure in "${service_failures[@]}"; do
-        log "ERROR: $service_failure -abort"
-    done
+    log "ERROR: ${#service_failures[@]} service action(s) failed -abort"
     exit 1
 fi
 

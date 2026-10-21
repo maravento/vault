@@ -108,7 +108,6 @@ unset env_owner env_perms
 # Read known key=value pairs from a config file, without sourcing it
 load_conf() {
     local conf_file="$1" env_key env_value env_line
-    [[ ! -f "$conf_file" ]] && { log "WARNING: $conf_file not found -fallback"; return 1; }
     while IFS= read -r env_line || [[ -n "$env_line" ]]; do
         [[ "$env_line" =~ ^[[:space:]]*[#] ]] && continue
         [[ "$env_line" =~ ^[[:space:]]*$ ]] && continue
@@ -149,23 +148,14 @@ elif ! [[ "$SERV_SUBNET" =~ $UH_IPV4 ]]; then
 fi
 if (( ${#key_errors[@]} > 0 )); then
     for key_error in "${key_errors[@]}"; do
-        log "ERROR: $key_error -abort"
+        log "WARNING: $key_error -alert"
     done
     log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$pydhcp_env") -abort"
     exit 1
 fi
 unset key_errors key_error
 
-# FALLBACK
-# Default values used when a key is absent, each one logged
-if [ -z "${WAN_IFACE:-}" ]; then
-    log "WARNING: no WAN_IFACE in pydhcp.env -fallback"
-fi
-wan_iface="${WAN_IFACE:-eth0}"
-if [ -z "${SERV_SUBNET:-}" ]; then
-    log "WARNING: no SERV_SUBNET in pydhcp.env -fallback"
-fi
-SERV_SUBNET="${SERV_SUBNET:-192.168.0.0}"
+wan_iface="$WAN_IFACE"
 
 # ------------------------------------------------------------------------------
 # MAIN

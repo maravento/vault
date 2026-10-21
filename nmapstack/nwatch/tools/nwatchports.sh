@@ -649,24 +649,13 @@ if [ "${1:-}" != --stop ]; then
     done
     if (( ${#key_errors[@]} > 0 )); then
         for key_error in "${key_errors[@]}"; do
-            log "ERROR: $key_error -abort"
+            log "WARNING: $key_error -alert"
         done
         log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$nwatch_env") -abort"
         log "ERROR: run nwatchsetup first -abort"
         exit 1
     fi
     unset key_errors key_error env_key
-
-    # FALLBACK
-    # Second layer of protection, behind KEY CHECK -- by design never reached
-    if [ -z "${PORT_POLL_INTERVAL:-}" ]; then
-        log "WARNING: no PORT_POLL_INTERVAL in nwatch.env -fallback"
-    fi
-    PORT_POLL_INTERVAL="${PORT_POLL_INTERVAL:-30}"
-    if [ -z "${PURGE_CLOSED_AFTER_HOURS:-}" ]; then
-        log "WARNING: purge hours unset; check nwatch.env -fallback"
-    fi
-    PURGE_CLOSED_AFTER_HOURS="${PURGE_CLOSED_AFTER_HOURS:-6}"
 
     # DB CHECK
     # Require an existing database before continuing

@@ -443,8 +443,7 @@ xml_to_html() {
         rm -f "$xsl_error"
         return 0
     else
-        log "WARNING: Custom XSL conversion failed -fallback"
-        head -5 "$xsl_error" | while read -r line; do log "WARNING: $line"; done
+        log "INFO: custom XSL failed, trying default nmap XSL -retry"
     fi
 
     # Fallback: try default nmap XSL
@@ -455,15 +454,15 @@ xml_to_html() {
             rm -f "$xsl_error"
             return 0
         else
-            log "WARNING: Default XSL conversion failed -fallback"
             head -5 "$xsl_error" | while read -r line; do log "WARNING: $line"; done
+            log "WARNING: default nmap XSL conversion failed -alert"
         fi
     else
-        log "WARNING: default nmap XSL not found -fallback"
+        log "WARNING: default nmap XSL not found -alert"
     fi
 
     # Last resort: create basic HTML wrapper
-    log "WARNING: all XSL conversions failed -fallback"
+    log "WARNING: no usable XSL, report built without format -alert"
     {
         echo '<!DOCTYPE html>'
         echo '<html><head><meta charset="UTF-8">'
