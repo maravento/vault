@@ -125,15 +125,29 @@ stop_limit() {
     if [ -f /run/cpulimit_managed.pid ]; then
         while IFS= read -r saved_pid; do
             if _pid_is_cpulimit "$saved_pid"; then
-                kill "$saved_pid"
+                kill "$saved_pid" 2>/dev/null || true
             fi
         done < /run/cpulimit_managed.pid
-        rm -f /run/cpulimit_managed.pid
-    else
-        pkill -x "cpulimit" 2>/dev/null || true
     fi
     pkill -x "cpulimit" 2>/dev/null || true
-    echo "All CPU Limit have been stopped"
+    sleep 1
+    local rc
+    pgrep -x "cpulimit" >/dev/null 2>&1
+    rc=$?
+    case "$rc" in
+        1)
+            rm -f /run/cpulimit_managed.pid
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: all cpulimit processes stopped"
+            ;;
+        0)
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cpulimit still running -alert" >&2
+            return 1
+            ;;
+        *)
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot verify cpulimit -abort" >&2
+            return 1
+            ;;
+    esac
 }
 
 # ------------------------------------------------------------------------------
@@ -150,7 +164,7 @@ case "${1:-}" in
         start_limit
         ;;
     --stop)
-        stop_limit
+        stop_limit || exit 1
         ;;
     --status)
         status_limit

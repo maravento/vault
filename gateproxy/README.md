@@ -7,8 +7,6 @@ FILE: gateproxy/README.md
 
 [![status-beta](https://img.shields.io/badge/status-beta-magenta.svg)](https://github.com/maravento/vault)
 
-<!-- markdownlint-disable MD033 -->
-
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
@@ -20,19 +18,19 @@ FILE: gateproxy/README.md
   </tr>
 </table>
 
+<!-- markdownlint-disable MD033 -->
+
 ## REQUIREMENTS
 
 ---
 
-### ⚠️ WARNING
-
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      WARNING: Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
+      Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      ADVERTENCIA: Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
+      Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
     </td>
   </tr>
 </table>
@@ -40,6 +38,51 @@ FILE: gateproxy/README.md
 | CPU | NIC | RAM | Storage |
 | :---: | :---: | :---: | :---: |
 | 4+ cores (≥ 3.0 GHz) | 2 (WAN & LAN) | 12+ GB (4 GB cache_mem) | 50 GB SSD (cache_dir rock) |
+
+## REPOSITORY STRUCTURE
+
+---
+
+```
+gateproxy/
+├── acl/                        # Access control lists for MAC, Squid and iptables rules (see ACL STRUCTURE)
+│
+├── conf/
+│   ├── evebox/
+│   │   ├── evebox.service          # EveBox systemd unit
+│   │   └── evebox.yaml             # EveBox configuration
+│   ├── fail2ban/
+│   │   └── jail.local              # fail2ban jail config
+│   ├── netplan/
+│   │   └── 00-networkd.yaml        # Netplan configuration
+│   ├── squid/
+│   │   └── squid.conf              # Squid proxy configuration
+│   ├── suricata/
+│   │   ├── disable.conf            # Suricata disabled rules
+│   │   ├── drop.conf               # Suricata drop rules (converted alert->drop by suricata-update)
+│   │   ├── suricataclean.sh        # Suricata log cleanup
+│   │   ├── suricataupdate.sh       # Suricata rules update
+│   │   ├── suridata.sh             # Captures dest_ip from drop.conf-matched alerts into /etc/suricata/suridata.txt
+│   │   └── suridata.txt            # Destination IPs blocked from Suricata alerts (see suridata.sh)
+│   ├── ttyd/
+│   │   └── ttyd.service            # ttyd (web terminal) systemd unit
+│   ├── unbound/
+│   │   └── forward.conf            # Unbound DNS forwarder configuration
+│   ├── webmin/
+│   │   └── text-editor.wbm         # Webmin Text Editor module
+│   └── wpad/
+│       ├── wpad.conf               # Apache WPAD virtual host
+│       └── wpad.pac                # Proxy auto-config script
+│
+├── scr/                        # Scripts (deployed to /etc/scr/)
+│   ├── bkconf.sh                   # Backup configuration files
+│   ├── iptables.sh                 # Firewall rules and ipsets
+│   ├── killswitch.sh               # Emergency traffic block
+│   ├── serverboot.sh               # Start/restart all services
+│   └── serviceswatch.sh            # Service watchdog
+│
+└── gpsetup.sh                  # Main installer script
+```
 
 ## HOW TO USE
 
@@ -60,6 +103,12 @@ FILE: gateproxy/README.md
 wget -qO gpsetup.sh https://raw.githubusercontent.com/maravento/vault/master/gateproxy/gpsetup.sh && sudo bash gpsetup.sh
 ```
 
+## HOW IT WORKS
+
+---
+
+### Installer behavior
+
 ![Gateproxy](https://raw.githubusercontent.com/maravento/vault/master/gateproxy/img/gateproxy.png)
 
 <table width="100%">
@@ -75,20 +124,9 @@ wget -qO gpsetup.sh https://raw.githubusercontent.com/maravento/vault/master/gat
 
 ### Optional Temporary-Memory Mounts
 
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-     <p>These settings are optional and disabled in <code>gpsetup.sh</code>. By default, the installer preserves the existing mounts and adds none of these entries to <code>/etc/fstab</code>.</p>
-     <p>Before running the installer, decide whether to enable an option or leave all disabled. For <code>/tmp</code>, choose either a 2 GB limit or 30% of physical RAM, never both. Check existing <code>fstab</code> entries to avoid duplicate mounts. The read-only <code>/run/shm</code> option is independent and can affect applications that write to shared memory. Files stored in tmpfs are lost on reboot.</p>
-     <p>To enable an option, download the script and edit its optional mount block before executing it. For the 2 GB option, uncomment all three lines: <code>failure_message</code>, <code>grep</code> and <code>echo</code>. The examples below show the resulting <code>fstab</code> entries.</p>
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-     <p>Estas opciones son voluntarias y están desactivadas en <code>gpsetup.sh</code>. Por defecto, el instalador conserva los montajes existentes y no agrega estas entradas a <code>/etc/fstab</code>.</p>
-     <p>Antes de ejecutar el instalador, decida si necesita alguna opción o prefiere mantenerlas todas desactivadas. Para <code>/tmp</code>, elija un límite de 2 GB o el 30 % de la RAM física, nunca ambos. Revise las entradas existentes de <code>fstab</code> para evitar montajes duplicados. La opción de <code>/run/shm</code> en solo lectura es independiente y puede afectar a las aplicaciones que escriben en memoria compartida. Los archivos almacenados en tmpfs se pierden al reiniciar.</p>
-     <p>Para habilitar una opción, descargue el script y edite su bloque de montajes opcionales antes de ejecutarlo. Para la opción de 2 GB, descomente las tres líneas: <code>failure_message</code>, <code>grep</code> y <code>echo</code>. Los ejemplos siguientes muestran las entradas resultantes de <code>fstab</code>.</p>
-    </td>
-  </tr>
-</table>
+| Description | Descripción |
+|---|---|
+| These settings are optional and disabled in `gpsetup.sh`. By default, the installer preserves the existing mounts and adds none of these entries to `/etc/fstab`.<br><br>Before running the installer, decide whether to enable an option or leave all disabled. For `/tmp`, choose either a 2 GB limit or 30% of physical RAM, never both. Check existing `fstab` entries to avoid duplicate mounts. The read-only `/run/shm` option is independent and can affect applications that write to shared memory. Files stored in tmpfs are lost on reboot.<br><br>To enable an option, download the script and edit its optional mount block before executing it. For the 2 GB option, uncomment all three lines: `failure_message`, `grep` and `echo`. The examples below show the resulting `fstab` entries. | Estas opciones son voluntarias y están desactivadas en `gpsetup.sh`. Por defecto, el instalador conserva los montajes existentes y no agrega estas entradas a `/etc/fstab`.<br><br>Antes de ejecutar el instalador, decida si necesita alguna opción o prefiere mantenerlas todas desactivadas. Para `/tmp`, elija un límite de 2 GB o el 30 % de la RAM física, nunca ambos. Revise las entradas existentes de `fstab` para evitar montajes duplicados. La opción de `/run/shm` en solo lectura es independiente y puede afectar a las aplicaciones que escriben en memoria compartida. Los archivos almacenados en tmpfs se pierden al reiniciar.<br><br>Para habilitar una opción, descargue el script y edite su bloque de montajes opcionales antes de ejecutarlo. Para la opción de 2 GB, descomente las tres líneas: `failure_message`, `grep` y `echo`. Los ejemplos siguientes muestran las entradas resultantes de `fstab`. |
 
 ```bash
 tmpfs /tmp tmpfs defaults,size=2G,nofail,noatime,mode=1777 0 0      # /tmp as tmpfs, 2 GB limit / /tmp como tmpfs, límite de 2 GB
@@ -96,9 +134,7 @@ tmpfs /tmp tmpfs defaults,size=30%,nofail,noatime,mode=1777 0 0     # /tmp as tm
 none /run/shm tmpfs defaults,ro 0 0                                 # read-only shared memory / memoria compartida de solo lectura
 ```
 
-## SETUP PARAMETERS
-
----
+### Setup Parameters
 
 <table width="100%">
   <tr>
@@ -154,9 +190,7 @@ Los DNS Primario/Secundario de arriba sólo configuran los reenviadores propios 
 join <(ip -o -br link | sort) <(ip -o -br addr | sort) | awk '$2=="UP" {print $1,$6,$3}' | sed -Ee 's./[0-9]+..'
 ```
 
-## COMPONENTS
-
----
+### Components
 
 <table width="100%">
   <tr>
@@ -169,7 +203,7 @@ join <(ip -o -br link | sort) <(ip -o -br addr | sort) | awk '$2=="UP" {print $1
   </tr>
 </table>
 
-### Proxy
+#### Proxy
 
 | Description | Descripción |
 |---|---|
@@ -183,7 +217,7 @@ join <(ip -o -br link | sort) <(ip -o -br addr | sort) | awk '$2=="UP" {print $1
 | **Proxymon** | `18080` | Bandwidth monitoring dashboard |
 | **Proxymon** | `18081` | Bandwidth quota warning page (bandata redirect) |
 
-### Web / Admin
+#### Web / Admin
 
 | Component | Port | Notes |
 | :--- | :---: | :--- |
@@ -196,7 +230,7 @@ Webmin is installed with the following modules / Webmin se instala con los sigui
 - **Service Monitor** (`servicemon`) — watch and restart services / monitorear y reiniciar servicios
 - **Netplan Manager** (`netplanmgr`) — manage network configuration / gestionar configuración de red
 
-### DHCP
+#### DHCP
 
 | Component | Config | Notes |
 | :--- | :--- | :--- |
@@ -204,20 +238,20 @@ Webmin is installed with the following modules / Webmin se instala con los sigui
 
 Pool range and other DHCP settings can be changed in `/etc/pydhcp/pydhcp.env` after installation / El rango del pool y otros parámetros DHCP pueden modificarse en `/etc/pydhcp/pydhcp.env` luego de la instalación.
 
-### DNS
+#### DNS
 
 | Component | Config | Notes |
 | :--- | :--- | :--- |
 | **Unbound** | `/etc/unbound/unbound.conf.d/forward.conf` | Forwarding resolver (not recursive/iterative); listens on `127.0.0.1` and the server IP; forwards to `1.1.1.2`/`1.0.0.2`. DHCP clients receive the server IP as their DNS server. |
 
-### Firewall
+#### Firewall
 
 | Component | Config | Notes |
 | :--- | :--- | :--- |
 | **iptables + ipset** | `/etc/scr/iptables.sh` | Stateful firewall with MAC-based access control |
 | **ulogd2** | `/var/log/ulog/syslogemu.log` | Kernel-level packet logging via NFLOG |
 
-### Security / Monitoring
+#### Security / Monitoring
 
 | Component | Port | Notes |
 | :--- | :---: | :--- |
@@ -227,7 +261,7 @@ Pool range and other DHCP settings can be changed in `/etc/pydhcp/pydhcp.env` af
 | **fail2ban** | — | Brute-force protection with custom jail config |
 | **ttyd** | `7681` | Web terminal, loopback-only (`http://localhost:7681`) |
 
-### Net Tools
+#### Net Tools
 
 Command-line tools for the administrator. No script of the stack invokes them / Herramientas de línea de comandos para el administrador. Ningún script del stack las invoca.
 
@@ -240,7 +274,7 @@ Command-line tools for the administrator. No script of the stack invokes them / 
 | `nbtscan`, `nast`, `arp-scan`, `arping`, `netdiscover` | LAN discovery over NetBIOS and ARP |
 | `traceroute`, `mtr-tiny` | Path tracing to a domain or IP |
 
-### Backup
+#### Backup
 
 | Component | Notes |
 | :--- | :--- |
@@ -248,54 +282,7 @@ Command-line tools for the administrator. No script of the stack invokes them / 
 | **FreeFileSync** | File mirror sync; auto-updated weekly via `/etc/scr/ffsupdate.sh` |
 | **`bkconf.sh`** | Configuration archive; only the last 3 are kept |
 
-## REPOSITORY STRUCTURE
-
----
-
-```
-gateproxy/
-├── acl/                        # Access control lists for MAC, Squid and iptables rules (see ACL STRUCTURE)
-│
-├── conf/
-│   ├── evebox/
-│   │   ├── evebox.service          # EveBox systemd unit
-│   │   └── evebox.yaml             # EveBox configuration
-│   ├── fail2ban/
-│   │   └── jail.local              # fail2ban jail config
-│   ├── netplan/
-│   │   └── 00-networkd.yaml        # Netplan configuration
-│   ├── squid/
-│   │   └── squid.conf              # Squid proxy configuration
-│   ├── suricata/
-│   │   ├── disable.conf            # Suricata disabled rules
-│   │   ├── drop.conf               # Suricata drop rules (converted alert->drop by suricata-update)
-│   │   ├── suricataclean.sh        # Suricata log cleanup
-│   │   ├── suricataupdate.sh       # Suricata rules update
-│   │   ├── suridata.sh             # Captures dest_ip from drop.conf-matched alerts into /etc/suricata/suridata.txt
-│   │   └── suridata.txt            # Destination IPs blocked from Suricata alerts (see suridata.sh)
-│   ├── ttyd/
-│   │   └── ttyd.service            # ttyd (web terminal) systemd unit
-│   ├── unbound/
-│   │   └── forward.conf            # Unbound DNS forwarder configuration
-│   ├── webmin/
-│   │   └── text-editor.wbm         # Webmin Text Editor module
-│   └── wpad/
-│       ├── wpad.conf               # Apache WPAD virtual host
-│       └── wpad.pac                # Proxy auto-config script
-│
-├── scr/                        # Scripts (deployed to /etc/scr/)
-│   ├── bkconf.sh                   # Backup configuration files
-│   ├── iptables.sh                 # Firewall rules and ipsets
-│   ├── killswitch.sh               # Emergency traffic block
-│   ├── serverboot.sh               # Start/restart all services
-│   └── serviceswatch.sh            # Service watchdog
-│
-└── gpsetup.sh                  # Main installer script
-```
-
-## ACL STRUCTURE
-
----
+### Acl Structure
 
 <table width="100%">
   <tr>
@@ -327,7 +314,7 @@ gateproxy/
     └── dhcp_mac.txt            # MAC list derived from DHCP leases (auto-generated by iptables.sh)
 ```
 
-Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/etc/suricata/suridata.txt`, generated by `suridata.sh`. MACs blocked from a DHCP lease (`blockdhcp.txt`) belong to a different project (pydhcp) and live at `/etc/pydhcp/acl/blockdhcp.txt`, outside gateproxy's `/etc/acl/`.
+Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/etc/suricata/suridata.txt`, generated by `suridata.sh`. MACs blocked from a DHCP lease (`blockdhcp.txt`) belong to a different project (pydhcp) and live at `/etc/acl/dhcp/blockdhcp.txt`, in its own namespace inside `/etc/acl/`.
 
 <table width="100%">
   <tr>
@@ -340,9 +327,7 @@ Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/et
   </tr>
 </table>
 
-## FIREWALL
-
----
+### Firewall
 
 <table width="100%">
   <tr>
@@ -355,7 +340,7 @@ Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/et
   </tr>
 </table>
 
-### ipsets
+#### ipsets
 
 | ipset | Type | Purpose |
 | :--- | :--- | :--- |
@@ -369,7 +354,7 @@ Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/et
 
 `macip` is built from `pydhcpd.conf`'s static `host {}` blocks, not from `mac-*.txt` directly. Adding a MAC to `mac-unlimited.txt`/`mac-limited.txt` classifies it, but does **not** by itself grant it network access — it still needs a matching static reservation in `pydhcpd.conf`, or the firewall's `MACCHECK` step drops its traffic regardless of classification. pydhcp ships an optional tool, `tools/pyleases.sh`, that generates those reservations from the same `mac-*.txt` files — run it after editing any of them (it is not scheduled automatically by any installer, see the Scripts section below).
 
-### Blocked Ports (`blockports.txt`)
+#### Blocked Ports (`blockports.txt`)
 
 <table width="100%">
   <tr>
@@ -382,40 +367,14 @@ Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/et
   </tr>
 </table>
 
-### Suricata-driven IP Blocking (`suridata`)
+#### Suricata-driven IP Blocking (`suridata`)
 
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-     Suricata runs passive (AF-PACKET, IDS mode) — it can never block traffic on its own, regardless of what <code>drop.conf</code> says. <code>suridata.sh</code> (cron, every 5 minutes) is what turns a <code>drop.conf</code> match into a real block: it reads the SIDs <code>suricata-update</code> already resolved to <code>drop</code> action in <code>suricata.rules</code> (covers both literal SIDs and <code>re:</code> message-regex entries in <code>drop.conf</code>), tails only the new lines of <code>eve.json</code> since its last run, and for every alert whose <code>signature_id</code> matches, appends the flow's <code>dest_ip</code> to <code>suridata.txt</code>. <code>iptables.sh</code> loads that file into the <code>suridata</code> ipset and drops matching destinations at <code>mangle PREROUTING</code> — silently, no warning page (unlike <code>bandata</code>, this blocks a destination, not a client). No expiry: entries are removed by hand, same model as <code>blockports.txt</code>. <code>macunlimited</code> members (APs, switches) are exempt, same as <code>blockports</code>.
-     <br><br>
-     <strong>Editing <code>drop.conf</code> / <code>disable.conf</code>:</strong> <code>suricataupdate.sh</code> is the only script that reads these files and applies them to <code>suricata.rules</code>; it only runs once a day via cron (2 AM). A SID you just added to <code>drop.conf</code> stays as plain <code>alert</code> (not blocked) until that cron runs. To apply the change immediately, run both in order: <code>sudo /etc/suricata/suricataupdate.sh && sudo /etc/suricata/suridata.sh</code> — on that first <code>suridata.sh</code> run after the SID becomes <code>drop</code>, it also does a one-time full <code>eve.json</code> rescan for that SID (tracked via <code>suridata.sids</code>), so alerts that already fired earlier that day get backfilled into <code>suridata.txt</code> too, not just alerts from that point forward.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-     Suricata corre en modo pasivo (AF-PACKET, IDS) — nunca puede bloquear tráfico por sí solo, sin importar lo que diga <code>drop.conf</code>. <code>suridata.sh</code> (cron, cada 5 minutos) es lo que convierte un match de <code>drop.conf</code> en un bloqueo real: lee los SIDs que <code>suricata-update</code> ya resolvió a acción <code>drop</code> en <code>suricata.rules</code> (cubre tanto SIDs literales como entradas <code>re:</code> de regex de mensaje en <code>drop.conf</code>), lee solo las líneas nuevas de <code>eve.json</code> desde su última corrida, y por cada alerta cuyo <code>signature_id</code> coincide, agrega el <code>dest_ip</code> del flujo a <code>suridata.txt</code>. <code>iptables.sh</code> carga ese archivo al ipset <code>suridata</code> y bloquea los destinos que coincidan en <code>mangle PREROUTING</code> — de forma silenciosa, sin página de aviso (a diferencia de <code>bandata</code>, esto bloquea un destino, no un cliente). Sin expiración: las entradas se retiran a mano, mismo modelo que <code>blockports.txt</code>. Los miembros de <code>macunlimited</code> (APs, switches) quedan exentos, igual que con <code>blockports</code>.
-     <br><br>
-     <strong>Al editar <code>drop.conf</code> / <code>disable.conf</code>:</strong> <code>suricataupdate.sh</code> es el único script que lee estos archivos y los aplica a <code>suricata.rules</code>; corre una sola vez al día por cron (2 AM). Una SID recién agregada a <code>drop.conf</code> queda como <code>alert</code> plano (sin bloquear) hasta que corra ese cron. Para aplicar el cambio de inmediato, corre ambos en orden: <code>sudo /etc/suricata/suricataupdate.sh && sudo /etc/suricata/suridata.sh</code> — en esa primera corrida de <code>suridata.sh</code> después de que la SID pasa a <code>drop</code>, también hace un escaneo completo único de <code>eve.json</code> para esa SID (rastreado vía <code>suridata.sids</code>), así que las alertas que ya habían ocurrido ese mismo día también quedan agregadas a <code>suridata.txt</code>, no solo las de ahí en adelante.
-    </td>
-  </tr>
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-     Between reloads, <code>suridata.sh</code> also patches the live <code>suridata</code> ipset directly with any newly found IP, so a new block takes effect within one cron cycle instead of waiting for the next full firewall reload.
-     <br><br>
-     <strong>Log cleanup:</strong> <code>suricataclean.sh</code> runs monthly via cron and truncates Suricata's own logs. It is the third and last cron entry of the Suricata component, alongside <code>suricataupdate.sh</code> (daily, 2 AM) and <code>suridata.sh</code> (every 5 minutes).
-     <br><br>
-     <strong>Local exclusion:</strong> a <code>dest_ip</code> inside the server's own LAN (<code>SERV_SUBNET</code>, assumed /24) or inside the WAN interface's own /24 is never written to <code>suridata.txt</code>, so a false positive against your own network can't block your gateway, WAN uplink or LAN hosts. On every run, any LAN/WAN IP already present from before this exclusion existed is purged from <code>suridata.txt</code> and from the live ipset. <code>SERV_SUBNET</code> and <code>WAN_IFACE</code> come from <code>/etc/pydhcp/pydhcp.env</code>. Missing or empty keys abort the script; an invalid <code>SERV_SUBNET</code> also aborts. If the WAN IPv4 address cannot be resolved, the script warns and skips only the WAN exclusion for that run.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-     Entre recargas, <code>suridata.sh</code> también aplica directamente al ipset <code>suridata</code> en vivo cualquier IP recién encontrada, para que un nuevo bloqueo surta efecto en el mismo ciclo de cron, sin esperar la siguiente recarga completa del firewall.
-     <br><br>
-     <strong>Limpieza de logs:</strong> <code>suricataclean.sh</code> corre por cron una vez al mes y trunca los logs propios de Suricata. Es la tercera y última entrada de cron del componente Suricata, junto a <code>suricataupdate.sh</code> (diaria, 2 AM) y <code>suridata.sh</code> (cada 5 minutos).
-     <br><br>
-     <strong>Exclusión local:</strong> un <code>dest_ip</code> dentro de la LAN propia del servidor (<code>SERV_SUBNET</code>, se asume /24) o dentro del /24 propio de la interfaz WAN nunca se escribe en <code>suridata.txt</code>, para que un falso positivo contra la propia red no bloquee el gateway, el enlace WAN ni hosts de la LAN. En cada corrida, cualquier IP LAN/WAN ya presente desde antes de esta exclusión se purga de <code>suridata.txt</code> y del ipset en vivo. <code>SERV_SUBNET</code> y <code>WAN_IFACE</code> vienen de <code>/etc/pydhcp/pydhcp.env</code>. Las claves ausentes o vacías abortan el script; un <code>SERV_SUBNET</code> inválido también aborta. Si no se obtiene la dirección IPv4 WAN, el script advierte y omite únicamente la exclusión WAN durante esa ejecución.
-    </td>
-  </tr>
-</table>
+| Description | Descripción |
+|---|---|
+| Suricata runs passive (AF-PACKET, IDS mode) — it can never block traffic on its own, regardless of what `drop.conf` says. `suridata.sh` (cron, every 5 minutes) is what turns a `drop.conf` match into a real block: it reads the SIDs `suricata-update` already resolved to `drop` action in `suricata.rules` (covers both literal SIDs and `re:` message-regex entries in `drop.conf`), tails only the new lines of `eve.json` since its last run, and for every alert whose `signature_id` matches, appends the flow's `dest_ip` to `suridata.txt`. `iptables.sh` loads that file into the `suridata` ipset and drops matching destinations at `mangle PREROUTING` — silently, no warning page (unlike `bandata`, this blocks a destination, not a client). No expiry: entries are removed by hand, same model as `blockports.txt`. `macunlimited` members (APs, switches) are exempt, same as `blockports`. <br><br> **Editing `drop.conf` / `disable.conf`:** `suricataupdate.sh` is the only script that reads these files and applies them to `suricata.rules`; it only runs once a day via cron (2 AM). A SID you just added to `drop.conf` stays as plain `alert` (not blocked) until that cron runs. To apply the change immediately, run both in order: `sudo /etc/suricata/suricataupdate.sh && sudo /etc/suricata/suridata.sh` — on that first `suridata.sh` run after the SID becomes `drop`, it also does a one-time full `eve.json` rescan for that SID (tracked via `suridata.sids`), so alerts that already fired earlier that day get backfilled into `suridata.txt` too, not just alerts from that point forward. | Suricata corre en modo pasivo (AF-PACKET, IDS) — nunca puede bloquear tráfico por sí solo, sin importar lo que diga `drop.conf`. `suridata.sh` (cron, cada 5 minutos) es lo que convierte un match de `drop.conf` en un bloqueo real: lee los SIDs que `suricata-update` ya resolvió a acción `drop` en `suricata.rules` (cubre tanto SIDs literales como entradas `re:` de regex de mensaje en `drop.conf`), lee solo las líneas nuevas de `eve.json` desde su última corrida, y por cada alerta cuyo `signature_id` coincide, agrega el `dest_ip` del flujo a `suridata.txt`. `iptables.sh` carga ese archivo al ipset `suridata` y bloquea los destinos que coincidan en `mangle PREROUTING` — de forma silenciosa, sin página de aviso (a diferencia de `bandata`, esto bloquea un destino, no un cliente). Sin expiración: las entradas se retiran a mano, mismo modelo que `blockports.txt`. Los miembros de `macunlimited` (APs, switches) quedan exentos, igual que con `blockports`. <br><br> **Al editar `drop.conf` / `disable.conf`:** `suricataupdate.sh` es el único script que lee estos archivos y los aplica a `suricata.rules`; corre una sola vez al día por cron (2 AM). Una SID recién agregada a `drop.conf` queda como `alert` plano (sin bloquear) hasta que corra ese cron. Para aplicar el cambio de inmediato, corre ambos en orden: `sudo /etc/suricata/suricataupdate.sh && sudo /etc/suricata/suridata.sh` — en esa primera corrida de `suridata.sh` después de que la SID pasa a `drop`, también hace un escaneo completo único de `eve.json` para esa SID (rastreado vía `suridata.sids`), así que las alertas que ya habían ocurrido ese mismo día también quedan agregadas a `suridata.txt`, no solo las de ahí en adelante. |
+| Between reloads, `suridata.sh` also patches the live `suridata` ipset directly with any newly found IP, so a new block takes effect within one cron cycle instead of waiting for the next full firewall reload. <br><br> **Log cleanup:** `suricataclean.sh` runs monthly via cron and truncates Suricata's own logs. It is the third and last cron entry of the Suricata component, alongside `suricataupdate.sh` (daily, 2 AM) and `suridata.sh` (every 5 minutes). <br><br> **Local exclusion:** a `dest_ip` inside the server's own LAN (`SERV_SUBNET`, assumed /24) or inside the WAN interface's own /24 is never written to `suridata.txt`, so a false positive against your own network can't block your gateway, WAN uplink or LAN hosts. On every run, any LAN/WAN IP already present from before this exclusion existed is purged from `suridata.txt` and from the live ipset. `SERV_SUBNET` and `WAN_IFACE` come from `/etc/pydhcp/pydhcp.env`. Missing or empty keys abort the script; an invalid `SERV_SUBNET` also aborts. If the WAN IPv4 address cannot be resolved, the script warns and skips only the WAN exclusion for that run. | Entre recargas, `suridata.sh` también aplica directamente al ipset `suridata` en vivo cualquier IP recién encontrada, para que un nuevo bloqueo surta efecto en el mismo ciclo de cron, sin esperar la siguiente recarga completa del firewall. <br><br> **Limpieza de logs:** `suricataclean.sh` corre por cron una vez al mes y trunca los logs propios de Suricata. Es la tercera y última entrada de cron del componente Suricata, junto a `suricataupdate.sh` (diaria, 2 AM) y `suridata.sh` (cada 5 minutos). <br><br> **Exclusión local:** un `dest_ip` dentro de la LAN propia del servidor (`SERV_SUBNET`, se asume /24) o dentro del /24 propio de la interfaz WAN nunca se escribe en `suridata.txt`, para que un falso positivo contra la propia red no bloquee el gateway, el enlace WAN ni hosts de la LAN. En cada corrida, cualquier IP LAN/WAN ya presente desde antes de esta exclusión se purga de `suridata.txt` y del ipset en vivo. `SERV_SUBNET` y `WAN_IFACE` vienen de `/etc/pydhcp/pydhcp.env`. Las claves ausentes o vacías abortan el script; un `SERV_SUBNET` inválido también aborta. Si no se obtiene la dirección IPv4 WAN, el script advierte y omite únicamente la exclusión WAN durante esa ejecución. |
 
-### Security Rules
+#### Security Rules
 
 - SYN flood protection via rate-limited `syn_flood` chain
 - TCP scan / malformed packet drops (SYN+FIN, SYN+RST, NEW with SYN+ACK)
@@ -425,7 +384,7 @@ Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/et
 - NetBIOS NMBD (137–139), CoAP (5683–5684), mDNS noise, WUDO WAN traffic blocked
 - Bogon/reserved-range filtering (RFC1918, link-local, test-nets, etc.) is available in `iptables.sh` but **disabled by default** — enabling it blindly can lock the LAN out of its own network if the server's subnet falls inside a blocked RFC1918 range; see the comment above the `BOGONS` block before enabling it
 
-### Allowed LAN Services (`macports`)
+#### Allowed LAN Services (`macports`)
 
 Devices registered in `macports` have access to the following / Los dispositivos registrados en `macports` tienen acceso a los siguientes servicios:
 
@@ -439,9 +398,7 @@ Devices registered in `macports` have access to the following / Los dispositivos
 
 DNS (UDP/TCP 53) is a global rule applied to all LAN traffic, not a `macports`-specific privilege — see `SERV_DNS` above / DNS (UDP/TCP 53) es una regla global aplicada a todo el tráfico LAN, no un privilegio específico de `macports` — ver `SERV_DNS` arriba.
 
-## OPTIONAL PACKAGES
-
----
+### Optional Packages
 
 <table width="100%">
   <tr>
@@ -454,7 +411,7 @@ DNS (UDP/TCP 53) is a global rule applied to all LAN traffic, not a `macports`-s
   </tr>
 </table>
 
-### Optional GTK Pack
+#### Optional GTK Pack
 
 Desktop applications. Only useful on a machine with a graphical session / Aplicaciones de escritorio. Solo útiles en una máquina con sesión gráfica.
 
@@ -472,20 +429,20 @@ Desktop applications. Only useful on a machine with a graphical session / Aplica
 - **fsearch** — fast file search; adds an external PPA
 - **lynis** — security auditing (`lynis -c -Q`; log at `/var/log/lynis.log`)
 
-### Optional Pack: Samba
+#### Optional Pack: Samba
 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     Installs <b>smbstack</b> — a Samba server with a shared folder, Recycle Bin, and audit logging configured out of the box. <code>smbstack</code> manages its own veto list for common unwanted file types (<code>/etc/samba/acl/commonveto.txt</code>, active by default) — not gateproxy's responsibility.
+     Installs <b>smbstack</b> — a Samba server with a shared folder, Recycle Bin, and audit logging configured out of the box. <code>smbstack</code> manages its own veto list for common unwanted file types (<code>/etc/smbstack/acl/commonveto.txt</code>, active by default) — not gateproxy's responsibility.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Instala <b>smbstack</b> — un servidor Samba con carpeta compartida, Papelera de Reciclaje y registro de auditoría configurados de fábrica. <code>smbstack</code> gestiona su propia lista veto de tipos de archivo comunes no deseados (<code>/etc/samba/acl/commonveto.txt</code>, activa por defecto) — no es responsabilidad de gateproxy.
+     Instala <b>smbstack</b> — un servidor Samba con carpeta compartida, Papelera de Reciclaje y registro de auditoría configurados de fábrica. <code>smbstack</code> gestiona su propia lista veto de tipos de archivo comunes no deseados (<code>/etc/smbstack/acl/commonveto.txt</code>, activa por defecto) — no es responsabilidad de gateproxy.
     </td>
   </tr>
 </table>
 
-### Optional Pack: UHM
+#### Optional Pack: UHM
 
 <table width="100%">
   <tr>
@@ -498,11 +455,9 @@ Desktop applications. Only useful on a machine with a graphical session / Aplica
   </tr>
 </table>
 
-## POST-INSTALL
+### Post-Install
 
----
-
-### Scripts (`/etc/scr/`)
+#### Scripts (`/etc/scr/`)
 
 The following scripts from `scr/` are copied to `/etc/scr/` during installation / Los siguientes scripts de `scr/` se copian a `/etc/scr/` durante la instalación:
 
@@ -535,7 +490,7 @@ The installer also downloads the following scripts from external repositories / 
 | `ffsupdate.sh` | `@weekly` | Update FreeFileSync |
 | `filereport.sh` | manual | Generate file system report |
 
-### Shell Aliases
+#### Shell Aliases
 
 Added to `~/.bashrc` for the local user / Agregados al `~/.bashrc` del usuario local:
 
@@ -545,7 +500,7 @@ alias server    # run /etc/scr/serverboot.sh
 alias cleaner   # run /etc/scr/cleaner.sh
 ```
 
-### Verification
+#### Verification
 
 ```bash
 # Check running/failed services
@@ -569,22 +524,11 @@ squidclient mgr:info
 curl http://SERVER_IP:18100/wpad.pac
 ```
 
-## IMPORTANT
+### Important
 
----
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-     <strong>WARNING: MANUAL CONFIGURATION CHANGES</strong><br><br>
-     During installation, <code>gpsetup.sh</code> uses <code>sed -i</code> to replace placeholders with the selected values. Later edits are not synchronized automatically between files. If you change Squid ports after installation, keep <code>proxymon.env</code>, <code>squid.conf</code> and the corresponding WPAD/PAC settings aligned. <code>iptables.sh</code> reads the shared ports when it runs; editing <code>proxymon.env</code> alone does not apply firewall rules or update Squid. Editing only one file can leave the settings inconsistent and interrupt proxy access.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-     <strong>ADVERTENCIA: CAMBIOS MANUALES DE CONFIGURACIÓN</strong><br><br>
-     Durante la instalación, <code>gpsetup.sh</code> utiliza <code>sed -i</code> para sustituir marcadores por los valores elegidos. Los cambios posteriores no se sincronizan automáticamente entre archivos. Si cambia los puertos de Squid, mantenga alineados <code>proxymon.env</code>, <code>squid.conf</code> y la configuración WPAD/PAC correspondiente. <code>iptables.sh</code> lee los puertos compartidos cuando se ejecuta. Editar solamente <code>proxymon.env</code> no aplica reglas del firewall ni actualiza Squid. Modificar solamente un archivo puede dejar valores incompatibles e interrumpir el acceso al proxy.
-    </td>
-  </tr>
-</table>
+> **⚠️ WARNING -- Manual configuration changes:** During installation, `gpsetup.sh` uses `sed -i` to replace placeholders with the selected values. Later edits are not synchronized automatically between files. If you change Squid ports after installation, keep `proxymon.env`, `squid.conf` and the corresponding WPAD/PAC settings aligned. `iptables.sh` reads the shared ports when it runs; editing `proxymon.env` alone does not apply firewall rules or update Squid. Editing only one file can leave the settings inconsistent and interrupt proxy access.
+>
+> **⚠️ WARNING -- Manual configuration changes:** Durante la instalación, `gpsetup.sh` utiliza `sed -i` para sustituir marcadores por los valores elegidos. Los cambios posteriores no se sincronizan automáticamente entre archivos. Si cambia los puertos de Squid, mantenga alineados `proxymon.env`, `squid.conf` y la configuración WPAD/PAC correspondiente. `iptables.sh` lee los puertos compartidos cuando se ejecuta. Editar solamente `proxymon.env` no aplica reglas del firewall ni actualiza Squid. Modificar solamente un archivo puede dejar valores incompatibles e interrumpir el acceso al proxy.
 
 <table width="100%">
   <tr>

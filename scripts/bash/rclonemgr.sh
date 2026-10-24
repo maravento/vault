@@ -306,14 +306,19 @@ run_mount() {
 sync_transfer() {
     local direction="$1" service_name="$2" src="$3" dst="$4"
     echo "Sync $direction $service_name"
-    sudo -u "$local_user" bash -c "rclone sync '$src' '$dst' --update --modify-window 1h --skip-links --verbose --transfers 30 --checkers 8 --contimeout 60s --timeout 300s --retries 3 --low-level-retries 10 --stats 1s --stats-file-name-length 0 --log-file='$rclone_path/rsync.log'"
-    echo "OK"
+    if sudo -u "$local_user" bash -c "rclone sync '$src' '$dst' --update --modify-window 1h --skip-links --verbose --transfers 30 --checkers 8 --contimeout 60s --timeout 300s --retries 3 --low-level-retries 10 --stats 1s --stats-file-name-length 0 --log-file='$rclone_path/rsync.log'"; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Sync $direction $service_name completed"
+    else
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Sync $direction $service_name failed -alert"
+        return 1
+    fi
 }
 
 # SYNC RUN
 # Syncs download and upload folders for every mounted remote
 sync_run() {
     echo "Run Sync at $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
+    local sync_failed=0
 
     for service_name in "${services[@]}"; do
         local service_path="$cloud_path/$service_name"
@@ -332,11 +337,11 @@ sync_run() {
             sudo -u "$local_user" bash -c "mkdir -p '$sync_path/$service_name/$subfolder'"
         done
 
-        sync_transfer "Download" "$service_name" "$service_path/download" "$sync_path/$service_name/download"
-        sync_transfer "Upload" "$service_name" "$sync_path/$service_name/upload" "$service_path/upload"
+        sync_transfer "Download" "$service_name" "$service_path/download" "$sync_path/$service_name/download" || sync_failed=1
+        sync_transfer "Upload" "$service_name" "$sync_path/$service_name/upload" "$service_path/upload" || sync_failed=1
     done
 
-    echo "Done"
+    return "$sync_failed"
 }
 
 # SYNC STATUS
@@ -363,7 +368,10 @@ run_sync() {
     --run)
         lock_sync
         check_internet || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no internet connection -abort"; exit 1; }
-        sync_run
+        sync_run || {
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: sync finished with failures -alert"
+            exit 1
+        }
         ;;
     --status) sync_status ;;
     *)

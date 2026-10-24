@@ -7,8 +7,6 @@ FILE: capturefox/README.md
 
 [![status-beta](https://img.shields.io/badge/status-beta-magenta.svg)](https://github.com/maravento/vault)
 
-<!-- markdownlint-disable MD033 -->
-
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
@@ -22,18 +20,7 @@ FILE: capturefox/README.md
 
 ![capturefox](https://raw.githubusercontent.com/maravento/vault/master/capturefox/img/capturefox.png)
 
-## FEATURES
-
----
-
-| Feature | Description | Descripción |
-|---|---|---|
-| Video sources | Record a screen/window, camera, or screen with a camera overlay. | Graba pantalla/ventana, cámara o pantalla con cámara superpuesta. |
-| Audio sources | Select microphone, system audio, both, or no audio. | Selecciona micrófono, audio interno, ambos o sin audio. |
-| Recording controls | Pause/resume and adjust microphone/system audio gain separately. | Pausa, continúa y ajusta el volumen del micrófono y del audio interno por separado. |
-| Video quality | Choose original resolution, 1080p, or 720p and request 30 or 60 fps. Actual quality depends on the device and source. | Elige resolución original, 1080p o 720p y solicita 30 o 60 fps. La calidad real depende del dispositivo y la fuente. |
-| Local library | Play recordings, download WebM files, and delete recordings manually. | Reproduce grabaciones, descarga archivos WebM y elimina grabaciones manualmente. |
-| Interrupted sessions | Recover chunks saved before a session was interrupted. | Recupera los fragmentos guardados antes de una interrupción. |
+<!-- markdownlint-disable MD033 -->
 
 ## REQUIREMENTS
 
@@ -106,6 +93,21 @@ FILE: capturefox/README.md
   </tr>
 </table>
 
+## HOW IT WORKS
+
+---
+
+### Features
+
+| Feature | Description | Descripción |
+|---|---|---|
+| Video sources | Record a screen/window, camera, or screen with a camera overlay. | Graba pantalla/ventana, cámara o pantalla con cámara superpuesta. |
+| Audio sources | Select microphone, system audio, both, or no audio. | Selecciona micrófono, audio interno, ambos o sin audio. |
+| Recording controls | Pause/resume and adjust microphone/system audio gain separately. | Pausa, continúa y ajusta el volumen del micrófono y del audio interno por separado. |
+| Video quality | Choose original resolution, 1080p, or 720p and request 30 or 60 fps. Actual quality depends on the device and source. | Elige resolución original, 1080p o 720p y solicita 30 o 60 fps. La calidad real depende del dispositivo y la fuente. |
+| Local library | Play recordings, download WebM files, and delete recordings manually. | Reproduce grabaciones, descarga archivos WebM y elimina grabaciones manualmente. |
+| Interrupted sessions | Recover chunks saved before a session was interrupted. | Recupera los fragmentos guardados antes de una interrupción. |
+
 ### Default settings
 
 | Setting | Default | Valor inicial |
@@ -163,16 +165,9 @@ python3 tools/audio-bridge.py --start
 
 ### Record microphone and system audio
 
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      <ol><li>Click <b>Refresh devices</b> and grant microphone permission.</li><li>Select your physical microphone and <b>CaptureFox_System_Audio</b> as the system audio input.</li><li>Choose <b>Microphone and system audio</b>, click <b>Start recording</b>, and select the screen or window to share.</li><li>Click <b>Stop</b> when finished. Open <b>Library</b> to play or download the result.</li></ol>
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      <ol><li>Pulsa <b>Refresh devices</b> y concede permiso al micrófono.</li><li>Selecciona tu micrófono físico y <b>CaptureFox_System_Audio</b> como entrada interna.</li><li>Elige <b>Microphone and system audio</b>, pulsa <b>Start recording</b> y selecciona la pantalla o ventana.</li><li>Pulsa <b>Stop</b> al terminar. Abre <b>Library</b> para reproducir o descargar el resultado.</li></ol>
-    </td>
-  </tr>
-</table>
+| Description | Descripción |
+|---|---|
+| <ol><li>Click **Refresh devices** and grant microphone permission.</li><li>Select your physical microphone and **CaptureFox_System_Audio** as the system audio input.</li><li>Choose **Microphone and system audio**, click **Start recording**, and select the screen or window to share.</li><li>Click **Stop** when finished. Open **Library** to play or download the result.</li></ol> | <ol><li>Pulsa **Refresh devices** y concede permiso al micrófono.</li><li>Selecciona tu micrófono físico y **CaptureFox_System_Audio** como entrada interna.</li><li>Elige **Microphone and system audio**, pulsa **Start recording** y selecciona la pantalla o ventana.</li><li>Pulsa **Stop** al terminar. Abre **Library** para reproducir o descargar el resultado.</li></ol> |
 
 ### Disable system audio
 
@@ -213,17 +208,15 @@ python3 tools/audio-bridge.py --status --json
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      The virtual input captures audio reaching the current default output, including other applications. If you switch output devices, run <code>start</code> again and refresh the device list before recording.<br><br>Runtime state is stored under <code>$XDG_RUNTIME_DIR/captura-audio</code>, or <code>/run/user/&lt;uid&gt;/captura-audio</code>. There is no automatic startup service.
+      The virtual input captures audio reaching the current default output, including other applications. If you switch output devices, run <code>python3 tools/audio-bridge.py --start</code> again and refresh the device list before recording.<br><br>Runtime state is stored under <code>$XDG_RUNTIME_DIR/captura-audio</code>, or <code>/run/user/&lt;uid&gt;/captura-audio</code>. There is no automatic startup service.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      La entrada virtual captura el sonido que llega a la salida predeterminada, incluyendo otras aplicaciones. Si cambias de salida, ejecuta <code>start</code> otra vez y actualiza los dispositivos antes de grabar.<br><br>El estado se guarda en <code>$XDG_RUNTIME_DIR/captura-audio</code> o <code>/run/user/&lt;uid&gt;/captura-audio</code>. No hay servicio de inicio automático.
+      La entrada virtual captura el sonido que llega a la salida predeterminada, incluyendo otras aplicaciones. Si cambias de salida, ejecuta <code>python3 tools/audio-bridge.py --start</code> otra vez y actualiza los dispositivos antes de grabar.<br><br>El estado se guarda en <code>$XDG_RUNTIME_DIR/captura-audio</code> o <code>/run/user/&lt;uid&gt;/captura-audio</code>. No hay servicio de inicio automático.
     </td>
   </tr>
 </table>
 
-## DATA AND LIMITATIONS
-
----
+### Data And Limitations
 
 | Topic | Description | Descripción |
 |---|---|---|
@@ -237,12 +230,9 @@ python3 tools/audio-bridge.py --status --json
 | Tab audio | Direct Chrome-style tab audio capture is not provided. | No se ofrece captura directa de audio de pestaña equivalente a Chrome. |
 | System audio | Firefox provides no interface for internal audio. On Linux it requires the virtual input created by `tools/audio-bridge.py`. | Firefox no ofrece ninguna interfaz para el audio interno. En Linux requiere la entrada virtual que crea `tools/audio-bridge.py`. |
 
-## DEVELOPMENT
+### Development
 
----
-
-
-### Install test dependencies
+#### Install test dependencies
 
 <table width="100%">
   <tr>
@@ -259,7 +249,7 @@ python3 tools/audio-bridge.py --status --json
 npm install --prefix ../capturefox-dev --ignore-scripts --no-bin-links --no-package-lock --no-audit --no-fund fake-indexeddb@6.2.5 jsdom@30.1.2
 ```
 
-### Run tests
+#### Run tests
 
 <table width="100%">
   <tr>
@@ -278,7 +268,7 @@ CAPTUREFOX_TEST_DEPS=../capturefox-dev node tests/ui.test.mjs
 PYTHONDONTWRITEBYTECODE=1 python3 tests/test_audio_bridge.py
 ```
 
-### Build the extension
+#### Build the extension
 
 <table width="100%">
   <tr>
@@ -306,9 +296,7 @@ python3 tools/build.py
   </tr>
 </table>
 
-## DESIGN AND COMPATIBILITY
-
----
+### Design And Compatibility
 
 <table width="100%">
   <tr>

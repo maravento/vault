@@ -154,6 +154,7 @@ install_docker() {
 
 # Docker uninstall function
 uninstall_docker() {
+    local purge_failed=0
   if command -v docker &> /dev/null; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') Docker is installed. Proceeding with uninstallation..."
 
@@ -189,7 +190,10 @@ uninstall_docker() {
     # Uninstall Docker packages
     for pkg in docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do
         echo "$(date '+%Y-%m-%d %H:%M:%S') Removing Dockers Packages..."
-        dpkg -s "$pkg" &>/dev/null && apt-get purge -y "$pkg"
+        if dpkg -s "$pkg" &>/dev/null && ! apt-get purge -y "$pkg"; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: package $pkg not removed -alert"
+            purge_failed=1
+        fi
     done
 
     # Delete Docker ppa, directories and files
@@ -200,7 +204,11 @@ uninstall_docker() {
     apt autoremove -y
     apt-get clean
 
-    echo "Docker has been successfully uninstalled"
+    if [ "$purge_failed" -gt 0 ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Docker data removed, packages pending -alert"
+    else
+        echo "Docker has been successfully uninstalled"
+    fi
   else
     echo "Docker is not installed"
   fi

@@ -63,10 +63,29 @@ pid_file="/run/nwatchlan.pid"
 
 # validation -- integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
+UH_SINT='^(0|-?[1-9][0-9]*)$'
+UH_MAX=9223372036854775807
+UH_MIN=-9223372036854775808
 
 # ------------------------------------------------------------------------------
 # FUNCTIONS
 # ------------------------------------------------------------------------------
+
+# validation - integer is representable as a signed 64-bit value
+uh_fits() {
+    local value="${1-}" limit
+    [[ "$value" =~ $UH_SINT ]] || return 1
+    if [[ "${value:0:1}" == - ]]; then
+        limit="${UH_MIN#-}"
+        value="${value#-}"
+    else
+        limit="$UH_MAX"
+    fi
+    (( ${#value} < ${#limit} )) && return 0
+    (( ${#value} > ${#limit} )) && return 1
+    [[ "$value" > "$limit" ]] && return 1
+    return 0
+}
 
 # PID CHECK
 # Check whether the recorded process belongs to this daemon
@@ -339,7 +358,15 @@ stop() {
         local daemon_pid
         daemon_pid=$(cat "$pid_file")
         if daemon_alive "$daemon_pid"; then
-            kill "$daemon_pid" 2>/dev/null
+            if ! kill "$daemon_pid" 2>/dev/null; then
+                log "ERROR: cannot signal nwatchlan (PID $daemon_pid) -abort"
+                return 1
+            fi
+            sleep 1
+            if daemon_alive "$daemon_pid"; then
+                log "WARNING: nwatchlan still running (PID $daemon_pid) -alert"
+                return 1
+            fi
             log "INFO: nwatchlan stopped (PID $daemon_pid)"
         else
             log "INFO: nwatchlan was not running (stale PID file removed)"
@@ -423,8 +450,10 @@ if [ "${1:-}" != --stop ]; then
             key_errors+=("$env_key missing line")
         elif [[ -z "${!env_key:-}" ]]; then
             key_errors+=("$env_key not set")
-        elif ! [[ "${!env_key}" =~ $UH_UINT ]] || (( ${!env_key} == 0 )); then
+        elif ! [[ "${!env_key}" =~ $UH_UINT ]] || [[ "${!env_key}" == 0 ]]; then
             key_errors+=("$env_key invalid count")
+        elif ! uh_fits "${!env_key}"; then
+            key_errors+=("$env_key exceeds the Bash integer range")
         fi
     done
     if (( ${#key_errors[@]} > 0 )); then

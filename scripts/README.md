@@ -7,8 +7,6 @@ FILE: scripts/README.md
 
 [![status-experimental](https://img.shields.io/badge/status-experimental-orange.svg)](https://github.com/maravento)
 
-<!-- markdownlint-disable MD033 -->
-
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
@@ -20,9 +18,28 @@ FILE: scripts/README.md
   </tr>
 </table>
 
-## DOWNLOAD PROJECT
+<!-- markdownlint-disable MD033 -->
+
+## REQUIREMENTS
 
 ---
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
+    </td>
+  </tr>
+</table>
+
+## HOW TO USE
+
+---
+
+### Download
 
 ```bash
 wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
@@ -30,26 +47,55 @@ chmod +x gitfolder.py
 python3 gitfolder.py https://github.com/maravento/vault/scripts
 ```
 
-## HOW TO USE
-
----
-
-### BASH (Linux)
-
-#### Requirements
-
-##### ⚠️ WARNING
+### Installation Options
 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      WARNING: Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
+      Installation actions use <code>--install</code>, <code>--update</code> and <code>--uninstall</code>. When several components are available, name the component after the option. Each tool accepts only the operations listed below. Run without arguments to use its menu.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      ADVERTENCIA: Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
+      Las acciones de instalación usan <code>--install</code>, <code>--update</code> y <code>--uninstall</code>. Si existen varios componentes, indique el componente después de la opción. Cada herramienta acepta únicamente las operaciones indicadas. Ejecute sin argumentos para utilizar su menú.
     </td>
   </tr>
 </table>
+
+| Script | Accepted options |
+| --- | --- |
+| `docker.sh`, `winboat.sh` | `--install`, `--uninstall`, `--help` |
+| `aistack.sh` | `--install [component]`, `--update <component>`, `--uninstall [component]`, `--status`, `--model`, `--help` |
+| `unifisetup.sh` | `--install`, `--update` or `--uninstall`, followed by `network` or `osserver`; `--status`, `--help` |
+| `vbox.sh`, `joomla.sh` | Interactive operation; no installation flags |
+
+#### UniFi Examples
+
+```bash
+sudo bash unifisetup.sh --install network
+sudo bash unifisetup.sh --update osserver
+sudo bash unifisetup.sh --uninstall network
+sudo bash unifisetup.sh --status
+```
+
+#### AI Stack Examples
+
+```bash
+sudo bash aistack.sh --install
+sudo bash aistack.sh --install opencode
+sudo bash aistack.sh --update opencode
+sudo bash aistack.sh --install opencode-desktop appimage
+sudo bash aistack.sh --uninstall opencode-desktop
+sudo bash aistack.sh --status
+```
+
+> AI Stack defaults: <code>--install</code> selects <code>stack</code>; <code>--uninstall</code> selects <code>all</code>. The optional <code>appimage</code> or <code>deb</code> format applies only to <code>--install opencode-desktop</code>. CLI updates are available only for <code>opencode</code> and <code>opencode-desktop</code>.
+>
+> Valores predeterminados de AI Stack: <code>--install</code> selecciona <code>stack</code>; <code>--uninstall</code> selecciona <code>all</code>. El formato opcional <code>appimage</code> o <code>deb</code> corresponde únicamente a <code>--install opencode-desktop</code>. La actualización por CLI solo está disponible para <code>opencode</code> y <code>opencode-desktop</code>.
+
+## HOW IT WORKS
+
+---
+
+### BASH (Linux)
 
 #### AI
 
@@ -83,9 +129,8 @@ La instalación de FMS requiere una sesión de escritorio X11 o Wayland. Ejecute
 #### Networking, Remote Access & Security
 
 - [Android 2 PC via scrcpy (--start|--stop|--status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/droid2pc.sh)
-- [ArpON table filter](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arponscan.sh)
 - [Bandwidth Watchdog (bwmon - cron; alerts via syslog + desktop notification when below minimum download|upload)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bwmon.sh)
-- [Internet Watchdog (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/watchdog.sh)
+- [Internet Watchdog (--start|--stop|--status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/watchdog.sh)
 - [Iperf3 Client](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/iperf3.sh)
 - [IP Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ipkill.sh)
 - [Netplan Switch (--status|--to-networkd|--to-nm|--help)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/npswitch.sh)
@@ -109,7 +154,7 @@ La instalación de FMS requiere una sesión de escritorio X11 o Wayland. Ejecute
 - [Drive Crypt (Cryptomator Encrypted Disk - --start|--stop - to folder `/home/$USER/dcrypt`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/drivecrypt.sh)
 - [File Report (HTML disk usage report: top extensions, folders and largest files)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/filereport.sh)
 - [FreeFileSync Update](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ffsupdate.sh)
-- [Gdrive (Start | Stop - to folder `/home/$USER/gdrive`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/gdrive.sh)
+- [Gdrive (--start|--stop - to folder `/home/<local_user>/gdrive`, the local account it detects)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/gdrive.sh)
 - [Mass Unzip with Pass](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/massunzip.sh)
 - [MEGAsync Instances (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/msyncs)
 - [NTFS Disk Drive (mount|umount with ntfs-3g)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ntfsdrive.sh)
@@ -160,50 +205,6 @@ Tested on: Windows 10/11 x64
 
 - [Unifi Network Setup for Windows](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/unifisetup.bat)
 - [Unifi Setup for Ubuntu](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/unifisetup.sh)
-
-### Installation Options
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      Installation actions use <code>--install</code>, <code>--update</code> and <code>--uninstall</code>. When several components are available, name the component after the option. Each tool accepts only the operations listed below. Run without arguments to use its menu.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      Las acciones de instalación usan <code>--install</code>, <code>--update</code> y <code>--uninstall</code>. Si existen varios componentes, indique el componente después de la opción. Cada herramienta acepta únicamente las operaciones indicadas. Ejecute sin argumentos para utilizar su menú.
-    </td>
-  </tr>
-</table>
-
-| Script | Accepted options |
-| --- | --- |
-| `docker.sh`, `winboat.sh` | `--install`, `--uninstall`, `--help` |
-| `aistack.sh` | `--install [component]`, `--update <component>`, `--uninstall [component]`, `--status`, `--model`, `--help` |
-| `unifisetup.sh` | `--install`, `--update` or `--uninstall`, followed by `network` or `osserver`; `--status`, `--help` |
-| `vbox.sh`, `joomla.sh` | Interactive operation; no installation flags |
-
-#### UniFi Examples
-
-```bash
-sudo bash unifisetup.sh --install network
-sudo bash unifisetup.sh --update osserver
-sudo bash unifisetup.sh --uninstall network
-sudo bash unifisetup.sh --status
-```
-
-#### AI Stack Examples
-
-```bash
-sudo bash aistack.sh --install
-sudo bash aistack.sh --install opencode
-sudo bash aistack.sh --update opencode
-sudo bash aistack.sh --install opencode-desktop appimage
-sudo bash aistack.sh --uninstall opencode-desktop
-sudo bash aistack.sh --status
-```
-
-> AI Stack defaults: <code>--install</code> selects <code>stack</code>; <code>--uninstall</code> selects <code>all</code>. The optional <code>appimage</code> or <code>deb</code> format applies only to <code>--install opencode-desktop</code>. CLI updates are available only for <code>opencode</code> and <code>opencode-desktop</code>.
->
-> Valores predeterminados de AI Stack: <code>--install</code> selecciona <code>stack</code>; <code>--uninstall</code> selecciona <code>all</code>. El formato opcional <code>appimage</code> o <code>deb</code> corresponde únicamente a <code>--install opencode-desktop</code>. La actualización por CLI solo está disponible para <code>opencode</code> y <code>opencode-desktop</code>.
 
 ### Python (Linux)
 

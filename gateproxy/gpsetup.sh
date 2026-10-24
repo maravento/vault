@@ -60,6 +60,71 @@ abort() { err "$*"; exit 1; }
 
 # Each module clones into $gp_path, writes its own log there, and $gp_path is
 # deleted at the end. Its log is appended here while the folder still exists.
+# ACL PREPARATION
+# Canonical block -- copied byte for byte into every script that creates a
+# directory or a list under /etc/acl. Prepare /etc/acl first, then only the
+# subdirectory and the lists this script needs. Never recursive.
+# Usage: acl_prepare <dir> <dir_mode> <file_mode> [file ...]
+acl_prepare() {
+    local acl_dir="$1" dir_mode="$2" file_mode="$3" acl_file
+    shift 3
+
+    # mkdir without -p fails when the directory already exists, so a success
+    # means this run created it and no concurrent run did.
+    if mkdir -m "$dir_mode" -- "$acl_dir" 2>/dev/null; then
+        if ! chown root:root -- "$acl_dir"; then
+            log "ERROR: cannot set owner of $acl_dir -abort"
+            exit 1
+        fi
+        log "WARNING: created ACL directory $acl_dir -alert"
+    elif [ -d "$acl_dir" ] && [ ! -L "$acl_dir" ]; then
+        acl_fix_perms "$acl_dir" "$dir_mode"
+    else
+        log "ERROR: $acl_dir is not a regular directory -abort"
+        exit 1
+    fi
+
+    for acl_file in "$@"; do
+        # Checked before the redirection: noclobber only protects regular
+        # files, and opening a FIFO for writing blocks until a reader shows up.
+        if [ -L "$acl_file" ] || { [ -e "$acl_file" ] && [ ! -f "$acl_file" ]; }; then
+            log "ERROR: $acl_file is not a regular file -abort"
+            exit 1
+        fi
+        # noclobber makes the redirection fail when the file already exists,
+        # and umask 077 keeps the new file closed until chmod sets its mode.
+        if (set -C; umask 077; : > "$acl_file") 2>/dev/null; then
+            if ! { chmod "$file_mode" -- "$acl_file" \
+                && chown root:root -- "$acl_file"; }; then
+                log "ERROR: cannot set perms of $(basename "$acl_file") -abort"
+                exit 1
+            fi
+            log "WARNING: created empty $(basename "$acl_file") -alert"
+        elif [ -f "$acl_file" ] && [ ! -L "$acl_file" ]; then
+            acl_fix_perms "$acl_file" "$file_mode"
+        else
+            log "ERROR: $acl_file is not a regular file -abort"
+            exit 1
+        fi
+    done
+}
+
+# Repairs mode and owner of an existing ACL object, per Autorreparación
+acl_fix_perms() {
+    local acl_path="$1" want_mode="$2" cur_mode cur_owner
+    cur_mode=$(stat -c '%a' -- "$acl_path" 2>/dev/null) || {
+        log "ERROR: cannot stat $acl_path -abort"; exit 1; }
+    cur_owner=$(stat -c '%U:%G' -- "$acl_path" 2>/dev/null) || {
+        log "ERROR: cannot stat $acl_path -abort"; exit 1; }
+    [[ "$cur_mode" == "$want_mode" && "$cur_owner" == "root:root" ]] && return 0
+    if ! { chmod "$want_mode" -- "$acl_path" \
+        && chown root:root -- "$acl_path"; }; then
+        log "ERROR: cannot fix $acl_path perms -abort"
+        exit 1
+    fi
+    log "INFO: $acl_path perms fixed -fixed"
+}
+
 dump_module_log() {
     local module_log="$1"
     local module_name="$2"
@@ -1163,21 +1228,13 @@ while IFS= read -r -d '' acl_src; do
         cp "$acl_src" "$acl_dest"
     fi
 done < <(find "$gp_path/acl" -type f -print0)
-# MAC ACL files
-failure_message="cannot set permissions on MAC ACL files"
-chmod 600 "$acl_mac_path"/mac-*.txt
-failure_message="cannot set owner of MAC ACL files"
-chown root:root "$acl_mac_path"/mac-*.txt
-# Squid ACL files
-failure_message="cannot set permissions on Squid ACL files"
-chmod 644 "$acl_squid_path"/*.txt
-failure_message="cannot set owner of Squid ACL files"
-chown root:root "$acl_squid_path"/*.txt
-# IPTables ACL files
-failure_message="cannot set permissions on firewall ACL files"
-chmod 644 "$acl_ipt_path"/*.txt
-failure_message="cannot set owner of firewall ACL files"
-chown root:root "$acl_ipt_path"/*.txt
+# ACL directories and files, per rules.md BLOQUE 6, section 14
+shopt -s nullglob
+acl_prepare "$ACL_PATH" 755 644
+acl_prepare "$acl_mac_path" 700 600 "$acl_mac_path"/mac-*.txt
+acl_prepare "$acl_squid_path" 755 644 "$acl_squid_path"/*.txt
+acl_prepare "$acl_ipt_path" 700 600 "$acl_ipt_path"/*.txt
+shopt -u nullglob
 
 # DNS
 # Install and configure the DNS resolver
@@ -1204,6 +1261,9 @@ retry_cmd nala install -y php libapache2-mod-php php-cli php-curl php-sqlite3
 if command -v php &>/dev/null; then
     failure_message="cannot read the PHP version"
     PHP_VERSION=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>/dev/null) || { failure_status=$?; report_failure; exit "$failure_status"; }
+    if [[ ! "$PHP_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+        abort "cannot read php version: '$PHP_VERSION' -abort"
+    fi
     info "PHP version detected: $PHP_VERSION"
 else
     err "PHP not installed -abort"
@@ -1230,11 +1290,19 @@ sed -i \
   -e 's/^\s*;*\s*max_execution_time\s*=.*/max_execution_time = 120/' \
   -e 's/^\s*max_input_time\s*=.*/max_input_time = 120/' \
   -e 's/^;\s*max_input_time\s*=.*/max_input_time = 120/' \
-  -e 's/^\s*memory_limit\s*=.*/memory_limit = 1024M/' \
-  -e 's/^\s*post_max_size\s*=.*/post_max_size = 64M/' \
-  -e 's/^\s*upload_max_filesize\s*=.*/upload_max_filesize = 64M/' \
+  -e 's/^\s*;*\s*memory_limit\s*=.*/memory_limit = 1024M/' \
+  -e 's/^\s*;*\s*post_max_size\s*=.*/post_max_size = 72M/' \
+  -e 's/^\s*;*\s*upload_max_filesize\s*=.*/upload_max_filesize = 64M/' \
   -e 's/^\s*;*\s*opcache.memory_consumption\s*=.*/opcache.memory_consumption = 256/' \
   -e 's/^\s*;*\s*realpath_cache_size\s*=.*/realpath_cache_size = 16M/' \
+  -e 's/^\s*;*\s*allow_url_fopen\s*=.*/allow_url_fopen = Off/' \
+  -e 's/^\s*;*\s*expose_php\s*=.*/expose_php = Off/' \
+  -e 's/^\s*;*\s*display_errors\s*=.*/display_errors = Off/' \
+  -e 's/^\s*;*\s*display_startup_errors\s*=.*/display_startup_errors = Off/' \
+  -e 's/^\s*;*\s*log_errors\s*=.*/log_errors = On/' \
+  -e 's/^\s*;*\s*session.use_strict_mode\s*=.*/session.use_strict_mode = 1/' \
+  -e 's/^\s*;*\s*session.cookie_httponly\s*=.*/session.cookie_httponly = 1/' \
+  -e 's/^\s*;*\s*session.cookie_samesite\s*=.*/session.cookie_samesite = Strict/' \
   /etc/php/$PHP_VERSION/apache2/php.ini
 
 # HTTP SERVER SECTION
@@ -1308,13 +1376,21 @@ systemctl enable squid.service
 systemctl stop squid.service &>/dev/null || true
 failure_message="cannot initialize Squid cache directories"
 squid -z
-cp -f /etc/logrotate.d/squid{,.bak} &>/dev/null || true
-failure_message="cannot edit Squid logrotate settings"
-sed -i '/sharedscripts/a \    create 0644 proxy proxy' /etc/logrotate.d/squid
-failure_message="cannot edit Squid logrotate settings"
-sed -i 's/rotate 2/rotate 7/' /etc/logrotate.d/squid
-failure_message="cannot edit Squid logrotate settings"
-sed -i -E 's/^	(daily|monthly)$/	weekly/' /etc/logrotate.d/squid
+if [ ! -f /etc/logrotate.d/squid ]; then
+    warn "Squid logrotate missing; rotation unchanged -alert"
+else
+    cp -f /etc/logrotate.d/squid{,.bak} &>/dev/null || true
+    failure_message="cannot edit Squid logrotate settings"
+    sed -i '/^[[:space:]]*nocreate$/d' /etc/logrotate.d/squid
+    if ! grep -qE '^[[:space:]]*create[[:space:]]+0640[[:space:]]+proxy[[:space:]]+proxy$' /etc/logrotate.d/squid; then
+        failure_message="cannot edit Squid logrotate settings"
+        sed -i '/sharedscripts/a \    create 0640 proxy proxy' /etc/logrotate.d/squid
+    fi
+    failure_message="cannot edit Squid logrotate settings"
+    sed -i -E 's/^([[:space:]]*)rotate[[:space:]]+[0-9]+$/\1rotate 7/' /etc/logrotate.d/squid
+    failure_message="cannot edit Squid logrotate settings"
+    sed -i -E 's/^([[:space:]]*)(hourly|daily|monthly|yearly)$/\1weekly/' /etc/logrotate.d/squid
+fi
 # Let's Encrypt certificate for client to Squid proxy encryption (Optional)
 #nala install -y certbot python3-certbot-apache
 
@@ -1814,12 +1890,18 @@ upgrade
 echo -e "\n"
 # Allow IP
 get_acl https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt "$ACL_PATH/squid/allowip.txt" || true
+if [ -f "$ACL_PATH/squid/allowip.txt" ]; then
+    acl_fix_perms "$ACL_PATH/squid/allowip.txt" 644
+fi
 if [ ! -s "$ACL_PATH/squid/allowip.txt" ]; then
     warn "allowip.txt is empty -alert"
 fi
 
 # Block TLDs
 get_acl https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt "$ACL_PATH/squid/blocktlds.txt" || true
+if [ -f "$ACL_PATH/squid/blocktlds.txt" ]; then
+    acl_fix_perms "$ACL_PATH/squid/blocktlds.txt" 644
+fi
 if [ ! -s "$ACL_PATH/squid/blocktlds.txt" ]; then
     info "blocktlds.txt is empty, ACL disabled in squid.conf"
     failure_message="cannot edit squid.conf"
@@ -1828,22 +1910,34 @@ fi
 
 # Ransomware Extensions (Squid, optional)
 get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/rw/rwext.txt "$ACL_PATH/squid/rwext.txt" || true
+if [ -f "$ACL_PATH/squid/rwext.txt" ]; then
+    acl_fix_perms "$ACL_PATH/squid/rwext.txt" 644
+fi
 if [ ! -s "$ACL_PATH/squid/rwext.txt" ]; then
     warn "rwext.txt is empty -alert"
 fi
 
 # Bad User-Agents (Squid, optional)
 get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/ua/blockua.txt "$ACL_PATH/squid/blockua.txt" || true
+if [ -f "$ACL_PATH/squid/blockua.txt" ]; then
+    acl_fix_perms "$ACL_PATH/squid/blockua.txt" 644
+fi
 if [ ! -s "$ACL_PATH/squid/blockua.txt" ]; then
     warn "blockua.txt is empty -alert"
 fi
 
 # Web3 Domains/TLDs (Squid, optional)
 get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3domains.txt "$ACL_PATH/squid/web3domains.txt" || true
+if [ -f "$ACL_PATH/squid/web3domains.txt" ]; then
+    acl_fix_perms "$ACL_PATH/squid/web3domains.txt" 644
+fi
 if [ ! -s "$ACL_PATH/squid/web3domains.txt" ]; then
     warn "web3domains.txt is empty -alert"
 fi
 get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3tld.txt "$ACL_PATH/squid/web3tld.txt" || true
+if [ -f "$ACL_PATH/squid/web3tld.txt" ]; then
+    acl_fix_perms "$ACL_PATH/squid/web3tld.txt" 644
+fi
 if [ ! -s "$ACL_PATH/squid/web3tld.txt" ]; then
     warn "web3tld.txt is empty -alert"
 fi
@@ -1853,6 +1947,7 @@ if (cd "$gp_path" && get_acl https://raw.githubusercontent.com/maravento/blackwe
     (cd "$gp_path" && cat blackweb.tar.gz* | tar xzf -)
     failure_message="cannot copy blackweb.txt"
     cp "$gp_path/blackweb.txt" "$ACL_PATH/squid/blackweb.txt"
+    acl_fix_perms "$ACL_PATH/squid/blackweb.txt" 644
 else
     warn "blackweb.tar.gz not available -alert"
 fi

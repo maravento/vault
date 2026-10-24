@@ -34,6 +34,12 @@ for dep in lsof; do
     fi
 done
 
+# lsof must support -Q, which separates a failed query from an empty result
+if ! lsof -h 2>&1 | grep -q -- '-Q'; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: lsof does not support -Q -abort" >&2
+    exit 1
+fi
+
 # validation -- integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 echo "$(date '+%Y-%m-%d %H:%M:%S') Port Kill Starting. Wait..."
@@ -59,14 +65,26 @@ if ! [[ "$port" =~ $UH_UINT ]] || [ "${#port}" -gt 5 ] \
     exit 1
 fi
 
-pids=$(lsof -t -i:"$port" 2>/dev/null)
+if ! pids=$(lsof -Q -t -i:"$port" 2>/dev/null); then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot query port $port -abort"
+    exit 1
+fi
 if [ -z "$pids" ]; then
-    echo "There are no records of $port"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no process on port $port -skip"
 else
-    if kill $pids 2>/dev/null; then
-        echo "Done"
-    else
+    if ! kill $pids 2>/dev/null; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to kill process(es) on port $port -abort"
+        exit 1
+    fi
+    sleep 1
+    if ! remaining=$(lsof -Q -t -i:"$port" 2>/dev/null); then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot verify port $port -abort"
+        exit 1
+    fi
+    if [ -z "$remaining" ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: port $port released"
+    else
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: port $port still in use -alert" >&2
         exit 1
     fi
 fi

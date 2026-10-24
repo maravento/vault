@@ -11,6 +11,9 @@
 # writes a timestamped HTML report owned by the non-root local user. Run
 # as root.
 #
+# USAGE: sudo ./filereport.sh
+# Asks for the folder to scan.
+#
 # OUTPUT: /home/<local_user>/Report/filereport_TIMESTAMP.html
 #
 ################################################################################

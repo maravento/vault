@@ -7,8 +7,6 @@ FILE: nmapstack/README.md
 
 [![status-beta](https://img.shields.io/badge/status-beta-magenta.svg)](https://github.com/maravento/vault)
 
-<!-- markdownlint-disable MD033 -->
-
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
@@ -19,6 +17,116 @@ FILE: nmapstack/README.md
     </td>
   </tr>
 </table>
+
+<!-- markdownlint-disable MD033 -->
+
+## REQUIREMENTS
+
+---
+
+### Windows packages
+
+- [nmap](https://nmap.org/download#windows)
+- [npcap](https://nmap.org/download#windows)
+- [libxslt (xsltproc)](https://www.zlatkovic.com/pub/libxml/)
+- [Microsoft Visual C++ Runtimes](https://gitlab.com/stdout12/vcredist/-/releases)
+
+### Linux (nreport.sh)
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
+    </td>
+  </tr>
+</table>
+
+- nmap, xsltproc, iproute2, util-linux
+
+```bash
+apt-get install -y nmap xsltproc iproute2 util-linux
+```
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <code>nreport.sh</code> checks these dependencies at startup. If one is missing, it stops and displays a clear message. Install them beforehand to avoid that extra step.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <code>nreport.sh</code> verifica estas dependencias al iniciar. Si falta alguna, se detiene y muestra un mensaje claro. Instálelas de antemano para evitar ese paso adicional.
+    </td>
+  </tr>
+</table>
+
+### Web (nwatch)
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
+    </td>
+  </tr>
+</table>
+
+- Apache2 with mod_php (not PHP-FPM — the vhost uses `SetHandler application/x-httpd-php`)
+- arp-scan, sqlite3, php-sqlite3, php-cli, nmap, iproute2 (`ss`), logrotate, util-linux
+
+```bash
+apt-get install -y apache2 libapache2-mod-php php-cli
+apt-get install -y arp-scan sqlite3 php-sqlite3 nmap iproute2 logrotate util-linux
+```
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Optional:</strong> <code>avahi-utils</code> (mDNS) and <code>nbtscan</code> (NetBIOS) can improve the <code>Hostname</code> column on the LAN tab when a device has no reverse-DNS record. This is common for consumer and IoT devices on home networks. Neither package is required. If they are absent, <code>nwatchlan.sh</code> uses DNS resolution only.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Opcional:</strong> <code>avahi-utils</code> (mDNS) y <code>nbtscan</code> (NetBIOS) pueden mejorar la columna <code>Hostname</code> de la pestaña LAN cuando un dispositivo no tiene un registro DNS reverso. Esto es común en equipos de consumo y dispositivos IoT de redes domésticas. Ninguno es obligatorio. Si no están instalados, <code>nwatchlan.sh</code> usa solo la resolución DNS.
+    </td>
+  </tr>
+</table>
+
+```bash
+apt-get install -y avahi-utils nbtscan
+```
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Important</strong>
+      <ul>
+        <li><code>nginx</code>, <code>lighttpd</code> and <code>caddy</code> must not be installed.</li>
+        <li>The web panel listens on port <code>3126</code>, registered by <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> as Unassigned.</li>
+        <li>The VirtualHost only accepts connections from <code>127.0.0.1</code>. Open it at <code>http://localhost:3126/</code> on the server itself, or through a local tunnel (e.g. Cloudflare Tunnel with Zero Trust).</li>
+      </ul>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Importante</strong>
+      <ul>
+        <li><code>nginx</code>, <code>lighttpd</code> y <code>caddy</code> no deben estar instalados.</li>
+        <li>El panel web escucha en el puerto <code>3126</code>, registrado por <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> como Sin asignar.</li>
+        <li>El VirtualHost solo acepta conexiones desde <code>127.0.0.1</code>. Accede en <code>http://localhost:3126/</code> desde el propio servidor, o mediante un túnel local (por ejemplo, Cloudflare Tunnel con Zero Trust).</li>
+      </ul>
+    </td>
+  </tr>
+</table>
+
+## DATA SHEET
+
+---
+
+### Windows (Nscan)
+
+| File |  OS  | Size |
+| :--: | :--: | :--: |
+| [nscan.exe (.zip)](https://mega.nz/file/3M0jiCJZ#mjpJLQyi1kKmx7M9R6FiUBGV9Z9NajebQIcYCc7tk08) | Windows 10/11 x64 | 44.4 MB |
 
 ## REPOSITORY STRUCTURE
 
@@ -49,26 +157,11 @@ nmapstack/
     └── nscan.exe.sha256       # Checksum for Nscan
 ```
 
-## NMAPSTACK
+## HOW TO USE
 
 ---
 
-### WINDOWS (Nscan)
-
-#### Data Sheet
-
-| File |  OS  | Size |
-| :--: | :--: | :--: |
-| [nscan.exe (.zip)](https://mega.nz/file/3M0jiCJZ#mjpJLQyi1kKmx7M9R6FiUBGV9Z9NajebQIcYCc7tk08) | Windows 10/11 x64 | 44.4 MB |
-
-#### Package Contents
-
-- [nmap](https://nmap.org/download#windows)
-- [npcap](https://nmap.org/download#windows)
-- [libxslt (xsltproc)](https://www.zlatkovic.com/pub/libxml/)
-- [Microsoft Visual C++ Runtimes](https://gitlab.com/stdout12/vcredist/-/releases)
-
-#### How to Use
+### Windows (Nscan)
 
 <table width="100%">
   <tr>
@@ -85,18 +178,52 @@ nmapstack/
 >
 > Se recomienda hacerlo porque el proyecto empaqueta scripts batch en un .exe, que los antivirus podrían marcar por error. Si tiene dudas, puede descomprimir el .exe y revisar los scripts, ejecutar los paquetes manualmente o no usar este proyecto.
 
-#### ⚠️ WARNING
+### Linux (nreport.sh)
 
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-     <strong>Before continuing:</strong> If Nmap or Npcap is already installed on your PC, uninstall it before using this tool to avoid version conflicts.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-     <strong>Antes de continuar:</strong> Si Nmap o Npcap ya está instalado en su PC, desinstálelo antes de usar esta herramienta para evitar conflictos de versiones.
-    </td>
-  </tr>
-</table>
+```bash
+wget -q https://raw.githubusercontent.com/maravento/vault/master/nmapstack/linux/nreport.sh -O nreport.sh
+chmod +x nreport.sh
+sudo ./nreport.sh
+```
+
+### Web (nwatch)
+
+```bash
+git clone --depth=1 https://github.com/maravento/vault.git
+cd vault/nmapstack/nwatch
+
+# or
+
+wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
+chmod +x gitfolder.py
+python3 gitfolder.py https://github.com/maravento/vault/nmapstack
+cd nmapstack/nwatch
+
+# Install
+sudo bash nwatchsetup.sh --install
+
+# Update
+sudo bash nwatchsetup.sh --update
+
+# Uninstall
+sudo bash nwatchsetup.sh --uninstall
+
+# Status
+sudo bash nwatchsetup.sh --status
+
+# Interactive menu
+sudo bash nwatchsetup.sh
+```
+
+## HOW IT WORKS
+
+---
+
+### WINDOWS (Nscan)
+
+> **⚠️ WARNING -- Existing Nmap and Npcap installations:** **Before continuing:** If Nmap or Npcap is already installed on your PC, uninstall it before using this tool to avoid version conflicts.
+>
+> **⚠️ WARNING -- Existing Nmap and Npcap installations:** **Antes de continuar:** Si Nmap o Npcap ya está instalado en su PC, desinstálelo antes de usar esta herramienta para evitar conflictos de versiones.
 
 #### Start
 
@@ -228,74 +355,11 @@ Package: Nscan
 
 ### LINUX (nreport.sh)
 
-<table width="100%">
-  <tr>
-    <td style="width: 50%; white-space: nowrap; vertical-align: top; padding-right: 10px;">
-      <p><strong>Nreport can run on Linux with the same scan modes:</strong></p>
-      <p>
-        1. <code>LAN Scan</code><br>
-        2. <code>Advanced LAN Scan</code><br>
-        3. <code>IP/Host Scan</code>
-      </p>
-      <p>
-        Nreport saves scan reports in the <code>/home/$USER/Report</code> folder,
-        according to the scan type.<br> Each report includes a timestamp
-        with the date and time of the scan.
-      </p>
-      <p>
-        Intermediate <code>.xml</code>/<code>.nmap</code>/<code>.gnmap</code> files are deleted after each scan; only the final HTML report is kept. The report is never opened automatically in a browser.
-      </p>
-    </td>
-    <td style="width: 50%; white-space: nowrap; vertical-align: top; padding-left: 10px;">
-      <p><strong>Nreport puede ejecutarse en Linux con los mismos modos de escaneo:</strong></p>
-      <p>
-        1. <code>LAN Scan</code><br>
-        2. <code>Advanced LAN Scan</code><br>
-        3. <code>IP/Host Scan</code>
-      </p>
-      <p>
-        Nreport guarda los informes de escaneo en la carpeta <code>/home/$USER/Report</code>,
-        según el tipo de escaneo.<br> Cada informe incluye la fecha y la hora
-        en que se ejecutó el escaneo.
-      </p>
-      <p>
-        Los archivos intermedios <code>.xml</code>/<code>.nmap</code>/<code>.gnmap</code> se eliminan al terminar cada escaneo; solo queda el informe HTML final. El informe nunca se abre automáticamente en un navegador.
-      </p>
-    </td>
-  </tr>
-</table>
+| Description | Descripción |
+|---|---|
+| **Nreport can run on Linux with the same scan modes:**<br><br> 1. `LAN Scan`<br> 2. `Advanced LAN Scan`<br> 3. `IP/Host Scan` <br><br> Nreport saves scan reports in the `/home/$USER/Report` folder, according to the scan type.<br> Each report includes a timestamp with the date and time of the scan. <br><br> Intermediate `.xml`/`.nmap`/`.gnmap` files are deleted after each scan; only the final HTML report is kept. The report is never opened automatically in a browser. | **Nreport puede ejecutarse en Linux con los mismos modos de escaneo:**<br><br> 1. `LAN Scan`<br> 2. `Advanced LAN Scan`<br> 3. `IP/Host Scan` <br><br> Nreport guarda los informes de escaneo en la carpeta `/home/$USER/Report`, según el tipo de escaneo.<br> Cada informe incluye la fecha y la hora en que se ejecutó el escaneo. <br><br> Los archivos intermedios `.xml`/`.nmap`/`.gnmap` se eliminan al terminar cada escaneo; solo queda el informe HTML final. El informe nunca se abre automáticamente en un navegador. |
 
-#### Requirements
-
-##### ⚠️ WARNING
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      WARNING: Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      ADVERTENCIA: Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
-    </td>
-  </tr>
-</table>
-
-- nmap, xsltproc, iproute2, util-linux
-
-```bash
-apt-get install -y nmap xsltproc iproute2 util-linux
-```
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      <code>nreport.sh</code> checks these dependencies at startup. If one is missing, it stops and displays a clear message. Install them beforehand to avoid that extra step.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      <code>nreport.sh</code> verifica estas dependencias al iniciar. Si falta alguna, se detiene y muestra un mensaje claro. Instálelas de antemano para evitar ese paso adicional.
-    </td>
-  </tr>
-</table>
+#### HTML report conversion
 
 | Step | Description | Descripción |
 | --- | --- | --- |
@@ -303,43 +367,23 @@ apt-get install -y nmap xsltproc iproute2 util-linux
 | 2 | nmap's `/usr/share/nmap/nmap.xsl`, which produces nmap's standard page. A failure or a missing file logs `WARNING: ... -alert` | El `/usr/share/nmap/nmap.xsl` de nmap, que produce la página estándar de nmap. Un fallo o un archivo ausente registra `WARNING: ... -alert` |
 | 3 | A plain page holding the raw XML in a `<pre>` block. It needs no external tool, so it never fails, and logs `WARNING: ... -alert` because the report has no format | Una página simple con el XML crudo en un bloque `<pre>`. No necesita herramienta externa, así que nunca falla, y registra `WARNING: ... -alert` porque el informe queda sin formato |
 
-No step aborts the script. A report is always produced.
+No step aborts the script: given a valid XML, a report is always produced. The conversion does abort before these steps when the XML is missing or empty, and afterwards when the resulting HTML is missing or empty.
 
-Ningún paso aborta el script. Siempre se produce un informe.
+Ningún paso aborta el script: con un XML válido, siempre se produce un informe. La conversión sí aborta antes de estos pasos cuando el XML falta o está vacío, y después cuando el HTML resultante falta o está vacío.
 
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>HTML conversion</strong><br><br>
-      The XML scan is converted to HTML in three steps. First the project's own stylesheet, written to the temporary directory. If <code>xsltproc</code> fails, the log records an <code>INFO: ... -retry</code> and the second step runs. Second, nmap's own <code>/usr/share/nmap/nmap.xsl</code>, which produces nmap's standard page instead of the project's. A failure or a missing file there logs a <code>WARNING: ... -alert</code>. Third, a plain HTML page holding the raw XML inside a <code>&lt;pre&gt;</code> block. It needs no external tool, so it always succeeds, and it logs a <code>WARNING: ... -alert</code> because the report has no format. No step aborts the script: a report is always produced.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>Conversión a HTML</strong><br><br>
-      El XML del escaneo se convierte a HTML en tres pasos. Primero la hoja de estilo propia del proyecto, escrita en el directorio temporal. Si <code>xsltproc</code> falla, el log registra un <code>INFO: ... -retry</code> y corre el segundo paso. Segundo, el <code>/usr/share/nmap/nmap.xsl</code> de nmap, que produce la página estándar de nmap en vez de la del proyecto. Un fallo o un archivo ausente ahí registra un <code>WARNING: ... -alert</code>. Tercero, una página HTML simple con el XML crudo dentro de un bloque <code>&lt;pre&gt;</code>. No necesita ninguna herramienta externa, así que nunca falla, y registra un <code>WARNING: ... -alert</code> porque el informe queda sin formato. Ningún paso aborta el script: siempre se produce un informe.
-    </td>
-  </tr>
-</table>
+| Description | Descripción |
+|---|---|
+| **HTML conversion**<br><br> The XML scan is converted to HTML in three steps. First the project's own stylesheet, written to the temporary directory. If `xsltproc` fails, the log records an `INFO: ... -retry` and the second step runs. Second, nmap's own `/usr/share/nmap/nmap.xsl`, which produces nmap's standard page instead of the project's. A failure or a missing file there logs a `WARNING: ... -alert`. Third, a plain HTML page holding the raw XML inside a `&lt;pre&gt;` block. It needs no external tool, so it always succeeds, and it logs a `WARNING: ... -alert` because the report has no format. No step aborts the script: given a valid XML, a report is always produced. The conversion does abort before these steps when the XML is missing or empty, and afterwards when the resulting HTML is missing or empty. | **Conversión a HTML**<br><br> El XML del escaneo se convierte a HTML en tres pasos. Primero la hoja de estilo propia del proyecto, escrita en el directorio temporal. Si `xsltproc` falla, el log registra un `INFO: ... -retry` y corre el segundo paso. Segundo, el `/usr/share/nmap/nmap.xsl` de nmap, que produce la página estándar de nmap en vez de la del proyecto. Un fallo o un archivo ausente ahí registra un `WARNING: ... -alert`. Tercero, una página HTML simple con el XML crudo dentro de un bloque `&lt;pre&gt;`. No necesita ninguna herramienta externa, así que nunca falla, y registra un `WARNING: ... -alert` porque el informe queda sin formato. Ningún paso aborta el script: con un XML válido, siempre se produce un informe. La conversión sí aborta antes de estos pasos cuando el XML falta o está vacío, y después cuando el HTML resultante falta o está vacío. |
 
-```bash
-wget -q https://raw.githubusercontent.com/maravento/vault/master/nmapstack/linux/nreport.sh -O nreport.sh
-chmod +x nreport.sh
-sudo ./nreport.sh
-```
+
 
 ### WEB (nwatch)
 
 [<img src="img/nwatch-top.png" width="100%" alt="NWatch dashboard header">](https://www.maravento.com)
 
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-    NWatch is a live web dashboard for auditing LAN devices and ports on Linux. It runs independently of the on-demand Windows and Linux scan-and-report tools described above. Two background daemons provide the data: one discovers LAN devices with periodic <code>arp-scan</code> runs; the other audits TCP and UDP ports in one of two modes. <strong>Server</strong> mode (the default) reads the server's listening sockets without probing. <strong>Target</strong> mode scans a selected external host with Nmap in near real time. Only one port mode runs at a time, keeping results from the two sources separate. The dashboard is available at <code>localhost</code> and has two tabs: <strong>LAN</strong> shows devices and their online/offline status; <strong>Ports</strong> shows open and closed ports for the server or target. History is stored in a local SQLite database.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-    NWatch es un panel web para auditar dispositivos LAN y puertos en Linux. Funciona de forma independiente de las herramientas de escaneo e informes bajo demanda para Windows y Linux descritas arriba. Dos demonios en segundo plano recopilan los datos: uno descubre dispositivos LAN mediante ejecuciones periódicas de <code>arp-scan</code>; el otro audita puertos TCP y UDP en uno de dos modos. El modo <strong>Server</strong> (predeterminado) lee los sockets en escucha del servidor sin sondearlos. El modo <strong>Target</strong> escanea casi en tiempo real un host externo seleccionado mediante Nmap. Solo se ejecuta un modo de puertos a la vez, para mantener separados los resultados de ambas fuentes. El panel está disponible en <code>localhost</code> y tiene dos pestañas: <strong>LAN</strong> muestra los dispositivos y su estado online/offline; <strong>Ports</strong> muestra los puertos abiertos y cerrados del servidor o del host seleccionado. El historial se guarda en una base de datos SQLite local.
-    </td>
-  </tr>
-</table>
+| Description | Descripción |
+|---|---|
+| NWatch is a live web dashboard for auditing LAN devices and ports on Linux. It runs independently of the on-demand Windows and Linux scan-and-report tools described above. Two background daemons provide the data: one discovers LAN devices with periodic `arp-scan` runs; the other audits TCP and UDP ports in one of two modes. **Server** mode (the default) reads the server's listening sockets without probing. **Target** mode scans a selected external host with Nmap in near real time. Only one port mode runs at a time, keeping results from the two sources separate. The dashboard is available at `localhost` and has two tabs: **LAN** shows devices and their online/offline status; **Ports** shows open and closed ports for the server or target. History is stored in a local SQLite database. | NWatch es un panel web para auditar dispositivos LAN y puertos en Linux. Funciona de forma independiente de las herramientas de escaneo e informes bajo demanda para Windows y Linux descritas arriba. Dos demonios en segundo plano recopilan los datos: uno descubre dispositivos LAN mediante ejecuciones periódicas de `arp-scan`; el otro audita puertos TCP y UDP en uno de dos modos. El modo **Server** (predeterminado) lee los sockets en escucha del servidor sin sondearlos. El modo **Target** escanea casi en tiempo real un host externo seleccionado mediante Nmap. Solo se ejecuta un modo de puertos a la vez, para mantener separados los resultados de ambas fuentes. El panel está disponible en `localhost` y tiene dos pestañas: **LAN** muestra los dispositivos y su estado online/offline; **Ports** muestra los puertos abiertos y cerrados del servidor o del host seleccionado. El historial se guarda en una base de datos SQLite local. |
 
 [![Image](img/nwatch.png)](https://www.maravento.com)
 
@@ -445,93 +489,7 @@ sudo ./nreport.sh
   </tr>
 </table>
 
-#### Requirements
-
-##### ⚠️ WARNING
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      WARNING: Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      ADVERTENCIA: Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
-    </td>
-  </tr>
-</table>
-
-- Apache2 with mod_php (not PHP-FPM — the vhost uses `SetHandler application/x-httpd-php`)
-- arp-scan, sqlite3, php-sqlite3, php-cli, nmap, iproute2 (`ss`), logrotate, util-linux
-
-```bash
-apt-get install -y apache2 libapache2-mod-php php-cli
-apt-get install -y arp-scan sqlite3 php-sqlite3 nmap iproute2 logrotate util-linux
-```
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>Optional:</strong> <code>avahi-utils</code> (mDNS) and <code>nbtscan</code> (NetBIOS) can improve the <code>Hostname</code> column on the LAN tab when a device has no reverse-DNS record. This is common for consumer and IoT devices on home networks. Neither package is required. If they are absent, <code>nwatchlan.sh</code> uses DNS resolution only.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>Opcional:</strong> <code>avahi-utils</code> (mDNS) y <code>nbtscan</code> (NetBIOS) pueden mejorar la columna <code>Hostname</code> de la pestaña LAN cuando un dispositivo no tiene un registro DNS reverso. Esto es común en equipos de consumo y dispositivos IoT de redes domésticas. Ninguno es obligatorio. Si no están instalados, <code>nwatchlan.sh</code> usa solo la resolución DNS.
-    </td>
-  </tr>
-</table>
-
-```bash
-apt-get install -y avahi-utils nbtscan
-```
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>Important</strong>
-      <ul>
-        <li><code>nginx</code>, <code>lighttpd</code> and <code>caddy</code> must not be installed.</li>
-        <li>The web panel listens on port <code>3126</code>, registered by <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> as Unassigned.</li>
-        <li>The VirtualHost only accepts connections from <code>127.0.0.1</code>. Open it at <code>http://localhost:3126/</code> on the server itself, or through a local tunnel (e.g. Cloudflare Tunnel with Zero Trust).</li>
-      </ul>
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>Importante</strong>
-      <ul>
-        <li><code>nginx</code>, <code>lighttpd</code> y <code>caddy</code> no deben estar instalados.</li>
-        <li>El panel web escucha en el puerto <code>3126</code>, registrado por <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> como Sin asignar.</li>
-        <li>El VirtualHost solo acepta conexiones desde <code>127.0.0.1</code>. Accede en <code>http://localhost:3126/</code> desde el propio servidor, o mediante un túnel local (por ejemplo, Cloudflare Tunnel con Zero Trust).</li>
-      </ul>
-    </td>
-  </tr>
-</table>
-
-#### HOW TO USE
-
-```bash
-git clone --depth=1 https://github.com/maravento/vault.git
-cd vault/nmapstack/nwatch
-
-# or
-
-wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
-chmod +x gitfolder.py
-python3 gitfolder.py https://github.com/maravento/vault/nmapstack
-cd nmapstack/nwatch
-
-# Install
-sudo bash nwatchsetup.sh --install
-
-# Update
-sudo bash nwatchsetup.sh --update
-
-# Uninstall
-sudo bash nwatchsetup.sh --uninstall
-
-# Status
-sudo bash nwatchsetup.sh --status
-
-# Interactive menu
-sudo bash nwatchsetup.sh
-```
+#### Installer behavior
 
 <table width="100%">
   <tr>
@@ -570,7 +528,7 @@ sudo bash nwatchsetup.sh
 
 Displays the daemon status (running or stopped), Apache's port (3126), the last 10 lines of the shared log, the active ports mode and target, and device and port counts from the database.
 
-##### LAN Field Reference
+#### LAN Field Reference
 
 <table width="100%">
   <tr>
@@ -589,7 +547,7 @@ Displays the daemon status (running or stopped), Apache's port (3126), the last 
 | `(Unknown: locally administered)` | The MAC's "locally administered" bit is set — it was never assigned by a manufacturer at all (common with Wi-Fi privacy MAC randomization, VMs, containers). There's no vendor to look up. |
 | `-` (Hostname) | Reverse DNS, mDNS, and NetBIOS (the ones installed) all failed to resolve a name for that IP. |
 
-##### Export
+#### Export
 
 <table width="100%">
   <tr>
@@ -604,7 +562,7 @@ Displays the daemon status (running or stopped), Apache's port (3126), the last 
 
 <p align="center"><img src="img/nwatch-export.png" width="110" alt="NWatch export menu with CSV, Excel, and JSON options"><br>Export menu: CSV, Excel, and JSON.<br>Menú de exportación: CSV, Excel y JSON.</p>
 
-##### Ports Modes
+#### Ports Modes
 
 <table width="100%">
   <tr>
@@ -630,32 +588,11 @@ sudo /var/www/nwatch/tools/nwatchports.sh --mode target 192.168.1.10
 sudo /var/www/nwatch/tools/nwatchports.sh --list
 ```
 
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      Clicking Apply (or running <code>--mode target</code>) writes the new mode or target to <code>ports_mode.conf</code>; it does not start a scan immediately. The background loop in <code>nwatchports.sh</code> reads the change on its next cycle, after up to <code>PORT_POLL_INTERVAL</code> (30 seconds by default). The table may remain empty during that time. The browser's <code>Refresh: 15s</code> setting controls a separate poll of the database; it does not run the scan.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      Al hacer clic en Apply (o ejecutar <code>--mode target</code>), se guarda el nuevo modo o destino en <code>ports_mode.conf</code>; el escaneo no comienza de inmediato. El ciclo en segundo plano de <code>nwatchports.sh</code> lee el cambio en el siguiente intervalo, que puede tardar hasta <code>PORT_POLL_INTERVAL</code> (30 segundos por defecto). Durante ese tiempo, la tabla puede aparecer vacía. El ajuste <code>Refresh: 15s</code> del navegador actualiza por separado los datos de la base de datos; no ejecuta el escaneo.
-    </td>
-  </tr>
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>Total time (Target mode):</strong> The daemon may take up to <code>PORT_POLL_INTERVAL</code> (30 seconds by default) to read the new target. The <code>nmap</code> scan then runs. It may take seconds for a responsive host, but UDP scans can take longer if the host silently drops probes. The <code>--host-timeout</code> option caps a scan at 60 seconds so one cycle cannot delay the next. The browser may then take up to one refresh interval to show the results. A heavily filtered target can take nearly two minutes from start to display.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>Tiempo total (modo Target):</strong> el demonio puede tardar hasta <code>PORT_POLL_INTERVAL</code> (30 segundos por defecto) en leer el nuevo destino. Después se ejecuta el escaneo de <code>nmap</code>. Puede tardar unos segundos con un host que responde, pero el escaneo UDP puede demorar más si el host descarta los sondeos sin responder. La opción <code>--host-timeout</code> limita cada escaneo a 60 segundos para que un ciclo no retrase el siguiente. Luego, el navegador puede tardar hasta un intervalo de actualización en mostrar los resultados. Con un destino muy filtrado, el proceso completo puede tardar casi dos minutos.
-    </td>
-  </tr>
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>ICMP is not required (Target mode).</strong> The scan uses <code>-Pn</code>, which skips host discovery and ping. The target's firewall does not need to allow ICMP echo for port detection; TCP and UDP probes are sent directly.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>No se requiere ICMP (modo Target).</strong> El escaneo usa <code>-Pn</code>, que omite el descubrimiento del host y el ping. El firewall del destino no necesita permitir ICMP echo para detectar sus puertos; los sondeos TCP y UDP se envían directamente.
-    </td>
-  </tr>
-</table>
+| Description | Descripción |
+|---|---|
+| Clicking Apply (or running `--mode target`) writes the new mode or target to `ports_mode.conf`; it does not start a scan immediately. The background loop in `nwatchports.sh` reads the change on its next cycle, after up to `PORT_POLL_INTERVAL` (30 seconds by default). The table may remain empty during that time. The browser's `Refresh: 15s` setting controls a separate poll of the database; it does not run the scan. | Al hacer clic en Apply (o ejecutar `--mode target`), se guarda el nuevo modo o destino en `ports_mode.conf`; el escaneo no comienza de inmediato. El ciclo en segundo plano de `nwatchports.sh` lee el cambio en el siguiente intervalo, que puede tardar hasta `PORT_POLL_INTERVAL` (30 segundos por defecto). Durante ese tiempo, la tabla puede aparecer vacía. El ajuste `Refresh: 15s` del navegador actualiza por separado los datos de la base de datos; no ejecuta el escaneo. |
+| **Total time (Target mode):** The daemon may take up to `PORT_POLL_INTERVAL` (30 seconds by default) to read the new target. The `nmap` scan then runs. It may take seconds for a responsive host, but UDP scans can take longer if the host silently drops probes. The `--host-timeout` option caps a scan at 60 seconds so one cycle cannot delay the next. The browser may then take up to one refresh interval to show the results. A heavily filtered target can take nearly two minutes from start to display. | **Tiempo total (modo Target):** el demonio puede tardar hasta `PORT_POLL_INTERVAL` (30 segundos por defecto) en leer el nuevo destino. Después se ejecuta el escaneo de `nmap`. Puede tardar unos segundos con un host que responde, pero el escaneo UDP puede demorar más si el host descarta los sondeos sin responder. La opción `--host-timeout` limita cada escaneo a 60 segundos para que un ciclo no retrase el siguiente. Luego, el navegador puede tardar hasta un intervalo de actualización en mostrar los resultados. Con un destino muy filtrado, el proceso completo puede tardar casi dos minutos. |
+| **ICMP is not required (Target mode).** The scan uses `-Pn`, which skips host discovery and ping. The target's firewall does not need to allow ICMP echo for port detection; TCP and UDP probes are sent directly. | **No se requiere ICMP (modo Target).** El escaneo usa `-Pn`, que omite el descubrimiento del host y el ping. El firewall del destino no necesita permitir ICMP echo para detectar sus puertos; los sondeos TCP y UDP se envían directamente. |
 
 | Empty-table message | When it shows |
 |----------------------|---------------|
@@ -676,18 +613,9 @@ sudo /var/www/nwatch/tools/nwatchports.sh --list
   </tr>
 </table>
 
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top; text-align: center;">
-      <strong>No open ports / Sin puertos abiertos</strong><br>
-      <img src="img/nwatch-scan-noports.png" width="100%" alt="NWatch port scan completed with no open ports">
-    </td>
-    <td style="width: 50%; vertical-align: top; text-align: center;">
-      <strong>Open ports found / Puertos abiertos encontrados</strong><br>
-      <img src="img/nwatch-scan-ports.png" width="100%" alt="NWatch port scan showing detected open ports">
-    </td>
-  </tr>
-</table>
+| Description | Descripción |
+|---|---|
+| **No open ports / Sin puertos abiertos**<br> <img src="img/nwatch-scan-noports.png" width="100%" alt="NWatch port scan completed with no open ports"> | **Open ports found / Puertos abiertos encontrados**<br> <img src="img/nwatch-scan-ports.png" width="100%" alt="NWatch port scan showing detected open ports"> |
 
 ##### Ports Displayed
 
@@ -715,6 +643,19 @@ sudo /var/www/nwatch/tools/nwatchports.sh --list
   </tr>
 </table>
 
+#### CSRF Protection
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>CSRF protection:</strong> The Ports tab's mode-switch form does not require a login; guest access across the LAN is intentional. The state-changing POST request includes a per-session CSRF token. The server accepts the request only when the form was loaded from the page first.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Protección CSRF:</strong> El formulario para cambiar de modo en la pestaña Ports no requiere iniciar sesión; el acceso de invitado en toda la LAN es intencional. La solicitud POST que cambia el estado incluye un token CSRF por sesión. El servidor solo la acepta si el formulario se cargó antes desde la página.
+    </td>
+  </tr>
+</table>
+
 ## ⚠️ WARNING: NETWORK ACCESS
 
 ---
@@ -726,19 +667,6 @@ sudo /var/www/nwatch/tools/nwatchports.sh --list
     </td>
     <td style="width: 50%; vertical-align: top;">
       Este proyecto está diseñado para usarse en una red local (LAN). No cuenta con las medidas de seguridad necesarias para exponerlo directamente a Internet. Si se requiere acceso desde Internet, se recomienda utilizar un túnel bajo demanda en lugar de abrir puertos directamente. Así, el acceso se habilita cuando hace falta y el servidor no queda expuesto permanentemente.
-    </td>
-  </tr>
-</table>
-
-### CSRF Protection
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>CSRF protection:</strong> The Ports tab's mode-switch form does not require a login; guest access across the LAN is intentional. The state-changing POST request includes a per-session CSRF token. The server accepts the request only when the form was loaded from the page first.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>Protección CSRF:</strong> El formulario para cambiar de modo en la pestaña Ports no requiere iniciar sesión; el acceso de invitado en toda la LAN es intencional. La solicitud POST que cambia el estado incluye un token CSRF por sesión. El servidor solo la acepta si el formulario se cargó antes desde la página.
     </td>
   </tr>
 </table>

@@ -235,6 +235,7 @@ PersistentKeepalive = 25 # Optional" > /etc/wireguard/wg0.conf
 
 # WireGuard Uninstaller Feature
 uninstall_wireguard() {
+    local purge_failed=0
   if command -v wg &> /dev/null; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') Uninstalling WireGuard..."
 
@@ -245,7 +246,9 @@ uninstall_wireguard() {
     systemctl disable wg-quick@wg0
 
     # Uninstall packages
-    apt purge -y wireguard wireguard-tools qrencode
+    if ! apt purge -y wireguard wireguard-tools qrencode; then
+        purge_failed=1
+    fi
 
     # Clean up unneeded packages
     apt autoremove -y
@@ -253,7 +256,11 @@ uninstall_wireguard() {
     # Delete configuration files and keys
     rm -rf /etc/wireguard
 
-    echo "WireGuard has been successfully uninstalled"
+    if [ "$purge_failed" -gt 0 ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: WireGuard data removed, packages pending -alert"
+    else
+        echo "WireGuard has been successfully uninstalled"
+    fi
   else
     echo "WireGuard is not installed"
   fi

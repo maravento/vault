@@ -129,12 +129,19 @@ vboxinstall() {
     systemctl restart vboxdrv
     # install Extension Pack
     export VBOX_VER=$(VBoxManage --version | awk 'END {print $1}' | cut -d 'r' -f 1)
-    wget --timeout=30 -c https://download.virtualbox.org/virtualbox/$VBOX_VER/Oracle_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack
-    VBoxManage extpack install Oracle_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack
-    echo "Done. Reboot"
+    if ! wget --timeout=30 -c "https://download.virtualbox.org/virtualbox/$VBOX_VER/Oracle_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack"; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot download Extension Pack -abort" >&2
+        return 1
+    fi
+    if ! VBoxManage extpack install "Oracle_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack"; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install Extension Pack -abort" >&2
+        return 1
+    fi
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: VirtualBox installed, reboot required"
 }
 
 vboxpurge() {
+    local purge_failed=0
     echo "$(date '+%Y-%m-%d %H:%M:%S') Removing Virtualbox..."
     sudo -u $local_user bash -c "VBoxManage list runningvms | grep -oP '(?<=\{)[0-9a-f-]+(?=\})' | xargs -r -I {} VBoxManage controlvm {} poweroff"
     pkill -9 -x 'vboxwebsrv|VirtualBox' &>/dev/null || true
@@ -142,14 +149,22 @@ vboxpurge() {
     service vboxdrv stop &>/dev/null
     killall VirtualBox iprt-VBoxTscThread VBoxSVC &>/dev/null
     VBoxManage extpack uninstall "Oracle VM VirtualBox Extension Pack"
-    apt-get -y autoremove --purge
+    if ! apt-get -y autoremove --purge; then
+        purge_failed=1
+    fi
     /opt/VirtualBox/uninstall.sh &>/dev/null
-    apt-get -y remove --purge 'virtualbox*'
+    if ! apt-get -y remove --purge 'virtualbox*'; then
+        purge_failed=1
+    fi
     rm -rf /etc/vbox /opt/VirtualBox /usr/lib/virtualbox /etc/apt/sources.list.d/virtualbox.list &>/dev/null
     rm -rf /var/lib/dpkg/info/virtualbox* &>/dev/null
     # Optional: delete virtual disk config
     #rm -rf ~/.config/VirtualBox # Optional
-    echo "Done"
+    if [ "$purge_failed" -gt 0 ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: VirtualBox data removed, packages pending -alert"
+    else
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: VirtualBox packages and data removed"
+    fi
 }
 
 # ------------------------------------------------------------------------------
@@ -170,7 +185,7 @@ else
     echo "Virtualbox is not installed. Do you want to install it? (y/n)"
     read -r answer
     if [ "$answer" = "y" ]; then
-        vboxinstall
+        vboxinstall || exit 1
     else
         echo "Virtualbox will not be installed"
     fi

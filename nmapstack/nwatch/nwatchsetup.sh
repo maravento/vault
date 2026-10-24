@@ -708,7 +708,10 @@ do_uninstall() {
     sed -i "/^Listen .*:${vhost_port}\$/d" /etc/apache2/ports.conf
     rm -f /etc/apache2/sites-available/nwatch.conf
 
-    rm -f /etc/logrotate.d/nwatch /etc/logrotate.d/nwatch.bak
+    rm -f /etc/logrotate.d/nwatch /etc/logrotate.d/nwatch.bak && {
+        log "INFO: Removed /etc/logrotate.d/nwatch"
+        log "INFO: Removed /etc/logrotate.d/nwatch.bak"
+    }
 
     rm -rf "$nwatch_www"
     rm -rf "$nwatch_etc"
