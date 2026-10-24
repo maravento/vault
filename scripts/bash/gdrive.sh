@@ -126,7 +126,7 @@ case "${1:-}" in
         echo "Failed to mount Google Drive"
         exit 1
     fi
-    echo "OK"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Google Drive mounted"
     echo "$(date '+%Y-%m-%d %H:%M:%S') gdrive done at: $(date '+%Y-%m-%d %H:%M:%S')"
     exit 0
     ;;
@@ -141,7 +141,7 @@ case "${1:-}" in
         echo "Failed to unmount Google Drive"
         exit 1
     fi
-    echo "OK"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Google Drive unmounted"
     echo "$(date '+%Y-%m-%d %H:%M:%S') gdrive done at: $(date '+%Y-%m-%d %H:%M:%S')"
     exit 0
     ;;

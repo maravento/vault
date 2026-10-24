@@ -38,6 +38,71 @@ log() {
     fi
 }
 
+# ACL PREPARATION
+# Canonical block -- copied byte for byte into every script that creates a
+# directory or a list under /etc/acl. Prepare /etc/acl first, then only the
+# subdirectory and the lists this script needs. Never recursive.
+# Usage: acl_prepare <dir> <dir_mode> <file_mode> [file ...]
+acl_prepare() {
+    local acl_dir="$1" dir_mode="$2" file_mode="$3" acl_file
+    shift 3
+
+    # mkdir without -p fails when the directory already exists, so a success
+    # means this run created it and no concurrent run did.
+    if mkdir -m "$dir_mode" -- "$acl_dir" 2>/dev/null; then
+        if ! chown root:root -- "$acl_dir"; then
+            log "ERROR: cannot set owner of $acl_dir -abort"
+            exit 1
+        fi
+        log "WARNING: created ACL directory $acl_dir -alert"
+    elif [ -d "$acl_dir" ] && [ ! -L "$acl_dir" ]; then
+        acl_fix_perms "$acl_dir" "$dir_mode"
+    else
+        log "ERROR: $acl_dir is not a regular directory -abort"
+        exit 1
+    fi
+
+    for acl_file in "$@"; do
+        # Checked before the redirection: noclobber only protects regular
+        # files, and opening a FIFO for writing blocks until a reader shows up.
+        if [ -L "$acl_file" ] || { [ -e "$acl_file" ] && [ ! -f "$acl_file" ]; }; then
+            log "ERROR: $acl_file is not a regular file -abort"
+            exit 1
+        fi
+        # noclobber makes the redirection fail when the file already exists,
+        # and umask 077 keeps the new file closed until chmod sets its mode.
+        if (set -C; umask 077; : > "$acl_file") 2>/dev/null; then
+            if ! { chmod "$file_mode" -- "$acl_file" \
+                && chown root:root -- "$acl_file"; }; then
+                log "ERROR: cannot set perms of $(basename "$acl_file") -abort"
+                exit 1
+            fi
+            log "WARNING: created empty $(basename "$acl_file") -alert"
+        elif [ -f "$acl_file" ] && [ ! -L "$acl_file" ]; then
+            acl_fix_perms "$acl_file" "$file_mode"
+        else
+            log "ERROR: $acl_file is not a regular file -abort"
+            exit 1
+        fi
+    done
+}
+
+# Repairs mode and owner of an existing ACL object, per Autorreparación
+acl_fix_perms() {
+    local acl_path="$1" want_mode="$2" cur_mode cur_owner
+    cur_mode=$(stat -c '%a' -- "$acl_path" 2>/dev/null) || {
+        log "ERROR: cannot stat $acl_path -abort"; exit 1; }
+    cur_owner=$(stat -c '%U:%G' -- "$acl_path" 2>/dev/null) || {
+        log "ERROR: cannot stat $acl_path -abort"; exit 1; }
+    [[ "$cur_mode" == "$want_mode" && "$cur_owner" == "root:root" ]] && return 0
+    if ! { chmod "$want_mode" -- "$acl_path" \
+        && chown root:root -- "$acl_path"; }; then
+        log "ERROR: cannot fix $acl_path perms -abort"
+        exit 1
+    fi
+    log "INFO: $acl_path perms fixed -fixed"
+}
+
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
 (umask 077; : >> "$script_lock") || {
@@ -269,28 +334,8 @@ fi
 
 # REQUIRED DIRS
 # This script writes its own lists here, so an empty dir is enough
-if [ ! -d "$acl_ipt_path" ]; then
-    if mkdir -p "$acl_ipt_path"; then
-        log "WARNING: $acl_ipt_path was missing -alert"
-    else
-        log "ERROR: cannot create $acl_ipt_path -abort"
-        exit 1
-    fi
-fi
-for ipt_file in "$path_ips" "$path_macs"; do
-    if [ ! -e "$ipt_file" ]; then
-        if ! touch "$ipt_file"; then
-            log "ERROR: cannot create $ipt_file -abort"
-            exit 1
-        fi
-        log "WARNING: $ipt_file was missing -alert"
-    fi
-    if [ ! -f "$ipt_file" ]; then
-        log "ERROR: not a regular file: $ipt_file -abort"
-        exit 1
-    fi
-done
-unset ipt_file
+acl_prepare "${ACL_PATH:-/etc/acl}" 755 644
+acl_prepare "$acl_ipt_path" 700 600 "$path_ips" "$path_macs"
 
 # start
 log "iptables start..."

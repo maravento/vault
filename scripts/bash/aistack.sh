@@ -23,6 +23,8 @@
 # --status | --model | --help
 # Without arguments, runs interactive menu
 #
+# LOG: aistack.log (in the script directory)
+#
 ################################################################################
 
 set -euo pipefail
@@ -51,6 +53,20 @@ if ! flock -n 200; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
+
+# logging
+script_dir="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
+log_file="${script_dir}/aistack.log"
+{ > "$log_file"; } 2>/dev/null || true
+log() {
+    local msg="$(date '+%Y-%m-%d %H:%M:%S') $1"
+    echo "$msg" >> "$log_file" 2>/dev/null || true
+    if [[ "$1" == ERROR:* ]]; then echo "$msg" >&2; else echo "$msg"; fi
+}
+info() { log "INFO: $*"; }
+warn() { log "WARNING: $*"; }
+err()  { log "ERROR: $*"; }
+abort() { err "$*"; exit 1; }
 
 # local_user detection
 detect_local_user() {
@@ -85,10 +101,9 @@ detect_local_user() {
 }
 
 if ! local_user=$(detect_local_user); then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
-    exit 1
+    abort "no local user; create one with sudo access -abort"
 fi
-echo "Using local user: $local_user"
+info "local user: $local_user"
 
 retry_cmd() {
     local max_attempts=10
@@ -112,10 +127,10 @@ retry_cmd() {
             if [ -n "${download_url:-}" ]; then
                 echo "PARTIAL: $download_url"
             fi
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: $retry_failure -abort" >&2
+            err "$retry_failure -abort"
             exit 1
         fi
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $retry_name: retry $((attempt + 1))/$max_attempts"
+        info "$retry_name: retry $((attempt + 1))/$max_attempts"
         attempt=$((attempt + 1))
         sleep 10
     done
@@ -140,28 +155,32 @@ HAS_NVIDIA_DOCKER=false
 detect_gpu() {
     HAS_GPU=false
     HAS_NVIDIA_DOCKER=false
+    local gpu_names docker_runtimes
 
-    # Check for NVIDIA GPU
-    if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
-        HAS_GPU=true
-        echo "NVIDIA GPU detected"
-        nvidia-smi --query-gpu=name --format=csv,noheader | head -1 | xargs echo " GPU Model:"
-
-        # Check if nvidia-docker is installed
-        if command -v nvidia-container-toolkit &>/dev/null || \
-           docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi &>/dev/null 2>&1; then
-            HAS_NVIDIA_DOCKER=true
-            echo "NVIDIA Container Toolkit detected (GPU will be used)"
-        else
-            echo "NVIDIA Container Toolkit not installed"
-            echo "GPU available but Docker cannot use it"
-            echo "Install with:"
-            echo "apt install -y nvidia-container-toolkit"
-            echo "systemctl restart docker"
-        fi
-    else
-        echo "No NVIDIA GPU detected (will use CPU for Ollama)"
+    if ! command -v nvidia-smi &>/dev/null; then
+        info "nvidia-smi unavailable; using CPU"
+        return 0
     fi
+    if ! gpu_names=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null); then
+        abort "cannot query NVIDIA GPU -abort"
+    fi
+    if [[ -z "$gpu_names" ]]; then
+        info "No NVIDIA GPU reported; using CPU"
+        return 0
+    fi
+    HAS_GPU=true
+    info "NVIDIA GPU: ${gpu_names%%$'\n'*}"
+
+    if ! command -v docker &>/dev/null; then
+        return 0
+    fi
+    if ! docker_runtimes=$(docker info --format '{{range $name, $runtime := .Runtimes}}{{println $name}}{{end}}' 2>/dev/null); then
+        abort "cannot query Docker runtimes -abort"
+    fi
+    if grep -Fxq nvidia <<< "$docker_runtimes"; then
+        HAS_NVIDIA_DOCKER=true
+    fi
+    return 0
 }
 
 # NATIVE COMPONENTS
@@ -170,6 +189,7 @@ detect_native_components() {
     NATIVE_OLLAMA=false
     NATIVE_OPENWEBUI=false
     NATIVE_PORTAINER=false
+    NATIVE_FAILED=()
 
     # Ollama native: binary or install directory
     if command -v ollama &>/dev/null || \
@@ -220,11 +240,15 @@ remove_native_components() {
     if [ "$NATIVE_OPENWEBUI" = true ]; then
         found=true
         echo ""
-        warn "Native Open WebUI installation detected outside Docker"
+        warn "Native Open WebUI detected outside Docker"
         read -rp " Remove native Open WebUI (pip uninstall)? [y/N]: " confirm
         if [[ "$confirm" =~ ^[yY]$ ]]; then
-            pip uninstall -y open-webui 2>/dev/null || true
-            ok "Native Open WebUI removed"
+            if pip uninstall -y open-webui >/dev/null 2>&1; then
+                ok "Native Open WebUI removed"
+            else
+                warn "Open WebUI pip uninstall failed -alert"
+                NATIVE_FAILED+=("open-webui")
+            fi
         fi
     fi
 
@@ -239,7 +263,7 @@ remove_native_components() {
     fi
 
     if [ "$found" = false ]; then
-        ok "No native installations detected outside Docker"
+        :
     fi
 }
 
@@ -251,17 +275,17 @@ remove_native_components() {
 SELECTED_MODEL=""
 
 # COLORS
-# Declare the terminal color sequences
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-MAGENTA='\033[0;35m'
-WHITE='\033[1;37m'
-DIM='\033[2m'
-BOLD='\033[1m'
-RESET='\033[0m'
+# Keep display variables empty for plain terminal output
+RED=''
+GREEN=''
+YELLOW=''
+BLUE=''
+CYAN=''
+MAGENTA=''
+WHITE=''
+DIM=''
+BOLD=''
+RESET=''
 
 # DISPLAY
 # Render terminal headings and status messages
@@ -277,15 +301,12 @@ header() {
   echo ""
 }
 
-ok() { echo -e " ${GREEN}[OK]${RESET} $*"; }
-err() { echo -e " ${RED}ERROR:${RESET} $*"; }
-info() { echo -e " ${BLUE}INFO:${RESET} $*"; }
-warn() { echo -e " ${YELLOW}WARNING:${RESET} $*"; }
+ok() { info "$*"; }
 step() { echo -e "\n ${MAGENTA}>>${RESET} ${BOLD}$*${RESET}"; }
 line() { echo -e " ${DIM}------------------------------------------------${RESET}"; }
 
 finish() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') aistack done at: $(date '+%Y-%m-%d %H:%M:%S')"
+    log "aistack done at: $(date '+%Y-%m-%d %H:%M:%S')"
     exit 0
 }
 
@@ -296,7 +317,7 @@ finish() {
 fetch_available_models() {
     AVAILABLE_MODELS=()
     if ! command -v jq &>/dev/null; then
-        warn "jq is not installed; cannot read model catalog -alert"
+        warn "jq missing; cannot read model catalog -alert"
         return 1
     fi
 
@@ -308,17 +329,18 @@ fetch_available_models() {
         if [[ -n "$json" ]] && jq -e '.models' &>/dev/null <<<"$json"; then
             break
         fi
-        warn "Could not reach Ollama model catalog (attempt $attempt/$max_attempts)"
+        warn "Ollama catalog unavailable ($attempt/$max_attempts) -alert"
         attempt=$((attempt + 1))
         [ "$attempt" -le "$max_attempts" ] && sleep 5
     done
 
     if [[ -z "$json" ]] || ! jq -e '.models' &>/dev/null <<<"$json"; then
-        warn "Model catalog unreachable after $max_attempts attempts -alert"
+        warn "Ollama catalog failed after $max_attempts attempts -alert"
         return 1
     fi
 
     while IFS=$'\t' read -r name size; do
+        [[ "${name##*/}" == *:* ]] || name+=":latest"
         AVAILABLE_MODELS+=("${name}|${size}")
     done < <(jq -r '.models[] | [.name, .size] | @tsv' <<<"$json")
 
@@ -331,7 +353,7 @@ select_model() {
     echo ""
     echo "$(date '+%Y-%m-%d %H:%M:%S') Fetching current model catalog from ollama.com..."
     if ! fetch_available_models; then
-        err "Skipping model download -- catalog unavailable"
+        err "model catalog unavailable; download aborted -abort"
         SELECTED_MODEL=""
         return 1
     fi
@@ -349,13 +371,14 @@ select_model() {
         i=$((i+1))
     done
 
+    echo "0) Cancel"
     echo ""
-    read -rp " -> Select model [1-${#AVAILABLE_MODELS[@]}] or 'q' to skip: " choice
+    read -rp " -> Select model [0-${#AVAILABLE_MODELS[@]}]: " choice
 
-    if [[ "$choice" == "q" || "$choice" == "Q" ]]; then
+    if [[ "$choice" == "0" ]]; then
         SELECTED_MODEL=""
         echo ""
-        info "No model selected -- you can download one later with: ./aistack.sh --model"
+        info "model selection cancelled -skip"
         return 0
     elif [[ "$choice" =~ $UH_UINT ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#AVAILABLE_MODELS[@]}" ]; then
         SELECTED_MODEL="${AVAILABLE_MODELS[$((choice-1))]%%|*}"
@@ -379,6 +402,7 @@ install_docker() {
         ok "Docker is already installed"
     else
         echo "$(date '+%Y-%m-%d %H:%M:%S') Installing Docker..."
+        apt-get update -qq 2>/dev/null || true
         retry_cmd apt-get install -y ca-certificates curl gnupg lsb-release
 
         # GPG key
@@ -386,7 +410,7 @@ install_docker() {
         mkdir -p /etc/apt/keyrings
         download_url="https://download.docker.com/linux/ubuntu/gpg"
         if ! retry_cmd curl -fsSL "$download_url" -o /tmp/docker_$$.gpg; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Docker GPG key download failed -abort" >&2
+            err "Docker GPG key download failed -abort"
             rm -f /tmp/docker_$$.gpg
             exit 1
         fi
@@ -405,7 +429,7 @@ install_docker() {
         gpg --dearmor < /tmp/docker_$$.gpg > /etc/apt/keyrings/docker.gpg
         chmod 644 /etc/apt/keyrings/docker.gpg
         rm -f /tmp/docker_$$.gpg
-        ok "Docker GPG key verified (fingerprint OK)"
+        :
 
         # Add repository
         echo \
@@ -480,7 +504,7 @@ install_nvidia_docker() {
         sed 's|deb https://|deb [signed-by=/etc/apt/keyrings/nvidia-docker.gpg] https://|g' \
             "$nvidia_repo_tmp" | tee /etc/apt/sources.list.d/nvidia-docker.list > /dev/null
         rm -f "$nvidia_repo_tmp"
-        ok "NVIDIA Docker GPG key imported to keyrings"
+        :
 
         retry_cmd apt-get update
         retry_cmd apt-get install -y nvidia-container-toolkit
@@ -566,7 +590,7 @@ ${OLLAMA_RUNTIME}${OLLAMA_GPU_DEVICES}
 
 EOF
 
-    ok "docker-compose.yml created at ${AI_BASE_DIR}"
+    :
 }
 
 # DEPLOYMENT
@@ -582,12 +606,10 @@ deploy_stack() {
     local attempt=1
     until docker compose pull; do
         if [ $attempt -ge $max_attempts ]; then
-            printf '%s ERROR: Docker Compose pull failed after %s attempts -abort\n' \
-                "$(date '+%Y-%m-%d %H:%M:%S')" "$max_attempts" >&2
+            err "Compose pull failed after $max_attempts attempts -abort"
             return 1
         fi
-        printf '%s WARNING: Docker Compose pull failed; retry %s/%s in 10s -alert\n' \
-            "$(date '+%Y-%m-%d %H:%M:%S')" "$attempt" "$max_attempts"
+        warn "Compose pull failed; retry $attempt/$max_attempts in 10s -alert"
         attempt=$((attempt + 1))
         sleep 10
     done
@@ -607,7 +629,7 @@ require_ollama_running() {
         return 1
     fi
     if ! systemctl is-active --quiet docker 2>/dev/null; then
-        err "Docker daemon is not running. Start it with: systemctl start docker"
+        err "Docker stopped; run: systemctl start docker"
         return 1
     fi
     if ! docker ps --format '{{.Names}}' | grep -q "^ollama$"; then
@@ -617,6 +639,18 @@ require_ollama_running() {
     fi
 }
 
+# MODEL CHECK
+# Match the complete installed model name and tag
+model_is_installed() {
+    local model_name="$1"
+    [[ -n "$model_name" ]] || return 1
+    [[ "${model_name##*/}" == *:* ]] || model_name+=":latest"
+    docker exec ollama ollama list 2>/dev/null | awk -v model_name="$model_name" '
+        NR > 1 && $1 == model_name { found=1 }
+        END { exit !found }
+    '
+}
+
 # MODEL DOWNLOAD
 # Download the selected model into Ollama
 download_model() {
@@ -624,6 +658,7 @@ download_model() {
         info "No model selected -skip"
         return 0
     fi
+    [[ "${SELECTED_MODEL##*/}" == *:* ]] || SELECTED_MODEL+=":latest"
     step "Downloading model: ${SELECTED_MODEL}"
     require_ollama_running || return 1
 
@@ -635,14 +670,14 @@ download_model() {
         sleep 2
         attempt=$((attempt + 1))
         if [ $attempt -ge $max_attempts ]; then
-            warn "Ollama service not responding, continuing anyway"
+            warn "Ollama not responding; continuing -alert"
             break
         fi
     done
 
     # Check if model already exists
-    if docker exec ollama ollama list 2>/dev/null | grep -Fq -- "${SELECTED_MODEL}"; then
-        warn "Model ${SELECTED_MODEL} already downloaded"
+    if model_is_installed "$SELECTED_MODEL"; then
+        info "Model ${SELECTED_MODEL} already downloaded -skip"
         return 0
     fi
 
@@ -715,7 +750,7 @@ remove_model() {
             info "Cancelled"
         fi
     elif [ "$choice" != "0" ]; then
-        warn "Invalid option"
+        info "invalid option; action skipped -skip"
     fi
 }
 
@@ -735,11 +770,12 @@ replace_current_model() {
     echo ""
 
     # Select new model
-    select_model
+    select_model || return 1
+    [[ -n "$SELECTED_MODEL" ]] || return 0
 
     # Remove current model if requested
     if [[ "$remove_current" =~ ^[yY]$ ]]; then
-        if docker exec ollama ollama list 2>/dev/null | grep -Fq -- "$current_model"; then
+        if model_is_installed "$current_model"; then
             info "Removing current model: $current_model"
             docker exec ollama ollama rm "$current_model"
             ok "Removed $current_model"
@@ -777,11 +813,17 @@ menu_models() {
         read -r opt
 
         case "$opt" in
-            1) select_model; download_model; finish ;;
+            1)
+                select_model
+                if [[ -n "$SELECTED_MODEL" ]]; then
+                    download_model
+                fi
+                finish
+                ;;
             2) remove_model; finish ;;
             3) replace_current_model; finish ;;
             0) return ;;
-            *) warn "Invalid option" ;;
+            *) info "invalid option -retry" ;;
         esac
     done
 }
@@ -803,7 +845,7 @@ install_opencode() {
     echo ""
 
     if command -v opencode &>/dev/null; then
-        warn "opencode already installed"
+        info "opencode already installed -skip"
         return 0
     fi
 
@@ -813,8 +855,9 @@ install_opencode() {
         node_path=$(command -v node)
         if [[ "$node_path" == /usr/bin/node || "$node_path" == /usr/local/bin/node ]]; then
             err "Node.js is installed system-wide via apt ($node_path)"
-            err "This conflicts with nvm and must be removed before continuing"
-            info "Run: sudo apt remove --purge nodejs npm -y && sudo apt autoremove -y"
+            err "System Node.js conflicts with nvm; remove it first"
+            info "Run: sudo apt remove --purge nodejs npm -y"
+            info "Then run: sudo apt autoremove -y"
             return 1
         fi
     fi
@@ -833,7 +876,7 @@ install_opencode() {
         echo "SAVED: install.sh"
         download_url=""
         if ! head -1 "$nvm_tmp" | grep -qE '^#!((/usr)?/bin/(ba)?sh|/usr/bin/env (ba)?sh)'; then
-            err "Downloaded nvm install script does not look like a shell script -abort"
+            err "Downloaded nvm script is not shell code -abort"
             rm -f "$nvm_tmp"
             return 1
         fi
@@ -847,7 +890,7 @@ install_opencode() {
         rm -f "$nvm_tmp"
         ok "nvm installed"
     else
-        ok "nvm already installed"
+        :
     fi
 
     # Ensure Node.js LTS is installed via nvm
@@ -862,7 +905,7 @@ install_opencode() {
     else
         local node_ver
         node_ver=$(sudo -u "$local_user" bash -c "source '$nvm_sh' && node --version" 2>/dev/null)
-        ok "Node.js already installed ($node_ver)"
+        :
     fi
 
     # pnpm is required (preferred over npm for security: avoids supply-chain attacks via hoisting)
@@ -881,7 +924,7 @@ install_opencode() {
         echo "SAVED: install.sh"
         download_url=""
         if ! head -1 "$pnpm_tmp" | grep -qE '^#!((/usr)?/bin/(ba)?sh|/usr/bin/env (ba)?sh)'; then
-            err "Downloaded pnpm install script does not look like a shell script -abort"
+            err "Downloaded pnpm script is not shell code -abort"
             rm -f "$pnpm_tmp"
             return 1
         fi
@@ -895,7 +938,7 @@ install_opencode() {
         rm -f "$pnpm_tmp"
         ok "pnpm installed"
     else
-        ok "pnpm already installed"
+        :
     fi
 
     # Verify pnpm version >= 11
@@ -907,7 +950,7 @@ install_opencode() {
         info "Upgrade with: pnpm self-update"
         return 1
     fi
-    ok "pnpm $pnpm_ver_full detected"
+    :
 
     echo "$(date '+%Y-%m-%d %H:%M:%S') Installing via pnpm (official package)..."
     local pnpm_bin="/home/$local_user/.local/share/pnpm/bin/pnpm"
@@ -961,7 +1004,7 @@ WRAPPER
     download_url=""
     # Verify the downloaded file is a valid shell script (sanity check)
     if ! head -1 "$install_tmp" | grep -qE '^#!((/usr)?/bin/(ba)?sh|/usr/bin/env (ba)?sh)'; then
-        err "Downloaded opencode install script does not look like a shell script -abort"
+        err "Downloaded opencode script is not shell code -abort"
         rm -f "$install_tmp"
         return 1
     fi
@@ -1050,7 +1093,7 @@ uninstall_opencode() {
 
     # Offer to also remove nvm and pnpm installed by this script
     echo ""
-    warn "nvm, Node.js and pnpm were installed as dependencies for OpenCode"
+    warn "OpenCode dependencies installed: nvm, Node.js, pnpm"
     echo ""
     read -rp " Also remove nvm, Node.js and pnpm? [y/N]: " remove_deps
     if [[ "$remove_deps" =~ ^[yY]$ ]]; then
@@ -1159,7 +1202,7 @@ WRAPPER
         echo "SAVED: install"
         download_url=""
         if ! head -1 "$update_tmp" | grep -qE '^#!((/usr)?/bin/(ba)?sh|/usr/bin/env (ba)?sh)'; then
-            err "Downloaded opencode script does not look like a shell script -abort"
+            err "Downloaded opencode script is not shell code -abort"
             rm -f "$update_tmp"
             return 1
         fi
@@ -1209,7 +1252,7 @@ menu_opencode() {
             1) menu_opencode_cli ;;
             2) menu_opencode_desktop ;;
             0) return ;;
-            *) warn "Invalid option" ;;
+            *) info "invalid option -retry" ;;
         esac
     done
 }
@@ -1245,7 +1288,7 @@ menu_opencode_cli() {
             2) update_opencode; finish ;;
             3) uninstall_opencode; finish ;;
             0) return ;;
-            *) warn "Invalid option" ;;
+            *) info "invalid option -retry" ;;
         esac
     done
 }
@@ -1280,7 +1323,7 @@ menu_opencode_desktop() {
             2) update_opencode_desktop; finish ;;
             3) uninstall_opencode_desktop; finish ;;
             0) return ;;
-            *) warn "Invalid option" ;;
+            *) info "invalid option -retry" ;;
         esac
     done
 }
@@ -1544,7 +1587,7 @@ install_opencode_desktop() {
 
     # Require a graphical environment
     if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
-        err "No graphical environment detected (DISPLAY and WAYLAND_DISPLAY are unset)"
+        err "No display: DISPLAY and WAYLAND_DISPLAY are unset"
         info "OpenCode Desktop requires a desktop environment to run"
         return 1
     fi
@@ -1553,7 +1596,7 @@ install_opencode_desktop() {
     arch=$(_opencode_desktop_arch)
     if [ -z "$arch" ]; then
         err "Unsupported architecture: $(uname -m)"
-        info "OpenCode Desktop only ships x86_64 and arm64 builds for Linux"
+        info "OpenCode Desktop supports Linux x86_64 and arm64"
         return 1
     fi
 
@@ -1573,7 +1616,7 @@ install_opencode_desktop() {
     local version url
     { read -r version; read -r url; } < <(_opencode_desktop_resolve_release "$arch" "$ext")
     if [ -z "$version" ] || [ -z "$url" ]; then
-        err "Could not detect latest OpenCode Desktop version (GitHub unreachable or rate-limited)"
+        err "Cannot resolve OpenCode Desktop release from GitHub"
         return 1
     fi
     ok "Latest version: $version"
@@ -1591,7 +1634,7 @@ install_opencode_desktop() {
     if [ "$format" = "deb" ]; then
         # Verify the downloaded file is actually a valid .deb package before installing
         if ! dpkg-deb -I "$asset_tmp" &>/dev/null; then
-            err "Downloaded file does not look like a valid .deb package -abort"
+            err "Invalid downloaded .deb package -abort"
             rm -f "$asset_tmp"
             return 1
         fi
@@ -1606,6 +1649,7 @@ install_opencode_desktop() {
 
         info "Installing package: $pkg_name"
         chmod 644 "$asset_tmp"
+        apt-get update -qq 2>/dev/null || true
         if ! apt-get install -y "$asset_tmp"; then
             err "Failed to install OpenCode Desktop"
             rm -f "$asset_tmp"
@@ -1626,15 +1670,16 @@ install_opencode_desktop() {
             [ "$size" -gt 1000000 ] && valid=true
         fi
         if [ "$valid" != true ]; then
-            err "Downloaded file does not look like a valid AppImage -abort"
+            err "Invalid downloaded AppImage -abort"
             rm -f "$asset_tmp"
             return 1
         fi
 
         if ! dpkg -s libfuse2 &>/dev/null 2>&1; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') Installing libfuse2 (required by AppImage)..."
+            apt-get update -qq 2>/dev/null || true
             retry_cmd apt-get install -y libfuse2 &>/dev/null
-            ok "libfuse2 installed"
+            :
         fi
 
         sudo -u "$local_user" bash -c "mkdir -p '$OPENCODE_DESKTOP_APPIMAGE_DIR'"
@@ -1664,7 +1709,7 @@ EOF
 
         _opencode_desktop_state_write "appimage" "$version"
         ok "OpenCode Desktop installed via AppImage ($version)"
-        info "Launch with: opencode-desktop or from your application menu"
+        info "Launch: opencode-desktop or use the application menu"
     fi
 }
 
@@ -1703,7 +1748,7 @@ update_opencode_desktop() {
     local version url
     { read -r version; read -r url; } < <(_opencode_desktop_resolve_release "$arch" "$ext")
     if [ -z "$version" ] || [ -z "$url" ]; then
-        err "Could not detect latest OpenCode Desktop version (GitHub unreachable or rate-limited)"
+        err "Cannot resolve OpenCode Desktop release from GitHub"
         return 1
     fi
 
@@ -1725,7 +1770,7 @@ update_opencode_desktop() {
 
     if [ "$format" = "deb" ]; then
         if ! dpkg-deb -I "$asset_tmp" &>/dev/null; then
-            err "Downloaded file does not look like a valid .deb package -abort"
+            err "Invalid downloaded .deb package -abort"
             rm -f "$asset_tmp"
             return 1
         fi
@@ -1738,6 +1783,7 @@ update_opencode_desktop() {
             return 1
         fi
 
+        apt-get update -qq 2>/dev/null || true
         if ! apt-get install -y "$asset_tmp"; then
             err "Failed to update OpenCode Desktop"
             rm -f "$asset_tmp"
@@ -1759,7 +1805,7 @@ update_opencode_desktop() {
             [ "$size" -gt 1000000 ] && valid=true
         fi
         if [ "$valid" != true ]; then
-            err "Downloaded file does not look like a valid AppImage -abort"
+            err "Invalid downloaded AppImage -abort"
             rm -f "$asset_tmp"
             return 1
         fi
@@ -1851,24 +1897,32 @@ uninstall_opencode_desktop() {
 uninstall_open_webui() {
     step "Uninstalling Open Web UI"
 
-    if docker ps -a --format '{{.Names}}' | grep -q "^open-webui$"; then
-        docker stop open-webui 2>/dev/null
-        docker rm open-webui 2>/dev/null
+    local containers
+    if ! containers=$(docker ps -a --format '{{.Names}}' 2>/dev/null); then
+        abort "cannot list Docker containers -abort"
+    fi
+    if grep -Fxq 'open-webui' <<< "$containers"; then
+        docker stop open-webui 2>/dev/null \
+            || abort "cannot stop Open Web UI container -abort"
+        docker rm open-webui 2>/dev/null \
+            || abort "cannot remove Open Web UI container -abort"
         ok "Open Web UI container removed"
 
         read -rp " Remove Open Web UI image? [y/N]: " confirm
         if [[ "$confirm" =~ ^[yY]$ ]]; then
-            docker rmi ghcr.io/open-webui/open-webui:main 2>/dev/null
+            docker rmi ghcr.io/open-webui/open-webui:main 2>/dev/null \
+                || abort "cannot remove Open Web UI image -abort"
             ok "Open Web UI image removed"
         fi
 
         read -rp " Remove Open Web UI data? [y/N]: " confirm
         if [[ "$confirm" =~ ^[yY]$ ]]; then
-            rm -rf "${AI_BASE_DIR}/open-webui/data"
+            rm -rf "${AI_BASE_DIR}/open-webui/data" \
+                || abort "cannot remove Open Web UI data -abort"
             ok "Open Web UI data removed"
         fi
     else
-        warn "Open Web UI container not found"
+        info "Open Web UI container not found -skip"
     fi
 
     # Offer to remove native Open WebUI if found
@@ -1878,7 +1932,7 @@ uninstall_open_webui() {
     if [ "$NATIVE_OPENWEBUI" = true ]; then
         remove_native_components
     else
-        ok "No native Open WebUI installation detected"
+        :
     fi
 }
 
@@ -1886,26 +1940,36 @@ uninstall_open_webui() {
 uninstall_ollama_container() {
     step "Uninstalling Ollama container"
 
+    local containers
     if ! command -v docker &>/dev/null; then
         info "Docker is not installed -skip"
-    elif docker ps -a --format '{{.Names}}' | grep -q "^ollama$"; then
-        docker stop ollama 2>/dev/null
-        docker rm ollama 2>/dev/null
-        ok "Ollama container removed"
-
-        read -rp " Remove Ollama image? [y/N]: " confirm
-        if [[ "$confirm" =~ ^[yY]$ ]]; then
-            docker rmi ollama/ollama:latest 2>/dev/null
-            ok "Ollama image removed"
-        fi
-
-        read -rp " Remove downloaded models? [y/N]: " confirm
-        if [[ "$confirm" =~ ^[yY]$ ]]; then
-            rm -rf "${AI_BASE_DIR}/ollama/models"
-            ok "Models removed"
-        fi
     else
-        info "Ollama container not found -skip"
+        if ! containers=$(docker ps -a --format '{{.Names}}' 2>/dev/null); then
+            abort "cannot list Docker containers -abort"
+        fi
+        if grep -Fxq 'ollama' <<< "$containers"; then
+            docker stop ollama 2>/dev/null \
+                || abort "cannot stop Ollama container -abort"
+            docker rm ollama 2>/dev/null \
+                || abort "cannot remove Ollama container -abort"
+            ok "Ollama container removed"
+
+            read -rp " Remove Ollama image? [y/N]: " confirm
+            if [[ "$confirm" =~ ^[yY]$ ]]; then
+                docker rmi ollama/ollama:latest 2>/dev/null \
+                    || abort "cannot remove Ollama image -abort"
+                ok "Ollama image removed"
+            fi
+
+            read -rp " Remove downloaded models? [y/N]: " confirm
+            if [[ "$confirm" =~ ^[yY]$ ]]; then
+                rm -rf "${AI_BASE_DIR}/ollama/models" \
+                    || abort "cannot remove downloaded models -abort"
+                ok "Models removed"
+            fi
+        else
+            info "Ollama container not found -skip"
+        fi
     fi
 
     # Offer to remove native Ollama if found
@@ -1915,7 +1979,7 @@ uninstall_ollama_container() {
     if [ "$NATIVE_OLLAMA" = true ]; then
         remove_native_components
     else
-        ok "No native Ollama installation detected"
+        :
     fi
 }
 
@@ -1923,24 +1987,32 @@ uninstall_ollama_container() {
 uninstall_portainer() {
     step "Uninstalling Portainer"
 
-    if docker ps -a --format '{{.Names}}' | grep -q "^portainer$"; then
-        docker stop portainer 2>/dev/null
-        docker rm portainer 2>/dev/null
+    local containers
+    if ! containers=$(docker ps -a --format '{{.Names}}' 2>/dev/null); then
+        abort "cannot list Docker containers -abort"
+    fi
+    if grep -Fxq 'portainer' <<< "$containers"; then
+        docker stop portainer 2>/dev/null \
+            || abort "cannot stop Portainer container -abort"
+        docker rm portainer 2>/dev/null \
+            || abort "cannot remove Portainer container -abort"
         ok "Portainer container removed"
 
         read -rp " Remove Portainer volume (data)? [y/N]: " confirm
         if [[ "$confirm" =~ ^[yY]$ ]]; then
-            docker volume rm portainer_data 2>/dev/null
+            docker volume rm portainer_data 2>/dev/null \
+                || abort "cannot remove Portainer volume -abort"
             ok "Portainer data removed"
         fi
 
         read -rp " Remove Portainer image? [y/N]: " confirm
         if [[ "$confirm" =~ ^[yY]$ ]]; then
-            docker rmi portainer/portainer-ce:lts 2>/dev/null
+            docker rmi portainer/portainer-ce:lts 2>/dev/null \
+                || abort "cannot remove Portainer image -abort"
             ok "Portainer image removed"
         fi
     else
-        warn "Portainer container not found"
+        info "Portainer container not found -skip"
     fi
 }
 
@@ -1962,7 +2034,7 @@ uninstall_models_only() {
                 done
             fi
         else
-            warn "No models found"
+            info "No models installed to remove -skip"
         fi
     else
         warn "Ollama container is not running -alert"
@@ -1972,6 +2044,9 @@ uninstall_models_only() {
 # FULL REMOVAL
 # Remove the selected AI stack components and data
 uninstall_all() {
+    local purge_failed=()
+    local cleanup_failed=()
+
     echo ""
     warn "${BOLD}ATTENTION! This will remove ALL containers, images, volumes, and data${RESET}"
     echo ""
@@ -1985,21 +2060,41 @@ uninstall_all() {
     # AI Stack containers (Ollama + Open WebUI)
     echo "$(date '+%Y-%m-%d %H:%M:%S') AI Stack containers (Ollama + Open WebUI)..."
     if command -v docker &>/dev/null && [ -f "${AI_BASE_DIR}/docker-compose.yml" ]; then
-        cd "${AI_BASE_DIR}" && docker compose down -v 2>/dev/null || true
-        ok "Containers stopped and removed"
+        if cd "${AI_BASE_DIR}" && docker compose down -v >/dev/null 2>&1; then
+            ok "Containers stopped and removed"
+        else
+            warn "Compose down failed, containers may remain -alert"
+            cleanup_failed+=("ai-stack-containers")
+        fi
     else
-        info "Not found -skip"
+        :
     fi
 
     # Portainer
     echo "$(date '+%Y-%m-%d %H:%M:%S') Portainer..."
     if command -v docker &>/dev/null && docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^portainer$"; then
-        docker stop portainer 2>/dev/null || true
-        docker rm portainer 2>/dev/null || true
-        docker volume rm portainer_data 2>/dev/null || true
-        ok "Portainer removed"
+        local portainer_failed=0
+        docker stop portainer >/dev/null 2>&1 \
+            || { portainer_failed=1; cleanup_failed+=("portainer-stop"); }
+        docker rm portainer >/dev/null 2>&1 \
+            || { portainer_failed=1; cleanup_failed+=("portainer-rm"); }
+        local volumes
+        if volumes=$(docker volume ls -q 2>/dev/null); then
+            if grep -Fxq 'portainer_data' <<< "$volumes"; then
+                docker volume rm portainer_data >/dev/null 2>&1 \
+                    || { portainer_failed=1; cleanup_failed+=("portainer_data"); }
+            fi
+        else
+            portainer_failed=1
+            cleanup_failed+=("portainer-volume-query")
+        fi
+        if [ "$portainer_failed" -eq 0 ]; then
+            ok "Portainer removed"
+        else
+            warn "Portainer removal incomplete -alert"
+        fi
     else
-        info "Not found -skip"
+        :
     fi
 
     # Docker
@@ -2007,7 +2102,6 @@ uninstall_all() {
     if docker --version >/dev/null 2>&1; then
         read -rp " Remove Docker completely? [y/N]: " remove_docker
         if [[ "$remove_docker" =~ ^[yY]$ ]]; then
-            local purge_failed=()
             for pkg in docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker.io docker-doc docker-compose docker-compose-v2; do
                 if dpkg -s "$pkg" &>/dev/null; then
                     if ! apt-get purge -y "$pkg"; then
@@ -2025,7 +2119,11 @@ uninstall_all() {
             rm -f /etc/apt/sources.list.d/docker.list
             apt autoremove -y
             apt-get clean
-            ok "Docker removed"
+            if [ ${#purge_failed[@]} -gt 0 ]; then
+                warn "Docker data removed, packages pending -alert"
+            else
+                ok "Docker removed"
+            fi
         else
             info "Docker kept"
         fi
@@ -2049,7 +2147,7 @@ uninstall_all() {
             info "Data kept"
         fi
     else
-        info "Not found -skip"
+        :
     fi
 
     # Native installations outside Docker
@@ -2058,7 +2156,12 @@ uninstall_all() {
     remove_native_components
 
     echo ""
-    ok "AI Stack completely uninstalled"
+    if [ ${#purge_failed[@]} -gt 0 ] || [ ${#NATIVE_FAILED[@]} -gt 0 ] \
+       || [ ${#cleanup_failed[@]} -gt 0 ]; then
+        warn "AI Stack uninstalled, cleanup pending -alert"
+    else
+        ok "AI Stack completely uninstalled"
+    fi
 }
 
 # STATUS
@@ -2080,9 +2183,9 @@ status_all() {
     if command -v docker &>/dev/null && docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^portainer$"; then
         ok "Portainer running: http://localhost:${PORTAINER_PORT}"
     elif command -v docker &>/dev/null && docker ps -a --format '{{.Names}}' | grep -q "^portainer$"; then
-        warn "Portainer stopped (container exists but is not running)"
+        warn "Portainer container stopped -alert"
     else
-        warn "Portainer not running"
+        warn "Portainer not running -alert"
     fi
 
     echo -e "\n ${BOLD}--- Ollama ---------------------------------------${RESET}"
@@ -2095,7 +2198,7 @@ status_all() {
             info "Models: ${models:-none}"
         fi
     elif command -v docker &>/dev/null && docker ps -a --format '{{.Names}}' | grep -q "^ollama$"; then
-        warn "Ollama container stopped (exists but is not running)"
+        warn "Ollama container stopped -alert"
     else
         warn "Ollama container NOT running -alert"
     fi
@@ -2104,7 +2207,7 @@ status_all() {
     if command -v docker &>/dev/null && docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^open-webui$"; then
         ok "Open WebUI running: http://localhost:${OPEN_WEBUI_PORT}"
     elif command -v docker &>/dev/null && docker ps -a --format '{{.Names}}' | grep -q "^open-webui$"; then
-        warn "Open WebUI stopped (container exists but is not running)"
+        warn "Open WebUI container stopped -alert"
     else
         warn "Open WebUI NOT running -alert"
     fi
@@ -2129,12 +2232,12 @@ status_all() {
     if [ "$HAS_GPU" = true ]; then
         ok "NVIDIA GPU detected"
         if [ "$HAS_NVIDIA_DOCKER" = true ]; then
-            ok "GPU available to Docker containers"
+            ok "NVIDIA runtime configured in Docker"
         else
-            warn "GPU detected but NVIDIA Container Toolkit not installed"
+            warn "NVIDIA runtime not configured in Docker -alert"
         fi
     else
-        info "No GPU detected (using CPU)"
+        info "GPU acceleration disabled (using CPU)"
     fi
 
     echo ""
@@ -2148,7 +2251,7 @@ update_components() {
     step "Updating AI Stack Components"
 
     if [ ! -f "${AI_BASE_DIR}/docker-compose.yml" ]; then
-        err "Stack not deployed. Run './aistack.sh --install' first"
+        err "Stack missing; run: ./aistack.sh --install"
         return 1
     fi
 
@@ -2207,14 +2310,14 @@ update_components() {
             return
             ;;
         *)
-            warn "Invalid option"
+            info "invalid option; action skipped -skip"
             return
             ;;
     esac
 
     echo ""
-    ok "Update completed"
-    info "Note: For Open WebUI changes, remember to refresh (Ctrl+F5)"
+    :
+    info "Refresh Open WebUI with Ctrl+F5 after changes"
     finish
 }
 
@@ -2343,7 +2446,7 @@ menu_uninstall() {
             4) uninstall_portainer; finish ;;
             5) uninstall_models_only; finish ;;
             0) return ;;
-            *) warn "Invalid option" ;;
+            *) info "invalid option -retry" ;;
         esac
     done
 }
@@ -2355,7 +2458,7 @@ install_lmstudio() {
 
     # Require a graphical environment
     if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
-        err "No graphical environment detected (DISPLAY and WAYLAND_DISPLAY are unset)"
+        err "No display: DISPLAY and WAYLAND_DISPLAY are unset"
         info "LM Studio requires a desktop environment to run"
         return 1
     fi
@@ -2376,8 +2479,9 @@ install_lmstudio() {
     # Install libfuse2 dependency (required by AppImage)
     if ! dpkg -s libfuse2 &>/dev/null 2>&1; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') Installing libfuse2 (required by AppImage)..."
+        apt-get update -qq 2>/dev/null || true
         retry_cmd apt-get install -y libfuse2 &>/dev/null
-        ok "libfuse2 installed"
+        :
     fi
 
     # Download AppImage
@@ -2457,7 +2561,7 @@ menu_lmstudio() {
         1) install_lmstudio; finish ;;
         2) uninstall_lmstudio; finish ;;
         0) return ;;
-        *) warn "Invalid option" ;;
+        *) info "invalid option; action skipped -skip" ;;
     esac
 }
 
@@ -2489,13 +2593,13 @@ menu_main() {
             4) menu_uninstall ;;
             5) menu_opencode ;;
             6) menu_lmstudio ;;
-            7) status_all; finish ;;
+            7) detect_gpu; status_all; finish ;;
             8) if [ -f "${AI_BASE_DIR}/docker-compose.yml" ]; then
                     cd "${AI_BASE_DIR}" && docker compose logs | less -R
                 fi
                 finish ;;
             0) finish ;;
-            *) warn "Invalid option" ;;
+            *) info "invalid option -retry" ;;
         esac
     done
 }
@@ -2539,7 +2643,9 @@ cli_mode() {
             ;;
         --model)
             select_model
-            download_model
+            if [[ -n "$SELECTED_MODEL" ]]; then
+                download_model
+            fi
             ;;
         --help|-h)
             echo "AI Stack Manager"
@@ -2564,10 +2670,7 @@ cli_mode() {
 
 # MAIN
 # Choose the interactive menu or command line workflow
-echo "$(date '+%Y-%m-%d %H:%M:%S') aistack start..."
-
-# Initial check for apt
-apt-get update -qq 2>/dev/null || true
+log "aistack start..."
 
 if [[ $# -eq 0 ]]; then
     menu_main

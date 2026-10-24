@@ -237,7 +237,7 @@ EOF
     a2enmod rewrite
     systemctl reload apache2
 
-    echo "Done"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Joomla installed and Apache reloaded"
     echo "Access: https://localhost/joomla"
     echo "Config: https://localhost/joomla/administrator/index.php"
     echo
@@ -271,9 +271,12 @@ EOF
 }
 
 delete_dependencies() {
+    local purge_failed=0
     echo "$(date '+%Y-%m-%d %H:%M:%S') Removing MySQL, Apache2, PHP and mkcert..."
     systemctl stop apache2 mysql
-    apt purge --auto-remove mysql-server mysql-client mysql-common apache2 'php*' libapache2-mod-php -y
+    if ! apt purge --auto-remove mysql-server mysql-client mysql-common apache2 'php*' libapache2-mod-php -y; then
+        purge_failed=1
+    fi
     rm -rf /etc/mysql /var/lib/mysql /var/log/mysql 2>/dev/null
     rm -rf /etc/apache2 /var/www/html 2>/dev/null
     rm -rf /etc/php /var/log/apache2 2>/dev/null
@@ -281,7 +284,11 @@ delete_dependencies() {
     rm -f /usr/local/bin/mkcert 2>/dev/null
     rm -f /etc/ssl/certs/localhost.pem
     rm -f /etc/ssl/private/localhost-key.pem
-    echo "Dependencies successfully removed"
+    if [ "$purge_failed" -gt 0 ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Dependency data removed, packages pending -alert"
+    else
+        echo "Dependencies successfully removed"
+    fi
 }
 
 warning() {

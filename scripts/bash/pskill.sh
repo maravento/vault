@@ -36,6 +36,23 @@ done
 echo "$(date '+%Y-%m-%d %H:%M:%S') Kill Process Starting. Wait..."
 
 # ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
+# LIVE PIDS
+# Return the PIDs still running, excluding the gone and the zombies
+live_pids() {
+    local pid state out=""
+    for pid in $1; do
+        state=$(ps -o stat= -p "$pid" 2>/dev/null)
+        [ -z "$state" ] && continue
+        case "$state" in Z*) continue ;; esac
+        out="$out $pid"
+    done
+    echo "$out"
+}
+
+# ------------------------------------------------------------------------------
 # MAIN
 # ------------------------------------------------------------------------------
 
@@ -60,15 +77,22 @@ fi
 pids=$(ps ax | awk '{print $1, $5}' | grep -wF "$process_name" | awk '{print $1}' 2>/dev/null || true)
 
 if [ -z "$pids" ]; then
-    echo "There are no records of: $process_name"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no process named $process_name -skip"
 else
     kill -TERM $pids 2>/dev/null
     sleep 3
-    surviving=$(ps ax | awk '{print $1, $5}' | grep -wF "$process_name" | awk '{print $1}' 2>/dev/null)
+    surviving=$(live_pids "$pids")
     if [ -n "$surviving" ]; then
         kill -KILL $surviving 2>/dev/null
+        sleep 1
     fi
-    echo "Done"
+    remaining=$(live_pids "$pids")
+    if [ -z "$remaining" ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $process_name terminated"
+    else
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: still running:$remaining -alert" >&2
+        exit 1
+    fi
 fi
 
 # ------------------------------------------------------------------------------

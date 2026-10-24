@@ -59,7 +59,6 @@ echo Invalid option.
 timeout /t 2 >nul
 goto :menu
 
-
 :: -------------------------------------------------------
 :: BACKUP - Export installed drivers using DISM
 :: -------------------------------------------------------
@@ -79,7 +78,6 @@ echo.
 pause
 goto :menu
 
-
 :: -------------------------------------------------------
 :: RESTORE - Install drivers from folder using pnputil
 :: -------------------------------------------------------
@@ -94,7 +92,6 @@ echo Done. Drivers already installed in the system were skipped.
 echo.
 pause
 goto :menu
-
 
 :end
 endlocal

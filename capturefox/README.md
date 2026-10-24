@@ -213,10 +213,10 @@ python3 tools/audio-bridge.py --status --json
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      The virtual input captures audio reaching the current default output, including other applications. If you switch output devices, run <code>start</code> again and refresh the device list before recording.<br><br>Runtime state is stored under <code>$XDG_RUNTIME_DIR/captura-audio</code>, or <code>/run/user/&lt;uid&gt;/captura-audio</code>. There is no automatic startup service.
+      The virtual input captures audio reaching the current default output, including other applications. If you switch output devices, run <code>python3 tools/audio-bridge.py --start</code> again and refresh the device list before recording.<br><br>Runtime state is stored under <code>$XDG_RUNTIME_DIR/captura-audio</code>, or <code>/run/user/&lt;uid&gt;/captura-audio</code>. There is no automatic startup service.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      La entrada virtual captura el sonido que llega a la salida predeterminada, incluyendo otras aplicaciones. Si cambias de salida, ejecuta <code>start</code> otra vez y actualiza los dispositivos antes de grabar.<br><br>El estado se guarda en <code>$XDG_RUNTIME_DIR/captura-audio</code> o <code>/run/user/&lt;uid&gt;/captura-audio</code>. No hay servicio de inicio automático.
+      La entrada virtual captura el sonido que llega a la salida predeterminada, incluyendo otras aplicaciones. Si cambias de salida, ejecuta <code>python3 tools/audio-bridge.py --start</code> otra vez y actualiza los dispositivos antes de grabar.<br><br>El estado se guarda en <code>$XDG_RUNTIME_DIR/captura-audio</code> o <code>/run/user/&lt;uid&gt;/captura-audio</code>. No hay servicio de inicio automático.
     </td>
   </tr>
 </table>

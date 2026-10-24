@@ -30,7 +30,7 @@ function ensure_session() {
 
 $server_ip = '';
 $net_cidr  = '';
-$purge_closed_after_hours = 6;
+$purge_closed_after_hours = null;
 $db_timeout_ms = null;
 $env_file  = '/etc/nwatch/nwatch.env';
 if (file_exists($env_file)) {
@@ -45,10 +45,10 @@ if (file_exists($env_file)) {
                 ? filter_var($raw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]])
                 : null;
         } elseif (strpos($line, 'PURGE_CLOSED_AFTER_HOURS=') === 0) {
-            $raw = str_replace(array('"', "'"), '', trim(substr($line, strlen('PURGE_CLOSED_AFTER_HOURS='))));
-            if (ctype_digit($raw)) {
-                $purge_closed_after_hours = (int)$raw;
-            }
+            $raw = substr($line, strlen('PURGE_CLOSED_AFTER_HOURS='));
+            $purge_closed_after_hours = preg_match('/^[1-9][0-9]*$/D', $raw)
+                ? filter_var($raw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]])
+                : null;
         }
     }
 }
@@ -280,6 +280,11 @@ try {
             break;
 
         case 'listPorts':
+            if (!is_int($purge_closed_after_hours)) {
+                http_response_code(500);
+                json_out(['success' => false, 'error' => 'nwatch.env: PURGE_CLOSED_AFTER_HOURS missing or invalid']);
+                break;
+            }
             $pm = read_ports_mode();
             $host = $pm['mode'] === 'target' ? $pm['target_ip'] : ($server_ip ?: 'localhost');
             // 'open' ports plus 'closed' ones still within nwatchports.sh's

@@ -56,13 +56,13 @@ FILE: README.md
 
 ---
 
-### To download all repositories / Para descargar todos los repositorios
+### To download all repositories
 
 ```bash
 git clone --depth=1 https://github.com/maravento/vault.git
 ```
 
-### To download a specific project / Para descargar un proyecto específico
+### To download a specific project
 
 ```bash
 wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py

@@ -124,7 +124,10 @@ install_winboat() {
     # Check and remove Ubuntu repository version if installed (conflicts with Flatpak)
     if dpkg -l | grep -q freerdp3-x11; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') Found freerdp3-x11 from Ubuntu repository. Removing to avoid conflicts..."
-        apt-get purge -y freerdp3-x11 || true
+        if ! apt-get purge -y freerdp3-x11; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot purge freerdp3-x11 -abort" >&2
+            exit 1
+        fi
         apt-get autoremove -y || true
         echo "Ubuntu repository version removed"
     fi
@@ -210,6 +213,8 @@ install_winboat() {
 
 # Function to remove Winboat
 uninstall_winboat() {
+    local purge_failed=0
+    local cleanup_failed=0
     echo "=== Uninstalling Winboat ==="
     printf "\n"
 
@@ -240,29 +245,61 @@ uninstall_winboat() {
 
     # Step 2: Stop and remove Winboat Docker containers
     echo "$(date '+%Y-%m-%d %H:%M:%S') [2/5] Removing Winboat Docker containers..."
-    winboat_containers=$(docker ps -a --filter "name=WinBoat" --format "{{.ID}}" 2>/dev/null)
+    if ! winboat_containers=$(docker ps -a --filter "name=WinBoat" --format "{{.ID}}" 2>/dev/null); then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot list containers -alert"
+        cleanup_failed=1
+        winboat_containers=""
+    fi
     if [ -n "$winboat_containers" ]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') Found Winboat containers, stopping and removing..."
         docker stop $winboat_containers 2>/dev/null || true
         docker rm $winboat_containers 2>/dev/null || true
-        echo "Winboat containers removed"
+        if remaining=$(docker ps -a --filter "name=WinBoat" --format "{{.ID}}" 2>/dev/null); then
+            if [ -n "$remaining" ]; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Winboat containers pending -alert"
+                cleanup_failed=1
+            else
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Winboat containers removed"
+            fi
+        else
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot verify containers -alert"
+            cleanup_failed=1
+        fi
     else
         echo "No Winboat containers found"
     fi
 
     # Remove Winboat Docker volumes
-    winboat_volumes=$(docker volume ls --format "{{.Name}}" 2>/dev/null | grep -i winboat)
+    if winboat_volumes_all=$(docker volume ls --format "{{.Name}}" 2>/dev/null); then
+        winboat_volumes=$(echo "$winboat_volumes_all" | grep -i winboat || true)
+    else
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot list volumes -alert"
+        cleanup_failed=1
+        winboat_volumes=""
+    fi
     if [ -n "$winboat_volumes" ]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') Found Winboat volumes, removing..."
         echo "$winboat_volumes" | xargs -r docker volume rm 2>/dev/null || true
-        echo "Winboat volumes removed"
+        if volumes_now=$(docker volume ls --format "{{.Name}}" 2>/dev/null); then
+            if echo "$volumes_now" | grep -qi winboat; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Winboat volumes pending -alert"
+                cleanup_failed=1
+            else
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Winboat volumes removed"
+            fi
+        else
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot verify volumes -alert"
+            cleanup_failed=1
+        fi
     fi
     printf "\n"
 
     # Step 3: Uninstall Winboat package
     echo "$(date '+%Y-%m-%d %H:%M:%S') [3/5] Uninstalling Winboat package..."
     if dpkg-query -W -f='${Status}' winboat 2>/dev/null | grep -q "install ok installed"; then
-        apt-get purge -y winboat || true
+        if ! apt-get purge -y winboat; then
+            purge_failed=1
+        fi
         apt-get autoremove -y || true
         apt-get clean || true
 
@@ -272,7 +309,11 @@ uninstall_winboat() {
             rm -rf "/home/$local_user/.winboat" || true
         fi
         rm -rf /var/cache/apparmor/*/winboat || true
-        echo "Winboat package removed"
+        if [ "$purge_failed" -eq 0 ]; then
+            echo "Winboat package removed"
+        else
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Winboat package pending -alert"
+        fi
     else
         echo "Winboat package is not installed"
     fi
@@ -282,7 +323,12 @@ uninstall_winboat() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') [4/5] Removing winboat work directory..."
     if [ -n "$local_user" ] && [ "$local_user" != "root" ] && [ -d "/home/$local_user/winboat" ]; then
         rm -rf "/home/$local_user/winboat" || true
-        echo "Winboat directory removed"
+        if [ -d "/home/$local_user/winboat" ]; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: winboat directory pending -alert"
+            cleanup_failed=1
+        else
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: winboat directory removed"
+        fi
     else
         echo "No winboat work directory found"
     fi
@@ -296,8 +342,12 @@ uninstall_winboat() {
     case $remove_freerdp in
         [Yy]*)
             echo "$(date '+%Y-%m-%d %H:%M:%S') Removing FreeRDP3..."
-            flatpak uninstall -y com.freerdp.FreeRDP 2>/dev/null || true
-            echo "FreeRDP3 has been removed"
+            if flatpak uninstall -y com.freerdp.FreeRDP >/dev/null 2>&1; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: FreeRDP3 removed"
+            else
+                echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: FreeRDP3 removal failed -alert"
+                cleanup_failed=1
+            fi
             ;;
         *)
             echo "FreeRDP3 kept installed"
@@ -325,7 +375,11 @@ uninstall_winboat() {
     esac
     printf "\n"
 
-    echo "=== Winboat uninstallation completed ==="
+    if [ "$purge_failed" -gt 0 ] || [ "$cleanup_failed" -gt 0 ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Winboat uninstalled, cleanup pending -alert"
+        return 1
+    fi
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Winboat uninstallation completed"
 }
 
 # Show help
@@ -357,7 +411,7 @@ if [ $# -eq 0 ]; then
         install_winboat
         ;;
       2)
-        uninstall_winboat
+        uninstall_winboat || exit 1
         ;;
       3)
         ;;
@@ -373,7 +427,7 @@ else
             install_winboat
             ;;
         --uninstall)
-            uninstall_winboat
+            uninstall_winboat || exit 1
             ;;
         --help|-h)
             show_help

@@ -83,9 +83,8 @@ La instalación de FMS requiere una sesión de escritorio X11 o Wayland. Ejecute
 #### Networking, Remote Access & Security
 
 - [Android 2 PC via scrcpy (--start|--stop|--status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/droid2pc.sh)
-- [ArpON table filter](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/arponscan.sh)
 - [Bandwidth Watchdog (bwmon - cron; alerts via syslog + desktop notification when below minimum download|upload)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/bwmon.sh)
-- [Internet Watchdog (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/watchdog.sh)
+- [Internet Watchdog (--start|--stop|--status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/watchdog.sh)
 - [Iperf3 Client](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/iperf3.sh)
 - [IP Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ipkill.sh)
 - [Netplan Switch (--status|--to-networkd|--to-nm|--help)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/npswitch.sh)
@@ -109,7 +108,7 @@ La instalación de FMS requiere una sesión de escritorio X11 o Wayland. Ejecute
 - [Drive Crypt (Cryptomator Encrypted Disk - --start|--stop - to folder `/home/$USER/dcrypt`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/drivecrypt.sh)
 - [File Report (HTML disk usage report: top extensions, folders and largest files)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/filereport.sh)
 - [FreeFileSync Update](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ffsupdate.sh)
-- [Gdrive (Start | Stop - to folder `/home/$USER/gdrive`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/gdrive.sh)
+- [Gdrive (--start|--stop - to folder `/home/<local_user>/gdrive`, the local account it detects)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/gdrive.sh)
 - [Mass Unzip with Pass](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/massunzip.sh)
 - [MEGAsync Instances (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/msyncs)
 - [NTFS Disk Drive (mount|umount with ntfs-3g)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ntfsdrive.sh)

@@ -9,6 +9,8 @@
 # DESCRIPTION: Detects an ACPI GPE interrupt in storm (high count) and
 # disables it to stop the associated kworker CPU spike. Run as root.
 #
+# USAGE: sudo ./kworker.sh
+#
 # LOG: /var/log/syslog
 ################################################################################
 

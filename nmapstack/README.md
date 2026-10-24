@@ -303,19 +303,19 @@ apt-get install -y nmap xsltproc iproute2 util-linux
 | 2 | nmap's `/usr/share/nmap/nmap.xsl`, which produces nmap's standard page. A failure or a missing file logs `WARNING: ... -alert` | El `/usr/share/nmap/nmap.xsl` de nmap, que produce la página estándar de nmap. Un fallo o un archivo ausente registra `WARNING: ... -alert` |
 | 3 | A plain page holding the raw XML in a `<pre>` block. It needs no external tool, so it never fails, and logs `WARNING: ... -alert` because the report has no format | Una página simple con el XML crudo en un bloque `<pre>`. No necesita herramienta externa, así que nunca falla, y registra `WARNING: ... -alert` porque el informe queda sin formato |
 
-No step aborts the script. A report is always produced.
+No step aborts the script: given a valid XML, a report is always produced. The conversion does abort before these steps when the XML is missing or empty, and afterwards when the resulting HTML is missing or empty.
 
-Ningún paso aborta el script. Siempre se produce un informe.
+Ningún paso aborta el script: con un XML válido, siempre se produce un informe. La conversión sí aborta antes de estos pasos cuando el XML falta o está vacío, y después cuando el HTML resultante falta o está vacío.
 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
       <strong>HTML conversion</strong><br><br>
-      The XML scan is converted to HTML in three steps. First the project's own stylesheet, written to the temporary directory. If <code>xsltproc</code> fails, the log records an <code>INFO: ... -retry</code> and the second step runs. Second, nmap's own <code>/usr/share/nmap/nmap.xsl</code>, which produces nmap's standard page instead of the project's. A failure or a missing file there logs a <code>WARNING: ... -alert</code>. Third, a plain HTML page holding the raw XML inside a <code>&lt;pre&gt;</code> block. It needs no external tool, so it always succeeds, and it logs a <code>WARNING: ... -alert</code> because the report has no format. No step aborts the script: a report is always produced.
+      The XML scan is converted to HTML in three steps. First the project's own stylesheet, written to the temporary directory. If <code>xsltproc</code> fails, the log records an <code>INFO: ... -retry</code> and the second step runs. Second, nmap's own <code>/usr/share/nmap/nmap.xsl</code>, which produces nmap's standard page instead of the project's. A failure or a missing file there logs a <code>WARNING: ... -alert</code>. Third, a plain HTML page holding the raw XML inside a <code>&lt;pre&gt;</code> block. It needs no external tool, so it always succeeds, and it logs a <code>WARNING: ... -alert</code> because the report has no format. No step aborts the script: given a valid XML, a report is always produced. The conversion does abort before these steps when the XML is missing or empty, and afterwards when the resulting HTML is missing or empty.
     </td>
     <td style="width: 50%; vertical-align: top;">
       <strong>Conversión a HTML</strong><br><br>
-      El XML del escaneo se convierte a HTML en tres pasos. Primero la hoja de estilo propia del proyecto, escrita en el directorio temporal. Si <code>xsltproc</code> falla, el log registra un <code>INFO: ... -retry</code> y corre el segundo paso. Segundo, el <code>/usr/share/nmap/nmap.xsl</code> de nmap, que produce la página estándar de nmap en vez de la del proyecto. Un fallo o un archivo ausente ahí registra un <code>WARNING: ... -alert</code>. Tercero, una página HTML simple con el XML crudo dentro de un bloque <code>&lt;pre&gt;</code>. No necesita ninguna herramienta externa, así que nunca falla, y registra un <code>WARNING: ... -alert</code> porque el informe queda sin formato. Ningún paso aborta el script: siempre se produce un informe.
+      El XML del escaneo se convierte a HTML en tres pasos. Primero la hoja de estilo propia del proyecto, escrita en el directorio temporal. Si <code>xsltproc</code> falla, el log registra un <code>INFO: ... -retry</code> y corre el segundo paso. Segundo, el <code>/usr/share/nmap/nmap.xsl</code> de nmap, que produce la página estándar de nmap en vez de la del proyecto. Un fallo o un archivo ausente ahí registra un <code>WARNING: ... -alert</code>. Tercero, una página HTML simple con el XML crudo dentro de un bloque <code>&lt;pre&gt;</code>. No necesita ninguna herramienta externa, así que nunca falla, y registra un <code>WARNING: ... -alert</code> porque el informe queda sin formato. Ningún paso aborta el script: con un XML válido, siempre se produce un informe. La conversión sí aborta antes de estos pasos cuando el XML falta o está vacío, y después cuando el HTML resultante falta o está vacío.
     </td>
   </tr>
 </table>

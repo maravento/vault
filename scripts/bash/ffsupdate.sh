@@ -9,6 +9,8 @@
 # DESCRIPTION: Downloads and silently installs the latest FreeFileSync
 # release. Run as root, intended for cron/unattended use.
 #
+# USAGE: sudo ./ffsupdate.sh
+#
 # LOG: /var/log/ffsupdate.log (rewritten on each run)
 #
 ################################################################################
