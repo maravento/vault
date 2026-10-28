@@ -49,7 +49,7 @@ for dep in curl jq libnotify-bin util-linux; do
 done
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') cryptonotify start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: cryptonotify start..."
 
 # ------------------------------------------------------------------------------
 # FUNCTIONS
@@ -166,4 +166,4 @@ notify_send_self -i checkbox "Crypto Prices" "$PRICE"
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') cryptonotify done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: cryptonotify done"

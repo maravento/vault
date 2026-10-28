@@ -68,14 +68,18 @@ FILE: blackusb/README.md
 ### Linux installation
 
 ```bash
-# Download
+git clone --depth=1 https://github.com/maravento/vault.git
+cd vault/blackusb
+
+# or
+
 wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
 chmod +x gitfolder.py
 python3 gitfolder.py https://github.com/maravento/vault/blackusb
 
 # Install
+
 cd blackusb/linux
-sudo chmod +x blackusb.sh
 sudo bash blackusb.sh
 ```
 

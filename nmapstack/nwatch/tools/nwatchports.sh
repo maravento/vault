@@ -104,7 +104,7 @@ valid_host() {
 daemon_alive() {
     local pid="$1" args=() self i
     [ -n "$pid" ] || return 1
-    mapfile -d '' -t args < "/proc/$pid/cmdline" 2>/dev/null || return 1
+    { mapfile -d '' -t args < "/proc/$pid/cmdline"; } 2>/dev/null || return 1
     self="$(basename -- "$0")"
     case "$(basename -- "${args[0]:-}")" in
         "$self") i=0 ;;
@@ -545,16 +545,16 @@ start() {
     fi
 
     load_ports_mode
-    log "INFO: Mode : $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
-    log "INFO: Interval : ${PORT_POLL_INTERVAL}s"
-    log "INFO: Database : $db_file"
+    log "INFO: Mode: $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
+    log "INFO: Interval: ${PORT_POLL_INTERVAL}s"
+    log "INFO: Database: $db_file"
 
     rm -f "$pid_file"
     (
         exec 200>&-
         echo "$BASHPID" > "$pid_file"
         while true; do
-            log "nwatchports cycle start..."
+            log "EVENT: nwatchports cycle start..."
             run_poll
             sleep "$PORT_POLL_INTERVAL"
         done
@@ -572,7 +572,7 @@ start() {
 # STOP
 # Stop the recorded daemon process
 stop() {
-    log "Stopping nwatchports..."
+    log "EVENT: Stopping nwatchports..."
     if [ -f "$pid_file" ]; then
         local daemon_pid
         daemon_pid=$(cat "$pid_file")
@@ -599,21 +599,21 @@ stop() {
 # STATUS
 # Report the current daemon or installation state
 status() {
-    log "nwatchports status..."
+    log "EVENT: nwatchports status..."
     load_ports_mode
     if [ -f "$pid_file" ] && daemon_alive "$(cat "$pid_file")"; then
         log "INFO: nwatchports is RUNNING (PID $(cat "$pid_file"))"
-        log "INFO: Mode : $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
-        log "INFO: Interval : ${PORT_POLL_INTERVAL:-30}s"
+        log "INFO: Mode: $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
+        log "INFO: Interval: ${PORT_POLL_INTERVAL:-30}s"
         if [ -f "$db_file" ]; then
             local counts
             counts=$(sqlite3 "$db_file" "SELECT status, COUNT(*) FROM port_scan_state WHERE source='$(sql_escape "$PORTS_MODE")' GROUP BY status;" 2>/dev/null)
-            log "INFO: Ports :"
+            log "INFO: Ports:"
             echo "$counts" | sed 's/^/ /' | tee -a "$log_file"
         fi
     else
         log "INFO: nwatchports is STOPPED"
-        log "INFO: Mode : $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
+        log "INFO: Mode: $PORTS_MODE${PORTS_TARGET_IP:+ ($PORTS_TARGET_IP)}"
     fi
 }
 
@@ -699,7 +699,7 @@ fi
 # ACTIONS
 # ------------------------------------------------------------------------------
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') nwatchports start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: nwatchports start..."
 case "${1:-}" in
     --start) start ;;
     --stop) stop ;;
@@ -713,4 +713,4 @@ esac || exit 1
 # END
 # ------------------------------------------------------------------------------
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') nwatchports done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: nwatchports done"

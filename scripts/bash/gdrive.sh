@@ -112,14 +112,14 @@ fi
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') gdrive start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: gdrive start..."
 
 case "${1:-}" in
 --start)
     echo "$(date '+%Y-%m-%d %H:%M:%S') Mount Google Drive..."
     if mountpoint -q "$GD"; then
         echo "$GD is already mounted"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') gdrive done at: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: gdrive done"
         exit 0
     fi
     if ! google-drive-ocamlfuse "$GD"; then
@@ -127,14 +127,14 @@ case "${1:-}" in
         exit 1
     fi
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Google Drive mounted"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') gdrive done at: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: gdrive done"
     exit 0
     ;;
 --stop)
     echo "$(date '+%Y-%m-%d %H:%M:%S') Umount Google Drive..."
     if ! mountpoint -q "$GD"; then
         echo "$GD is not mounted"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') gdrive done at: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: gdrive done"
         exit 0
     fi
     if ! fusermount -u "$GD"; then
@@ -142,7 +142,7 @@ case "${1:-}" in
         exit 1
     fi
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Google Drive unmounted"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') gdrive done at: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: gdrive done"
     exit 0
     ;;
 *)

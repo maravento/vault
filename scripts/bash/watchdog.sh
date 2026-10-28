@@ -88,7 +88,7 @@ TARGET="1.1.1.1"
 daemon_alive() {
     local pid="$1" args=() self i
     [ -n "$pid" ] || return 1
-    mapfile -d '' -t args < "/proc/$pid/cmdline" 2>/dev/null || return 1
+    { mapfile -d '' -t args < "/proc/$pid/cmdline"; } 2>/dev/null || return 1
     self="$(basename -- "$0")"
     case "$(basename -- "${args[0]:-}")" in
         "$self") i=0 ;;
@@ -178,7 +178,7 @@ status() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') watchdog start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: watchdog start..."
 
 case "${1:-}" in
     --start) start ;;
@@ -195,4 +195,4 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') watchdog done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: watchdog done"

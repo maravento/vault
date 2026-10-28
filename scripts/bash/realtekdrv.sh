@@ -184,7 +184,7 @@ install_r8125() {
 clear
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') realtekdrv start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: realtekdrv start..."
 
 show_chipset
 show_current_module
@@ -213,4 +213,4 @@ done
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') realtekdrv done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: realtekdrv done"

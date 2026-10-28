@@ -88,7 +88,7 @@ acl_prepare() {
         # Checked before the redirection: noclobber only protects regular
         # files, and opening a FIFO for writing blocks until a reader shows up.
         if [ -L "$acl_file" ] || { [ -e "$acl_file" ] && [ ! -f "$acl_file" ]; }; then
-            log "ERROR: $acl_file is not a regular file -abort"
+            log "ERROR: $(basename "$acl_file") is not a regular file -abort"
             exit 1
         fi
         # noclobber makes the redirection fail when the file already exists,
@@ -103,7 +103,7 @@ acl_prepare() {
         elif [ -f "$acl_file" ] && [ ! -L "$acl_file" ]; then
             acl_fix_perms "$acl_file" "$file_mode"
         else
-            log "ERROR: $acl_file is not a regular file -abort"
+            log "ERROR: $(basename "$acl_file") is not a regular file -abort"
             exit 1
         fi
     done
@@ -119,7 +119,7 @@ acl_fix_perms() {
     [[ "$cur_mode" == "$want_mode" && "$cur_owner" == "root:root" ]] && return 0
     if ! { chmod "$want_mode" -- "$acl_path" \
         && chown root:root -- "$acl_path"; }; then
-        log "ERROR: cannot fix $acl_path perms -abort"
+        log "ERROR: cannot fix $(basename "$acl_path") perms -abort"
         exit 1
     fi
     log "INFO: $acl_path perms fixed -fixed"
@@ -151,7 +151,7 @@ report_failure() {
 failure_message="cannot initialize Gateproxy"
 trap 'report_failure' ERR
 
-log "gpsetup start..."
+log "EVENT: gpsetup start..."
 printf "\n"
 
 # ------------------------------------------------------------------------------
@@ -228,7 +228,7 @@ retry_cmd() {
         fi
         info "$(basename "$1"): retry $((attempt + 1))/$max_attempts"
         case "$1" in
-            nala|apt|apt-get)
+            apt|apt-get)
                 rm -f /var/cache/apt/archives/*.deb 2>/dev/null || true
                 ;;
         esac
@@ -269,7 +269,7 @@ cron_d_set() {
     rm -f "$cron_tmp"
 }
 
-log "Checking for conflicting pre-installed packages..."
+log "EVENT: Checking for conflicting pre-installed packages..."
 failure_message="cannot check conflicting packages"
 check_conflicts "DHCP server" isc-dhcp-server kea-dhcp4-server udhcpd
 failure_message="cannot check conflicting packages"
@@ -285,7 +285,7 @@ check_conflicts "syslog"      syslog-ng
 failure_message="cannot check conflicting packages"
 check_conflicts "firewall"    firewalld fail2ban
 failure_message="cannot check conflicting packages"
-check_conflicts "IDS"         snort suricata evebox
+check_conflicts "IDS"         snort
 failure_message="cannot check conflicting packages"
 check_conflicts "web admin"   webmin ttyd
 failure_message="cannot check conflicting packages"
@@ -372,7 +372,7 @@ fi
 
 # CHECK SO & DESKTOP
 # Check the operating system and desktop environment
-log "Check System..."
+log "EVENT: Check System..."
 # lsb_release (lsb-release package) is used below but the DEPENDENCIES block
 # hasn't run yet at this point in the script -- ensure it exists here instead.
 failure_message="cannot install lsb-release"
@@ -394,7 +394,7 @@ elif [ "$UBUNTU_VERSION" != "24.04" ] && [ "$UBUNTU_VERSION" != "26.04" ]; then
     warn "unsupported version $UBUNTU_VERSION -alert"
 fi
 
-log "Clearing apt package cache..."
+log "EVENT: Clearing apt package cache..."
 apt-get clean &>/dev/null || true
 rm -f /var/cache/apt/archives/*.deb 2>/dev/null || true
 
@@ -427,7 +427,7 @@ if [ -f "$file" ]; then
     done < <(grep "^Components:" "$file")
 
     if [[ $changed -eq 1 ]]; then
-        log "Updating package list. Wait..."
+        log "EVENT: Updating package list. Wait..."
         failure_message="cannot update APT package lists"
         retry_cmd apt update > /dev/null 2>&1
     else
@@ -468,9 +468,9 @@ UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5
 # PACKAGES
 # Install the base system packages
 echo -e "\n"
-log "Check Dependencies..."
+log "EVENT: Check Dependencies..."
 
-pkgs='nala curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 7zip rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3 iproute2'
+pkgs='curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 7zip rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3 iproute2'
 failure_message="cannot collect missing package names"
 missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
 unavailable=""
@@ -486,7 +486,7 @@ if [ -n "$unavailable" ]; then
     exit 1
 fi
 if [ -n "$missing" ]; then
-    log "Waiting for apt/dpkg to finish..."
+    log "EVENT: Waiting for apt/dpkg to finish..."
     apt_wait=0
     apt_wait_limit=60
     while pgrep -x apt > /dev/null 2>&1 || pgrep -x apt-get > /dev/null 2>&1 || pgrep -x dpkg > /dev/null 2>&1; do
@@ -552,15 +552,19 @@ cp /etc/apt/sources.list{,.bak} &>/dev/null || true
 echo -e "\n"
 upgrade() {
     local failure_message="cannot update system packages"
-    log "Update and Clean. Wait..."
+    log "EVENT: Update and Clean. Wait..."
+    failure_message="cannot update the package list"
+    retry_cmd apt update
     failure_message="cannot upgrade system packages"
-    retry_cmd nala upgrade --purge -y
+    retry_cmd apt upgrade -y
+    failure_message="cannot remove unused packages"
+    retry_cmd apt autoremove --purge -y
     failure_message="cannot upgrade system packages"
     retry_cmd aptitude safe-upgrade -y
     failure_message="cannot configure pending DPKG packages"
     dpkg --configure -a
-    failure_message="cannot install packages with nala"
-    retry_cmd nala install --fix-broken -y
+    failure_message="cannot install packages with apt"
+    retry_cmd apt install -f -y
     failure_message="cannot reload systemd configuration"
     systemctl daemon-reload
     failure_message="cannot write pending data to disk"
@@ -993,8 +997,6 @@ info "Localnet: $SERV_SUBNET (from Server IP and Netmask)"
 
 if [ "$SERV_SUBNET" != "192.168.0.0" ]; then
     find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$SERV_SUBNET:g" "{}"
-    failure_message="cannot edit wpad.pac"
-    sed -i "s:192\.168\.0\.\*:$(echo "$SERV_SUBNET" | awk -F '.' '{OFS="."; $4="*"; print $0}'):g" "$gp_path/conf/wpad/wpad.pac"
 fi
 
 # wan_iface and PORTNEW (the proxy port) are substituted into conf/ with sed
@@ -1014,7 +1016,7 @@ fi
 # NETPLAN
 # Apply the selected network interface configuration
 echo -e "\n"
-log "Applying network configuration..."
+log "EVENT: Applying network configuration..."
 find /etc/netplan -maxdepth 1 -type f -name '*.yaml' -not -name '*.yaml.bak' -exec mv -- {} {}.bak \; 2>/dev/null
 failure_message="cannot create cloud.cfg.d"
 mkdir -p /etc/cloud/cloud.cfg.d
@@ -1035,7 +1037,7 @@ if ! netplan apply 2>&1 | tee -a "$log_file"; then
     exit 1
 fi
 
-log "Waiting for $LAN_IF to come up with $SERVER_IP..."
+log "EVENT: Waiting for $LAN_IF at $SERVER_IP..."
 NETPLAN_WAIT=0
 NETPLAN_WAIT_LIMIT=30
 until ip -4 addr show "$LAN_IF" 2>/dev/null | grep -qF "inet $SERVER_IP/"; do
@@ -1063,7 +1065,7 @@ done
 # Configure the local Avahi daemon
 avahi_conf="/etc/avahi/avahi-daemon.conf"
 if command -v avahi-daemon &>/dev/null && [ -f "$avahi_conf" ]; then
-    log "Restricting avahi-daemon to $LAN_IF..."
+    log "EVENT: Restricting avahi-daemon to $LAN_IF..."
     failure_message="cannot edit avahi-daemon.conf"
     sed -i "s/^use-ipv6=yes/use-ipv6=no/" "$avahi_conf"
     failure_message="cannot edit avahi-daemon.conf"
@@ -1074,115 +1076,115 @@ fi
 # ESSENTIAL
 # Install the supporting system packages
 echo -e "\n"
-log "Essential Packages..."
+log "EVENT: Essential Packages..."
 # DISK & STORAGE MANAGEMENT
 # Install disk and storage management packages
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y --no-install-recommends smartmontools
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y --no-install-recommends smartmontools
 
 # FILE SYSTEMS SUPPORT
 # Install file system support packages
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y nfs-common ntfs-3g xfsprogs jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools exfat-fuse
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y nfs-common ntfs-3g xfsprogs jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools exfat-fuse
 
 # FUSE & VIRTUAL FILE SYSTEMS
 # Install FUSE and virtual file system packages
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y libfuse2t64 gvfs-fuse bindfs sshfs go-mtpfs
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y libfuse2t64 gvfs-fuse bindfs sshfs go-mtpfs
 
 # VOLUME & QUOTA MANAGEMENT
 # Install volume and quota management packages
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y lvm2 quota attr
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y udisks2 udisks2-btrfs udisks2-lvm2
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y lvm2 quota attr
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y udisks2 udisks2-btrfs udisks2-lvm2
 
 # SYSTEM UTILITIES & MONITORING
 # Install system utilities and monitoring packages
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y trash-cli pm-utils btop htop lsof inotify-tools dmidecode pv tree moreutils preload debconf-utils mokutil util-linux linux-tools-common apparmor-utils
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y trash-cli pm-utils btop htop lsof inotify-tools dmidecode pv tree moreutils preload debconf-utils mokutil util-linux linux-tools-common apparmor-utils
 
 # PACKAGE MANAGEMENT TOOLS
 # Install package management tools
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y dpkg ppa-purge apt-utils
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y dpkg ppa-purge apt-utils
 
 # TEXT & FILE UTILITIES
 # Install text and file utilities
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y rename renameutils sharutils dos2unix colordiff ripgrep yamllint
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y rename renameutils sharutils dos2unix colordiff ripgrep yamllint
 
 # LOGGING & SYSTEM SERVICES
 # Install logging and system service packages
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y finger logrotate
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y finger logrotate
 
 # DRIVERS & KERNEL MODULES
 # Install driver and kernel module packages
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y linux-firmware linux-headers-$(uname -r) module-assistant
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y linux-firmware linux-headers-$(uname -r) module-assistant
 
 # DEVELOPMENT: COMPILERS & BUILD TOOLS
 # Install compilers and build tools
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y build-essential autoconf autoconf-archive autogen automake dh-autoreconf pkg-config
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y build-essential autoconf autoconf-archive autogen automake dh-autoreconf pkg-config
 
 # DEVELOPMENT: LIBRARIES & HEADERS
 # Install development libraries and headers
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y uuid-dev libmnl-dev libssl-dev libffi-dev libpam0g-dev libpcap-dev libasound2-dev libglib2.0-dev libudisks2-dev liblvm2-dev python3-dev
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y uuid-dev libmnl-dev libssl-dev libffi-dev libpam0g-dev libpcap-dev libasound2-dev libglib2.0-dev libudisks2-dev liblvm2-dev python3-dev
 
 # PROGRAMMING: PYTHON
 # Install Python runtime and development packages
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y python3-pip python3-venv python3-psutil
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y python3-pip python3-venv python3-psutil
 
 # PROGRAMMING: RUBY
 # Install Ruby runtime packages
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y rubygems-integration rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y rubygems-integration rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit
 
 # PROGRAMMING: JAVASCRIPT & WEB
 # Install JavaScript and web development packages
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y javascript-common libjs-jquery xsltproc
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y javascript-common libjs-jquery xsltproc
 
 # NETWORK DEPENDENCIES
 # Install network utilities used by the server
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y bind9-dnsutils conntrack i2c-tools wsdd ipset arptables ebtables
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y bind9-dnsutils conntrack i2c-tools wsdd ipset arptables ebtables
 
 # GEOLOCATION DATABASES
 # Install the geolocation databases
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y geoip-database
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y geoip-database
 
 # GRAPHICS & DISPLAY
 # if there any problems, install the package: libegl-mesa0
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y libfontconfig1
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y libfontconfig1
 
 # RUNTIME LIBRARIES
 # Install the required runtime libraries
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y libuser gir1.2-gtop-2.0
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y libuser gir1.2-gtop-2.0
 
 # MAIL
 # Stop the existing mail service before configuring mail packages
 service sendmail stop &>/dev/null || true
 update-rc.d -f sendmail remove &>/dev/null || true
-failure_message="cannot install packages with nala"
-DEBIAN_FRONTEND=noninteractive retry_cmd nala install -y postfix
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y mailutils
+failure_message="cannot install packages with apt"
+DEBIAN_FRONTEND=noninteractive retry_cmd apt install -y postfix
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y mailutils
 
 # FONTS
 # Install the server font packages
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y fonts-lato fonts-liberation fonts-dejavu
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y fonts-lato fonts-liberation fonts-dejavu
 echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y ttf-mscorefonts-installer fontconfig
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y ttf-mscorefonts-installer fontconfig
 failure_message="cannot update the font cache"
 fc-cache -f
 
@@ -1195,7 +1197,7 @@ upgrade
 # SETUP
 # Prepare the application installation directories
 echo -e "\n"
-log "Gateproxy Packages..."
+log "EVENT: Gateproxy Packages..."
 if grep -qFw "$HOSTNAME" /etc/hosts 2>/dev/null; then
     info "$HOSTNAME already resolves in /etc/hosts -skip"
 elif grep -q "^127\.0\.1\.1" /etc/hosts; then
@@ -1238,8 +1240,8 @@ shopt -u nullglob
 
 # DNS
 # Install and configure the DNS resolver
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y unbound
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y unbound
 failure_message="cannot copy Unbound forward.conf"
 cp -f "$gp_path/conf/unbound/forward.conf" /etc/unbound/unbound.conf.d/forward.conf
 failure_message="cannot write Unbound daemon settings"
@@ -1255,7 +1257,7 @@ systemctl enable --now unbound
 # PHP
 # Download the PHP configuration installer
 failure_message="cannot download $(basename "${download_url%%\?*}")"
-retry_cmd nala install -y php libapache2-mod-php php-cli php-curl php-sqlite3
+retry_cmd apt install -y php libapache2-mod-php php-cli php-curl php-sqlite3
 
 # Detect PHP version
 if command -v php &>/dev/null; then
@@ -1307,13 +1309,13 @@ sed -i \
 
 # HTTP SERVER SECTION
 # apache2
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y apache2 apache2-doc apache2-utils apache2-dev \
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y apache2 apache2-doc apache2-utils apache2-dev \
                 apache2-suexec-pristine libaprutil1t64 libaprutil1-dev \
                 libtest-fatal-perl
 failure_message="cannot enable apache2.service"
 systemctl enable apache2.service
-#nala install -y libapache2-mod-dnssd
+#apt install -y libapache2-mod-dnssd
 failure_message="cannot install packages with apt"
 retry_cmd apt -qq install -y --reinstall apache2-doc
 failure_message="cannot update system packages"
@@ -1348,9 +1350,9 @@ failure_message="cannot remove old Squid files"
 rm -rf /var/spool/squid* /var/log/squid* /etc/squid &>/dev/null
 failure_message="cannot remove squid.pid"
 rm -f /run/squid.pid &>/dev/null
-#DEBIAN_FRONTEND=noninteractive nala install -y --no-install-recommends squid-openssl
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y squid-openssl squid-langpack squid-common
+#DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends squid-openssl
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y squid-openssl squid-langpack squid-common
 failure_message="cannot update system packages"
 upgrade
 failure_message="cannot create Squid log files"
@@ -1391,8 +1393,16 @@ else
     failure_message="cannot edit Squid logrotate settings"
     sed -i -E 's/^([[:space:]]*)(hourly|daily|monthly|yearly)$/\1weekly/' /etc/logrotate.d/squid
 fi
+# Apache keeps 14 rotations by default; the projects keep 7
+if [ -f /etc/logrotate.d/apache2 ]; then
+    cp -f /etc/logrotate.d/apache2{,.bak} &>/dev/null || true
+    failure_message="cannot edit Apache logrotate settings"
+    sed -i -E 's/^([[:space:]]*)rotate[[:space:]]+[0-9]+$/\1rotate 7/' /etc/logrotate.d/apache2
+else
+    warn "apache2 has no logrotate file -alert"
+fi
 # Let's Encrypt certificate for client to Squid proxy encryption (Optional)
-#nala install -y certbot python3-certbot-apache
+#apt install -y certbot python3-certbot-apache
 
 # ADMIN SECTION
 # webmin
@@ -1407,8 +1417,8 @@ chmod +x setup-repos.sh
 echo "y" | ./setup-repos.sh
 failure_message="cannot update system packages"
 upgrade
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y webmin
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y webmin
 failure_message="cannot update system packages"
 upgrade
 systemctl enable webmin.service 2>/dev/null || true
@@ -1423,7 +1433,7 @@ systemctl stop webmin.service 2>/dev/null || true
 find "$acl_mac_path" -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/dev/null || true
 # List of modules to install
 for module in servicemon netplanmgr; do
-    log "Installing $module module..."
+    log "EVENT: Installing $module module..."
     if wget -q -O "$gp_path/${module}.sh" --timeout=15 --tries=1 "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/${module}.sh"; then
         log "SAVED: ${module}.sh"
         failure_message="cannot set permissions on ${module}.sh"
@@ -1437,8 +1447,8 @@ for module in servicemon netplanmgr; do
 done
 
 # Proxy Monitor
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y rsync nbtscan libcgi-session-perl libgd-perl sarg
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y rsync nbtscan libcgi-session-perl libgd-perl sarg
 if (cd "$gp_path" && git clone https://github.com/maravento/proxymon); then
     if cd "$gp_path/proxymon"; then
         if [ -f pmsetup.sh ]; then
@@ -1465,7 +1475,7 @@ else
 fi
 
 echo -e "\n"
-log "WPAD Config..."
+log "EVENT: WPAD Config..."
 
 # pysetup.sh below probes http://SERVER_IP:18100/wpad.pac to decide whether to
 # announce DHCP option 252. The PAC must already be served when it runs, so
@@ -1474,8 +1484,16 @@ failure_message="cannot create wpad"
 mkdir -p /var/www/wpad
 failure_message="cannot set owner of wpad"
 chown www-data:www-data /var/www/wpad
-failure_message="cannot copy wpad.pac"
-cp -f "$gp_path/conf/wpad/wpad.pac" /var/www/wpad/wpad.pac
+failure_message="cannot write wpad.pac"
+cat > /var/www/wpad/wpad.pac <<EOF
+function FindProxyForURL(url, host) {
+    if (isPlainHostName(host) || shExpMatch(host, "localhost"))
+        return "DIRECT";
+    if (isInNet(host, "${SERV_SUBNET}", "${SERV_MASK}") || shExpMatch(host, "127.*"))
+        return "DIRECT";
+    return "PROXY ${SERVER_IP}:${PORTNEW}; DIRECT";
+}
+EOF
 failure_message="cannot set owner of wpad.pac"
 chown www-data:www-data /var/www/wpad/wpad.pac
 failure_message="cannot set permissions on wpad.pac"
@@ -1497,7 +1515,7 @@ sleep 1
 echo -e "\n"
 # DHCP SECTION
 # pydhcp
-log "Installing pydhcp..."
+log "EVENT: Installing pydhcp..."
 
 if (cd "$gp_path" && git clone https://github.com/maravento/pydhcp); then
     pydhcp_path="$gp_path/pydhcp"
@@ -1508,11 +1526,7 @@ if (cd "$gp_path" && git clone https://github.com/maravento/pydhcp); then
             PYDHCP_EXPECT=$(mktemp) || { failure_status=$?; report_failure; exit "$failure_status"; }
             failure_message="cannot write the pydhcp answer script"
             cat > "$PYDHCP_EXPECT" <<EOF
-spawn env PYDHCP_WAN_IFACE=$wan_iface bash pysetup.sh --install
-expect -re {\[([0-9]+)\][ \t]+$LAN_IF[ \t(]}
-send "\$expect_out(1,string)\r"
-expect "Enter netmask"
-send "$SERV_MASK\r"
+spawn env PYDHCP_WAN_IFACE=$wan_iface PYDHCP_LAN_IFACE=$LAN_IF PYDHCP_SERVER_IP=$SERVER_IP bash pysetup.sh --install
 expect "Enter pool start"
 send "\r"
 expect "Enter pool end"
@@ -1532,7 +1546,7 @@ EOF
 
             failure_message="cannot enter the Gateproxy directory"
             cd "$gp_path"
-            info "DHCP pool: 220-235; change it in pydhcp.env"
+            info "DHCP pool uses the configured LAN network"
             info "DHCP clients will use $SERVER_IP (unbound) as DNS"
 
         else
@@ -1550,8 +1564,8 @@ fi
 # https://www.maravento.com/2014/07/registros-iptables.html
 failure_message="cannot set owner of /var/log"
 chown root:root /var/log
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y ulogd2
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y ulogd2
 failure_message="cannot create ulog"
 mkdir -p /var/log/ulog &>/dev/null
 failure_message="cannot create syslogemu.log"
@@ -1560,19 +1574,19 @@ failure_message="cannot add the local user to the ulog group"
 usermod -a -G ulog "$local_user"
 info "Ulog Access: /var/log/ulog/syslogemu.log"
 # rsyslog
-# in case fails: nala install -y libfastjson4
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y rsyslog
+# in case fails: apt install -y libfastjson4
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y rsyslog
 failure_message="cannot enable rsyslog.service"
 systemctl enable rsyslog.service
 
 # BACKUP SECTION
 # Timeshift
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y timeshift
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y timeshift
 # FreeFileSync
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y libatk-adaptor libgail-common
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y libatk-adaptor libgail-common
 download_url="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh"
 failure_message="cannot download $(basename "${download_url%%\?*}")"
 retry_cmd wget -O "$gp_path/scr/ffsupdate.sh" --timeout=15 --tries=1 "$download_url"
@@ -1588,39 +1602,39 @@ sleep 1
 
 # NET TOOLS
 # Net Tools (Replace NIC and IP/CIDR)
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y iw                 # Wireless tools: iwconfig, iwlist, iwpriv
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y fping              # Net diagnostics: fping -a -g 192.168.0.0/24
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y ethtool            # Net config: ethtool eth0
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y iw                 # Wireless tools: iwconfig, iwlist, iwpriv
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y fping              # Net diagnostics: fping -a -g 192.168.0.0/24
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y ethtool            # Net config: ethtool eth0
 # Net test: On server: iperf3 -s | On client: iperf3 -c SERVER_IP
-failure_message="cannot install packages with nala"
-DEBIAN_FRONTEND=noninteractive retry_cmd nala install -y iperf3  2>/dev/null
+failure_message="cannot install packages with apt"
+DEBIAN_FRONTEND=noninteractive retry_cmd apt install -y iperf3  2>/dev/null
 # Net Scanning (Replace NIC and IP/CIDR)
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y nast               # nast -m
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y arp-scan           # arp-scan --localnet
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y arping             # arping -I eth0 192.168.0.10
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y netdiscover        # netdiscover
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y nast               # nast -m
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y arp-scan           # arp-scan --localnet
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y arping             # arping -I eth0 192.168.0.10
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y netdiscover        # netdiscover
 # Nmap
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y nmap python3-nmap ndiff
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y nmap python3-nmap ndiff
 # Domain/IP Scanning
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y traceroute         # traceroute google.com
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y mtr-tiny           # mtr google.com
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y traceroute         # traceroute google.com
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y mtr-tiny           # mtr google.com
 
 # SECURITY SECTION
 # fail2ban
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y fail2ban
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y fail2ban
 failure_message="cannot copy jail.local"
 cp "$gp_path/conf/fail2ban/jail.local" /etc/fail2ban/jail.local
 failure_message="cannot edit fail2ban.conf"
@@ -1631,8 +1645,8 @@ info "Check: sudo fail2ban-client status <jail_name>"
 info "Unban all: sudo fail2ban-client unban --all"
 info "Unban: fail2ban-client set <jail> unban --all"
 # ttyd (web terminal)
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y ttyd
+failure_message="cannot install packages with apt"
+retry_cmd apt install -y ttyd
 failure_message="cannot copy ttyd.service"
 cp -f "$gp_path/conf/ttyd/ttyd.service" /etc/systemd/system/ttyd.service
 failure_message="cannot reload systemd configuration"
@@ -1640,85 +1654,37 @@ systemctl daemon-reload
 failure_message="cannot enable ttyd.service"
 systemctl enable ttyd.service
 info "ttyd Access: http://localhost:7681"
-# suricata install
-systemctl mask suricata.service &>/dev/null || true
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y suricata suricata-update jq
-failure_message="cannot edit suricata.yaml"
-sed -i "s/interface: eth[0-9]/interface: $LAN_IF/g" /etc/suricata/suricata.yaml
-systemctl unmask suricata.service &>/dev/null || true
-if grep -q "community-id: false" /etc/suricata/suricata.yaml; then
-    failure_message="cannot edit suricata.yaml"
-    sed -i 's/community-id: false/community-id: true/' /etc/suricata/suricata.yaml
-    info "OK: Community-ID enabled"
-fi
-# suricata disable and drop
-failure_message="cannot copy Suricata drop and disable rules"
-cp -f "$gp_path/conf/suricata/"{disable,drop}.conf /etc/suricata/
-failure_message="cannot set owner of Suricata rule files"
-chown root:root /etc/suricata/{disable,drop}.conf
-failure_message="cannot set permissions on Suricata rule files"
-chmod 644 /etc/suricata/{disable,drop}.conf
-# suricata update & clean
-if [ ! -f /var/log/suricata/suricatacron.log ]; then
-    failure_message="cannot create suricatacron.log"
-    touch /var/log/suricata/suricatacron.log
-    failure_message="cannot set owner of suricatacron.log"
-    chown root:root /var/log/suricata/suricatacron.log
-    failure_message="cannot set permissions on suricatacron.log"
-    chmod 640 /var/log/suricata/suricatacron.log
-fi
-failure_message="cannot copy Suricata scripts"
-cp -f "$gp_path/conf/suricata/"{suricataupdate,suricataclean,suridata}.sh /etc/suricata/
-failure_message="cannot set permissions on Suricata scripts"
-chmod +x /etc/suricata/{suricataupdate,suricataclean,suridata}.sh
-# suricata ratio
-if ! grep -q "detect-thread-ratio: 0.5" /etc/suricata/suricata.yaml; then
-    failure_message="cannot edit suricata.yaml"
-    sed -i 's/detect-thread-ratio: 1.0/detect-thread-ratio: 0.5/' /etc/suricata/suricata.yaml
-fi
-# suricata cron
-failure_message="cannot update the project cron file"
-cron_d_set "/etc/suricata/suricataupdate.sh" "0 2 * * * root /etc/suricata/suricataupdate.sh >/dev/null 2>&1"
-failure_message="cannot update the project cron file"
-cron_d_set "/etc/suricata/suricataclean.sh" "@monthly root /etc/suricata/suricataclean.sh >/dev/null 2>&1"
-failure_message="cannot update the project cron file"
-cron_d_set "/etc/suricata/suridata.sh" "*/5 * * * * root /etc/suricata/suridata.sh >/dev/null 2>&1"
-# suricata check IDS
-SURICATA_SERVICE="/usr/lib/systemd/system/suricata.service"
-CORRECT_EXECSTART="ExecStart=/usr/bin/suricata -D --af-packet -c /etc/suricata/suricata.yaml --pidfile /run/suricata.pid"
-if grep -q "^ExecStart=.*--af-packet" "$SURICATA_SERVICE" && ! grep -q "^ExecStart=.*-q" "$SURICATA_SERVICE"; then
-    info "OK: Suricata Mode: IDS"
+# SURIDATA SECTION
+# Suricata, EveBox and the Suricata-driven blocklist are their own project
+# now. gitfolder.py is already in the parent directory, downloaded for the
+# Gateproxy repository above, so it is reused as is.
+log "EVENT: Installing suridata..."
+suridata_path="$(dirname "$gp_path")/suridata"
+[ -d "$suridata_path" ] && rm -rf "$suridata_path"
+failure_message="cannot enter the Gateproxy parent directory"
+cd "$(dirname "$gp_path")"
+failure_message="cannot download the Suridata repository"
+if retry_cmd python3 gitfolder.py https://github.com/maravento/vault/suridata; then
+    if [ -f "$suridata_path/surisetup.sh" ]; then
+        failure_message="cannot set permissions on surisetup.sh"
+        chmod +x "$suridata_path/surisetup.sh"
+        failure_message="cannot install suridata"
+        if (cd "$suridata_path" && SURIDATA_WAN_IFACE="$wan_iface" \
+            SURIDATA_LAN_IFACE="$LAN_IF" SURIDATA_SERVER_IP="$SERVER_IP" \
+            ./surisetup.sh --install); then
+            info "Sent to suridata: WAN=$wan_iface LAN=$LAN_IF subnet=$SERV_SUBNET"
+        else
+            warn "surisetup.sh install failed -alert"
+        fi
+        dump_module_log "$suridata_path/surisetup.log" "suridata"
+    else
+        warn "surisetup.sh not found in the suridata repo -alert"
+    fi
 else
-    log "Fixing Suricata IDS..."
-    failure_message="cannot edit Suricata service settings"
-    sed -i "s|^ExecStart=.*|$CORRECT_EXECSTART|" "$SURICATA_SERVICE"
-    info "Suricata Mode: IDS"
+    warn "cannot download suridata -alert"
 fi
-# evebox
-failure_message="cannot create APT keyrings"
-mkdir -p /etc/apt/keyrings
-download_url="https://evebox.org/files/GPG-KEY-evebox"
-failure_message="cannot download $(basename "${download_url%%\?*}")"
-retry_cmd curl -fsSL "$download_url" -o /etc/apt/keyrings/evebox.asc
-log "SAVED: evebox.asc"
-download_url=""
-failure_message="cannot write APT keyrings"
-echo "deb [signed-by=/etc/apt/keyrings/evebox.asc] https://evebox.org/files/debian stable main" | tee /etc/apt/sources.list.d/evebox.list
-failure_message="cannot update system packages"
-upgrade
-failure_message="cannot install packages with nala"
-retry_cmd nala install -y evebox
-# Configure
-failure_message="cannot copy evebox.yaml"
-cp -f "$gp_path/conf/evebox/evebox.yaml" /etc/evebox/evebox.yaml
-failure_message="cannot copy evebox.service"
-cp -f "$gp_path/conf/evebox/evebox.service" /etc/systemd/system/evebox.service
-failure_message="cannot reload systemd configuration"
-systemctl daemon-reload
-failure_message="cannot enable suricata evebox"
-systemctl enable suricata evebox
-info "EVEBox: http://localhost:5636"
+failure_message="cannot enter the Gateproxy directory"
+cd "$gp_path"
 
 # OPTIONAL PACK
 # Offer the optional desktop package installation
@@ -1733,19 +1699,19 @@ gsmartcontrol, cpu-x, synaptic, gdebi, gtkhash, wmctrl, fsearch  (y/n)" answer
         # execute command yes
         info "Optional GTK Pack: YES"
         # gtk
-        failure_message="cannot install packages with nala"
-        retry_cmd nala install -y --no-install-recommends gsmartcontrol
-        failure_message="cannot install packages with nala"
-        retry_cmd nala install -y gparted gnome-disk-utility qdirstat baobab cpu-x synaptic gdebi gtkhash wmctrl mesa-utils
+        failure_message="cannot install packages with apt"
+        retry_cmd apt install -y --no-install-recommends gsmartcontrol
+        failure_message="cannot install packages with apt"
+        retry_cmd apt install -y gparted gnome-disk-utility qdirstat baobab cpu-x synaptic gdebi gtkhash wmctrl mesa-utils
         # lynis
-        failure_message="cannot install packages with nala"
-        retry_cmd nala install -y lynis
+        failure_message="cannot install packages with apt"
+        retry_cmd apt install -y lynis
         info "Lynis Run: lynis -c -Q and log: /var/log/lynis.log"
         # fsearch
         add-apt-repository -y ppa:christian-boxdoerfer/fsearch-stable || true
         failure_message="cannot update system packages"
         upgrade
-        nala install -y fsearch || true
+        apt install -y fsearch || true
         break
         ;;
     [Nn]*|"")
@@ -1844,7 +1810,7 @@ if [ -n "$UNIFI_DETECTED_TYPE" ]; then
 
                 if [ -d "$uhm_path" ]; then
                     if cd "$uhm_path"; then
-                        log "Launching uhm installer (interactive)..."
+                        log "EVENT: Launching uhm installer (interactive)..."
                         if bash uhmsetup.sh; then
                             info "uhm installed OK"
                         else
@@ -1958,7 +1924,7 @@ sleep 1
 
 # ADD CONFIG ###
 echo -e "\n"
-log "Applying Config..."
+log "EVENT: Applying Config..."
 # squid
 cp -f /etc/squid/squid.conf{,.bak} &>/dev/null || true
 failure_message="cannot copy squid.conf"
@@ -2006,7 +1972,7 @@ failure_message="cannot wait before the next attempt"
 sleep 1
 
 echo -e "\n"
-log "Proxy Apache Config..."
+log "EVENT: Proxy Apache Config..."
 
 cp -f /etc/apache2/sites-available/000-default.conf{,.bak} &>/dev/null || true
 failure_message="cannot edit 000-default.conf"
@@ -2023,7 +1989,7 @@ failure_message="cannot wait before the next attempt"
 sleep 1
 
 echo -e "\n"
-log "Adding Parameters..."
+log "EVENT: Adding Parameters..."
 failure_message="cannot write syslogemu.log"
 grep -qxF '*.none    /var/log/ulog/syslogemu.log' /etc/rsyslog.conf || \
     echo '*.none    /var/log/ulog/syslogemu.log' | tee -a /etc/rsyslog.conf >/dev/null
@@ -2058,7 +2024,7 @@ failure_message="cannot write user.conf"
 grep -qxF "DefaultLimitNOFILE=65535" /etc/systemd/user.conf || echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/user.conf >/dev/null
 sysctl --system >/dev/null || info "some sysctl parameters failed to apply"
 
-log "Apache Config..."
+log "EVENT: Apache Config..."
 cp -f /etc/apache2/apache2.conf{,.bak} &>/dev/null || true
 #echo 'RequestReadTimeout header=10-20,MinRate=500 body=20,MinRate=500' | tee -a /etc/apache2/apache2.conf # optional
 
@@ -2110,7 +2076,7 @@ sleep 1
 # APACHE PASSWORD
 # Create the Apache authentication password file
 echo -e "\n"
-log "Create Apache Password: /var/www/..."
+log "EVENT: Create Apache Password: /var/www/..."
 echo -e "\n"
 until htpasswd -c /etc/apache2/.htpasswd "$local_user"; do
     info "Passwords did not match or were empty. Try again"
@@ -2130,7 +2096,7 @@ sleep 1
 # CRONTAB
 # Register the project startup and maintenance tasks
 echo -e "\n"
-log "Add Crontab Tasks..."
+log "EVENT: Add Crontab Tasks..."
 failure_message="cannot update the project cron file"
 cron_d_set "systemctl daemon-reload" "@reboot root systemctl daemon-reload"
 failure_message="cannot update the project cron file"
@@ -2159,7 +2125,7 @@ systemctl daemon-reexec &>/dev/null
 #update-initramfs -u -k all
 # create alias "upgrade"
 failure_message="cannot update the desktop application index"
-sudo -u "$local_user" bash -c "grep -q '^alias upgrade=' '${local_home}/.bashrc' 2>/dev/null || printf '%s\n' 'alias upgrade=\"sudo nala upgrade --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo nala install --fix-broken -y && sudo systemctl daemon-reload && sudo updatedb && sudo update-desktop-database && sudo snap refresh\"' >> ${local_home}/.bashrc"
+sudo -u "$local_user" bash -c "grep -q '^alias upgrade=' '${local_home}/.bashrc' 2>/dev/null || printf '%s\n' 'alias upgrade=\"sudo apt update && sudo apt upgrade -y && sudo apt autoremove --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo apt install -f -y && sudo systemctl daemon-reload && sudo updatedb && sudo update-desktop-database && sudo snap refresh\"' >> ${local_home}/.bashrc"
 failure_message="cannot add server alias to .bashrc"
 sudo -u "$local_user" bash -c "grep -q '^alias server=' '${local_home}/.bashrc' 2>/dev/null || printf '%s\n' 'alias server=\"sudo /etc/scr/serverboot.sh\"' >> ${local_home}/.bashrc"
 failure_message="cannot add cleaner alias to .bashrc"
@@ -2210,6 +2176,8 @@ failure_message="cannot enter the requested directory"
 cd /
 failure_message="cannot remove gitfolder.py"
 rm -f "$(dirname "$gp_path")/gitfolder.py"
+failure_message="cannot remove the Suridata repository"
+rm -rf "$(dirname "$gp_path")/suridata"
 failure_message="cannot remove the Gateproxy repository"
 rm -rf "$gp_path"
 (sleep 2 && rm -- "$SCRIPT_PATH") &
@@ -2218,6 +2186,6 @@ rm -rf "$gp_path"
 # END
 # ------------------------------------------------------------------------------
 
-log "gpsetup done at: $(date '+%Y-%m-%d %H:%M:%S')"
+log "EVENT: gpsetup done"
 failure_message="cannot reboot the server"
 reboot

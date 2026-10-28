@@ -351,7 +351,7 @@ log_allowed() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') blackusb start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: blackusb start..."
 
 case "${1:-}" in
 --generate)
@@ -416,4 +416,4 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') blackusb done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: blackusb done"

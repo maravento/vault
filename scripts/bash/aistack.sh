@@ -105,6 +105,59 @@ if ! local_user=$(detect_local_user); then
 fi
 info "local user: $local_user"
 
+# check ipv4 interfaces
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if [ -n "$(list_ipv4_ifaces)" ]; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for an interface with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no interface with IPv4 -abort"
+    exit 1
+}
+
+# check internet
+check_internet() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for internet..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no internet connection -abort"
+    exit 1
+}
+
 retry_cmd() {
     local max_attempts=10
     local attempt=1
@@ -306,7 +359,7 @@ step() { echo -e "\n ${MAGENTA}>>${RESET} ${BOLD}$*${RESET}"; }
 line() { echo -e " ${DIM}------------------------------------------------${RESET}"; }
 
 finish() {
-    log "aistack done at: $(date '+%Y-%m-%d %H:%M:%S')"
+    log "EVENT: aistack done"
     exit 0
 }
 
@@ -351,7 +404,7 @@ fetch_available_models() {
 # Display the available models and read the selected model
 select_model() {
     echo ""
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Fetching current model catalog from ollama.com..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Fetching current model catalog from ollama.com..."
     if ! fetch_available_models; then
         err "model catalog unavailable; download aborted -abort"
         SELECTED_MODEL=""
@@ -515,7 +568,7 @@ install_nvidia_docker() {
         if command -v jq &>/dev/null && [ -s "$daemon_json" ]; then
             local tmp_daemon
             tmp_daemon=$(mktemp)
-            jq 'if (.runtimes.nvidia | type) == "object" then . else .runtimes = (.runtimes // {} | .nvidia = {"path": "nvidia-container-runtime", "runtimeArgs": []}) end' "$daemon_json" > "$tmp_daemon" && mv "$tmp_daemon" "$daemon_json"
+            jq 'if (.runtimes.nvidia | type) == "object" then . else .runtimes = (.runtimes // {} | .nvidia = {"path": "nvidia-container-runtime", "runtimeArgs": []}) end' "$daemon_json" > "$tmp_daemon" && chmod --reference="$daemon_json" "$tmp_daemon" && mv "$tmp_daemon" "$daemon_json"
         else
             cat > "$daemon_json" << EOF
 {
@@ -1612,7 +1665,7 @@ install_opencode_desktop() {
     local ext
     [ "$format" = "appimage" ] && ext="AppImage" || ext="deb"
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Checking latest OpenCode Desktop release..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Checking latest OpenCode Desktop release..."
     local version url
     { read -r version; read -r url; } < <(_opencode_desktop_resolve_release "$arch" "$ext")
     if [ -z "$version" ] || [ -z "$url" ]; then
@@ -1744,7 +1797,7 @@ update_opencode_desktop() {
     local ext
     [ "$format" = "appimage" ] && ext="AppImage" || ext="deb"
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Checking latest OpenCode Desktop release..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Checking latest OpenCode Desktop release..."
     local version url
     { read -r version; read -r url; } < <(_opencode_desktop_resolve_release "$arch" "$ext")
     if [ -z "$version" ] || [ -z "$url" ]; then
@@ -1927,7 +1980,7 @@ uninstall_open_webui() {
 
     # Offer to remove native Open WebUI if found
     echo ""
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Checking for native Open WebUI outside Docker..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Checking for native Open WebUI outside Docker..."
     detect_native_components
     if [ "$NATIVE_OPENWEBUI" = true ]; then
         remove_native_components
@@ -1974,7 +2027,7 @@ uninstall_ollama_container() {
 
     # Offer to remove native Ollama if found
     echo ""
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Checking for native Ollama outside Docker..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Checking for native Ollama outside Docker..."
     detect_native_components
     if [ "$NATIVE_OLLAMA" = true ]; then
         remove_native_components
@@ -2151,7 +2204,7 @@ uninstall_all() {
     fi
 
     # Native installations outside Docker
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Checking for native installations outside Docker..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Checking for native installations outside Docker..."
     detect_native_components
     remove_native_components
 
@@ -2587,12 +2640,12 @@ menu_main() {
         read -r opt
 
         case "$opt" in
-            1) install_all; finish ;;
-            2) menu_models ;;
-            3) update_components ;;
+            1) check_ipv4_interfaces; check_internet; install_all; finish ;;
+            2) check_ipv4_interfaces; check_internet; menu_models ;;
+            3) check_ipv4_interfaces; check_internet; update_components ;;
             4) menu_uninstall ;;
-            5) menu_opencode ;;
-            6) menu_lmstudio ;;
+            5) check_ipv4_interfaces; check_internet; menu_opencode ;;
+            6) check_ipv4_interfaces; check_internet; menu_lmstudio ;;
             7) detect_gpu; status_all; finish ;;
             8) if [ -f "${AI_BASE_DIR}/docker-compose.yml" ]; then
                     cd "${AI_BASE_DIR}" && docker compose logs | less -R
@@ -2609,6 +2662,8 @@ menu_main() {
 cli_mode() {
     case "${1:-}" in
         --install)
+            check_ipv4_interfaces
+            check_internet
             case "${2:-stack}" in
                 stack)
                     detect_gpu
@@ -2623,6 +2678,8 @@ cli_mode() {
             esac
             ;;
         --update)
+            check_ipv4_interfaces
+            check_internet
             case "${2:-}" in
                 opencode) update_opencode ;;
                 opencode-desktop) update_opencode_desktop ;;
@@ -2642,6 +2699,8 @@ cli_mode() {
             status_all
             ;;
         --model)
+            check_ipv4_interfaces
+            check_internet
             select_model
             if [[ -n "$SELECTED_MODEL" ]]; then
                 download_model
@@ -2670,7 +2729,7 @@ cli_mode() {
 
 # MAIN
 # Choose the interactive menu or command line workflow
-log "aistack start..."
+log "EVENT: aistack start..."
 
 if [[ $# -eq 0 ]]; then
     menu_main

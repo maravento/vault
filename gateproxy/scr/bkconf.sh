@@ -132,19 +132,19 @@ deregister_cron() {
 # Start
 case "${1:-}" in
     --install)
-        log "bkconf start..."
+        log "EVENT: bkconf start..."
         register_cron
-        log "bkconf done at: $(date '+%Y-%m-%d %H:%M:%S')"
+        log "EVENT: bkconf done"
         exit 0
         ;;
     --uninstall)
-        log "bkconf start..."
+        log "EVENT: bkconf start..."
         deregister_cron
-        log "bkconf done at: $(date '+%Y-%m-%d %H:%M:%S')"
+        log "EVENT: bkconf done"
         exit 0
         ;;
     "")
-        log "bkconf start..."
+        log "EVENT: bkconf start..."
         ;;
     *)
         log "ERROR: '$1' invalid; --install/--uninstall or none -abort"
@@ -224,4 +224,4 @@ fi
 # END
 # ------------------------------------------------------------------------------
 
-log "bkconf done at: $(date '+%Y-%m-%d %H:%M:%S')"
+log "EVENT: bkconf done"

@@ -331,12 +331,12 @@ restore_normal_network() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') bridge start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: bridge start..."
 
 # Main
 case "${1:-}" in
     --on)
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Scanning for active Ethernet interface..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Scanning for active Ethernet interface..."
         INTERFACE=$(detect_ethernet_interface) || exit 1
         echo "Found active Ethernet interface: $INTERFACE"
 
@@ -432,6 +432,6 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') bridge done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: bridge done"
 
 exit 0

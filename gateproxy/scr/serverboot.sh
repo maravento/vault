@@ -58,7 +58,7 @@ for dep in iproute2 systemd squid-openssl apache2 rsyslog util-linux; do
     fi
 done
 
-log "serverboot start..."
+log "EVENT: serverboot start..."
 
 # ------------------------------------------------------------------------------
 # NETWORK
@@ -102,7 +102,7 @@ network_ready() {
     ((iface_count >= required))
 }
 
-log "Waiting for network interfaces..."
+log "EVENT: Waiting for network interfaces..."
 
 net_ready=0
 for i in $(seq 1 10); do
@@ -146,26 +146,26 @@ run_service_action() {
     fi
 }
 
-log "Reloading pydhcpd.service..."
+log "EVENT: Reloading pydhcpd.service..."
 run_service_action reload pydhcpd.service
 sleep 5
-log "Reloading squid.service..."
+log "EVENT: Reloading squid.service..."
 run_service_action reload squid.service
 sleep 5
-log "Restarting apache2.service..."
+log "EVENT: Restarting apache2.service..."
 run_service_action restart apache2.service
 sleep 5
 if systemctl list-unit-files smbd.service &>/dev/null; then
-    log "Restarting smbd.service..."
+    log "EVENT: Restarting smbd.service..."
     run_service_action restart smbd.service
     sleep 5
 fi
 if systemctl list-unit-files winbind.service &>/dev/null; then
-    log "Restarting winbind.service..."
+    log "EVENT: Restarting winbind.service..."
     run_service_action restart winbind.service
     sleep 5
 fi
-log "Restarting syslog.socket and rsyslog.service..."
+log "EVENT: Restarting syslog.socket and rsyslog.service..."
 run_service_action restart syslog.socket rsyslog.service
 sleep 5
 
@@ -178,4 +178,4 @@ fi
 # END
 # ------------------------------------------------------------------------------
 
-log "serverboot done at: $(date '+%Y-%m-%d %H:%M:%S')"
+log "EVENT: serverboot done"

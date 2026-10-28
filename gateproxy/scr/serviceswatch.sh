@@ -70,7 +70,7 @@ for dep in webmin; do
 done
 
 # Start
-log "serviceswatch start..."
+log "EVENT: serviceswatch start..."
 
 # ------------------------------------------------------------------------------
 # VARIABLES
@@ -124,4 +124,4 @@ else
 fi
 
 # End
-log "serviceswatch done at: $(date '+%Y-%m-%d %H:%M:%S')"
+log "EVENT: serviceswatch done"

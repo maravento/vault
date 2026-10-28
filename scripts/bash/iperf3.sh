@@ -125,7 +125,7 @@ run_ping() {
     local ip="$1"
     local log="$2"
     echo "" >> "$log"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') STATUS: latency test (ping ${PING_COUNT})" >> "$log"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: latency test (ping ${PING_COUNT})" >> "$log"
     ping -c "$PING_COUNT" -i 0.5 "$ip" 2>&1 | tee -a "$log"
 }
 
@@ -136,7 +136,7 @@ run_iperf3_tcp() {
     local iface="$2"
     local log="$3"
     echo "" >> "$log"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') STATUS: iperf TCP test (${PARALLEL} streams)" >> "$log"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: iperf TCP test (${PARALLEL} streams)" >> "$log"
     if ! $IPERF_CMD -c "$ip" -p "$IPERF_PORT" -t "$DURATION" -P "$PARALLEL" \
             --bind-dev "$iface" 2>&1 | tee -a "$log"; then
         $IPERF_CMD -c "$ip" -p "$IPERF_PORT" -t "$DURATION" -P "$PARALLEL" \
@@ -152,10 +152,10 @@ run_iperf3_udp() {
     local log="$3"
     echo "" >> "$log"
     if [[ "$IPERF_CMD" != "iperf3" ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') STATUS: iperf UDP skipped; iperf3 unavailable" >> "$log"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: iperf UDP skipped; iperf3 unavailable" >> "$log"
         return 0
     fi
-    echo "$(date '+%Y-%m-%d %H:%M:%S') STATUS: iperf UDP test" >> "$log"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: iperf UDP test" >> "$log"
     if ! iperf3 -c "$ip" -p "$IPERF_PORT" -u -b 1G -t "$DURATION" \
             --bind-dev "$iface" 2>&1 | tee -a "$log"; then
         iperf3 -c "$ip" -p "$IPERF_PORT" -u -b 1G -t "$DURATION" \
@@ -171,10 +171,10 @@ run_iperf3_reverse() {
     local log="$3"
     echo "" >> "$log"
     if [[ "$IPERF_CMD" != "iperf3" ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') STATUS: iperf TCP reverse skipped" >> "$log"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: iperf TCP reverse skipped" >> "$log"
         return 0
     fi
-    echo "$(date '+%Y-%m-%d %H:%M:%S') STATUS: iperf TCP reverse test" >> "$log"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: iperf TCP reverse test" >> "$log"
     if ! $IPERF_CMD -c "$ip" -p "$IPERF_PORT" -t "$DURATION" -P "$PARALLEL" \
             -R --bind-dev "$iface" 2>&1 | tee -a "$log"; then
         $IPERF_CMD -c "$ip" -p "$IPERF_PORT" -t "$DURATION" -P "$PARALLEL" \
@@ -305,7 +305,7 @@ main() {
         fi
         ok "Host $ip reachable"
 
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Checking iperf on $ip..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Checking iperf on $ip..."
 
         if ! detect_iperf "$ip"; then
             warn "No iperf server detected on $ip. Skipping"
@@ -327,9 +327,9 @@ main() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') iperf3 start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: iperf3 start..."
 
 main "$@"
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') iperf3 done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: iperf3 done"

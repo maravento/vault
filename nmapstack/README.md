@@ -20,114 +20,6 @@ FILE: nmapstack/README.md
 
 <!-- markdownlint-disable MD033 -->
 
-## REQUIREMENTS
-
----
-
-### Windows packages
-
-- [nmap](https://nmap.org/download#windows)
-- [npcap](https://nmap.org/download#windows)
-- [libxslt (xsltproc)](https://www.zlatkovic.com/pub/libxml/)
-- [Microsoft Visual C++ Runtimes](https://gitlab.com/stdout12/vcredist/-/releases)
-
-### Linux (nreport.sh)
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
-    </td>
-  </tr>
-</table>
-
-- nmap, xsltproc, iproute2, util-linux
-
-```bash
-apt-get install -y nmap xsltproc iproute2 util-linux
-```
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      <code>nreport.sh</code> checks these dependencies at startup. If one is missing, it stops and displays a clear message. Install them beforehand to avoid that extra step.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      <code>nreport.sh</code> verifica estas dependencias al iniciar. Si falta alguna, se detiene y muestra un mensaje claro. Instálelas de antemano para evitar ese paso adicional.
-    </td>
-  </tr>
-</table>
-
-### Web (nwatch)
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
-    </td>
-  </tr>
-</table>
-
-- Apache2 with mod_php (not PHP-FPM — the vhost uses `SetHandler application/x-httpd-php`)
-- arp-scan, sqlite3, php-sqlite3, php-cli, nmap, iproute2 (`ss`), logrotate, util-linux
-
-```bash
-apt-get install -y apache2 libapache2-mod-php php-cli
-apt-get install -y arp-scan sqlite3 php-sqlite3 nmap iproute2 logrotate util-linux
-```
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>Optional:</strong> <code>avahi-utils</code> (mDNS) and <code>nbtscan</code> (NetBIOS) can improve the <code>Hostname</code> column on the LAN tab when a device has no reverse-DNS record. This is common for consumer and IoT devices on home networks. Neither package is required. If they are absent, <code>nwatchlan.sh</code> uses DNS resolution only.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>Opcional:</strong> <code>avahi-utils</code> (mDNS) y <code>nbtscan</code> (NetBIOS) pueden mejorar la columna <code>Hostname</code> de la pestaña LAN cuando un dispositivo no tiene un registro DNS reverso. Esto es común en equipos de consumo y dispositivos IoT de redes domésticas. Ninguno es obligatorio. Si no están instalados, <code>nwatchlan.sh</code> usa solo la resolución DNS.
-    </td>
-  </tr>
-</table>
-
-```bash
-apt-get install -y avahi-utils nbtscan
-```
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>Important</strong>
-      <ul>
-        <li><code>nginx</code>, <code>lighttpd</code> and <code>caddy</code> must not be installed.</li>
-        <li>The web panel listens on port <code>3126</code>, registered by <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> as Unassigned.</li>
-        <li>The VirtualHost only accepts connections from <code>127.0.0.1</code>. Open it at <code>http://localhost:3126/</code> on the server itself, or through a local tunnel (e.g. Cloudflare Tunnel with Zero Trust).</li>
-      </ul>
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      <strong>Importante</strong>
-      <ul>
-        <li><code>nginx</code>, <code>lighttpd</code> y <code>caddy</code> no deben estar instalados.</li>
-        <li>El panel web escucha en el puerto <code>3126</code>, registrado por <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> como Sin asignar.</li>
-        <li>El VirtualHost solo acepta conexiones desde <code>127.0.0.1</code>. Accede en <code>http://localhost:3126/</code> desde el propio servidor, o mediante un túnel local (por ejemplo, Cloudflare Tunnel con Zero Trust).</li>
-      </ul>
-    </td>
-  </tr>
-</table>
-
-## DATA SHEET
-
----
-
-### Windows (Nscan)
-
-| File |  OS  | Size |
-| :--: | :--: | :--: |
-| [nscan.exe (.zip)](https://mega.nz/file/3M0jiCJZ#mjpJLQyi1kKmx7M9R6FiUBGV9Z9NajebQIcYCc7tk08) | Windows 10/11 x64 | 44.4 MB |
-
 ## REPOSITORY STRUCTURE
 
 ---
@@ -140,7 +32,8 @@ nmapstack/
 ├── nwatch/                  # WEB — live web dashboard
 │   ├── nwatchsetup.sh         # Installer: --install|--update|--uninstall|--status
 │   │
-│   ├── tools/               # Background daemons for LAN/port scanning
+│   ├── tools/               # Daemons and maintenance tools
+│   │   ├── nwatchbk.sh        # Project backup and consistent SQLite snapshot
 │   │   ├── nwatchenv.sh       # Shared Bash configuration reader (sourced, not executed)
 │   │   ├── nwatchlan.sh       # LAN discovery daemon (arp-scan)
 │   │   └── nwatchports.sh     # Port auditing daemon (ss / nmap) + mode CLI
@@ -157,11 +50,24 @@ nmapstack/
     └── nscan.exe.sha256       # Checksum for Nscan
 ```
 
-## HOW TO USE
+## WINDOWS
 
 ---
 
-### Windows (Nscan)
+### REQUIREMENTS
+
+- [nmap](https://nmap.org/download#windows)
+- [npcap](https://nmap.org/download#windows)
+- [libxslt (xsltproc)](https://www.zlatkovic.com/pub/libxml/)
+- [Microsoft Visual C++ Runtimes](https://gitlab.com/stdout12/vcredist/-/releases)
+
+### DATA SHEET
+
+| File |  OS  | Size |
+| :--: | :--: | :--: |
+| [nscan.exe (.zip)](https://mega.nz/file/3M0jiCJZ#mjpJLQyi1kKmx7M9R6FiUBGV9Z9NajebQIcYCc7tk08) | Windows 10/11 x64 | 44.4 MB |
+
+### HOW TO USE
 
 <table width="100%">
   <tr>
@@ -178,48 +84,7 @@ nmapstack/
 >
 > Se recomienda hacerlo porque el proyecto empaqueta scripts batch en un .exe, que los antivirus podrían marcar por error. Si tiene dudas, puede descomprimir el .exe y revisar los scripts, ejecutar los paquetes manualmente o no usar este proyecto.
 
-### Linux (nreport.sh)
-
-```bash
-wget -q https://raw.githubusercontent.com/maravento/vault/master/nmapstack/linux/nreport.sh -O nreport.sh
-chmod +x nreport.sh
-sudo ./nreport.sh
-```
-
-### Web (nwatch)
-
-```bash
-git clone --depth=1 https://github.com/maravento/vault.git
-cd vault/nmapstack/nwatch
-
-# or
-
-wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
-chmod +x gitfolder.py
-python3 gitfolder.py https://github.com/maravento/vault/nmapstack
-cd nmapstack/nwatch
-
-# Install
-sudo bash nwatchsetup.sh --install
-
-# Update
-sudo bash nwatchsetup.sh --update
-
-# Uninstall
-sudo bash nwatchsetup.sh --uninstall
-
-# Status
-sudo bash nwatchsetup.sh --status
-
-# Interactive menu
-sudo bash nwatchsetup.sh
-```
-
-## HOW IT WORKS
-
----
-
-### WINDOWS (Nscan)
+### HOW IT WORKS
 
 > **⚠️ WARNING -- Existing Nmap and Npcap installations:** **Before continuing:** If Nmap or Npcap is already installed on your PC, uninstall it before using this tool to avoid version conflicts.
 >
@@ -353,7 +218,49 @@ Package: Nscan
 - [vcredist](https://gitlab.com/stdout12/vcredist/-/releases)
 - [WinZenity](https://github.com/maravento/vault/tree/master/winzenity)
 
-### LINUX (nreport.sh)
+## LINUX
+
+---
+
+### REQUIREMENTS
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
+    </td>
+  </tr>
+</table>
+
+- nmap, xsltproc, iproute2, util-linux
+
+```bash
+apt-get install -y nmap xsltproc iproute2 util-linux
+```
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <code>nreport.sh</code> checks these dependencies at startup. If one is missing, it stops and displays a clear message. Install them beforehand to avoid that extra step.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <code>nreport.sh</code> verifica estas dependencias al iniciar. Si falta alguna, se detiene y muestra un mensaje claro. Instálelas de antemano para evitar ese paso adicional.
+    </td>
+  </tr>
+</table>
+
+### HOW TO USE
+
+```bash
+wget -q https://raw.githubusercontent.com/maravento/vault/master/nmapstack/linux/nreport.sh -O nreport.sh
+chmod +x nreport.sh
+sudo ./nreport.sh
+```
+
+### HOW IT WORKS
 
 | Description | Descripción |
 |---|---|
@@ -375,9 +282,111 @@ Ningún paso aborta el script: con un XML válido, siempre se produce un informe
 |---|---|
 | **HTML conversion**<br><br> The XML scan is converted to HTML in three steps. First the project's own stylesheet, written to the temporary directory. If `xsltproc` fails, the log records an `INFO: ... -retry` and the second step runs. Second, nmap's own `/usr/share/nmap/nmap.xsl`, which produces nmap's standard page instead of the project's. A failure or a missing file there logs a `WARNING: ... -alert`. Third, a plain HTML page holding the raw XML inside a `&lt;pre&gt;` block. It needs no external tool, so it always succeeds, and it logs a `WARNING: ... -alert` because the report has no format. No step aborts the script: given a valid XML, a report is always produced. The conversion does abort before these steps when the XML is missing or empty, and afterwards when the resulting HTML is missing or empty. | **Conversión a HTML**<br><br> El XML del escaneo se convierte a HTML en tres pasos. Primero la hoja de estilo propia del proyecto, escrita en el directorio temporal. Si `xsltproc` falla, el log registra un `INFO: ... -retry` y corre el segundo paso. Segundo, el `/usr/share/nmap/nmap.xsl` de nmap, que produce la página estándar de nmap en vez de la del proyecto. Un fallo o un archivo ausente ahí registra un `WARNING: ... -alert`. Tercero, una página HTML simple con el XML crudo dentro de un bloque `&lt;pre&gt;`. No necesita ninguna herramienta externa, así que nunca falla, y registra un `WARNING: ... -alert` porque el informe queda sin formato. Ningún paso aborta el script: con un XML válido, siempre se produce un informe. La conversión sí aborta antes de estos pasos cuando el XML falta o está vacío, y después cuando el HTML resultante falta o está vacío. |
 
+## WEB
 
+---
 
-### WEB (nwatch)
+### REQUIREMENTS
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
+    </td>
+  </tr>
+</table>
+
+- Apache2 with mod_php (not PHP-FPM — the vhost uses `SetHandler application/x-httpd-php`)
+- arp-scan, sqlite3, php-sqlite3, php-cli, nmap, iproute2 (`ss`), logrotate, util-linux, python3, zip
+
+```bash
+apt-get install -y apache2 libapache2-mod-php php-cli
+apt-get install -y arp-scan sqlite3 php-sqlite3 nmap iproute2 logrotate util-linux python3 zip
+```
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Optional:</strong> <code>avahi-utils</code> (mDNS) and <code>nbtscan</code> (NetBIOS) can improve the <code>Hostname</code> column on the LAN tab when a device has no reverse-DNS record. This is common for consumer and IoT devices on home networks. Neither package is required. If they are absent, <code>nwatchlan.sh</code> uses DNS resolution only.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Opcional:</strong> <code>avahi-utils</code> (mDNS) y <code>nbtscan</code> (NetBIOS) pueden mejorar la columna <code>Hostname</code> de la pestaña LAN cuando un dispositivo no tiene un registro DNS reverso. Esto es común en equipos de consumo y dispositivos IoT de redes domésticas. Ninguno es obligatorio. Si no están instalados, <code>nwatchlan.sh</code> usa solo la resolución DNS.
+    </td>
+  </tr>
+</table>
+
+```bash
+apt-get install -y avahi-utils nbtscan
+```
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Important</strong>
+      <ul>
+        <li><code>nginx</code>, <code>lighttpd</code> and <code>caddy</code> must not be installed.</li>
+        <li>The web panel listens on port <code>3126</code>, registered by <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> as Unassigned.</li>
+        <li>The VirtualHost only accepts connections from <code>127.0.0.1</code>. Open it at <code>http://localhost:3126/</code> on the server itself, or through a local tunnel (e.g. Cloudflare Tunnel with Zero Trust).</li>
+      </ul>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Importante</strong>
+      <ul>
+        <li><code>nginx</code>, <code>lighttpd</code> y <code>caddy</code> no deben estar instalados.</li>
+        <li>El panel web escucha en el puerto <code>3126</code>, registrado por <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> como Sin asignar.</li>
+        <li>El VirtualHost solo acepta conexiones desde <code>127.0.0.1</code>. Accede en <code>http://localhost:3126/</code> desde el propio servidor, o mediante un túnel local (por ejemplo, Cloudflare Tunnel con Zero Trust).</li>
+      </ul>
+    </td>
+  </tr>
+</table>
+
+### HOW TO USE
+
+```bash
+git clone --depth=1 https://github.com/maravento/vault.git
+cd vault/nmapstack/nwatch
+
+# or
+
+wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
+chmod +x gitfolder.py
+python3 gitfolder.py https://github.com/maravento/vault/nmapstack
+cd nmapstack/nwatch
+
+# Install
+sudo bash nwatchsetup.sh --install
+
+# Update
+sudo bash nwatchsetup.sh --update
+
+# Uninstall
+sudo bash nwatchsetup.sh --uninstall
+
+# Status
+sudo bash nwatchsetup.sh --status
+
+# Backup
+sudo bash /var/www/nwatch/tools/nwatchbk.sh
+
+# Interactive menu
+sudo bash nwatchsetup.sh
+```
+
+### HOW IT WORKS
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      When several interfaces are available, select the LAN interface from the list. Installation aborts with <code>ERROR: ... -abort</code> if the selected LAN has no configured IPv4 address. Select an address when several exist. The network and mask come from that address and its actual prefix. These installers do not configure network interfaces. Explicit interface/address values supplied by a parent installer reuse its selection.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Si existen varias interfaces, selecciona LAN desde la lista. La instalación aborta con <code>ERROR: ... -abort</code> si LAN no tiene IPv4 configurada. Selecciona una dirección cuando existan varias. La red y máscara proceden de esa dirección y su prefijo real. Estos instaladores no configuran interfaces. Los valores explícitos enviados por otro instalador reutilizan su selección.
+    </td>
+  </tr>
+</table>
 
 [<img src="img/nwatch-top.png" width="100%" alt="NWatch dashboard header">](https://www.maravento.com)
 
@@ -424,10 +433,9 @@ Ningún paso aborta el script: con un XML válido, siempre se produce un informe
 
 #### Scheduled Tasks
 
-> Project log: `/var/log/nwatch.log`. Installation and update configure daily rotation in `/etc/logrotate.d/nwatch`, keeping seven previous files plus the active log. Compression starts on the next rotation. Empty logs are not rotated; missing logs are tolerated. Squid and Apache keep their own policies.
+> Project log: `/var/log/nwatch.log`. Installation and update configure daily rotation in `/etc/logrotate.d/nwatch`, keeping seven previous files plus the active log. Compression starts on the next rotation. Empty logs are not rotated; missing logs are tolerated. The installer also sets `rotate 7` in `/etc/logrotate.d/apache2`, backing it up first. Squid keeps its own policy.
 >
-> Log del proyecto: `/var/log/nwatch.log`. La instalación y la actualización configuran rotación diaria en `/etc/logrotate.d/nwatch`. Se conservan siete archivos anteriores y el activo. La compresión comienza en la siguiente rotación. Los logs vacíos no se rotan; los ausentes se toleran. Squid y Apache conservan sus propias políticas.
-
+> Log del proyecto: `/var/log/nwatch.log`. La instalación y la actualización configuran rotación diaria en `/etc/logrotate.d/nwatch`. Se conservan siete archivos anteriores y el activo. La compresión comienza en la siguiente rotación. Los logs vacíos no se rotan; los ausentes se toleran. El instalador también fija `rotate 7` en `/etc/logrotate.d/apache2`, con respaldo previo. Squid conserva su propia política.
 
 <table width="100%">
   <tr>
@@ -436,6 +444,19 @@ Ningún paso aborta el script: con un XML válido, siempre se produce un informe
     </td>
     <td style="width: 50%; vertical-align: top;">
       <code>nwatchsetup.sh</code> guarda todas las tareas cron del proyecto en <code>/etc/cron.d/nwatch</code>. Al agregar o quitar una tarea, solo modifica ese archivo; las tareas de otros proyectos quedan intactas. <code>--uninstall</code> elimina el archivo. El instalador no lee ni modifica el crontab de root.
+    </td>
+  </tr>
+</table>
+
+#### nwatchbk.sh
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <code>nwatchbk.sh</code> creates ZIP backups in <code>BACKUP_DIR</code>, initially <code>/etc/bak/nwatch</code>, and retains up to three archives. The directory is dedicated to backups: other contents are removed before creating an archive. It backs up project files, configuration and a consistent SQLite database snapshot. The installer invokes it before update and uninstall; cron invokes it monthly. A missing or failed backup script aborts update or uninstall before replacing or removing files. A missing, empty or relative <code>BACKUP_DIR</code> aborts the backup.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <code>nwatchbk.sh</code> crea respaldos ZIP en <code>BACKUP_DIR</code>, inicialmente <code>/etc/bak/nwatch</code>, y conserva hasta tres archivos. El directorio es exclusivo para respaldos: elimina cualquier otro contenido antes de crear el archivo. Respalda los archivos del proyecto, la configuración y una copia coherente de SQLite. El instalador lo invoca antes de actualizar y desinstalar; cron lo invoca mensualmente. Si el script de respaldo falta o falla, la actualización o desinstalación aborta antes de reemplazar o eliminar archivos. Una clave <code>BACKUP_DIR</code> ausente, vacía o relativa aborta el respaldo.
     </td>
   </tr>
 </table>
@@ -466,8 +487,9 @@ Ningún paso aborta el script: con un XML válido, siempre se produce un informe
   </tr>
 </table>
 
-| Variable | Daemon | Default | Meaning |
+| Variable | Consumer | Default | Meaning |
 |----------|--------|---------|---------|
+| `BACKUP_DIR` | `nwatchbk.sh` | `/etc/bak/nwatch` | Required backup destination. Existing installations must add this key to `/etc/nwatch/nwatch.env` before updating. / Destino obligatorio del respaldo. Las instalaciones existentes deben añadir esta clave a `/etc/nwatch/nwatch.env` antes de actualizar. |
 | `LAN_IFACES` | `nwatchlan.sh` | — | Comma-separated interfaces to arp-scan |
 | `MGMT_IFACE` | `nwatchsetup.sh` | — | Management interface, chosen during install. `SERVER_IP` and `NET_CIDR` are read from it |
 | `NET_CIDR` | `nwatchapi.php` | — | Management subnet in CIDR form, used as Apache's `Require ip` and by the API |
@@ -656,6 +678,57 @@ sudo /var/www/nwatch/tools/nwatchports.sh --list
   </tr>
 </table>
 
+### UPDATE CHECKS
+
+| Step | Description | Descripción |
+|---|---|---|
+| Before copying | The installer checks all required source files and destinations, write access, available space, immutable attributes and relevant locks. | El instalador comprueba todos los orígenes y destinos, escritura, espacio disponible, atributos inmutables y bloqueos relevantes. |
+| Backup | The installer invokes `nwatchbk.sh`. If `nwatchbk.sh` fails, the installer aborts before pausing consumers or replacing files, without writing `done`. | El instalador invoca `nwatchbk.sh`. Si `nwatchbk.sh` falla, el instalador aborta antes de pausar procesos o reemplazar archivos, sin escribir `done`. |
+| Pause | The installer pauses its cron file and stops affected services and daemons. It verifies they have stopped and waits for running jobs before replacing files. If a pause fails before any replacement, the installer attempts to resume the previous consumers and schedule. | El instalador pausa su archivo cron y detiene los servicios y demonios afectados. Comprueba su detención y espera que terminen las tareas en ejecución antes de reemplazar archivos. Si falla una pausa antes de reemplazar archivos, el instalador intenta reanudar los procesos y la programación anteriores. |
+| Copy | The installer repeats the checks immediately before copying. It verifies every replacement and its file contents. If a replacement fails, it aborts without `done`; it does not resume the consumers or restore the backup. The paused schedule remains at `/etc/cron.d/nwatch.update-disabled`. | El instalador repite las comprobaciones inmediatamente antes de copiar. Comprueba cada reemplazo y el contenido copiado. Si falla un reemplazo, aborta sin `done`; no reanuda los procesos ni restaura el respaldo. La programación pausada permanece en `/etc/cron.d/nwatch.update-disabled`. |
+| Finish | The installer regenerates its complete cron file and resumes the consumers that were active. It writes `done` only after successful completion. | El instalador regenera su archivo cron completo y reanuda los procesos que estaban activos. Escribe `done` únicamente si termina correctamente. |
+
+```bash
+2026-10-28 15:35:09 EVENT: nwatchsetup start...
+2026-10-28 15:35:09 EVENT: nwatchbk start...
+2026-10-28 15:35:18 INFO: backup written to nwatchbk_20261028_153509.zip
+2026-10-28 15:35:18 EVENT: nwatchbk done
+2026-10-28 15:35:19 EVENT: nwatchlan start...
+2026-10-28 15:35:19 EVENT: Stopping nwatchlan...
+2026-10-28 15:35:20 INFO: nwatchlan stopped (PID 2965731)
+2026-10-28 15:35:20 EVENT: nwatchlan done
+2026-10-28 15:35:21 EVENT: nwatchports start...
+2026-10-28 15:35:21 EVENT: Stopping nwatchports...
+2026-10-28 15:35:22 INFO: nwatchports stopped (PID 2966130)
+2026-10-28 15:35:22 EVENT: nwatchports done
+2026-10-28 15:35:23 INFO: updated index.php
+2026-10-28 15:35:23 INFO: updated lan.html
+2026-10-28 15:35:23 INFO: updated nwatchapi.php
+2026-10-28 15:35:23 INFO: updated ports.html
+2026-10-28 15:35:23 INFO: updated nwatchenv.sh
+2026-10-28 15:35:23 INFO: updated nwatchlan.sh
+2026-10-28 15:35:23 INFO: updated nwatchports.sh
+2026-10-28 15:35:23 INFO: updated nwatchbk.sh
+2026-10-28 15:35:23 INFO: updated /etc/logrotate.d/nwatch
+2026-10-28 15:35:23 EVENT: nwatchlan start...
+2026-10-28 15:35:23 INFO: interface: eno1=UP
+2026-10-28 15:35:23 INFO: interface: eno2=UP
+2026-10-28 15:35:23 INFO: Interfaces: eno1,eno2
+2026-10-28 15:35:23 INFO: Interval: 60s
+2026-10-28 15:35:23 INFO: Offline grace: 3 polls
+2026-10-28 15:35:23 INFO: Database: /var/www/nwatch/data/nwatch.db
+2026-10-28 15:35:23 INFO: nwatchlan started with PID 3020595
+2026-10-28 15:35:23 EVENT: nwatchlan done
+2026-10-28 15:35:24 EVENT: nwatchports start...
+2026-10-28 15:35:24 INFO: Mode: server
+2026-10-28 15:35:24 INFO: Interval: 30s
+2026-10-28 15:35:24 INFO: Database: /var/www/nwatch/data/nwatch.db
+2026-10-28 15:35:24 INFO: nwatchports started with PID 3020638
+2026-10-28 15:35:24 EVENT: nwatchports done
+2026-10-28 15:35:24 INFO: nwatch updated
+2026-10-28 15:35:24 EVENT: nwatchsetup done
+```
+
 ## ⚠️ WARNING: NETWORK ACCESS
 
 ---
@@ -686,6 +759,7 @@ sudo /var/www/nwatch/tools/nwatchports.sh --list
         <li>May include third-party components.</li>
         <li>Does not accept Pull Requests. Changes must be proposed via Issues.</li>
         <li>This project does not support backward compatibility. New versions may require configuration changes or reinstallation.</li>
+        <li>Adding custom tasks to the project's cron file is not recommended because each installation or update rewrites it.</li>
       </ul>
     </td>
     <td style="width: 50%; vertical-align: top;">
@@ -694,6 +768,7 @@ sudo /var/www/nwatch/tools/nwatchports.sh --list
         <li>Puede incluir componentes de terceros.</li>
         <li>No acepta Pull Requests. Los cambios deben proponerse mediante Issues.</li>
         <li>Este proyecto no soporta retrocompatibilidad. Las nuevas versiones pueden requerir cambios de configuración o una reinstalación.</li>
+        <li>No se recomienda programar tareas propias en el cron del proyecto, ya que se reescribe en cada instalación o actualización.</li>
       </ul>
     </td>
   </tr>

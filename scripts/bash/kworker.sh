@@ -53,7 +53,7 @@ done
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') kworker start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: kworker start..."
 
 kworker=$(mktemp /tmp/gpelist.XXXXXX)
 trap 'rm -f "$kworker"' EXIT
@@ -77,4 +77,4 @@ fi
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') kworker done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: kworker done"

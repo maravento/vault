@@ -59,7 +59,7 @@ if ! flock -n 200; then
 fi
 
 # Start
-log "diskcheck start..."
+log "EVENT: diskcheck start..."
 
 # local_user detection
 detect_local_user() {
@@ -226,7 +226,7 @@ fi
 # ------------------------------------------------------------------------------
 
 # Detects HDD/SSD/NVMe degradation and alerts for timely replacement
-log "Check Disk SMART Health. Wait..."
+log "EVENT: Check Disk SMART Health. Wait..."
 
 # Alert thresholds
 REALLOCATED_THRESHOLD=10 # reallocated sectors (sign of bad sectors)
@@ -240,7 +240,7 @@ if [ -z "$DISKS" ]; then
     log "No disks found"
 else
     for DISK in $DISKS; do
-        log "Checking $DISK"
+        log "EVENT: Checking $DISK"
         DISK_ALERTS=0
 
         if ! smartctl -i "$DISK" &>/dev/null; then
@@ -299,4 +299,4 @@ else
 fi
 
 # End
-log "diskcheck done at: $(date '+%Y-%m-%d %H:%M:%S')"
+log "EVENT: diskcheck done"

@@ -78,7 +78,7 @@ fi
 echo "Using local user: $local_user"
 
 # dependencies
-for dep in wget curl util-linux; do
+for dep in wget curl util-linux iproute2 libc-bin; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
@@ -86,14 +86,69 @@ for dep in wget curl util-linux; do
 done
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') winboat start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: winboat start..."
 
 # ------------------------------------------------------------------------------
 # FUNCTIONS
 # ------------------------------------------------------------------------------
 
+# check ipv4 interfaces
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if [ -n "$(list_ipv4_ifaces)" ]; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: waiting for an interface with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no interface with IPv4 -abort" >&2
+    exit 1
+}
+
+# check internet
+check_internet() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: waiting for internet..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no internet connection -abort" >&2
+    exit 1
+}
+
 # Function to install Winboat
 install_winboat() {
+    check_ipv4_interfaces
+    check_internet
     echo "=== Installing Winboat ==="
     printf "\n"
 
@@ -160,7 +215,7 @@ install_winboat() {
     # Step 3: Install Winboat
     echo "$(date '+%Y-%m-%d %H:%M:%S') [3/4] Installing Winboat..."
     if ! command -v winboat &> /dev/null; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Fetching latest Winboat release..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Fetching latest Winboat release..."
         deb_url=$(curl -sL https://api.github.com/repos/TibixDev/winboat/releases/latest | grep -oP '"browser_download_url": "\K[^"]*\.deb')
 
         if [ -z "$deb_url" ]; then
@@ -358,6 +413,8 @@ uninstall_winboat() {
     read -p "Do you want to remove Docker? (y/n): " remove_docker
     case $remove_docker in
         [Yy]*)
+            check_ipv4_interfaces
+            check_internet
             echo "$(date '+%Y-%m-%d %H:%M:%S') Removing Docker..."
             docker_script=$(mktemp /tmp/docker.XXXXXX.sh)
             if ! wget --timeout=30 --show-progress https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh -O "$docker_script"; then
@@ -445,4 +502,4 @@ fi
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') winboat done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: winboat done"

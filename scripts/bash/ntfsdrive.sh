@@ -153,7 +153,7 @@ echo "Do you want to mount or unmount an NTFS disk?"
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') ntfsdrive start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: ntfsdrive start..."
 
 select choice in "Mount" "Unmount" "Exit"; do
     case $choice in
@@ -169,4 +169,4 @@ done
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') ntfsdrive done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: ntfsdrive done"

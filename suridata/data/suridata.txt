@@ -1,0 +1,3 @@
+# external IPs identified by Suricata alerts matching a drop.conf signature
+# (see suridata.sh). The external end of the flow is taken, whichever side it
+# is on. One IP per line, no expiry; the administrator curates the list.

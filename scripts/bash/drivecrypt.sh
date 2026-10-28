@@ -120,7 +120,7 @@ originpath="/home/$local_user/.local/share/Cryptomator/mnt"
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') drivecrypt start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: drivecrypt start..."
 
 case "${1:-}" in
 '--start')
@@ -151,4 +151,4 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') drivecrypt done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: drivecrypt done"

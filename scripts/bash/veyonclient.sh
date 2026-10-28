@@ -95,7 +95,7 @@ while true; do
     break
 done
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') veyonclient start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: veyonclient start..."
 echo "$(date '+%Y-%m-%d %H:%M:%S') Authenticating with Cloudflare Access (a browser window will open)..."
 if ! cloudflared access login "https://$hostname"; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Cloudflare Access authentication failed -abort" >&2
@@ -105,7 +105,7 @@ fi
 echo "$(date '+%Y-%m-%d %H:%M:%S') Starting local proxy on 127.0.0.1:$port ..."
 on_interrupt() {
     echo ""
-    echo "$(date '+%Y-%m-%d %H:%M:%S') veyonclient done at: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: veyonclient done"
     exit 0
 }
 trap on_interrupt INT
@@ -119,4 +119,4 @@ trap - INT
 # END
 # ------------------------------------------------------------------------------
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') veyonclient done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: veyonclient done"

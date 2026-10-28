@@ -149,14 +149,67 @@ arch_check() {
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# check ipv4 interfaces
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if [ -n "$(list_ipv4_ifaces)" ]; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for an interface with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no interface with IPv4 -abort"
+    exit 1
+}
+
+# check internet
+check_internet() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for internet..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no internet connection -abort"
+    exit 1
+}
+
 ensure_prereqs() {
     local missing=()
-    for pkg in curl gnupg jq ca-certificates apt-transport-https iproute2 util-linux; do
+    for pkg in curl gnupg jq ca-certificates apt-transport-https iproute2 util-linux libc-bin; do
         dpkg -s "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
     done
 
     if [ "${#missing[@]}" -gt 0 ]; then
-        log "Installing prerequisites..."
+        log "EVENT: Installing prerequisites..."
         apt-get update -qq >>"$log_file" 2>&1 || {
             err "cannot update package lists -abort"
             exit 1
@@ -178,7 +231,7 @@ ensure_prereqs() {
 # ------------------------------------------------------------------------------
 
 fetch_downloads_json() {
-    log "Fetching official Ubiquiti release catalog..."
+    log "EVENT: Fetching official Ubiquiti release catalog..."
     if ! curl -fsSL "${downloads_api}" -o "${downloads_json}"; then
         err "release catalog download failed -abort"
         exit 1
@@ -223,7 +276,7 @@ ensure_mongodb_repo() {
     if [ -f /etc/apt/sources.list.d/mongodb-org-8.0.list ]; then
         return 0
     fi
-    log "Adding MongoDB 8.0 repository..."
+    log "EVENT: Adding MongoDB 8.0 repository..."
     curl -fsSL https://pgp.mongodb.com/server-8.0.asc | gpg -o /etc/apt/keyrings/mongodb-server-8.0.gpg --dearmor --yes >>"$log_file" 2>&1
     pipe_status=("${PIPESTATUS[@]}")
     if [ "${pipe_status[0]}" -ne 0 ] || [ "${pipe_status[1]}" -ne 0 ]; then
@@ -242,7 +295,7 @@ ensure_adoptium_repo() {
     if [ -f /etc/apt/sources.list.d/adoptium.list ]; then
         return 0
     fi
-    log "Adding Adoptium (Temurin) repository..."
+    log "EVENT: Adding Adoptium (Temurin) repository..."
 
     # Adoptium doesn't always have a suite for a brand-new Ubuntu release
     # yet. Check its dists listing first (same check Glenn's script does)
@@ -302,7 +355,7 @@ install_network() {
         return 1
     fi
 
-    log "Updating apt package lists..."
+    log "EVENT: Updating apt package lists..."
     apt-get update -qq >>"$log_file" 2>&1 || {
         err "cannot update package lists -abort"
         return 1
@@ -321,7 +374,7 @@ install_network() {
         }
     fi
 
-    log "Installing Java runtime (${java_package})..."
+    log "EVENT: Installing Java runtime (${java_package})..."
     if ! DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${java_package}" ca-certificates-java >>"$log_file" 2>&1; then
         err "failed to install ${java_package} -abort"
         return 1
@@ -347,7 +400,7 @@ install_network() {
     # ca-certificates-java can leave a fresh JRE's cacerts keystore empty
     # or half-built (a known Debian/Ubuntu packaging bug), which breaks
     # UniFi's own outbound HTTPS calls. Rebuild it from scratch.
-    log "Refreshing CA certificates for Java..."
+    log "EVENT: Refreshing CA certificates for Java..."
     rm -f /etc/ssl/certs/java/cacerts 2>/dev/null
     if update-ca-certificates -f >>"$log_file" 2>&1; then
         mkdir -p /etc/ssl/certs/java
@@ -361,13 +414,13 @@ install_network() {
     fi
 
     local deb_file="${work_dir}/unifi_${target_version}_all.deb"
-    log "Downloading UniFi Network ${target_version}..."
+    log "EVENT: Downloading UniFi Network ${target_version}..."
     if ! curl -fL --progress-bar -o "${deb_file}" "${target_url}"; then
         err "UniFi Network package download failed -abort"
         return 1
     fi
 
-    log "Installing UniFi Network ${target_version}..."
+    log "EVENT: Installing UniFi Network ${target_version}..."
     if DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' "${deb_file}" >>"$log_file" 2>&1; then
         info "UniFi Network ${target_version} installed"
     else
@@ -493,7 +546,7 @@ action_uninstall_network() {
     systemctl is-active --quiet unifi && was_active="yes"
     systemctl stop unifi 2>/dev/null || true
 
-    log "Purging unifi package..."
+    log "EVENT: Purging unifi package..."
     DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq unifi >>"$log_file" 2>&1 || {
         err "cannot purge unifi package, uninstall aborted -abort"
         if [ "${was_active}" = "yes" ]; then
@@ -505,7 +558,7 @@ action_uninstall_network() {
 
     case "$remove_mongo" in
         [Yy]*)
-            log "Purging MongoDB packages..."
+            log "EVENT: Purging MongoDB packages..."
             if DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq 'mongodb-org*' >>"$log_file" 2>&1; then
                 rm -rf /var/lib/mongodb /etc/mongod.conf* /var/log/mongodb
                 rm -f /etc/apt/sources.list.d/mongodb-org-8.0.list /etc/apt/keyrings/mongodb-server-8.0.gpg
@@ -546,7 +599,7 @@ ensure_osserver_prereqs() {
         dpkg -s "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
     done
     if [ "${#missing[@]}" -gt 0 ]; then
-        log "Installing UniFi OS Server prerequisites..."
+        log "EVENT: Installing UniFi OS Server prerequisites..."
         DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >>"$log_file" 2>&1
     fi
 }
@@ -558,7 +611,7 @@ install_osserver() {
     ensure_osserver_prereqs || return 1
 
     local installer_file="${work_dir}/uosserver-${target_version}"
-    log "Downloading UniFi OS Server ${target_version}..."
+    log "EVENT: Downloading UniFi OS Server ${target_version}..."
     info "This is a large file, it may take a while"
     if ! curl -fL --progress-bar -o "${installer_file}" "${target_url}"; then
         err "UniFi OS Server download failed -abort"
@@ -567,7 +620,7 @@ install_osserver() {
 
     chmod +x "${installer_file}"
 
-    log "Running UniFi OS Server installer..."
+    log "EVENT: Running UniFi OS Server installer..."
     if "${installer_file}" --non-interactive --force-install 200>&- >>"$log_file" 2>&1; then
         info "OS Server ${target_version} installed"
     else
@@ -824,6 +877,8 @@ action_status() {
 
 run_action() {
     if [ "$1" != action_status ]; then
+        check_ipv4_interfaces
+        check_internet
         ensure_prereqs
         fetch_downloads_json
     fi
@@ -875,6 +930,7 @@ case "$action:$component" in
     :|--status:|--help:|-h:) ;;
     --install:network|--install:osserver|--update:network|--update:osserver|--uninstall:network|--uninstall:osserver) ;;
     *)
+        err "invalid option -abort"
         echo "Usage: $0 [--install|--update|--uninstall] {network|osserver}"
         echo "       $0 [--status|--help]"
         exit 1
@@ -888,7 +944,7 @@ if [ "$action" = --help ] || [ "$action" = -h ]; then
 fi
 
 # Start
-log "unifisetup start..."
+log "EVENT: unifisetup start..."
 
 os_check
 arch_check
@@ -904,4 +960,4 @@ case "$action:$component" in
     :) menu || exit 1 ;;
 esac
 
-log "unifisetup done at: $(date '+%Y-%m-%d %H:%M:%S')"
+log "EVENT: unifisetup done"

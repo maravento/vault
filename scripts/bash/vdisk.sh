@@ -253,7 +253,7 @@ mount_img_kpartx() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') vdisk start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: vdisk start..."
 
 # Selection menu
 printf "\n"
@@ -279,4 +279,4 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') vdisk done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: vdisk done"

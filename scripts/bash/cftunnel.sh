@@ -42,7 +42,7 @@ if [ "$(id -u)" == "0" ]; then
 fi
 
 # dependencies
-for dep in cloudflared curl cron procps util-linux; do
+for dep in cloudflared curl cron procps util-linux iproute2; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
@@ -94,6 +94,40 @@ UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
 # ------------------------------------------------------------------------------
 # FUNCTIONS
 # ------------------------------------------------------------------------------
+
+# check ipv4 interfaces
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if [ -n "$(list_ipv4_ifaces)" ]; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for an interface with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no interface with IPv4 -abort"
+    exit 1
+}
 
 is_valid_port() {
     [[ "$1" =~ $UH_UINT ]] && [ "${#1}" -le 5 ] \
@@ -162,7 +196,7 @@ _pid_is_tunnel() {
     local pid="$1" tunnel_name="$2" args=() arg
     [[ -n "$pid" ]] || return 1
     [[ "$(cat "/proc/$pid/comm" 2>/dev/null)" == "cloudflared" ]] || return 1
-    mapfile -d '' -t args < "/proc/$pid/cmdline" 2>/dev/null || return 1
+    { mapfile -d '' -t args < "/proc/$pid/cmdline"; } 2>/dev/null || return 1
     for arg in "${args[@]}"; do
         [[ "$arg" == "$CONFIG_DIR/${tunnel_name}.yml" ]] && return 0
     done
@@ -389,6 +423,7 @@ create_tunnel() {
     echo "======================================"
     echo ""
 
+    check_ipv4_interfaces
     if ! preflight_check; then
         return 1
     fi
@@ -526,6 +561,7 @@ start_multiple_tunnels() {
     echo "============================================"
     echo ""
 
+    check_ipv4_interfaces
     if ! preflight_check; then
         return 1
     fi
@@ -562,6 +598,7 @@ start_multiple_tunnels() {
 }
 
 startall_tunnels() {
+    check_ipv4_interfaces
     if ! preflight_check; then
         return 1
     fi
@@ -620,6 +657,11 @@ delete_tunnel() {
     echo "Cloudflare Tunnel - Delete Tunnel"
     echo "=================================="
     echo ""
+
+    check_ipv4_interfaces
+    if ! preflight_check; then
+        return 1
+    fi
 
     local tunnels=()
     mapfile -t tunnels < <(detect_tunnels | grep -v '^$')
@@ -701,7 +743,7 @@ _cron_remove() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') cftunnel start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: cftunnel start..."
 
 ACTION="${1:-}"
 
@@ -724,7 +766,7 @@ if [[ -z "$ACTION" ]]; then
         4) ACTION="--stop" ;;
         5) ACTION="--status" ;;
         6) ACTION="--delete" ;;
-        0) echo "$(date '+%Y-%m-%d %H:%M:%S') cftunnel done at: $(date '+%Y-%m-%d %H:%M:%S')"
+        0) echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: cftunnel done"
            exit 0 ;;
         *) echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option: $menu_choice -abort"; exit 1 ;;
     esac
@@ -792,4 +834,4 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') cftunnel done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: cftunnel done"

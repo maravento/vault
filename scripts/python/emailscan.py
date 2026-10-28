@@ -90,7 +90,7 @@ def process_page(url, email, session):
     except KeyboardInterrupt:
         raise
     except Exception as e:
-        print(f"  [ERROR] {url} → {e}")
+        print(f"{datetime.now():%Y-%m-%d %H:%M:%S} WARNING: {url} → {e} -alert")
         return False, set()
 
 

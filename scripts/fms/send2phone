@@ -101,7 +101,7 @@ else    send_files=()
         exit "$handler_rc"
     fi
     log "INFO: KDE Connect accepted ${#send_files[@]} files for sending"
-    log "send2phone done at: $(date '+%Y-%m-%d %H:%M:%S')"
+    log "send2phone done"
     exit 0
 fi
 
@@ -143,4 +143,4 @@ done
 
 log "INFO: KDE Connect accepted $sent of $total_files files for sending"
 
-log "send2phone done at: $(date '+%Y-%m-%d %H:%M:%S')"
+log "send2phone done"

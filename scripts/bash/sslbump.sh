@@ -51,7 +51,7 @@ for dep in openssl ca-certificates systemd util-linux; do
 done
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') sslbump start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: sslbump start..."
 
 # ------------------------------------------------------------------------------
 # VARIABLES
@@ -80,7 +80,7 @@ remove_and_install_squid_openssl() {
     read -rp "Confirm Squid purge? (yes/no) [no]: " confirm_purge
     if [[ "$confirm_purge" != "yes" ]]; then
         echo "Purge cancelled"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') sslbump done at: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: sslbump done"
         exit 0
     fi
 
@@ -218,7 +218,7 @@ else
         remove_and_install_squid_openssl
     else
         echo "Aborted by user"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') sslbump done at: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: sslbump done"
         exit 0
     fi
 fi
@@ -237,4 +237,4 @@ echo "ssl_bump bump all"
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') sslbump done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: sslbump done"

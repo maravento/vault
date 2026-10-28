@@ -43,7 +43,7 @@ done
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') ipkill start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: ipkill start..."
 
 sleep_time="10"
 
@@ -89,4 +89,4 @@ echo "IP Kill Done: $(date '+%Y-%m-%d %H:%M:%S')"
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') ipkill done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: ipkill done"

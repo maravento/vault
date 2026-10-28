@@ -937,17 +937,17 @@ main() {
         case "$1" in
             --install)
                 install_module || exit 1
-                echo "$(date '+%Y-%m-%d %H:%M:%S') servicemon done at: $(date '+%Y-%m-%d %H:%M:%S')"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: servicemon done"
                 exit 0
                 ;;
             --uninstall)
                 uninstall_module || exit 1
-                echo "$(date '+%Y-%m-%d %H:%M:%S') servicemon done at: $(date '+%Y-%m-%d %H:%M:%S')"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: servicemon done"
                 exit 0
                 ;;
             -h|--help)
                 show_usage
-                echo "$(date '+%Y-%m-%d %H:%M:%S') servicemon done at: $(date '+%Y-%m-%d %H:%M:%S')"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: servicemon done"
                 exit 0
                 ;;
             *)
@@ -990,7 +990,7 @@ main() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') servicemon start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: servicemon start..."
 
 main "$@" || exit 1
 
@@ -999,4 +999,4 @@ main "$@" || exit 1
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') servicemon done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: servicemon done"

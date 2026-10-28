@@ -127,7 +127,7 @@ status() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') droid2pc start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: droid2pc start..."
 
 case "${1:-}" in
     --start) start ;;
@@ -143,4 +143,4 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') droid2pc done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: droid2pc done"

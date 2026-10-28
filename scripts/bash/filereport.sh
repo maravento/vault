@@ -92,7 +92,7 @@ for dep in findutils util-linux; do
 done
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') filereport start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: filereport start..."
 
 # ------------------------------------------------------------------------------
 # VARIABLES
@@ -236,4 +236,4 @@ echo "Done. Report: $report_file"
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') filereport done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: filereport done"

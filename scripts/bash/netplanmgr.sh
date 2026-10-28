@@ -1138,17 +1138,17 @@ main() {
         case "$1" in
             --install)
                 install_module || exit 1
-                echo "$(date '+%Y-%m-%d %H:%M:%S') netplanmgr done at: $(date '+%Y-%m-%d %H:%M:%S')"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: netplanmgr done"
                 exit 0
                 ;;
             --uninstall)
                 uninstall_module || exit 1
-                echo "$(date '+%Y-%m-%d %H:%M:%S') netplanmgr done at: $(date '+%Y-%m-%d %H:%M:%S')"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: netplanmgr done"
                 exit 0
                 ;;
             -h|--help)
                 show_usage
-                echo "$(date '+%Y-%m-%d %H:%M:%S') netplanmgr done at: $(date '+%Y-%m-%d %H:%M:%S')"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: netplanmgr done"
                 exit 0
                 ;;
             *)
@@ -1198,9 +1198,9 @@ main() {
 }
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') netplanmgr start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: netplanmgr start..."
 
 main "$@" || exit 1
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') netplanmgr done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: netplanmgr done"

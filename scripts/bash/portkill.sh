@@ -49,7 +49,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') Port Kill Starting. Wait..."
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') portkill start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: portkill start..."
 
 # PORT KILL
 # Read the port whose owning processes will be stopped
@@ -94,4 +94,4 @@ fi
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') portkill done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: portkill done"

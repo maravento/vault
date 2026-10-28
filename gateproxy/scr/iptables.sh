@@ -66,7 +66,7 @@ acl_prepare() {
         # Checked before the redirection: noclobber only protects regular
         # files, and opening a FIFO for writing blocks until a reader shows up.
         if [ -L "$acl_file" ] || { [ -e "$acl_file" ] && [ ! -f "$acl_file" ]; }; then
-            log "ERROR: $acl_file is not a regular file -abort"
+            log "ERROR: $(basename "$acl_file") is not a regular file -abort"
             exit 1
         fi
         # noclobber makes the redirection fail when the file already exists,
@@ -81,7 +81,7 @@ acl_prepare() {
         elif [ -f "$acl_file" ] && [ ! -L "$acl_file" ]; then
             acl_fix_perms "$acl_file" "$file_mode"
         else
-            log "ERROR: $acl_file is not a regular file -abort"
+            log "ERROR: $(basename "$acl_file") is not a regular file -abort"
             exit 1
         fi
     done
@@ -97,7 +97,7 @@ acl_fix_perms() {
     [[ "$cur_mode" == "$want_mode" && "$cur_owner" == "root:root" ]] && return 0
     if ! { chmod "$want_mode" -- "$acl_path" \
         && chown root:root -- "$acl_path"; }; then
-        log "ERROR: cannot fix $acl_path perms -abort"
+        log "ERROR: cannot fix $(basename "$acl_path") perms -abort"
         exit 1
     fi
     log "INFO: $acl_path perms fixed -fixed"
@@ -338,7 +338,7 @@ acl_prepare "${ACL_PATH:-/etc/acl}" 755 644
 acl_prepare "$acl_ipt_path" 700 600 "$path_ips" "$path_macs"
 
 # start
-log "iptables start..."
+log "EVENT: iptables start..."
 
 # ------------------------------------------------------------------------------
 # MAC SETS
@@ -837,24 +837,6 @@ for proto_name in tcp udp; do
     iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -p "$proto_name" -m set --match-set blockports dst -j DROP
 done
 
-# SURIDATA
-# Drop traffic to addresses Suricata flagged, and log the attempt
-suridata_file="/etc/suricata/suridata.txt"
-if ! ipset list suridata &>/dev/null; then
-    ipset create suridata hash:ip -exist
-else
-    ipset flush suridata
-fi
-if [ -f "$suridata_file" ]; then
-    for suridata_ip in $(grep -vE '^\s*#|^\s*$' "$suridata_file" | sort -u 2>/dev/null); do
-        [[ "$suridata_ip" =~ $UH_IPV4 ]] && ipset add suridata "$suridata_ip" -exist
-    done
-else
-    log "WARNING: $suridata_file not found -alert"
-fi
-iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set suridata dst -j NFLOG --nflog-prefix "SURIDATA DROP: "
-iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set suridata dst -j DROP
-
 # Block 6to4 (IPv6-in-IPv4 tunneling) - prevents LAN clients from bypassing
 # IPv4-based firewall rules via IPv6 tunnel encapsulation
 iptables -A FORWARD -i "$INTERFACESv4" -p 41 -j DROP
@@ -980,8 +962,7 @@ iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -d 239.255.255.250 -p 
 iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -p tcp -m multiport --dports 2869,8200 -m set --match-set macports src -j ACCEPT
 # IGMP (required for multicast group management)
 iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -p igmp -m set --match-set macports src -j ACCEPT
-# NTP (Time sync against this host, and out to the internet)
-iptables -A INPUT -i "$INTERFACESv4" -p udp --dport 123 -m set --match-set macports src -j ACCEPT
+# NTP (Time sync out to the internet)
 iptables -A FORWARD -i "$INTERFACESv4" -p udp --dport 123 -m set --match-set macports src -j ACCEPT
 
 # ------------------------------------------------------------------------------
@@ -1022,4 +1003,4 @@ iptables -A INPUT -j DROP
 iptables -A FORWARD -m hashlimit --hashlimit-name forward-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip,dstport -j NFLOG --nflog-prefix "FINAL-FORWARD DROP: "
 iptables -A FORWARD -j DROP
 
-log "iptables done at: $(date '+%Y-%m-%d %H:%M:%S')"
+log "EVENT: iptables done"

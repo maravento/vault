@@ -7,6 +7,8 @@ FILE: capturefox/README.md
 
 [![status-beta](https://img.shields.io/badge/status-beta-magenta.svg)](https://github.com/maravento/vault)
 
+<!-- markdownlint-disable MD033 -->
+
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
@@ -20,8 +22,6 @@ FILE: capturefox/README.md
 
 ![capturefox](https://raw.githubusercontent.com/maravento/vault/master/capturefox/img/capturefox.png)
 
-<!-- markdownlint-disable MD033 -->
-
 ## REQUIREMENTS
 
 ---
@@ -33,16 +33,9 @@ FILE: capturefox/README.md
 | System audio | Linux, Python 3, `pactl`, and PulseAudio or a compatible server. Use the included helper. | Linux, Python 3, `pactl` y PulseAudio o un servidor compatible. Utiliza la herramienta incluida. |
 | Development | Node.js 24 or later for tests; Python 3 for packaging and helper tests. | Node.js 24 o posterior para pruebas; Python 3 para empaquetado y pruebas de la herramienta. |
 
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      Screen/camera recording requires neither npm nor Python. The Linux helper is only needed for the virtual system audio input. It does not require sudo or change default audio devices. Other operating systems and full browser/device combinations have not been verified.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      La grabación de pantalla/cámara no requiere npm ni Python. La herramienta Linux solo se necesita para la entrada virtual de audio interno. No necesita sudo ni cambia los dispositivos predeterminados. No se verificaron otros sistemas operativos ni todas las combinaciones de navegador y dispositivos.
-    </td>
-  </tr>
-</table>
+> Screen/camera recording requires neither npm nor Python. The Linux helper is only needed for the virtual system audio input. It does not require sudo or change default audio devices. Other operating systems and full browser/device combinations have not been verified.
+>
+> La grabación de pantalla/cámara no requiere npm ni Python. La herramienta Linux solo se necesita para la entrada virtual de audio interno. No necesita sudo ni cambia los dispositivos predeterminados. No se verificaron otros sistemas operativos ni todas las combinaciones de navegador y dispositivos.
 
 ### Tested environment
 
@@ -126,25 +119,9 @@ FILE: capturefox/README.md
 
 ### System audio limitation
 
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      Firefox exposes no interface for internal audio. <code>getDisplayMedia</code> returns video only, and the <code>desktopCapture</code> and <code>tabCapture</code> extension APIs do not exist in Firefox. Chrome recorders capture internal audio because Chrome does provide those interfaces.<br><br>CaptureFox works around this on Linux. The helper <code>tools/audio-bridge.py</code> creates a virtual input named <code>CaptureFox_System_Audio</code>. Firefox reads that input as one more microphone, so the extension never calls the helper and never talks to Python.<br><br>System audio is therefore an optional extra. The other four combinations of mode and audio work without it.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      Firefox no expone ninguna interfaz para el audio interno. <code>getDisplayMedia</code> devuelve solo vídeo, y las API de extensión <code>desktopCapture</code> y <code>tabCapture</code> no existen en Firefox. Los grabadores de Chrome capturan audio interno porque Chrome sí ofrece esas interfaces.<br><br>CaptureFox lo resuelve en Linux por otra vía. El ayudante <code>tools/audio-bridge.py</code> crea una entrada virtual llamada <code>CaptureFox_System_Audio</code>. Firefox lee esa entrada como un micrófono más, así que la extensión nunca llama al ayudante ni habla con Python.<br><br>El audio del sistema es por eso un extra opcional. Las otras cuatro combinaciones de modo y audio funcionan sin él.
-    </td>
-  </tr>
-</table>
-
-| Mode | Audio | Helper required | Ayudante necesario |
-|---|---|---|---|
-| Screen | No audio | No | No |
-| Screen | Microphone | No | No |
-| Camera | Microphone | No | No |
-| Screen and camera | Microphone | No | No |
-| Any | System audio | Yes | Sí |
-| Any | Microphone and system audio | Yes | Sí |
+| Description | Descripción |
+|---|---|
+| <ul><li>Firefox exposes no interface for internal audio. <code>getDisplayMedia</code> returns video only, and the <code>desktopCapture</code> and <code>tabCapture</code> extension APIs do not exist in Firefox. Chrome recorders capture internal audio because Chrome does provide those interfaces.</li><li>CaptureFox works around this on Linux. The helper <code>tools/audio-bridge.py</code> creates a virtual input named <code>CaptureFox_System_Audio</code>. Firefox reads that input as one more microphone, so the extension never calls the helper and never talks to Python.</li><li>System audio is therefore an optional extra. The other four combinations of mode and audio work without it.</li><li>Helper required by mode and audio selection:<ul><li>Screen; No audio: No.</li><li>Screen; Microphone: No.</li><li>Camera; Microphone: No.</li><li>Screen and camera; Microphone: No.</li><li>Any; System audio: Yes.</li><li>Any; Microphone and system audio: Yes.</li></ul></li></ul> | <ul><li>Firefox no expone ninguna interfaz para el audio interno. <code>getDisplayMedia</code> devuelve solo vídeo, y las API de extensión <code>desktopCapture</code> y <code>tabCapture</code> no existen en Firefox. Los grabadores de Chrome capturan audio interno porque Chrome sí ofrece esas interfaces.</li><li>CaptureFox lo resuelve en Linux por otra vía. El ayudante <code>tools/audio-bridge.py</code> crea una entrada virtual llamada <code>CaptureFox_System_Audio</code>. Firefox lee esa entrada como un micrófono más, así que la extensión nunca llama al ayudante ni habla con Python.</li><li>El audio del sistema es por eso un extra opcional. Las otras cuatro combinaciones de modo y audio funcionan sin él.</li><li>Herramienta necesaria según el modo y el audio seleccionados:<ul><li>Pantalla; Sin audio: No.</li><li>Pantalla; Micrófono: No.</li><li>Cámara; Micrófono: No.</li><li>Pantalla y cámara; Micrófono: No.</li><li>Cualquiera; Audio interno: Sí.</li><li>Cualquiera; Micrófono y audio interno: Sí.</li></ul></li></ul> |
 
 ### Enable system audio
 
@@ -205,16 +182,10 @@ python3 tools/audio-bridge.py --status --json
 
 ### Output devices and runtime state
 
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      The virtual input captures audio reaching the current default output, including other applications. If you switch output devices, run <code>python3 tools/audio-bridge.py --start</code> again and refresh the device list before recording.<br><br>Runtime state is stored under <code>$XDG_RUNTIME_DIR/captura-audio</code>, or <code>/run/user/&lt;uid&gt;/captura-audio</code>. There is no automatic startup service.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      La entrada virtual captura el sonido que llega a la salida predeterminada, incluyendo otras aplicaciones. Si cambias de salida, ejecuta <code>python3 tools/audio-bridge.py --start</code> otra vez y actualiza los dispositivos antes de grabar.<br><br>El estado se guarda en <code>$XDG_RUNTIME_DIR/captura-audio</code> o <code>/run/user/&lt;uid&gt;/captura-audio</code>. No hay servicio de inicio automático.
-    </td>
-  </tr>
-</table>
+| Description | Descripción |
+|---|---|
+| The virtual input captures audio reaching the current default output, including other applications. If you switch output devices, run <code>python3 tools/audio-bridge.py --start</code> again and refresh the device list before recording. | La entrada virtual captura el sonido que llega a la salida predeterminada, incluyendo otras aplicaciones. Si cambias de salida, ejecuta <code>python3 tools/audio-bridge.py --start</code> otra vez y actualiza los dispositivos antes de grabar. |
+| Runtime state is stored under <code>$XDG_RUNTIME_DIR/captura-audio</code>, or <code>/run/user/&lt;uid&gt;/captura-audio</code>. There is no automatic startup service. | El estado se guarda en <code>$XDG_RUNTIME_DIR/captura-audio</code> o <code>/run/user/&lt;uid&gt;/captura-audio</code>. No hay servicio de inicio automático. |
 
 ### Data And Limitations
 
@@ -298,16 +269,10 @@ python3 tools/build.py
 
 ### Design And Compatibility
 
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      CaptureFox is a Firefox extension with its own code, interface, and artwork.<br><br>The extension ID, IndexedDB name, recorder lock, and PulseAudio source/state identifiers retain their original technical names for compatibility. Visible application and virtual input labels are in English. Renaming the application does not automatically migrate data between Firefox profiles or separately loaded temporary add-ons.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      CaptureFox es una extensión para Firefox con código, interfaz y recursos gráficos propios.<br><br>Los identificadores de extensión, IndexedDB, bloqueo y fuente/estado PulseAudio conservan sus nombres técnicos originales por compatibilidad. La aplicación y la entrada virtual muestran etiquetas en inglés. Cambiar el nombre no migra automáticamente los datos entre perfiles Firefox ni complementos temporales cargados por separado.
-    </td>
-  </tr>
-</table>
+| Description | Descripción |
+|---|---|
+| CaptureFox is a Firefox extension with its own code, interface, and artwork. | CaptureFox es una extensión para Firefox con código, interfaz y recursos gráficos propios. |
+| The extension ID, IndexedDB name, recorder lock, and PulseAudio source/state identifiers retain their original technical names for compatibility. Visible application and virtual input labels are in English. Renaming the application does not automatically migrate data between Firefox profiles or separately loaded temporary add-ons. | Los identificadores de extensión, IndexedDB, bloqueo y fuente/estado PulseAudio conservan sus nombres técnicos originales por compatibilidad. La aplicación y la entrada virtual muestran etiquetas en inglés. Cambiar el nombre no migra automáticamente los datos entre perfiles Firefox ni complementos temporales cargados por separado. |
 
 ## NOTICE
 

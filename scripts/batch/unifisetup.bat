@@ -25,8 +25,8 @@ for /f "tokens=*" %%I in ('powershell -Command "Get-Date -Format yyyyMMddHHmmss"
 set "logname=unifi_install_%datetime:~0,8%_%datetime:~8,6%.log"
 set "logfile=%logspath%\%logname%"
 
-> "%logfile%" echo [%date% %time%] unifisetup start...
-echo unifisetup start...
+> "%logfile%" echo [%date% %time%] EVENT: unifisetup start...
+echo EVENT: unifisetup start...
 echo =========================================== >> "%logfile%"
 echo UNIFI INSTALLATION LOG >> "%logfile%"
 echo Started: %date% %time% >> "%logfile%"
@@ -259,8 +259,8 @@ echo Press any key to exit...
 echo.
 echo [%date% %time%] Installation finished successfully >> "%logfile%"
 echo =========================================== >> "%logfile%"
-echo [%date% %time%] unifisetup done at: %date% %time% >> "%logfile%"
-echo unifisetup done at: %date% %time%
+echo [%date% %time%] EVENT: unifisetup done >> "%logfile%"
+echo [%date% %time%] EVENT: unifisetup done
 exit /b 0
 
 :: ===========================================
@@ -715,8 +715,8 @@ if %found_any_folder% equ 0 (
     echo No UniFi installations or folders detected.
     echo Everything is already clean.
     echo.
-    echo [%date% %time%] unifisetup done at: %date% %time% >> "%logfile%"
-    echo unifisetup done at: %date% %time%
+    echo [%date% %time%] EVENT: unifisetup done >> "%logfile%"
+    echo [%date% %time%] EVENT: unifisetup done
     exit /b 0
 )
 
@@ -842,8 +842,8 @@ echo.
 echo IMPORTANT: Please reboot your system to complete the process.
 echo.
 echo [%date% %time%] Removal process completed successfully >> "%logfile%"
-echo [%date% %time%] unifisetup done at: %date% %time% >> "%logfile%"
-echo unifisetup done at: %date% %time%
+echo [%date% %time%] EVENT: unifisetup done >> "%logfile%"
+echo [%date% %time%] EVENT: unifisetup done
 exit /b 0
 
 :: ===========================================
@@ -912,8 +912,8 @@ echo.
 echo Source: %sourcefile%
 echo Destination: %destfile%
 echo.
-echo [%date% %time%] unifisetup done at: %date% %time% >> "%logfile%"
-echo unifisetup done at: %date% %time%
+echo [%date% %time%] EVENT: unifisetup done >> "%logfile%"
+echo [%date% %time%] EVENT: unifisetup done
 exit /b 0
 
 :: ===========================================
@@ -955,6 +955,6 @@ echo.
 echo Reboot to apply changes
 echo You can now access the URL: https://%system_ip%:8443
 echo.
-echo [%date% %time%] unifisetup done at: %date% %time% >> "%logfile%"
-echo unifisetup done at: %date% %time%
+echo [%date% %time%] EVENT: unifisetup done >> "%logfile%"
+echo [%date% %time%] EVENT: unifisetup done
 exit /b 0

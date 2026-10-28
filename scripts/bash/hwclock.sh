@@ -54,7 +54,7 @@ done
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') hwclock start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: hwclock start..."
 
 hwclock -w || echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: hwclock -w failed, VM or container? -alert"
 echo "HWClock Update: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
@@ -64,4 +64,4 @@ echo "HWClock Update: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') hwclock done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: hwclock done"

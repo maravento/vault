@@ -98,7 +98,7 @@ fi
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') vm start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: vm start..."
 
 case "${1:-}" in
 --start)
@@ -122,7 +122,7 @@ case "${1:-}" in
 --status)
     echo -n "VM->"
     sudo -H -u "$local_user" VBoxManage showvminfo "$vm_name" --machinereadable | grep 'VMState=' | cut -d '=' -f2
-    echo "$(date '+%Y-%m-%d %H:%M:%S') vm done at: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: vm done"
     exit 0
     ;;
 *)
@@ -136,6 +136,6 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') vm done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: vm done"
 
 exit 0

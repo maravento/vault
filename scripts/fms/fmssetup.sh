@@ -425,13 +425,13 @@ show_menu() {
 # ACTIONS
 # ------------------------------------------------------------------------------
 
-log "fmssetup start..."
+log "EVENT: fmssetup start..."
 case "${1:-}" in
     --install) do_install ;;
     --uninstall) do_uninstall ;;
     "") show_menu ;;
     *)
-        err "unknown option $1 -abort"
+        err "invalid option -abort"
         echo "Usage: bash fmssetup.sh [--install|--uninstall]"
         exit 1
         ;;
@@ -441,4 +441,4 @@ esac
 # END
 # ------------------------------------------------------------------------------
 
-log "fmssetup done at: $(date '+%Y-%m-%d %H:%M:%S')"
+log "EVENT: fmssetup done"

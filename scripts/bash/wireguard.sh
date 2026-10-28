@@ -48,7 +48,7 @@ done
 # validation -- integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') wireguard start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: wireguard start..."
 
 # ------------------------------------------------------------------------------
 # FUNCTIONS
@@ -297,4 +297,4 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') wireguard done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: wireguard done"

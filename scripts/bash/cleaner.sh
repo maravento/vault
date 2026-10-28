@@ -60,7 +60,7 @@ done
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') cleaner start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: cleaner start..."
 
 start=$(date +%s)
 
@@ -86,4 +86,4 @@ echo "Cleaner: $(date +"%a %d %b %Y %H:%M:%S") - Files deleted: ${deleted_count}
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') cleaner done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: cleaner done"

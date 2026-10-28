@@ -92,7 +92,7 @@ uh_fits() {
 daemon_alive() {
     local pid="$1" args=() self i
     [ -n "$pid" ] || return 1
-    mapfile -d '' -t args < "/proc/$pid/cmdline" 2>/dev/null || return 1
+    { mapfile -d '' -t args < "/proc/$pid/cmdline"; } 2>/dev/null || return 1
     self="$(basename -- "$0")"
     case "$(basename -- "${args[0]:-}")" in
         "$self") i=0 ;;
@@ -325,17 +325,17 @@ start() {
         log "WARNING: no operational interface -alert"
     fi
 
-    log "INFO: Interfaces : $LAN_IFACES"
-    log "INFO: Interval : ${LAN_POLL_INTERVAL}s"
+    log "INFO: Interfaces: $LAN_IFACES"
+    log "INFO: Interval: ${LAN_POLL_INTERVAL}s"
     log "INFO: Offline grace: ${LAN_OFFLINE_GRACE} polls"
-    log "INFO: Database : $db_file"
+    log "INFO: Database: $db_file"
 
     rm -f "$pid_file"
     (
         exec 200>&-
         echo "$BASHPID" > "$pid_file"
         while true; do
-            log "nwatchlan cycle start..."
+            log "EVENT: nwatchlan cycle start..."
             run_scan
             sleep "$LAN_POLL_INTERVAL"
         done
@@ -353,7 +353,7 @@ start() {
 # STOP
 # Stop the recorded daemon process
 stop() {
-    log "Stopping nwatchlan..."
+    log "EVENT: Stopping nwatchlan..."
     if [ -f "$pid_file" ]; then
         local daemon_pid
         daemon_pid=$(cat "$pid_file")
@@ -380,15 +380,15 @@ stop() {
 # STATUS
 # Report the current daemon or installation state
 status() {
-    log "nwatchlan status..."
+    log "EVENT: nwatchlan status..."
     if [ -f "$pid_file" ] && daemon_alive "$(cat "$pid_file")"; then
         log "INFO: nwatchlan is RUNNING (PID $(cat "$pid_file"))"
-        log "INFO: Interfaces : ${LAN_IFACES:-unset}"
-        log "INFO: Interval : ${LAN_POLL_INTERVAL:-60}s"
+        log "INFO: Interfaces: ${LAN_IFACES:-unset}"
+        log "INFO: Interval: ${LAN_POLL_INTERVAL:-60}s"
         if [ -f "$db_file" ]; then
             local counts
             counts=$(sqlite3 "$db_file" "SELECT status, COUNT(*) FROM devices GROUP BY status;" 2>/dev/null)
-            log "INFO: Devices :"
+            log "INFO: Devices:"
             echo "$counts" | sed 's/^/ /' | tee -a "$log_file"
         fi
     else
@@ -478,7 +478,7 @@ fi
 # ACTIONS
 # ------------------------------------------------------------------------------
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') nwatchlan start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: nwatchlan start..."
 case "${1:-}" in
     --start) start ;;
     --stop) stop ;;
@@ -490,4 +490,4 @@ esac || exit 1
 # END
 # ------------------------------------------------------------------------------
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') nwatchlan done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: nwatchlan done"

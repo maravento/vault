@@ -60,7 +60,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') TRIM Start. Wait..."
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') trim start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: trim start..."
 
 # Execute TRIM
 # -a: all mounted filesystems on devices that support TRIM
@@ -76,4 +76,4 @@ echo "TRIM Finished"
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') trim done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: trim done"

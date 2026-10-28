@@ -120,37 +120,71 @@ notify_send() {
     fi
 }
 
-log "bwmon start..."
+log "EVENT: bwmon start..."
 
 # dependencies
-for dep in speedtest-cli libnotify-bin systemd util-linux; do
+for dep in speedtest-cli libnotify-bin systemd util-linux iproute2 libc-bin; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
 
-# check internet
-check_internet() {
-    local max_attempts="${1:-24}" attempt=1
+# check ipv4 interfaces
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
 
     while (( attempt <= max_attempts )); do
-        if getent hosts www.google.com >/dev/null 2>&1; then
-            log "INFO: internet is available"
+        if [ -n "$(list_ipv4_ifaces)" ]; then
             return 0
         fi
-        log "INFO: waiting for internet ($attempt/$max_attempts)"
+        if (( attempt == 1 )); then
+            log "INFO: waiting for an interface with IPv4..."
+        fi
         attempt=$((attempt + 1))
         sleep 5
     done
 
-    return 1
+    log "ERROR: no interface with IPv4 -abort"
+    exit 1
 }
 
-if ! check_internet; then
+# check internet
+check_internet() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for internet..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
     log "ERROR: no internet connection -abort"
     exit 1
-fi
+}
+
+check_ipv4_interfaces
+check_internet
 
 # ------------------------------------------------------------------------------
 # VARIABLES
@@ -167,7 +201,7 @@ ulmin="1.00"
 # ------------------------------------------------------------------------------
 
 # Measure the current download and upload speeds
-log "Running speedtest (this may take ~30s)..."
+log "EVENT: Running speedtest (this may take ~30s)..."
 resume=$(speedtest-cli --secure --simple 2>&1)
 
 if ! echo "$resume" | grep -q "^Download:"; then
@@ -229,5 +263,5 @@ log "Full result: $resume"
 # END
 # ------------------------------------------------------------------------------
 
-log "bwmon done at: $(date '+%Y-%m-%d %H:%M:%S')"
+log "EVENT: bwmon done"
 exit "$below_threshold"

@@ -389,7 +389,7 @@ switch_to_networkd() {
 
         if [ "$confirm" != "I UNDERSTAND" ]; then
             echo "Aborted. Good choice!"
-            echo "$(date '+%Y-%m-%d %H:%M:%S') npswitch done at: $(date '+%Y-%m-%d %H:%M:%S')"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: npswitch done"
             exit 0
         fi
     fi
@@ -427,7 +427,7 @@ switch_to_networkd() {
 
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
         echo "Aborted."
-        echo "$(date '+%Y-%m-%d %H:%M:%S') npswitch done at: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: npswitch done"
         exit 0
     fi
 
@@ -513,7 +513,7 @@ switch_to_nm() {
 
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
         echo "Aborted."
-        echo "$(date '+%Y-%m-%d %H:%M:%S') npswitch done at: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: npswitch done"
         exit 0
     fi
 
@@ -734,7 +734,7 @@ show_menu() {
 case "${1:-}" in
     -h|--help) show_help; exit 0 ;;
 esac
-echo "$(date '+%Y-%m-%d %H:%M:%S') npswitch start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: npswitch start..."
 if [ $# -eq 0 ]; then
     show_menu || exit 1
 else
@@ -764,4 +764,4 @@ fi
 # END
 # ------------------------------------------------------------------------------
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') npswitch done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: npswitch done"

@@ -57,7 +57,7 @@ live_pids() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') pskill start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: pskill start..."
 
 # KILL PROCESS
 # Read the process name to stop
@@ -100,4 +100,4 @@ fi
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') pskill done at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: pskill done"

@@ -52,41 +52,12 @@ log() {
     echo "$msg" >> "$log_file" 2>/dev/null || true
     if [[ "$1" == ERROR:* ]]; then echo "$msg" >&2; else echo "$msg"; fi
 }
+info() { log "INFO: $*"; }
+warn() { log "WARNING: $*"; }
+err()  { log "ERROR: $*"; }
 touch "$log_file"
 chmod 640 "$log_file"
 chown root:root "$log_file"
-
-# ------------------------------------------------------------------------------
-# FUNCTIONS
-# ------------------------------------------------------------------------------
-
-# conflicting packages
-check_conflicts() {
-    local role="$1"; shift
-    local found=()
-    for dep_pkg in "$@"; do
-        if dpkg-query -W -f='${Status}' "$dep_pkg" 2>/dev/null | grep -q "ok installed"; then
-            found+=("$dep_pkg")
-        fi
-    done
-    if [ "${#found[@]}" -gt 0 ]; then
-        for dep_pkg in "${found[@]}"; do
-            log "WARNING: conflicting $role: $dep_pkg -alert"
-        done
-        log "ERROR: remove them with apt purge -abort"
-        exit 1
-    fi
-}
-
-# port in use
-check_port() {
-    local proto="$1" port="$2" role="$3"
-    if [ -n "$(ss -lnH "-${proto,,}" "sport = :$port" 2>/dev/null)" ]; then
-        log "ERROR: ${proto^^} port $port in use by another $role"
-        log "ERROR: stop that service before installing -abort"
-        exit 1
-    fi
-}
 
 # ------------------------------------------------------------------------------
 # VARIABLES
@@ -128,7 +99,7 @@ check_repo() {
 check_repo
 
 # dependencies
-for dep in systemd apache2 libapache2-mod-php php-cli php-sqlite3 arp-scan sqlite3 nmap iproute2 logrotate cron procps coreutils findutils util-linux; do
+for dep in systemd apache2 libapache2-mod-php php-cli php-sqlite3 arp-scan sqlite3 nmap iproute2 logrotate cron procps coreutils findutils util-linux python3 zip; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: '$dep' is not installed -abort"
         exit 1
@@ -147,6 +118,457 @@ UH_UINT='^(0|[1-9][0-9]*)$'
 
 candidate_names=()
 candidate_addrs=()
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
+# UPDATE CHECKS
+update_error() {
+    if declare -F err >/dev/null; then
+        err "$* -abort"
+    else
+        log "ERROR: $* -abort"
+    fi
+    exit 1
+}
+
+update_reset() {
+    update_cron_file="$1"
+    update_files=()
+    update_jobs=()
+    update_services=()
+    update_stopped_services=()
+    update_daemons=()
+    update_copying=0
+    update_cron_paused=0
+    update_cron_existed=0
+    update_cron_already_paused=0
+}
+
+update_file() {
+    update_files+=("$1" "$2" "$3" "$4")
+    case "$2" in *.sh|*.py|*.pl) update_jobs+=("$2") ;; esac
+}
+
+update_target() {
+    update_files+=("" "$1" "${2:-644}" "${3:-root:root}")
+}
+
+update_preflight() {
+    command -v python3 >/dev/null 2>&1 || update_error "python3 is required for update checks"
+    local check_message
+    if check_message=$(python3 - "${update_files[@]}" <<'UPDATE_PY'
+import array, errno, fcntl, os, stat, sys, tempfile
+items = [sys.argv[i:i + 4] for i in range(1, len(sys.argv), 4)]
+space, probes = {}, set()
+def fail(message):
+    print(message)
+    raise SystemExit(1)
+def flags(path):
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+        try:
+            value = array.array('L', [0])
+            try:
+                fcntl.ioctl(fd, 0x80086601, value, True)
+            except OSError as exc:
+                if exc.errno not in (errno.ENOTTY, errno.EOPNOTSUPP, errno.EINVAL):
+                    raise
+            else:
+                if value[0] & 0x30:
+                    protection = []
+                    if value[0] & 0x10:
+                        protection.append('immutable')
+                    if value[0] & 0x20:
+                        protection.append('append-only')
+                    fail(os.path.basename(path) + ' is ' + ' and '.join(protection))
+        finally:
+            os.close(fd)
+    except OSError as exc:
+        fail(exc.strerror.lower() + ': ' + os.path.basename(path))
+for source, target, mode, owner in items:
+    if source:
+        try:
+            st = os.lstat(source)
+            if not stat.S_ISREG(st.st_mode):
+                fail('source is not a file: ' + os.path.basename(source))
+            with open(source, 'rb') as stream:
+                stream.read(1)
+        except OSError as exc:
+            fail('cannot read source: ' + os.path.basename(source))
+for source, target, mode, owner in items:
+    target = os.path.abspath(target)
+    directory = mode.startswith('d')
+    try:
+        parent = target if directory else os.path.dirname(target)
+        if os.path.lexists(target):
+            st = os.lstat(target)
+            if (directory and not stat.S_ISDIR(st.st_mode)) or (not directory and not stat.S_ISREG(st.st_mode)):
+                fail(('dst is not a folder: ' if directory else 'dst is not a file: ') + os.path.basename(target))
+            flags(target)
+            if not directory:
+                fd = os.open(target, os.O_WRONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                finally:
+                    os.close(fd)
+        while not os.path.exists(parent):
+            if os.path.lexists(parent):
+                fail('folder is a symbolic link: ' + parent)
+            parent = os.path.dirname(parent)
+        if not os.path.isdir(parent):
+            fail('not a folder: ' + parent)
+        current = parent
+        while current != '/':
+            if os.path.islink(current):
+                fail('folder is a symbolic link: ' + current)
+            flags(current)
+            current = os.path.dirname(current)
+        fs = os.statvfs(parent)
+        if fs.f_flag & os.ST_RDONLY:
+            fail('filesystem is read-only: ' + parent)
+        if parent not in probes:
+            fd, probe = tempfile.mkstemp(prefix='update-check-', dir=parent)
+            try:
+                os.write(fd, b'update check\n')
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+                os.unlink(probe)
+            probes.add(parent)
+        device = os.stat(parent).st_dev
+        required = os.stat(source).st_size if source else 4096
+        needed, available, label = space.get(device, (0, fs.f_bavail * fs.f_frsize, parent))
+        space[device] = (needed + required + 4096, available, label)
+        if fs.f_favail == 0:
+            fail('no free inodes for dst: ' + os.path.basename(target))
+    except OSError as exc:
+        fail('cannot write dst: ' + os.path.basename(target))
+for needed, available, label in space.values():
+    if available < needed:
+        fail('not enough space to update: ' + label)
+UPDATE_PY
+    ); then
+        :
+    else
+        update_error "$check_message"
+    fi
+}
+
+update_backup() {
+    [ -f "$1" ] && [ -r "$1" ] || update_error "backup script not readable: $(basename "$1")"
+    bash "$1" || update_error "backup failed: $(basename "$1")"
+}
+
+update_begin() {
+    export UPDATE_CRON_OWNER="$$"
+    trap 'update_cleanup "$?"' EXIT
+    local disabled="${update_cron_file}.update-disabled"
+    [ ! -L "${update_cron_file}.lock" ] || update_error "invalid cron lock: $update_cron_file"
+    (umask 077; : >> "${update_cron_file}.lock") || update_error "cannot open cron lock: $update_cron_file"
+    exec 203>"${update_cron_file}.lock" || update_error "cannot open cron lock: $update_cron_file"
+    flock -n 203 || update_error "cron file is being changed: $(basename "$update_cron_file")"
+    if [ -e "$disabled" ] || [ -L "$disabled" ]; then
+        [ -f "$disabled" ] && [ ! -L "$disabled" ] || update_error "invalid paused cron: $(basename "$disabled")"
+        [ ! -e "$update_cron_file" ] || update_error "both active and paused cron exist: $(basename "$update_cron_file")"
+        update_cron_already_paused=1
+        update_cron_paused=1
+    elif [ -e "$update_cron_file" ]; then
+        mv -T -- "$update_cron_file" "$disabled" || update_error "cannot pause cron: $update_cron_file"
+        update_cron_existed=1
+        update_cron_paused=1
+    else
+        (umask 077; set -C; : > "$disabled") || update_error "cannot pause cron: $update_cron_file"
+        update_cron_paused=1
+    fi
+    exec 203>&-
+}
+
+update_pids() {
+    python3 - "$1" <<'UPDATE_PIDS'
+import os, sys
+wanted = os.path.realpath(sys.argv[1])
+for entry in os.scandir('/proc'):
+    if not entry.name.isdigit() or int(entry.name) == os.getpid():
+        continue
+    try:
+        with open(entry.path + '/cmdline', 'rb') as stream:
+            args = [os.fsdecode(value) for value in stream.read().split(b'\0') if value]
+        if args and any(os.path.realpath(value) == wanted for value in args if value.startswith('/')):
+            print(entry.name)
+    except (OSError, ValueError):
+        continue
+UPDATE_PIDS
+}
+
+update_wait() {
+    local script="$1" pids attempt
+    for attempt in {1..30}; do
+        pids=$(update_pids "$script") || update_error "cannot inspect processes: $(basename "$script")"
+        [ -z "$pids" ] && return 0
+        sleep 1
+    done
+    update_error "process still running: $(basename "$script")"
+}
+
+update_stop_daemon() {
+    local script="$1" pids
+    pids=$(update_pids "$script") || update_error "cannot inspect processes: $script"
+    if [ -n "$pids" ]; then
+        update_daemons+=("$script")
+        bash "$script" --stop || update_error "cannot stop daemon: $script"
+        update_wait "$script"
+    fi
+}
+
+update_stop_service() {
+    local unit="$1" state load_state
+    load_state=$(systemctl show -p LoadState --value "$unit") || update_error "cannot inspect service: $unit"
+    [ "$load_state" != not-found ] || return 0
+    state=$(systemctl show -p ActiveState --value "$unit") || update_error "cannot inspect service: $unit"
+    case "$state" in
+        active|reloading|activating|deactivating) update_services+=("$unit") ;;
+        inactive|failed) ;;
+        *) update_error "unexpected service state: $unit ($state)" ;;
+    esac
+    update_stopped_services+=("$unit")
+    systemctl stop "$unit" || update_error "cannot stop service: $unit"
+    state=$(systemctl show -p ActiveState --value "$unit") || update_error "cannot inspect stopped: $unit"
+    [ "$state" = inactive ] || {
+        log "ERROR: $unit state: $state"
+        update_error "$unit did not stop"
+    }
+}
+
+update_wait_jobs() {
+    local script unit state
+    for script in "${update_jobs[@]}"; do
+        update_wait "$script"
+    done
+    for unit in "${update_stopped_services[@]}"; do
+        state=$(systemctl show -p ActiveState --value "$unit") || update_error "cannot inspect stopped: $unit"
+        [ "$state" = inactive ] || update_error "service restarted in update: $unit"
+    done
+}
+
+update_apply() {
+    update_preflight
+    update_copying=1
+    local i source target mode owner
+    for ((i=0; i<${#update_files[@]}; i+=4)); do
+        source="${update_files[i]}"
+        target="${update_files[i+1]}"
+        mode="${update_files[i+2]}"
+        owner="${update_files[i+3]}"
+        if [[ "$mode" == d* ]]; then
+            install -d -m "${mode#d}" -o "${owner%:*}" -g "${owner#*:}" -- "$target" \
+                || update_error "cannot prepare directory: $target"
+            continue
+        fi
+        if [ -z "$source" ]; then
+            if [ ! -d "$(dirname "$target")" ]; then
+                install -d -m 755 -o root -g root -- "$(dirname "$target")" \
+                    || update_error "cannot prepare destination parent: $(basename "$target")"
+            fi
+            continue
+        fi
+        install -D -m "$mode" -o "${owner%:*}" -g "${owner#*:}" -- "$source" "$target" \
+            || update_error "cannot replace file: $(basename "$target")"
+        cmp -s -- "$source" "$target" || {
+            local compared_file
+            compared_file=$(basename "$target")
+            if (( ${#compared_file} <= 19 )); then
+                update_error "src and dst do not match: $compared_file"
+            fi
+            log "ERROR: src and dst: $compared_file"
+            update_error "src and dst do not match"
+        }
+        info "updated $(basename "$target")"
+    done
+}
+
+update_resume() {
+    local unit script state
+    for unit in "${update_services[@]}"; do
+        systemctl start "$unit" || update_error "cannot start service: $unit"
+        state=$(systemctl show -p ActiveState --value "$unit") || update_error "cannot inspect started: $unit"
+        [ "$state" = active ] || {
+            log "ERROR: $unit state: $state"
+            update_error "$unit did not start"
+        }
+    done
+    for script in "${update_daemons[@]}"; do
+        bash "$script" --start || update_error "cannot start daemon: $script"
+        [ -n "$(update_pids "$script")" ] || update_error "daemon did not start: $script"
+    done
+}
+
+update_finish() {
+    update_resume
+    rm -f -- "${update_cron_file}.update-disabled" || update_error "cannot finish cron update: $(basename "$update_cron_file")"
+    trap - EXIT
+    unset UPDATE_CRON_OWNER
+}
+
+update_cleanup() {
+    local status="$1" unit script
+    trap - EXIT
+    if (( update_copying == 0 )); then
+        for unit in "${update_services[@]}"; do
+            systemctl start "$unit" || warn "cannot resume $unit -alert"
+        done
+        for script in "${update_daemons[@]}"; do
+            bash "$script" --start || warn "cannot resume $(basename "$script") -alert"
+        done
+        if (( update_cron_paused && ! update_cron_already_paused )); then
+            if (( update_cron_existed )); then
+                mv -T -- "${update_cron_file}.update-disabled" "$update_cron_file" \
+                    || warn "cannot restore paused cron -alert"
+            else
+                rm -f -- "${update_cron_file}.update-disabled" || warn "cannot clear paused cron -alert"
+            fi
+        fi
+    else
+        if rm -f -- "$update_cron_file"; then
+            warn "update failed; cron remains disabled -alert"
+        else
+            warn "cannot keep project cron paused -alert"
+        fi
+        for unit in "${update_services[@]}"; do
+            systemctl stop "$unit" || warn "cannot keep $unit stopped -alert"
+        done
+        for script in "${update_daemons[@]}"; do
+            bash "$script" --stop || warn "cannot keep $(basename "$script") stopped -alert"
+        done
+    fi
+    (( status != 0 )) || status=1
+    exit "$status"
+}
+
+# conflicting packages
+check_conflicts() {
+    local role="$1"; shift
+    local found=()
+    for dep_pkg in "$@"; do
+        if dpkg-query -W -f='${Status}' "$dep_pkg" 2>/dev/null | grep -q "ok installed"; then
+            found+=("$dep_pkg")
+        fi
+    done
+    if [ "${#found[@]}" -gt 0 ]; then
+        for dep_pkg in "${found[@]}"; do
+            log "WARNING: conflicting $role: $dep_pkg -alert"
+        done
+        log "ERROR: remove them with apt purge -abort"
+        exit 1
+    fi
+}
+
+# port in use
+check_port() {
+    local proto="$1" port="$2" role="$3"
+    if [ -n "$(ss -lnH "-${proto,,}" "sport = :$port" 2>/dev/null)" ]; then
+        log "ERROR: ${proto^^} port $port in use by another $role"
+        log "ERROR: stop that service before installing -abort"
+        exit 1
+    fi
+}
+
+# LAN SELECTION
+# Select an existing interface and one of its configured IPv4 addresses
+choose_lan_interface() {
+    local preset_iface="${1:-}" excluded_iface="${2:-}"
+    local iface_name iface_choice iface_index iface_addrs
+    local -a lan_candidates=()
+    if [ -n "$preset_iface" ]; then
+        ip link show dev "$preset_iface" >/dev/null 2>&1 || {
+            log "ERROR: LAN interface '$preset_iface' not found -abort"
+            exit 1
+        }
+        [ "$preset_iface" != "$excluded_iface" ] || {
+            log "ERROR: LAN and WAN must differ -abort"
+            exit 1
+        }
+        lan_iface_answer="$preset_iface"
+        return 0
+    fi
+    while IFS= read -r iface_name; do
+        [ "$iface_name" = "$excluded_iface" ] && continue
+        lan_candidates+=("$iface_name")
+    done < <(ip -br link show | awk '$1 != "lo" {sub(/@.*/, "", $1); print $1}')
+    (( ${#lan_candidates[@]} > 0 )) || {
+        log "ERROR: no LAN interface available -abort"
+        exit 1
+    }
+    if (( ${#lan_candidates[@]} == 1 )); then
+        lan_iface_answer="${lan_candidates[0]}"
+        return 0
+    fi
+    echo "Available LAN interfaces:"
+    for iface_index in "${!lan_candidates[@]}"; do
+        iface_name="${lan_candidates[$iface_index]}"
+        iface_addrs=$(ip -4 -o addr show dev "$iface_name" scope global | awk '{print $4}' | paste -sd' ')
+        printf ' [%d] %s (%s)\n' "$((iface_index + 1))" "$iface_name" "${iface_addrs:-no IPv4}"
+    done
+    while true; do
+        read -r -p "Select LAN interface number: " iface_choice || {
+            log "ERROR: cannot read LAN interface selection -abort"
+            exit 1
+        }
+        if [[ "$iface_choice" =~ $UH_UINT ]] && [ "${#iface_choice}" -le 5 ] \
+           && [ "$iface_choice" -ge 1 ] && [ "$iface_choice" -le "${#lan_candidates[@]}" ]; then
+            lan_iface_answer="${lan_candidates[$((iface_choice - 1))]}"
+            return 0
+        fi
+        log "INFO: invalid LAN interface selection -retry"
+    done
+}
+
+read_lan_ipv4() {
+    local selected_iface="$1" preset_ip="${2:-}" ipv4_choice ipv4_index candidate_cidr
+    local -a lan_addresses=()
+    mapfile -t lan_addresses < <(ip -4 -o addr show dev "$selected_iface" scope global | awk '{print $4}')
+    (( ${#lan_addresses[@]} > 0 )) || {
+        log "ERROR: LAN '$selected_iface' has no IPv4 address -abort"
+        exit 1
+    }
+    for candidate_cidr in "${lan_addresses[@]}"; do
+        [[ "$candidate_cidr" =~ $UH_CIDR ]] || {
+            log "ERROR: LAN '$selected_iface' has invalid IPv4/prefix -abort"
+            exit 1
+        }
+    done
+    if [ -n "$preset_ip" ]; then
+        for candidate_cidr in "${lan_addresses[@]}"; do
+            if [ "${candidate_cidr%/*}" = "$preset_ip" ]; then
+                lan_cidr_answer="$candidate_cidr"
+                return 0
+            fi
+        done
+        log "ERROR: requested IPv4 is not configured on LAN -abort"
+        exit 1
+    fi
+    if (( ${#lan_addresses[@]} == 1 )); then
+        lan_cidr_answer="${lan_addresses[0]}"
+        return 0
+    fi
+    echo "IPv4 addresses on LAN '$selected_iface':"
+    for ipv4_index in "${!lan_addresses[@]}"; do
+        printf ' [%d] %s\n' "$((ipv4_index + 1))" "${lan_addresses[$ipv4_index]}"
+    done
+    while true; do
+        read -r -p "Select LAN IPv4 number: " ipv4_choice || {
+            log "ERROR: cannot read LAN IPv4 selection -abort"
+            exit 1
+        }
+        if [[ "$ipv4_choice" =~ $UH_UINT ]] && [ "${#ipv4_choice}" -le 5 ] \
+           && [ "$ipv4_choice" -ge 1 ] && [ "$ipv4_choice" -le "${#lan_addresses[@]}" ]; then
+            lan_cidr_answer="${lan_addresses[$((ipv4_choice - 1))]}"
+            return 0
+        fi
+        log "INFO: invalid LAN IPv4 selection -retry"
+    done
+}
+
 list_candidate_interfaces() {
     candidate_names=()
     candidate_addrs=()
@@ -225,30 +647,11 @@ compute_network_cidr() {
 # management interface, kept separate from the (possibly multiple) scan
 # interfaces so the panel is never accidentally exposed over a WAN NIC.
 select_management_interface() {
-    echo ""
-    echo "Select management interface web panel will trust for access control"
-    echo "This should be your LAN/admin interface -- never select a WAN interface here"
-    print_candidate_interfaces
-    echo ""
-    while true; do
-        read -rp "Select management interface number (default: 1): " idx
-        idx="${idx:-1}"
-        if ! [[ "$idx" =~ $UH_UINT ]] || [ "${#idx}" -gt 5 ] \
-           || [ "$idx" -lt 1 ] || [ "$idx" -gt "${#candidate_names[@]}" ]; then
-            log "INFO: invalid selection -retry"
-            continue
-        fi
-        mgmt_answer="${candidate_names[$((idx - 1))]}"
-        break
-    done
-    local ip_with_prefix
-    ip_with_prefix=$(ip -4 addr show dev "$mgmt_answer" scope global | sed -n 's/.*inet \([0-9.]\{1,\}\/[0-9]\{1,\}\).*/\1/p' | head -n1)
-    if ! [[ "$ip_with_prefix" =~ $UH_CIDR ]]; then
-        log "ERROR: no valid IPv4/CIDR on '$mgmt_answer' -abort"
-        exit 1
-    fi
-    net_cidr_value=$(compute_network_cidr "$ip_with_prefix")
-    detected_ip=$(ip -4 addr show dev "$mgmt_answer" scope global | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
+    choose_lan_interface
+    mgmt_answer="$lan_iface_answer"
+    read_lan_ipv4 "$mgmt_answer"
+    net_cidr_value=$(compute_network_cidr "$lan_cidr_answer")
+    detected_ip="${lan_cidr_answer%/*}"
     echo "Management interface : $mgmt_answer"
     echo "Network : $net_cidr_value"
     echo "Server IP : $detected_ip"
@@ -350,41 +753,59 @@ check_already_installed() {
     fi
 }
 
-# CRON_D
-# Add or replace one line in the project's single cron.d file
-cron_d_set() {
-    local match="$1" line="$2"
+# CRON FILE
+# Publish the complete project schedule after preparing it successfully.
+cron_d_write() (
     local cron_file="/etc/cron.d/nwatch"
     local cron_tmp
 
-    cron_tmp=$(mktemp) || return 1
-    if [ -f "$cron_file" ]; then
-        grep -vF "$match" "$cron_file" > "$cron_tmp" || {
-            [ "$?" -eq 1 ] || { rm -f "$cron_tmp"; return 1; }
-        }
+    [ "$#" -gt 0 ] || return 1
+    [ ! -L "${cron_file}.lock" ] || return 1
+    (umask 077; : >> "${cron_file}.lock") || return 1
+    exec 201>"${cron_file}.lock" || return 1
+    flock -x 201 || return 1
+    if [ -e "${cron_file}.update-disabled" ] && [ "${UPDATE_CRON_OWNER:-}" != "$$" ]; then
+        return 1
     fi
-    if [ -n "$line" ]; then
-        printf '%s\n' "$line" >> "$cron_tmp" || {
-            rm -f "$cron_tmp"
-            return 1
-        }
-    fi
-    if [ -s "$cron_tmp" ]; then
-        if ! install -m 644 -o root -g root "$cron_tmp" "$cron_file"; then
-            rm -f "$cron_tmp"
-            return 1
-        fi
-    else
-        rm -f "$cron_file"
-    fi
-    rm -f "$cron_tmp"
-}
+    [ ! -L "$cron_file" ] || return 1
+    [ ! -e "$cron_file" ] || [ -f "$cron_file" ] || return 1
+
+    cron_tmp=$(mktemp "${cron_file}.XXXXXX") || return 1
+    trap 'rm -f -- "$cron_tmp"' EXIT
+    {
+        printf '%s\n' '# Managed by the project installer; manual changes are replaced.'
+        printf '%s\n' 'SHELL=/bin/bash' 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+        printf '%s\n' "$@"
+    } > "$cron_tmp" || return 1
+    chmod 644 "$cron_tmp" && chown root:root "$cron_tmp" || return 1
+    mv -fT -- "$cron_tmp" "$cron_file" || return 1
+)
 
 # add one @reboot cron entry per daemon, so a failure in one never keeps
 # the other from starting
 add_reboot_cron() {
-    cron_d_set "$nwatch_tools/nwatchlan.sh" "@reboot root $nwatch_tools/nwatchlan.sh --start" || return 1
-    cron_d_set "$nwatch_tools/nwatchports.sh" "@reboot root $nwatch_tools/nwatchports.sh --start" || return 1
+    cron_d_write \
+        "@reboot root $nwatch_tools/nwatchlan.sh --start" \
+        "@reboot root $nwatch_tools/nwatchports.sh --start" \
+        "@monthly root $nwatch_tools/nwatchbk.sh"
+}
+
+# APACHE LOGROTATE
+# Apache keeps 14 rotations by default; the projects keep 7
+set_apache_logrotate() {
+    local apache_rotate="/etc/logrotate.d/apache2"
+    [ -f "$apache_rotate" ] || { log "WARNING: apache2 has no logrotate file -alert"; return 0; }
+    if grep -qE '^[[:space:]]*rotate[[:space:]]+7$' "$apache_rotate"; then
+        log "INFO: ${apache_rotate#/etc/} already rotate 7 -skip"
+        return 0
+    fi
+    cp -f "$apache_rotate"{,.bak} &>/dev/null || true
+    sed -i -E 's/^([[:space:]]*)rotate[[:space:]]+[0-9]+$/\1rotate 7/' "$apache_rotate"
+    if grep -qE '^[[:space:]]*rotate[[:space:]]+7$' "$apache_rotate"; then
+        log "INFO: ${apache_rotate#/etc/} set to rotate 7 -fixed"
+    else
+        log "WARNING: cannot set rotate 7 in ${apache_rotate#/etc/} -alert"
+    fi
 }
 
 install_project_logrotate() {
@@ -410,6 +831,7 @@ EOF
     chown root:root "$rotate_file" || return 1
     chmod 644 "$rotate_file" || return 1
     log "INFO: updated $rotate_file"
+    set_apache_logrotate
 }
 
 do_install() {
@@ -511,7 +933,10 @@ PMODE
     cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
     sed -i "/^Listen .*:${vhost_port}\$/d" /etc/apache2/ports.conf
     printf 'Listen 127.0.0.1:%s\n' "$vhost_port" | tee -a /etc/apache2/ports.conf
-    cp -f "$web_dir/nwatch.conf" /etc/apache2/sites-available/nwatch.conf
+    cp -f "$web_dir/nwatch.conf" /etc/apache2/sites-available/nwatch.conf || {
+        log "ERROR: cannot deploy nwatch.conf -abort"
+        exit 1
+    }
     a2ensite -q nwatch.conf
 
     systemctl daemon-reload
@@ -550,6 +975,9 @@ PURGE_CLOSED_AFTER_HOURS=6
 # Database
 # Changing these defaults is not recommended
 NWATCH_DB_TIMEOUT_MS=5000
+
+# Backup
+BACKUP_DIR=/etc/bak/nwatch
 # =============================================================================
 ENV
     chown root:www-data "$nwatch_env"
@@ -587,102 +1015,38 @@ ENV
 
 # Refresh the installed application files
 do_update() {
-    local update_failed=0
-    local -a update_failures=()
-
-    if [ ! -f "$nwatch_env" ]; then
-        log "ERROR: nwatch is not installed -abort"
-        exit 1
-    fi
-
+    [ -f "$nwatch_env" ] || { log "ERROR: nwatch is not installed -abort"; exit 1; }
+    update_reset /etc/cron.d/nwatch
+    local file mode
+    for file in index.php lan.html nwatchapi.php ports.html; do
+        update_file "$web_dir/$file" "$nwatch_web/$file" 755 www-data:www-data
+    done
+    for file in nwatchenv.sh nwatchlan.sh nwatchports.sh nwatchbk.sh; do
+        mode=755
+        [ "$file" != nwatchenv.sh ] || mode=644
+        update_file "$tools_dir/$file" "$nwatch_tools/$file" "$mode" root:root
+    done
+    update_target "$nwatch_data" d775 www-data:www-data
+    update_target "$db_file" 640 root:www-data
+    update_target /var/log/nwatch.log 640
+    update_target /etc/logrotate.d/nwatch
+    update_target "$update_cron_file"
+    update_target "${update_cron_file}.lock" 600
+    update_preflight
+    update_backup "$tools_dir/nwatchbk.sh"
+    update_begin
+    update_stop_daemon "$nwatch_tools/nwatchlan.sh"
+    update_stop_daemon "$nwatch_tools/nwatchports.sh"
+    update_stop_service apache2
+    update_wait_jobs
+    update_apply
     if [ -f "$db_file" ]; then
-        if ! chown root:www-data "$db_file"; then
-            log "WARNING: cannot set owner and group on $(basename "$db_file") -alert"
-            update_failed=1
-            update_failures+=("cannot set owner and group on $(basename "$db_file")")
-        fi
-        if ! chmod 640 "$db_file"; then
-            log "WARNING: cannot set permissions on $(basename "$db_file") -alert"
-            update_failed=1
-            update_failures+=("cannot set permissions on $(basename "$db_file")")
-        fi
+        chown root:www-data "$db_file" && chmod 640 "$db_file" || update_error "cannot set database permissions"
     fi
-
-    "$nwatch_tools/nwatchlan.sh" --stop 2>/dev/null || true
-    "$nwatch_tools/nwatchports.sh" --stop 2>/dev/null || true
-
-    # web files (application code only -- nwatch.conf is never overwritten,
-    # it may contain manual edits after install)
-    for src in "$web_dir"/*.php "$web_dir"/*.html; do
-        [ -f "$src" ] || continue
-        fname="$(basename "$src")"
-        if cp -f "$src" "$nwatch_web/$fname" \
-            && chown www-data:www-data "$nwatch_web/$fname"; then
-            log "INFO: updated $fname"
-        else
-            log "WARNING: cannot update $fname -alert"
-            update_failed=1
-            update_failures+=("cannot update $fname")
-        fi
-    done
-    if ! chown -R www-data:www-data "$nwatch_web"; then
-        log "WARNING: cannot set nwatch web owner and group -alert"
-        update_failed=1
-        update_failures+=("cannot set nwatch web owner and group")
-    fi
-
-    if ! install -m 644 -o root -g root "$tools_dir/nwatchenv.sh" "$nwatch_tools/nwatchenv.sh"; then
-        log "ERROR: cannot deploy nwatchenv.sh -abort"
-        exit 1
-    fi
-    log "INFO: updated nwatchenv.sh"
-
-    for f in "$tools_dir"/*.sh; do
-        [ -f "$f" ] || continue
-        [ "$(basename "$f")" = nwatchenv.sh ] && continue
-        fname="$(basename "$f")"
-        if cp -f "$f" "$nwatch_tools/$fname" \
-            && chmod +x "$nwatch_tools/$fname"; then
-            log "INFO: updated $fname"
-        else
-            log "WARNING: cannot update $fname -alert"
-            update_failed=1
-            update_failures+=("cannot update $fname")
-        fi
-    done
-
-    if ! install_project_logrotate; then
-        log "WARNING: cannot configure nwatch log rotation -alert"
-        update_failed=1
-        update_failures+=("cannot configure nwatch log rotation")
-    fi
-
-    if ! "$nwatch_tools/nwatchlan.sh" --start; then
-        log "WARNING: cannot start nwatchlan.sh -alert"
-        update_failed=1
-        update_failures+=("cannot start nwatchlan.sh")
-    fi
-    if ! "$nwatch_tools/nwatchports.sh" --start; then
-        log "WARNING: cannot start nwatchports.sh -alert"
-        update_failed=1
-        update_failures+=("cannot start nwatchports.sh")
-    fi
-    if ! add_reboot_cron; then
-        log "WARNING: cannot write /etc/cron.d/nwatch -alert"
-        update_failed=1
-        update_failures+=("cannot write /etc/cron.d/nwatch")
-    fi
-
-    if ! systemctl restart apache2; then
-        log "WARNING: cannot restart apache2 -alert"
-        update_failed=1
-        update_failures+=("cannot restart apache2")
-    fi
-
-    if [ "$update_failed" -ne 0 ]; then
-        log "ERROR: ${#update_failures[@]} update step(s) failed -abort"
-        return 1
-    fi
+    install_project_logrotate || update_error "cannot configure nwatch log rotation"
+    add_reboot_cron || update_error "cannot regenerate nwatch cron"
+    update_finish
+    log "INFO: nwatch updated"
 }
 
 # ------------------------------------------------------------------------------
@@ -701,6 +1065,18 @@ do_uninstall() {
         esac
     fi
 
+    if [ -x "$nwatch_tools/nwatchbk.sh" ]; then
+        if "$nwatch_tools/nwatchbk.sh"; then
+            log "INFO: backup taken with nwatchbk.sh"
+        else
+            log "ERROR: nwatchbk.sh: backup failed -abort"
+            exit 1
+        fi
+    else
+        log "ERROR: nwatchbk.sh: missing or not executable -abort"
+        exit 1
+    fi
+
     "$nwatch_tools/nwatchlan.sh" --stop 2>/dev/null || true
     "$nwatch_tools/nwatchports.sh" --stop 2>/dev/null || true
 
@@ -716,7 +1092,7 @@ do_uninstall() {
     rm -rf "$nwatch_www"
     rm -rf "$nwatch_etc"
 
-    rm -f /etc/cron.d/nwatch
+    rm -f /etc/cron.d/nwatch /etc/cron.d/nwatch.update-disabled
 
     systemctl daemon-reload
     systemctl restart apache2 || {
@@ -734,7 +1110,7 @@ do_uninstall() {
 daemon_alive() {
     local pid="$1" self="$2" args=() i
     [ -n "$pid" ] || return 1
-    mapfile -d '' -t args < "/proc/$pid/cmdline" 2>/dev/null || return 1
+    { mapfile -d '' -t args < "/proc/$pid/cmdline"; } 2>/dev/null || return 1
     case "$(basename -- "${args[0]:-}")" in
         "$self") i=0 ;;
         bash|sh) i=1 ;;
@@ -820,7 +1196,7 @@ show_menu() {
             3) do_uninstall; break ;;
             4) do_status; break ;;
             5)
-                log "nwatchsetup done at: $(date '+%Y-%m-%d %H:%M:%S')"
+                log "EVENT: nwatchsetup done"
                 exit 0
                 ;;
             *) log "INFO: invalid option -retry" ;;
@@ -833,7 +1209,7 @@ show_menu() {
 # ------------------------------------------------------------------------------
 
 # Dispatch the requested command to its action
-log "nwatchsetup start..."
+log "EVENT: nwatchsetup start..."
 case "${1:-}" in
     --install) do_install ;;
     --update) do_update || exit 1 ;;
@@ -841,6 +1217,7 @@ case "${1:-}" in
     --status) do_status ;;
     "") show_menu ;;
     *)
+        log "ERROR: invalid option -abort"
         echo "Usage: $(basename "$0") [--install|--update|--uninstall|--status]"
         exit 1
         ;;
@@ -850,4 +1227,4 @@ esac
 # END
 # ------------------------------------------------------------------------------
 
-log "nwatchsetup done at: $(date '+%Y-%m-%d %H:%M:%S')"
+log "EVENT: nwatchsetup done"
