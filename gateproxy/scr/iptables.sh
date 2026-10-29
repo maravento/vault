@@ -116,7 +116,7 @@ if ! flock -n 200; then
 fi
 
 # dependencies
-for dep_pkg in iptables ipset arptables ebtables kmod procps util-linux ulogd2 coreutils grep; do
+for dep_pkg in iptables ipset arptables ebtables kmod procps util-linux ulogd2 coreutils grep iproute2; do
     if ! dpkg -s "$dep_pkg" &>/dev/null; then
         log "ERROR: dependency '$dep_pkg' is not installed -abort"
         exit 1
@@ -140,14 +140,14 @@ UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5
 # ENV
 # ------------------------------------------------------------------------------
 
-# Network config -- pydhcp.env holds pydhcp's own values and is read here;
-# gateproxy never writes into it. The proxy ports are gateproxy's own and
-# live in OWN VALUES below.
+# Network configuration is read from its owner: DHCP from pydhcp,
+# WAN from gateproxy, and proxy ports from proxymon when installed.
 
 # PERMS
 # Owner and mode of every .env this script reads
 pydhcp_env="/etc/pydhcp/pydhcp.env"
-env_specs=("$pydhcp_env root:pydhcpd 640")
+gateproxy_env="/etc/gateproxy/gateproxy.env"
+env_specs=("$pydhcp_env root:pydhcpd 640" "$gateproxy_env root:root 640")
 for env_spec in "${env_specs[@]}"; do
     read -r env_path env_owner_want env_perms_want <<< "$env_spec"
     if [ ! -f "$env_path" ]; then
@@ -173,7 +173,7 @@ unset env_owner env_perms
 # LOAD_CONF
 # Read known key=value pairs from a config file, without sourcing it
 load_conf() {
-    local conf_file="$1" env_key env_value env_line
+    local conf_file="$1" conf_keys="$2" env_key env_value env_line
     while IFS= read -r env_line || [[ -n "$env_line" ]]; do
         [[ "$env_line" =~ ^[[:space:]]*[#] ]] && continue
         [[ "$env_line" =~ ^[[:space:]]*$ ]] && continue
@@ -187,7 +187,9 @@ load_conf() {
         fi
         case "$env_key" in
             INTERFACESv4|SERVER_IP|SERV_SUBNET|SERV_MASK|SERV_DNS|ACL_PATH|WAN_IFACE|WPAD_PORT|SQUID_MGR_PORT|SQUID_INTERCEPT_PORT)
-                printf -v "$env_key" '%s' "$env_value"
+                case "|$conf_keys|" in
+                    *"|$env_key|"*) printf -v "$env_key" '%s' "$env_value" ;;
+                esac
                 ;;
             *)
                 ;;
@@ -197,12 +199,13 @@ load_conf() {
 
 # LOAD
 # Reads pydhcp.env; a missing key is handled by the check below
-load_conf "$pydhcp_env" || true
+load_conf "$pydhcp_env" 'INTERFACESv4|SERVER_IP|SERV_SUBNET|SERV_MASK|SERV_DNS|ACL_PATH|WPAD_PORT' || true
+load_conf "$gateproxy_env" 'WAN_IFACE' || true
 
 # KEY CHECK
 # Collect every failure first, then decide -- a single abort reports them all
 key_errors=()
-for env_key in WAN_IFACE INTERFACESv4 ACL_PATH; do
+for env_key in INTERFACESv4 ACL_PATH; do
     if ! grep -q "^${env_key}=" "$pydhcp_env"; then
         key_errors+=("$env_key missing line")
     elif [[ -z "${!env_key:-}" ]]; then
@@ -250,6 +253,54 @@ if (( ${#key_errors[@]} > 0 )); then
 fi
 unset key_errors key_error env_key
 
+key_errors=()
+if ! grep -q '^WAN_IFACE=' "$gateproxy_env"; then
+    key_errors+=("WAN_IFACE missing line")
+elif [ -z "${WAN_IFACE:-}" ]; then
+    key_errors+=("WAN_IFACE not set")
+fi
+if (( ${#key_errors[@]} > 0 )); then
+    for key_error in "${key_errors[@]}"; do
+        log "WARNING: $key_error -alert"
+    done
+    log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$gateproxy_env") -abort"
+    exit 1
+fi
+unset key_errors key_error
+
+# KEY GUARD
+if [ "$WAN_IFACE" = "$INTERFACESv4" ]; then
+    log "ERROR: WAN and LAN must differ -abort"
+    exit 1
+fi
+
+check_network_interfaces() {
+    local attempt=1 max_attempts=24 iface state ready
+    while (( attempt <= max_attempts )); do
+        ready=true
+        for iface in "$WAN_IFACE" "$INTERFACESv4"; do
+            state=$(ip -br link show "$iface" 2>/dev/null | awk '{print $2}')
+            if [ "$state" != UP ] || [ -d "/sys/class/net/$iface/wireless" ]; then
+                ready=false
+                continue
+            fi
+            if ! ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+                | awk '$4 != "" {found=1} END {exit !found}'; then
+                ready=false
+            fi
+        done
+        [ "$ready" = true ] && return 0
+        if (( attempt == 1 )); then
+            log "INFO: waiting for WAN and LAN with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+    log "ERROR: WAN and LAN with IPv4 are required -abort"
+    return 1
+}
+check_network_interfaces || exit 1
+
 # interfaces
 wan_iface="$WAN_IFACE"
 # LAN SERV_SUBNET/NETMASK (CIDR prefix derived from pydhcp's own SERV_MASK,
@@ -279,7 +330,7 @@ if [ -e "$proxymon_env" ]; then
     fi
     if ! squid_ports=$(
         unset SQUID_MGR_PORT SQUID_INTERCEPT_PORT
-        load_conf "$proxymon_env" >/dev/null || exit 1
+        load_conf "$proxymon_env" 'SQUID_MGR_PORT|SQUID_INTERCEPT_PORT' >/dev/null || exit 1
         printf '%s|%s' "${SQUID_MGR_PORT:-}" "${SQUID_INTERCEPT_PORT:-}"
     ); then
         log "ERROR: cannot read ports from proxymon.env -abort"

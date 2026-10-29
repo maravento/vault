@@ -220,9 +220,9 @@ load_suridata_env "$suridata_env" "$env_keys" || true
 # KEY CHECK
 # Collect every failure first, then decide -- a single abort reports them all
 key_errors=()
-if ! grep -q "^WAN_IFACE=" "$suridata_env"; then
-    key_errors+=("WAN_IFACE missing line")
-elif [[ -z "${WAN_IFACE:-}" ]]; then
+# WAN_IFACE is optional: an absent line means a single LAN with no WAN to
+# exclude. A present line must carry a value
+if grep -q "^WAN_IFACE=" "$suridata_env" && [[ -z "${WAN_IFACE:-}" ]]; then
     key_errors+=("WAN_IFACE not set")
 fi
 if ! grep -q "^INTERFACESv4=" "$suridata_env"; then
@@ -267,11 +267,14 @@ for f in "$rules_file" "$eve_log"; do
 done
 
 # EXCLUSION NETWORKS
-# Use the configured LAN mask and current WAN IPv4 prefixes
-mapfile -t wan_cidrs < <(ip -4 -o addr show dev "$WAN_IFACE" scope global 2>/dev/null | awk '{print $4}')
-if (( ${#wan_cidrs[@]} == 0 )); then
-    log "ERROR: WAN_IFACE in $(basename "$suridata_env") has no IPv4 address -abort"
-    exit 1
+# Use the configured LAN mask and, when a WAN exists, its current IPv4 prefixes
+wan_cidrs=()
+if [[ -n "${WAN_IFACE:-}" ]]; then
+    mapfile -t wan_cidrs < <(ip -4 -o addr show dev "$WAN_IFACE" scope global 2>/dev/null | awk '{print $4}')
+    if (( ${#wan_cidrs[@]} == 0 )); then
+        log "ERROR: WAN_IFACE in $(basename "$suridata_env") has no IPv4 address -abort"
+        exit 1
+    fi
 fi
 local_ranges=$(python3 -c '
 import ipaddress, json, sys

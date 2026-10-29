@@ -126,11 +126,20 @@ check_internet
 # MAIN
 # ------------------------------------------------------------------------------
 
-ffsfile="FreeFileSync.tar.gz"
-ffsrun="FreeFileSync.run"
+ffs_work_dir=$(mktemp -d) || {
+    log "ERROR: cannot create temporary directory -abort"
+    exit 1
+}
+trap 'rm -rf -- "$ffs_work_dir"' EXIT
+cd "$ffs_work_dir" || {
+    log "ERROR: cannot enter temporary directory -abort"
+    exit 1
+}
+ffsfile="$ffs_work_dir/FreeFileSync.tar.gz"
+ffsrun="$ffs_work_dir/FreeFileSync.run"
 url="https://www.freefilesync.org/download.php"
 
-trap 'rm -f "$ffsfile" "$ffsrun"; log "ERROR: aborted, temporary files cleaned up -abort"; exit 1' ERR INT TERM
+trap 'log "ERROR: FreeFileSync installation failed -abort"; exit 1' ERR INT TERM
 
 link=$(wget -q "$url" -O - | grep -Pio '/download/[^"]+Linux[^"]+gz') || true
 if [ -z "$link" ]; then
@@ -150,7 +159,7 @@ if ! wget -qO "$ffsfile" "https://www.freefilesync.org$link" \
     rm -f "$ffsfile"
     exit 1
 fi
-log "SAVED: $ffsfile"
+log "SAVED: $(basename "$ffsfile")"
 
 if ! tar xf "$ffsfile" >/dev/null 2>&1; then
     log "ERROR: extraction failed; archive may be corrupt -abort"
@@ -168,14 +177,55 @@ fi
 mv "$extracted" "$ffsrun"
 chmod +x "$ffsrun"
 
-/usr/bin/expect <<'EOF'
+/usr/bin/expect -f /dev/stdin "$ffsrun" "$log_file" <<'EOF'
+proc installer_error {message} {
+    set line "[clock format [clock seconds] -format {%Y-%m-%d %H:%M:%S}] ERROR: $message -abort"
+    puts stderr $line
+    set output [open [lindex $::argv 1] a]
+    puts $output $line
+    close $output
+    exit 1
+}
 set timeout 120
 log_user 0
-spawn ./FreeFileSync.run --accept-license
+spawn [lindex $argv 0]
 log_user 1
-expect -exact "to begin installation:"
-send -- "y\r"
-expect eof
+expect {
+    -re {Accept[^\r\n]*license[^\r\n]*\[y/n/s\]} {
+        send -- "y\r"
+    }
+    timeout {
+        installer_error "license prompt timed out"
+    }
+    eof {
+        installer_error "installer exited before license prompt"
+    }
+}
+expect {
+    -exact "to begin installation:" {
+        send -- "\r"
+    }
+    timeout {
+        installer_error "installation prompt timed out"
+    }
+    eof {
+        installer_error "installer exited before installation"
+    }
+}
+expect {
+    eof {}
+    timeout {
+        installer_error "installation timed out"
+    }
+}
+set result [wait]
+if {[lindex $result 2] != 0 || [llength $result] > 4} {
+    installer_error "cannot read installer exit status"
+}
+if {[lindex $result 3] != 0} {
+    installer_error "installer failed with code [lindex $result 3]"
+}
+exit 0
 EOF
 
 rm -f "$ffsfile" "$ffsrun"

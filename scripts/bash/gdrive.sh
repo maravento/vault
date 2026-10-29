@@ -89,9 +89,7 @@ if ! local_user=$(detect_local_user); then
     exit 1
 fi
 
-echo "Using local user: $local_user"
-
-echo "$(date '+%Y-%m-%d %H:%M:%S') Gdrive Starting. Wait..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: using local user: $local_user"
 
 # ------------------------------------------------------------------------------
 # VARIABLES
@@ -116,14 +114,14 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: gdrive start..."
 
 case "${1:-}" in
 --start)
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Mount Google Drive..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: mounting Google Drive..."
     if mountpoint -q "$GD"; then
-        echo "$GD is already mounted"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Google Drive already mounted -skip"
         echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: gdrive done"
         exit 0
     fi
     if ! google-drive-ocamlfuse "$GD"; then
-        echo "Failed to mount Google Drive"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot mount Google Drive -abort" >&2
         exit 1
     fi
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Google Drive mounted"
@@ -131,14 +129,14 @@ case "${1:-}" in
     exit 0
     ;;
 --stop)
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Umount Google Drive..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: unmounting Google Drive..."
     if ! mountpoint -q "$GD"; then
-        echo "$GD is not mounted"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Google Drive not mounted -skip"
         echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: gdrive done"
         exit 0
     fi
     if ! fusermount -u "$GD"; then
-        echo "Failed to unmount Google Drive"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot unmount Google Drive -abort" >&2
         exit 1
     fi
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Google Drive unmounted"

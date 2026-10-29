@@ -79,35 +79,71 @@ min_minor="04"
 # PLATFORM
 # ------------------------------------------------------------------------------
 
+select_lan_interface() {
+    local -a ifaces
+    local i choice addrs
+    mapfile -t ifaces < <(list_ipv4_ifaces)
+    if [ "${#ifaces[@]}" -eq 0 ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no active interface with global IPv4 -abort" >&2
+        return 1
+    fi
+    if [ "${#ifaces[@]}" -eq 1 ]; then
+        lan_iface_answer="${ifaces[0]}"
+        return 0
+    fi
+    echo "Available LAN interfaces:" >&2
+    for i in "${!ifaces[@]}"; do
+        addrs=$(ip -4 -o addr show dev "${ifaces[$i]}" scope global | awk '{print $4}' | paste -sd' ')
+        printf ' [%d] %s (UP, %s)\n' "$((i+1))" "${ifaces[$i]}" "$addrs" >&2
+    done
+    while true; do
+        read -r -p "Select LAN Interface [1-${#ifaces[@]}]: " choice || {
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot read LAN selection -abort" >&2
+            return 1
+        }
+        if [[ "$choice" =~ $UH_UINT ]] && [ "${#choice}" -le 5 ] \
+            && [ "$choice" -ge 1 ] && [ "$choice" -le "${#ifaces[@]}" ]; then
+            lan_iface_answer="${ifaces[$((choice-1))]}"
+            return 0
+        fi
+        echo "INFO: invalid selection -retry" >&2
+    done
+}
+
+select_lan_address() {
+    local iface="$1" choice i
+    local -a addresses
+    mapfile -t addresses < <(ip -4 -o addr show dev "$iface" scope global | awk '{print $4}')
+    if [ "${#addresses[@]}" -eq 0 ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: LAN has no global IPv4 -abort" >&2
+        return 1
+    fi
+    if [ "${#addresses[@]}" -eq 1 ]; then
+        lan_cidr_answer="${addresses[0]}"
+        return 0
+    fi
+    echo "Available LAN IPv4 addresses:" >&2
+    for i in "${!addresses[@]}"; do
+        printf ' [%d] %s\n' "$((i+1))" "${addresses[$i]}" >&2
+    done
+    while true; do
+        read -r -p "Select LAN IPv4 [1-${#addresses[@]}]: " choice || {
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot read IPv4 selection -abort" >&2
+            return 1
+        }
+        if [[ "$choice" =~ $UH_UINT ]] && [ "${#choice}" -le 5 ] \
+            && [ "$choice" -ge 1 ] && [ "$choice" -le "${#addresses[@]}" ]; then
+            lan_cidr_answer="${addresses[$((choice-1))]}"
+            return 0
+        fi
+        echo "INFO: invalid selection -retry" >&2
+    done
+}
+
 get_server_address() {
-    local iface_list addr iface lan_choice i
-    mapfile -t iface_list < <(ip -4 -o addr show 2>/dev/null | awk '$2 != "lo" {print $2}' | sort -u)
-    if [ "${#iface_list[@]}" -le 1 ]; then
-        iface="${iface_list[0]:-}"
-    else
-        echo "Available network interfaces:" >&2
-        for i in "${!iface_list[@]}"; do
-            addr="$(ip -4 -o addr show dev "${iface_list[$i]}" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)"
-            printf " [%d] %s (%s)\n" "$((i+1))" "${iface_list[$i]}" "${addr:-no IPv4}" >&2
-        done
-        echo "" >&2
-        while true; do
-            read -rp " Select LAN interface number [1-${#iface_list[@]}] [Default: 1]: " lan_choice
-            lan_choice="${lan_choice:-1}"
-            if [[ "$lan_choice" =~ $UH_UINT ]] && [ "$lan_choice" -ge 1 ] && [ "$lan_choice" -le "${#iface_list[@]}" ]; then
-                break
-            fi
-            echo " Invalid selection, try again." >&2
-        done
-        iface="${iface_list[$((lan_choice-1))]}"
-    fi
-    if [ -n "$iface" ]; then
-        addr="$(ip -4 -o addr show dev "$iface" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)"
-    fi
-    if [ -z "${addr:-}" ]; then
-        addr="$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if ($i=="src") print $(i+1)}')"
-    fi
-    echo "${addr:-localhost}"
+    select_lan_interface || return 1
+    select_lan_address "$lan_iface_answer" || return 1
+    printf '%s\n' "${lan_cidr_answer%/*}"
 }
 
 os_check() {
@@ -451,7 +487,9 @@ action_install_network() {
     fi
     if install_network "${latest_network_version}" "${latest_network_url}"; then
         echo ""
-        info "UniFi Network URL: https://$(get_server_address):8443"
+        local server_address
+        server_address=$(get_server_address) || return 1
+        info "UniFi Network URL: https://${server_address}:8443"
     else
         return 1
     fi
@@ -651,7 +689,9 @@ action_install_osserver() {
     fi
     if install_osserver "${latest_osserver_version}" "${latest_osserver_url}"; then
         echo ""
-        info "UniFi OS Server URL: https://$(get_server_address):11443"
+        local server_address
+        server_address=$(get_server_address) || return 1
+        info "UniFi OS Server URL: https://${server_address}:11443"
     else
         return 1
     fi
@@ -921,7 +961,7 @@ menu() {
 }
 
 # ------------------------------------------------------------------------------
-# MAIN
+# ACTIONS
 # ------------------------------------------------------------------------------
 
 action="${1:-}"

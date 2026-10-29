@@ -31,18 +31,6 @@
 set -uo pipefail
 
 # ------------------------------------------------------------------------------
-# VARIABLES
-# ------------------------------------------------------------------------------
-
-display_num=":0"
-xauth_path="/var/run/lightdm/root/:0"
-vnc_passwd="/root/.vnc/passwd"
-vnc_port="5900"
-service_name="x11vnc"
-service_file="/etc/systemd/system/${service_name}.service"
-x11vnc_log_file="/var/log/x11vnc.log"
-
-# ------------------------------------------------------------------------------
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
@@ -79,12 +67,77 @@ log() {
 }
 
 # dependencies
-for dep in iproute2 util-linux; do
+for dep in iproute2 util-linux systemd coreutils grep apt libc-bin; do
     if ! dpkg -s "$dep" &>/dev/null; then
         log "ERROR: dependency '$dep' is not installed -abort"
         exit 1
     fi
 done
+
+# check ipv4 interfaces
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if [ -n "$(list_ipv4_ifaces)" ]; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for an interface with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no interface with IPv4 -abort"
+    exit 1
+}
+
+# check internet
+check_internet() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for internet..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no internet connection -abort"
+    exit 1
+}
+
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
+
+display_num=":0"
+xauth_path="/var/run/lightdm/root/:0"
+vnc_passwd="/root/.vnc/passwd"
+vnc_port="5900"
+service_name="x11vnc"
+service_file="/etc/systemd/system/${service_name}.service"
+x11vnc_log_file="/var/log/x11vnc.log"
 
 # ------------------------------------------------------------------------------
 # FUNCTIONS
@@ -107,7 +160,7 @@ verify_running() {
         exit 1
     fi
 
-    log "$service_name is active and listening on port ${vnc_port}"
+    log "INFO: $service_name active; port ${vnc_port} listening"
 }
 
 verify_removed() {
@@ -117,15 +170,17 @@ verify_removed() {
     fi
 
     if [ -f "$service_file" ]; then
-        log "ERROR: $service_file still exists -abort"
+        log "ERROR: $(basename "$service_file") still exists -abort"
         exit 1
     fi
 
-    log "$service_name uninstalled"
+    log "INFO: $service_name uninstalled"
 }
 
 do_install() {
     if ! command -v x11vnc >/dev/null 2>&1; then
+        check_ipv4_interfaces
+        check_internet
         if ! apt_out=$(apt update 2>&1); then
             log "ERROR: apt update failed -abort"
             echo "$apt_out"
@@ -196,7 +251,7 @@ do_start() {
     check_password_exists
     systemctl start "$service_name"
 
-    log "Service started"
+    log "INFO: $service_name started"
 
     do_status
 }
@@ -204,13 +259,13 @@ do_start() {
 do_stop() {
     systemctl stop "$service_name"
 
-    log "Service stopped"
+    log "INFO: $service_name stopped"
 }
 
 do_restart() {
     systemctl restart "$service_name"
 
-    log "Service restarted"
+    log "INFO: $service_name restarted"
 
     do_status
 }
@@ -219,15 +274,15 @@ do_status() {
     if systemctl is-active --quiet "$service_name"; then
         local pid
         pid=$(systemctl show -p MainPID --value "$service_name")
-        echo "[UP] $service_name (PID $pid)"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [UP] $service_name (PID $pid)"
     else
-        echo "[DOWN] $service_name"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [DOWN] $service_name"
     fi
 
     if ss -tlnp | grep -q ":${vnc_port} "; then
-        echo "[UP] port ${vnc_port} listening"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [UP] port ${vnc_port} listening"
     else
-        echo "[DOWN] port ${vnc_port} not listening"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [DOWN] port ${vnc_port} not listening"
     fi
 }
 
@@ -258,7 +313,7 @@ menu() {
         5) do_restart ;;
         6) do_status ;;
         0) ;;
-        *) echo "Invalid option"; exit 1 ;;
+        *) log "ERROR: invalid option -abort"; exit 1 ;;
     esac
 }
 

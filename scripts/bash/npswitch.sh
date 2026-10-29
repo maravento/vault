@@ -74,6 +74,12 @@ nm_file="$netplan_dir/99-networkmanager.yaml"
 # FUNCTIONS
 # ------------------------------------------------------------------------------
 
+# IFACES
+# List network interfaces other than loopback
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
 # Detect current renderer
 detect_current_renderer() {
     local renderer="unknown" value
@@ -137,7 +143,7 @@ detect_and_classify_interfaces() {
         [[ "$iface" == "lo" ]] && continue
         [[ "$link_state" != "UP" ]] && continue
 
-        ip_addr=$(ip -4 addr show "$iface" 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+        ip_addr=$(ip -4 addr show dev "$iface" scope global 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
         type=$(classify_interface "$iface")
 
         if [[ -z "$ip_addr" ]]; then
@@ -171,7 +177,7 @@ detect_and_classify_interfaces() {
         printf "${color}${icon} %-18s${color_reset} [%-10s] %-14s %s\n" \
             "$iface" "$type" "$state_display" "$ip_addr" >&2
 
-    done < <(ip -br link show | grep -v "^lo")
+    done < <(list_ifaces)
 
     echo "" >&2
 
@@ -249,13 +255,13 @@ get_networkd_interfaces() {
         if [[ "$type" == "ethernet" && "$state" == "UP" ]]; then
             result+=("$iface")
         fi
-    done < <(ip -br link show | grep -v "^lo")
+    done < <(list_ifaces)
 }
 
 # Get interface IP info
 get_interface_info() {
     local iface="$1"
-    local ip_addr=$(ip -4 addr show "$iface" 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+    local ip_addr=$(ip -4 addr show dev "$iface" scope global 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
     local has_dhcp="unknown"
 
     if [ -n "$ip_addr" ]; then

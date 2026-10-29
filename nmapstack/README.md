@@ -224,6 +224,8 @@ Package: Nscan
 
 ### REQUIREMENTS
 
+#### Compatibility
+
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
@@ -234,6 +236,8 @@ Package: Nscan
     </td>
   </tr>
 </table>
+
+#### Software
 
 - nmap, xsltproc, iproute2, util-linux
 
@@ -288,6 +292,8 @@ Ningún paso aborta el script: con un XML válido, siempre se produce un informe
 
 ### REQUIREMENTS
 
+#### Compatibility
+
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
@@ -298,6 +304,8 @@ Ningún paso aborta el script: con un XML válido, siempre se produce un informe
     </td>
   </tr>
 </table>
+
+#### Software
 
 - Apache2 with mod_php (not PHP-FPM — the vhost uses `SetHandler application/x-httpd-php`)
 - arp-scan, sqlite3, php-sqlite3, php-cli, nmap, iproute2 (`ss`), logrotate, util-linux, python3, zip
@@ -380,10 +388,10 @@ sudo bash nwatchsetup.sh
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      When several interfaces are available, select the LAN interface from the list. Installation aborts with <code>ERROR: ... -abort</code> if the selected LAN has no configured IPv4 address. Select an address when several exist. The network and mask come from that address and its actual prefix. These installers do not configure network interfaces. Explicit interface/address values supplied by a parent installer reuse its selection.
+      Only interfaces with an UP link and global IPv4 are eligible. A single scan candidate is selected automatically; with several, choose one or more interfaces to scan. Virtual interfaces remain excluded from scanning. Management uses a separate LAN selection: automatic with one candidate, or a numbered question with several. Installation aborts with <code>ERROR: ... -abort</code> if the selected LAN has no configured IPv4 address. Select an address when several exist. The network and mask come from that address and its actual prefix. These installers do not configure network interfaces. Scan interfaces are saved in <code>LAN_IFACES</code>; the management interface, selected IPv4 and network are saved separately in <code>MGMT_IFACE</code>, <code>SERVER_IP</code> and <code>NET_CIDR</code>.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Si existen varias interfaces, selecciona LAN desde la lista. La instalación aborta con <code>ERROR: ... -abort</code> si LAN no tiene IPv4 configurada. Selecciona una dirección cuando existan varias. La red y máscara proceden de esa dirección y su prefijo real. Estos instaladores no configuran interfaces. Los valores explícitos enviados por otro instalador reutilizan su selección.
+      Solo son candidatas las interfaces con enlace UP e IPv4 global. Una candidata de escaneo se selecciona automáticamente; con varias, elige una o más interfaces para escanear. Las interfaces virtuales siguen excluidas del escaneo. La administración utiliza una selección LAN separada: automática con una candidata o mediante una pregunta numerada con varias. La instalación aborta con <code>ERROR: ... -abort</code> si LAN no tiene IPv4 configurada. Selecciona una dirección cuando existan varias. La red y máscara proceden de esa dirección y su prefijo real. Estos instaladores no configuran interfaces. Las interfaces de escaneo se guardan en <code>LAN_IFACES</code>; la interfaz de administración, su IPv4 seleccionada y su red se guardan por separado en <code>MGMT_IFACE</code>, <code>SERVER_IP</code> y <code>NET_CIDR</code>.
     </td>
   </tr>
 </table>
@@ -516,10 +524,10 @@ sudo bash nwatchsetup.sh
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      The installer lists physical network interfaces with a global IPv4 address. Virtual and loopback interfaces are hidden; see below. It then asks for two selections. First, choose one or more <strong>scan interfaces</strong> by entering their numbers, separated by commas (for example, <code>1,2</code>). This is useful on servers with both LAN and WAN interfaces because <code>nwatchlan.sh</code> scans each selected interface during every cycle. Next, choose one <strong>management interface</strong>. The web panel uses this interface's IP address to authorize access, so choose your LAN or admin interface, never WAN. The installer then deploys the web dashboard and both daemons, and starts them automatically. These daemons are required by the dashboard, unlike the optional watchdog.
+      The installer lists scan candidates with an UP link and global IPv4, excluding the names listed below. It automatically selects a single candidate and asks when several remain. When prompted, choose one or more <strong>scan interfaces</strong> by entering their numbers, separated by commas (for example, <code>1,2</code>). This is useful on servers with both LAN and WAN interfaces because <code>nwatchlan.sh</code> scans each selected interface during every cycle. Management is selected separately: automatically with one UP+IPv4 candidate, or by number with several. The web panel uses this interface's IP address to authorize access, so choose your LAN or admin interface, never WAN. The installer then deploys the web dashboard and both daemons, and starts them automatically. These daemons are required by the dashboard, unlike the optional watchdog.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      El instalador muestra las interfaces físicas que tienen una dirección IPv4 global. Las interfaces virtuales y loopback se ocultan; consulte la sección siguiente. Luego solicita dos selecciones. Primero, elija una o más <strong>interfaces de escaneo</strong> e ingrese sus números separados por comas (por ejemplo, <code>1,2</code>). Esto es útil en servidores con interfaces LAN y WAN, porque <code>nwatchlan.sh</code> escanea cada interfaz seleccionada en todos los ciclos. Después, elija una sola <strong>interfaz de gestión</strong>. El panel usa la dirección IP de esa interfaz para autorizar el acceso; elija una interfaz LAN o de administración, nunca la WAN. Por último, el instalador implementa el panel web y los dos demonios, y los inicia automáticamente. Estos demonios son necesarios para el panel; el watchdog es opcional.
+      El instalador muestra candidatas de escaneo con enlace UP e IPv4 global, excluyendo los nombres indicados abajo. Selecciona automáticamente una candidata y pregunta cuando quedan varias. Cuando se solicite, elija una o más <strong>interfaces de escaneo</strong> e ingrese sus números separados por comas (por ejemplo, <code>1,2</code>). Esto es útil en servidores con interfaces LAN y WAN, porque <code>nwatchlan.sh</code> escanea cada interfaz seleccionada en todos los ciclos. La administración se selecciona por separado: automáticamente con una candidata UP+IPv4 o mediante su número con varias. El panel usa la dirección IP de esa interfaz para autorizar el acceso; elija una interfaz LAN o de administración, nunca la WAN. Por último, el instalador implementa el panel web y los dos demonios, y los inicia automáticamente. Estos demonios son necesarios para el panel; el watchdog es opcional.
     </td>
   </tr>
 </table>
@@ -527,10 +535,10 @@ sudo bash nwatchsetup.sh
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Interfaces named <code>lo</code>, <code>docker*</code>, <code>br-*</code>, <code>veth*</code>, <code>virbr*</code>, <code>tun*</code>, <code>tap*</code>, or <code>wg*</code> are excluded from both selectors. They are not useful <code>arp-scan</code> targets and would clutter the list on servers running Docker, libvirt, or a VPN.
+      Interfaces named <code>lo</code>, <code>docker*</code>, <code>br-*</code>, <code>veth*</code>, <code>virbr*</code>, <code>tun*</code>, <code>tap*</code>, or <code>wg*</code> are excluded from the scan selector. The management selector excludes only loopback and requires an UP link with global IPv4. They are not useful <code>arp-scan</code> targets and would clutter the list on servers running Docker, libvirt, or a VPN.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Las interfaces llamadas <code>lo</code>, <code>docker*</code>, <code>br-*</code>, <code>veth*</code>, <code>virbr*</code>, <code>tun*</code>, <code>tap*</code> o <code>wg*</code> se excluyen de ambos selectores. No sirven como objetivos de <code>arp-scan</code> y llenarían la lista en servidores con Docker, libvirt o VPN.
+      Las interfaces llamadas <code>lo</code>, <code>docker*</code>, <code>br-*</code>, <code>veth*</code>, <code>virbr*</code>, <code>tun*</code>, <code>tap*</code> o <code>wg*</code> se excluyen del selector de escaneo. El selector de administración excluye únicamente loopback y exige enlace UP con IPv4 global. No sirven como objetivos de <code>arp-scan</code> y llenarían la lista en servidores con Docker, libvirt o VPN.
     </td>
   </tr>
 </table>

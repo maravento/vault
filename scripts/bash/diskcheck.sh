@@ -61,6 +61,67 @@ fi
 # Start
 log "EVENT: diskcheck start..."
 
+# dependencies
+for dep in inxi smartmontools util-linux libnotify-bin systemd coreutils grep mawk sudo software-properties-common apt bsdutils logrotate iproute2 libc-bin; do
+    if ! dpkg -s "$dep" &>/dev/null; then
+        log "ERROR: '$dep' is not installed -abort"
+        exit 1
+    fi
+done
+
+# check ipv4 interfaces
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if [ -n "$(list_ipv4_ifaces)" ]; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for an interface with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no interface with IPv4 -abort"
+    exit 1
+}
+
+# check internet
+check_internet() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for internet..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no internet connection -abort"
+    exit 1
+}
+
 # local_user detection
 detect_local_user() {
     local uid_min uid_max
@@ -97,19 +158,13 @@ if ! local_user=$(detect_local_user); then
     log "ERROR: no local user; create one with sudo access -abort"
     exit 1
 fi
-log "Using local user: $local_user"
-
-# dependencies
-for dep in inxi smartmontools util-linux libnotify-bin; do
-    if ! dpkg -s "$dep" &>/dev/null; then
-        log "ERROR: dependency '$dep' is not installed -abort"
-        exit 1
-    fi
-done
+log "INFO: using local user: $local_user"
 
 # check ppa
 the_ppa=malcscott/ppa
 if ! dpkg -s hddtemp &>/dev/null; then
+    check_ipv4_interfaces
+    check_internet
     if ! add-apt-repository -y ppa:$the_ppa >/dev/null 2>&1; then
         log "WARNING: add PPA $the_ppa failed; hddtemp absent -alert"
     else
@@ -141,12 +196,12 @@ EOF
     chmod 644 "$LOGROTATE_CONF" || logrotate_ok=1
     chown root:root "$LOGROTATE_CONF" || logrotate_ok=1
     if [ "$logrotate_ok" -eq 0 ]; then
-        log "Logrotate config created: $LOGROTATE_CONF"
+        log "INFO: logrotate config created: $(basename "$LOGROTATE_CONF")"
     else
         log "WARNING: cannot create logrotate config -alert"
     fi
 else
-    log "Logrotate config: OK"
+    log "INFO: logrotate config OK"
 fi
 
 # ------------------------------------------------------------------------------
@@ -187,10 +242,24 @@ notify_send() {
 notify_alert() {
     local msg="$1"
     local icon="${2:-dialog-warning}"
-    logger -t disktemp "$msg"
-    log "$msg"
+    local detail="${3:-$msg}" action="${4:-}" alert_line alert_log
+    while IFS= read -r alert_line; do
+        [ -n "$alert_line" ] || continue
+        if [ -n "$action" ]; then
+            alert_log="INFO: $alert_line"
+        else
+            alert_log="WARNING: ${alert_line#ALERT: } -alert"
+        fi
+        logger -t disktemp "$(date '+%Y-%m-%d %H:%M:%S') $alert_log"
+        log "$alert_log"
+    done <<< "$detail"
+    if [ -n "$action" ]; then
+        alert_log="WARNING: $action -alert"
+        logger -t disktemp "$(date '+%Y-%m-%d %H:%M:%S') $alert_log"
+        log "$alert_log"
+    fi
     notify_send "$local_user" -i "$icon" "DISK ALERT" "$msg" \
-        || log " notify-send failed (no desktop session?)"
+        || log "WARNING: desktop notification failed -alert"
 }
 
 # ------------------------------------------------------------------------------
@@ -212,7 +281,7 @@ TEMP_OUTPUT=$(inxi -xD | awk -v max="$degrees" '
     }
 ')
 if [ -n "$TEMP_OUTPUT" ]; then
-    notify_alert "$TEMP_OUTPUT" "checkbox"
+    notify_alert "$TEMP_OUTPUT" "checkbox" "${TEMP_OUTPUT//ALERT: hard drive temperature is above:/disk temperature above limit:}"
 fi
 
 # option 2 (for some ssd sata and hdd - uncomment if needed)
@@ -237,20 +306,20 @@ UNCORRECTABLE_THRESHOLD=1 # uncorrectable errors (critical from the first one)
 DISKS=$(lsblk -dno NAME,TYPE | awk '$2=="disk" {print "/dev/"$1}')
 
 if [ -z "$DISKS" ]; then
-    log "No disks found"
+    log "INFO: no disks found -skip"
 else
     for DISK in $DISKS; do
         log "EVENT: Checking $DISK"
         DISK_ALERTS=0
 
         if ! smartctl -i "$DISK" &>/dev/null; then
-            log "$DISK: SMART not available or not supported"
+            log "INFO: ${DISK##*/}: SMART unavailable or unsupported -skip"
             continue
         fi
 
         SMART_STATUS=$(smartctl -H "$DISK" 2>/dev/null | grep -i "overall-health" | awk '{print $NF}')
         if [ "$SMART_STATUS" = "FAILED!" ]; then
-            notify_alert "$DISK: SMART status FAILED. Replace immediately." "drive-harddisk"
+            notify_alert "$DISK: SMART status FAILED. Replace immediately." "drive-harddisk" "${DISK##*/}: SMART failed; replace immediately"
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
 
@@ -258,15 +327,15 @@ else
         if echo "$DISK" | grep -q "nvme"; then
             CRITICAL=$(smartctl -A "$DISK" 2>/dev/null | awk -F: '/Critical Warning/{gsub(/ /,"",$2);print $2}')
             if [ -n "$CRITICAL" ] && [ "$CRITICAL" != "0x00" ] && [ "$CRITICAL" != "0" ]; then
-                notify_alert "$DISK (NVMe): Critical warning detected ($CRITICAL). Check disk immediately." "drive-harddisk"
+                notify_alert "$DISK (NVMe): Critical warning detected ($CRITICAL). Check disk immediately." "drive-harddisk" "${DISK##*/}: NVMe critical warning=$CRITICAL" "${DISK##*/}: check disk immediately"
                 DISK_ALERTS=$((DISK_ALERTS + 1))
             fi
             WEAR=$(smartctl -A "$DISK" 2>/dev/null | awk -F: '/Percentage Used/{gsub(/[ %]/,"",$2);print $2}')
             if [ -n "$WEAR" ] && [ "$WEAR" -ge 90 ] 2>/dev/null; then
-                notify_alert "$DISK (NVMe): Wear level at ${WEAR}%. Plan replacement soon." "drive-harddisk"
+                notify_alert "$DISK (NVMe): Wear level at ${WEAR}%. Plan replacement soon." "drive-harddisk" "${DISK##*/}: wear=${WEAR}%" "${DISK##*/}: plan replacement soon"
                 DISK_ALERTS=$((DISK_ALERTS + 1))
             fi
-            [ "$DISK_ALERTS" -eq 0 ] && log "$DISK: OK"
+            [ "$DISK_ALERTS" -eq 0 ] && log "INFO: ${DISK##*/}: OK"
             continue
         fi
 
@@ -278,25 +347,29 @@ else
         POWER_HOURS=$(echo "$SMART_ATTRS" | awk '/Power_On_Hours/ {print $10}')
 
         if [ -n "$REALLOCATED" ] && [ "$REALLOCATED" -ge "$REALLOCATED_THRESHOLD" ] 2>/dev/null; then
-            notify_alert "$DISK: $REALLOCATED reallocated sectors detected. Disk degrading -- plan replacement." "drive-harddisk"
+            notify_alert "$DISK: $REALLOCATED reallocated sectors detected. Disk degrading -- plan replacement." "drive-harddisk" "${DISK##*/}: reallocated sectors=$REALLOCATED" "${DISK##*/}: disk degrading; plan replacement"
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
         if [ -n "$PENDING" ] && [ "$PENDING" -ge "$PENDING_THRESHOLD" ] 2>/dev/null; then
-            notify_alert "$DISK: $PENDING pending sectors. Possible imminent failure." "drive-harddisk"
+            notify_alert "$DISK: $PENDING pending sectors. Possible imminent failure." "drive-harddisk" "${DISK##*/}: pending sectors=$PENDING" "${DISK##*/}: possible imminent failure"
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
         if [ -n "$UNCORRECTABLE" ] && [ "$UNCORRECTABLE" -ge "$UNCORRECTABLE_THRESHOLD" ] 2>/dev/null; then
-            notify_alert "$DISK: $UNCORRECTABLE uncorrectable errors. Replace disk immediately." "drive-harddisk"
+            notify_alert "$DISK: $UNCORRECTABLE uncorrectable errors. Replace disk immediately." "drive-harddisk" "${DISK##*/}: uncorrectable errors=$UNCORRECTABLE" "${DISK##*/}: replace disk immediately"
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
         if [ -n "$POWER_HOURS" ] && [ "$POWER_HOURS" -ge 40000 ] 2>/dev/null; then
-            notify_alert "$DISK: ${POWER_HOURS}h of use. Consider replacement as preventive measure." "drive-harddisk"
+            notify_alert "$DISK: ${POWER_HOURS}h of use. Consider replacement as preventive measure." "drive-harddisk" "${DISK##*/}: hours of use=$POWER_HOURS" "${DISK##*/}: consider preventive replacement"
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
 
-        [ "$DISK_ALERTS" -eq 0 ] && log "$DISK: OK"
+        [ "$DISK_ALERTS" -eq 0 ] && log "INFO: ${DISK##*/}: OK"
     done
 fi
 
-# End
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
+
+# end
 log "EVENT: diskcheck done"

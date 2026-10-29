@@ -81,9 +81,7 @@ abort() { err "$*"; exit 1; }
 
 # validation -- one variable per thing validated; use directly with =~
 UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
-UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 UH_UINT='^(0|[1-9][0-9]*)$'
-UH_IFACE='^[a-zA-Z0-9_.@-]{1,15}$'
 
 data_dir="$script_dir/data"
 install_dir="$script_dir/install"
@@ -613,10 +611,12 @@ list_ipv4_ifaces() {
 }
 
 print_ifaces() {
-    local i
+    local i iface_state iface_addrs
     echo "Available network interfaces:" >&2
     for i in "${!ifaces[@]}"; do
-        printf " [%d] %s\n" "$((i+1))" "${ifaces[$i]}" >&2
+        iface_state=$(ip -br link show "${ifaces[$i]}" | awk '{print $2}')
+        iface_addrs=$(ip -4 -o addr show dev "${ifaces[$i]}" scope global | awk '{print $4}' | paste -sd' ')
+        printf " [%d] %s (%s, %s)\n" "$((i+1))" "${ifaces[$i]}" "$iface_state" "${iface_addrs:-no IPv4}" >&2
     done
 }
 
@@ -625,7 +625,10 @@ ask_iface() {
     local prompt="$1" taken="$2" selection candidate confirm
     while true; do
         print_ifaces
-        read -r -p "$prompt [1-${#ifaces[@]}]: " selection
+        read -r -p "$prompt [1-${#ifaces[@]}]: " selection || {
+            log "ERROR: cannot read interface selection -abort" >&2
+            return 1
+        }
         if ! [[ "$selection" =~ $UH_UINT ]] \
            || [ "${#selection}" -gt 5 ] \
            || [ "$selection" -lt 1 ] || [ "$selection" -gt "${#ifaces[@]}" ]; then
@@ -637,7 +640,10 @@ ask_iface() {
             info "interface already assigned to $taken -retry" >&2
             continue
         fi
-        read -r -p "Confirm interface is '$candidate'? (y/n): " confirm
+        read -r -p "Confirm interface is '$candidate'? (y/n): " confirm || {
+            log "ERROR: cannot read interface confirmation -abort" >&2
+            return 1
+        }
         case "$confirm" in
             [Yy]*) echo "$candidate"; return 0 ;;
             [Nn]*) continue ;;
@@ -650,16 +656,8 @@ ask_iface() {
 # Select an existing interface and one of its configured IPv4 addresses
 choose_lan_interface() {
     local preset_iface="${1:-}" excluded_iface="${2:-}"
-    local iface_name iface_choice iface_index iface_addrs
+    local iface_name iface_choice iface_index iface_addrs iface_state
     local -a lan_candidates=()
-    if [ -n "$preset_iface" ]; then
-        ip link show dev "$preset_iface" >/dev/null 2>&1 || {
-            log "ERROR: LAN interface '$preset_iface' not found -abort"
-            exit 1
-        }
-        lan_iface_answer="$preset_iface"
-        return 0
-    fi
     while IFS= read -r iface_name; do
         [ "$iface_name" = "$excluded_iface" ] && continue
         lan_candidates+=("$iface_name")
@@ -668,11 +666,22 @@ choose_lan_interface() {
         log "ERROR: no LAN interface available -abort"
         exit 1
     }
+    if [ -n "$preset_iface" ]; then
+        for iface_name in "${lan_candidates[@]}"; do
+            if [ "$preset_iface" = "$iface_name" ]; then
+                lan_iface_answer="$preset_iface"
+                return 0
+            fi
+        done
+        log "ERROR: LAN must be an eligible IPv4 interface -abort"
+        exit 1
+    fi
     echo "Available LAN interfaces:"
     for iface_index in "${!lan_candidates[@]}"; do
         iface_name="${lan_candidates[$iface_index]}"
+        iface_state=$(ip -br link show "$iface_name" | awk '{print $2}')
         iface_addrs=$(ip -4 -o addr show dev "$iface_name" scope global | awk '{print $4}' | paste -sd' ')
-        printf ' [%d] %s (%s)\n' "$((iface_index + 1))" "$iface_name" "${iface_addrs:-no IPv4}"
+        printf ' [%d] %s (%s, %s)\n' "$((iface_index + 1))" "$iface_name" "$iface_state" "${iface_addrs:-no IPv4}"
     done
     while true; do
         read -r -p "Select LAN Interface [1-${#lan_candidates[@]}]: " iface_choice || {
@@ -772,49 +781,42 @@ check_internet() {
 # checked against the network derived from the LAN interface.
 ask_settings() {
     local failure_message="cannot collect the installer answers"
-    local unattended=false
     local -a ifaces=()
 
+    wan_iface="${SURIDATA_WAN_IFACE:-}"
+    lan_iface="${SURIDATA_LAN_IFACE:-}"
     mapfile -t ifaces < <(list_ipv4_ifaces)
     (( ${#ifaces[@]} > 0 )) || abort "no active interface with IPv4 -abort"
-    [ -n "${SURIDATA_WAN_IFACE:-}" ] && unattended=true
+    if [ -n "$wan_iface" ]; then
+        printf '%s\n' "${ifaces[@]}" | grep -qxF -- "$wan_iface" \
+            || abort "WAN must be an active interface with IPv4 -abort"
+    fi
+    if [ -n "$lan_iface" ]; then
+        printf '%s\n' "${ifaces[@]}" | grep -qxF -- "$lan_iface" \
+            || abort "LAN must be an active interface with IPv4 -abort"
+    fi
 
-    if [ "$unattended" = true ]; then
-        wan_iface="$SURIDATA_WAN_IFACE"
-        lan_iface="${SURIDATA_LAN_IFACE:-}"
-        if (( ${#ifaces[@]} == 1 )); then
-            lan_iface="${lan_iface:-${ifaces[0]}}"
-        fi
-        [ -n "$lan_iface" ] || abort "SURIDATA_LAN_IFACE not set -abort"
-        [[ "$wan_iface" =~ $UH_IFACE ]] || abort "SURIDATA_WAN_IFACE invalid -abort"
-        [[ "$lan_iface" =~ $UH_IFACE ]] || abort "SURIDATA_LAN_IFACE invalid -abort"
-    elif (( ${#ifaces[@]} == 1 )); then
-        wan_iface="${ifaces[0]}"
+    if (( ${#ifaces[@]} == 1 )); then
+        [ -z "$wan_iface" ] || abort "WAN requires a distinct LAN interface -abort"
         lan_iface="${ifaces[0]}"
     else
-        failure_message="cannot read the WAN interface choice"
-        wan_iface="$(ask_iface 'Select WAN Interface' '')"
-        failure_message="cannot read the LAN interface choice"
-        choose_lan_interface "" "$wan_iface"
+        if [ -z "$wan_iface" ]; then
+            failure_message="cannot read the WAN interface choice"
+            wan_iface="$(ask_iface 'Select WAN Interface' "$lan_iface")" \
+                || abort "cannot read WAN interface selection -abort"
+        fi
+        choose_lan_interface "$lan_iface" "$wan_iface"
         lan_iface="$lan_iface_answer"
     fi
 
-    printf '%s\n' "${ifaces[@]}" | grep -qxF -- "$wan_iface" \
-        || abort "WAN must be an active interface with IPv4 -abort"
-    printf '%s\n' "${ifaces[@]}" | grep -qxF -- "$lan_iface" \
-        || abort "LAN must be an active interface with IPv4 -abort"
-    if (( ${#ifaces[@]} > 1 )) && [ "$wan_iface" = "$lan_iface" ]; then
+    if [ -n "$wan_iface" ] && [ "$wan_iface" = "$lan_iface" ]; then
         abort "WAN and LAN must differ -abort"
     fi
-    if [ "$wan_iface" = "$lan_iface" ]; then
-        info "single IPv4 interface: $lan_iface"
-    else
-        info "WAN interface: $wan_iface"
-        info "LAN interface: $lan_iface"
-    fi
-    choose_lan_interface "$lan_iface" "$wan_iface"
+    [ -n "$wan_iface" ] && info "WAN interface: $wan_iface"
+    info "LAN interface: $lan_iface"
     read_lan_ipv4 "$lan_iface" "${SURIDATA_SERVER_IP:-}"
-    check_wan_ipv4 "$wan_iface"
+    [ -n "$wan_iface" ] && check_wan_ipv4 "$wan_iface"
+    return 0
 }
 
 # LAN NETWORK
@@ -839,6 +841,13 @@ print(net.netmask)
 # Write network settings and backup destination to suridata.env
 write_env() {
     local failure_message="cannot write $suridata_env"
+    # WAN_IFACE only exists when a second candidate was selected as WAN
+    local network_block="INTERFACESv4=$lan_iface"
+    if [ -n "$wan_iface" ]; then
+        network_block="# WAN_IFACE: external interface whose networks are excluded
+WAN_IFACE=$wan_iface
+$network_block"
+    fi
     cat > "$suridata_env" <<ENV_END
 # =============================================================================
 # Suridata
@@ -846,11 +855,9 @@ write_env() {
 # =============================================================================
 
 # Network
-# WAN_IFACE: external interface; equals INTERFACESv4 on single-interface hosts
-# INTERFACESv4: inspected interface; LAN when WAN and LAN are distinct
+# INTERFACESv4: inspected interface, always the LAN suridata watches
 # SERV_SUBNET and SERV_MASK: local IPv4 network and netmask
-WAN_IFACE=$wan_iface
-INTERFACESv4=$lan_iface
+$network_block
 SERV_SUBNET=$serv_subnet
 SERV_MASK=$lan_netmask_answer
 

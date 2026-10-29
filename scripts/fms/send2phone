@@ -24,14 +24,13 @@ set -uo pipefail
 
 script_dir="$(cd "$(dirname "$0")" 2>/dev/null && pwd)" || exit 1
 log_file="${script_dir}/send2phone.log"
+# The cause, the file name and the control action stay on one line: a long name
+# widens the line, and splitting it would hide which file failed
 log() {
-    local message="$*"
-    if [ "${#message}" -gt 60 ]; then
-        message="${message% -alert}"
-        message="${message% -abort}"
-    fi
-    printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$message" 2>/dev/null >> "$log_file" || true
+    printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" 2>/dev/null >> "$log_file" || true
 }
+
+{ > "$log_file"; } 2>/dev/null || true
 
 log "send2phone start..."
 
@@ -40,6 +39,14 @@ if [ "$(id -u)" == "0" ]; then
     log "ERROR: run send2phone as a normal user -abort"
     exit 1
 fi
+
+# dependencies
+for dep_pkg in coreutils kdeconnect; do
+    if ! dpkg -s "$dep_pkg" &>/dev/null; then
+        log "ERROR: dependency '$dep_pkg' is not installed -abort"
+        exit 1
+    fi
+done
 
 # ------------------------------------------------------------------------------
 # FILES
@@ -83,7 +90,7 @@ else    send_files=()
     for file in "${files[@]}"; do
         base="$(basename -- "$file")"
         if [ -d "$file" ]; then
-            log "WARNING: cannot send directory: $base -alert"
+            log "WARNING: directory skipped: $base -alert"
         elif [ ! -f "$file" ]; then
             log "WARNING: file not found: $base -alert"
         else
@@ -117,7 +124,7 @@ for file in "${files[@]}"; do
     base="$(basename -- "$file")"
 
     if [ -d "$file" ]; then
-        log "WARNING: cannot send directory: $base -alert"
+        log "WARNING: directory skipped: $base -alert"
         continue
     fi
 

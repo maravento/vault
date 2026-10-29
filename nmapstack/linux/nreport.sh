@@ -513,37 +513,90 @@ finalize_html_report() {
     echo ""
 }
 
-# Prompt for a valid network interface and derive its network CIDR
-select_interface() {
-    SEL_IFACE=""
-    SEL_NET=""
-    echo "Available network interfaces:"
-    local iface_list
-    iface_list=$(ip -4 addr show scope global | awk '/inet /{ip=$2} /inet /{iface=$NF; printf " %-12s %s\n", iface, ip}')
-    if [ -z "$iface_list" ]; then
-        log "ERROR: no interface with a global IPv4 address -abort"
-        exit 1
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
+select_lan_interface() {
+    local -a ifaces
+    local i choice addrs
+    mapfile -t ifaces < <(list_ipv4_ifaces)
+    if [ "${#ifaces[@]}" -eq 0 ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no active interface with global IPv4 -abort" >&2
+        return 1
     fi
-    echo "$iface_list"
-    echo ""
-    DEFAULT_IFACE=$(printf '%s\n' "$iface_list" | awk 'NR==1{print $1}')
+    if [ "${#ifaces[@]}" -eq 1 ]; then
+        lan_iface_answer="${ifaces[0]}"
+        return 0
+    fi
+    echo "Available LAN interfaces:" >&2
+    for i in "${!ifaces[@]}"; do
+        addrs=$(ip -4 -o addr show dev "${ifaces[$i]}" scope global | awk '{print $4}' | paste -sd' ')
+        printf ' [%d] %s (UP, %s)\n' "$((i+1))" "${ifaces[$i]}" "$addrs" >&2
+    done
     while true; do
-                read -rp "Select interface (default: ${DEFAULT_IFACE}): " SEL_IFACE
-                SEL_IFACE="${SEL_IFACE:-$DEFAULT_IFACE}"
-                SEL_IFACE="${SEL_IFACE#"${SEL_IFACE%%[![:space:]]*}"}"
-                SEL_IFACE="${SEL_IFACE%"${SEL_IFACE##*[![:space:]]}"}"
-                [ -n "$SEL_IFACE" ] || { log "INFO: no interface specified -retry"; continue; }
-                if ! ip link show "$SEL_IFACE" &>/dev/null; then
-                        log "INFO: Interface '$SEL_IFACE' does not exist -retry"
-                        continue
-                fi
-                SEL_NET=$(ip -4 addr show dev "$SEL_IFACE" scope global | sed -n 's/.*inet \([0-9.]\{1,\}\/[0-9]\{1,\}\).*/\1/p' | head -n1)
-                if [ -z "$SEL_NET" ]; then
-                        log "INFO: No IPv4 address found on '$SEL_IFACE' -retry"
-                        continue
-                fi
-                break
-        done
+        read -r -p "Select LAN Interface [1-${#ifaces[@]}]: " choice || {
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot read LAN selection -abort" >&2
+            return 1
+        }
+        if [[ "$choice" =~ $UH_UINT ]] && [ "${#choice}" -le 5 ] \
+            && [ "$choice" -ge 1 ] && [ "$choice" -le "${#ifaces[@]}" ]; then
+            lan_iface_answer="${ifaces[$((choice-1))]}"
+            return 0
+        fi
+        echo "INFO: invalid selection -retry" >&2
+    done
+}
+
+select_lan_address() {
+    local iface="$1" choice i
+    local -a addresses
+    mapfile -t addresses < <(ip -4 -o addr show dev "$iface" scope global | awk '{print $4}')
+    if [ "${#addresses[@]}" -eq 0 ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: LAN has no global IPv4 -abort" >&2
+        return 1
+    fi
+    if [ "${#addresses[@]}" -eq 1 ]; then
+        lan_cidr_answer="${addresses[0]}"
+        return 0
+    fi
+    echo "Available LAN IPv4 addresses:" >&2
+    for i in "${!addresses[@]}"; do
+        printf ' [%d] %s\n' "$((i+1))" "${addresses[$i]}" >&2
+    done
+    while true; do
+        read -r -p "Select LAN IPv4 [1-${#addresses[@]}]: " choice || {
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot read IPv4 selection -abort" >&2
+            return 1
+        }
+        if [[ "$choice" =~ $UH_UINT ]] && [ "${#choice}" -le 5 ] \
+            && [ "$choice" -ge 1 ] && [ "$choice" -le "${#addresses[@]}" ]; then
+            lan_cidr_answer="${addresses[$((choice-1))]}"
+            return 0
+        fi
+        echo "INFO: invalid selection -retry" >&2
+    done
+}
+
+UH_UINT='^(0|[1-9][0-9]*)$'
+
+# Select the scan interface and its actual IPv4 prefix.
+select_interface() {
+    select_lan_interface || exit 1
+    SEL_IFACE="$lan_iface_answer"
+    select_lan_address "$SEL_IFACE" || exit 1
+    SEL_NET="$lan_cidr_answer"
 }
 
 log "EVENT: nreport start..."

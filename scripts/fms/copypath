@@ -22,8 +22,12 @@ set -uo pipefail
 
 # no-root check
 if [ "$(id -u)" == "0" ]; then
-    zenity --error --title="Copy Path" \
-        --text="This script should not be run as root." 2>/dev/null || true
+    if command -v zenity &>/dev/null; then
+        zenity --error --title="Copy Path" \
+            --text="This script should not be run as root." 2>/dev/null || true
+    elif command -v notify-send &>/dev/null; then
+        notify-send "Copy Path" "This script should not be run as root." -u critical
+    fi
     exit 1
 fi
 

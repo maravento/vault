@@ -44,11 +44,9 @@ if ! flock -n 200; then
     exit 1
 fi
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') Unzip Files With Pass Starting. Wait..."
-
 if ! apt-cache policy | grep -qE '/multiverse'; then
-    echo "The 'multiverse' repository is not enabled. Run:"
-    echo "sudo add-apt-repository multiverse && sudo apt update"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: multiverse off; sudo add-apt-repository multiverse" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: multiverse: then sudo apt update -abort" >&2
     exit 1
 fi
 
@@ -97,24 +95,24 @@ for f in *.@(gz|rar|zip|zip.001|7z|7z.001); do
     matched=0
     for p in "${passw[@]}"; do
         if 7z t -p"$p" "$f" &>/dev/null; then
-            echo "password match '$f': $p"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: password match '$f': $p"
             if ! 7z x -y -p"$p" "$f" -aoa &>/dev/null; then
-                echo "Extraction failed: $f"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: extraction failed: $f -alert"
             fi
             matched=1
             break
         else
-            echo "test passwd '$f': $p"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: password test failed for '$f': $p"
         fi
     done
 
     if [ "$matched" -eq 0 ]; then
-        echo "No password matched for: $f"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: no password matched for: $f -alert"
     fi
 done
 
 if [ "$found_files" -eq 0 ]; then
-    echo "No compressed files found in current directory"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no compressed files found in current directory"
 fi
 
 # ------------------------------------------------------------------------------

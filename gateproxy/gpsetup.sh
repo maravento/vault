@@ -58,8 +58,25 @@ warn() { log "WARNING: $*"; }
 err() { log "ERROR: $*"; }
 abort() { err "$*"; exit 1; }
 
-# Each module clones into $gp_path, writes its own log there, and $gp_path is
-# deleted at the end. Its log is appended here while the folder still exists.
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
+
+ACL_PATH=/etc/acl
+gateproxy_env="/etc/gateproxy/gateproxy.env"
+SCR_PATH=/etc/scr
+
+# validation -- one variable per thing validated; use directly with =~
+UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
+UH_DNS='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(,(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9]))*$'
+UH_UINT='^(0|[1-9][0-9]*)$'
+UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5 252.0.0.0:6 254.0.0.0:7 255.0.0.0:8 255.128.0.0:9 255.192.0.0:10 255.224.0.0:11 255.240.0.0:12 255.248.0.0:13 255.252.0.0:14 255.254.0.0:15 255.255.0.0:16 255.255.128.0:17 255.255.192.0:18 255.255.224.0:19 255.255.240.0:20 255.255.248.0:21 255.255.252.0:22 255.255.254.0:23 255.255.255.0:24 255.255.255.128:25 255.255.255.192:26 255.255.255.224:27 255.255.255.240:28 255.255.255.248:29 255.255.255.252:30 255.255.255.254:31 255.255.255.255:32'
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
 # ACL PREPARATION
 # Canonical block -- copied byte for byte into every script that creates a
 # directory or a list under /etc/acl. Prepare /etc/acl first, then only the
@@ -125,13 +142,12 @@ acl_fix_perms() {
     log "INFO: $acl_path perms fixed -fixed"
 }
 
+# Module folders are deleted at the end, so each log is copied while it exists.
 dump_module_log() {
     local module_log="$1"
     local module_name="$2"
     if [ -f "$module_log" ]; then
-        log "--- begin $module_name log ---"
         cat "$module_log" >> "$log_file" 2>/dev/null || true
-        log "--- end $module_name log ---"
     else
         warn "$module_name log not found at $module_log -alert"
     fi
@@ -152,11 +168,6 @@ failure_message="cannot initialize Gateproxy"
 trap 'report_failure' ERR
 
 log "EVENT: gpsetup start..."
-printf "\n"
-
-# ------------------------------------------------------------------------------
-# FUNCTIONS
-# ------------------------------------------------------------------------------
 
 # conflicting packages
 check_conflicts() {
@@ -289,8 +300,6 @@ check_conflicts "IDS"         snort
 failure_message="cannot check conflicting packages"
 check_conflicts "web admin"   webmin ttyd
 failure_message="cannot check conflicting packages"
-check_conflicts "time sync"   chrony ntpsec
-failure_message="cannot check conflicting packages"
 check_conflicts "mail"        exim4
 failure_message="cannot check the required network port"
 check_port udp 67 "DHCP server"
@@ -345,6 +354,67 @@ if [ -z "$local_home" ] || [ ! -d "$local_home" ]; then
     exit 1
 fi
 info "Using local user: $local_user ($local_home)"
+
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+# check wired interfaces
+list_wired_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ -d "/sys/class/net/$iface/wireless" ] && continue
+        printf "%s %s\n" "$iface" "$state"
+    done < <(list_ifaces)
+}
+
+check_wired_interfaces() {
+    local iface state connected=0
+
+    while read -r iface state; do
+        info "wired interface: $iface=$state"
+        [ "$state" = "UP" ] && connected=$((connected + 1))
+    done < <(list_wired_ifaces)
+
+    if [ "$connected" -lt 2 ]; then
+        err "two connected wired interfaces are required -abort"
+        return 1
+    fi
+
+    return 0
+}
+
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if [ -n "$(list_ipv4_ifaces)" ]; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for an interface with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no interface with IPv4 -abort"
+    exit 1
+}
+
+check_wired_interfaces || exit 1
+check_ipv4_interfaces
 
 # check internet
 check_internet() {
@@ -419,10 +489,6 @@ if [ -f "$file" ]; then
                     break
                 fi
             done
-
-            if [[ $changed -eq 0 ]]; then
-                info "All components present in: $line"
-            fi
         fi
     done < <(grep "^Components:" "$file")
 
@@ -438,28 +504,17 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# VARIABLES
+# PREPARATION
 # ------------------------------------------------------------------------------
 
 failure_message="cannot find the installer path"
 SCRIPT_PATH="$(realpath "$0")" || { failure_status=$?; report_failure; exit "$failure_status"; }
 failure_message="cannot find the Gateproxy working directory"
 gp_path=$(pwd)/gateproxy || { failure_status=$?; report_failure; exit "$failure_status"; }
-ACL_PATH=/etc/acl
 failure_message="cannot create ACL directories"
 mkdir -p "$ACL_PATH" &>/dev/null
-SCR_PATH=/etc/scr
 failure_message="cannot create Gateproxy scripts"
 mkdir -p "$SCR_PATH" &>/dev/null
-
-# validation -- one variable per thing validated; use directly with =~
-UH_OCT='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
-UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
-UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
-UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
-UH_DNS='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(,(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9]))*$'
-UH_UINT='^(0|[1-9][0-9]*)$'
-UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5 252.0.0.0:6 254.0.0.0:7 255.0.0.0:8 255.128.0.0:9 255.192.0.0:10 255.224.0.0:11 255.240.0.0:12 255.248.0.0:13 255.252.0.0:14 255.254.0.0:15 255.255.0.0:16 255.255.128.0:17 255.255.192.0:18 255.255.224.0:19 255.255.240.0:20 255.255.248.0:21 255.255.252.0:22 255.255.254.0:23 255.255.255.0:24 255.255.255.128:25 255.255.255.192:26 255.255.255.224:27 255.255.255.240:28 255.255.255.248:29 255.255.255.252:30 255.255.255.254:31 255.255.255.255:32'
 
 # ------------------------------------------------------------------------------
 # DEPENDENCIES
@@ -467,10 +522,9 @@ UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5
 
 # PACKAGES
 # Install the base system packages
-echo -e "\n"
 log "EVENT: Check Dependencies..."
 
-pkgs='curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 7zip rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3 iproute2'
+pkgs='curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 7zip rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3 iproute2 util-linux-extra'
 failure_message="cannot collect missing package names"
 missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
 unavailable=""
@@ -522,20 +576,42 @@ fi
 # ------------------------------------------------------------------------------
 
 # time
+failure_message="cannot purge conflicting time packages"
+apt purge -y ntp ntpdate ntpsec chrony &>/dev/null || true
 failure_message="cannot install packages with apt"
 retry_cmd apt install -y --reinstall systemd-timesyncd &>/dev/null
-hwclock -w &>/dev/null || warn "hwclock -w failed -alert"
+hwclock -w &>/dev/null || warn "cannot write system time to the RTC -alert"
 failure_message="cannot enable systemd-timesyncd"
-systemctl enable --now systemd-timesyncd &>/dev/null || info "systemd-timesyncd failed to start"
-timedatectl set-ntp true &>/dev/null || info "timedatectl set-ntp failed"
-timedatectl status | grep -E "NTP|synchroniz" || true
+systemctl enable --now systemd-timesyncd &>/dev/null || warn "systemd-timesyncd failed to start -alert"
+timedatectl set-ntp true &>/dev/null || warn "timedatectl set-ntp failed -alert"
+if ntp_synchronized=$(timedatectl show --property=NTPSynchronized --value 2>>"$log_file"); then
+    if [ "$ntp_synchronized" != yes ]; then
+        warn "system clock is not synchronized -alert"
+    fi
+else
+    warn "cannot read NTP synchronization state -alert"
+fi
 # Performance Co-Pilot (PCP)
-systemctl disable --now pmcd pmproxy pmlogger &>/dev/null || warn "PCP failed to disable -alert"
+for pcp_service in pmcd pmproxy pmlogger; do
+    if ! pcp_load_state=$(systemctl show "${pcp_service}.service" --property=LoadState --value 2>>"$log_file"); then
+        warn "cannot check $pcp_service.service -alert"
+        continue
+    fi
+    [ "$pcp_load_state" = not-found ] && continue
+    systemctl disable --now "${pcp_service}.service" >>"$log_file" 2>&1 \
+        || warn "cannot disable $pcp_service.service -alert"
+done
 # install | remove
-failure_message="cannot install packages with apt"
-retry_cmd apt -qq install -y apt-file
-failure_message="cannot update the apt-file package index"
-retry_cmd apt-file update
+(
+    apt() { LC_ALL=C command apt "$@" >>"$log_file" 2>&1; }
+    apt-file() { LC_ALL=C command apt-file "$@" >>"$log_file" 2>&1; }
+    log "EVENT: Installing apt-file..."
+    failure_message="cannot install apt-file"
+    retry_cmd apt -qq install -y apt-file
+    log "EVENT: Updating apt-file package index..."
+    failure_message="cannot update the apt-file package index"
+    retry_cmd apt-file update
+)
 apt -qq remove -y zsys &>/dev/null || true
 ubuntu-drivers autoinstall &>/dev/null || true
 # configure
@@ -549,7 +625,7 @@ ifconfig lo 127.0.0.1
 cp /etc/apt/sources.list{,.bak} &>/dev/null || true
 
 # CLEAN | UPDATE | FIX
-echo -e "\n"
+echo ""
 upgrade() {
     local failure_message="cannot update system packages"
     log "EVENT: Update and Clean. Wait..."
@@ -581,7 +657,7 @@ upgrade
 
 # GATEPROXY GIT
 # Download the Gateproxy project files
-echo -e "\n"
+echo ""
 [ -d "$gp_path" ] && rm -rf "$gp_path"
 download_url="https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py"
 failure_message="cannot download $(basename "${download_url%%\?*}")"
@@ -595,7 +671,7 @@ retry_cmd python3 gitfolder.py https://github.com/maravento/vault/gateproxy
 
 # IDENTITY
 # Writes this host name, user and home into the reference config files
-echo -e "\n"
+echo ""
 failure_message="cannot set the server hostname"
 hostnamectl set-hostname "$HOSTNAME"
 find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:gateproxy:$HOSTNAME:g" "{}"
@@ -605,69 +681,42 @@ find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_user:$loc
 find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_home:$local_home:g" "{}"
 
 # detect interfaces
-list_ifaces() {
-    local failure_message="cannot list network interfaces"
-    failure_message="cannot read the network interface addresses"
-    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
-}
-
-# check wired interfaces
-list_wired_ifaces() {
-    local iface state
-    while read -r iface state; do
-        [ -d "/sys/class/net/$iface/wireless" ] && continue
-        printf "%s %s\n" "$iface" "$state"
-    done < <(list_ifaces)
-}
-
-check_wired_interfaces() {
-    local iface state connected=0
-
-    while read -r iface state; do
-        info "wired interface: $iface=$state"
-        [ "$state" = "UP" ] && connected=$((connected + 1))
-    done < <(list_wired_ifaces)
-
-    if [ "$connected" -lt 2 ]; then
-        err "two connected wired interfaces are required -abort"
-        return 1
-    fi
-
-    return 0
-}
-
-failure_message="cannot collect network interface addresses"
-mapfile -t IFACES < <(list_wired_ifaces | awk '$2 == "UP" {print $1}')
-failure_message="cannot read the network interface settings"
-DEFAULT_ROUTE_IF="$(ip route show default 2>/dev/null | awk '/^default/ {print $5; exit}')" || { failure_status=$?; report_failure; exit "$failure_status"; }
-
-# print interface list, flagging the current default-route interface as a hint only
+# print interface list
 print_interfaces() {
+    local i iface_state iface_addrs
     echo "Available network interfaces:"
     for i in "${!IFACES[@]}"; do
-        if [ -n "$DEFAULT_ROUTE_IF" ] && [ "${IFACES[$i]}" = "$DEFAULT_ROUTE_IF" ]; then
-            printf " [%d] %s (current default route -- likely WAN)\n" "$((i+1))" "${IFACES[$i]}"
-        else
-            printf " [%d] %s\n" "$((i+1))" "${IFACES[$i]}"
-        fi
+        iface_state=$(ip -br link show "${IFACES[$i]}" | awk '{print $2}')
+        iface_addrs=$(ip -4 -o addr show dev "${IFACES[$i]}" scope global | awk '{print $4}' | paste -sd' ')
+        printf " [%d] %s (%s, %s)\n" "$((i+1))" "${IFACES[$i]}" "$iface_state" "${iface_addrs:-no IPv4}"
     done
 }
 
 # public interface
 public_interface() {
     local failure_message="cannot select the WAN interface"
+    local iface state
+    local -a IFACES=()
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            IFACES+=("$iface")
+        fi
+    done < <(list_wired_ifaces)
+    (( ${#IFACES[@]} > 0 )) || abort "no wired WAN interface with IPv4 -abort"
     while true; do
         failure_message="cannot display the network interfaces"
         print_interfaces
         failure_message="cannot read the WAN interface choice"
-        read -r -p "Select Public Network Interface (Internet) [1-${#IFACES[@]}]: " SEL
+        read -r -p "Select WAN Interface [1-${#IFACES[@]}]: " SEL || abort "cannot read interface selection -abort"
         if [[ "$SEL" =~ $UH_UINT ]] \
            && [ "${#SEL}" -le 5 ] \
            && [ "$SEL" -ge 1 ] && [ "$SEL" -le "${#IFACES[@]}" ]; then
             CANDIDATE="${IFACES[$((SEL-1))]}"
             while true; do
                 failure_message="cannot read the WAN interface confirmation"
-                read -r -p "Confirm WAN (Internet) interface is '$CANDIDATE'? (y/n): " CONFIRM
+                read -r -p "Confirm WAN (Internet) interface is '$CANDIDATE'? (y/n): " CONFIRM || abort "cannot read interface selection -abort"
                 case "$CONFIRM" in
                     [Yy]) wan_iface="$CANDIDATE"; break 2 ;;
                     [Nn]) break ;;
@@ -675,7 +724,7 @@ public_interface() {
                 esac
             done
         else
-            info "Invalid selection. Try again"
+            info "invalid interface selection -retry"
         fi
     done
     info "WAN interface: $wan_iface"
@@ -685,11 +734,18 @@ public_interface() {
 # local interface
 local_interface() {
     local failure_message="cannot select the LAN interface"
+    local iface state
+    local -a IFACES=()
+    while read -r iface state; do
+        [ "$state" = UP ] && [ "$iface" != "$wan_iface" ] || continue
+        IFACES+=("$iface")
+    done < <(list_wired_ifaces)
+    (( ${#IFACES[@]} > 0 )) || abort "no remaining wired LAN interface -abort"
     while true; do
         failure_message="cannot display the network interfaces"
         print_interfaces
         failure_message="cannot read the LAN interface choice"
-        read -r -p "Select Local Network Interface [1-${#IFACES[@]}]: " SEL
+        read -r -p "Select LAN Interface [1-${#IFACES[@]}]: " SEL || abort "cannot read interface selection -abort"
         if [[ "$SEL" =~ $UH_UINT ]] \
            && [ "${#SEL}" -le 5 ] \
            && [ "$SEL" -ge 1 ] && [ "$SEL" -le "${#IFACES[@]}" ]; then
@@ -700,7 +756,7 @@ local_interface() {
             fi
             while true; do
                 failure_message="cannot read the LAN interface choice"
-                read -r -p "Confirm LAN interface is '$CANDIDATE'? (y/n): " CONFIRM
+                read -r -p "Confirm LAN interface is '$CANDIDATE'? (y/n): " CONFIRM || abort "cannot read interface selection -abort"
                 case "$CONFIRM" in
                     [Yy]) ETH1="$CANDIDATE"; break 2 ;;
                     [Nn]) break ;;
@@ -708,7 +764,7 @@ local_interface() {
                 esac
             done
         else
-            info "Invalid selection. Try again"
+            info "invalid interface selection -retry"
         fi
     done
     info "LAN interface: $ETH1"
@@ -742,24 +798,24 @@ is_interfaces
 # Display the installation introduction and system requirements
 failure_message="cannot clear the terminal"
 clear
-echo -e "\n"
+echo ""
 echo "    Welcome to GateProxy"
-echo -e "\n"
+echo ""
 echo "    Minimum Requirements:"
 echo "    CPU:      4+ cores (>= 3.0 GHz)"
 echo "    NIC:      2 (WAN & LAN)"
 echo "    RAM:      4 GB cache_mem (12+ GB RAM recommended)"
 echo "    Storage:  50 GB SSD for cache_dir rock"
 echo "    SO:       Ubuntu 24.04/26.04 LTS"
-echo -e "\n"
+echo ""
 echo "    Press ENTER to start or CTRL+C to abort"
-echo -e "\n"
+echo ""
 failure_message="cannot read the continue confirmation"
 read -r RES
 failure_message="cannot clear the terminal"
 clear
 
-echo -e "\n"
+echo ""
 while true; do
     failure_message="cannot read the server IP answer"
     read -r -p "Do you want to change? Server IP 192.168.0.10? (y/n): " change_ip
@@ -953,7 +1009,7 @@ apply_squid_ports() {
 PORTNEW=3128
 INTERCEPT_PORTNEW=3129
 
-echo -e "\n"
+echo ""
 while true; do
     failure_message="cannot read the proxy port answer"
     read -r -p "Server settings:
@@ -999,15 +1055,62 @@ if [ "$SERV_SUBNET" != "192.168.0.0" ]; then
     find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$SERV_SUBNET:g" "{}"
 fi
 
-# wan_iface and PORTNEW (the proxy port) are substituted into conf/ with sed
-# /etc/pydhcp/pydhcp.env below, once pydhcp is installed. SERVER_IP,
-# SERV_SUBNET and SERV_MASK are written instead by pydhcp's own pysetup.sh,
-# from the values gateproxy passes it via expect -- pydhcp.env is the single
-# persistent source of truth these scripts read from. DNSNEW1/2 only feed
-# forward.conf (Unbound). iptables.sh reads pydhcp's own SERV_DNS (DNS
-# pydhcp hands out via DHCP), INTERFACESv4 (LAN interface) and derives its
-# CIDR prefix from SERV_MASK -- no separate gateproxy keys for these,
-# so there is nothing to keep in sync by hand.
+validate_network_interfaces() {
+    local phase="${1:-before}" iface state
+    [ "$wan_iface" != "$LAN_IF" ] || abort "WAN and LAN must differ -abort"
+    for iface in "$wan_iface" "$LAN_IF"; do
+        [ ! -d "/sys/class/net/$iface/wireless" ] || abort "wired interfaces are required -abort"
+        state=$(ip -br link show "$iface" 2>/dev/null | awk '{print $2}')
+        [ "$state" = UP ] || abort "interface '$iface' is not UP -abort"
+    done
+    ip -4 -o addr show dev "$wan_iface" scope global 2>/dev/null \
+        | awk '$4 != "" {found=1} END {exit !found}' \
+        || abort "WAN has no global IPv4 -abort"
+    if [ "$phase" = after ]; then
+        ip -4 -o addr show dev "$LAN_IF" scope global 2>/dev/null \
+            | awk -v expected="$SERVER_IP/$MASKNEW2" '$4 == expected {found=1} END {exit !found}' \
+            || abort "LAN IPv4 or prefix differs from configuration -abort"
+    fi
+}
+
+write_gateproxy_env() {
+    local config_dir config_tmp
+    config_dir="$(dirname "$gateproxy_env")"
+    [ ! -L "$config_dir" ] || abort "gateproxy config folder is a symbolic link -abort"
+    [ ! -L "$gateproxy_env" ] || abort "gateproxy.env is a symbolic link -abort"
+    if [ -e "$gateproxy_env" ] && [ ! -f "$gateproxy_env" ]; then
+        abort "gateproxy.env is not a regular file -abort"
+    fi
+    install -d -m 750 -o root -g root "$config_dir"
+    if [ -f "$gateproxy_env" ]; then
+        cp -f "$gateproxy_env" "${gateproxy_env}.bak"
+    fi
+    config_tmp=$(mktemp "$config_dir/gateproxy.env.XXXXXX")
+    if ! cat > "$config_tmp" <<ENV
+# =============================================================================
+# Gateproxy
+# /etc/gateproxy/gateproxy.env
+# =============================================================================
+
+# Network
+WAN_IFACE=$wan_iface
+
+# Backup
+BACKUP_DIR=/etc/bak/gateproxy
+# =============================================================================
+ENV
+    then
+        rm -f "$config_tmp"
+        abort "cannot write gateproxy.env -abort"
+    fi
+    if ! { chown root:root "$config_tmp" && chmod 640 "$config_tmp" \
+        && mv -f "$config_tmp" "$gateproxy_env"; }; then
+        rm -f "$config_tmp"
+        abort "cannot publish gateproxy.env -abort"
+    fi
+}
+
+validate_network_interfaces before
 
 # ------------------------------------------------------------------------------
 # INSTALL
@@ -1015,7 +1118,6 @@ fi
 
 # NETPLAN
 # Apply the selected network interface configuration
-echo -e "\n"
 log "EVENT: Applying network configuration..."
 find /etc/netplan -maxdepth 1 -type f -name '*.yaml' -not -name '*.yaml.bak' -exec mv -- {} {}.bak \; 2>/dev/null
 failure_message="cannot create cloud.cfg.d"
@@ -1050,10 +1152,12 @@ until ip -4 addr show "$LAN_IF" 2>/dev/null | grep -qF "inet $SERVER_IP/"; do
     sleep 2
     NETPLAN_WAIT=$((NETPLAN_WAIT + 1))
 done
+validate_network_interfaces after
+write_gateproxy_env
 info "Network OK: $LAN_IF has $SERVER_IP"
 
 failure_message="cannot remove extra IPs from $LAN_IF"
-ip -4 -o addr show dev "$LAN_IF" | awk '{print $4}' | while read -r extra_addr; do
+ip -4 -o addr show dev "$LAN_IF" scope global | awk '{print $4}' | while read -r extra_addr; do
     if [ "${extra_addr%%/*}" != "$SERVER_IP" ]; then
         failure_message="cannot read the network interface addresses"
         ip addr del "$extra_addr" dev "$LAN_IF" 2>/dev/null \
@@ -1075,7 +1179,7 @@ fi
 
 # ESSENTIAL
 # Install the supporting system packages
-echo -e "\n"
+echo ""
 log "EVENT: Essential Packages..."
 # DISK & STORAGE MANAGEMENT
 # Install disk and storage management packages
@@ -1196,7 +1300,7 @@ upgrade
 
 # SETUP
 # Prepare the application installation directories
-echo -e "\n"
+echo ""
 log "EVENT: Gateproxy Packages..."
 if grep -qFw "$HOSTNAME" /etc/hosts 2>/dev/null; then
     info "$HOSTNAME already resolves in /etc/hosts -skip"
@@ -1454,11 +1558,9 @@ if (cd "$gp_path" && git clone https://github.com/maravento/proxymon); then
         if [ -f pmsetup.sh ]; then
             failure_message="cannot set permissions on pmsetup.sh"
             chmod +x pmsetup.sh
-            if PROXYMON_LAN="$LAN_IF" PROXYMON_SERVER_IP="$SERVER_IP" \
+            if ! PROXYMON_LAN="$LAN_IF" PROXYMON_SERVER_IP="$SERVER_IP" \
                 PROXYMON_SQUID_MGR_PORT="${PORTNEW:-3128}" \
                 PROXYMON_SQUID_INTERCEPT_PORT="$INTERCEPT_PORTNEW" ./pmsetup.sh --install; then
-                info "Sent to proxymon: SERVER_IP=$SERVER_IP lan_interface=$LAN_IF"
-            else
                 warn "pmsetup.sh install failed -alert"
             fi
         else
@@ -1474,7 +1576,6 @@ else
     warn "cannot clone proxymon -alert"
 fi
 
-echo -e "\n"
 log "EVENT: WPAD Config..."
 
 # pysetup.sh below probes http://SERVER_IP:18100/wpad.pac to decide whether to
@@ -1512,7 +1613,6 @@ info "WPAD-PAC: http://$SERVER_IP:18100/wpad.pac"
 failure_message="cannot wait before the next attempt"
 sleep 1
 
-echo -e "\n"
 # DHCP SECTION
 # pydhcp
 log "EVENT: Installing pydhcp..."
@@ -1526,7 +1626,7 @@ if (cd "$gp_path" && git clone https://github.com/maravento/pydhcp); then
             PYDHCP_EXPECT=$(mktemp) || { failure_status=$?; report_failure; exit "$failure_status"; }
             failure_message="cannot write the pydhcp answer script"
             cat > "$PYDHCP_EXPECT" <<EOF
-spawn env PYDHCP_WAN_IFACE=$wan_iface PYDHCP_LAN_IFACE=$LAN_IF PYDHCP_SERVER_IP=$SERVER_IP bash pysetup.sh --install
+spawn env PYDHCP_LAN_IFACE=$LAN_IF PYDHCP_SERVER_IP=$SERVER_IP bash pysetup.sh --install
 expect "Enter pool start"
 send "\r"
 expect "Enter pool end"
@@ -1546,8 +1646,6 @@ EOF
 
             failure_message="cannot enter the Gateproxy directory"
             cd "$gp_path"
-            info "DHCP pool uses the configured LAN network"
-            info "DHCP clients will use $SERVER_IP (unbound) as DNS"
 
         else
             warn "cannot enter pydhcp directory -alert"
@@ -1603,7 +1701,11 @@ sleep 1
 # NET TOOLS
 # Net Tools (Replace NIC and IP/CIDR)
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y iw                 # Wireless tools: iwconfig, iwlist, iwpriv
+(
+    apt() { LC_ALL=C command apt "$@" >>"$log_file" 2>&1; }
+    log "EVENT: Installing iw..."
+    retry_cmd apt install -y iw
+)
 failure_message="cannot install packages with apt"
 retry_cmd apt install -y fping              # Net diagnostics: fping -a -g 192.168.0.0/24
 failure_message="cannot install packages with apt"
@@ -1669,11 +1771,9 @@ if retry_cmd python3 gitfolder.py https://github.com/maravento/vault/suridata; t
         failure_message="cannot set permissions on surisetup.sh"
         chmod +x "$suridata_path/surisetup.sh"
         failure_message="cannot install suridata"
-        if (cd "$suridata_path" && SURIDATA_WAN_IFACE="$wan_iface" \
+        if ! (cd "$suridata_path" && SURIDATA_WAN_IFACE="$wan_iface" \
             SURIDATA_LAN_IFACE="$LAN_IF" SURIDATA_SERVER_IP="$SERVER_IP" \
             ./surisetup.sh --install); then
-            info "Sent to suridata: WAN=$wan_iface LAN=$LAN_IF subnet=$SERV_SUBNET"
-        else
             warn "surisetup.sh install failed -alert"
         fi
         dump_module_log "$suridata_path/surisetup.log" "suridata"
@@ -1688,7 +1788,7 @@ cd "$gp_path"
 
 # OPTIONAL PACK
 # Offer the optional desktop package installation
-echo -e "\n"
+echo ""
 while true; do
     failure_message="cannot read the optional package answer"
     read -r -p "Do you want to install Optional GTK Pack?
@@ -1731,7 +1831,7 @@ upgrade
 
 # SHARED ###
 # Samba with Shared folder, Recycle Bin and Audit
-echo -e "\n"
+echo ""
 while true; do
     failure_message="cannot read the Samba installation answer"
     read -r -p "Do you want to install Samba?
@@ -1745,9 +1845,7 @@ with SHARED folder, Recycle Bin and Audit (y/n)" answer
 
             if [ -d "$smbstack_path" ]; then
                 if cd "$smbstack_path"; then
-                    if SMBSTACK_IFACE="$LAN_IF" bash smbsetup.sh --install; then
-                        info "smbstack installed OK"
-                    else
+                    if ! SMBSTACK_IFACE="$LAN_IF" bash smbsetup.sh --install; then
                         warn "smbsetup.sh --install failed -alert"
                     fi
                     dump_module_log "$smbstack_path/smbsetup.log" "smbstack"
@@ -1788,7 +1886,7 @@ upgrade
 # gateproxy does not install UniFi/podman itself. To install UniFi Network
 # self-hosted / UniFi OS Server first, use unifisetup.sh:
 # https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/unifisetup.sh
-echo -e "\n"
+echo ""
 UNIFI_DETECTED_TYPE=""
 if dpkg-query -W -f='${Version}' unifi >/dev/null 2>&1; then
     UNIFI_DETECTED_TYPE="classic"
@@ -1811,9 +1909,7 @@ if [ -n "$UNIFI_DETECTED_TYPE" ]; then
                 if [ -d "$uhm_path" ]; then
                     if cd "$uhm_path"; then
                         log "EVENT: Launching uhm installer (interactive)..."
-                        if bash uhmsetup.sh; then
-                            info "uhm installed OK"
-                        else
+                        if ! UHM_LAN_IFACE="$LAN_IF" UHM_SERVER_IP="$SERVER_IP" bash uhmsetup.sh; then
                             warn "uhmsetup.sh failed -alert"
                         fi
                         dump_module_log "$uhm_path/uhmsetup.log" "uhm"
@@ -1853,7 +1949,7 @@ failure_message="cannot update system packages"
 upgrade
 
 # ACLs ###
-echo -e "\n"
+echo ""
 # Allow IP
 get_acl https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt "$ACL_PATH/squid/allowip.txt" || true
 if [ -f "$ACL_PATH/squid/allowip.txt" ]; then
@@ -1923,7 +2019,6 @@ failure_message="cannot wait before the next attempt"
 sleep 1
 
 # ADD CONFIG ###
-echo -e "\n"
 log "EVENT: Applying Config..."
 # squid
 cp -f /etc/squid/squid.conf{,.bak} &>/dev/null || true
@@ -1971,7 +2066,6 @@ find "$SCR_PATH" -name "*.sh" -exec chmod +x {} \;
 failure_message="cannot wait before the next attempt"
 sleep 1
 
-echo -e "\n"
 log "EVENT: Proxy Apache Config..."
 
 cp -f /etc/apache2/sites-available/000-default.conf{,.bak} &>/dev/null || true
@@ -1988,7 +2082,6 @@ grep -qE '^[[:space:]]*RequestHeader unset Proxy early[[:space:]]*$' /etc/apache
 failure_message="cannot wait before the next attempt"
 sleep 1
 
-echo -e "\n"
 log "EVENT: Adding Parameters..."
 failure_message="cannot write syslogemu.log"
 grep -qxF '*.none    /var/log/ulog/syslogemu.log' /etc/rsyslog.conf || \
@@ -2075,9 +2168,7 @@ sleep 1
 
 # APACHE PASSWORD
 # Create the Apache authentication password file
-echo -e "\n"
 log "EVENT: Create Apache Password: /var/www/..."
-echo -e "\n"
 until htpasswd -c /etc/apache2/.htpasswd "$local_user"; do
     info "Passwords did not match or were empty. Try again"
 done
@@ -2095,7 +2186,7 @@ sleep 1
 
 # CRONTAB
 # Register the project startup and maintenance tasks
-echo -e "\n"
+echo ""
 log "EVENT: Add Crontab Tasks..."
 failure_message="cannot update the project cron file"
 cron_d_set "systemctl daemon-reload" "@reboot root systemctl daemon-reload"
@@ -2125,7 +2216,7 @@ systemctl daemon-reexec &>/dev/null
 #update-initramfs -u -k all
 # create alias "upgrade"
 failure_message="cannot update the desktop application index"
-sudo -u "$local_user" bash -c "grep -q '^alias upgrade=' '${local_home}/.bashrc' 2>/dev/null || printf '%s\n' 'alias upgrade=\"sudo apt update && sudo apt upgrade -y && sudo apt autoremove --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo apt install -f -y && sudo systemctl daemon-reload && sudo updatedb && sudo update-desktop-database && sudo snap refresh\"' >> ${local_home}/.bashrc"
+sudo -u "$local_user" bash -c "grep -q '^alias upgrade=' '${local_home}/.bashrc' 2>/dev/null || printf '%s\n' 'alias upgrade=\"sudo apt update && sudo apt upgrade -y && sudo apt autoremove --purge -y && sudo aptitude -y safe-upgrade && sudo sync && sudo dpkg --configure -a && sudo apt install -f -y && sudo systemctl daemon-reload && sudo updatedb && sudo update-desktop-database && { if command -v snap >/dev/null 2>&1; then sudo snap refresh; fi; }\"' >> ${local_home}/.bashrc"
 failure_message="cannot add server alias to .bashrc"
 sudo -u "$local_user" bash -c "grep -q '^alias server=' '${local_home}/.bashrc' 2>/dev/null || printf '%s\n' 'alias server=\"sudo /etc/scr/serverboot.sh\"' >> ${local_home}/.bashrc"
 failure_message="cannot add cleaner alias to .bashrc"
@@ -2134,15 +2225,17 @@ sudo -u "$local_user" bash -c "grep -q '^alias cleaner=' '${local_home}/.bashrc'
 failure_message="cannot edit gai.conf"
 sed -i 's/^#\s*precedence ::ffff:0:0\/96\s\+100/precedence ::ffff:0:0\/96  100/' /etc/gai.conf
 # snap
-snap unset system proxy.http || true
-snap unset system proxy.https || true
-failure_message="cannot refresh snap packages"
-retry_cmd snap refresh snapd
-failure_message="cannot reload systemd configuration"
-systemctl daemon-reload
-systemctl restart snapd || true
-failure_message="cannot refresh snap packages"
-retry_cmd snap refresh
+if command -v snap >/dev/null 2>&1; then
+    snap unset system proxy.http || true
+    snap unset system proxy.https || true
+    failure_message="cannot refresh snap packages"
+    retry_cmd snap refresh snapd
+    failure_message="cannot reload systemd configuration"
+    systemctl daemon-reload
+    systemctl restart snapd || true
+    failure_message="cannot refresh snap packages"
+    retry_cmd snap refresh
+fi
 # logs
 failure_message="cannot set permissions on /var/log"
 chmod 755 /var/log
@@ -2152,7 +2245,7 @@ chown root:syslog /var/log
 failure_message="cannot update system packages"
 upgrade
 
-echo -e "\n"
+echo ""
 echo "Done. Press ENTER to Reboot"
 echo "after reboot, run:"
 echo "systemctl list-units --type service --state running,failed"

@@ -473,28 +473,44 @@ check_port() {
     fi
 }
 
+# IFACES
+# List network interfaces other than loopback
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+# IPV4 INTERFACES
+# Offer only interfaces with an active link and configured global IPv4
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
 # LAN SELECTION
 # Select an existing interface and one of its configured IPv4 addresses
 choose_lan_interface() {
-    local preset_iface="${1:-}" excluded_iface="${2:-}"
-    local iface_name iface_choice iface_index iface_addrs
+    local preset_iface="${1:-}"
+    local iface_name iface_choice iface_index iface_addrs iface_state
     local -a lan_candidates=()
-    if [ -n "$preset_iface" ]; then
-        ip link show dev "$preset_iface" >/dev/null 2>&1 || {
-            log "ERROR: LAN interface '$preset_iface' not found -abort"
-            exit 1
-        }
-        [ "$preset_iface" != "$excluded_iface" ] || {
-            log "ERROR: LAN and WAN must differ -abort"
-            exit 1
-        }
-        lan_iface_answer="$preset_iface"
-        return 0
-    fi
     while IFS= read -r iface_name; do
-        [ "$iface_name" = "$excluded_iface" ] && continue
         lan_candidates+=("$iface_name")
-    done < <(ip -br link show | awk '$1 != "lo" {sub(/@.*/, "", $1); print $1}')
+    done < <(list_ipv4_ifaces)
+    if [ -n "$preset_iface" ]; then
+        for iface_name in "${lan_candidates[@]}"; do
+            if [ "$preset_iface" = "$iface_name" ]; then
+                lan_iface_answer="$preset_iface"
+                return 0
+            fi
+        done
+        log "ERROR: LAN must be an active interface with IPv4 -abort"
+        exit 1
+    fi
     (( ${#lan_candidates[@]} > 0 )) || {
         log "ERROR: no LAN interface available -abort"
         exit 1
@@ -506,11 +522,12 @@ choose_lan_interface() {
     echo "Available LAN interfaces:"
     for iface_index in "${!lan_candidates[@]}"; do
         iface_name="${lan_candidates[$iface_index]}"
+        iface_state=$(ip -br link show "$iface_name" | awk '{print $2}')
         iface_addrs=$(ip -4 -o addr show dev "$iface_name" scope global | awk '{print $4}' | paste -sd' ')
-        printf ' [%d] %s (%s)\n' "$((iface_index + 1))" "$iface_name" "${iface_addrs:-no IPv4}"
+        printf ' [%d] %s (%s, %s)\n' "$((iface_index + 1))" "$iface_name" "$iface_state" "${iface_addrs:-no IPv4}"
     done
     while true; do
-        read -r -p "Select LAN interface number: " iface_choice || {
+        read -r -p "Select LAN Interface [1-${#lan_candidates[@]}]: " iface_choice || {
             log "ERROR: cannot read LAN interface selection -abort"
             exit 1
         }
@@ -573,14 +590,14 @@ list_candidate_interfaces() {
     candidate_names=()
     candidate_addrs=()
     local iface addr
-    while read -r iface addr; do
-        [ -z "$iface" ] && continue
+    while IFS= read -r iface; do
         [[ "$iface" =~ $virtual_iface_pattern ]] && continue
+        addr=$(ip -4 -o addr show dev "$iface" scope global | awk '{print $4}' | paste -sd' ')
         candidate_names+=("$iface")
         candidate_addrs+=("$addr")
-    done < <(ip -4 addr show scope global | awk '/inet /{print $NF, $2}')
+    done < <(list_ipv4_ifaces)
     if [ "${#candidate_names[@]}" -eq 0 ]; then
-        log "ERROR: no physical interface has global IPv4 -abort"
+        log "ERROR: no eligible scan interface with IPv4 -abort"
         exit 1
     fi
 }
@@ -588,22 +605,29 @@ list_candidate_interfaces() {
 print_candidate_interfaces() {
     local i
     for i in "${!candidate_names[@]}"; do
-        printf " %2d) %-12s %s\n" "$((i + 1))" "${candidate_names[$i]}" "${candidate_addrs[$i]}"
+        printf ' [%d] %s (UP, %s)\n' "$((i + 1))" "${candidate_names[$i]}" "${candidate_addrs[$i]}"
     done
 }
 
-# Multiple interfaces (e.g. a LAN NIC and a WAN NIC) can be scanned at once --
-# nwatchlan.sh arp-scans every one of them each poll cycle.
+# Multiple interfaces can be scanned at once.
 select_scan_interfaces() {
     list_candidate_interfaces
+    if (( ${#candidate_names[@]} == 1 )); then
+        ifaces_answer="${candidate_names[0]}"
+        echo "Scanning interfaces: $ifaces_answer"
+        return 0
+    fi
     echo ""
-    echo "Available network interfaces (virtual/loopback interfaces are hidden):"
+    echo "Available scan interfaces (virtual/loopback interfaces are hidden):"
     print_candidate_interfaces
     echo ""
-    local all_idxs
+    local all_idxs sel
     all_idxs=$(seq -s, 1 "${#candidate_names[@]}")
     while true; do
-        read -rp "Select interface(s) to scan -- comma-separated numbers (default: $all_idxs): " sel
+        read -rp "Select scan interfaces [1-${#candidate_names[@]}], comma-separated (default: $all_idxs): " sel || {
+            log "ERROR: cannot read scan interface selection -abort"
+            exit 1
+        }
         sel="${sel//[[:space:]]/}"
         sel="${sel:-$all_idxs}"
         local idxs chosen idx ok
@@ -856,10 +880,10 @@ do_install() {
         exit 1
     fi
 
-    a2enmod -q headers
-
     select_scan_interfaces
     select_management_interface
+
+    a2enmod -q headers
 
     mkdir -p "$nwatch_web" "$nwatch_tools" "$nwatch_data" "$nwatch_etc"
 

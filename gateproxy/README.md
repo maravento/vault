@@ -24,6 +24,21 @@ FILE: gateproxy/README.md
 
 ---
 
+### Compatibility
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
+    </td>
+  </tr>
+</table>
+
+### Hardware
+
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
@@ -35,10 +50,6 @@ FILE: gateproxy/README.md
   </tr>
 </table>
 
-> **⚠️ WARNING -- Supported systems:** Only tested on Ubuntu 24.04/26.04 LTS. Other versions or distributions are not tested and are used at your own risk.
->
-> **⚠️ WARNING -- Supported systems:** Solo probado en Ubuntu 24.04/26.04 LTS. Otras versiones o distribuciones no están probadas y se usan bajo tu responsabilidad.
-
 ## REPOSITORY STRUCTURE
 
 ---
@@ -48,22 +59,12 @@ gateproxy/
 ├── acl/                        # Access control lists for MAC, Squid and iptables rules (see ACL STRUCTURE)
 │
 ├── conf/
-│   ├── evebox/
-│   │   ├── evebox.service          # EveBox systemd unit
-│   │   └── evebox.yaml             # EveBox configuration
 │   ├── fail2ban/
 │   │   └── jail.local              # fail2ban jail config
 │   ├── netplan/
 │   │   └── 00-networkd.yaml        # Netplan configuration
 │   ├── squid/
 │   │   └── squid.conf              # Squid proxy configuration
-│   ├── suricata/
-│   │   ├── disable.conf            # Suricata disabled rules
-│   │   ├── drop.conf               # Suricata drop rules (converted alert->drop by suricata-update)
-│   │   ├── suricataclean.sh        # Suricata log cleanup
-│   │   ├── suricataupdate.sh       # Suricata rules update
-│   │   ├── suridata.sh             # Captures dest_ip from drop.conf-matched alerts into /etc/suricata/suridata.txt
-│   │   └── suridata.txt            # Destination IPs blocked from Suricata alerts (see suridata.sh)
 │   ├── ttyd/
 │   │   └── ttyd.service            # ttyd (web terminal) systemd unit
 │   ├── unbound/
@@ -273,8 +274,26 @@ none /run/shm tmpfs defaults,ro 0 0                                 # read-only 
 | Function | Description | Descripción |
 | :--- | :--- | :--- |
 | Localnet | Localnet (<code>192.168.0.0</code>) is derived from the Server IP and Netmask together, not asked separately. | Localnet (<code>192.168.0.0</code>) se deriva del Server IP y la Netmask en conjunto, no se pregunta por separado. |
-| Client DNS | <ul><li>DNS Primary/Secondary only configure Unbound's own forwarders (<code>conf/unbound/forward.conf</code>), where Unbound sends queries it cannot answer locally.</li><li>They do <b>not</b> control which DNS server LAN clients may query directly.</li><li>That is pydhcp's <code>SERV_DNS</code> key in <code>pydhcp.env</code>, the same value pydhcp hands out via DHCP, which <code>iptables.sh</code> reads to open the matching firewall access.</li><li>Installation sets it to the Server IP (Unbound).</li><li>If it is missing, empty or malformed, <code>iptables.sh</code> aborts during key validation.</li><li>To have clients reach external DNS directly, edit <code>SERV_DNS</code> by hand, regenerate <code>pydhcpd.conf</code> with pydhcp's <code>pyleases.sh</code>, restart <code>pydhcpd</code>, and re-run <code>iptables.sh</code>.</li></ul> | <ul><li>Los DNS Primario y Secundario solo configuran los reenviadores propios de Unbound (<code>conf/unbound/forward.conf</code>), a donde Unbound manda las consultas que no resuelve localmente. <b>No</b> controlan a qué servidor DNS pueden consultar directamente los clientes de la LAN.</li><li>Eso lo controla la clave <code>SERV_DNS</code> de pydhcp en <code>pydhcp.env</code>, el mismo valor que pydhcp entrega por DHCP, que <code>iptables.sh</code> lee para abrir el acceso en el firewall.</li><li>La instalación le asigna el Server IP (Unbound).</li><li>Si falta, está vacía o tiene formato inválido, <code>iptables.sh</code> aborta durante la validación de claves.</li><li>Para que los clientes alcancen DNS externo directamente, edita <code>SERV_DNS</code> a mano, regenera <code>pydhcpd.conf</code> con <code>pyleases.sh</code> de pydhcp, reinicia <code>pydhcpd</code> y vuelve a correr <code>iptables.sh</code>.</li></ul> |
-| Installer configuration | <ul><li>GateProxy configures the interfaces first, then passes LAN, WAN and the server IPv4 to <code>pysetup.sh</code>.</li><li>PyDHCP detects that prefix and writes the IP, network and mask into <code>pydhcp.env</code>.</li><li>DNS and pool answers are supplied through <code>expect</code>.</li><li>Once pydhcp is installed, the script substitutes its own values (WAN interface, proxy port) into <code>conf/</code> with <code>sed</code> before deploying, so they end up in the firewall script itself.</li><li>It never writes into <code>pydhcp.env</code>, which belongs to pydhcp.</li><li>There is no "reuse previous answers" step: each run asks fresh.</li></ul> | <ul><li>GateProxy configura primero las interfaces y envía LAN, WAN y la IPv4 del servidor a <code>pysetup.sh</code>.</li><li>PyDHCP detecta ese prefijo y escribe IP, red y máscara en <code>pydhcp.env</code>.</li><li>Las respuestas de DNS y pool se envían mediante <code>expect</code>.</li><li>Una vez instalado pydhcp, el script sustituye sus propios valores (interfaz WAN, puerto del proxy) dentro de <code>conf/</code> con <code>sed</code> antes de desplegar, así que quedan en el propio script del firewall.</li><li>Nunca escribe en <code>pydhcp.env</code>, que pertenece a pydhcp.</li><li>No existe un paso de "reusar respuestas anteriores": cada corrida pregunta de nuevo.</li></ul> |
+| Client DNS | DNS Primary/Secondary configure Unbound forwarders. The firewall reads <code>SERV_DNS</code> from <code>pydhcp.env</code>, the same setting pydhcp uses for DHCP clients. Installation supplies the server IP as DNS to pydhcp. To change client DNS, edit that key, regenerate DHCP configuration and reload the affected services. | Los DNS Primario/Secundario configuran los reenviadores de Unbound. El firewall lee <code>SERV_DNS</code> desde <code>pydhcp.env</code>, la misma clave que pydhcp utiliza para los clientes DHCP. La instalación entrega a pydhcp la IP del servidor como DNS. Para cambiar los DNS de clientes, edita esa clave, regenera la configuración DHCP y recarga los servicios afectados. |
+| Installer configuration | Require two connected wired interfaces. Ask WAN first among interfaces with global IPv4, then LAN among the remaining connected interfaces. Configure LAN through Netplan and verify its selected IPv4/prefix. Save only WAN in <code>gateproxy.env</code>. Other answers replace placeholders or are passed to module installers. Each module writes the same own keys it would write in a standalone installation. | Exige dos interfaces cableadas conectadas. Pregunta WAN primero entre interfaces con IPv4 global y después LAN entre las restantes conectadas. Configura LAN mediante Netplan y verifica su IPv4/prefijo seleccionado. Guarda únicamente WAN en <code>gateproxy.env</code>. Las otras respuestas sustituyen placeholders o se entregan a los instaladores de módulos. Cada módulo escribe las mismas claves propias que escribiría al instalarse por separado. |
+
+#### gateproxy.env
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      The installer creates <code>/etc/gateproxy/gateproxy.env</code> after verifying the configured interfaces. Directory: root:root 750; file: root:root 640. It contains <code>WAN_IFACE</code> and <code>BACKUP_DIR</code>. The backup directory defaults to <code>/etc/bak/gateproxy</code>; <code>bkconf.sh</code> reads and validates this key before creating archives. Other keys may be added when Gateproxy itself needs them; module-specific settings remain in their module configurations. The firewall reads DHCP settings from <code>pydhcp.env</code> and proxy ports from <code>proxymon.env</code> when installed. Files are parsed without executing their contents; each required key is checked in its owner file. <code>bkconf.sh</code> includes this directory in its backup. Subsequent changes are made in the configuration owned by the affected module.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      El instalador crea <code>/etc/gateproxy/gateproxy.env</code> después de verificar las interfaces configuradas. Directorio: root:root 750; archivo: root:root 640. Contiene <code>WAN_IFACE</code> y <code>BACKUP_DIR</code>. El directorio de respaldo predeterminado es <code>/etc/bak/gateproxy</code>; <code>bkconf.sh</code> lee y valida esta clave antes de crear archivos de respaldo. Se pueden añadir otras claves cuando el propio Gateproxy las necesite; los parámetros específicos de módulos permanecen en sus configuraciones. El firewall lee los datos DHCP desde <code>pydhcp.env</code> y los puertos del proxy desde <code>proxymon.env</code> cuando está instalado. Los archivos se interpretan sin ejecutar su contenido; cada clave requerida se comprueba en el archivo de su propietario. <code>bkconf.sh</code> incluye este directorio en su respaldo. Los cambios posteriores se realizan en la configuración propia del módulo afectado.
+    </td>
+  </tr>
+</table>
+
+```ini
+# Network
+WAN_IFACE=enp1s0
+```
 
 ### Components
 
@@ -595,7 +614,7 @@ none /run/shm tmpfs defaults,ro 0 0                                 # read-only 
 
 | Description | Descripción |
 | :--- | :--- |
-| <ul><li>GateProxy configures its interfaces before calling dependent installers. PyDHCP receives the selected LAN/WAN and server IPv4, then detects the configured prefix. During installation, <code>gpsetup.sh</code> generates <code>/var/www/wpad/wpad.pac</code> with the selected server IP and proxy port. LAN destinations use <code>isInNet</code> with <code>SERV_SUBNET</code> and <code>SERV_MASK</code>. Local names and loopback remain direct. No PAC template is deployed.</li><li>During installation, <code>gpsetup.sh</code> uses <code>sed -i</code> to replace placeholders with the selected values. Later edits are not synchronized automatically between files. If you change Squid ports after installation, keep <code>proxymon.env</code>, <code>squid.conf</code> and the corresponding WPAD/PAC settings aligned. <code>iptables.sh</code> reads the shared ports when it runs; editing <code>proxymon.env</code> alone does not apply firewall rules or update Squid. Editing only one file can leave the settings inconsistent and interrupt proxy access.</li></ul> | <ul><li>GateProxy configura sus interfaces antes de invocar los instaladores dependientes. PyDHCP recibe LAN/WAN y la IPv4 del servidor; después detecta el prefijo configurado. Durante la instalación, <code>gpsetup.sh</code> genera <code>/var/www/wpad/wpad.pac</code> con la IP del servidor y puerto proxy seleccionados. Los destinos LAN utilizan <code>isInNet</code> con <code>SERV_SUBNET</code> y <code>SERV_MASK</code>. Los nombres locales y loopback conservan acceso directo. No se despliega una plantilla PAC.</li><li>Durante la instalación, <code>gpsetup.sh</code> utiliza <code>sed -i</code> para sustituir marcadores por los valores elegidos. Los cambios posteriores no se sincronizan automáticamente entre archivos. Si cambia los puertos de Squid, mantenga alineados <code>proxymon.env</code>, <code>squid.conf</code> y la configuración WPAD/PAC correspondiente. <code>iptables.sh</code> lee los puertos compartidos cuando se ejecuta. Editar solamente <code>proxymon.env</code> no aplica reglas del firewall ni actualiza Squid. Modificar solamente un archivo puede dejar valores incompatibles e interrumpir el acceso al proxy.</li></ul> |
+| <ul><li>GateProxy configures its interfaces before calling dependent installers. PyDHCP receives the selected LAN and server IPv4, then detects the configured prefix. During installation, <code>gpsetup.sh</code> generates <code>/var/www/wpad/wpad.pac</code> with the selected server IP and proxy port. LAN destinations use <code>isInNet</code> with <code>SERV_SUBNET</code> and <code>SERV_MASK</code>. Local names and loopback remain direct. No PAC template is deployed.</li><li>During installation, <code>gpsetup.sh</code> uses <code>sed -i</code> to replace placeholders with the selected values. Later edits are not synchronized automatically between files. If you change Squid ports after installation, keep <code>proxymon.env</code>, <code>squid.conf</code> and the corresponding WPAD/PAC settings aligned. <code>iptables.sh</code> reads the shared ports when it runs; editing <code>proxymon.env</code> alone does not apply firewall rules or update Squid. Editing only one file can leave the settings inconsistent and interrupt proxy access.</li></ul> | <ul><li>GateProxy configura sus interfaces antes de invocar los instaladores dependientes. PyDHCP recibe la LAN seleccionada y la IPv4 del servidor; después detecta el prefijo configurado. Durante la instalación, <code>gpsetup.sh</code> genera <code>/var/www/wpad/wpad.pac</code> con la IP del servidor y puerto proxy seleccionados. Los destinos LAN utilizan <code>isInNet</code> con <code>SERV_SUBNET</code> y <code>SERV_MASK</code>. Los nombres locales y loopback conservan acceso directo. No se despliega una plantilla PAC.</li><li>Durante la instalación, <code>gpsetup.sh</code> utiliza <code>sed -i</code> para sustituir marcadores por los valores elegidos. Los cambios posteriores no se sincronizan automáticamente entre archivos. Si cambia los puertos de Squid, mantenga alineados <code>proxymon.env</code>, <code>squid.conf</code> y la configuración WPAD/PAC correspondiente. <code>iptables.sh</code> lee los puertos compartidos cuando se ejecuta. Editar solamente <code>proxymon.env</code> no aplica reglas del firewall ni actualiza Squid. Modificar solamente un archivo puede dejar valores incompatibles e interrumpir el acceso al proxy.</li></ul> |
 
 > **⚠️ WARNING -- Manual configuration changes:** Keep Squid, Proxymon, WPAD/PAC and firewall settings aligned after manual changes.
 >

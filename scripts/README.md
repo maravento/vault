@@ -24,6 +24,8 @@ FILE: scripts/README.md
 
 ---
 
+### Compatibility
+
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">

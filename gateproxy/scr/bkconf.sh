@@ -66,8 +66,7 @@ done
 # VARIABLES
 # ------------------------------------------------------------------------------
 
-backup_dir="/etc/bak/gateproxy"
-backup_zip="${backup_dir}/bkconf_$(date +%Y%m%d_%H%M%S).zip"
+gateproxy_env="/etc/gateproxy/gateproxy.env"
 installed_path="/etc/scr/$(basename "$0")"
 
 # ------------------------------------------------------------------------------
@@ -129,6 +128,93 @@ deregister_cron() {
     log "INFO: bkconf backup cron removed, archives kept"
 }
 
+# ------------------------------------------------------------------------------
+# ENV
+# ------------------------------------------------------------------------------
+
+# PERMS
+# Owner and mode of every .env this script reads
+env_specs=("$gateproxy_env root:root 640")
+for env_spec in "${env_specs[@]}"; do
+    read -r env_path env_owner_want env_perms_want <<< "$env_spec"
+    if [ ! -f "$env_path" ]; then
+        log "ERROR: $(basename "$env_path") not found -abort"
+        exit 1
+    fi
+    env_owner=$(stat -c '%U:%G' "$env_path" 2>/dev/null)
+    env_perms=$(stat -c '%a' "$env_path" 2>/dev/null)
+    if [[ "$env_owner" != "$env_owner_want" ]] \
+       || [[ "$env_perms" != "$env_perms_want" ]]; then
+        if chown "$env_owner_want" "$env_path" 2>/dev/null \
+           && chmod "$env_perms_want" "$env_path" 2>/dev/null; then
+            log "INFO: $(basename "$env_path") perms fixed -fixed"
+        else
+            log "ERROR: cannot fix $(basename "$env_path") perms -abort"
+            exit 1
+        fi
+    fi
+done
+unset env_specs env_spec env_path env_owner_want env_perms_want
+unset env_owner env_perms
+
+# LOAD_CONF
+load_gateproxy_env() {
+    local conf_file="$1" conf_keys="$2" env_key env_value env_line env_count=0
+    while IFS= read -r env_line || [[ -n "$env_line" ]]; do
+        env_count=$((env_count + 1))
+        [[ "$env_line" =~ ^[[:space:]]*[#] ]] && continue
+        [[ "$env_line" =~ ^[[:space:]]*$ ]] && continue
+        env_key="${env_line%%=*}"
+        env_value="${env_line#*=}"
+        if [[ ! "$env_line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] \
+           || [[ "$env_value" == [[:space:]\"\']* ]] \
+           || [[ "$env_value" == *[[:space:]\"\'] ]]; then
+            if [[ ! "$env_line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+                log "ERROR: $(basename "$conf_file"):$env_count not key=value -abort"
+            else
+                log "ERROR: $(basename "$conf_file"):$env_count space or quote in value -abort"
+            fi
+            exit 1
+        fi
+        case " $conf_keys " in
+            *" $env_key "*)
+                printf -v "$env_key" '%s' "$env_value"
+                ;;
+        esac
+    done < "$conf_file"
+}
+
+# LOAD
+load_gateproxy_env "$gateproxy_env" 'BACKUP_DIR' || {
+    log "ERROR: cannot load gateproxy.env -abort"
+    exit 1
+}
+
+# KEY CHECK
+key_errors=()
+if ! grep -q '^BACKUP_DIR=' "$gateproxy_env"; then
+    key_errors+=("BACKUP_DIR missing line")
+elif [[ -z "${BACKUP_DIR:-}" ]]; then
+    key_errors+=("BACKUP_DIR not set")
+elif [[ "$BACKUP_DIR" != /* ]]; then
+    key_errors+=("BACKUP_DIR invalid absolute path")
+fi
+if (( ${#key_errors[@]} > 0 )); then
+    for key_error in "${key_errors[@]}"; do
+        log "WARNING: $key_error -alert"
+    done
+    log "ERROR: ${#key_errors[@]} key(s) invalid in gateproxy.env -abort"
+    exit 1
+fi
+unset key_errors key_error
+
+# ------------------------------------------------------------------------------
+# OWN VALUES
+# ------------------------------------------------------------------------------
+
+backup_dir="$BACKUP_DIR"
+backup_zip="${backup_dir}/bkconf_$(date +%Y%m%d_%H%M%S).zip"
+
 # Start
 case "${1:-}" in
     --install)
@@ -165,6 +251,7 @@ fi
 # so the project state can be restored.
 backup_list=()
 for backup_item in \
+    /etc/gateproxy \
     /etc/squid \
     /etc/acl \
     /etc/apache2 \

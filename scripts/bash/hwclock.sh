@@ -42,10 +42,13 @@ if ! flock -n 200; then
 fi
 
 # dependencies
-for dep in util-linux coreutils; do
+for dep in util-linux util-linux-extra coreutils; do
     if ! dpkg -s "$dep" &>/dev/null; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
-        exit 1
+        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Installing $dep..."
+        if ! apt-get install -y "$dep"; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install $dep -abort" >&2
+            exit 1
+        fi
     fi
 done
 

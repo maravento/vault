@@ -38,10 +38,8 @@ if ! flock -n 200; then
     exit 1
 fi
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') Top 5 Crypto Price Notifier Starting. Wait..."
-
 # dependencies
-for dep in curl jq libnotify-bin util-linux; do
+for dep in curl jq libnotify-bin util-linux iproute2 libc-bin; do
     if ! dpkg -s "$dep" &>/dev/null; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
@@ -55,27 +53,61 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: cryptonotify start..."
 # FUNCTIONS
 # ------------------------------------------------------------------------------
 
-# check internet
-check_internet() {
-    local max_attempts="${1:-24}" attempt=1
+# check ipv4 interfaces
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
 
     while (( attempt <= max_attempts )); do
-        if getent hosts www.google.com >/dev/null 2>&1; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: internet is available"
+        if [ -n "$(list_ipv4_ifaces)" ]; then
             return 0
         fi
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: waiting for internet ($attempt/$max_attempts)"
+        if (( attempt == 1 )); then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: waiting for an interface with IPv4..."
+        fi
         attempt=$((attempt + 1))
         sleep 5
     done
 
-    return 1
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no interface with IPv4 -abort" >&2
+    exit 1
 }
 
-if ! check_internet; then
+# check internet
+check_internet() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: waiting for internet..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no internet connection -abort" >&2
     exit 1
-fi
+}
+
+check_ipv4_interfaces
+check_internet
 
 # desktop notification to the current user (X11 and Wayland, no sudo)
 notify_send_self() {
@@ -112,7 +144,7 @@ top5_http_code=$(echo "$top5_response" | tail -n1)
 top5=$(echo "$top5_response" | head -n -1)
 
 if [ "$top5_http_code" != "200" ]; then
-    echo "CoinGecko API error (HTTP $top5_http_code). Cannot fetch market data"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: CoinGecko market data unavailable (HTTP $top5_http_code) -abort" >&2
     notify_send_self -i dialog-error "Crypto Prices" "API error (HTTP $top5_http_code). Try again later."
     exit 1
 fi
@@ -121,7 +153,7 @@ fi
 mapfile -t ids < <(echo "$top5" | jq -r '.[].id')
 
 if [ ${#ids[@]} -eq 0 ]; then
-    echo "No data returned from CoinGecko API"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: CoinGecko returned no coins -abort" >&2
     notify_send_self -i dialog-error "Crypto Prices" "No data returned from API. Try again later."
     exit 1
 fi
@@ -144,7 +176,7 @@ prices_http_code=$(echo "$prices_response" | tail -n1)
 prices=$(echo "$prices_response" | head -n -1)
 
 if [ "$prices_http_code" != "200" ]; then
-    echo "CoinGecko prices API error (HTTP $prices_http_code)"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: CoinGecko prices unavailable (HTTP $prices_http_code) -abort" >&2
     notify_send_self -i dialog-error "Crypto Prices" "Price API error (HTTP $prices_http_code). Try again later."
     exit 1
 fi

@@ -155,10 +155,11 @@ check_internet() {
 
     while (( attempt <= max_attempts )); do
         if getent hosts www.google.com >/dev/null 2>&1; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: internet is available"
             return 0
         fi
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: waiting for internet ($attempt/$max_attempts)"
+        if (( attempt == 1 )); then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: waiting for internet..."
+        fi
         attempt=$((attempt + 1))
         sleep 5
     done
