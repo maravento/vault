@@ -55,7 +55,7 @@ fi
 
 # dependencies
 for dep in procps systemd apache2 squid-openssl rsyslog util-linux; do
-    if ! dpkg -s "$dep" &>/dev/null; then
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         log "ERROR: dependency '$dep' is not installed -abort"
         exit 1
     fi
@@ -63,7 +63,7 @@ done
 
 # dependencies (external repo)
 for dep in webmin; do
-    if ! dpkg -s "$dep" &>/dev/null; then
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         log "ERROR: missing dependency '$dep' -abort"
         exit 1
     fi

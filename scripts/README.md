@@ -114,7 +114,7 @@ sudo bash aistack.sh --status
 
 #### File Manager Scripts (Nautilus, Caja, Thunar, Nemo)
 
-- [FMS Setup (--install|--uninstall scripts and prepare dependencies)](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/fmssetup.sh)
+- [FMS Setup (--install|--update|--uninstall scripts and prepare dependencies)](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/fmssetup.sh)
 - [check MD5](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/checkmd5)
 - [check sha256](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/checksha256)
 - [copy path](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/copypath)
@@ -123,9 +123,9 @@ sudo bash aistack.sh --status
 - [make sha256](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/makesha256)
 - [mount manager (smb, sftp, fuse)](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/mountman)
 
-> FMS installation requires an X11 or Wayland desktop session. Run the installer as the desktop user, without sudo. Without `DISPLAY` or `WAYLAND_DISPLAY`, it aborts before selecting a file manager or installing scripts. Uninstallation remains available without a graphical session.
+> FMS installation requires an X11 or Wayland desktop session. Run the installer as the desktop user, without sudo. It installs for every supported file manager it finds, and skips the ones that already have FMS. Without `DISPLAY` or `WAYLAND_DISPLAY`, it aborts before installing scripts. Uninstallation remains available without a graphical session.
 >
-> La instalación de FMS requiere una sesión de escritorio X11 o Wayland. Ejecute el instalador como usuario del escritorio, sin sudo. Si no existen `DISPLAY` ni `WAYLAND_DISPLAY`, aborta antes de seleccionar el gestor de archivos o instalar scripts. La desinstalación sigue disponible sin sesión gráfica.
+> La instalación de FMS requiere una sesión de escritorio X11 o Wayland. Ejecute el instalador como usuario del escritorio, sin sudo. Instala en todos los gestores de archivos compatibles que encuentre, y omite los que ya tienen FMS. Si no existen `DISPLAY` ni `WAYLAND_DISPLAY`, aborta antes de instalar scripts. La desinstalación sigue disponible sin sesión gráfica.
 
 #### Networking, Remote Access & Security
 

@@ -45,7 +45,7 @@ log() {
 
 # dependencies
 for dep in arp-scan sqlite3 iproute2 procps coreutils util-linux; do
-    if ! dpkg -s "$dep" &>/dev/null; then
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         log "ERROR: dependency '$dep' is not installed -abort"
         exit 1
     fi

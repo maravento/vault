@@ -166,7 +166,7 @@ retry_cmd() {
 }
 
 check_dependencies() {
-    if ! dpkg -s curl >/dev/null 2>&1; then
+    if [[ "$(dpkg-query -W -f='${Status}' curl 2>/dev/null)" != *"ok installed"* ]]; then
         if ! retry_cmd apt-get -qq update; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to update package lists while preparing curl -abort"
             exit 1
@@ -180,7 +180,7 @@ check_dependencies() {
     pkgs='libclang-dev ninja-build libayatana-appindicator3-1 libgstreamer1.0-dev libayatana-appindicator3-dev wget'
     missing=()
     for p in $pkgs; do
-        dpkg -s "$p" &>/dev/null || missing+=("$p")
+        [[ "$(dpkg-query -W -f='${Status}' "$p" 2>/dev/null)" == *"ok installed"* ]] || missing+=("$p")
     done
     unavailable=()
     for p in "${missing[@]}"; do
@@ -218,7 +218,7 @@ check_dependencies() {
     fi
 
     # rustdesk depends on libxdo3 | libxdo4 (either one satisfies it)
-    if ! dpkg -s libxdo3 &>/dev/null && ! dpkg -s libxdo4 &>/dev/null; then
+    if [[ "$(dpkg-query -W -f='${Status}' libxdo3 2>/dev/null)" != *"ok installed"* ]] && [[ "$(dpkg-query -W -f='${Status}' libxdo4 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing missing dependency: libxdo3"
         if ! retry_cmd apt-get install -y libxdo3; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install libxdo3 -abort"

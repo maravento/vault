@@ -42,7 +42,7 @@ fi
 
 # dependencies
 for dep in coreutils util-linux; do
-    if ! dpkg -s "$dep" &>/dev/null; then
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi

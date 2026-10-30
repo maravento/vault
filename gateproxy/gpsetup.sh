@@ -526,7 +526,7 @@ log "EVENT: Check Dependencies..."
 
 pkgs='curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 7zip rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3 iproute2 util-linux-extra'
 failure_message="cannot collect missing package names"
-missing=$(for p in $pkgs; do dpkg -s "$p" &>/dev/null || echo "$p"; done)
+missing=$(for p in $pkgs; do [[ "$(dpkg-query -W -f='${Status}' "$p" 2>/dev/null)" == *"ok installed"* ]] || echo "$p"; done)
 unavailable=""
 for p in $missing; do
     apt-cache show "$p" &>/dev/null || unavailable+=" $p"
@@ -1406,6 +1406,7 @@ sed -i \
   -e 's/^\s*;*\s*display_errors\s*=.*/display_errors = Off/' \
   -e 's/^\s*;*\s*display_startup_errors\s*=.*/display_startup_errors = Off/' \
   -e 's/^\s*;*\s*log_errors\s*=.*/log_errors = On/' \
+  -e 's/^[[:space:]]*;*[[:space:]]*session\.upload_progress\.enabled[[:space:]]*=.*/session.upload_progress.enabled = 0/' \
   -e 's/^\s*;*\s*session.use_strict_mode\s*=.*/session.use_strict_mode = 1/' \
   -e 's/^\s*;*\s*session.cookie_httponly\s*=.*/session.cookie_httponly = 1/' \
   -e 's/^\s*;*\s*session.cookie_samesite\s*=.*/session.cookie_samesite = Strict/' \

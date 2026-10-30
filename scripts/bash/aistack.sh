@@ -1728,7 +1728,7 @@ install_opencode_desktop() {
             return 1
         fi
 
-        if ! dpkg -s libfuse2 &>/dev/null 2>&1; then
+        if [[ "$(dpkg-query -W -f='${Status}' libfuse2 2>/dev/null)" != *"ok installed"* ]]; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') Installing libfuse2 (required by AppImage)..."
             apt-get update -qq 2>/dev/null || true
             retry_cmd apt-get install -y libfuse2 &>/dev/null
@@ -2530,7 +2530,7 @@ install_lmstudio() {
     fi
 
     # Install libfuse2 dependency (required by AppImage)
-    if ! dpkg -s libfuse2 &>/dev/null 2>&1; then
+    if [[ "$(dpkg-query -W -f='${Status}' libfuse2 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') Installing libfuse2 (required by AppImage)..."
         apt-get update -qq 2>/dev/null || true
         retry_cmd apt-get install -y libfuse2 &>/dev/null

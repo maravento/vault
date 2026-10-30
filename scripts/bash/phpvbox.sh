@@ -179,7 +179,7 @@ check_internet
 pkgs=(bsdutils lsof unzip apache2 libapache2-mod-php php php-soap php-xml wget procps cron iproute2 libc-bin)
 missing=()
 for p in "${pkgs[@]}"; do
-    dpkg -s "$p" &>/dev/null || missing+=("$p")
+    [[ "$(dpkg-query -W -f='${Status}' "$p" 2>/dev/null)" == *"ok installed"* ]] || missing+=("$p")
 done
 unavailable=()
 for p in "${missing[@]}"; do
@@ -249,6 +249,25 @@ echo "VBOXWEB_HOST=localhost" | tee -a /etc/default/virtualbox
 if ! id -nG "$local_user" | grep -qw vboxusers; then
     usermod -aG vboxusers "$local_user"
 fi
+for apache_php_ini in /etc/php/*/apache2/php.ini; do
+    [ -f "$apache_php_ini" ] || continue
+    if ! { [ -f "${apache_php_ini}.bak" ] || cp -p "$apache_php_ini" "${apache_php_ini}.bak"; }; then
+        echo "ERROR: cannot back up $apache_php_ini -abort" >&2
+        exit 1
+    fi
+    if grep -Eq '^[[:space:]]*;*[[:space:]]*session\.upload_progress\.enabled[[:space:]]*=' "$apache_php_ini"; then
+        sed -i 's/^[[:space:]]*;*[[:space:]]*session\.upload_progress\.enabled[[:space:]]*=.*/session.upload_progress.enabled = 0/' "$apache_php_ini" || {
+            echo "ERROR: cannot edit $apache_php_ini -abort" >&2
+            exit 1
+        }
+    else
+        printf '\nsession.upload_progress.enabled = 0\n' >> "$apache_php_ini" || {
+            echo "ERROR: cannot edit $apache_php_ini -abort" >&2
+            exit 1
+        }
+    fi
+done
+
 # restart services
 if ! service apache2 restart; then
     echo "Failed to restart apache2"

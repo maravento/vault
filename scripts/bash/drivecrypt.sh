@@ -43,8 +43,8 @@ if ! flock -n 200; then
 fi
 
 # dependencies
-for dep in bindfs fuse3 software-properties-common util-linux iproute2 libc-bin coreutils grep mawk sudo apt bsdutils; do
-    if ! dpkg -s "$dep" &>/dev/null; then
+for dep in bindfs fuse3 software-properties-common util-linux iproute2 libc-bin coreutils grep sudo apt bsdutils; do
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: '$dep' is not installed -abort" >&2
         exit 1
     fi
@@ -142,7 +142,7 @@ fi
 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: using local user: $local_user"
 
 the_ppa="sebastian-stenzel/cryptomator"
-if ! dpkg -s cryptomator &>/dev/null; then
+if [[ "$(dpkg-query -W -f='${Status}' cryptomator 2>/dev/null)" != *"ok installed"* ]]; then
     check_ipv4_interfaces
     check_internet
     add-apt-repository -y "ppa:$the_ppa" >/dev/null 2>&1

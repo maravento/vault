@@ -37,7 +37,7 @@ fi
 
 # dependencies
 for dep in libcurl3-gnutls libfuse2t64 libsqlite3-0 fuse3 util-linux; do
-    if ! dpkg -s "$dep" &>/dev/null; then
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
@@ -45,7 +45,7 @@ done
 
 # dependencies (external repo)
 for dep in google-drive-ocamlfuse; do
-    if ! dpkg -s "$dep" &>/dev/null; then
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: 'google-drive-ocamlfuse' is not installed" >&2
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: run: add-apt-repository ppa:alessandro-strada/ppa -abort" >&2
         exit 1

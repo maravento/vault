@@ -43,7 +43,7 @@ fi
 
 # dependencies
 for dep in util-linux util-linux-extra coreutils; do
-    if ! dpkg -s "$dep" &>/dev/null; then
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Installing $dep..."
         if ! apt-get install -y "$dep"; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install $dep -abort" >&2

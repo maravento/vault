@@ -28,7 +28,7 @@ fi
 
 # dependencies
 for dep in lsof; do
-    if ! dpkg -s "$dep" &>/dev/null; then
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
@@ -42,7 +42,6 @@ fi
 
 # validation -- integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
-echo "$(date '+%Y-%m-%d %H:%M:%S') Port Kill Starting. Wait..."
 
 # ------------------------------------------------------------------------------
 # MAIN

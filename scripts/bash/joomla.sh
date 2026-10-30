@@ -139,6 +139,7 @@ install_joomla() {
     PHP_INI="/etc/php/${PHP_VER}/apache2/php.ini"
 
     if [ -f "$PHP_INI" ]; then
+        sed -i 's/^[[:space:]]*;*[[:space:]]*session\.upload_progress\.enabled[[:space:]]*=.*/session.upload_progress.enabled = 0/' "$PHP_INI"
         sed -i 's/^memory_limit = .*/memory_limit = 512M/' "$PHP_INI"
         sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 256M/' "$PHP_INI"
         sed -i 's/^post_max_size = .*/post_max_size = 256M/' "$PHP_INI"

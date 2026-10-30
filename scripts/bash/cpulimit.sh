@@ -25,11 +25,9 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') CPU limit Starting. Wait..."
-
 # dependencies
 for dep in cpulimit procps util-linux; do
-    if ! dpkg -s "$dep" &>/dev/null; then
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi

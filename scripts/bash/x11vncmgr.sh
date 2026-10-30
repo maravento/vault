@@ -68,7 +68,7 @@ log() {
 
 # dependencies
 for dep in iproute2 util-linux systemd coreutils grep apt libc-bin; do
-    if ! dpkg -s "$dep" &>/dev/null; then
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         log "ERROR: dependency '$dep' is not installed -abort"
         exit 1
     fi

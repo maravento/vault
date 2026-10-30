@@ -100,7 +100,7 @@ check_repo
 
 # dependencies
 for dep in systemd apache2 libapache2-mod-php php-cli php-sqlite3 arp-scan sqlite3 nmap iproute2 logrotate cron procps coreutils findutils util-linux python3 zip; do
-    if ! dpkg -s "$dep" &>/dev/null; then
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         log "ERROR: '$dep' is not installed -abort"
         exit 1
     fi
@@ -466,7 +466,7 @@ check_conflicts() {
 # port in use
 check_port() {
     local proto="$1" port="$2" role="$3"
-    if [ -n "$(ss -lnH "-${proto,,}" "sport = :$port" 2>/dev/null)" ]; then
+    if [ -n "$(ss -lnH "--${proto,,}" "sport = :$port" 2>/dev/null)" ]; then
         log "ERROR: ${proto^^} port $port in use by another $role"
         log "ERROR: stop that service before installing -abort"
         exit 1
@@ -964,6 +964,25 @@ PMODE
     a2ensite -q nwatch.conf
 
     systemctl daemon-reload
+    for apache_php_ini in /etc/php/*/apache2/php.ini; do
+        [ -f "$apache_php_ini" ] || continue
+        if ! { [ -f "${apache_php_ini}.bak" ] || cp -p "$apache_php_ini" "${apache_php_ini}.bak"; }; then
+            echo "ERROR: cannot back up $apache_php_ini -abort" >&2
+            exit 1
+        fi
+        if grep -Eq '^[[:space:]]*;*[[:space:]]*session\.upload_progress\.enabled[[:space:]]*=' "$apache_php_ini"; then
+            sed -i 's/^[[:space:]]*;*[[:space:]]*session\.upload_progress\.enabled[[:space:]]*=.*/session.upload_progress.enabled = 0/' "$apache_php_ini" || {
+                echo "ERROR: cannot edit $apache_php_ini -abort" >&2
+                exit 1
+            }
+        else
+            printf '\nsession.upload_progress.enabled = 0\n' >> "$apache_php_ini" || {
+                echo "ERROR: cannot edit $apache_php_ini -abort" >&2
+                exit 1
+            }
+        fi
+    done
+
     systemctl restart apache2 || {
         log "ERROR: cannot restart apache2 -abort"
         exit 1

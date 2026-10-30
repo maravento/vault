@@ -241,7 +241,7 @@ check_internet() {
 ensure_prereqs() {
     local missing=()
     for pkg in curl gnupg jq ca-certificates apt-transport-https iproute2 util-linux libc-bin; do
-        dpkg -s "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
+        [[ "$(dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null)" == *"ok installed"* ]] || missing+=("$pkg")
     done
 
     if [ "${#missing[@]}" -gt 0 ]; then
@@ -634,7 +634,7 @@ ensure_osserver_prereqs() {
     local pkgs=(podman slirp4netns uidmap dbus libpam-systemd)
     local missing=()
     for pkg in "${pkgs[@]}"; do
-        dpkg -s "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
+        [[ "$(dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null)" == *"ok installed"* ]] || missing+=("$pkg")
     done
     if [ "${#missing[@]}" -gt 0 ]; then
         log "EVENT: Installing UniFi OS Server prerequisites..."

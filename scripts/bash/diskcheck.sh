@@ -62,8 +62,8 @@ fi
 log "EVENT: diskcheck start..."
 
 # dependencies
-for dep in inxi smartmontools util-linux libnotify-bin systemd coreutils grep mawk sudo software-properties-common apt bsdutils logrotate iproute2 libc-bin; do
-    if ! dpkg -s "$dep" &>/dev/null; then
+for dep in inxi smartmontools util-linux libnotify-bin systemd coreutils grep sudo software-properties-common apt bsdutils logrotate iproute2 libc-bin; do
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         log "ERROR: '$dep' is not installed -abort"
         exit 1
     fi
@@ -162,7 +162,7 @@ log "INFO: using local user: $local_user"
 
 # check ppa
 the_ppa=malcscott/ppa
-if ! dpkg -s hddtemp &>/dev/null; then
+if [[ "$(dpkg-query -W -f='${Status}' hddtemp 2>/dev/null)" != *"ok installed"* ]]; then
     check_ipv4_interfaces
     check_internet
     if ! add-apt-repository -y ppa:$the_ppa >/dev/null 2>&1; then
