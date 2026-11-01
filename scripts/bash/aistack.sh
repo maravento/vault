@@ -244,6 +244,30 @@ detect_native_components() {
     NATIVE_PORTAINER=false
     NATIVE_FAILED=()
 
+    local tcp_listeners=""
+    if ! command -v python3 &>/dev/null; then
+        warn "python3 missing; cannot check ports -alert"
+    elif ! tcp_listeners=$(python3 - <<'PY'
+import subprocess
+import sys
+
+try:
+    result = subprocess.run(
+        ["ss", "-lnt"],
+        capture_output=True,
+        text=True,
+    )
+except OSError:
+    sys.exit(1)
+if result.returncode != 0 or result.stderr.strip():
+    sys.exit(1)
+sys.stdout.write(result.stdout)
+PY
+    ); then
+        warn "cannot check ports ${OPEN_WEBUI_PORT} and ${PORTAINER_PORT} -alert"
+        tcp_listeners=""
+    fi
+
     # Ollama native: binary or install directory
     if command -v ollama &>/dev/null || \
        [ -f "/usr/local/bin/ollama" ] || \
@@ -254,13 +278,13 @@ detect_native_components() {
 
     # Open WebUI native: pip package or process on port 8080 (outside Docker)
     if pip show open-webui &>/dev/null 2>&1 || \
-       (ss -tlnp 2>/dev/null | grep -q ":${OPEN_WEBUI_PORT}" && \
+       (grep -q ":${OPEN_WEBUI_PORT}" <<< "$tcp_listeners" && \
         ! docker ps --format '{{.Ports}}' 2>/dev/null | grep -q "${OPEN_WEBUI_PORT}"); then
         NATIVE_OPENWEBUI=true
     fi
 
     # Portainer native: process on port 9000 outside Docker
-    if ss -tlnp 2>/dev/null | grep -q ":${PORTAINER_PORT}" && \
+    if grep -q ":${PORTAINER_PORT}" <<< "$tcp_listeners" && \
        ! docker ps --format '{{.Ports}}' 2>/dev/null | grep -q "${PORTAINER_PORT}"; then
         NATIVE_PORTAINER=true
     fi

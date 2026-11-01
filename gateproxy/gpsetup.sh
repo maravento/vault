@@ -200,8 +200,33 @@ warn_overlap() {
 
 # port in use
 check_port() {
-    local proto="$1" port="$2" role="$3"
-    if [ -n "$(ss -lnH "-${proto,,}" "sport = :$port" 2>/dev/null)" ]; then
+    local proto="$1" port="$2" role="$3" port_listeners retry="${4:-false}"
+    if ! port_listeners=$(python3 - "${proto,,}" "$port" <<'PY'
+import subprocess
+import sys
+
+try:
+    result = subprocess.run(
+        ["ss", "-lnH", f"--{sys.argv[1]}", f"sport = :{sys.argv[2]}"],
+        capture_output=True,
+        text=True,
+    )
+except OSError:
+    sys.exit(1)
+if result.returncode != 0 or result.stderr.strip():
+    sys.exit(1)
+sys.stdout.write(result.stdout)
+PY
+    ); then
+        err "cannot check ${proto^^} port $port"
+        err "fix the ss query before installing -abort"
+        exit 1
+    fi
+    if [ -n "$port_listeners" ]; then
+        if [ "$retry" = true ]; then
+            info "${proto^^} port $port in use; choose another -retry"
+            return 1
+        fi
         err "${proto^^} port $port in use by another $role"
         err "stop that service before installing -abort"
         exit 1
@@ -301,6 +326,11 @@ failure_message="cannot check conflicting packages"
 check_conflicts "web admin"   webmin ttyd
 failure_message="cannot check conflicting packages"
 check_conflicts "mail"        exim4
+failure_message="cannot check the python3 dependency"
+if ! dpkg -s python3 &>/dev/null; then
+    err "'python3' is not installed -abort"
+    exit 1
+fi
 failure_message="cannot check the required network port"
 check_port udp 67 "DHCP server"
 failure_message="cannot check overlapping packages"
@@ -805,7 +835,7 @@ echo "    Minimum Requirements:"
 echo "    CPU:      4+ cores (>= 3.0 GHz)"
 echo "    NIC:      2 (WAN & LAN)"
 echo "    RAM:      4 GB cache_mem (12+ GB RAM recommended)"
-echo "    Storage:  50 GB SSD for cache_dir rock"
+echo "    Storage:  100000 MB rock cache plus system and service files"
 echo "    SO:       Ubuntu 24.04/26.04 LTS"
 echo ""
 echo "    Press ENTER to start or CTRL+C to abort"
@@ -984,6 +1014,11 @@ is_port() {
     read -r -p "Enter Squid intercept port [3129]: " intercept_answer
     intercept_answer="${intercept_answer:-3129}"
     local port_answer
+    local -A reserved_ports=(
+        [53]="DNS" [67]="DHCP" [68]="DHCP"
+        [80]="Apache" [443]="Apache" [3092]="SMBStack"
+        [18770]="Proxymon" [18771]="Proxymon" [18800]="WPAD"
+    )
     for port_answer in "$proxy_answer" "$intercept_answer"; do
         if ! [[ "$port_answer" =~ $UH_UINT ]] || [ "${#port_answer}" -gt 5 ] || [ "$port_answer" -lt 1 ] || [ "$port_answer" -gt 65535 ]; then
             return 1
@@ -992,6 +1027,17 @@ is_port() {
     if [[ "$proxy_answer" == "$intercept_answer" ]]; then
         return 1
     fi
+    if [[ "$proxy_answer" == 3129 ]]; then
+        info "Port 3129 reserved for Squid intercept -retry"
+        return 1
+    fi
+    for port_answer in "$proxy_answer" "$intercept_answer"; do
+        if [[ -n "${reserved_ports[$port_answer]:-}" ]]; then
+            info "Port $port_answer reserved for ${reserved_ports[$port_answer]} -retry"
+            return 1
+        fi
+        check_port tcp "$port_answer" Squid true || return 1
+    done
     PORTNEW="$proxy_answer"
     INTERCEPT_PORTNEW="$intercept_answer"
     info "Squid proxy port: $PORTNEW"
@@ -1040,6 +1086,9 @@ Squid proxy port 3128, Squid intercept port 3129
         ;;
     esac
 done
+
+check_port tcp "$PORTNEW" Squid
+check_port tcp "$INTERCEPT_PORTNEW" Squid
 
 failure_message="cannot apply Squid ports"
 apply_squid_ports
@@ -1480,9 +1529,6 @@ failure_message="cannot add www-data to the proxy group"
 usermod -aG proxy www-data
 failure_message="cannot enable squid.service"
 systemctl enable squid.service
-systemctl stop squid.service &>/dev/null || true
-failure_message="cannot initialize Squid cache directories"
-squid -z
 if [ ! -f /etc/logrotate.d/squid ]; then
     warn "Squid logrotate missing; rotation unchanged -alert"
 else
@@ -1577,43 +1623,6 @@ else
     warn "cannot clone proxymon -alert"
 fi
 
-log "EVENT: WPAD Config..."
-
-# pysetup.sh below probes http://SERVER_IP:18100/wpad.pac to decide whether to
-# announce DHCP option 252. The PAC must already be served when it runs, so
-# this block goes before pydhcp and reloads apache2 to apply the new Listen.
-failure_message="cannot create wpad"
-mkdir -p /var/www/wpad
-failure_message="cannot set owner of wpad"
-chown www-data:www-data /var/www/wpad
-failure_message="cannot write wpad.pac"
-cat > /var/www/wpad/wpad.pac <<EOF
-function FindProxyForURL(url, host) {
-    if (isPlainHostName(host) || shExpMatch(host, "localhost"))
-        return "DIRECT";
-    if (isInNet(host, "${SERV_SUBNET}", "${SERV_MASK}") || shExpMatch(host, "127.*"))
-        return "DIRECT";
-    return "PROXY ${SERVER_IP}:${PORTNEW}; DIRECT";
-}
-EOF
-failure_message="cannot set owner of wpad.pac"
-chown www-data:www-data /var/www/wpad/wpad.pac
-failure_message="cannot set permissions on wpad.pac"
-chmod 644 /var/www/wpad/wpad.pac
-failure_message="cannot copy wpad.conf"
-cp -f "$gp_path/conf/wpad/wpad.conf" /etc/apache2/sites-available/wpad.conf
-failure_message="cannot set permissions on wpad.conf"
-chmod 644 /etc/apache2/sites-available/wpad.conf
-failure_message="cannot enable the wpad.conf Apache site"
-a2ensite -q wpad.conf
-failure_message="cannot write Apache ports.conf"
-grep -qxF "Listen $SERVER_IP:18100" /etc/apache2/ports.conf || grep -qxF 'Listen 18100' /etc/apache2/ports.conf || echo "Listen $SERVER_IP:18100" >> /etc/apache2/ports.conf
-apachectl -t -D DUMP_INCLUDES -S || true
-systemctl reload apache2 || warn "cannot reload apache2, WPAD not served -alert"
-info "WPAD-PAC: http://$SERVER_IP:18100/wpad.pac"
-failure_message="cannot wait before the next attempt"
-sleep 1
-
 # DHCP SECTION
 # pydhcp
 log "EVENT: Installing pydhcp..."
@@ -1636,6 +1645,8 @@ expect "Enter DNS server"
 send "$SERVER_IP\r"
 expect "DHCP pool lease cleanup interval"
 send "\r"
+expect "Deploy WPAD/PAC"
+send "y\r"
 expect eof
 catch wait result
 exit [lindex \$result 3]
@@ -2023,14 +2034,22 @@ sleep 1
 log "EVENT: Applying Config..."
 # squid
 cp -f /etc/squid/squid.conf{,.bak} &>/dev/null || true
+systemctl stop squid.service &>/dev/null || true
 failure_message="cannot copy squid.conf"
 cp -f "$gp_path/conf/squid/squid.conf" /etc/squid/squid.conf
 failure_message="cannot set owner of squid.conf"
 chown root:root /etc/squid/squid.conf
 failure_message="cannot set permissions on squid.conf"
 chmod 644 /etc/squid/squid.conf
-failure_message="cannot restart squid.service"
-systemctl restart squid.service
+squid --foreground -z || warn "squid -z failed with custom config -alert"
+squid -k parse >>"$log_file" 2>&1 || warn "squid.conf has errors -alert"
+pac_file="/var/www/wpad/wpad.pac"
+if [ -f "$pac_file" ] && grep -q "PROXY [0-9.]*:3128;" "$pac_file"; then
+    if [ "$PORTNEW" != "3128" ]; then
+        sed -i -E "s/(PROXY [0-9.]+:)3128;/\1${PORTNEW};/" "$pac_file" \
+            || warn "cannot set Squid port in wpad.pac -alert"
+    fi
+fi
 # scripts
 # Download external scripts to project scr folder
 scripts=(
@@ -2178,9 +2197,9 @@ done
 # Validate Apache configuration and set web directory permissions
 apache2ctl configtest || true
 failure_message="cannot set permissions on Apache web directories"
-chmod -R 755 /var/www/html /var/www/wpad
+chmod -R 755 /var/www/html
 failure_message="cannot set owner of Apache web directories"
-chown -R www-data:www-data /var/www/html /var/www/wpad
+chown -R www-data:www-data /var/www/html
 apachectl -t -D DUMP_INCLUDES -S || true
 failure_message="cannot wait before the next attempt"
 sleep 1

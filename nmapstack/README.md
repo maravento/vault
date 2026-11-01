@@ -41,7 +41,7 @@ nmapstack/
 │   └── web/                 # Web dashboard front-end (LAN/Ports tabs)
 │       ├── index.php          # Main page (LAN / Ports tabs)
 │       ├── lan.html           # LAN devices viewer
-│       ├── nwatch.conf        # Apache vhost (:3126/?tab=lan and :3126/?tab=ports)
+│       ├── nwatch.conf        # Apache vhost (:9777/?tab=lan and :9777/?tab=ports)
 │       ├── nwatchapi.php      # JSON API (devices, ports, mode switch)
 │       └── ports.html         # Ports viewer + Server/Target mode selector
 │
@@ -336,16 +336,16 @@ apt-get install -y avahi-utils nbtscan
       <strong>Important</strong>
       <ul>
         <li><code>nginx</code>, <code>lighttpd</code> and <code>caddy</code> must not be installed.</li>
-        <li>The web panel listens on port <code>3126</code>, registered by <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> as Unassigned.</li>
-        <li>The VirtualHost only accepts connections from <code>127.0.0.1</code>. Open it at <code>http://localhost:3126/</code> on the server itself, or through a local tunnel (e.g. Cloudflare Tunnel with Zero Trust).</li>
+        <li>The web panel listens on port <code>9777</code>, registered by <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> as Unassigned.</li>
+        <li>The VirtualHost only accepts connections from <code>127.0.0.1</code>. Open it at <code>http://localhost:9777/</code> on the server itself, or through a local tunnel (e.g. Cloudflare Tunnel with Zero Trust).</li>
       </ul>
     </td>
     <td style="width: 50%; vertical-align: top;">
       <strong>Importante</strong>
       <ul>
         <li><code>nginx</code>, <code>lighttpd</code> y <code>caddy</code> no deben estar instalados.</li>
-        <li>El panel web escucha en el puerto <code>3126</code>, registrado por <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> como Sin asignar.</li>
-        <li>El VirtualHost solo acepta conexiones desde <code>127.0.0.1</code>. Accede en <code>http://localhost:3126/</code> desde el propio servidor, o mediante un túnel local (por ejemplo, Cloudflare Tunnel con Zero Trust).</li>
+        <li>El panel web escucha en el puerto <code>9777</code>, registrado por <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt">IANA</a> como Sin asignar.</li>
+        <li>El VirtualHost solo acepta conexiones desde <code>127.0.0.1</code>. Accede en <code>http://localhost:9777/</code> desde el propio servidor, o mediante un túnel local (por ejemplo, Cloudflare Tunnel con Zero Trust).</li>
       </ul>
     </td>
   </tr>
@@ -556,7 +556,7 @@ sudo bash nwatchsetup.sh
 
 ##### Status
 
-Displays the daemon status (running or stopped), Apache's port (3126), the last 10 lines of the shared log, the active ports mode and target, and device and port counts from the database.
+Displays the daemon status (running or stopped), Apache's port (9777), the last 10 lines of the shared log, the active ports mode and target, and device and port counts from the database.
 
 #### LAN Field Reference
 
@@ -687,6 +687,13 @@ sudo /var/www/nwatch/tools/nwatchports.sh --list
 </table>
 
 ### UPDATE CHECKS
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">Nwatch checks Apache port <code>9777</code> during update and adds a missing <code>Listen</code>. It aligns the installed VirtualHost port and validates Apache before resuming services.</td>
+    <td style="width: 50%; vertical-align: top;">Nwatch comprueba el puerto <code>9777</code> de Apache durante la actualización y añade el <code>Listen</code> ausente. Ajusta el puerto del VirtualHost instalado y valida Apache antes de reanudar los servicios.</td>
+  </tr>
+</table>
 
 | Step | Description | Descripción |
 |---|---|---|

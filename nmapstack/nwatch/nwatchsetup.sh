@@ -78,7 +78,7 @@ nwatch_etc="/etc/nwatch"
 nwatch_env="$nwatch_etc/nwatch.env"
 db_file="$nwatch_data/nwatch.db"
 ports_mode_file="$nwatch_data/ports_mode.conf"
-vhost_port="3126"
+vhost_port="9777"
 
 # REPOSITORY STRUCTURE CHECK
 # Check that the required repository files are present
@@ -465,8 +465,29 @@ check_conflicts() {
 
 # port in use
 check_port() {
-    local proto="$1" port="$2" role="$3"
-    if [ -n "$(ss -lnH "--${proto,,}" "sport = :$port" 2>/dev/null)" ]; then
+    local proto="$1" port="$2" role="$3" port_listeners
+    if ! port_listeners=$(python3 - "${proto,,}" "$port" <<'PY'
+import subprocess
+import sys
+
+try:
+    result = subprocess.run(
+        ["ss", "-lnH", f"--{sys.argv[1]}", f"sport = :{sys.argv[2]}"],
+        capture_output=True,
+        text=True,
+    )
+except OSError:
+    sys.exit(1)
+if result.returncode != 0 or result.stderr.strip():
+    sys.exit(1)
+sys.stdout.write(result.stdout)
+PY
+    ); then
+        log "ERROR: cannot check ${proto^^} port $port"
+        log "ERROR: fix the ss query before installing -abort"
+        exit 1
+    fi
+    if [ -n "$port_listeners" ]; then
         log "ERROR: ${proto^^} port $port in use by another $role"
         log "ERROR: stop that service before installing -abort"
         exit 1
@@ -1057,6 +1078,20 @@ ENV
 # ------------------------------------------------------------------------------
 
 # Refresh the installed application files
+update_apache_port() {
+    local ports_file="$1" site_file="$2" bind_ip="$3" port="$4" status
+    sed -i -E "s/^([[:space:]]*<VirtualHost[[:space:]]+)[^>]+>/\1*:${port}>/" "$site_file" \
+        || update_error "cannot configure Apache site port"
+    if grep -Eq "^[[:space:]]*Listen[[:space:]]+([^[:space:]]*:)?${port}([[:space:]]|$)" "$ports_file"; then
+        return 0
+    else
+        status=$?
+        [ "$status" -eq 1 ] || update_error "cannot read Apache ports.conf"
+    fi
+    printf 'Listen %s:%s\n' "$bind_ip" "$port" >> "$ports_file" \
+        || update_error "cannot write Apache ports.conf"
+}
+
 do_update() {
     [ -f "$nwatch_env" ] || { log "ERROR: nwatch is not installed -abort"; exit 1; }
     update_reset /etc/cron.d/nwatch
@@ -1075,6 +1110,12 @@ do_update() {
     update_target /etc/logrotate.d/nwatch
     update_target "$update_cron_file"
     update_target "${update_cron_file}.lock" 600
+    [ -f /etc/apache2/ports.conf ] && [ ! -L /etc/apache2/ports.conf ] \
+        || update_error "ports.conf is missing or invalid"
+    [ -f /etc/apache2/sites-available/nwatch.conf ] && [ ! -L /etc/apache2/sites-available/nwatch.conf ] \
+        || update_error "Apache site is missing or invalid"
+    update_target /etc/apache2/ports.conf
+    update_target /etc/apache2/sites-available/nwatch.conf
     update_preflight
     update_backup "$tools_dir/nwatchbk.sh"
     update_begin
@@ -1083,6 +1124,8 @@ do_update() {
     update_stop_service apache2
     update_wait_jobs
     update_apply
+    update_apache_port /etc/apache2/ports.conf /etc/apache2/sites-available/nwatch.conf 127.0.0.1 "$vhost_port"
+    apache2ctl configtest || update_error "Apache configuration invalid"
     if [ -f "$db_file" ]; then
         chown root:www-data "$db_file" && chmod 640 "$db_file" || update_error "cannot set database permissions"
     fi
@@ -1179,7 +1222,26 @@ do_status() {
 
     echo ""
     echo "=== Apache Port ==="
-    if ss -tlnp 2>/dev/null | grep -qE ":${vhost_port}[[:space:]]"; then
+    local port_listeners
+    if ! port_listeners=$(python3 - tcp "$vhost_port" <<'PY'
+import subprocess
+import sys
+
+try:
+    result = subprocess.run(
+        ["ss", "-lnH", f"--{sys.argv[1]}", f"sport = :{sys.argv[2]}"],
+        capture_output=True,
+        text=True,
+    )
+except OSError:
+    sys.exit(1)
+if result.returncode != 0 or result.stderr.strip():
+    sys.exit(1)
+sys.stdout.write(result.stdout)
+PY
+    ); then
+        echo ":${vhost_port} UNKNOWN"
+    elif [ -n "$port_listeners" ]; then
         echo ":${vhost_port} OPEN"
     else
         echo ":${vhost_port} CLOSED"

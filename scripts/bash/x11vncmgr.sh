@@ -149,13 +149,38 @@ check_password_exists() {
     fi
 }
 
+vnc_listeners() {
+    command -v python3 &>/dev/null || return 1
+    python3 - tcp "$vnc_port" <<'PY'
+import subprocess
+import sys
+
+try:
+    result = subprocess.run(
+        ["ss", "-lnH", f"--{sys.argv[1]}", f"sport = :{sys.argv[2]}"],
+        capture_output=True,
+        text=True,
+    )
+except OSError:
+    sys.exit(1)
+if result.returncode != 0 or result.stderr.strip():
+    sys.exit(1)
+sys.stdout.write(result.stdout)
+PY
+}
+
 verify_running() {
+    local port_listeners
     if ! systemctl is-active --quiet "$service_name"; then
         log "ERROR: $service_name is not active -abort"
         exit 1
     fi
 
-    if ! ss -tlnp | grep -q ":${vnc_port} "; then
+    if ! port_listeners=$(vnc_listeners); then
+        log "ERROR: cannot check port ${vnc_port} -abort"
+        exit 1
+    fi
+    if [ -z "$port_listeners" ]; then
         log "ERROR: port ${vnc_port} is not listening -abort"
         exit 1
     fi
@@ -279,7 +304,10 @@ do_status() {
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [DOWN] $service_name"
     fi
 
-    if ss -tlnp | grep -q ":${vnc_port} "; then
+    local port_listeners
+    if ! port_listeners=$(vnc_listeners); then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot check port ${vnc_port} -alert"
+    elif [ -n "$port_listeners" ]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [UP] port ${vnc_port} listening"
     else
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [DOWN] port ${vnc_port} not listening"

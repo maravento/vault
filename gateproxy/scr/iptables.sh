@@ -962,14 +962,14 @@ iptables -A FORWARD -i "$INTERFACESv4" -o "$wan_iface" -p icmp -j DROP
 
 # PROXYMON: WARNING PAGE HTTP FOR BANDATA
 # https://github.com/maravento/proxymon
-iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 18081 -m set --match-set macports src -j ACCEPT
+iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 18771 -m set --match-set macports src -j ACCEPT
 # SMBSTACK
 # https://github.com/maravento/smbstack
 iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 3092 -m set --match-set macports src -j ACCEPT
 
 # PROXYMON: WARNING PAGE HTTP FOR BANDATA
 # https://github.com/maravento/proxymon
-iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 18081 -m set --match-set macports src -j ACCEPT
+iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 18771 -m set --match-set macports src -j ACCEPT
 # SMBSTACK
 # https://github.com/maravento/smbstack
 iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 3092 -m set --match-set macports src -j ACCEPT

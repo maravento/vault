@@ -102,7 +102,7 @@ backup_stage=$(mktemp -d "$backup_dir/nwatchbk-stage.XXXXXX")
 trap 'rm -f -- "$backup_part"; rm -rf -- "$backup_stage"' EXIT
 
 backup_list=()
-for backup_item in /etc/nwatch /var/www/nwatch /etc/apache2/sites-available/nwatch.conf /etc/logrotate.d/nwatch /etc/cron.d/nwatch; do
+for backup_item in /etc/nwatch /var/www/nwatch /etc/apache2/sites-available/nwatch.conf /etc/apache2/ports.conf /etc/logrotate.d/nwatch /etc/cron.d/nwatch; do
     [ ! -e "$backup_item" ] || backup_list+=("$backup_item")
 done
 (( ${#backup_list[@]} > 0 )) || { log "ERROR: Nwatch backup paths not found -abort"; exit 1; }

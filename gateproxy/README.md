@@ -42,10 +42,10 @@ FILE: gateproxy/README.md
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <ul><li>CPU: 4+ cores (≥ 3.0 GHz)</li><li>NIC: 2 (WAN &amp; LAN)</li><li>RAM: 12+ GB (4 GB cache_mem)</li><li>Storage: 50 GB SSD (cache_dir rock)</li></ul>
+      <ul><li>CPU: 4+ cores (≥ 3.0 GHz)</li><li>NIC: 2 (WAN &amp; LAN)</li><li>RAM: 12+ GB (4 GB cache_mem)</li><li>Storage: space for the 100000 MB rock cache, plus the operating system and other services</li></ul>
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <ul><li>CPU: 4+ núcleos (≥ 3.0 GHz)</li><li>Interfaces de red: 2 (WAN y LAN)</li><li>RAM: 12+ GB (4 GB cache_mem)</li><li>Almacenamiento: SSD de 50 GB (cache_dir rock)</li></ul>
+      <ul><li>CPU: 4+ núcleos (≥ 3.0 GHz)</li><li>Interfaces de red: 2 (WAN y LAN)</li><li>RAM: 12+ GB (4 GB cache_mem)</li><li>Almacenamiento: espacio para la caché rock de 100000 MB, además del sistema operativo y los demás servicios</li></ul>
     </td>
   </tr>
 </table>
@@ -69,10 +69,8 @@ gateproxy/
 │   │   └── ttyd.service            # ttyd (web terminal) systemd unit
 │   ├── unbound/
 │   │   └── forward.conf            # Unbound DNS forwarder configuration
-│   ├── webmin/
-│   │   └── text-editor.wbm         # Webmin Text Editor module
-│   └── wpad/
-│       └── wpad.conf               # Apache WPAD virtual host
+│   └── webmin/
+│       └── text-editor.wbm         # Webmin Text Editor module
 │
 ├── scr/                        # Scripts (deployed to /etc/scr/)
 │   ├── bkconf.sh                   # Backup configuration files
@@ -160,7 +158,7 @@ ss -ltuna
 squidclient mgr:info
 
 # Check WPAD/PAC
-curl http://SERVER_IP:18100/wpad.pac
+curl http://SERVER_IP:18800/wpad.pac
 ```
 
 ## HOW IT WORKS
@@ -172,10 +170,10 @@ curl http://SERVER_IP:18100/wpad.pac
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      After installation, the installer deletes itself and reboots the system automatically.
+      After installation, the installer waits for ENTER. It then removes the downloaded GateProxy directory, schedules its own deletion and reboots the system.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Después de la instalación, el instalador se elimina y reinicia el sistema automáticamente.
+      Al terminar la instalación, el instalador espera que pulse ENTER. Después elimina el directorio descargado de GateProxy, programa su propia eliminación y reinicia el sistema.
     </td>
   </tr>
 </table>
@@ -195,8 +193,10 @@ curl http://SERVER_IP:18100/wpad.pac
   </tr>
 </table>
 
-| Packages | Description | Descripción |
+| Package or port | Description | Descripción |
 | :--- | :--- | :--- |
+| `python3` | Required dependency: abort installation if it is not installed | Dependencia requerida: abortar la instalación si no está instalado |
+| UDP `67` | DHCP port in use, or the check cannot be completed: abort installation | Puerto DHCP ocupado, o la comprobación no puede completarse: abortar la instalación |
 | `isc-dhcp-server`, `kea-dhcp4-server`, `udhcpd` | DHCP: abort installation | DHCP: abortar la instalación |
 | `bind9`, `pdns-recursor`, `unbound` | DNS server: abort installation | Servidor DNS: abortar la instalación |
 | `squid`, `squid3`, `squid-openssl` | Proxy: abort installation | Proxy: abortar la instalación |
@@ -206,10 +206,13 @@ curl http://SERVER_IP:18100/wpad.pac
 | `firewalld`, `fail2ban` | Firewall: abort installation | Firewall: abortar la instalación |
 | `snort` | IDS: abort installation | IDS: abortar la instalación |
 | `webmin`, `ttyd` | Web admin: abort installation | Administración web: abortar la instalación |
-| `chrony`, `ntpsec` | Time sync: abort installation | Sincronización horaria: abortar la instalación |
 | `exim4` | Mail: abort installation | Correo: abortar la instalación |
 | `ufw` | Active firewall: abort installation | Firewall activo: abortar la instalación |
 | `dnsmasq` | DHCP/DNS overlap: show a warning | Superposición DHCP/DNS: mostrar una advertencia |
+
+> `ntp`, `ntpdate`, `ntpsec` and `chrony` do not abort the installation. The installer removes them with `apt purge` and replaces them with `systemd-timesyncd`.
+>
+> `ntp`, `ntpdate`, `ntpsec` y `chrony` no abortan la instalación. El instalador los elimina con `apt purge` y los reemplaza por `systemd-timesyncd`.
 
 #### Log Rotation
 
@@ -250,10 +253,10 @@ none /run/shm tmpfs defaults,ro 0 0                                 # read-only 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     During installation, the script will detect your network interfaces and ask you to confirm or replace the following default values. The selected mask determines the LAN prefix. Configuration files are adapted during installation; the PAC is generated directly.
+     During installation, the script will detect your network interfaces and ask you to confirm or replace the following default values. The selected mask determines the LAN prefix. Configuration files are adapted during installation; the PAC is generated by pydhcp.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Durante la instalación, el script detectará sus interfaces de red y le pedirá confirmar o reemplazar los siguientes valores por defecto. La máscara elegida determina el prefijo LAN. Los archivos se adaptan durante la instalación; el PAC se genera directamente.
+     Durante la instalación, el script detectará sus interfaces de red y le pedirá confirmar o reemplazar los siguientes valores por defecto. La máscara elegida determina el prefijo LAN. Los archivos se adaptan durante la instalación; el PAC lo genera pydhcp.
     </td>
   </tr>
 </table>
@@ -334,19 +337,29 @@ WAN_IFACE=enp1s0
   </tr>
 </table>
 
+##### Squid Port Validation
+
+| Check | Description | Descripción |
+|---|---|---|
+| Reserved service ports | Both Squid ports reject `53`, `67`, `68`, `80`, `443`, `3092`, `18770`, `18771` and `18800`. GateProxy reserves these numbers for DNS, DHCP, Apache, SMBStack, Proxymon and WPAD. | Ambos puertos de Squid rechazan `53`, `67`, `68`, `80`, `443`, `3092`, `18770`, `18771` y `18800`. GateProxy reserva estos números para DNS, DHCP, Apache, SMBStack, Proxymon y WPAD. |
+| Intercept port | `3129` is reserved for Squid interception. It is accepted in the intercept field and rejected in the explicit proxy field. Both selected ports must be distinct integers between 1 and 65535. | `3129` está reservado para la interceptación de Squid. Se acepta en el campo de interceptación y se rechaza en el campo del proxy explícito. Ambos puertos deben ser enteros distintos entre 1 y 65535. |
+| Existing listeners | During port entry, a reserved or occupied TCP port prompts another attempt. Before applying the selected ports, the installer checks both again, including defaults. An occupied port or failed socket query aborts before port substitution. | Durante la selección, un puerto reservado u ocupado por TCP provoca otro intento. Antes de aplicar los puertos elegidos, el instalador comprueba ambos nuevamente, incluidos los predeterminados. Un puerto ocupado o una consulta de sockets fallida detiene la instalación antes de sustituir puertos. |
+
+##### Proxy and PAC Ports
+
 | Component | Port | Description | Descripción |
 | :--- | :---: | :--- | :--- |
 | Squid (squid-openssl) | `3128` | Explicit proxy with rock/ufs cache | Proxy explícito con caché rock/ufs |
 | Squid (squid-openssl) | `3129` | Intercept port for captive-portal probes and clients not using the PAC, filtered by the same ACLs | Puerto transparente para sondeos de portal cautivo y clientes sin PAC, filtrados por las mismas ACL |
-| WPAD/PAC (Apache2) | `18100` | Proxy auto-config served via `wpad.pac` | Autoconfiguración de proxy servida por `wpad.pac` |
-| Proxymon | `18080` | Bandwidth monitoring dashboard | Panel de monitoreo de ancho de banda |
-| Proxymon | `18081` | Bandwidth quota warning page (bandata redirect) | Página de aviso de cuota (redirección de bandata) |
+| WPAD/PAC (Apache2) | `18800` | Proxy auto-config served via `wpad.pac` | Autoconfiguración de proxy servida por `wpad.pac` |
+| Proxymon | `18770` | Bandwidth monitoring dashboard | Panel de monitoreo de ancho de banda |
+| Proxymon | `18771` | Bandwidth quota warning page (bandata redirect) | Página de aviso de cuota (redirección de bandata) |
 
 #### Web / Admin
 
 | Component | Port | Description | Descripción |
 | :--- | :---: | :--- | :--- |
-| Apache2 | `80` | Web server with PHP support; hosts WPAD and admin pages | Servidor web con PHP; aloja WPAD y las páginas de administración |
+| Apache2 | `80` | Web server with PHP support and administration pages; WPAD uses its own listener on port 18800 | Servidor web con PHP y páginas de administración; WPAD utiliza su propia escucha en el puerto 18800 |
 | Webmin | `10000` | Server administration panel (`https://localhost:10000`) | Panel de administración del servidor (`https://localhost:10000`) |
 | Webmin: Text Editor | `10000` | Edit ACL files from the browser | Editar archivos ACL desde el navegador |
 | Webmin: Service Monitor (`servicemon`) | `10000` | Watch and restart services | Monitorear y reiniciar servicios |
@@ -366,7 +379,7 @@ WAN_IFACE=enp1s0
 
 | Component | Config | Description | Descripción |
 | :--- | :--- | :--- | :--- |
-| Unbound | `/etc/unbound/unbound.conf.d/forward.conf` | Forwarding resolver, not recursive. Listens on `127.0.0.1` and the server IP, and forwards to `1.1.1.2` and `1.0.0.2`. DHCP clients receive the server IP as their DNS server. | Resolutor de reenvío, no recursivo. Escucha en `127.0.0.1` y en la IP del servidor, y reenvía a `1.1.1.2` y `1.0.0.2`. Los clientes DHCP reciben la IP del servidor como su DNS. |
+| Unbound | `/etc/unbound/unbound.conf.d/forward.conf` | Forwarding resolver, not recursive. Listens on `127.0.0.1` and the server IP, and forwards to `1.1.1.2`, `1.0.0.2` and `9.9.9.9` by default. DHCP clients receive the server IP as their DNS server. | Resolutor de reenvío, no recursivo. Escucha en `127.0.0.1` y en la IP del servidor, y reenvía a `1.1.1.2`, `1.0.0.2` y `9.9.9.9` de forma predeterminada. Los clientes DHCP reciben la IP del servidor como su DNS. |
 
 #### Security / Monitoring
 
@@ -406,7 +419,7 @@ WAN_IFACE=enp1s0
 | :--- | :--- | :--- |
 | Timeshift | System snapshots | Instantáneas del sistema |
 | FreeFileSync | File mirror sync, updated weekly by `/etc/scr/ffsupdate.sh` | Sincronización espejo de archivos, actualizada cada semana por `/etc/scr/ffsupdate.sh` |
-| `bkconf.sh` | Configuration archive; only the last 3 are kept | Archivo de configuración; solo se conservan los 3 últimos |
+| `bkconf.sh` | `scr/` | manual; monthly with `--install` | Creates a configuration ZIP in `BACKUP_DIR` and retains three archives. `--install` registers its monthly task; `--uninstall` removes that task | Crea un ZIP de configuración en `BACKUP_DIR` y conserva tres respaldos. `--install` registra su tarea mensual; `--uninstall` elimina esa tarea |
 
 #### ACL Structure
 
@@ -430,8 +443,8 @@ WAN_IFACE=enp1s0
 └── ipt/                    # iptables ACLs
     ├── blockports.txt          # Blocked port ranges (VPN, P2P, cryptomining…)
     ├── bogons.txt              # Bogon/unroutable IP ranges
-    ├── dhcp_ip.txt             # IP list derived from DHCP leases (auto-generated by iptables.sh)
-    └── dhcp_mac.txt            # MAC list derived from DHCP leases (auto-generated by iptables.sh)
+    ├── dhcp_ip.txt             # IP list derived from static DHCP reservations (generated by iptables.sh)
+    └── dhcp_mac.txt            # MAC list derived from static DHCP reservations (generated by iptables.sh)
 ```
 
 > Suricata's blocklist (`suridata.txt`) is not under `/etc/acl/`: it lives in `/etc/suricata/data/suridata.txt`, generated by `suridata.sh`. MACs blocked from a DHCP lease (`blockdhcp.txt`) belong to pydhcp and live at `/etc/acl/dhcp/blockdhcp.txt`, in its own namespace inside `/etc/acl/`.
@@ -461,12 +474,12 @@ WAN_IFACE=enp1s0
 | ipset | Type | Description | Descripción |
 | :--- | :--- | :--- | :--- |
 | `macunlimited` | `hash:mac` | Full bypass for APs, managed switches and similar infrastructure. It also **requires a matching static reservation in `pydhcpd.conf`**, because `MACCHECK` checks `macip`, not this list | Acceso total para APs, switches administrables e infraestructura similar. Además **exige una reserva estática en `pydhcpd.conf`**, porque `MACCHECK` consulta `macip`, no esta lista |
-| `maclimited` | `hash:mac` | Routed through Squid: explicit via PAC (port 3128, served on 18100), or intercepted (port 3129) for HTTP without PAC. Same reservation requirement as `macunlimited` | Enrutados por Squid: explícito por PAC (puerto 3128, servido en 18100), o transparente (puerto 3129) para HTTP sin PAC. Misma exigencia de reserva que `macunlimited` |
-| `macports` | `hash:mac` | Registered devices with controlled port access. Same reservation requirement as `macunlimited` | Dispositivos registrados con acceso controlado a puertos. Misma exigencia de reserva que `macunlimited` |
+| `maclimited` | `hash:mac` | Routed through Squid: explicit via PAC (port 3128, served on 18800), or intercepted (port 3129) for HTTP without PAC. Same reservation requirement as `macunlimited` | Enrutados por Squid: explícito por PAC (puerto 3128, servido en 18800), o transparente (puerto 3129) para HTTP sin PAC. Misma exigencia de reserva que `macunlimited` |
+| `macports` | `list:set` | Groups other MAC sets for shared service rules. Its current member is `maclimited`. The same static-reservation requirement applies. | Agrupa otros conjuntos de MAC para compartir reglas de servicios. Su miembro actual es `maclimited`. Se aplica el mismo requisito de reserva estática. |
 | `macip` | `hash:ip,mac` | <ul><li>MAC and IP binding, built from the static <code>host {}</code> blocks in <code>pydhcpd.conf</code>, not directly from <code>mac-*.txt</code>.</li><li>Adding a MAC to <code>mac-unlimited.txt</code> or <code>mac-limited.txt</code> classifies it but does <strong>not</strong> grant network access by itself.</li><li>A device without a matching static reservation is dropped by <code>MACCHECK</code> before the other lists are evaluated.</li><li>pydhcp provides <code>tools/pyleases.sh</code> to generate those reservations from the same <code>mac-*.txt</code> files.</li><li>Run it after editing any of them, or add the reservation by hand; no installer schedules it.</li></ul> | <ul><li>Enlace MAC e IP, construido desde los bloques estáticos <code>host {}</code> de <code>pydhcpd.conf</code>, no directamente desde <code>mac-*.txt</code>.</li><li>Agregar una MAC a <code>mac-unlimited.txt</code> o <code>mac-limited.txt</code> la clasifica, pero <strong>no</strong> concede acceso a la red por sí solo.</li><li>Un dispositivo sin reserva estática coincidente se descarta mediante <code>MACCHECK</code> antes de evaluar las demás listas.</li><li>pydhcp proporciona <code>tools/pyleases.sh</code> para generar esas reservas desde los mismos archivos <code>mac-*.txt</code>.</li><li>Ejecútalo después de editar cualquiera de ellos, o agrega la reserva a mano; ningún instalador lo programa.</li></ul> |
-| `blockports` | `bitmap:port` | Blocked port ranges (VPN tunnels, P2P, cryptomining, legacy protocols) | Rangos de puertos bloqueados (túneles VPN, P2P, criptominería, protocolos obsoletos) |
+| `blockports` | `bitmap:port` | Blocked port numbers (VPN tunnels, P2P, cryptomining, legacy protocols) | Números de puertos bloqueados (túneles VPN, P2P, criptominería, protocolos obsoletos) |
 | `suridata` | `hash:ip` | Destination IPs flagged by Suricata alerts matching a `drop.conf` signature; silent `DROP` | IP de destino marcadas por alertas de Suricata que coinciden con `drop.conf`; `DROP` silencioso |
-| `bandata` | `hash:ip` | IPs over bandwidth quota, left with DNS and port 80 only and redirected to a warning page. Proxymon creates and fills it, not `iptables.sh`, which only opens port 18081 for the warning page | IP que superaron la cuota, con solo DNS y puerto 80, redirigidas a una página de aviso. La crea y llena Proxymon, no `iptables.sh`, que solo abre el puerto 18081 para esa página |
+| `bandata` | `hash:ip` | IPs over bandwidth quota, left with DNS and port 80 only and redirected to a warning page. Proxymon creates and fills it, not `iptables.sh`, which only opens port 18771 for the warning page | IP que superaron la cuota, con solo DNS y puerto 80, redirigidas a una página de aviso. La crea y llena Proxymon, no `iptables.sh`, que solo abre el puerto 18771 para esa página |
 
 ##### Blocked Ports (`blockports.txt`)
 
@@ -485,7 +498,7 @@ WAN_IFACE=enp1s0
 
 | Function | Description | Descripción |
 | :--- | :--- | :--- |
-| Alert processing | <ul><li>Suricata runs passive (AF-PACKET, IDS mode) — it can never block traffic on its own, regardless of what <code>drop.conf</code> says. <code>suridata.sh</code> (cron, every 5 minutes) is what turns a <code>drop.conf</code> match into a real block: it reads the SIDs <code>suricata-update</code> already resolved to <code>drop</code> action in <code>suricata.rules</code> (covers both literal SIDs and <code>re:</code> message-regex entries in <code>drop.conf</code>), tails only the new lines of <code>eve.json</code> since its last run, and for every alert whose <code>signature_id</code> matches, appends the flow's <code>dest_ip</code> to <code>suridata.txt</code>. <code>iptables.sh</code> loads that file into the <code>suridata</code> ipset and drops matching destinations at <code>mangle PREROUTING</code> — silently, no warning page (unlike <code>bandata</code>, this blocks a destination, not a client).</li><li>No expiry: entries are removed by hand, same model as <code>blockports.txt</code>. <code>macunlimited</code> members (APs, switches) are exempt, same as <code>blockports</code>.</li></ul> | <ul><li>Suricata corre en modo pasivo (AF-PACKET, IDS) — nunca puede bloquear tráfico por sí solo, sin importar lo que diga <code>drop.conf</code>. <code>suridata.sh</code> (cron, cada 5 minutos) es lo que convierte un match de <code>drop.conf</code> en un bloqueo real: lee los SIDs que <code>suricata-update</code> ya resolvió a acción <code>drop</code> en <code>suricata.rules</code> (cubre tanto SIDs literales como entradas <code>re:</code> de regex de mensaje en <code>drop.conf</code>), lee solo las líneas nuevas de <code>eve.json</code> desde su última corrida, y por cada alerta cuyo <code>signature_id</code> coincide, agrega el <code>dest_ip</code> del flujo a <code>suridata.txt</code>. <code>iptables.sh</code> carga ese archivo al ipset <code>suridata</code> y bloquea los destinos que coincidan en <code>mangle PREROUTING</code> — de forma silenciosa, sin página de aviso (a diferencia de <code>bandata</code>, esto bloquea un destino, no un cliente).</li><li>Sin expiración: las entradas se retiran a mano, mismo modelo que <code>blockports.txt</code>.</li><li>Los miembros de <code>macunlimited</code> (APs, switches) quedan exentos, igual que con <code>blockports</code>.</li></ul> |
+| Alert processing | Suricata records alerts in IDS mode. Every five minutes, `suridata.sh` processes alerts whose SIDs have a `drop` action in the generated rules. It adds destination IPs to `suridata.txt`, updates the `suridata` ipset and inserts its own NFLOG and DROP rules at the start of mangle PREROUTING. These rules apply to the LAN interface without a MAC-group exemption. After `iptables.sh` clears the tables, the next `suridata.sh` run reinstalls them. | Suricata registra alertas en modo IDS. Cada cinco minutos, `suridata.sh` procesa las alertas cuyas SID tienen acción `drop` en las reglas generadas. Añade las IP de destino a `suridata.txt`, actualiza el ipset `suridata` e inserta sus propias reglas NFLOG y DROP al inicio de mangle PREROUTING. Estas reglas se aplican a la interfaz LAN sin una excepción por grupo MAC. Después de que `iptables.sh` vacía las tablas, la siguiente ejecución de `suridata.sh` las reinstala. |
 | Rule updates | <ul><li><b>Editing <code>drop.conf</code> / <code>disable.conf</code>:</b> <code>suricataupdate.sh</code> is the only script that reads these files and applies them to <code>suricata.rules</code>; it only runs once a day via cron (2 AM).</li><li>A SID you just added to <code>drop.conf</code> stays as plain <code>alert</code> (not blocked) until that cron runs.</li><li>To apply the change immediately, run both in order: <code>sudo /etc/suricata/suricataupdate.sh && sudo /etc/suricata/suridata.sh</code> — on that first <code>suridata.sh</code> run after the SID becomes <code>drop</code>, it also does a one-time full <code>eve.json</code> rescan for that SID (tracked via <code>suridata.sids</code>), so alerts that already fired earlier that day get backfilled into <code>suridata.txt</code> too, not just alerts from that point forward.</li></ul> | <ul><li><b>Al editar <code>drop.conf</code> / <code>disable.conf</code>:</b> <code>suricataupdate.sh</code> es el único script que lee estos archivos y los aplica a <code>suricata.rules</code>; corre una sola vez al día por cron (2 AM).</li><li>Una SID recién agregada a <code>drop.conf</code> queda como <code>alert</code> plano (sin bloquear) hasta que corra ese cron.</li><li>Para aplicar el cambio de inmediato, corre ambos en orden: <code>sudo /etc/suricata/suricataupdate.sh && sudo /etc/suricata/suridata.sh</code> — en esa primera corrida de <code>suridata.sh</code> después de que la SID pasa a <code>drop</code>, también hace un escaneo completo único de <code>eve.json</code> para esa SID (rastreado vía <code>suridata.sids</code>), así que las alertas que ya habían ocurrido ese mismo día también quedan agregadas a <code>suridata.txt</code>, no solo las de ahí en adelante.</li></ul> |
 | Live blocking | Between reloads, <code>suridata.sh</code> also patches the live <code>suridata</code> ipset directly with any newly found IP, so a new block takes effect within one cron cycle instead of waiting for the next full firewall reload. | Entre recargas, <code>suridata.sh</code> también aplica directamente al ipset <code>suridata</code> en vivo cualquier IP recién encontrada, para que un nuevo bloqueo surta efecto en el mismo ciclo de cron, sin esperar la siguiente recarga completa del firewall. |
 | Log cleanup | <b>Log cleanup:</b> <code>suricataclean.sh</code> runs monthly via cron and truncates Suricata's own logs. It is the third and last cron entry of the Suricata component, alongside <code>suricataupdate.sh</code> (daily, 2 AM) and <code>suridata.sh</code> (every 5 minutes). | <b>Limpieza de logs:</b> <code>suricataclean.sh</code> corre por cron una vez al mes y trunca los logs propios de Suricata. Es la tercera y última entrada de cron del componente Suricata, junto a <code>suricataupdate.sh</code> (diaria, 2 AM) y <code>suridata.sh</code> (cada 5 minutos). |
@@ -493,9 +506,16 @@ WAN_IFACE=enp1s0
 
 ##### Security Rules
 
-| Description | Descripción |
-| :--- | :--- |
-| <ul><li>SYN flood protection via rate-limited <code>syn_flood</code> chain</li><li>TCP scan and malformed packet drops (SYN+FIN, SYN+RST, NEW with SYN+ACK)</li><li>Bittorrent, Tor and other protocol-level detection is handled by Suricata, not by hex-string matching in <code>iptables.sh</code></li><li>GRE (protocol 47) and 6to4 (protocol 41) blocked from LAN</li><li>Windows ICS network range (<code>192.168.137.0/24</code>) blocked</li><li>NetBIOS NMBD (137–139), CoAP (5683–5684), mDNS noise and WUDO WAN traffic blocked</li><li>Bogon and reserved-range filtering (RFC1918, link-local, test-nets) is available in <code>iptables.sh</code> but <strong>disabled by default</strong>. Enabling it blindly can lock the LAN out of its own network when the server's subnet falls inside a blocked RFC1918 range. Read the comment above the <code>BOGONS</code> block first.</li></ul> | <ul><li>Protección contra SYN flood mediante la cadena <code>syn_flood</code> con límite de tasa</li><li>Descarte de escaneos TCP y paquetes mal formados (SYN+FIN, SYN+RST, NEW con SYN+ACK)</li><li>La detección de Bittorrent, Tor y otros protocolos la hace Suricata, no la coincidencia hexadecimal en <code>iptables.sh</code></li><li>GRE (protocolo 47) y 6to4 (protocolo 41) bloqueados desde la LAN</li><li>Rango de red de Windows ICS (<code>192.168.137.0/24</code>) bloqueado</li><li>NetBIOS NMBD (137–139), CoAP (5683–5684), ruido mDNS y tráfico WUDO hacia WAN bloqueados</li><li>El filtrado de bogones y rangos reservados (RFC1918, link-local, test-nets) existe en <code>iptables.sh</code> pero está <strong>desactivado por defecto</strong>. Activarlo a ciegas puede dejar la LAN fuera de su propia red si la subred del servidor cae en un rango RFC1918 bloqueado. Lee antes el comentario sobre el bloque <code>BOGONS</code>.</li></ul> |
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <ul><li>SYN flood protection via rate-limited <code>syn_flood</code> chain</li><li>TCP scan and malformed packet drops (SYN+FIN, SYN+RST, NEW with SYN+ACK)</li><li>Bittorrent, Tor and other protocol-level detection is handled by Suricata, not by hex-string matching in <code>iptables.sh</code></li><li>GRE (protocol 47) and 6to4 (protocol 41) blocked from LAN</li><li>Windows ICS network range (<code>192.168.137.0/24</code>) blocked</li><li>NetBIOS NMBD (137–139), CoAP (5683–5684), mDNS noise and WUDO WAN traffic blocked</li><li>Bogon and reserved-range filtering (RFC1918, link-local, test-nets) is available in <code>iptables.sh</code> but <strong>disabled by default</strong>. Enabling it blindly can lock the LAN out of its own network when the server's subnet falls inside a blocked RFC1918 range. Read the comment above the <code>BOGONS</code> block first.</li></ul>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <ul><li>Protección contra SYN flood mediante la cadena <code>syn_flood</code> con límite de tasa</li><li>Descarte de escaneos TCP y paquetes mal formados (SYN+FIN, SYN+RST, NEW con SYN+ACK)</li><li>La detección de Bittorrent, Tor y otros protocolos la hace Suricata, no la coincidencia hexadecimal en <code>iptables.sh</code></li><li>GRE (protocolo 47) y 6to4 (protocolo 41) bloqueados desde la LAN</li><li>Rango de red de Windows ICS (<code>192.168.137.0/24</code>) bloqueado</li><li>NetBIOS NMBD (137–139), CoAP (5683–5684), ruido mDNS y tráfico WUDO hacia WAN bloqueados</li><li>El filtrado de bogones y rangos reservados (RFC1918, link-local, test-nets) existe en <code>iptables.sh</code> pero está <strong>desactivado por defecto</strong>. Activarlo a ciegas puede dejar la LAN fuera de su propia red si la subred del servidor cae en un rango RFC1918 bloqueado. Lee antes el comentario sobre el bloque <code>BOGONS</code>.</li></ul>
+    </td>
+  </tr>
+</table>
 
 ##### Allowed LAN Services (`macports`)
 
@@ -516,7 +536,7 @@ WAN_IFACE=enp1s0
   <tr><td>Email / Correo</td><td>SMTP 465, 587; IMAP 993; POP3 995; STARTTLS 143, 110</td></tr>
   <tr><td>Messaging / XMPP / Mensajería / XMPP</td><td>5222, 5223, 5228, 5269</td></tr>
   <tr><td>WebRTC / STUN-TURN / WebRTC / STUN-TURN</td><td>UDP 3478–3481, 19302–19309; TCP 3478, 5349</td></tr>
-  <tr><td>Samba / SMB / Samba / SMB</td><td>TCP 445, 3092</td></tr>
+  <tr><td>Samba / SMB / Samba / SMB</td><td>TCP 445; the SMBStack panel on 3092 listens on loopback only / TCP 445; el panel SMBStack en 3092 escucha solo en loopback</td></tr>
   <tr><td>LAN discovery / Descubrimiento LAN</td><td>mDNS 5353, LLMNR 5355, SSDP/UPnP 1900, WSD 3702, IGMP</td></tr>
   <tr><td>KMS / KMS</td><td>Windows activation 1688</td></tr>
 </table>
@@ -578,9 +598,16 @@ WAN_IFACE=enp1s0
 
 #### Optional Pack: UHM
 
-| Description | Descripción |
-| :--- | :--- |
-| <ul><li>This prompt only appears if a local UniFi Network controller is detected first — classic (<code>dpkg</code> package <code>unifi</code>) or unifi-os (<code>/var/lib/uosserver/server.conf</code>, podman-based).</li><li>If neither is found, the prompt is skipped entirely — gateproxy does not install UniFi or podman itself.</li><li>To install UniFi Network self-hosted / UniFi OS Server first, use <a href="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/unifisetup.sh"><code>unifisetup.sh</code></a>, then re-run gateproxy (or run <code>uhmsetup.sh</code> from the <a href="https://github.com/maravento/uhm">uhm</a> repo directly).</li><li>Installs <b>uhm</b> (UniFi Hotspot Manager), which requires pydhcp already installed and running — a requirement gateproxy's own base setup already satisfies. <code>uhm</code> runs its own interactive installer (<code>uhmsetup.sh</code>): it reads pydhcp's network values from <code>pydhcp.env</code> automatically, then prompts for its own UniFi-specific settings (controller credentials, SSID, etc.) directly.</li></ul> | <ul><li>Este prompt sólo aparece si primero se detecta un controlador UniFi Network local — classic (paquete <code>dpkg</code> <code>unifi</code>) o unifi-os (<code>/var/lib/uosserver/server.conf</code>, basado en podman).</li><li>Si no se detecta ninguno, el prompt se omite por completo — gateproxy no instala UniFi ni podman por sí mismo.</li><li>Para instalar primero UniFi Network self-hosted / UniFi OS Server, use <a href="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/unifisetup.sh"><code>unifisetup.sh</code></a>, y luego vuelva a ejecutar gateproxy (o ejecute <code>uhmsetup.sh</code> directamente desde el repo de <a href="https://github.com/maravento/uhm">uhm</a>).</li><li>Instala <b>uhm</b> (UniFi Hotspot Manager), que requiere tener pydhcp ya instalado y corriendo — requisito que la configuración base de gateproxy ya satisface. <code>uhm</code> ejecuta su propio instalador interactivo (<code>uhmsetup.sh</code>): lee automáticamente los valores de red de pydhcp desde <code>pydhcp.env</code>, y luego pregunta directamente por sus propios parámetros específicos de UniFi (credenciales del controlador, SSID, etc.).</li></ul> |
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <ul><li>This prompt only appears if a local UniFi Network controller is detected first — classic (<code>dpkg</code> package <code>unifi</code>) or unifi-os (<code>/var/lib/uosserver/server.conf</code>, podman-based).</li><li>If neither is found, the prompt is skipped entirely — gateproxy does not install UniFi or podman itself.</li><li>To install UniFi Network self-hosted / UniFi OS Server first, use <a href="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/unifisetup.sh"><code>unifisetup.sh</code></a>, then run <code>uhmsetup.sh</code> from the <a href="https://github.com/maravento/uhm">uhm</a> repository.</li><li>Installs <b>uhm</b> (UniFi Hotspot Manager), which requires pydhcp already installed and running — a requirement gateproxy's own base setup already satisfies. <code>uhm</code> runs its own interactive installer (<code>uhmsetup.sh</code>): it reads pydhcp's network values from <code>pydhcp.env</code> automatically, then prompts for its own UniFi-specific settings (controller credentials, SSID, etc.) directly.</li></ul>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <ul><li>Este prompt sólo aparece si primero se detecta un controlador UniFi Network local — classic (paquete <code>dpkg</code> <code>unifi</code>) o unifi-os (<code>/var/lib/uosserver/server.conf</code>, basado en podman).</li><li>Si no se detecta ninguno, el prompt se omite por completo — gateproxy no instala UniFi ni podman por sí mismo.</li><li>Para instalar primero UniFi Network self-hosted / UniFi OS Server, use <a href="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/unifisetup.sh"><code>unifisetup.sh</code></a>, y luego ejecute <code>uhmsetup.sh</code> desde el repositorio de <a href="https://github.com/maravento/uhm">uhm</a>.</li><li>Instala <b>uhm</b> (UniFi Hotspot Manager), que requiere tener pydhcp ya instalado y corriendo — requisito que la configuración base de gateproxy ya satisface. <code>uhm</code> ejecuta su propio instalador interactivo (<code>uhmsetup.sh</code>): lee automáticamente los valores de red de pydhcp desde <code>pydhcp.env</code>, y luego pregunta directamente por sus propios parámetros específicos de UniFi (credenciales del controlador, SSID, etc.).</li></ul>
+    </td>
+  </tr>
+</table>
 
 ### Post-Install
 
@@ -600,21 +627,37 @@ WAN_IFACE=enp1s0
 | Script | Source / Origen | Trigger | Description | Descripción |
 | :--- | :--- | :--- | :--- | :--- |
 | `iptables.sh` | `scr/` | manual | Load firewall rules and ipsets. Some deployed tools — <code>iptables.sh</code> here, and pydhcp's own <code>pyleases.sh</code> — are never added to cron automatically by any installer. Scheduling them (or not) is entirely up to the operator, based on their own needs. | Carga las reglas del firewall y los ipsets. Algunas herramientas desplegadas — <code>iptables.sh</code> aquí, y <code>pyleases.sh</code> de pydhcp — nunca se agregan al cron automáticamente por ningún instalador. Programarlas (o no) queda enteramente a criterio del operador, según sus necesidades. |
-| `serverboot.sh` | `scr/` | manual (`alias server`) | Start or restart all server services | Inicia o reinicia todos los servicios del servidor |
-| `serviceswatch.sh` | `scr/` | every 5 min | Restart failed services | Reinicia los servicios caídos |
+| `serverboot.sh` | `scr/` | manual (`alias server`) | Waits for network readiness, reloads DHCP and Squid, then restarts Apache, available Samba services and rsyslog. Reports failures | Espera que la red esté disponible, recarga DHCP y Squid, y reinicia Apache, los servicios Samba disponibles y rsyslog. Informa los fallos |
+| `serviceswatch.sh` | `scr/` | every 5 min | Checks Webmin, Apache, Squid and rsyslog processes and attempts recovery when absent | Comprueba los procesos de Webmin, Apache, Squid y rsyslog e intenta recuperarlos cuando están ausentes |
 | `killswitch.sh` | `scr/` | manual | Block all traffic in an emergency | Bloquea todo el tráfico en una emergencia |
-| `bkconf.sh` | `scr/` | manual | Back up configuration files | Respalda los archivos de configuración |
+| `bkconf.sh` | `scr/` | manual; monthly with `--install` | Creates a configuration ZIP in `BACKUP_DIR` and retains three archives. `--install` registers its monthly task; `--uninstall` removes that task | Crea un ZIP de configuración en `BACKUP_DIR` y conserva tres respaldos. `--install` registra su tarea mensual; `--uninstall` elimina esa tarea |
 | `hwclock.sh` | external / externo | `@reboot` | Sync hardware clock | Sincroniza el reloj de hardware |
 | `blackusb.sh` | external / externo | `@reboot` | USB device access control. The cron entry runs `blackusb.sh --off`, so the udev rule is moved aside on every boot and the control starts deactivated. Activate it with `blackusb.sh --on` | Control de acceso a dispositivos USB. La entrada de cron ejecuta `blackusb.sh --off`, así que la regla udev se aparta en cada arranque y el control queda desactivado. Actívalo con `blackusb.sh --on` |
 | `cleaner.sh` | external / externo | `@weekly` | System cleanup | Limpieza del sistema |
 | `ffsupdate.sh` | external / externo | `@weekly` | Update FreeFileSync | Actualiza FreeFileSync |
 | `filereport.sh` | external / externo | manual | Generate file system report | Genera un informe del sistema de archivos |
 
-### PAC and Configuration Consistency
+### WPAD/PAC Integration
 
-| Description | Descripción |
-| :--- | :--- |
-| <ul><li>GateProxy configures its interfaces before calling dependent installers. PyDHCP receives the selected LAN and server IPv4, then detects the configured prefix. During installation, <code>gpsetup.sh</code> generates <code>/var/www/wpad/wpad.pac</code> with the selected server IP and proxy port. LAN destinations use <code>isInNet</code> with <code>SERV_SUBNET</code> and <code>SERV_MASK</code>. Local names and loopback remain direct. No PAC template is deployed.</li><li>During installation, <code>gpsetup.sh</code> uses <code>sed -i</code> to replace placeholders with the selected values. Later edits are not synchronized automatically between files. If you change Squid ports after installation, keep <code>proxymon.env</code>, <code>squid.conf</code> and the corresponding WPAD/PAC settings aligned. <code>iptables.sh</code> reads the shared ports when it runs; editing <code>proxymon.env</code> alone does not apply firewall rules or update Squid. Editing only one file can leave the settings inconsistent and interrupt proxy access.</li></ul> | <ul><li>GateProxy configura sus interfaces antes de invocar los instaladores dependientes. PyDHCP recibe la LAN seleccionada y la IPv4 del servidor; después detecta el prefijo configurado. Durante la instalación, <code>gpsetup.sh</code> genera <code>/var/www/wpad/wpad.pac</code> con la IP del servidor y puerto proxy seleccionados. Los destinos LAN utilizan <code>isInNet</code> con <code>SERV_SUBNET</code> y <code>SERV_MASK</code>. Los nombres locales y loopback conservan acceso directo. No se despliega una plantilla PAC.</li><li>Durante la instalación, <code>gpsetup.sh</code> utiliza <code>sed -i</code> para sustituir marcadores por los valores elegidos. Los cambios posteriores no se sincronizan automáticamente entre archivos. Si cambia los puertos de Squid, mantenga alineados <code>proxymon.env</code>, <code>squid.conf</code> y la configuración WPAD/PAC correspondiente. <code>iptables.sh</code> lee los puertos compartidos cuando se ejecuta. Editar solamente <code>proxymon.env</code> no aplica reglas del firewall ni actualiza Squid. Modificar solamente un archivo puede dejar valores incompatibles e interrumpir el acceso al proxy.</li></ul> |
+| Aspect | Description | Descripción |
+|---|---|---|
+| Deployment | GateProxy configures its interfaces before invoking PyDHCP. It passes `PYDHCP_LAN_IFACE` and `PYDHCP_SERVER_IP` and answers the WPAD/PAC prompt with `y`. PyDHCP deploys Apache’s WPAD VirtualHost and `/var/www/wpad/wpad.pac`. | GateProxy configura sus interfaces antes de invocar PyDHCP. Pasa `PYDHCP_LAN_IFACE` y `PYDHCP_SERVER_IP` y responde `y` a la pregunta sobre WPAD/PAC. PyDHCP despliega el VirtualHost WPAD de Apache y `/var/www/wpad/wpad.pac`. |
+| PAC generation and proxy port | PyDHCP generates the PAC according to Squid’s availability at that moment. LAN destinations, local names and loopback use direct connections. Later, when GateProxy applies its Squid configuration, it replaces port `3128` in an existing `PROXY` entry with the selected proxy port. A PAC containing only `DIRECT` retains that content. | PyDHCP genera el PAC según la disponibilidad de Squid en ese momento. Los destinos LAN, nombres locales y loopback utilizan conexiones directas. Después, cuando GateProxy aplica su configuración de Squid, sustituye el puerto `3128` de una entrada `PROXY` existente por el puerto proxy seleccionado. Un PAC que contiene solamente `DIRECT` conserva ese contenido. |
+| DHCP advertisement | PyDHCP enables WPAD after a complete PAC download with HTTP `200`. `pyleases.sh`, or `uhmleases.sh` when UHM manages DHCP reconstruction, repeats that check before generating option 252. | PyDHCP habilita WPAD tras descargar el PAC completo con HTTP `200`. `pyleases.sh`, o `uhmleases.sh` cuando UHM gestiona la reconstrucción DHCP, repite esa comprobación antes de generar la opción 252. |
+| Firewall access | `iptables.sh` reads `WPAD_PORT` from `pydhcp.env`. It allows PAC access for `mac-limited` clients and blocks new connections from `mac-unlimited` clients to the proxy and PAC ports. | `iptables.sh` lee `WPAD_PORT` de `pydhcp.env`. Permite el acceso al PAC para clientes `mac-limited` y bloquea conexiones nuevas desde clientes `mac-unlimited` a los puertos del proxy y del PAC. |
+
+### Manual Configuration Changes
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      During installation, <code>gpsetup.sh</code> replaces configuration placeholders with the selected values. Later changes are applied separately to each file. <code>iptables.sh</code> reads shared Squid ports from <code>proxymon.env</code> when it runs. Squid and the PAC use their own configuration files.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Durante la instalación, <code>gpsetup.sh</code> sustituye los marcadores de configuración por los valores seleccionados. Los cambios posteriores se aplican por separado a cada archivo. <code>iptables.sh</code> lee los puertos compartidos de Squid desde <code>proxymon.env</code> cuando se ejecuta. Squid y el PAC utilizan sus propios archivos de configuración.
+    </td>
+  </tr>
+</table>
 
 > **⚠️ WARNING -- Manual configuration changes:** Keep Squid, Proxymon, WPAD/PAC and firewall settings aligned after manual changes.
 >
