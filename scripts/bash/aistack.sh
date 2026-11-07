@@ -298,7 +298,7 @@ remove_native_components() {
     if [ "$NATIVE_OLLAMA" = true ]; then
         found=true
         echo ""
-        warn "Native Ollama installation detected outside Docker"
+        warn "Native Ollama found outside Docker -alert"
         echo -e " ${DIM}Paths: /usr/local/bin/ollama /usr/share/ollama ~/.ollama${RESET}"
         read -rp " Remove native Ollama? [y/N]: " confirm
         if [[ "$confirm" =~ ^[yY]$ ]]; then
@@ -317,7 +317,7 @@ remove_native_components() {
     if [ "$NATIVE_OPENWEBUI" = true ]; then
         found=true
         echo ""
-        warn "Native Open WebUI detected outside Docker"
+        warn "Native Open WebUI detected outside Docker -alert"
         read -rp " Remove native Open WebUI (pip uninstall)? [y/N]: " confirm
         if [[ "$confirm" =~ ^[yY]$ ]]; then
             if pip uninstall -y open-webui >/dev/null 2>&1; then
@@ -332,7 +332,7 @@ remove_native_components() {
     if [ "$NATIVE_PORTAINER" = true ]; then
         found=true
         echo ""
-        warn "A process was detected on port ${PORTAINER_PORT} outside Docker (possible native Portainer)"
+        warn "port ${PORTAINER_PORT} used outside Docker -alert"
         read -rp " Do you want to review and stop it manually? [y/N]: " confirm
         if [[ "$confirm" =~ ^[yY]$ ]]; then
             ss -tlnp | grep ":${PORTAINER_PORT}"
@@ -483,29 +483,37 @@ install_docker() {
         retry_cmd apt-get install -y ca-certificates curl gnupg lsb-release
 
         # GPG key
-        rm -f /etc/apt/keyrings/docker.gpg /tmp/docker_$$.gpg
-        mkdir -p /etc/apt/keyrings
+        local key_dir=/etc/apt/keyrings key_stage
+        if ! mkdir -p -- "$key_dir" || ! key_stage=$(mktemp -d "$key_dir/docker-key.XXXXXX"); then
+            err "Cannot stage Docker GPG key -abort"
+            exit 1
+        fi
         download_url="https://download.docker.com/linux/ubuntu/gpg"
-        if ! retry_cmd curl -fsSL "$download_url" -o /tmp/docker_$$.gpg; then
+        if ! retry_cmd curl -fsSL "$download_url" -o "$key_stage/key.asc"; then
             err "Docker GPG key download failed -abort"
-            rm -f /tmp/docker_$$.gpg
+            rm -rf -- "$key_stage"
             exit 1
         fi
         echo "SAVED: gpg"
         download_url=""
-        DOCKER_GPG_FINGERPRINT=$(gpg --with-fingerprint --with-colons /tmp/docker_$$.gpg 2>/dev/null \
+        DOCKER_GPG_FINGERPRINT=$(gpg --with-fingerprint --with-colons "$key_stage/key.asc" 2>/dev/null \
             | awk -F: '/^fpr/{print $10; exit}')
         DOCKER_GPG_EXPECTED="9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
         if [ "$DOCKER_GPG_FINGERPRINT" != "$DOCKER_GPG_EXPECTED" ]; then
             err "Docker GPG key fingerprint mismatch!"
             err "Expected: $DOCKER_GPG_EXPECTED"
-            err "Got: ${DOCKER_GPG_FINGERPRINT:-<empty>}"
-            rm -f /tmp/docker_$$.gpg
+            err "Got: ${DOCKER_GPG_FINGERPRINT:-<empty>} -abort"
+            rm -rf -- "$key_stage"
             exit 1
         fi
-        gpg --dearmor < /tmp/docker_$$.gpg > /etc/apt/keyrings/docker.gpg
-        chmod 644 /etc/apt/keyrings/docker.gpg
-        rm -f /tmp/docker_$$.gpg
+        if ! gpg --dearmor -o "$key_stage/docker.gpg" "$key_stage/key.asc" ||
+           ! chmod 644 "$key_stage/docker.gpg" ||
+           ! mv -fT -- "$key_stage/docker.gpg" "$key_dir/docker.gpg"; then
+            rm -rf -- "$key_stage"
+            err "Cannot store Docker GPG key -abort"
+            exit 1
+        fi
+        rm -rf -- "$key_stage"
         :
 
         # Add repository
@@ -556,19 +564,34 @@ install_nvidia_docker() {
         step "Installing NVIDIA Container Toolkit"
 
         # Add NVIDIA repository - using keyrings (apt-key is deprecated)
-        rm -f /etc/apt/keyrings/nvidia-docker.gpg /tmp/nvidia_docker_$$.gpg
-        mkdir -p /etc/apt/keyrings
-        download_url="https://nvidia.github.io/nvidia-docker/gpgkey"
-        if ! retry_cmd curl -fsSL "$download_url" -o /tmp/nvidia_docker_$$.gpg; then
-            err "Failed to download NVIDIA Docker GPG key"
-            rm -f /tmp/nvidia_docker_$$.gpg
+        local key_dir=/etc/apt/keyrings key_stage nvidia_key_fpr
+        if ! mkdir -p -- "$key_dir" || ! key_stage=$(mktemp -d "$key_dir/nvidia-docker-key.XXXXXX"); then
+            err "Cannot stage NVIDIA Docker GPG key -abort"
+            exit 1
+        fi
+        download_url="https://nvidia.github.io/libnvidia-container/gpgkey"
+        if ! retry_cmd curl -fsSL "$download_url" -o "$key_stage/key.asc"; then
+            err "Failed to download NVIDIA Docker GPG key -abort"
+            rm -rf -- "$key_stage"
             exit 1
         fi
         echo "SAVED: gpgkey"
         download_url=""
-        gpg --dearmor < /tmp/nvidia_docker_$$.gpg > /etc/apt/keyrings/nvidia-docker.gpg
-        chmod 644 /etc/apt/keyrings/nvidia-docker.gpg
-        rm -f /tmp/nvidia_docker_$$.gpg
+        if ! nvidia_key_fpr=$(gpg --batch --with-colons --show-keys "$key_stage/key.asc" |
+            awk -F: '$1 == "pub" { primary = 1 } $1 == "fpr" && primary { print $10; primary = 0 }') ||
+           [[ "$nvidia_key_fpr" != C95B321B61E88C1809C4F759DDCAE044F796ECB0 ]]; then
+            rm -rf -- "$key_stage"
+            err "NVIDIA GPG key does not match the expected fingerprint -abort"
+            exit 1
+        fi
+        if ! gpg --dearmor -o "$key_stage/nvidia-docker.gpg" "$key_stage/key.asc" ||
+           ! chmod 644 "$key_stage/nvidia-docker.gpg" ||
+           ! mv -fT -- "$key_stage/nvidia-docker.gpg" "$key_dir/nvidia-docker.gpg"; then
+            rm -rf -- "$key_stage"
+            err "Cannot store NVIDIA Docker GPG key -abort"
+            exit 1
+        fi
+        rm -rf -- "$key_stage"
         # Add repo with signed-by pointing to its own keyring (not the global one)
         download_url="https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list"
         nvidia_repo_tmp=$(mktemp)
@@ -675,7 +698,7 @@ EOF
 deploy_stack() {
     step "Deploying AI Stack with Docker Compose"
 
-    cd "${AI_BASE_DIR}" || { err "Cannot cd to ${AI_BASE_DIR}"; return 1; }
+    cd "${AI_BASE_DIR}" || { err "Cannot cd to ${AI_BASE_DIR} -abort"; return 1; }
 
     # Pull images with retry logic (large images can fail on unstable connections)
     echo "$(date '+%Y-%m-%d %H:%M:%S') Pulling Docker images (may take several minutes)..."
@@ -702,15 +725,15 @@ deploy_stack() {
 # Require Docker and the Ollama container before model operations
 require_ollama_running() {
     if ! command -v docker &>/dev/null; then
-        err "Docker is not installed"
+        err "Docker is not installed -abort"
         return 1
     fi
     if ! systemctl is-active --quiet docker 2>/dev/null; then
-        err "Docker stopped; run: systemctl start docker"
+        err "Docker stopped; run: systemctl start docker -abort"
         return 1
     fi
     if ! docker ps --format '{{.Names}}' | grep -q "^ollama$"; then
-        err "Ollama container is not running. Start stack first:"
+        err "Ollama container is not running -abort"
         info "cd ${AI_BASE_DIR} && docker compose up -d"
         return 1
     fi
@@ -771,7 +794,7 @@ list_installed_models() {
     local models
     models=$(docker exec ollama ollama list 2>/dev/null | tail -n +2)
     if [[ -z "$models" ]]; then
-        warn "No models installed yet"
+        info "No models installed yet"
         info "Select an option below to download one"
         return 0
     fi
@@ -932,7 +955,7 @@ install_opencode() {
         node_path=$(command -v node)
         if [[ "$node_path" == /usr/bin/node || "$node_path" == /usr/local/bin/node ]]; then
             err "Node.js is installed system-wide via apt ($node_path)"
-            err "System Node.js conflicts with nvm; remove it first"
+            err "System Node.js conflicts with nvm -abort"
             info "Run: sudo apt remove --purge nodejs npm -y"
             info "Then run: sudo apt autoremove -y"
             return 1
@@ -960,7 +983,7 @@ install_opencode() {
         chown "$local_user" "$nvm_tmp"
         chmod +x "$nvm_tmp"
         if ! sudo -u "$local_user" bash "$nvm_tmp"; then
-            err "nvm installation failed"
+            err "nvm installation failed -abort"
             rm -f "$nvm_tmp"
             return 1
         fi
@@ -975,7 +998,7 @@ install_opencode() {
     if ! sudo -u "$local_user" bash -c "source '$nvm_sh' && command -v node" &>/dev/null; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') Installing Node.js LTS via nvm..."
         if ! sudo -u "$local_user" bash -c "source '$nvm_sh' && nvm install --lts"; then
-            err "Node.js installation via nvm failed"
+            err "Node.js installation via nvm failed -abort"
             return 1
         fi
         ok "Node.js LTS installed"
@@ -1008,7 +1031,7 @@ install_opencode() {
         chown "$local_user" "$pnpm_tmp"
         chmod +x "$pnpm_tmp"
         if ! sudo -u "$local_user" bash "$pnpm_tmp"; then
-            err "pnpm installation failed"
+            err "pnpm installation failed -abort"
             rm -f "$pnpm_tmp"
             return 1
         fi
@@ -1023,7 +1046,7 @@ install_opencode() {
     pnpm_ver_full=$(sudo -u "$local_user" bash -c "$pnpm_env; pnpm --version 2>/dev/null" || echo 'unknown')
     pnpm_version=$(echo "$pnpm_ver_full" | grep -oE '^[0-9]+')
     if [ -z "$pnpm_version" ] || [ "$pnpm_version" -lt 11 ]; then
-        err "pnpm version 11 or higher is required (found: $pnpm_ver_full)"
+        err "pnpm 11+ required (found: $pnpm_ver_full) -abort"
         info "Upgrade with: pnpm self-update"
         return 1
     fi
@@ -1032,7 +1055,7 @@ install_opencode() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') Installing via pnpm (official package)..."
     local pnpm_bin="/home/$local_user/.local/share/pnpm/bin/pnpm"
     if ! printf 'a\n' | sudo -u "$local_user" bash -c "$pnpm_env; '$pnpm_bin' add -g opencode-ai@latest"; then
-        err "pnpm failed to install opencode-ai"
+        err "pnpm failed to install opencode-ai -abort"
         return 1
     fi
     local opencode_bin="/home/$local_user/.local/share/pnpm/bin/opencode"
@@ -1156,7 +1179,9 @@ uninstall_opencode() {
 
     if [ "$has_entries" = true ]; then
         echo ""
-        read -rp " Remove OpenCode entries from shell config files (.bashrc, .zshrc)? [y/N]: " confirm
+        printf '%s\n' ' This removes every line containing opencode, including manual entries.' \
+            ' Files: .bashrc, .zshrc, .profile, .bash_profile.'
+        read -rp " Remove matching lines? [y/N]: " confirm
         if [[ "$confirm" =~ ^[yY]$ ]]; then
             for config in "/home/$local_user/.bashrc" "/home/$local_user/.zshrc" "/home/$local_user/.profile" "/home/$local_user/.bash_profile"; do
                 if [ -f "$config" ] && grep -q "opencode" "$config" 2>/dev/null; then
@@ -1170,7 +1195,7 @@ uninstall_opencode() {
 
     # Offer to also remove nvm and pnpm installed by this script
     echo ""
-    warn "OpenCode dependencies installed: nvm, Node.js, pnpm"
+    echo "OpenCode dependencies installed: nvm, Node.js, pnpm"
     echo ""
     read -rp " Also remove nvm, Node.js and pnpm? [y/N]: " remove_deps
     if [[ "$remove_deps" =~ ^[yY]$ ]]; then
@@ -1205,7 +1230,7 @@ uninstall_opencode() {
                 # Remove any leftover standalone pnpm references
                 sed -i '/pnpm/d' "$config"
                 # Remove blank lines left at the end of the file
-                sed -i -e '/^[[:space:]]*$/{ /./!d }' "$config"
+                sed -z -i 's/\n\{2,\}$/\n/; s/^\n$//' "$config"
                 ok "Cleaned nvm/pnpm entries from $config"
             fi
         done
@@ -1232,7 +1257,7 @@ update_opencode() {
     if [ -f "$pnpm_bin" ] && sudo -u "$local_user" bash -c "$pnpm_env; pnpm list -g opencode-ai" &>/dev/null 2>&1; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') Updating opencode-ai via pnpm..."
         if ! printf 'a\n' | sudo -u "$local_user" bash -c "$pnpm_env; '$pnpm_bin' update -g opencode-ai"; then
-            err "pnpm update failed"
+            err "pnpm update failed -abort"
             return 1
         fi
 
@@ -1290,7 +1315,7 @@ WRAPPER
             ok "OpenCode updated via official script"
         else
             rm -f "$update_tmp"
-            err "Update via official script failed"
+            err "Update via official script failed -abort"
             return 1
         fi
     fi
@@ -1564,7 +1589,7 @@ _opencode_desktop_resolve_release() {
 
     if [ -z "$url" ] && [ -n "$version" ]; then
         if [ -n "$json" ]; then
-            warn "No exact asset match for linux-${arch}.${ext} (tried: $(_opencode_desktop_arch_aliases)) in published release" >&2
+            warn "release lacks linux-${arch}.${ext} -alert" >&2
             local linux_assets
             linux_assets=$(_opencode_desktop_list_linux_assets "$json")
             if [ -n "$linux_assets" ]; then
@@ -1578,7 +1603,7 @@ _opencode_desktop_resolve_release() {
         local guess_arch
         guess_arch=$(_opencode_desktop_guess_arch_for_ext "$ext")
         url="https://github.com/${OPENCODE_DESKTOP_REPO}/releases/download/${version}/opencode-desktop-linux-${guess_arch}.${ext}"
-        warn "Falling back to a constructed (unverified) URL: $url" >&2
+        warn "using unverified download URL -fallback" >&2
     fi
 
     echo "$version"
@@ -1664,7 +1689,7 @@ install_opencode_desktop() {
 
     # Require a graphical environment
     if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
-        err "No display: DISPLAY and WAYLAND_DISPLAY are unset"
+        err "No display: DISPLAY and WAYLAND_DISPLAY unset -abort"
         info "OpenCode Desktop requires a desktop environment to run"
         return 1
     fi
@@ -1672,7 +1697,7 @@ install_opencode_desktop() {
     local arch
     arch=$(_opencode_desktop_arch)
     if [ -z "$arch" ]; then
-        err "Unsupported architecture: $(uname -m)"
+        err "Unsupported architecture: $(uname -m) -abort"
         info "OpenCode Desktop supports Linux x86_64 and arm64"
         return 1
     fi
@@ -1682,7 +1707,7 @@ install_opencode_desktop() {
         format=$(_opencode_desktop_choose_format)
     fi
     if [ "$format" != "appimage" ] && [ "$format" != "deb" ]; then
-        err "Invalid format selection"
+        err "Invalid format selection -abort"
         return 1
     fi
 
@@ -1693,7 +1718,7 @@ install_opencode_desktop() {
     local version url
     { read -r version; read -r url; } < <(_opencode_desktop_resolve_release "$arch" "$ext")
     if [ -z "$version" ] || [ -z "$url" ]; then
-        err "Cannot resolve OpenCode Desktop release from GitHub"
+        err "Cannot resolve OpenCode Desktop release -abort"
         return 1
     fi
     ok "Latest version: $version"
@@ -1703,7 +1728,7 @@ install_opencode_desktop() {
 
     info "Downloading: $(basename "$url")"
     if ! curl -fL --progress-bar "$url" -o "$asset_tmp"; then
-        err "Failed to download OpenCode Desktop ($url)"
+        err "Failed to download OpenCode Desktop -abort"
         rm -f "$asset_tmp"
         return 1
     fi
@@ -1728,12 +1753,15 @@ install_opencode_desktop() {
         chmod 644 "$asset_tmp"
         apt-get update -qq 2>/dev/null || true
         if ! apt-get install -y "$asset_tmp"; then
-            err "Failed to install OpenCode Desktop"
+            err "Failed to install OpenCode Desktop -abort"
             rm -f "$asset_tmp"
             return 1
         fi
 
         _opencode_desktop_state_write "deb" "$version" "$pkg_name"
+        if ! rm -f -- "$asset_tmp" 2>/dev/null; then
+            warn "cannot remove OpenCode Desktop package -alert"
+        fi
         ok "OpenCode Desktop installed via .deb ($pkg_name, $version)"
     else
         # Sanity-check the download: a valid AppImage is always several MB and an
@@ -1760,7 +1788,7 @@ install_opencode_desktop() {
         fi
 
         sudo -u "$local_user" bash -c "mkdir -p '$OPENCODE_DESKTOP_APPIMAGE_DIR'"
-        mv "$asset_tmp" "$OPENCODE_DESKTOP_APPIMAGE_PATH"
+        mv -T -- "$asset_tmp" "$OPENCODE_DESKTOP_APPIMAGE_PATH"
         chown "$local_user" "$OPENCODE_DESKTOP_APPIMAGE_PATH"
         chmod +x "$OPENCODE_DESKTOP_APPIMAGE_PATH"
 
@@ -1814,7 +1842,7 @@ update_opencode_desktop() {
     local arch
     arch=$(_opencode_desktop_arch)
     if [ -z "$arch" ]; then
-        err "Unsupported architecture: $(uname -m)"
+        err "Unsupported architecture: $(uname -m) -abort"
         return 1
     fi
 
@@ -1825,7 +1853,7 @@ update_opencode_desktop() {
     local version url
     { read -r version; read -r url; } < <(_opencode_desktop_resolve_release "$arch" "$ext")
     if [ -z "$version" ] || [ -z "$url" ]; then
-        err "Cannot resolve OpenCode Desktop release from GitHub"
+        err "Cannot resolve OpenCode Desktop release -abort"
         return 1
     fi
 
@@ -1840,7 +1868,7 @@ update_opencode_desktop() {
 
     info "Downloading: $(basename "$url")"
     if ! curl -fL --progress-bar "$url" -o "$asset_tmp"; then
-        err "Failed to download OpenCode Desktop ($url)"
+        err "Failed to download OpenCode Desktop -abort"
         rm -f "$asset_tmp"
         return 1
     fi
@@ -1862,7 +1890,7 @@ update_opencode_desktop() {
 
         apt-get update -qq 2>/dev/null || true
         if ! apt-get install -y "$asset_tmp"; then
-            err "Failed to update OpenCode Desktop"
+            err "Failed to update OpenCode Desktop -abort"
             rm -f "$asset_tmp"
             return 1
         fi
@@ -1888,7 +1916,7 @@ update_opencode_desktop() {
         fi
 
         sudo -u "$local_user" bash -c "mkdir -p '$OPENCODE_DESKTOP_APPIMAGE_DIR'"
-        mv "$asset_tmp" "$OPENCODE_DESKTOP_APPIMAGE_PATH"
+        mv -T -- "$asset_tmp" "$OPENCODE_DESKTOP_APPIMAGE_PATH"
         chown "$local_user" "$OPENCODE_DESKTOP_APPIMAGE_PATH"
         chmod +x "$OPENCODE_DESKTOP_APPIMAGE_PATH"
 
@@ -1928,7 +1956,7 @@ uninstall_opencode_desktop() {
             return 1
         fi
         if ! apt-get purge -y "$pkg_name"; then
-            err "Failed to remove package: $pkg_name"
+            err "Failed to remove package: $pkg_name -abort"
             info "Try manually: apt-get purge -y $pkg_name"
             return 1
         fi
@@ -2125,7 +2153,7 @@ uninstall_all() {
     local cleanup_failed=()
 
     echo ""
-    warn "${BOLD}ATTENTION! This will remove ALL containers, images, volumes, and data${RESET}"
+    echo -e "${BOLD}ATTENTION! This will remove ALL containers, images, volumes, and data${RESET}"
     echo ""
     read -rp " Are you sure? Type 'CONFIRM' to continue: " confirm
     if [[ "$confirm" != "CONFIRM" ]]; then
@@ -2192,7 +2220,6 @@ uninstall_all() {
                 warn "run: apt-get purge -y ${purge_failed[*]} -alert"
             fi
             rm -rf /var/lib/docker
-            rm -rf /var/lib/containerd
             rm -f /etc/apt/sources.list.d/docker.list
             apt autoremove -y
             apt-get clean
@@ -2328,7 +2355,7 @@ update_components() {
     step "Updating AI Stack Components"
 
     if [ ! -f "${AI_BASE_DIR}/docker-compose.yml" ]; then
-        err "Stack missing; run: ./aistack.sh --install"
+        err "Stack missing; run: ./aistack.sh --install -abort"
         return 1
     fi
 
@@ -2417,9 +2444,9 @@ install_all() {
         echo -e " ${YELLOW}| NATIVE COMPONENTS DETECTED OUTSIDE DOCKER |${RESET}"
         echo -e " ${YELLOW}+-----------------------------------------------------+${RESET}"
         echo ""
-        [ "$NATIVE_OLLAMA" = true ] && warn "Ollama is installed natively on this system"
-        [ "$NATIVE_OPENWEBUI" = true ] && warn "Open WebUI is installed natively on this system"
-        [ "$NATIVE_PORTAINER" = true ] && warn "A service is using port ${PORTAINER_PORT} outside Docker"
+        [ "$NATIVE_OLLAMA" = true ] && warn "Ollama is installed natively on this system -alert"
+        [ "$NATIVE_OPENWEBUI" = true ] && warn "Open WebUI is installed natively -alert"
+        [ "$NATIVE_PORTAINER" = true ] && warn "A service is using port ${PORTAINER_PORT} outside Docker -alert"
         echo ""
         echo -e " ${DIM}These may conflict with Docker-based installation${RESET}"
         echo -e " ${DIM}(port conflicts, shared resources, etc.)${RESET}"
@@ -2535,7 +2562,7 @@ install_lmstudio() {
 
     # Require a graphical environment
     if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
-        err "No display: DISPLAY and WAYLAND_DISPLAY are unset"
+        err "No display: DISPLAY and WAYLAND_DISPLAY unset -abort"
         info "LM Studio requires a desktop environment to run"
         return 1
     fi
@@ -2544,7 +2571,7 @@ install_lmstudio() {
     local arch
     arch=$(uname -m)
     if [ "$arch" != "x86_64" ]; then
-        err "LM Studio only supports x86_64 (detected: $arch)"
+        err "LM Studio needs x86_64 (detected: $arch) -abort"
         return 1
     fi
 
@@ -2565,7 +2592,7 @@ install_lmstudio() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') Downloading LM Studio AppImage..."
     sudo -u "$local_user" bash -c "mkdir -p \"${AI_BASE_DIR}/lmstudio\""
     if ! curl -fL --progress-bar "https://lmstudio.ai/download/latest/linux/x64?format=AppImage" -o "${AI_BASE_DIR}/lmstudio/LMStudio.AppImage"; then
-        err "Failed to download LM Studio"
+        err "Failed to download LM Studio -abort"
         rm -f "${AI_BASE_DIR}/lmstudio/LMStudio.AppImage"
         return 1
     fi
@@ -2744,7 +2771,7 @@ cli_mode() {
             echo "Without arguments, opens the interactive menu"
             ;;
         *)
-            err "unknown option: ${1:-} -abort"
+            err "invalid option -abort"
             cli_mode --help
             return 1
             ;;

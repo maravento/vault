@@ -55,29 +55,29 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: portkill start..."
 read -rp "Enter Port Number to close: " port
 
 if [ -z "$port" ]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: port number cannot be empty -abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: port number cannot be empty -abort" >&2
     exit 1
 fi
 if ! [[ "$port" =~ $UH_UINT ]] || [ "${#port}" -gt 5 ] \
     || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: '$port' is not a valid port number (1-65535) -abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: '$port' is not a valid port number (1-65535) -abort" >&2
     exit 1
 fi
 
 if ! pids=$(lsof -Q -t -i:"$port" 2>/dev/null); then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot query port $port -abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot query port $port -abort" >&2
     exit 1
 fi
 if [ -z "$pids" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no process on port $port -skip"
 else
     if ! kill $pids 2>/dev/null; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to kill process(es) on port $port -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to kill process(es) on port $port -abort" >&2
         exit 1
     fi
     sleep 1
     if ! remaining=$(lsof -Q -t -i:"$port" 2>/dev/null); then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot verify port $port -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot verify port $port -abort" >&2
         exit 1
     fi
     if [ -z "$remaining" ]; then

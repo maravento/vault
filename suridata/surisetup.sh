@@ -487,7 +487,7 @@ acl_fix_perms() {
         log "ERROR: cannot fix $(basename "$acl_path") perms -abort"
         exit 1
     fi
-    log "INFO: $acl_path perms fixed -fixed"
+    log "INFO: $(basename "$acl_path") perms fixed -fixed"
 }
 
 read_env_value() {
@@ -1085,7 +1085,6 @@ check_already_installed() {
             [ -z "$reason" ] || warn "$reason -alert"
         done < <(printf "%b" "$skip_reasons")
         abort "suridata already installed; use --update -abort"
-        exit 1
     fi
 }
 
@@ -1283,7 +1282,7 @@ do_uninstall() {
 
 do_status() {
     local failure_message="cannot report the current state"
-    local file iface drop_count ip_count status_backup_dir
+    local file iface drop_count ip_count
     echo "suridata status"
     echo "---------------"
 
@@ -1326,17 +1325,11 @@ do_status() {
         echo "logrotate:  not installed"
     fi
 
-    # the administrator may have moved BACKUP_DIR, so the env value wins
-    status_backup_dir="$backup_dir"
-    if [ -f "$suridata_env" ]; then
-        status_backup_dir=$(read_env_value BACKUP_DIR)
-        [ -n "$status_backup_dir" ] || status_backup_dir="$backup_dir"
-    fi
     ip_count=0
-    if [ -d "$status_backup_dir" ]; then
-        ip_count=$(find "$status_backup_dir" -maxdepth 1 -name 'suribk_*.zip' | wc -l)
+    if [ -d "$backup_dir" ]; then
+        ip_count=$(find "$backup_dir" -maxdepth 1 -name 'suribk_*.zip' | wc -l)
     fi
-    echo "backups:    $ip_count archive(s) in $status_backup_dir"
+    echo "backups:    $ip_count archive(s) in $backup_dir"
 
     if systemctl is-active --quiet suricata.service; then
         echo "suricata:   active"

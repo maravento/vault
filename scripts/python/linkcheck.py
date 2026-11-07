@@ -175,6 +175,7 @@ def scan():
     domain = parsed.netloc
     visited = set()
     pending = deque([normalize_url(url)])
+    pending_set = {normalize_url(url)}
     broken  = []
     by_type = defaultdict(list)
 
@@ -206,8 +207,9 @@ def scan():
         else:
             new_links = collect_links(resp, domain)
             for link in new_links:
-                if link not in visited:
+                if link not in visited and link not in pending_set:
                     pending.append(link)
+                    pending_set.add(link)
 
         if REQUEST_DELAY > 0:
             time.sleep(REQUEST_DELAY)

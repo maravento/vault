@@ -145,7 +145,10 @@ the_ppa="sebastian-stenzel/cryptomator"
 if [[ "$(dpkg-query -W -f='${Status}' cryptomator 2>/dev/null)" != *"ok installed"* ]]; then
     check_ipv4_interfaces
     check_internet
-    add-apt-repository -y "ppa:$the_ppa" >/dev/null 2>&1
+    add-apt-repository -y "ppa:$the_ppa" >/dev/null 2>&1 || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot add $the_ppa repository -abort" >&2
+        exit 1
+    }
     apt-get update -qq || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
         exit 1
@@ -162,8 +165,14 @@ fi
 
 dstpath="/home/$local_user/dcrypt"
 if [ ! -d "$dstpath" ]; then
-    sudo -u "$local_user" mkdir -p "$dstpath"
-    chmod u+rwx,go-rwx "$dstpath"
+    sudo -u "$local_user" mkdir -p "$dstpath" || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot create $(basename "$dstpath") folder -abort" >&2
+        exit 1
+    }
+    chmod u+rwx,go-rwx "$dstpath" || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot set $(basename "$dstpath") permissions -abort" >&2
+        exit 1
+    }
 fi
 
 originpath="/home/$local_user/.local/share/Cryptomator/mnt"
@@ -182,20 +191,28 @@ case "${1:-}" in
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: source folder $(basename "$originpath") not found -abort" >&2
         exit 1
     fi
-    sudo -u "$local_user" bindfs -n "$originpath" "$dstpath"
+    sudo -u "$local_user" bindfs -n "$originpath" "$dstpath" || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot mount DriveCrypt -abort" >&2
+        exit 1
+    }
     msg="$(date '+%Y-%m-%d %H:%M:%S') INFO: DriveCrypt mounted"
     echo "$msg"
     logger -t drivecrypt "$msg"
     ;;
 '--stop')
     echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: unmounting DriveCrypt..."
-    sudo -u "$local_user" fusermount -u "$dstpath"
+    sudo -u "$local_user" fusermount -u "$dstpath" || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot unmount DriveCrypt -abort" >&2
+        exit 1
+    }
     msg="$(date '+%Y-%m-%d %H:%M:%S') INFO: DriveCrypt unmounted"
     echo "$msg"
     logger -t drivecrypt "$msg"
     ;;
 *)
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
     echo "Usage: $0 { --start | --stop }"
+    exit 1
     ;;
 esac
 

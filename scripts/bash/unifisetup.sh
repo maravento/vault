@@ -307,15 +307,23 @@ get_installed_osserver() {
 # REPOSITORIES
 # ------------------------------------------------------------------------------
 
+install_repo_key() {
+    local url="$1" key_file="$2" key_tmp
+    key_tmp=$(mktemp "${key_file}.XXXXXX") || return 1
+    if ! curl -fsSL "$url" | gpg --dearmor > "$key_tmp" 2>>"$log_file" ||
+       ! chmod 644 "$key_tmp" ||
+       ! mv -fT -- "$key_tmp" "$key_file"; then
+        rm -f -- "$key_tmp"
+        return 1
+    fi
+}
+
 ensure_mongodb_repo() {
-    local pipe_status
     if [ -f /etc/apt/sources.list.d/mongodb-org-8.0.list ]; then
         return 0
     fi
     log "EVENT: Adding MongoDB 8.0 repository..."
-    curl -fsSL https://pgp.mongodb.com/server-8.0.asc | gpg -o /etc/apt/keyrings/mongodb-server-8.0.gpg --dearmor --yes >>"$log_file" 2>&1
-    pipe_status=("${PIPESTATUS[@]}")
-    if [ "${pipe_status[0]}" -ne 0 ] || [ "${pipe_status[1]}" -ne 0 ]; then
+    if ! install_repo_key https://pgp.mongodb.com/server-8.0.asc /etc/apt/keyrings/mongodb-server-8.0.gpg; then
         err "failed to add MongoDB repository key -abort"
         return 1
     fi
@@ -334,10 +342,10 @@ ensure_adoptium_repo() {
     log "EVENT: Adding Adoptium (Temurin) repository..."
 
     # Adoptium doesn't always have a suite for a brand-new Ubuntu release
-    # yet. Check its dists listing first (same check Glenn's script does)
+    # yet. Check its dists listing first
     # and fall back to noble, our guaranteed-supported baseline, if the
     # detected codename isn't published there.
-    local adoptium_codename="${os_codename}" pipe_status
+    local adoptium_codename="${os_codename}"
     if ! curl -fsSL "https://packages.adoptium.net/artifactory/deb/dists/" \
         | sed -e 's/<[^>]*>//g' -e '/^$/d' | awk '{print $1}' | sed 's#/$##' \
         | grep -iq "^${adoptium_codename}$"; then
@@ -346,9 +354,7 @@ ensure_adoptium_repo() {
         adoptium_codename="noble"
     fi
 
-    curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg -o /etc/apt/keyrings/packages-adoptium.gpg --dearmor --yes >>"$log_file" 2>&1
-    pipe_status=("${PIPESTATUS[@]}")
-    if [ "${pipe_status[0]}" -ne 0 ] || [ "${pipe_status[1]}" -ne 0 ]; then
+    if ! install_repo_key https://packages.adoptium.net/artifactory/api/gpg/key/public /etc/apt/keyrings/packages-adoptium.gpg; then
         err "failed to add Adoptium repository key -abort"
         return 1
     fi
@@ -955,7 +961,7 @@ menu() {
             6) run_action action_uninstall_osserver || exit 1; break ;;
             7) run_action action_status || exit 1; break ;;
             8) exit 0 ;;
-            *) echo "Invalid option" ;;
+            *) info "invalid option -retry" ;;
         esac
     done
 }

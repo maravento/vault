@@ -11,7 +11,7 @@
 #
 # USAGE: sudo ./hwclock.sh
 #
-# LOG: /var/log/syslog
+# LOG: system logger (destination set by system configuration)
 ################################################################################
 
 set -uo pipefail
@@ -42,7 +42,7 @@ if ! flock -n 200; then
 fi
 
 # dependencies
-for dep in util-linux util-linux-extra coreutils; do
+for dep in util-linux util-linux-extra bsdutils coreutils; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Installing $dep..."
         if ! apt-get install -y "$dep"; then
@@ -59,8 +59,15 @@ done
 # start
 echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: hwclock start..."
 
-hwclock -w || echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: hwclock -w failed, VM or container? -alert"
-echo "HWClock Update: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
+hwclock_rc=0
+hwclock -w || {
+    hwclock_rc=$?
+    echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: hwclock -w failed, VM or container? -alert"
+}
+if [ "$hwclock_rc" -eq 0 ]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: HWClock Update"
+fi
+logger -t hwclock "HWClock Update: rc=$hwclock_rc" || true
 
 # ------------------------------------------------------------------------------
 # END

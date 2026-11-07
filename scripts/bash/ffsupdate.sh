@@ -177,14 +177,16 @@ fi
 mv "$extracted" "$ffsrun"
 chmod +x "$ffsrun"
 
-/usr/bin/expect -f /dev/stdin "$ffsrun" "$log_file" <<'EOF'
+if /usr/bin/expect -f /dev/stdin "$ffsrun" "$log_file" <<'EOF'
 proc installer_error {message} {
     set line "[clock format [clock seconds] -format {%Y-%m-%d %H:%M:%S}] ERROR: $message -abort"
     puts stderr $line
-    set output [open [lindex $::argv 1] a]
-    puts $output $line
-    close $output
-    exit 1
+    catch {
+        set output [open [lindex $::argv 1] a]
+        puts $output $line
+        close $output
+    }
+    exit 65
 }
 set timeout 120
 log_user 0
@@ -227,6 +229,15 @@ if {[lindex $result 3] != 0} {
 }
 exit 0
 EOF
+then
+    :
+else
+    expect_rc=$?
+    if (( expect_rc != 65 )); then
+        log "ERROR: Expect failed (rc=$expect_rc) -abort"
+    fi
+    exit 1
+fi
 
 rm -f "$ffsfile" "$ffsrun"
 

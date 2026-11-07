@@ -385,9 +385,9 @@ switch_to_networkd() {
         echo "You have ACTIVE WiFi connections!"
         echo "Switching to systemd-networkd will:"
         echo ""
-        echo "${color_red} ${color_reset} Disconnect all WiFi connections"
-        echo "${color_red} ${color_reset} Require manual wpa_supplicant setup"
-        echo "${color_red} ${color_reset} Remove GUI management"
+        echo -e "${color_red} ${color_reset} Disconnect all WiFi connections"
+        echo -e "${color_red} ${color_reset} Require manual wpa_supplicant setup"
+        echo -e "${color_red} ${color_reset} Remove GUI management"
         echo ""
         echo "This is NOT recommended for systems with WiFi"
         echo ""
@@ -448,7 +448,7 @@ switch_to_networkd() {
     echo ""
 
     echo -e "${color_blue}Validating configuration...${color_reset}"
-    if netplan generate 2>&1 | grep -qi error; then
+    if ! netplan generate >/dev/null 2>&1; then
         echo -e "${color_red}Error: Configuration validation failed${color_reset}"
         echo "$(date '+%Y-%m-%d %H:%M:%S') Restoring backup..."
         restore_all_yaml_files
@@ -724,8 +724,7 @@ show_menu() {
                 break
                 ;;
             *)
-                echo ""
-                echo -e "${color_red}Invalid option${color_reset}"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: invalid option -retry"
                 sleep 2
                 ;;
         esac
@@ -758,7 +757,7 @@ else
             show_help
             ;;
         *)
-            echo -e "${color_red}Error: Invalid option '$1'${color_reset}"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
             echo ""
             show_help
             exit 1

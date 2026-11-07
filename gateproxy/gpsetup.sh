@@ -62,9 +62,9 @@ abort() { err "$*"; exit 1; }
 # VARIABLES
 # ------------------------------------------------------------------------------
 
-ACL_PATH=/etc/acl
+acl_root=/etc/acl
 gateproxy_env="/etc/gateproxy/gateproxy.env"
-SCR_PATH=/etc/scr
+scr_root=/etc/scr
 
 # validation -- one variable per thing validated; use directly with =~
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
@@ -139,7 +139,7 @@ acl_fix_perms() {
         log "ERROR: cannot fix $(basename "$acl_path") perms -abort"
         exit 1
     fi
-    log "INFO: $acl_path perms fixed -fixed"
+    log "INFO: $(basename "$acl_path") perms fixed -fixed"
 }
 
 # Module folders are deleted at the end, so each log is copied while it exists.
@@ -193,7 +193,7 @@ warn_overlap() {
     local dep_pkg
     for dep_pkg in "$@"; do
         if dpkg-query -W -f='${Status}' "$dep_pkg" 2>/dev/null | grep -q "ok installed"; then
-            warn "$dep_pkg installed; check for $feature conflicts -alert"
+            warn "$dep_pkg installed, keep its $feature disabled -alert"
         fi
     done
 }
@@ -542,9 +542,9 @@ SCRIPT_PATH="$(realpath "$0")" || { failure_status=$?; report_failure; exit "$fa
 failure_message="cannot find the Gateproxy working directory"
 gp_path=$(pwd)/gateproxy || { failure_status=$?; report_failure; exit "$failure_status"; }
 failure_message="cannot create ACL directories"
-mkdir -p "$ACL_PATH" &>/dev/null
+mkdir -p "$acl_root" &>/dev/null
 failure_message="cannot create Gateproxy scripts"
-mkdir -p "$SCR_PATH" &>/dev/null
+mkdir -p "$scr_root" &>/dev/null
 
 # ------------------------------------------------------------------------------
 # DEPENDENCIES
@@ -1153,7 +1153,7 @@ ENV
         abort "cannot write gateproxy.env -abort"
     fi
     if ! { chown root:root "$config_tmp" && chmod 640 "$config_tmp" \
-        && mv -f "$config_tmp" "$gateproxy_env"; }; then
+        && mv -fT -- "$config_tmp" "$gateproxy_env"; }; then
         rm -f "$config_tmp"
         abort "cannot publish gateproxy.env -abort"
     fi
@@ -1367,15 +1367,15 @@ failure_message="cannot write hosts"
 grep -q "ipv6.msftncsi.com" /etc/hosts || echo "$SERVER_IP ipv6.msftncsi.com ipv6.msftconnecttest.com" | tee -a /etc/hosts >/dev/null
 
 # ACLs SECTION
-acl_mac_path="$ACL_PATH/mac"
-acl_squid_path="$ACL_PATH/squid"
-acl_ipt_path="$ACL_PATH/ipt"
-# Only files missing in $ACL_PATH are copied from the repo template -- never
+acl_mac_path="$acl_root/mac"
+acl_squid_path="$acl_root/squid"
+acl_ipt_path="$acl_root/ipt"
+# Only files missing in $acl_root are copied from the repo template -- never
 # overwrite one that already exists, since it may hold real data from a
 # previous install, from pydhcp (mac-*.txt is also seeded by pydhcp's own
 # pysetup.sh), or edited by hand.
 while IFS= read -r -d '' acl_src; do
-    acl_dest="$ACL_PATH/${acl_src#"$gp_path"/acl/}"
+    acl_dest="$acl_root/${acl_src#"$gp_path"/acl/}"
     if [ ! -f "$acl_dest" ]; then
         failure_message="cannot create the ACL destination directory"
         mkdir -p "$(dirname "$acl_dest")"
@@ -1385,7 +1385,7 @@ while IFS= read -r -d '' acl_src; do
 done < <(find "$gp_path/acl" -type f -print0)
 # ACL directories and files, per rules.md BLOQUE 6, section 14
 shopt -s nullglob
-acl_prepare "$ACL_PATH" 755 644
+acl_prepare "$acl_root" 755 644
 acl_prepare "$acl_mac_path" 700 600 "$acl_mac_path"/mac-*.txt
 acl_prepare "$acl_squid_path" 755 644 "$acl_squid_path"/*.txt
 acl_prepare "$acl_ipt_path" 700 600 "$acl_ipt_path"/*.txt
@@ -1408,8 +1408,7 @@ failure_message="cannot enable unbound"
 systemctl enable --now unbound
 
 # PHP
-# Download the PHP configuration installer
-failure_message="cannot download $(basename "${download_url%%\?*}")"
+failure_message="cannot install packages with apt"
 retry_cmd apt install -y php libapache2-mod-php php-cli php-curl php-sqlite3
 
 # Detect PHP version
@@ -1910,7 +1909,8 @@ if [ -n "$UNIFI_DETECTED_TYPE" ]; then
     info "UniFi Network controller detected ($UNIFI_DETECTED_TYPE)"
     while true; do
         failure_message="cannot read the UHM installation answer"
-        read -r -p "Se ha detectado UniFi ($UNIFI_DETECTED_TYPE). Desea instalar UniFi Hotspot Manager (uhm)? (y/n)" answer
+        read -r -p "UniFi detected ($UNIFI_DETECTED_TYPE).
+Do you want to install UniFi Hotspot Manager (uhm)? (y/n) " answer
 
         case "$answer" in
         [Yy]*)
@@ -1963,56 +1963,56 @@ upgrade
 # ACLs ###
 echo ""
 # Allow IP
-get_acl https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt "$ACL_PATH/squid/allowip.txt" || true
-if [ -f "$ACL_PATH/squid/allowip.txt" ]; then
-    acl_fix_perms "$ACL_PATH/squid/allowip.txt" 644
+get_acl https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt "$acl_root/squid/allowip.txt" || true
+if [ -f "$acl_root/squid/allowip.txt" ]; then
+    acl_fix_perms "$acl_root/squid/allowip.txt" 644
 fi
-if [ ! -s "$ACL_PATH/squid/allowip.txt" ]; then
+if [ ! -s "$acl_root/squid/allowip.txt" ]; then
     warn "allowip.txt is empty -alert"
 fi
 
 # Block TLDs
-get_acl https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt "$ACL_PATH/squid/blocktlds.txt" || true
-if [ -f "$ACL_PATH/squid/blocktlds.txt" ]; then
-    acl_fix_perms "$ACL_PATH/squid/blocktlds.txt" 644
+get_acl https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt "$acl_root/squid/blocktlds.txt" || true
+if [ -f "$acl_root/squid/blocktlds.txt" ]; then
+    acl_fix_perms "$acl_root/squid/blocktlds.txt" 644
 fi
-if [ ! -s "$ACL_PATH/squid/blocktlds.txt" ]; then
+if [ ! -s "$acl_root/squid/blocktlds.txt" ]; then
     info "blocktlds.txt is empty, ACL disabled in squid.conf"
     failure_message="cannot edit squid.conf"
     sed -i '/^acl blocktlds /s/^/#/; /^http_access deny workdays blocktlds/s/^/#/' "$gp_path/conf/squid/squid.conf"
 fi
 
 # Ransomware Extensions (Squid, optional)
-get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/rw/rwext.txt "$ACL_PATH/squid/rwext.txt" || true
-if [ -f "$ACL_PATH/squid/rwext.txt" ]; then
-    acl_fix_perms "$ACL_PATH/squid/rwext.txt" 644
+get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/rw/rwext.txt "$acl_root/squid/rwext.txt" || true
+if [ -f "$acl_root/squid/rwext.txt" ]; then
+    acl_fix_perms "$acl_root/squid/rwext.txt" 644
 fi
-if [ ! -s "$ACL_PATH/squid/rwext.txt" ]; then
+if [ ! -s "$acl_root/squid/rwext.txt" ]; then
     warn "rwext.txt is empty -alert"
 fi
 
 # Bad User-Agents (Squid, optional)
-get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/ua/blockua.txt "$ACL_PATH/squid/blockua.txt" || true
-if [ -f "$ACL_PATH/squid/blockua.txt" ]; then
-    acl_fix_perms "$ACL_PATH/squid/blockua.txt" 644
+get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/ua/blockua.txt "$acl_root/squid/blockua.txt" || true
+if [ -f "$acl_root/squid/blockua.txt" ]; then
+    acl_fix_perms "$acl_root/squid/blockua.txt" 644
 fi
-if [ ! -s "$ACL_PATH/squid/blockua.txt" ]; then
+if [ ! -s "$acl_root/squid/blockua.txt" ]; then
     warn "blockua.txt is empty -alert"
 fi
 
 # Web3 Domains/TLDs (Squid, optional)
-get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3domains.txt "$ACL_PATH/squid/web3domains.txt" || true
-if [ -f "$ACL_PATH/squid/web3domains.txt" ]; then
-    acl_fix_perms "$ACL_PATH/squid/web3domains.txt" 644
+get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3domains.txt "$acl_root/squid/web3domains.txt" || true
+if [ -f "$acl_root/squid/web3domains.txt" ]; then
+    acl_fix_perms "$acl_root/squid/web3domains.txt" 644
 fi
-if [ ! -s "$ACL_PATH/squid/web3domains.txt" ]; then
+if [ ! -s "$acl_root/squid/web3domains.txt" ]; then
     warn "web3domains.txt is empty -alert"
 fi
-get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3tld.txt "$ACL_PATH/squid/web3tld.txt" || true
-if [ -f "$ACL_PATH/squid/web3tld.txt" ]; then
-    acl_fix_perms "$ACL_PATH/squid/web3tld.txt" 644
+get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3tld.txt "$acl_root/squid/web3tld.txt" || true
+if [ -f "$acl_root/squid/web3tld.txt" ]; then
+    acl_fix_perms "$acl_root/squid/web3tld.txt" 644
 fi
-if [ ! -s "$ACL_PATH/squid/web3tld.txt" ]; then
+if [ ! -s "$acl_root/squid/web3tld.txt" ]; then
     warn "web3tld.txt is empty -alert"
 fi
 
@@ -2020,8 +2020,8 @@ fi
 if (cd "$gp_path" && get_acl https://raw.githubusercontent.com/maravento/blackweb/master/blackweb.tar.gz blackweb.tar.gz && [ -f blackweb.tar.gz ]); then
     (cd "$gp_path" && cat blackweb.tar.gz* | tar xzf -)
     failure_message="cannot copy blackweb.txt"
-    cp "$gp_path/blackweb.txt" "$ACL_PATH/squid/blackweb.txt"
-    acl_fix_perms "$ACL_PATH/squid/blackweb.txt" 644
+    cp "$gp_path/blackweb.txt" "$acl_root/squid/blackweb.txt"
+    acl_fix_perms "$acl_root/squid/blackweb.txt" 644
 else
     warn "blackweb.tar.gz not available -alert"
 fi
@@ -2071,10 +2071,10 @@ done
 
 # scripts
 failure_message="cannot copy Gateproxy scripts"
-cp -fr "$gp_path/scr/"* "$SCR_PATH"
+cp -fr "$gp_path/scr/"* "$scr_root"
 failure_message="cannot set owner of Gateproxy scripts"
-chown -R root:root "$SCR_PATH"/*
-find "$SCR_PATH" -name "*.sh" -exec chmod +x {} \;
+chown -R root:root "$scr_root"/*
+find "$scr_root" -name "*.sh" -exec chmod +x {} \;
 # Default: leave /tmp and shared-memory mounts unchanged; see README.
 # Read-only shared memory is independent of the two /tmp alternatives.
 #echo 'none /run/shm tmpfs defaults,ro 0 0' | tee -a /etc/fstab &> /dev/null # Optional

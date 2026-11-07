@@ -416,13 +416,14 @@ case "${1:-}" in
         ;;
 
     *)
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
         echo "Usage: sudo $0 [--on|--off|--status|--clean]"
         echo ""
         echo "Options:"
-        echo "on - Activate bridge ${BRIDGE_NAME}"
-        echo "off - Deactivate bridge and restore original configuration"
-        echo "status - Check detailed status"
-        echo "clean - Clean up bridge connections"
+        echo "--on - Activate bridge ${BRIDGE_NAME}"
+        echo "--off - Deactivate bridge and restore original configuration"
+        echo "--status - Check detailed status"
+        echo "--clean - Clean up bridge connections"
         exit 1
         ;;
 esac

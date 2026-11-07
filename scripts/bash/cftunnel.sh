@@ -217,7 +217,8 @@ delete_dns_record() {
 
     if [[ -z "$token_cloudflare" ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: 'token_cloudflare' not set, skipping automatic DNS deletion -skip"
-        echo "[NOTE] Remove DNS record for '$tunnel_hostname' manually from Cloudflare dashboard"
+        printf 'DNS record: %s\n' "$tunnel_hostname"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: remove the DNS record in Cloudflare dashboard"
         return 0
     fi
 
@@ -448,6 +449,11 @@ create_tunnel() {
     read -r -p "Tunnel name: " tunnel_name
     if [[ -z "$tunnel_name" ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: tunnel name cannot be empty -alert"
+        return 1
+    fi
+
+    if [[ "$tunnel_name" == */* ]]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: tunnel name contains a slash -alert"
         return 1
     fi
 
@@ -693,6 +699,11 @@ delete_tunnel() {
         tunnel_name="${tunnels[$index]}"
     fi
 
+    if [[ "$tunnel_name" == */* ]]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: tunnel name contains a slash -alert"
+        return 1
+    fi
+
     local config_file="$CONFIG_DIR/${tunnel_name}.yml"
     if [[ ! -f "$config_file" ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: config file does not exist: ${config_file/#$USER_HOME/\~} -alert"
@@ -716,7 +727,10 @@ delete_tunnel() {
     echo "Running: cloudflared tunnel delete $tunnel_name"
     if ! "$CLOUDFLARED_BIN" tunnel delete "$tunnel_name" 2>&1; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: 'cloudflared tunnel delete' failed, retrying with --force -alert"
-        "$CLOUDFLARED_BIN" tunnel delete -f "$tunnel_name" 2>&1
+        if ! "$CLOUDFLARED_BIN" tunnel delete -f "$tunnel_name" 2>&1; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: tunnel delete failed; local files kept -abort" >&2
+            return 1
+        fi
     fi
 
     delete_dns_record "$tunnel_hostname"
@@ -768,13 +782,13 @@ if [[ -z "$ACTION" ]]; then
         6) ACTION="--delete" ;;
         0) echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: cftunnel done"
            exit 0 ;;
-        *) echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option: $menu_choice -abort"; exit 1 ;;
+        *) echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2; exit 1 ;;
     esac
 fi
 
 case "$ACTION" in
     --create)
-        create_tunnel
+        create_tunnel || exit "$?"
         ;;
     --start)
         # prevent overlapping runs
@@ -813,9 +827,10 @@ case "$ACTION" in
         status_all_tunnels
         ;;
     --delete)
-        delete_tunnel
+        delete_tunnel || exit "$?"
         ;;
     *)
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
         echo "Usage: $0 {--create|--start|--startall|--stop|--status|--delete}"
         echo ""
         echo "Examples:"

@@ -100,7 +100,7 @@ acl_fix_perms() {
         log "ERROR: cannot fix $(basename "$acl_path") perms -abort"
         exit 1
     fi
-    log "INFO: $acl_path perms fixed -fixed"
+    log "INFO: $(basename "$acl_path") perms fixed -fixed"
 }
 
 # prevent overlapping runs
@@ -171,7 +171,13 @@ unset env_specs env_spec env_path env_owner_want env_perms_want
 unset env_owner env_perms
 
 # LOAD_CONF
-# Read known key=value pairs from a config file, without sourcing it
+# pydhcp.env is read with pydhcp's shared reader
+if ! source /etc/pydhcp/tools/pydhcpenv.sh 2>/dev/null; then
+    log "ERROR: cannot load pydhcpenv.sh -abort"
+    exit 1
+fi
+
+# gateproxy.env: read known key=value pairs, without sourcing
 load_conf() {
     local conf_file="$1" conf_keys="$2" env_key env_value env_line
     while IFS= read -r env_line || [[ -n "$env_line" ]]; do
@@ -186,7 +192,7 @@ load_conf() {
             exit 1
         fi
         case "$env_key" in
-            INTERFACESv4|SERVER_IP|SERV_SUBNET|SERV_MASK|SERV_DNS|ACL_PATH|WAN_IFACE|WPAD_PORT|SQUID_MGR_PORT|SQUID_INTERCEPT_PORT)
+            WAN_IFACE)
                 case "|$conf_keys|" in
                     *"|$env_key|"*) printf -v "$env_key" '%s' "$env_value" ;;
                 esac
@@ -199,13 +205,13 @@ load_conf() {
 
 # LOAD
 # Reads pydhcp.env; a missing key is handled by the check below
-load_conf "$pydhcp_env" 'INTERFACESv4|SERVER_IP|SERV_SUBNET|SERV_MASK|SERV_DNS|ACL_PATH|WPAD_PORT' || true
+load_pydhcp_env "$pydhcp_env" 'INTERFACESv4 SERVER_IP SERV_SUBNET SERV_MASK SERV_DNS ACL_PATH ACL_MAC_LIMITED ACL_MAC_UNLIMITED WPAD_PORT' || true
 load_conf "$gateproxy_env" 'WAN_IFACE' || true
 
 # KEY CHECK
 # Collect every failure first, then decide -- a single abort reports them all
 key_errors=()
-for env_key in INTERFACESv4 ACL_PATH; do
+for env_key in INTERFACESv4 ACL_PATH ACL_MAC_LIMITED ACL_MAC_UNLIMITED; do
     if ! grep -q "^${env_key}=" "$pydhcp_env"; then
         key_errors+=("$env_key missing line")
     elif [[ -z "${!env_key:-}" ]]; then
@@ -330,7 +336,7 @@ if [ -e "$proxymon_env" ]; then
     fi
     if ! squid_ports=$(
         unset SQUID_MGR_PORT SQUID_INTERCEPT_PORT
-        load_conf "$proxymon_env" 'SQUID_MGR_PORT|SQUID_INTERCEPT_PORT' >/dev/null || exit 1
+        load_pydhcp_env "$proxymon_env" 'SQUID_MGR_PORT SQUID_INTERCEPT_PORT' >/dev/null || exit 1
         printf '%s|%s' "${SQUID_MGR_PORT:-}" "${SQUID_INTERCEPT_PORT:-}"
     ); then
         log "ERROR: cannot read ports from proxymon.env -abort"
@@ -364,8 +370,6 @@ acl_mac_path="${ACL_PATH:-/etc/acl}/mac"
 acl_ipt_path="${ACL_PATH:-/etc/acl}/ipt"
 
 # ACL/config files used by this script (existence verified below)
-ACL_MAC_LIMITED="$acl_mac_path/mac-limited.txt"
-ACL_MAC_UNLIMITED="$acl_mac_path/mac-unlimited.txt"
 blockports_file="$acl_ipt_path/blockports.txt"
 dhcp_conf="/etc/pydhcp/core/pydhcpd.conf"
 path_ips="$acl_ipt_path/dhcp_ip.txt"
@@ -810,7 +814,7 @@ done
 #    if curl -fL --retry 3 --retry-delay 2 --progress-bar -o "$bogons_file" "$bogons_url"; then
 #        chown root:root "$bogons_file"
 #    else
-#        log "WARNING: cannot download $bogons_file -skip"
+#        rm -f "$bogons_file"
 #    fi
 #fi
 
@@ -824,7 +828,7 @@ done
 #        ipset add bogons "$bogons_cidr" -exist
 #    done
 #else
-#    log "WARNING: $bogons_file not found, bogons -skip"
+#    log "WARNING: $bogons_file not found, bogons -alert"
 #fi
 
 # Allow 255.255.255.0/24 before BOGONS DROP
@@ -959,13 +963,6 @@ iptables -A FORWARD -i "$INTERFACESv4" -o "$wan_iface" -p icmp -j DROP
 # ------------------------------------------------------------------------------
 # MAC PORTS
 # ------------------------------------------------------------------------------
-
-# PROXYMON: WARNING PAGE HTTP FOR BANDATA
-# https://github.com/maravento/proxymon
-iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 18771 -m set --match-set macports src -j ACCEPT
-# SMBSTACK
-# https://github.com/maravento/smbstack
-iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 3092 -m set --match-set macports src -j ACCEPT
 
 # PROXYMON: WARNING PAGE HTTP FOR BANDATA
 # https://github.com/maravento/proxymon

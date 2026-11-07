@@ -134,6 +134,7 @@ case "${1:-}" in
     --stop) stop ;;
     --status) status ;;
     *)
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
         show_error "Usage: $0 {--start|--stop|--status}"
         ;;
 esac

@@ -38,9 +38,9 @@ log() {
 
 # prevent overlapping runs
 script_lock="/var/lock/nwatchbk.lock"
-(umask 077; : >> "$script_lock") || { log "ERROR: cannot open backup lock -abort"; exit 1; }
+(umask 077; : >> "$script_lock") || { log "ERROR: cannot open $(basename "$script_lock") -abort"; exit 1; }
 exec 200>"$script_lock"
-flock -n 200 || { log "ERROR: nwatchbk is already running -abort"; exit 1; }
+flock -n 200 || { log "ERROR: script $(basename "$0") is already running -abort"; exit 1; }
 
 # dependencies
 for dep_pkg in python3 zip coreutils findutils util-linux grep; do
@@ -80,14 +80,12 @@ env_keys='BACKUP_DIR'
 load_nwatch_env "$nwatch_env" "$env_keys"
 
 # KEY CHECK
-if ! grep -q '^BACKUP_DIR=' "$nwatch_env" || [[ -z "${BACKUP_DIR:-}" || "$BACKUP_DIR" != /* ]]; then
-    log "ERROR: BACKUP_DIR missing or invalid in nwatch.env -abort"
+backup_dir="/etc/bak/nwatch"
+if [[ "${BACKUP_DIR:-}" != "$backup_dir" ]] \
+   || [[ "$(readlink -m -- "$backup_dir")" != "$backup_dir" ]]; then
+    log "ERROR: BACKUP_DIR must be $backup_dir -abort"
     exit 1
 fi
-backup_dir=$(realpath -m -- "$BACKUP_DIR") || { log "ERROR: cannot resolve BACKUP_DIR -abort"; exit 1; }
-case "$backup_dir/" in
-    /var/www/nwatch/*|/etc/nwatch/*) log "ERROR: BACKUP_DIR overlaps Nwatch files -abort"; exit 1 ;;
-esac
 
 # ------------------------------------------------------------------------------
 # BACKUP
@@ -97,7 +95,6 @@ log "EVENT: nwatchbk start..."
 install -d -m 700 -o root -g root "$backup_dir"
 backup_zip="$backup_dir/nwatchbk_$(date +%Y%m%d_%H%M%S).zip"
 backup_part="${backup_zip}.part"
-find "$backup_dir" -mindepth 1 -maxdepth 1 ! -name 'nwatchbk_*.zip' -exec rm -rf {} +
 backup_stage=$(mktemp -d "$backup_dir/nwatchbk-stage.XXXXXX")
 trap 'rm -f -- "$backup_part"; rm -rf -- "$backup_stage"' EXIT
 
@@ -142,13 +139,23 @@ if ! { chmod 600 "$backup_part" && mv -T -- "$backup_part" "$backup_zip"; }; the
     exit 1
 fi
 
-shopt -s nullglob
-old_backups=("$backup_dir"/nwatchbk_*.zip)
-if (( ${#old_backups[@]} > 3 )); then
-    printf '%s\0' "${old_backups[@]}" | sort -z | head -z -n -3 | xargs -0 -r rm -f --
-fi
 rm -rf -- "$backup_stage" || { log "ERROR: cannot remove backup temporary directory -abort"; exit 1; }
 trap - EXIT
+shopt -s nullglob
+if [[ "$(readlink -m -- "$backup_dir")" != "$backup_dir" ]]; then
+    log "ERROR: BACKUP_DIR must be $backup_dir -abort"
+    exit 1
+fi
+# keep only the last 3
+retention_ok=1
+find "$backup_dir" -mindepth 1 -maxdepth 1 ! -name 'nwatchbk_*.zip' -exec rm -rf {} + \
+    || retention_ok=0
+old_backups=("$backup_dir"/nwatchbk_*.zip)
+if (( ${#old_backups[@]} > 3 )); then
+    printf '%s\0' "${old_backups[@]}" | sort -z | head -z -n -3 | xargs -0 -r rm -f -- \
+        || retention_ok=0
+fi
+(( retention_ok )) || log "WARNING: backup retention incomplete -alert"
 log "INFO: backup written to $(basename "$backup_zip")"
 
 # ------------------------------------------------------------------------------

@@ -74,10 +74,20 @@ fi
 # VARIABLES
 # ------------------------------------------------------------------------------
 
+# Reject a bad option before asking for the VM name
+case "${1:-}" in
+    --start|--stop|--shutdown|--reset|--status) ;;
+    *)
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
+        echo "Usage: $0 {--start|--stop|--shutdown|--reset|--status}"
+        exit 1
+        ;;
+esac
+
 # Set name of VM (e.g: win10) or UUID (e.g.: 4ec6acc1-a232-566d-a040-6bc4aadc19a6)
 read -rp "Enter the VM name or UUID to manage: " vm_name
 if [ -z "$vm_name" ]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: VM name cannot be empty -abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: VM name cannot be empty -abort" >&2
     exit 1
 fi
 
@@ -87,7 +97,7 @@ fi
 
 # Require an existing virtual machine before processing its action
 if ! sudo -H -u "$local_user" VBoxManage showvminfo "$vm_name" &>/dev/null; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: VM '$vm_name' unavailable -abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: VM '$vm_name' unavailable -abort" >&2
     exit 1
 fi
 
@@ -101,31 +111,43 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: vm start..."
 case "${1:-}" in
 --start)
     echo "$(date '+%Y-%m-%d %H:%M:%S') Starting $vm_name..."
-    sudo -H -u "$local_user" VBoxManage startvm "$vm_name" --type headless
+    sudo -H -u "$local_user" VBoxManage startvm "$vm_name" --type headless || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot start $vm_name -abort" >&2
+        exit 1
+    }
     ;;
 --stop)
     echo "$(date '+%Y-%m-%d %H:%M:%S') Saving State $vm_name..."
-    sudo -H -u "$local_user" VBoxManage controlvm "$vm_name" savestate
+    sudo -H -u "$local_user" VBoxManage controlvm "$vm_name" savestate || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot save state of $vm_name -abort" >&2
+        exit 1
+    }
     sleep 20
     ;;
 --shutdown)
     echo "$(date '+%Y-%m-%d %H:%M:%S') Shutting Down $vm_name..."
-    sudo -H -u "$local_user" VBoxManage controlvm "$vm_name" acpipowerbutton
+    sudo -H -u "$local_user" VBoxManage controlvm "$vm_name" acpipowerbutton || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot shut down $vm_name -abort" >&2
+        exit 1
+    }
     sleep 20
     ;;
 --reset)
     echo "$(date '+%Y-%m-%d %H:%M:%S') Resetting $vm_name..."
-    sudo -H -u "$local_user" VBoxManage controlvm "$vm_name" reset
+    sudo -H -u "$local_user" VBoxManage controlvm "$vm_name" reset || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot reset $vm_name -abort" >&2
+        exit 1
+    }
     ;;
 --status)
-    echo -n "VM->"
-    sudo -H -u "$local_user" VBoxManage showvminfo "$vm_name" --machinereadable | grep 'VMState=' | cut -d '=' -f2
+    vm_state=$(sudo -H -u "$local_user" VBoxManage showvminfo "$vm_name" --machinereadable | grep '^VMState=' | cut -d '=' -f2) || vm_state=""
+    if ! [[ "$vm_state" =~ ^\"[a-z-]+\"$ ]]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot read state of $vm_name -abort" >&2
+        exit 1
+    fi
+    echo "VM->$vm_state"
     echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: vm done"
     exit 0
-    ;;
-*)
-    echo "Usage: $0 {--start|--stop|--shutdown|--reset|--status}"
-    exit 1
     ;;
 esac
 

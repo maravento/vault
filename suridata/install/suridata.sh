@@ -327,12 +327,16 @@ fi
 # drop.conf's broad re: categories (ET MALWARE, ET PHISHING, ...) resolve to
 # tens of thousands of SIDs, and that JSON blob blows past the shell's
 # argument-length limit -- jq fails with "argument list too long".
-sid_map_file=$(mktemp)
-new_sid_map_file=$(mktemp)
-sid_grep_file=$(mktemp)
-backfill_raw_file=$(mktemp)
-eve_chunk_file=$(mktemp)
-trap 'rm -f "$sid_map_file" "$new_sid_map_file" "$sid_grep_file" "$backfill_raw_file" "$eve_chunk_file"' EXIT
+sid_map_file= new_sid_map_file= sid_grep_file= backfill_raw_file= eve_chunk_file=
+trap 'rm -f -- "${sid_map_file:-}" "${new_sid_map_file:-}" "${sid_grep_file:-}" "${backfill_raw_file:-}" "${eve_chunk_file:-}"' EXIT
+if ! { sid_map_file=$(mktemp) &&
+       new_sid_map_file=$(mktemp) &&
+       sid_grep_file=$(mktemp) &&
+       backfill_raw_file=$(mktemp) &&
+       eve_chunk_file=$(mktemp); }; then
+    log "ERROR: cannot create SID temporary file -abort"
+    exit 1
+fi
 if ! printf '%s\n' "${drop_sids[@]}" | jq -R 'select(length>0)' | jq -s 'map({(.): true}) | add' > "$sid_map_file"; then
     log "ERROR: failed to build drop SID map -abort"
     exit 1
@@ -351,7 +355,10 @@ backfill_ips=""
 backfill_failed=0
 if [ "${#new_sids[@]}" -gt 0 ]; then
     log "INFO: rescanning eve.json for ${#new_sids[@]} new drop SID(s)"
-    printf '%s\n' "${new_sids[@]}" | jq -R 'select(length>0)' | jq -s 'map({(.): true}) | add' > "$new_sid_map_file"
+    if ! printf '%s\n' "${new_sids[@]}" | jq -R 'select(length>0)' | jq -s 'map({(.): true}) | add' > "$new_sid_map_file"; then
+        log "ERROR: failed to build new SID map -abort"
+        exit 1
+    fi
     # Cheap text pre-filter before the expensive JSON parse: grep -F over
     # the whole file is far faster than jq parsing every line, and it's
     # safe to over-match (e.g. SID 201787 also matches inside 2017871) --

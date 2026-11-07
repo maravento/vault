@@ -115,11 +115,7 @@ choice=$(zenity --list \
 
 case "$choice" in
     "auto")
-        if [ "${#files[@]}" -eq 1 ]; then
-            checksum_file="$(dirname "${files[0]}")/$default_name"
-        else
-            checksum_file="$(dirname "${files[0]}")/$default_name"
-        fi
+        checksum_file="$(dirname "${files[0]}")/$default_name"
         ;;
     "custom")
         checksum_file=$(zenity --file-selection \

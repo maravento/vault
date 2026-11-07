@@ -222,7 +222,7 @@ if [ -z "$dlvalue" ] || [ -z "$ulvalue" ]; then
     exit 1
 fi
 
-# speedtest-cli switches to Gbit/s above ~1000 Mbit/s which broke the unit check
+# speedtest-cli reports Gbit/s above ~1000 Mbit/s; convert to Mbit/s
 normalize_to_mbit() {
     local value="$1"
     local unit="$2"

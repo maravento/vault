@@ -39,30 +39,18 @@ if "%choice%"=="1" (
 :safe
 call :check_bitlocker
 bcdedit /set {default} safeboot minimal
-if errorlevel 1 (
-    echo [ERROR] bcdedit failed. Aborting reboot.
-    pause
-    goto exit
-)
+if errorlevel 1 goto bcdfail
 goto reboot
 
 :safenet
 call :check_bitlocker
 bcdedit /set {default} safeboot network
-if errorlevel 1 (
-    echo [ERROR] bcdedit failed. Aborting reboot.
-    pause
-    goto exit
-)
+if errorlevel 1 goto bcdfail
 goto reboot
 
 :normal
 bcdedit /deletevalue {default} safeboot
-if errorlevel 1 (
-    echo [ERROR] bcdedit failed. Aborting reboot.
-    pause
-    goto exit
-)
+if errorlevel 1 goto bcdfail
 goto reboot
 
 :check_bitlocker
@@ -81,6 +69,12 @@ exit /b
 :reboot
 shutdown -r -f -t 4
 exit /b
+
+:bcdfail
+for /f "delims=" %%t in ('powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'"') do set "ts=%%t"
+echo !ts! ERROR: bcdedit failed, reboot cancelled -abort 1>&2
+pause
+exit /b 1
 
 :exit
 echo Done

@@ -258,8 +258,7 @@ notify_alert() {
         logger -t disktemp "$(date '+%Y-%m-%d %H:%M:%S') $alert_log"
         log "$alert_log"
     fi
-    notify_send "$local_user" -i "$icon" "DISK ALERT" "$msg" \
-        || log "WARNING: desktop notification failed -alert"
+    notify_send "$local_user" -i "$icon" "DISK ALERT" "$msg"
 }
 
 # ------------------------------------------------------------------------------

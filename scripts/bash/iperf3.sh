@@ -179,16 +179,12 @@ run_iperf3_tcp() {
 }
 
 # UDP TEST
-# Measures UDP throughput, skipped when only iperf is available
+# Measures UDP throughput with iperf3
 run_iperf3_udp() {
     local ip="$1"
     local iface="$2"
     local log="$3"
     echo "" >> "$log"
-    if [[ "$IPERF_CMD" != "iperf3" ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: iperf UDP skipped; iperf3 unavailable" >> "$log"
-        return 0
-    fi
     echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: iperf UDP test" >> "$log"
     if ! iperf3 -c "$ip" -p "$IPERF_PORT" -u -b 1G -t "$DURATION" \
             --bind-dev "$iface" 2>&1 | tee -a "$log"; then
@@ -204,10 +200,6 @@ run_iperf3_reverse() {
     local iface="$2"
     local log="$3"
     echo "" >> "$log"
-    if [[ "$IPERF_CMD" != "iperf3" ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: iperf TCP reverse skipped" >> "$log"
-        return 0
-    fi
     echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: iperf TCP reverse test" >> "$log"
     if ! $IPERF_CMD -c "$ip" -p "$IPERF_PORT" -t "$DURATION" -P "$PARALLEL" \
             -R --bind-dev "$iface" 2>&1 | tee -a "$log"; then

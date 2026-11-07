@@ -64,7 +64,7 @@ start_limit() {
     read -r -p "Enter the program name: " program_name
 
     if [ -z "$program_name" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: program name cannot be empty -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: program name cannot be empty -abort" >&2
         exit 1
     fi
 
@@ -168,6 +168,7 @@ case "${1:-}" in
         status_limit
         ;;
     *)
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
         echo "Usage: $0 {--start|--stop|--status}"
         exit 1
         ;;

@@ -86,7 +86,8 @@ if [ "${#phone_ids[@]}" -eq 0 ]; then
 elif [ "${#phone_ids[@]}" -eq 1 ]; then
     phone_id="${phone_ids[0]}"
     log "INFO: sending to device $phone_id"
-else    send_files=()
+else
+    send_files=()
     for file in "${files[@]}"; do
         base="$(basename -- "$file")"
         if [ -d "$file" ]; then

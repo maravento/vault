@@ -115,17 +115,16 @@ for i in $(seq 1 10); do
         break
     fi
 
-    log "INFO: network check $i/10: $iface_count interfaces up; $required required"
-    while IFS= read -r iface; do
-        [[ -n "$iface" ]] && log "INFO: interface $iface is up"
-    done <<< "$iface_list"
-
     sleep 5
 done
 
 if ((net_ready)); then
     log "INFO: Network ready"
 else
+    if ((iface_count > 0)); then
+        iface_list=${iface_list%$'\n'}
+        log "INFO: interfaces up: ${iface_list//$'\n'/ }"
+    fi
     log "ERROR: $iface_count interfaces up; at least $required required -abort"
     exit 1
 fi

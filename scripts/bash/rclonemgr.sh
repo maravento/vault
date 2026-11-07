@@ -101,7 +101,7 @@ fi
 echo "Using local user: $local_user"
 
 # dependencies
-for dep in fuse3 curl iproute2 libc-bin; do
+for dep in fuse3 curl iproute2 libc-bin bsdutils util-linux; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
@@ -210,21 +210,28 @@ is_service_configured() {
 
 # Mounts the configured cloud remote as a local drive
 
+# Exact match against the kernel mount table: a path that only starts the same
+# as another mount does not count.
+is_mounted() {
+    findmnt --kernel --noheadings --mountpoint "$1" >/dev/null 2>&1
+}
+
 # MOUNT START
 # Creates the mount point and starts rclone for each remote
 mount_start() {
+    local mount_failed=0
     for service_name in "${services[@]}"; do
         local service_path="$cloud_path/$service_name"
         [ -d "$service_path" ] || sudo -u "$local_user" mkdir -p "$service_path"
 
-        echo "Mounting $service_name to $service_path"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Mounting $service_name to $service_path"
 
         if ! is_service_configured "$service_name"; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: rclone remote '$service_name' not configured -alert"
             continue
         fi
 
-        if mount | grep -q "$service_path"; then
+        if is_mounted "$service_path"; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $service_name is already mounted at $service_path -skip"
             continue
         fi
@@ -239,45 +246,65 @@ mount_start() {
 
         sleep 2
 
-        if mount | grep -q "$service_path"; then
-            echo "SUCCESS: $service_name mounted"
+        if is_mounted "$service_path"; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $service_name mounted"
         else
             echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: $service_name may not be mounted correctly -alert"
+            mount_failed=1
         fi
     done
 
-    echo "Mount started successfully"
+    if (( mount_failed )); then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: mount incomplete -abort" >&2
+        return 1
+    fi
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Mount start finished"
 }
 
 # MOUNT STOP
 # Unmounts each mounted remote, forcing it when the graceful way fails
 mount_stop() {
+    local stop_failed=0 mount_info
     for service_name in "${services[@]}"; do
         local service_path="$cloud_path/$service_name"
-        if mount | grep -q "$service_path"; then
-            echo "Unmounting $service_name"
+        if mount_info=$(findmnt --kernel --raw --noheadings --output FSTYPE,SOURCE --mountpoint "$service_path"); then
+            if [[ "$mount_info" != "fuse.rclone $service_name:" ]]; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: unexpected mount at $service_name -alert"
+                stop_failed=1
+                continue
+            fi
+            echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Unmounting $service_name"
             if fusermount -u "$service_path" 2>/dev/null; then
-                echo "$service_name unmounted"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $service_name unmounted"
             else
                 echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: graceful unmount failed for $service_name, forcing -alert"
-                fusermount -uz "$service_path"
-                echo "$service_name force-unmounted"
+                if [[ $(findmnt --kernel --raw --noheadings --output FSTYPE,SOURCE --mountpoint "$service_path") == "fuse.rclone $service_name:" ]] &&
+                   fusermount -uz "$service_path"; then
+                    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $service_name force-unmounted"
+                else
+                    echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot unmount $service_name -alert"
+                    stop_failed=1
+                fi
             fi
         else
-            echo "$service_name is not mounted"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $service_name is not mounted -skip"
         fi
     done
 
-    echo "Mount stopped"
+    if (( stop_failed )); then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: unmount incomplete -abort" >&2
+        return 1
+    fi
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Mount stop finished"
 }
 
 # MOUNT RESTART
 # Unmounts everything, waits, and mounts again
 mount_restart() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Restarting mount..."
-    mount_stop
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Restarting mount..."
+    mount_stop || return 1
     sleep 3
-    mount_start
+    mount_start || return 1
 }
 
 # MOUNT STATUS
@@ -288,7 +315,7 @@ mount_status() {
     echo "Mount status:"
     for service_name in "${services[@]}"; do
         local service_path="$cloud_path/$service_name"
-        if mount | grep -q "$service_path"; then
+        if is_mounted "$service_path"; then
             echo "$service_name is MOUNTED at $service_path"
         else
             echo "$service_name is NOT MOUNTED"
@@ -308,19 +335,19 @@ run_mount() {
         lock_mount
         check_ipv4_interfaces
         check_internet || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no internet connection -abort"; exit 1; }
-        mount_start
+        mount_start || exit 1
         ;;
     --stop)
         lock_mount
         lock_sync
-        mount_stop
+        mount_stop || exit 1
         ;;
     --restart)
         lock_mount
         lock_sync
         check_ipv4_interfaces
         check_internet || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no internet connection -abort"; exit 1; }
-        mount_restart
+        mount_restart || exit 1
         ;;
     --status) mount_status ;;
     *)
@@ -342,8 +369,8 @@ run_mount() {
 # Copies one direction between a local folder and the mounted cloud
 sync_transfer() {
     local direction="$1" service_name="$2" src="$3" dst="$4"
-    echo "Sync $direction $service_name"
-    if sudo -u "$local_user" bash -c "rclone sync '$src' '$dst' --update --modify-window 1h --skip-links --verbose --transfers 30 --checkers 8 --contimeout 60s --timeout 300s --retries 3 --low-level-retries 10 --stats 1s --stats-file-name-length 0 --log-file='$rclone_path/rsync.log'"; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Sync $direction $service_name"
+    if sudo -u "$local_user" rclone sync "$src" "$dst" --update --modify-window 1h --skip-links --verbose --transfers 30 --checkers 8 --contimeout 60s --timeout 300s --retries 3 --low-level-retries 10 --stats 1s --stats-file-name-length 0 --log-file="$rclone_path/rsync.log"; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Sync $direction $service_name completed"
     else
         echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Sync $direction $service_name failed -alert"
@@ -354,25 +381,32 @@ sync_transfer() {
 # SYNC RUN
 # Syncs download and upload folders for every mounted remote
 sync_run() {
-    echo "Run Sync at $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Run Sync"
+    logger -t rclonemgr "Run Sync" || true
     local sync_failed=0
 
     for service_name in "${services[@]}"; do
         local service_path="$cloud_path/$service_name"
         if ! is_service_configured "$service_name"; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') $service_name is not configured in Rclone. Skipping..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $service_name is not configured in rclone -skip"
             continue
         fi
-        if ! mount | grep -q "$service_path"; then
-            echo "$service_name is not mounted"
+        if ! is_mounted "$service_path"; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $service_name is not mounted -skip"
             continue
         fi
 
-        echo "$service_name is mounted"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $service_name is mounted"
+        local folders_ready=1
         for subfolder in download upload; do
-            sudo -u "$local_user" bash -c "mkdir -p '$service_path/$subfolder'"
-            sudo -u "$local_user" bash -c "mkdir -p '$sync_path/$service_name/$subfolder'"
+            sudo -u "$local_user" mkdir -p -- "$service_path/$subfolder" || folders_ready=0
+            sudo -u "$local_user" mkdir -p -- "$sync_path/$service_name/$subfolder" || folders_ready=0
         done
+        if (( ! folders_ready )); then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot prepare $service_name sync folders -alert"
+            sync_failed=1
+            continue
+        fi
 
         sync_transfer "Download" "$service_name" "$service_path/download" "$sync_path/$service_name/download" || sync_failed=1
         sync_transfer "Upload" "$service_name" "$sync_path/$service_name/upload" "$service_path/upload" || sync_failed=1
@@ -387,7 +421,7 @@ sync_status() {
     echo "=== Rclone Sync Status ==="
     for service_name in "${services[@]}"; do
         if is_service_configured "$service_name"; then
-            if mount | grep -q "$cloud_path/$service_name"; then
+            if is_mounted "$cloud_path/$service_name"; then
                 echo "$service_name: configured, mounted"
             else
                 echo "$service_name: configured, NOT mounted (sync will skip it)"
@@ -449,7 +483,7 @@ show_menu() {
     5) run_sync --run ;;
     6) run_sync --status ;;
     7) ;;
-    *) echo "Invalid option" ;;
+    *) echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2; exit 1 ;;
     esac
 }
 

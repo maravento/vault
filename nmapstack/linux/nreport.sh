@@ -411,7 +411,7 @@ show_spinner_for_pid() {
 }
 
 # convert XML -> HTML with improved error handling
-xml_to_html() {
+xml_to_html() (
     local xml="$1"
     local html="$2"
     local xsl="$SCRIPT_TMPDIR/nreport-custom.xsl"
@@ -437,9 +437,23 @@ xml_to_html() {
         create_custom_xsl "$xsl"
     fi
 
+    local html_tmp
+    if ! html_tmp=$(mktemp -- "${html}.XXXXXX"); then
+        log "WARNING: cannot stage HTML report -alert"
+        return 1
+    fi
+    trap 'rm -f -- "$html_tmp"' EXIT
+
     # Try conversion with custom XSL
     log "EVENT: Converting with custom XSL..."
-    if xsltproc -o "$html" "$xsl" "$xml" 2>"$xsl_error"; then
+    local xsl_rc=0
+    xsltproc -o "$html_tmp" "$xsl" "$xml" 2>"$xsl_error" || xsl_rc=$?
+    if (( xsl_rc == 0 )) && [[ -s "$html_tmp" ]] &&
+       ! grep -q '^compilation error:' "$xsl_error"; then
+        if ! chmod 0644 "$html_tmp" || ! mv -fT -- "$html_tmp" "$html"; then
+            log "WARNING: cannot publish HTML report -alert"
+            return 1
+        fi
         log "INFO: Conversion successful"
         rm -f "$xsl_error"
         return 0
@@ -450,33 +464,65 @@ xml_to_html() {
     # Fallback: try default nmap XSL
     if [ -f "$default_xsl" ]; then
         log "EVENT: Attempting conversion with default nmap XSL..."
-        if xsltproc -o "$html" "$default_xsl" "$xml" 2>"$xsl_error"; then
+        xsl_rc=0
+        if ! : > "$html_tmp"; then
+            log "WARNING: cannot reset HTML temporary file -alert"
+            return 1
+        fi
+        xsltproc -o "$html_tmp" "$default_xsl" "$xml" 2>"$xsl_error" || xsl_rc=$?
+        if (( xsl_rc == 0 )) && [[ -s "$html_tmp" ]] &&
+           ! grep -q '^compilation error:' "$xsl_error"; then
+            if ! chmod 0644 "$html_tmp" || ! mv -fT -- "$html_tmp" "$html"; then
+                log "WARNING: cannot publish HTML report -alert"
+                return 1
+            fi
             log "INFO: Conversion successful with default XSL"
             rm -f "$xsl_error"
             return 0
         else
-            head -5 "$xsl_error" | while read -r line; do log "WARNING: $line"; done
-            log "WARNING: default nmap XSL conversion failed -alert"
+            local xsl_detail xsl_first
+            IFS= read -r xsl_first < "$xsl_error" || true
+            case "$xsl_first" in
+                "$default_xsl":*) xsl_detail="XSL ${xsl_first#"$default_xsl":}" ;;
+                "$xml":*) xsl_detail="XML ${xsl_first#"$xml":}" ;;
+                *) xsl_detail="" ;;
+            esac
+            local diagnostic='^(XSL|XML) ([0-9]{1,10}): (parser error|namespace error|validity error)'
+            if (( xsl_rc == 0 )) && [[ -s "$html_tmp" ]]; then
+                xsl_detail="default XSL compilation error"
+            elif (( xsl_rc == 0 )); then
+                xsl_detail="default XSL produced empty HTML"
+            elif [[ "$xsl_detail" =~ $diagnostic ]]; then
+                xsl_detail="${BASH_REMATCH[1]} line ${BASH_REMATCH[2]}: ${BASH_REMATCH[3]}"
+            elif [[ "$xsl_first" == "warning: failed to load external entity "* ]]; then
+                xsl_detail="cannot load XSL dependency"
+            elif grep -Fxq 'xsltRunStylesheet : run failed' "$xsl_error"; then
+                xsl_detail="XSL transformation failed"
+            else
+                xsl_detail="xsltproc failed"
+            fi
+            log "WARNING: $xsl_detail (rc=$xsl_rc)"
         fi
     else
         log "WARNING: default nmap XSL not found -alert"
     fi
 
     # Last resort: create basic HTML wrapper
-    log "WARNING: no usable XSL, report built without format -alert"
-    {
+    if ! {
         echo '<!DOCTYPE html>'
         echo '<html><head><meta charset="UTF-8">'
         echo '<title>Nmap Scan Report</title>'
         echo '<style>body{font-family:monospace;padding:20px;background:#f5f5f5}pre{background:#fff;padding:15px;border:1px solid #ddd;overflow:auto}</style>'
         echo '</head><body><h1>Nmap Scan Report</h1><pre>'
         # Escape XML special characters for HTML display
-        sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' "$xml"
+        sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' "$xml" &&
         echo '</pre></body></html>'
-    } > "$html"
-
-    return 0
-}
+    } > "$html_tmp" || ! chmod 0644 "$html_tmp" || ! mv -fT -- "$html_tmp" "$html"; then
+        log "WARNING: cannot publish unformatted HTML report -alert"
+        return 1
+    fi
+    log "WARNING: no usable XSL, report built without format -alert"
+)
 
 # Clean intermediate files from a given base path
 cleanup_intermediate_files() {

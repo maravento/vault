@@ -100,14 +100,25 @@ mount_drive() {
             return
         fi
 
-        mkdir -p "$mount_point"
-        chown "$local_user:$local_user" "$mount_point"
+        # Only a folder created by this run may be removed on failure.
+        local created_dir=0
+        [ -d "$mount_point" ] || created_dir=1
+        if ! mkdir -p "$mount_point"; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot create mount folder -abort" >&2
+            return 1
+        fi
+        if ! chown "$local_user:$local_user" "$mount_point"; then
+            (( created_dir )) && rmdir "$mount_point" 2>/dev/null
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot set mount folder owner -abort" >&2
+            return 1
+        fi
 
         if mount -o uid=$(id -u "$local_user"),gid=$(id -g "$local_user"),fmask=0022,dmask=0022,windows_names -t ntfs-3g "$device_path" "$mount_point"; then
             echo "Device mounted on $mount_point"
         else
-            echo "Error mounting device"
-            rmdir "$mount_point" 2>/dev/null || true
+            (( created_dir )) && rmdir "$mount_point" 2>/dev/null
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot mount device -abort" >&2
+            return 1
         fi
     else
         echo "No disk found with LABEL/UUID '$disk_id'"
@@ -136,9 +147,18 @@ umount_drive() {
 
     mount_point=$(echo "$mount_points" | awk -F/ -v f="$folder_name" '$NF == f')
 
+    if [[ "$mount_point" == *$'\n'* ]]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: more than one mount named $folder_name -abort" >&2
+        return 1
+    fi
+
     if [ -n "$mount_point" ]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') Unmounting $mount_point..."
-        umount "$mount_point" && echo "Device unmounted" || echo "Error unmounting device"
+        if ! umount "$mount_point"; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot unmount device -abort" >&2
+            return 1
+        fi
+        echo "Device unmounted"
     else
         echo "No mounted disk found at '/$folder_name'"
     fi
@@ -155,10 +175,10 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: ntfsdrive start..."
 
 select choice in "Mount" "Unmount" "Exit"; do
     case $choice in
-        "Mount") mount_drive; break ;;
-        "Unmount") umount_drive; break ;;
+        "Mount") mount_drive || exit 1; break ;;
+        "Unmount") umount_drive || exit 1; break ;;
         "Exit") break ;;
-        *) echo "Invalid option, please try again" ;;
+        *) echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: invalid option -retry" ;;
     esac
 done
 

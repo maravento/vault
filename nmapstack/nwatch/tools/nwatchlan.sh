@@ -301,8 +301,11 @@ INSERT INTO device_events (mac, ip, event_type, event_time) VALUES ('$esc_mac', 
 start() {
     # prevent overlapping runs
     script_lock="/var/lock/$(basename "$0" .sh).lock"
-    (umask 077; : >> "$script_lock")
-    exec 200>"$script_lock"
+    if ! (umask 077; : >> "$script_lock") 2>/dev/null ||
+       ! { exec 200>"$script_lock"; } 2>/dev/null; then
+        log "ERROR: cannot open $(basename "$script_lock") -abort"
+        exit 1
+    fi
     if ! flock -n 200; then
         log "ERROR: script $(basename "$0") is already running -abort"
         exit 1
@@ -460,7 +463,7 @@ if [ "${1:-}" != --stop ]; then
         for key_error in "${key_errors[@]}"; do
             log "WARNING: $key_error -alert"
         done
-        log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$nwatch_env") -abort"
+        log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$nwatch_env")"
         log "ERROR: run nwatchsetup first -abort"
         exit 1
     fi
@@ -483,7 +486,7 @@ case "${1:-}" in
     --start) start ;;
     --stop) stop ;;
     --status) status ;;
-    *) log "INFO: Usage: $(basename "$0") {--start|--stop|--status}"; exit 1 ;;
+    *) log "ERROR: invalid option -abort"; echo "Usage: $(basename "$0") {--start|--stop|--status}"; exit 1 ;;
 esac || exit 1
 
 # ------------------------------------------------------------------------------

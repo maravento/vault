@@ -10,10 +10,10 @@ FILE: blackusb/README.md
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     <b>BlackUSB</b> is a experimental script, that prevents theft of personal data, malware, forensic tools, BadUSB (USB Rubber Ducky), etc. Generates a whitelist of usb/hid devices and blocks any other unauthorized insertion of unknown devices, using udev rules.
+     <b>BlackUSB</b> is an experimental USB access-control script. It builds a whitelist from connected devices using vendor, product and available serial identifiers. Generated udev rules allow matching devices and deny other USB insertions.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     <b>BlackUSB</b> es un script experimental, que previene el robo de datos personales, malware, herramientas forenses, BadUSB (USB Rubber Ducky), etc. Genera una lista blanca de dispositivos usb/hid y bloquea cualquier otra inserción no autorizada de dispositivos desconocidos, usando reglas udev.
+     <b>BlackUSB</b> es un script experimental de control de acceso USB. Genera una lista blanca desde los dispositivos conectados mediante sus identificadores de fabricante, producto y número de serie disponible. Las reglas udev permiten los dispositivos coincidentes y rechazan otras inserciones USB.
     </td>
   </tr>
 </table>
@@ -50,8 +50,8 @@ FILE: blackusb/README.md
 |Option|Description|
 |------|-----------|
 |`--show`|Show currently connected usb devices / Muestra los dispositivos conectados|
-|`--on`|Turn on blackusb and generate white list of connected USB devices / Activar blackusb y genera lista blanca de dispositivos USB conectados|
-|`--eject`|Choose a device from the list to eject or add entry / Elija un dispositivo de la lista para expulsarlo o agregar entrada|
+|`--on`|Activate saved rules; generate a whitelist when none are saved / Activa las reglas guardadas; genera una lista blanca si no existen reglas guardadas|
+|`--eject`|Select a device and add a rule for its removal event / Selecciona un dispositivo y añade una regla para su evento de retirada|
 |`--off`|Temporarily deactivate blackusb / Desactiva temporalmente blackusb|
 |`--generate`|Generate or refresh whitelist udev rules file / Genera o refresca lista blanca de dispositivos lista udev usb|
 |`--delete`|Delete udev rules file contain white list usb devices / Elimina archivo udev que contiene lista blanca de dispositivos usb|
@@ -182,14 +182,11 @@ sudo /path_to/blackusb.sh --show
 
 `/var/log/blackusb.log`
 
-Example (blocked and whitelisted devices are both logged, each entry preceded by a divider line):
+Example (blocked and whitelisted devices are both logged, one line per event):
 
 ```bash
-──────────────────────────────────────────
-2026-07-22 12:34:10 [BLACKLIST] Unknown Device Blocked: SUBSYSTEM=="usb", ATTR{idVendor}=="0781", ATTR{idProduct}=="5567", ATTR{serial}=="4C530799910104103543"
-Cruzer Blade
-──────────────────────────────────────────
-2026-07-22 12:35:02 [WHITELIST] Allowed Device Connected: Vendor=0781, Product=5567, Name=Cruzer Blade
+2026-07-22 12:34:10 WARNING: unknown device blocked: SUBSYSTEM=="usb", ATTR{idVendor}=="0781", ATTR{idProduct}=="5567", ATTR{serial}=="4C530799910104103543", Name=Cruzer Blade -alert
+2026-07-22 12:35:02 INFO: allowed device connected: Vendor=0781, Product=5567, Name=Cruzer Blade
 ```
 
 #### Fork

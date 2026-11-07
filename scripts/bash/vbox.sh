@@ -149,7 +149,18 @@ vboxinstall() {
     check_internet
     echo "$(date '+%Y-%m-%d %H:%M:%S') Installing Virtualbox..."
     # Download and install .asc
-    wget --timeout=30 -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | gpg --dearmor | tee /usr/share/keyrings/virtualbox.gpg &>/dev/null
+    local key_tmp
+    if ! key_tmp=$(mktemp /usr/share/keyrings/virtualbox.gpg.XXXXXX); then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot stage VirtualBox GPG key -abort" >&2
+        exit 1
+    fi
+    if ! wget --timeout=30 -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | gpg --dearmor > "$key_tmp" ||
+       ! chmod 644 "$key_tmp" ||
+       ! mv -fT -- "$key_tmp" /usr/share/keyrings/virtualbox.gpg; then
+        rm -f -- "$key_tmp"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install VirtualBox GPG key -abort" >&2
+        exit 1
+    fi
     # add repo
     distro=$(lsb_release -sc 2>/dev/null || grep -oP '(?<=UBUNTU_CODENAME=)\S+' /etc/os-release 2>/dev/null || grep -oP '(?<=VERSION_CODENAME=)\S+' /etc/os-release)
     echo deb [arch=amd64 signed-by=/usr/share/keyrings/virtualbox.gpg] https://download.virtualbox.org/virtualbox/debian "$distro" contrib | tee /etc/apt/sources.list.d/virtualbox.list
@@ -164,7 +175,7 @@ vboxinstall() {
     }
     vbox_pkg=$(apt-cache search '^virtualbox-7\.' | awk '{print $1}' | sort -V | tail -1)
     if [ -z "$vbox_pkg" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: virtualbox-7.x unavailable for $distro -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: virtualbox-7.x unavailable for $distro -abort" >&2
         exit 1
     fi
     apt-get -y install "$vbox_pkg" || {

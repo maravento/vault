@@ -85,10 +85,12 @@ TARGET="1.1.1.1"
 
 # PID CHECK
 # Check whether the recorded process belongs to this daemon
+# Returns 0 for this daemon, 1 for another process, 2 if unreadable
 daemon_alive() {
     local pid="$1" args=() self i
     [ -n "$pid" ] || return 1
-    { mapfile -d '' -t args < "/proc/$pid/cmdline"; } 2>/dev/null || return 1
+    { mapfile -d '' -t args < "/proc/$pid/cmdline"; } 2>/dev/null || return 2
+    [ "${#args[@]}" -gt 0 ] || return 2
     self="$(basename -- "$0")"
     case "$(basename -- "${args[0]:-}")" in
         "$self") i=0 ;;
@@ -110,11 +112,11 @@ start() {
 
     watchdog_pid=$(cat "$PIDFILE" 2>/dev/null)
     if [ -f "$PIDFILE" ] && [[ "$watchdog_pid" =~ $UH_UINT ]] && daemon_alive "$watchdog_pid"; then
-        echo "[!] Watchdog already running (PID $watchdog_pid)"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: watchdog already running (PID $watchdog_pid) -abort" >&2
         exit 1
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [+] Starting watchdog in background..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: starting watchdog in background..."
     (
         while true; do
             timestamp=$(date '+%F %T')
@@ -138,38 +140,50 @@ start() {
     echo $! > "$PIDFILE"
     sleep 0.2
     if ! daemon_alive "$(cat "$PIDFILE")"; then
-        echo "[!] Watchdog failed to start"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: watchdog failed to start -abort" >&2
         rm -f "$PIDFILE"
         exit 1
     fi
-    echo "[ ] Watchdog started (PID $(cat "$PIDFILE"))"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: watchdog started (PID $(cat "$PIDFILE"))"
 }
 
 stop() {
     if [ -f "$PIDFILE" ]; then
         PID=$(cat "$PIDFILE")
         if ! [[ "$PID" =~ $UH_UINT ]]; then
-            echo "[!] Invalid PID in $PIDFILE"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid PID in $(basename "$PIDFILE") -abort" >&2
             rm -f "$PIDFILE"
             exit 1
         fi
-        if daemon_alive "$PID" && kill "$PID" 2>/dev/null; then
-            echo "[ ] Watchdog stopped (PID $PID)"
-            rm -f "$PIDFILE"
+        if [ ! -d "/proc/$PID" ]; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: watchdog is not running"
         else
-            echo "[!] Failed to stop watchdog (PID $PID may not exist)"
+            daemon_alive "$PID"
+            alive_rc=$?
+            if [ "$alive_rc" -eq 2 ]; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot verify watchdog PID $PID -abort" >&2
+                exit 1
+            elif [ "$alive_rc" -eq 1 ]; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: PID $PID is not the watchdog"
+            elif ! kill "$PID" 2>/dev/null; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot send stop signal (PID $PID) -abort" >&2
+                exit 1
+            else
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: sent stop signal to watchdog (PID $PID)"
+                rm -f "$PIDFILE"
+            fi
         fi
     else
-        echo "[!] Watchdog is not running"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: watchdog is not running"
     fi
 }
 
 status() {
     watchdog_pid=$(cat "$PIDFILE" 2>/dev/null)
     if [ -f "$PIDFILE" ] && [[ "$watchdog_pid" =~ $UH_UINT ]] && daemon_alive "$watchdog_pid"; then
-        echo "[ ] Watchdog is running (PID $watchdog_pid)"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: watchdog is running (PID $watchdog_pid)"
     else
-        echo "[ ] Watchdog is not running"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: watchdog is not running"
     fi
 }
 
@@ -185,6 +199,7 @@ case "${1:-}" in
     --stop) stop ;;
     --status) status ;;
     *)
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
         echo "Usage: $0 {--start|--stop|--status}"
         exit 1
         ;;

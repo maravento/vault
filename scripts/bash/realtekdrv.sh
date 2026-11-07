@@ -204,7 +204,7 @@ while true; do
         2) restore_r8169; break ;;
         3) install_r8125; break ;;
         4) break ;;
-        *) echo " Invalid option"; continue ;;
+        *) echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: invalid option -retry"; continue ;;
     esac
 done
 

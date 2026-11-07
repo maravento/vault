@@ -308,7 +308,7 @@ delete_joomla() {
     read -r -sp "Enter the MySQL root password: " ROOTPASS
     echo
     if [ -z "$ROOTPASS" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: password cannot be empty -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: password cannot be empty -abort" >&2
         exit 1
     fi
     echo "$(date '+%Y-%m-%d %H:%M:%S') Removing Joomla..."
@@ -349,7 +349,7 @@ delete_dependencies() {
 }
 
 warning() {
-    read -r -p " WARNING: This will remove MySQL/Apache2/PHP/mkcert. Confirm? (y/n): " confirm
+    read -r -p "This will remove MySQL/Apache2/PHP/mkcert. Confirm? (y/n): " confirm
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
         delete_dependencies
     else
@@ -378,7 +378,7 @@ case "$OPTION" in
     2) delete_joomla ;;
     3) warning ;;
     4) ;;
-    *) echo "Invalid Option"; exit 1 ;;
+    *) echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2; exit 1 ;;
 esac
 
 # ------------------------------------------------------------------------------

@@ -144,6 +144,7 @@ case "${1:-}" in
     exit 0
     ;;
 *)
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
     echo "Usage: $0 {--start|--stop}"
     exit 1
     ;;

@@ -266,25 +266,35 @@ sudo ./nreport.sh
 
 ### HOW IT WORKS
 
-| Description | Descripción |
-|---|---|
-| **Nreport can run on Linux with the same scan modes:**<br><br> 1. `LAN Scan`<br> 2. `Advanced LAN Scan`<br> 3. `IP/Host Scan` <br><br> Nreport saves scan reports in the `/home/$USER/Report` folder, according to the scan type.<br> Each report includes a timestamp with the date and time of the scan. <br><br> Intermediate `.xml`/`.nmap`/`.gnmap` files are deleted after each scan; only the final HTML report is kept. The report is never opened automatically in a browser. | **Nreport puede ejecutarse en Linux con los mismos modos de escaneo:**<br><br> 1. `LAN Scan`<br> 2. `Advanced LAN Scan`<br> 3. `IP/Host Scan` <br><br> Nreport guarda los informes de escaneo en la carpeta `/home/$USER/Report`, según el tipo de escaneo.<br> Cada informe incluye la fecha y la hora en que se ejecutó el escaneo. <br><br> Los archivos intermedios `.xml`/`.nmap`/`.gnmap` se eliminan al terminar cada escaneo; solo queda el informe HTML final. El informe nunca se abre automáticamente en un navegador. |
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Nreport can run on Linux with the same scan modes:</strong><br><br> 1. <code>LAN Scan</code><br> 2. <code>Advanced LAN Scan</code><br> 3. <code>IP/Host Scan</code> <br><br> Nreport saves reports in <code>/home/&lt;local_user&gt;/Report</code>. It selects the non-root account with the lowest eligible UID, an interactive shell and membership in <code>sudo</code>.<br> Each report includes a timestamp with the date and time of the scan. <br><br> Intermediate <code>.xml</code>/<code>.nmap</code>/<code>.gnmap</code> files are deleted after each scan; only the final HTML report is kept. The report is never opened automatically in a browser.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Nreport puede ejecutarse en Linux con los mismos modos de escaneo:</strong><br><br> 1. <code>LAN Scan</code><br> 2. <code>Advanced LAN Scan</code><br> 3. <code>IP/Host Scan</code> <br><br> Nreport guarda los informes en <code>/home/&lt;local_user&gt;/Report</code>. Selecciona la cuenta sin privilegios con el menor UID elegible, shell interactivo y pertenencia a <code>sudo</code>.<br> Cada informe incluye la fecha y la hora en que se ejecutó el escaneo. <br><br> Los archivos intermedios <code>.xml</code>/<code>.nmap</code>/<code>.gnmap</code> se eliminan al terminar cada escaneo; solo queda el informe HTML final. El informe nunca se abre automáticamente en un navegador.
+    </td>
+  </tr>
+</table>
 
 #### HTML report conversion
 
 | Step | Description | Descripción |
 | --- | --- | --- |
 | 1 | The project's own stylesheet, written to the temporary directory. A failure logs `INFO: ... -retry` and step 2 runs | La hoja de estilo propia del proyecto, escrita en el directorio temporal. Un fallo registra `INFO: ... -retry` y corre el paso 2 |
-| 2 | nmap's `/usr/share/nmap/nmap.xsl`, which produces nmap's standard page. A failure or a missing file logs `WARNING: ... -alert` | El `/usr/share/nmap/nmap.xsl` de nmap, que produce la página estándar de nmap. Un fallo o un archivo ausente registra `WARNING: ... -alert` |
-| 3 | A plain page holding the raw XML in a `<pre>` block. It needs no external tool, so it never fails, and logs `WARNING: ... -alert` because the report has no format | Una página simple con el XML crudo en un bloque `<pre>`. No necesita herramienta externa, así que nunca falla, y registra `WARNING: ... -alert` porque el informe queda sin formato |
+| 2 | nmap's `/usr/share/nmap/nmap.xsl`, which produces nmap's standard page. An unusable result logs a diagnostic warning. A missing stylesheet logs `WARNING: default nmap XSL not found -alert` | El `/usr/share/nmap/nmap.xsl` de nmap, que produce la página estándar de nmap. Un resultado inutilizable registra una advertencia con el diagnóstico. Si falta la hoja, registra `WARNING: default nmap XSL not found -alert` |
+| 3 | A plain page holding the raw XML in a `<pre>` block. It escapes XML with `sed` and logs `WARNING: ... -alert` because the report has no format | Una página simple con el XML crudo en un bloque `<pre>`. Escapa el XML mediante `sed` y registra `WARNING: ... -alert` porque el informe queda sin formato |
 
-No step aborts the script: given a valid XML, a report is always produced. The conversion does abort before these steps when the XML is missing or empty, and afterwards when the resulting HTML is missing or empty.
-
-Ningún paso aborta el script: con un XML válido, siempre se produce un informe. La conversión sí aborta antes de estos pasos cuando el XML falta o está vacío, y después cuando el HTML resultante falta o está vacío.
-
-| Description | Descripción |
-|---|---|
-| **HTML conversion**<br><br> The XML scan is converted to HTML in three steps. First the project's own stylesheet, written to the temporary directory. If `xsltproc` fails, the log records an `INFO: ... -retry` and the second step runs. Second, nmap's own `/usr/share/nmap/nmap.xsl`, which produces nmap's standard page instead of the project's. A failure or a missing file there logs a `WARNING: ... -alert`. Third, a plain HTML page holding the raw XML inside a `&lt;pre&gt;` block. It needs no external tool, so it always succeeds, and it logs a `WARNING: ... -alert` because the report has no format. No step aborts the script: given a valid XML, a report is always produced. The conversion does abort before these steps when the XML is missing or empty, and afterwards when the resulting HTML is missing or empty. | **Conversión a HTML**<br><br> El XML del escaneo se convierte a HTML en tres pasos. Primero la hoja de estilo propia del proyecto, escrita en el directorio temporal. Si `xsltproc` falla, el log registra un `INFO: ... -retry` y corre el segundo paso. Segundo, el `/usr/share/nmap/nmap.xsl` de nmap, que produce la página estándar de nmap en vez de la del proyecto. Un fallo o un archivo ausente ahí registra un `WARNING: ... -alert`. Tercero, una página HTML simple con el XML crudo dentro de un bloque `&lt;pre&gt;`. No necesita ninguna herramienta externa, así que nunca falla, y registra un `WARNING: ... -alert` porque el informe queda sin formato. Ningún paso aborta el script: con un XML válido, siempre se produce un informe. La conversión sí aborta antes de estos pasos cuando el XML falta o está vacío, y después cuando el HTML resultante falta o está vacío. |
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Conversion stops when the XML file is missing or empty. A stylesheet must return zero, produce nonempty HTML and report no compilation error. The converter publishes the result from a temporary file with mode <code>0644</code>. If both stylesheets fail, it writes a plain HTML page containing the escaped XML. Final validation requires an existing, nonempty HTML file.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      La conversión se detiene si el XML falta o está vacío. La hoja debe devolver cero, producir HTML no vacío y no registrar errores de compilación. El conversor publica el resultado desde un temporal con modo <code>0644</code>. Si fallan ambas hojas de estilo, escribe una página HTML simple con el XML escapado. La validación final exige un archivo HTML existente y no vacío.
+    </td>
+  </tr>
+</table>
 
 ## WEB
 
@@ -398,9 +408,16 @@ sudo bash nwatchsetup.sh
 
 [<img src="img/nwatch-top.png" width="100%" alt="NWatch dashboard header">](https://www.maravento.com)
 
-| Description | Descripción |
-|---|---|
-| NWatch is a live web dashboard for auditing LAN devices and ports on Linux. It runs independently of the on-demand Windows and Linux scan-and-report tools described above. Two background daemons provide the data: one discovers LAN devices with periodic `arp-scan` runs; the other audits TCP and UDP ports in one of two modes. **Server** mode (the default) reads the server's listening sockets without probing. **Target** mode scans a selected external host with Nmap in near real time. Only one port mode runs at a time, keeping results from the two sources separate. The dashboard is available at `localhost` and has two tabs: **LAN** shows devices and their online/offline status; **Ports** shows open and closed ports for the server or target. History is stored in a local SQLite database. | NWatch es un panel web para auditar dispositivos LAN y puertos en Linux. Funciona de forma independiente de las herramientas de escaneo e informes bajo demanda para Windows y Linux descritas arriba. Dos demonios en segundo plano recopilan los datos: uno descubre dispositivos LAN mediante ejecuciones periódicas de `arp-scan`; el otro audita puertos TCP y UDP en uno de dos modos. El modo **Server** (predeterminado) lee los sockets en escucha del servidor sin sondearlos. El modo **Target** escanea casi en tiempo real un host externo seleccionado mediante Nmap. Solo se ejecuta un modo de puertos a la vez, para mantener separados los resultados de ambas fuentes. El panel está disponible en `localhost` y tiene dos pestañas: **LAN** muestra los dispositivos y su estado online/offline; **Ports** muestra los puertos abiertos y cerrados del servidor o del host seleccionado. El historial se guarda en una base de datos SQLite local. |
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      NWatch is a live web dashboard for auditing LAN devices and ports on Linux. It runs independently of the on-demand Windows and Linux scan-and-report tools described above. Two background daemons provide the data: one discovers LAN devices with periodic <code>arp-scan</code> runs; the other audits TCP and UDP ports in one of two modes. <strong>Server</strong> mode (the default) reads the server's listening sockets without probing. <strong>Target</strong> mode scans a selected external host with Nmap in near real time. Only one port mode runs at a time, keeping results from the two sources separate. The dashboard is available at <code>localhost</code> and has two tabs: <strong>LAN</strong> shows devices and their online/offline status; <strong>Ports</strong> shows open and closed ports for the server or target. History is stored in a local SQLite database.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      NWatch es un panel web para auditar dispositivos LAN y puertos en Linux. Funciona de forma independiente de las herramientas de escaneo e informes bajo demanda para Windows y Linux descritas arriba. Dos demonios en segundo plano recopilan los datos: uno descubre dispositivos LAN mediante ejecuciones periódicas de <code>arp-scan</code>; el otro audita puertos TCP y UDP en uno de dos modos. El modo <strong>Server</strong> (predeterminado) lee los sockets en escucha del servidor sin sondearlos. El modo <strong>Target</strong> escanea casi en tiempo real un host externo seleccionado mediante Nmap. Solo se ejecuta un modo de puertos a la vez, para mantener separados los resultados de ambas fuentes. El panel está disponible en <code>localhost</code> y tiene dos pestañas: <strong>LAN</strong> muestra los dispositivos y su estado online/offline; <strong>Ports</strong> muestra los puertos abiertos y cerrados del servidor o del host seleccionado. El historial se guarda en una base de datos SQLite local.
+    </td>
+  </tr>
+</table>
 
 [![Image](img/nwatch.png)](https://www.maravento.com)
 
@@ -425,7 +442,7 @@ sudo bash nwatchsetup.sh
 /var/www/nwatch/data/       # Web-writable state (775 www-data:www-data)
 ├── nwatch.db                 # SQLite database (WAL mode)
 ├── ports_mode.conf           # Active ports mode + target IP
-│                             # (664 www-data:www-data — web rewrites in place)
+│                             # (664 www-data:www-data — web replaces atomically)
 └── port_scan_status.conf     # Last completed poll cycle (source, host, time, ports found)
                               # (664 www-data:www-data — nwatchports.sh rewrites every cycle)
 
@@ -439,11 +456,22 @@ sudo bash nwatchsetup.sh
 /etc/cron.d/nwatch          # All cron entries of the project, one file
 ```
 
-#### Scheduled Tasks
+#### Scheduled tasks and logs
 
-> Project log: `/var/log/nwatch.log`. Installation and update configure daily rotation in `/etc/logrotate.d/nwatch`, keeping seven previous files plus the active log. Compression starts on the next rotation. Empty logs are not rotated; missing logs are tolerated. The installer also sets `rotate 7` in `/etc/logrotate.d/apache2`, backing it up first. Squid keeps its own policy.
->
-> Log del proyecto: `/var/log/nwatch.log`. La instalación y la actualización configuran rotación diaria en `/etc/logrotate.d/nwatch`. Se conservan siete archivos anteriores y el activo. La compresión comienza en la siguiente rotación. Los logs vacíos no se rotan; los ausentes se toleran. El instalador también fija `rotate 7` en `/etc/logrotate.d/apache2`, con respaldo previo. Squid conserva su propia política.
+##### Log rotation
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Project log: <code>/var/log/nwatch.log</code>. Installation and update configure daily rotation in <code>/etc/logrotate.d/nwatch</code>, keeping seven previous files plus the active log. Compression starts on the next rotation. Empty logs are not rotated; missing logs are tolerated. The installer also sets <code>rotate 7</code> in <code>/etc/logrotate.d/apache2</code>, backing it up first. Squid keeps its own policy.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Log del proyecto: <code>/var/log/nwatch.log</code>. La instalación y la actualización configuran rotación diaria en <code>/etc/logrotate.d/nwatch</code>. Se conservan siete archivos anteriores y el activo. La compresión comienza en la siguiente rotación. Los logs vacíos no se rotan; los ausentes se toleran. El instalador también fija <code>rotate 7</code> en <code>/etc/logrotate.d/apache2</code>, con respaldo previo. Squid conserva su propia política.
+    </td>
+  </tr>
+</table>
+
+##### Project schedule
 
 <table width="100%">
   <tr>
@@ -461,10 +489,10 @@ sudo bash nwatchsetup.sh
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <code>nwatchbk.sh</code> creates ZIP backups in <code>BACKUP_DIR</code>, initially <code>/etc/bak/nwatch</code>, and retains up to three archives. The directory is dedicated to backups: other contents are removed before creating an archive. It backs up project files, configuration and a consistent SQLite database snapshot. The installer invokes it before update and uninstall; cron invokes it monthly. A missing or failed backup script aborts update or uninstall before replacing or removing files. A missing, empty or relative <code>BACKUP_DIR</code> aborts the backup.
+      <code>nwatchbk.sh</code> creates ZIP backups in <code>BACKUP_DIR</code>, which must be <code>/etc/bak/nwatch</code>; any other value aborts. The directory is exclusive to <code>nwatchbk.sh</code>: after publishing an archive, other contents are removed and the three most recent archives are kept. It backs up project files, configuration and a consistent SQLite database snapshot. The installer invokes it before update and uninstall; cron invokes it monthly. A missing or failed backup script aborts update or uninstall before replacing or removing files. A missing, empty or relative <code>BACKUP_DIR</code> aborts the backup.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <code>nwatchbk.sh</code> crea respaldos ZIP en <code>BACKUP_DIR</code>, inicialmente <code>/etc/bak/nwatch</code>, y conserva hasta tres archivos. El directorio es exclusivo para respaldos: elimina cualquier otro contenido antes de crear el archivo. Respalda los archivos del proyecto, la configuración y una copia coherente de SQLite. El instalador lo invoca antes de actualizar y desinstalar; cron lo invoca mensualmente. Si el script de respaldo falta o falla, la actualización o desinstalación aborta antes de reemplazar o eliminar archivos. Una clave <code>BACKUP_DIR</code> ausente, vacía o relativa aborta el respaldo.
+      <code>nwatchbk.sh</code> crea respaldos ZIP en <code>BACKUP_DIR</code>, que debe ser <code>/etc/bak/nwatch</code>; cualquier otro valor aborta. El directorio es exclusivo de <code>nwatchbk.sh</code>: tras publicar un archivo, elimina el resto del contenido y conserva los tres más recientes. Respalda los archivos del proyecto, la configuración y una copia coherente de SQLite. El instalador lo invoca antes de actualizar y desinstalar; cron lo invoca mensualmente. Si el script de respaldo falta o falla, la actualización o desinstalación aborta antes de reemplazar o eliminar archivos. Una clave <code>BACKUP_DIR</code> ausente, vacía o relativa aborta el respaldo.
     </td>
   </tr>
 </table>
@@ -497,15 +525,15 @@ sudo bash nwatchsetup.sh
 
 | Variable | Consumer | Default | Meaning |
 |----------|--------|---------|---------|
-| `BACKUP_DIR` | `nwatchbk.sh` | `/etc/bak/nwatch` | Required backup destination. Existing installations must add this key to `/etc/nwatch/nwatch.env` before updating. / Destino obligatorio del respaldo. Las instalaciones existentes deben añadir esta clave a `/etc/nwatch/nwatch.env` antes de actualizar. |
+| `BACKUP_DIR` | `nwatchbk.sh` | `/etc/bak/nwatch` | Required backup destination; no other value is accepted. / Destino obligatorio del respaldo; no se acepta otro valor. |
 | `LAN_IFACES` | `nwatchlan.sh` | — | Comma-separated interfaces to arp-scan |
-| `MGMT_IFACE` | `nwatchsetup.sh` | — | Management interface, chosen during install. `SERVER_IP` and `NET_CIDR` are read from it |
-| `NET_CIDR` | `nwatchapi.php` | — | Management subnet in CIDR form, used as Apache's `Require ip` and by the API |
+| `MGMT_IFACE` | `nwatchsetup.sh` | — | Management interface recorded during installation. Its selected address determines the initial `SERVER_IP` and `NET_CIDR`. / Interfaz de administración registrada durante la instalación. Su dirección seleccionada determina los valores iniciales de `SERVER_IP` y `NET_CIDR`. |
+| `NET_CIDR` | `nwatchapi.php` | — | Management subnet accepted by the API. Apache restricts access to `127.0.0.1`. / Subred de administración admitida por la API. Apache restringe el acceso a `127.0.0.1`. |
 | `SERVER_IP` | `nwatchports.sh`, `nwatchapi.php` | — | IPv4 of the management interface. `nwatchports.sh` uses it to identify server-mode records. A missing or empty key aborts before polling |
-| `LAN_POLL_INTERVAL` | `nwatchlan.sh` | `60` (seconds) | Time between scans |
+| `LAN_POLL_INTERVAL` | `nwatchlan.sh` | `60` (seconds) | Wait after each complete scan cycle. / Espera después de cada ciclo completo de escaneo. |
 | `NWATCH_DB_TIMEOUT_MS` | `nwatchlan.sh`, `nwatchports.sh`, `nwatchapi.php` | `5000` (milliseconds) | SQLite lock wait, written automatically without questions. Positive integer without leading zeros. Changing this default is not recommended. / Espera por bloqueos SQLite, escrita automáticamente sin preguntas. Entero positivo sin ceros iniciales. No se recomienda modificarlo. |
 | `LAN_OFFLINE_GRACE` | `nwatchlan.sh` | `3` (polls) | Consecutive missed polls before marking a device offline |
-| `PORT_POLL_INTERVAL` | `nwatchports.sh` | `30` (seconds) | Time between poll cycles |
+| `PORT_POLL_INTERVAL` | `nwatchports.sh` | `30` (seconds) | Wait after each complete poll cycle. / Espera después de cada ciclo completo de sondeo. |
 | `PURGE_CLOSED_AFTER_HOURS` | `nwatchports.sh` | `6` (hours) | How long closed ports are kept before being purged |
 
 <table width="100%">
@@ -524,10 +552,10 @@ sudo bash nwatchsetup.sh
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      The installer lists scan candidates with an UP link and global IPv4, excluding the names listed below. It automatically selects a single candidate and asks when several remain. When prompted, choose one or more <strong>scan interfaces</strong> by entering their numbers, separated by commas (for example, <code>1,2</code>). This is useful on servers with both LAN and WAN interfaces because <code>nwatchlan.sh</code> scans each selected interface during every cycle. Management is selected separately: automatically with one UP+IPv4 candidate, or by number with several. The web panel uses this interface's IP address to authorize access, so choose your LAN or admin interface, never WAN. The installer then deploys the web dashboard and both daemons, and starts them automatically. These daemons are required by the dashboard, unlike the optional watchdog.
+      The installer lists scan candidates with an UP link and global IPv4, excluding the names listed below. It automatically selects a single candidate and asks when several remain. When prompted, choose one or more <strong>scan interfaces</strong> by entering their numbers, separated by commas (for example, <code>1,2</code>). This is useful on servers with both LAN and WAN interfaces because <code>nwatchlan.sh</code> scans each selected interface during every cycle. Management is selected separately: automatically with one UP+IPv4 candidate, or by number with several. The web panel uses this interface's IP address to authorize access, so choose your LAN or admin interface, never WAN. The installer then deploys the web dashboard and both daemons, and starts them automatically. Both daemons provide the dashboard data.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      El instalador muestra candidatas de escaneo con enlace UP e IPv4 global, excluyendo los nombres indicados abajo. Selecciona automáticamente una candidata y pregunta cuando quedan varias. Cuando se solicite, elija una o más <strong>interfaces de escaneo</strong> e ingrese sus números separados por comas (por ejemplo, <code>1,2</code>). Esto es útil en servidores con interfaces LAN y WAN, porque <code>nwatchlan.sh</code> escanea cada interfaz seleccionada en todos los ciclos. La administración se selecciona por separado: automáticamente con una candidata UP+IPv4 o mediante su número con varias. El panel usa la dirección IP de esa interfaz para autorizar el acceso; elija una interfaz LAN o de administración, nunca la WAN. Por último, el instalador implementa el panel web y los dos demonios, y los inicia automáticamente. Estos demonios son necesarios para el panel; el watchdog es opcional.
+      El instalador muestra candidatas de escaneo con enlace UP e IPv4 global, excluyendo los nombres indicados abajo. Selecciona automáticamente una candidata y pregunta cuando quedan varias. Cuando se solicite, elija una o más <strong>interfaces de escaneo</strong> e ingrese sus números separados por comas (por ejemplo, <code>1,2</code>). Esto es útil en servidores con interfaces LAN y WAN, porque <code>nwatchlan.sh</code> escanea cada interfaz seleccionada en todos los ciclos. La administración se selecciona por separado: automáticamente con una candidata UP+IPv4 o mediante su número con varias. El panel usa la dirección IP de esa interfaz para autorizar el acceso; elija una interfaz LAN o de administración, nunca la WAN. Por último, el instalador implementa el panel web y los dos demonios, y los inicia automáticamente. Ambos demonios proporcionan los datos del panel.
     </td>
   </tr>
 </table>
@@ -547,16 +575,26 @@ sudo bash nwatchsetup.sh
 
 | File | `--update` | `--uninstall` |
 |------|-----------|---------------|
-| `web/nwatch.conf` | ⛔ not touched (user-customized) | ✅ removed |
+| `web/nwatch.conf` | Preserved; VirtualHost ports set to `9777` / Conservado; puertos VirtualHost ajustados a `9777` | ✅ removed |
 | `web/index.php`, `lan.html`, `ports.html`, `nwatchapi.php` | ✅ overwritten | ✅ removed |
 | `tools/nwatchlan.sh`, `tools/nwatchports.sh` | ✅ overwritten (daemons restarted) | ✅ removed (daemons stopped) |
 | `tools/nwatchenv.sh` | ✅ overwritten (root:root, 644) | ✅ removed |
+| `tools/nwatchbk.sh` | ✅ overwritten | ✅ removed |
 | `/etc/nwatch/nwatch.env` | ⛔ preserved | ✅ removed |
 | `/var/www/nwatch/data/nwatch.db`, `ports_mode.conf`, `port_scan_status.conf` | ⛔ preserved | ✅ removed |
 
 ##### Status
 
-Displays the daemon status (running or stopped), Apache's port (9777), the last 10 lines of the shared log, the active ports mode and target, and device and port counts from the database.
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      Shows daemon status, the listener on port <code>9777</code>, and the last ten installer log lines. Also shows configured interfaces, the selected ports mode and target, and device and port counts. Port counts include all stored modes and targets.
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      Muestra el estado de los demonios, la escucha del puerto <code>9777</code> y las últimas diez líneas del log del instalador. También muestra las interfaces configuradas, el modo y destino seleccionados, y los recuentos de dispositivos y puertos. El recuento de puertos incluye todos los modos y destinos almacenados.
+    </td>
+  </tr>
+</table>
 
 #### LAN Field Reference
 
@@ -607,7 +645,7 @@ Displays the daemon status (running or stopped), Apache's port (9777), the last 
 
 | Mode | Default | What it does | Poll method |
 |------|---------|---------------|-------------|
-| **Server** | ✅ yes | Watches this server's own listening TCP and UDP ports | `ss -tulnp` (reads the kernel's socket table directly — not a scan, always accurate, includes the owning process) |
+| **Server** | ✅ yes | Watches this server's own listening TCP and UDP ports | `ss -tulnp` (reads the kernel's socket table directly — not a scan, includes the owning process when available) |
 | **Target** | no | Watches a single external host you choose | `nmap -Pn -sT -sU -F --host-timeout 60s` (top ~100 common TCP + UDP ports, skips host-discovery so a target dropping ICMP still gets scanned) every poll cycle |
 
 ##### Switching Modes
@@ -620,8 +658,8 @@ sudo /var/www/nwatch/tools/nwatchports.sh --list
 
 | Description | Descripción |
 |---|---|
-| Clicking Apply (or running `--mode target`) writes the new mode or target to `ports_mode.conf`; it does not start a scan immediately. The background loop in `nwatchports.sh` reads the change on its next cycle, after up to `PORT_POLL_INTERVAL` (30 seconds by default). The table may remain empty during that time. The browser's `Refresh: 15s` setting controls a separate poll of the database; it does not run the scan. | Al hacer clic en Apply (o ejecutar `--mode target`), se guarda el nuevo modo o destino en `ports_mode.conf`; el escaneo no comienza de inmediato. El ciclo en segundo plano de `nwatchports.sh` lee el cambio en el siguiente intervalo, que puede tardar hasta `PORT_POLL_INTERVAL` (30 segundos por defecto). Durante ese tiempo, la tabla puede aparecer vacía. El ajuste `Refresh: 15s` del navegador actualiza por separado los datos de la base de datos; no ejecuta el escaneo. |
-| **Total time (Target mode):** The daemon may take up to `PORT_POLL_INTERVAL` (30 seconds by default) to read the new target. The `nmap` scan then runs. It may take seconds for a responsive host, but UDP scans can take longer if the host silently drops probes. The `--host-timeout` option caps a scan at 60 seconds so one cycle cannot delay the next. The browser may then take up to one refresh interval to show the results. A heavily filtered target can take nearly two minutes from start to display. | **Tiempo total (modo Target):** el demonio puede tardar hasta `PORT_POLL_INTERVAL` (30 segundos por defecto) en leer el nuevo destino. Después se ejecuta el escaneo de `nmap`. Puede tardar unos segundos con un host que responde, pero el escaneo UDP puede demorar más si el host descarta los sondeos sin responder. La opción `--host-timeout` limita cada escaneo a 60 segundos para que un ciclo no retrase el siguiente. Luego, el navegador puede tardar hasta un intervalo de actualización en mostrar los resultados. Con un destino muy filtrado, el proceso completo puede tardar casi dos minutos. |
+| Clicking Apply (or running `--mode target`) writes the new mode or target to `ports_mode.conf`; it does not start a scan immediately. The background loop reads the change on its next cycle. It first completes any current cycle, then waits `PORT_POLL_INTERVAL` (30 seconds by default). The table may remain empty during that time. The browser's `Refresh: 15s` setting controls a separate poll of the database; it does not run the scan. | Al hacer clic en Apply (o ejecutar `--mode target`), se guarda el nuevo modo o destino en `ports_mode.conf`; el escaneo no comienza de inmediato. El ciclo en segundo plano lee el cambio al iniciar el siguiente ciclo. Primero termina el ciclo actual y después espera `PORT_POLL_INTERVAL` (30 segundos por defecto). Durante ese tiempo, la tabla puede aparecer vacía. El ajuste `Refresh: 15s` del navegador actualiza por separado los datos de la base de datos; no ejecuta el escaneo. |
+| **Display delay:** Add the remaining current cycle, the configured wait, the new scan, and the browser refresh interval. Nmap uses `--host-timeout 60s` for each target host; this does not bound the complete mode-switch delay. | **Demora de visualización:** Sume el ciclo actual pendiente, la espera configurada, el nuevo escaneo y el intervalo de actualización del navegador. Nmap utiliza `--host-timeout 60s` por host de destino; esto no limita la demora total del cambio de modo. |
 | **ICMP is not required (Target mode).** The scan uses `-Pn`, which skips host discovery and ping. The target's firewall does not need to allow ICMP echo for port detection; TCP and UDP probes are sent directly. | **No se requiere ICMP (modo Target).** El escaneo usa `-Pn`, que omite el descubrimiento del host y el ping. El firewall del destino no necesita permitir ICMP echo para detectar sus puertos; los sondeos TCP y UDP se envían directamente. |
 
 | Empty-table message | When it shows |
@@ -643,9 +681,16 @@ sudo /var/www/nwatch/tools/nwatchports.sh --list
   </tr>
 </table>
 
-| Description | Descripción |
-|---|---|
-| **No open ports / Sin puertos abiertos**<br> <img src="img/nwatch-scan-noports.png" width="100%" alt="NWatch port scan completed with no open ports"> | **Open ports found / Puertos abiertos encontrados**<br> <img src="img/nwatch-scan-ports.png" width="100%" alt="NWatch port scan showing detected open ports"> |
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>No open ports / Sin puertos abiertos</strong><br> <img src="img/nwatch-scan-noports.png" width="100%" alt="NWatch port scan completed with no open ports">
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Open ports found / Puertos abiertos encontrados</strong><br> <img src="img/nwatch-scan-ports.png" width="100%" alt="NWatch port scan showing detected open ports">
+    </td>
+  </tr>
+</table>
 
 ##### Ports Displayed
 

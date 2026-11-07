@@ -152,12 +152,12 @@ sudo bash aistack.sh --status
 
 - [Cleaner - Delete files (Thumbs.db, Zone.identifier, encryptable, etc.)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/cleaner.sh)
 - [Disk Check (HDD/SSD/NVMe)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/diskcheck.sh)
-- [Drive Crypt (Cryptomator Encrypted Disk - --start|--stop - to folder `/home/$USER/dcrypt`)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/drivecrypt.sh)
+- [Drive Crypt (Cryptomator Encrypted Disk - --start|--stop - to folder `/home/<local_user>/dcrypt`, the local account it detects)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/drivecrypt.sh)
 - [File Report (HTML disk usage report: top extensions, folders and largest files)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/filereport.sh)
 - [FreeFileSync Update](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ffsupdate.sh)
 - [Gdrive (--start|--stop - to folder `/home/<local_user>/gdrive`, the local account it detects)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/gdrive.sh)
 - [Mass Unzip with Pass](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/massunzip.sh)
-- [MEGAsync Instances (start|stop|status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/msyncs)
+- [MEGAsync Instances (--start|--stop|--status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/msyncs)
 - [NTFS Disk Drive (mount|umount with ntfs-3g)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ntfsdrive.sh)
 - [Rclone Manager - mount (--start|--stop|--restart|--status), sync (--run|--status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rclonemgr.sh)
 - [TRIM for SSD/NVMe](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/trim.sh)
@@ -191,6 +191,7 @@ Tested on: Windows 10/11 x64
 #### Networking & System
 
 - [Autorun Disable](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/autorun.bat)
+- [Cloudflare Tunnel (--create|--start|--startall|--stop|--status|--delete) - Zero Trust Activation Recommended](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/cftunnel.bat)
 - [Net Reset (Proxy and NIC)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/netreset.bat)
 - [Non-Essential Services (disable|auto)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/nonservices.bat)
 - [SMB Config (Modify smb1|smb signing|insecure guest access)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/smbconf.bat)

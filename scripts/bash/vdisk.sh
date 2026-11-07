@@ -11,7 +11,7 @@
 #
 # USAGE: sudo bash vdisk.sh
 #
-# LOG: /var/log/syslog
+# LOG: system logger (destination set by system configuration)
 #
 ################################################################################
 
@@ -78,7 +78,7 @@ fi
 echo "Using local user: $local_user"
 
 # dependencies
-for dep in kpartx pv ntfs-3g dosfstools e2fsprogs util-linux coreutils; do
+for dep in kpartx dmsetup pv ntfs-3g dosfstools e2fsprogs util-linux bsdutils coreutils; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
@@ -124,57 +124,103 @@ fi
 
 # format ntfs
 pntfs() {
-    mkntfs -Q -v -F -L "$vlabel" $myimg
-    ntfsresize -i -f -v $myimg
-    ntfsresize --force --force --no-action $myimg
-    ntfsresize --force --force $myimg
-    fdisk -lu $myimg
+    mkntfs -Q -v -F -L "$vlabel" "$1" &&
+        ntfsresize -i -f -v "$1" &&
+        ntfsresize --force --force --no-action "$1" &&
+        ntfsresize --force --force "$1" &&
+        fdisk -lu "$1"
 }
 
 # format fat32
 pfat32() {
-    mkfs.fat -F32 -v -I -n "$vlabel" $myimg
-    fsck.fat -a -w -v $myimg
-    fdisk -lu $myimg
+    mkfs.fat -F32 -v -I -n "$vlabel" "$1" &&
+        fsck.fat -a -w -v "$1" &&
+        fdisk -lu "$1"
 }
 
 # format ext4
 pext4() {
-    mkfs.ext4 -F -L "$vlabel" $myimg
-    e2fsck -f -y -v -C 0 $myimg
-    resize2fs -p $myimg
-    fdisk -lu $myimg
+    mkfs.ext4 -F -L "$vlabel" "$1" || return 1
+    # e2fsck: 0 is clean and 1 is errors corrected; anything else is a failure
+    e2fsck -f -y -v -C 0 "$1"
+    [ "$?" -le 1 ] || return 1
+    resize2fs -p "$1" &&
+        fdisk -lu "$1"
 }
 
-# create and format disk .img
+# aborts the image creation; removes only this run's temporary file
+create_fail() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: $1 -abort" >&2
+    exit 1
+}
+
+# create and format disk .img in a temporary file, then publish it without overwriting
 create_img() {
-    # create img
-    dd if=/dev/zero | pv | dd of=$myimg iflag=fullblock bs=$vbs count=$vsize && sync
-    printf "\n"
+    local pset formatter
     read -r -p "Enter File System (e.g. ntfs, fat32, ext4): " pset
-    if [ -z "$pset" ]; then
-        echo "No file system selected. Exiting"
-        exit 1
-    fi
-    case $pset in
-    "ntfs")
-        pntfs
+    case "$pset" in
+    "")
+        create_fail "no file system selected"
         ;;
-    "fat32")
-        pfat32
+    ntfs)
+        formatter=pntfs
         ;;
-    "ext4")
-        pext4
+    fat32)
+        formatter=pfat32
+        ;;
+    ext4)
+        formatter=pext4
         ;;
     *)
-        echo "Unknown file system: $pset. Exiting"
-        exit 1
+        create_fail "unknown file system: $pset"
         ;;
     esac
+
+    img_tmp=$(mktemp "$myimg.XXXXXX") || create_fail "cannot create VHD-IMG temporary file"
+    trap 'rm -f -- "$img_tmp"' EXIT
+    trap 'exit 1' INT TERM
+
+    # the first dd ends by SIGPIPE (141) once the last dd has its blocks
+    dd if=/dev/zero | pv | dd of="$img_tmp" iflag=fullblock bs=$vbs count=$vsize
+    local pipe_rc=("${PIPESTATUS[@]}")
+    if [[ ! "${pipe_rc[0]}" =~ ^(0|141)$ || ! "${pipe_rc[1]}" =~ ^(0|141)$ || "${pipe_rc[2]}" -ne 0 ]]; then
+        create_fail "cannot write VHD-IMG, rc=${pipe_rc[*]}"
+    fi
+    sync || create_fail "cannot sync VHD-IMG"
+    printf "\n"
+    "$formatter" "$img_tmp" || create_fail "cannot format VHD-IMG as $pset"
+    chmod "$(printf '%o' "$((0666 & ~0$(umask)))")" "$img_tmp" || create_fail "cannot set VHD-IMG mode"
+
+    # ln fails if the destination appeared meanwhile, and never overwrites it
+    if ! ln -T -- "$img_tmp" "$myimg" 2>/dev/null; then
+        [ ! -e "$myimg" ] || create_fail "VHD-IMG already exists, not overwritten"
+        create_fail "cannot publish VHD-IMG"
+    fi
+    rm -f -- "$img_tmp"
+    trap - EXIT INT TERM
 }
 
-# if no .img exists, create it
-if [ ! -f "$myimg" ]; then create_img; fi
+# removes only the kpartx resources that this run created
+kpartx_cleanup() {
+    local map before
+    if [ "${#loops_before[@]}" -eq 0 ]; then
+        kpartx -d "$myimg" >/dev/null || return 1
+        return 0
+    fi
+    for map in "${maps_after[@]}"; do
+        for before in "${maps_before[@]}"; do
+            [ "$map" = "$before" ] && continue 2
+        done
+        dmsetup remove "$map" || return 1
+    done
+}
+
+# aborts the kpartx mount before mounting anything
+kpartx_abort() {
+    kpartx_cleanup || echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: VHD-IMG mappings not removed -alert"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: $1 -abort" >&2
+    exit 1
+}
 
 mount_img() {
     if [ $# -eq 0 ]; then
@@ -186,20 +232,33 @@ mount_img() {
         case "$choice" in
         1)
             # mount .img
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Mount VHD-IMG..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Mounting VHD-IMG..."
             mount -o loop,rw,sync "$myimg" "$mountpoint"
-            chown -R "$local_user": "$mountpoint"
-            chmod 750 "$mountpoint"
-            echo "VHD-IMG Mount: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
+            mount_rc=$?
+            if [ "$mount_rc" -eq 0 ]; then
+                chown -R "$local_user": "$mountpoint"
+                chmod 750 "$mountpoint"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: VHD-IMG mounted"
+            else
+                echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: VHD-IMG Mount failed, rc=$mount_rc -alert"
+            fi
+            logger -t vdisk "VHD-IMG Mount: $myimg rc=$mount_rc" || true
             ;;
         2)
             # umount .img
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Umount VHD-IMG..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Unmounting VHD-IMG..."
             umount "$mountpoint"
-            echo "VHD-IMG Umount: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
+            umount_rc=$?
+            if [ "$umount_rc" -eq 0 ]; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: VHD-IMG unmounted"
+            else
+                echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: VHD-IMG Umount failed, rc=$umount_rc -alert"
+            fi
+            logger -t vdisk "VHD-IMG Umount: $myimg rc=$umount_rc" || true
             ;;
         *)
-            echo "Invalid choice. Exiting"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
+            exit 1
             ;;
         esac
     else
@@ -217,28 +276,74 @@ mount_img_kpartx() {
         case "$choice" in
         1)
             # mount .img
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Mount VHD-IMG..."
-            if ! kpartx -a -v "$myimg"; then
-                echo "kpartx failed to map partitions for $myimg. Exiting"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Mounting VHD-IMG..."
+            if findmnt --mountpoint "$mountpoint" >/dev/null 2>&1; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: mount point already in use -abort" >&2
                 exit 1
             fi
-            for f in $(losetup --list | grep "$myvhd" | awk '{print $1}'); do mount $f $mountpoint; done
-            chown -R "$local_user": "$mountpoint"
-            chmod 750 "$mountpoint"
-            echo "VHD-IMG Mount: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
+            mapfile -t loops_before < <(losetup -j "$myimg" | cut -d: -f1)
+            maps_before=()
+            for loop_dev in "${loops_before[@]}"; do
+                for map_dev in "/dev/mapper/${loop_dev##*/}p"*; do
+                    [ -e "$map_dev" ] && maps_before+=("${map_dev##*/}")
+                done
+            done
+            maps_after=()
+            if ! kpartx -a -v "$myimg" >/dev/null; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: kpartx cannot map VHD-IMG partitions -abort" >&2
+                exit 1
+            fi
+            mapfile -t maps_after < <(kpartx -l "$myimg" | awk '{print $1}')
+            mapfile -t loops < <(losetup -j "$myimg" | cut -d: -f1)
+            if [ "${#loops[@]}" -gt 1 ] || [ "${#maps_after[@]}" -gt 1 ]; then
+                kpartx_abort "ambiguous VHD-IMG device"
+            elif [ "${#maps_after[@]}" -eq 1 ]; then
+                mount_dev="/dev/mapper/${maps_after[0]}"
+            elif [ "${#loops[@]}" -eq 1 ]; then
+                mount_dev="${loops[0]}"
+            else
+                kpartx_abort "no VHD-IMG device found to mount"
+            fi
+            mount "$mount_dev" "$mountpoint"
+            mount_rc=$?
+            if [ "$mount_rc" -eq 0 ]; then
+                chown -R "$local_user": "$mountpoint"
+                chmod 750 "$mountpoint"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: VHD-IMG mounted"
+            else
+                echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: VHD-IMG Mount failed, rc=$mount_rc -alert"
+            fi
+            logger -t vdisk "VHD-IMG Mount: $myimg rc=$mount_rc" || true
             ;;
         2)
             # umount .img
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Umount VHD-IMG..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Unmounting VHD-IMG..."
+            was_mounted=0
+            findmnt --mountpoint "$mountpoint" >/dev/null 2>&1 && was_mounted=1
             umount "$mountpoint"
-            if [ -n "$(kpartx -d -v "$myimg")" ]; then
-                echo "VHD-IMG Umount: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a /var/log/syslog
+            umount_rc=$?
+            kpartx_out=$(kpartx -d -v "$myimg")
+            kpartx_rc=$?
+            if [ "$was_mounted" -eq 1 ]; then
+                if [ "$umount_rc" -eq 0 ] && [ "$kpartx_rc" -eq 0 ]; then
+                    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: VHD-IMG unmounted"
+                else
+                    echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: VHD-IMG Umount failed, rc=$umount_rc kpartx_rc=$kpartx_rc -alert"
+                fi
+                logger -t vdisk "VHD-IMG Umount: $myimg rc=$umount_rc kpartx_rc=$kpartx_rc" || true
+            elif [ "$kpartx_rc" -ne 0 ]; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: VHD-IMG Umount failed, rc=$umount_rc kpartx_rc=$kpartx_rc -alert"
+                logger -t vdisk "VHD-IMG Umount: $myimg rc=$umount_rc kpartx_rc=$kpartx_rc" || true
+            elif [ -n "$kpartx_out" ]; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: VHD-IMG mappings removed"
+                logger -t vdisk "VHD-IMG Umount: $myimg rc=$umount_rc kpartx_rc=$kpartx_rc" || true
             else
-                echo "No Mounted Image"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no mounted VHD-IMG -skip"
             fi
             ;;
         *)
-            echo "Invalid choice. Exiting"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
+            exit 1
             ;;
         esac
     else
@@ -252,6 +357,9 @@ mount_img_kpartx() {
 
 # start
 echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: vdisk start..."
+
+# if no .img exists, create it
+if [ ! -f "$myimg" ]; then create_img; fi
 
 # Selection menu
 printf "\n"
@@ -268,7 +376,8 @@ case "$choice" in
     mount_img_kpartx
     ;;
 *)
-    echo "Invalid option. Exiting"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
+    exit 1
     ;;
 esac
 

@@ -29,7 +29,7 @@ echo Log File: %usb_letter%:\profiles_bk.txt
 if exist "%usb_letter%:\" (
     echo USB drive is available at %usb_letter%:\
 
-    :: Create Profiles folder on USB drive if it does not exist
+    REM Create Profiles folder on USB drive if it does not exist
     if not exist "%usb_letter%:\Profiles" (
         echo Creating Profiles folder on USB drive...
         mkdir "%usb_letter%:\Profiles"
@@ -40,10 +40,10 @@ if exist "%usb_letter%:\" (
 
     echo Running the backup...
 
-    :: Copy Profiles folder to USB drive
+    REM Copy Profiles folder to USB drive
     robocopy "%source_folder%" "%usb_letter%:\Profiles" /E /COPY:DAT /MIR /IS /IT /TEE /ETA /R:10 /W:5 /ZB /V /LOG:"%usb_letter%:\profiles_bk.txt"
 
-    :: Check for errors during copying
+    REM Check for errors during copying
     if errorlevel 8 (
         echo Error copying folder to USB drive
     ) else (

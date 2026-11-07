@@ -191,28 +191,17 @@ load_gateproxy_env "$gateproxy_env" 'BACKUP_DIR' || {
 }
 
 # KEY CHECK
-key_errors=()
-if ! grep -q '^BACKUP_DIR=' "$gateproxy_env"; then
-    key_errors+=("BACKUP_DIR missing line")
-elif [[ -z "${BACKUP_DIR:-}" ]]; then
-    key_errors+=("BACKUP_DIR not set")
-elif [[ "$BACKUP_DIR" != /* ]]; then
-    key_errors+=("BACKUP_DIR invalid absolute path")
-fi
-if (( ${#key_errors[@]} > 0 )); then
-    for key_error in "${key_errors[@]}"; do
-        log "WARNING: $key_error -alert"
-    done
-    log "ERROR: ${#key_errors[@]} key(s) invalid in gateproxy.env -abort"
+backup_dir="/etc/bak/gateproxy"
+if [[ "${BACKUP_DIR:-}" != "$backup_dir" ]] \
+   || [[ "$(readlink -m -- "$backup_dir")" != "$backup_dir" ]]; then
+    log "ERROR: BACKUP_DIR must be $backup_dir -abort"
     exit 1
 fi
-unset key_errors key_error
 
 # ------------------------------------------------------------------------------
 # OWN VALUES
 # ------------------------------------------------------------------------------
 
-backup_dir="$BACKUP_DIR"
 backup_zip="${backup_dir}/bkconf_$(date +%Y%m%d_%H%M%S).zip"
 
 # Start
@@ -233,7 +222,8 @@ case "${1:-}" in
         log "EVENT: bkconf start..."
         ;;
     *)
-        log "ERROR: '$1' invalid; --install/--uninstall or none -abort"
+        log "ERROR: invalid option -abort"
+        echo "Usage: $(basename "$0") [--install|--uninstall]"
         exit 1
         ;;
 esac
@@ -286,21 +276,29 @@ fi
 # run can only ever delete its own work. The archive takes its final name once
 # zip has succeeded, which also keeps the retention glob from seeing a partial.
 backup_part="${backup_zip}.part"
-find "$backup_dir" -mindepth 1 -maxdepth 1 ! -name 'bkconf_*.zip' -exec rm -rf {} +
 if (umask 077; zip -r -q -y "$backup_part" "${backup_list[@]}"); then
     chmod 600 "$backup_part"
-    if ! mv -f "$backup_part" "$backup_zip"; then
+    if ! mv -fT -- "$backup_part" "$backup_zip"; then
         rm -f "$backup_part"
         log "ERROR: rename $(basename "$backup_zip"). check chmod -abort"
         exit 1
     fi
     log "INFO: backup written to $(basename "$backup_zip")"
 
+    if [[ "$(readlink -m -- "$backup_dir")" != "$backup_dir" ]]; then
+        log "ERROR: BACKUP_DIR must be $backup_dir -abort"
+        exit 1
+    fi
     # keep only the last 3
+    retention_ok=1
+    find "$backup_dir" -mindepth 1 -maxdepth 1 ! -name 'bkconf_*.zip' -exec rm -rf {} + \
+        || retention_ok=0
     old_backups=("$backup_dir"/bkconf_*.zip)
     if (( ${#old_backups[@]} > 3 )); then
-        printf '%s\0' "${old_backups[@]}" | sort -z | head -z -n -3 | xargs -0 -r rm -f --
+        printf '%s\0' "${old_backups[@]}" | sort -z | head -z -n -3 | xargs -0 -r rm -f -- \
+            || retention_ok=0
     fi
+    (( retention_ok )) || log "WARNING: backup retention incomplete -alert"
 else
     rm -f "$backup_part"
     log "ERROR: $(basename "$backup_zip"). check space/chmod -abort"

@@ -111,7 +111,7 @@ foreach my $key (keys %in) {
             system("logger", "-t", "servicemon", "-p", "daemon.warning", "Service stopped: $service");
         } elsif ($action eq 'start' && $status eq 'active') {
             system("logger", "-t", "servicemon", "-p", "daemon.info", "Service started: $service");
-        } elsif ($action eq 'restart') {
+        } elsif ($action eq 'restart' && $status eq 'active') {
             system("logger", "-t", "servicemon", "-p", "daemon.info", "Service restarted: $service");
         }
 
@@ -792,7 +792,6 @@ Version 1.0 (2024)
 - Multi-language support (English and Spanish)
 - Real-time status updates
 - Syslog integration for service events
-- Desktop notifications for service status changes
 - Modern and user-friendly interface
 - Configuration page with module information
 EOF
@@ -929,7 +928,7 @@ show_usage() {
 
 main() {
     if [ ! -d "/usr/share/webmin" ] && [ ! -d "/etc/webmin" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Webmin is not installed on this system -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Webmin is not installed on this system -abort" >&2
         exit 1
     fi
 
@@ -951,7 +950,7 @@ main() {
                 exit 0
                 ;;
             *)
-                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option '$1' -abort"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
                 echo ""
                 show_usage
                 exit 1
@@ -965,20 +964,18 @@ main() {
 
         case $option in
             1)
-                install_module
+                install_module || return 1
                 break
                 ;;
             2)
-                uninstall_module
+                uninstall_module || return 1
                 break
                 ;;
             3)
                 break
                 ;;
             *)
-                echo ""
-                echo "Invalid option. Please select 1, 2, or 3"
-                echo ""
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: invalid option -retry"
                 sleep 2
                 ;;
         esac

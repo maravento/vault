@@ -145,7 +145,7 @@ check_dependencies() {
     for c in wget dpkg systemctl; do
         command -v "$c" &>/dev/null && continue
         if [ "$c" = "systemctl" ]; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: systemd (systemctl) not found, this script requires it -abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: systemd (systemctl) not found, this script requires it -abort" >&2
             exit 1
         fi
     done
@@ -170,7 +170,7 @@ check_dependencies() {
             apt_lock_elapsed=$((apt_lock_elapsed + 5))
         done
         if ! retry_cmd apt-get -qq update || ! retry_cmd apt-get install -y "${missing[@]}"; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install dependencies: ${missing[*]} -abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install dependencies: ${missing[*]} -abort" >&2
             exit 1
         fi
     fi
@@ -204,14 +204,21 @@ patch_units() {
     systemctl restart rustdesk-hbbs.service rustdesk-hbbr.service
 }
 
+validate_relay_host() {
+    local LC_ALL=C
+    if [[ "$relay_host" == -* || ! "$relay_host" =~ ^[][a-zA-Z0-9.:-]+$ ]]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid relay host -abort" >&2
+        return 1
+    fi
+}
+
 apply_config() {
     if [ ! -f "$conf_file" ]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no configuration found, run 'Configure Relay Host' first -skip"
         return 1
     fi
-    relay_host=""
-    # shellcheck disable=SC1090
-    . "$conf_file"
+    relay_host=$(sed -n 's/^relay_host=//p' "$conf_file") || return 1
+    validate_relay_host || return 1
     patch_units
 }
 
@@ -227,10 +234,11 @@ configure_relay_host() {
         return 1
     fi
 
+    validate_relay_host || return 1
     mkdir -p "$conf_dir"
     printf 'relay_host=%s\n' "$relay_host" > "$conf_file"
     patch_units
-    echo "OK: Relay host set to: $relay_host"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: relay host set to $relay_host"
 }
 
 install_server() {
@@ -241,7 +249,7 @@ install_server() {
     release_json=$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk-server/releases/latest || true)
     ver_tag=$(echo "$release_json" | jq -r '.tag_name' 2>/dev/null || true)
     if [ -z "$ver_tag" ] || [ "$ver_tag" = "null" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to fetch latest version -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to fetch latest version -abort" >&2
         exit 1
     fi
 
@@ -256,7 +264,7 @@ install_server() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Latest version: $ver_tag"
 
     if [ "$installed_ver" = "$ver_tag" ]; then
-        echo "OK: You already have latest version. Nothing to do"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: already at latest version"
         return
     fi
 
@@ -268,20 +276,20 @@ install_server() {
     for deb in "$hbbs_deb" "$hbbr_deb"; do
         expected_sha256=$(echo "$release_json" | jq -r --arg name "$deb" '.assets[] | select(.name == $name) | .digest' | sed 's/^sha256://')
         if [ -z "$expected_sha256" ] || [ "$expected_sha256" = "null" ]; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to obtain checksum for ${deb} -abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to obtain checksum for ${deb} -abort" >&2
             rm -f "$hbbs_deb" "$hbbr_deb"
             exit 1
         fi
 
         if ! retry_cmd wget -q "${base_url}/${deb}"; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: download failed: $deb -abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: download failed: $deb -abort" >&2
             rm -f "$hbbs_deb" "$hbbr_deb"
             exit 1
         fi
 
         actual_sha256=$(sha256sum "$deb" | awk '{print $1}')
         if [ "$actual_sha256" != "$expected_sha256" ]; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: integrity check failed for $deb -abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: integrity check failed for $deb -abort" >&2
             rm -f "$hbbs_deb" "$hbbr_deb"
             exit 1
         fi
@@ -292,7 +300,7 @@ install_server() {
     if dpkg -i "./$hbbs_deb" "./$hbbr_deb" >"$dpkg_out" 2>&1; then
         rm -f "$hbbs_deb" "$hbbr_deb" "$dpkg_out"
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: installation failed -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: installation failed -abort" >&2
         cat "$dpkg_out" >&2
         rm -f "$hbbs_deb" "$hbbr_deb" "$dpkg_out"
         exit 1
@@ -306,8 +314,8 @@ install_server() {
         configure_relay_host
     fi
 
-    echo "OK: RustDesk Server $ver_tag installed successfully"
-    echo "TIP: Use option 6 to show server's public key for client configuration"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: RustDesk Server $ver_tag installed"
+    echo "Use option 6 to show the server public key"
 }
 
 remove_server() {
@@ -323,7 +331,7 @@ remove_server() {
     if apt-get remove --purge -y rustdesk-server-hbbs rustdesk-server-hbbr >"$apt_out" 2>&1; then
         rm -f "$apt_out"
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to remove RustDesk Server -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to remove RustDesk Server -abort" >&2
         cat "$apt_out" >&2
         rm -f "$apt_out"
         exit 1
@@ -333,7 +341,7 @@ remove_server() {
     read -rp "Also delete server data (key) at $rd_data_dir? (y/n): " user_response
     if [[ "$user_response" =~ ^[Yy]$ ]]; then
         rm -rf "$rd_data_dir" "$rd_log_dir" "$conf_dir"
-        echo "OK: Server data removed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: server data removed"
     fi
 
     if id "$rd_user" &>/dev/null; then
@@ -341,17 +349,17 @@ remove_server() {
         [[ "$user_response" =~ ^[Yy]$ ]] && userdel "$rd_user"
     fi
 
-    echo "OK: RustDesk Server removed successfully"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: RustDesk Server removed"
 }
 
 start_server() {
     systemctl start rustdesk-hbbs.service rustdesk-hbbr.service
-    echo "OK: Started"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: started"
 }
 
 stop_server() {
     systemctl stop rustdesk-hbbs.service rustdesk-hbbr.service
-    echo "OK: Stopped"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: stopped"
 }
 
 status_server() {
@@ -421,7 +429,7 @@ case $option in
     8)
         ;;
     *)
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
         exit 1
         ;;
 esac

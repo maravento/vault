@@ -75,7 +75,7 @@ remove_and_install_squid_openssl() {
         exit 1
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: this will purge Squid packages and remove configuration, cache and logs"
+    echo "This will purge Squid packages and remove configuration, cache and logs"
     echo "Configuration backup: $BACKUP_DIR"
     read -rp "Confirm Squid purge? (yes/no) [no]: " confirm_purge
     if [[ "$confirm_purge" != "yes" ]]; then

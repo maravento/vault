@@ -168,11 +168,11 @@ retry_cmd() {
 check_dependencies() {
     if [[ "$(dpkg-query -W -f='${Status}' curl 2>/dev/null)" != *"ok installed"* ]]; then
         if ! retry_cmd apt-get -qq update; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to update package lists while preparing curl -abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to update package lists while preparing curl -abort" >&2
             exit 1
         fi
         if ! retry_cmd apt-get install -y curl; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install curl -abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install curl -abort" >&2
             exit 1
         fi
     fi
@@ -189,7 +189,7 @@ check_dependencies() {
 
     if [ ${#unavailable[@]} -gt 0 ]; then
         for u in "${unavailable[@]}"; do echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: dependency not found in APT: $u -alert"; done
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: install them manually, or enable required repos -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: install them manually, or enable required repos -abort" >&2
         exit 1
     fi
 
@@ -208,11 +208,11 @@ check_dependencies() {
             apt_lock_elapsed=$((apt_lock_elapsed + 5))
         done
         if ! retry_cmd apt-get -qq update; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to update package lists -abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to update package lists -abort" >&2
             exit 1
         fi
         if ! retry_cmd apt-get install -y "${missing[@]}"; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install dependencies -abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install dependencies -abort" >&2
             exit 1
         fi
     fi
@@ -221,7 +221,7 @@ check_dependencies() {
     if [[ "$(dpkg-query -W -f='${Status}' libxdo3 2>/dev/null)" != *"ok installed"* ]] && [[ "$(dpkg-query -W -f='${Status}' libxdo4 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing missing dependency: libxdo3"
         if ! retry_cmd apt-get install -y libxdo3; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install libxdo3 -abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install libxdo3 -abort" >&2
             exit 1
         fi
     fi
@@ -272,7 +272,7 @@ setup_keyboard() {
     esac
 
     if ! grep -q "setxkbmap $kb_layout" "$xprofile_path"; then
-        echo "setxkbmap $kb_layout" >> "$xprofile_path"
+        echo "setxkbmap $kb_layout # rdclient managed" >> "$xprofile_path"
         chown "$local_user:$local_group" "$xprofile_path" 2>/dev/null || true
     fi
 }
@@ -284,7 +284,7 @@ install_rustdesk() {
 
     ver_tag=$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//' || true)
     if [ -z "$ver_tag" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to fetch latest version -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to fetch latest version -abort" >&2
         exit 1
     fi
 
@@ -299,7 +299,7 @@ install_rustdesk() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Latest version: $ver_tag"
 
     if [ "$installed_ver" = "$ver_tag" ]; then
-        echo "OK: You already have latest version. Nothing to do"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: already at latest version"
         return
     fi
 
@@ -308,7 +308,7 @@ install_rustdesk() {
 
     cd /tmp
     if ! retry_cmd wget -q "${base_url}/${deb_file}"; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: download failed -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: download failed -abort" >&2
         rm -f "$deb_file"
         exit 1
     fi
@@ -323,11 +323,11 @@ install_rustdesk() {
         systemctl stop rustdesk 2>/dev/null || true
         systemctl disable rustdesk 2>/dev/null || true
         rm -f "$deb_file" "$dpkg_out"
-        echo "OK: RustDesk $ver_tag installed successfully"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: RustDesk $ver_tag installed"
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Service stopped. To start it now: sudo systemctl start rustdesk"
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: To start it on every boot: sudo systemctl enable rustdesk"
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: installation failed -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: installation failed -abort" >&2
         cat "$dpkg_out" >&2
         rm -f "$deb_file" "$dpkg_out"
         exit 1
@@ -344,9 +344,9 @@ remove_rustdesk() {
     apt_out=$(mktemp)
     if apt-get remove --purge -y rustdesk >"$apt_out" 2>&1; then
         rm -f "$apt_out"
-        echo "OK: RustDesk removed successfully"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: RustDesk removed"
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to remove RustDesk -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to remove RustDesk -abort" >&2
         cat "$apt_out" >&2
         rm -f "$apt_out"
         exit 1
@@ -360,19 +360,23 @@ remove_rustdesk() {
         user_uid=$(id -u "$local_user" 2>/dev/null || true)
 
         xprofile_path="$user_home/.xprofile"
-        [ -f "$xprofile_path" ] && sed -i '/^setxkbmap /d' "$xprofile_path"
+        [ -f "$xprofile_path" ] && sed -i -E '/^setxkbmap [a-z]+ # rdclient managed$/d' "$xprofile_path"
 
         rm -rf "$user_home/.local/share/logs/RustDesk"
         [ -n "$user_uid" ] && rm -rf "/tmp/RustDesk-service" "/tmp/RustDesk-$user_uid"
 
         if [ -d "$user_home/.config/rustdesk" ]; then
-            read -rp "Also delete saved profiles/connections at $user_home/.config/rustdesk? (y/n): " user_response
-            [[ "$user_response" =~ ^[Yy]$ ]] && rm -rf "$user_home/.config/rustdesk"
+            if read -rp "Also delete saved profiles/connections at $user_home/.config/rustdesk? (y/n): " user_response &&
+                [[ "$user_response" =~ ^[Yy]$ ]]; then
+                rm -rf "$user_home/.config/rustdesk"
+            fi
         fi
 
         if [ -d "$user_home/Videos/RustDesk" ]; then
-            read -rp "Also delete recordings at $user_home/Videos/RustDesk? (y/n): " user_response
-            [[ "$user_response" =~ ^[Yy]$ ]] && rm -rf "$user_home/Videos/RustDesk"
+            if read -rp "Also delete recordings at $user_home/Videos/RustDesk? (y/n): " user_response &&
+                [[ "$user_response" =~ ^[Yy]$ ]]; then
+                rm -rf "$user_home/Videos/RustDesk"
+            fi
         fi
     fi
 }
@@ -408,7 +412,7 @@ case $option in
     3)
         ;;
     *)
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
         exit 1
         ;;
 esac

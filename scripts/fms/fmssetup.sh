@@ -75,11 +75,11 @@ done
 script_lock="${script_dir}/fmssetup.lock"
 [ ! -L "$script_lock" ] || abort "fmssetup.lock is a symbolic link -abort"
 if ! (umask 077; : >> "$script_lock"); then
-    abort "cannot open fmssetup.lock -abort"
+    abort "cannot open $(basename "$script_lock") -abort"
 fi
 exec 200>"$script_lock"
 if ! flock -n 200; then
-    abort "fmssetup is already running -abort"
+    abort "script $(basename "$0") is already running -abort"
 fi
 
 # ------------------------------------------------------------------------------

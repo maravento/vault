@@ -11,7 +11,7 @@
 #
 # USAGE: sudo ./kworker.sh
 #
-# LOG: /var/log/syslog
+# LOG: system logger (destination set by system configuration)
 ################################################################################
 
 set -uo pipefail
@@ -41,7 +41,7 @@ if ! flock -n 200; then
 fi
 
 # dependencies
-for dep in grep coreutils util-linux; do
+for dep in grep coreutils util-linux bsdutils; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
@@ -58,18 +58,24 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: kworker start..."
 kworker=$(mktemp /tmp/gpelist.XXXXXX)
 trap 'rm -f "$kworker"' EXIT
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') Check GPE list..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Checking GPE list..."
 grep enabled /sys/firmware/acpi/interrupts/* 2>/dev/null > "$kworker"
 
 gpe=$(grep -E '[1-9][0-9][0-9][0-9]+ ' "$kworker" | sort -rnk 2 | head -n1 | cut -d":" -f1)
 # Pattern matches GPE interrupt counts >= 1000, indicating a potential IRQ storm
 
 if [ -z "$gpe" ]; then
-    echo "No Kworker to Disable"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no GPE interrupt storm found"
 else
-    echo "Send Deactivation Signal"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Disabling ${gpe##*/}..."
     echo "disable" > "$gpe"
-    echo "kworker disable: $gpe" | tee -a /var/log/syslog
+    gpe_rc=$?
+    if [ "$gpe_rc" -eq 0 ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: kworker disable: $gpe"
+    else
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot disable ${gpe##*/}, rc=$gpe_rc -alert"
+    fi
+    logger -t kworker "kworker disable: $gpe rc=$gpe_rc" || true
 fi
 
 # ------------------------------------------------------------------------------

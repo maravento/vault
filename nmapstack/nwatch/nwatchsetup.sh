@@ -927,7 +927,10 @@ do_install() {
         exit 1
     fi
 
-    init_schema
+    if ! init_schema; then
+        log "ERROR: cannot initialize nwatch.db -abort"
+        exit 1
+    fi
     if ! chown -R www-data:www-data "$nwatch_data"; then
         log "ERROR: cannot set nwatch data owner and group -abort"
         exit 1
@@ -988,17 +991,17 @@ PMODE
     for apache_php_ini in /etc/php/*/apache2/php.ini; do
         [ -f "$apache_php_ini" ] || continue
         if ! { [ -f "${apache_php_ini}.bak" ] || cp -p "$apache_php_ini" "${apache_php_ini}.bak"; }; then
-            echo "ERROR: cannot back up $apache_php_ini -abort" >&2
+            log "ERROR: cannot back up $apache_php_ini -abort"
             exit 1
         fi
         if grep -Eq '^[[:space:]]*;*[[:space:]]*session\.upload_progress\.enabled[[:space:]]*=' "$apache_php_ini"; then
             sed -i 's/^[[:space:]]*;*[[:space:]]*session\.upload_progress\.enabled[[:space:]]*=.*/session.upload_progress.enabled = 0/' "$apache_php_ini" || {
-                echo "ERROR: cannot edit $apache_php_ini -abort" >&2
+                log "ERROR: cannot edit $apache_php_ini -abort"
                 exit 1
             }
         else
             printf '\nsession.upload_progress.enabled = 0\n' >> "$apache_php_ini" || {
-                echo "ERROR: cannot edit $apache_php_ini -abort" >&2
+                log "ERROR: cannot edit $apache_php_ini -abort"
                 exit 1
             }
         fi

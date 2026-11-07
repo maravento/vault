@@ -120,7 +120,13 @@ if [[ $custom_editor = 'yes' ]]; then
 fi
 
 die() {
-    [[ $colors = 'yes' ]] && echo -e "\n\033[1;31m$*\033[0m" >&2 || echo -e "\n$*" >&2
+    local die_time
+    die_time=$(date '+%Y-%m-%d %H:%M:%S')
+    if [[ $colors = 'yes' ]]; then
+        printf '\033[1;31m%s ERROR: %s -abort\033[0m\n' "$die_time" "$*" >&2
+    else
+        printf '%s ERROR: %s -abort\n' "$die_time" "$*" >&2
+    fi
     exit 1
 }
 
@@ -311,17 +317,30 @@ trigger() {
         [[ -z ${serials[$i]} ]] || string="${string}, ATTR{serial}==\"${serials[$i]}\""
 
         if [[ !("$rulevar" =~ .*"$string".*) ]]; then
-            [[ -z ${products_name[$i]} ]] || string+="\n${products_name[$i]}"
-            newdevice+="${string}"
+            [[ -z ${products_name[$i]} ]] || string+=", Name=${products_name[$i]}"
+            newdevice+="${newdevice:+; }${string}"
         fi
     done
 
-    trigger_msg="\n------------------------------------------\n$(date '+%Y-%m-%d %H:%M:%S') "
-    [[ -z $newdevice ]] && trigger_msg+="[EJECTED] Device ejected" || trigger_msg+="[BLACKLIST] Unknown Device Blocked: $newdevice"
+    # One event, one line: real line breaks in device data become spaces.
+    newdevice="${newdevice//$'\n'/ }"
+    newdevice="${newdevice//$'\r'/ }"
+    local log_time trigger_msg
+    log_time=$(date '+%Y-%m-%d %H:%M:%S')
     if [[ $demo = 'yes' ]]; then
-        echo -e "$trigger_msg \nDemo mode" >>"$log_file"
+        if [[ -z $newdevice ]]; then
+            trigger_msg="$log_time INFO: demo mode, would handle a device ejection"
+        else
+            trigger_msg="$log_time INFO: demo mode, would block unknown device: $newdevice"
+        fi
+        printf '%s\n' "$trigger_msg" >>"$log_file"
     else
-        [[ $log_enabled = 'yes' ]] && (echo -e "$trigger_msg" >>"$log_file" && echo -e "$trigger_msg" | systemd-cat --priority=7)
+        if [[ -z $newdevice ]]; then
+            trigger_msg="$log_time INFO: device ejected"
+        else
+            trigger_msg="$log_time WARNING: unknown device blocked: $newdevice -alert"
+        fi
+        [[ $log_enabled = 'yes' ]] && (printf '%s\n' "$trigger_msg" >>"$log_file" && printf '%s\n' "$trigger_msg" | systemd-cat --priority=7)
         for i in "${commands_list[@]}"; do
             "$i"
         done
@@ -337,12 +356,15 @@ log_allowed() {
     local serial="${ID_SERIAL_SHORT:-}"
     local name="${ID_MODEL:-}"
 
-    local allow_msg="[WHITELIST] Allowed Device Connected: Vendor=$vendor, Product=$product"
+    local allow_msg="allowed device connected: Vendor=$vendor, Product=$product"
     [[ -n $name ]] && allow_msg+=", Name=${name//_/ }"
     [[ -n $serial ]] && allow_msg+=", Serial=$serial"
-    allow_msg="\n------------------------------------------\n$(date '+%Y-%m-%d %H:%M:%S') $allow_msg\n"
+    # One event, one line: real line breaks in device data become spaces.
+    allow_msg="${allow_msg//$'\n'/ }"
+    allow_msg="${allow_msg//$'\r'/ }"
+    allow_msg="$(date '+%Y-%m-%d %H:%M:%S') INFO: $allow_msg"
 
-    [[ $log_enabled = 'yes' ]] && echo -e "$allow_msg" >>"$log_file"
+    [[ $log_enabled = 'yes' ]] && printf '%s\n' "$allow_msg" >>"$log_file"
 }
 
 # ------------------------------------------------------------------------------
@@ -406,7 +428,9 @@ trigger_async)
     ;;
 
 *)
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
     usage
+    exit 1
     ;;
 esac
 

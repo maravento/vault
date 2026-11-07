@@ -73,7 +73,7 @@ done
 # dependencies (external repo)
 for dep in evebox; do
     if ! dpkg-query -W -f='${Status}' "$dep" 2>/dev/null | grep -q 'ok installed'; then
-        log "ERROR: missing dependency '$dep' -abort"
+        log "ERROR: dependency '$dep' is not installed -abort"
         exit 1
     fi
 done

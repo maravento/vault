@@ -31,7 +31,7 @@ FILE: capturefox/README.md
 | Browser | Firefox desktop 142 or later. | Firefox de escritorio 142 o posterior. |
 | Camera and microphone | Corresponding devices and browser permissions are required for these modes. | Estos modos requieren los dispositivos y permisos correspondientes. |
 | System audio | Linux, Python 3, `pactl`, and PulseAudio or a compatible server. Use the included helper. | Linux, Python 3, `pactl` y PulseAudio o un servidor compatible. Utiliza la herramienta incluida. |
-| Development | Node.js 24 or later for tests; Python 3 for packaging and helper tests. | Node.js 24 o posterior para pruebas; Python 3 para empaquetado y pruebas de la herramienta. |
+| Development | Python 3 for packaging. | Python 3 para el empaquetado. |
 
 > Screen/camera recording requires neither npm nor Python. The Linux helper is only needed for the virtual system audio input. It does not require sudo or change default audio devices. Other operating systems and full browser/device combinations have not been verified.
 >
@@ -119,9 +119,16 @@ FILE: capturefox/README.md
 
 ### System audio limitation
 
-| Description | Descripción |
-|---|---|
-| <ul><li>Firefox exposes no interface for internal audio. <code>getDisplayMedia</code> returns video only, and the <code>desktopCapture</code> and <code>tabCapture</code> extension APIs do not exist in Firefox. Chrome recorders capture internal audio because Chrome does provide those interfaces.</li><li>CaptureFox works around this on Linux. The helper <code>tools/audio-bridge.py</code> creates a virtual input named <code>CaptureFox_System_Audio</code>. Firefox reads that input as one more microphone, so the extension never calls the helper and never talks to Python.</li><li>System audio is therefore an optional extra. The other four combinations of mode and audio work without it.</li><li>Helper required by mode and audio selection:<ul><li>Screen; No audio: No.</li><li>Screen; Microphone: No.</li><li>Camera; Microphone: No.</li><li>Screen and camera; Microphone: No.</li><li>Any; System audio: Yes.</li><li>Any; Microphone and system audio: Yes.</li></ul></li></ul> | <ul><li>Firefox no expone ninguna interfaz para el audio interno. <code>getDisplayMedia</code> devuelve solo vídeo, y las API de extensión <code>desktopCapture</code> y <code>tabCapture</code> no existen en Firefox. Los grabadores de Chrome capturan audio interno porque Chrome sí ofrece esas interfaces.</li><li>CaptureFox lo resuelve en Linux por otra vía. El ayudante <code>tools/audio-bridge.py</code> crea una entrada virtual llamada <code>CaptureFox_System_Audio</code>. Firefox lee esa entrada como un micrófono más, así que la extensión nunca llama al ayudante ni habla con Python.</li><li>El audio del sistema es por eso un extra opcional. Las otras cuatro combinaciones de modo y audio funcionan sin él.</li><li>Herramienta necesaria según el modo y el audio seleccionados:<ul><li>Pantalla; Sin audio: No.</li><li>Pantalla; Micrófono: No.</li><li>Cámara; Micrófono: No.</li><li>Pantalla y cámara; Micrófono: No.</li><li>Cualquiera; Audio interno: Sí.</li><li>Cualquiera; Micrófono y audio interno: Sí.</li></ul></li></ul> |
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <ul><li>Firefox exposes no interface for internal audio. <code>getDisplayMedia</code> returns video only, and the <code>desktopCapture</code> and <code>tabCapture</code> extension APIs do not exist in Firefox. Chrome recorders capture internal audio because Chrome does provide those interfaces.</li><li>CaptureFox works around this on Linux. The helper <code>tools/audio-bridge.py</code> creates a virtual input named <code>CaptureFox_System_Audio</code>. Firefox reads that input as one more microphone, so the extension never calls the helper and never talks to Python.</li><li>System audio is therefore an optional extra. The other four combinations of mode and audio work without it.</li><li>Helper required by mode and audio selection:<ul><li>Screen; No audio: No.</li><li>Screen; Microphone: No.</li><li>Camera; Microphone: No.</li><li>Screen and camera; Microphone: No.</li><li>Any; System audio: Yes.</li><li>Any; Microphone and system audio: Yes.</li></ul></li></ul>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <ul><li>Firefox no expone ninguna interfaz para el audio interno. <code>getDisplayMedia</code> devuelve solo vídeo, y las API de extensión <code>desktopCapture</code> y <code>tabCapture</code> no existen en Firefox. Los grabadores de Chrome capturan audio interno porque Chrome sí ofrece esas interfaces.</li><li>CaptureFox lo resuelve en Linux por otra vía. El ayudante <code>tools/audio-bridge.py</code> crea una entrada virtual llamada <code>CaptureFox_System_Audio</code>. Firefox lee esa entrada como un micrófono más, así que la extensión nunca llama al ayudante ni habla con Python.</li><li>El audio del sistema es por eso un extra opcional. Las otras cuatro combinaciones de modo y audio funcionan sin él.</li><li>Herramienta necesaria según el modo y el audio seleccionados:<ul><li>Pantalla; Sin audio: No.</li><li>Pantalla; Micrófono: No.</li><li>Cámara; Micrófono: No.</li><li>Pantalla y cámara; Micrófono: No.</li><li>Cualquiera; Audio interno: Sí.</li><li>Cualquiera; Micrófono y audio interno: Sí.</li></ul></li></ul>
+    </td>
+  </tr>
+</table>
 
 ### Enable system audio
 
@@ -142,9 +149,16 @@ python3 tools/audio-bridge.py --start
 
 ### Record microphone and system audio
 
-| Description | Descripción |
-|---|---|
-| <ol><li>Click **Refresh devices** and grant microphone permission.</li><li>Select your physical microphone and **CaptureFox_System_Audio** as the system audio input.</li><li>Choose **Microphone and system audio**, click **Start recording**, and select the screen or window to share.</li><li>Click **Stop** when finished. Open **Library** to play or download the result.</li></ol> | <ol><li>Pulsa **Refresh devices** y concede permiso al micrófono.</li><li>Selecciona tu micrófono físico y **CaptureFox_System_Audio** como entrada interna.</li><li>Elige **Microphone and system audio**, pulsa **Start recording** y selecciona la pantalla o ventana.</li><li>Pulsa **Stop** al terminar. Abre **Library** para reproducir o descargar el resultado.</li></ol> |
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <ol><li>Click <strong>Refresh devices</strong> and grant microphone permission.</li><li>Select your physical microphone and <strong>CaptureFox_System_Audio</strong> as the system audio input.</li><li>Choose <strong>Microphone and system audio</strong>, click <strong>Start recording</strong>, and select the screen or window to share.</li><li>Click <strong>Stop</strong> when finished. Open <strong>Library</strong> to play or download the result.</li></ol>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <ol><li>Pulsa <strong>Refresh devices</strong> y concede permiso al micrófono.</li><li>Selecciona tu micrófono físico y <strong>CaptureFox_System_Audio</strong> como entrada interna.</li><li>Elige <strong>Microphone and system audio</strong>, pulsa <strong>Start recording</strong> y selecciona la pantalla o ventana.</li><li>Pulsa <strong>Stop</strong> al terminar. Abre <strong>Library</strong> para reproducir o descargar el resultado.</li></ol>
+    </td>
+  </tr>
+</table>
 
 ### Disable system audio
 
@@ -203,42 +217,6 @@ python3 tools/audio-bridge.py --status --json
 
 ### Development
 
-#### Install test dependencies
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      The extension runtime has no third-party dependencies. Install the test dependencies outside the project to keep the source folder clean. The <code>tests/</code> folder is for development and is not included in the XPI.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      La extensión no tiene dependencias externas de ejecución. Instala las dependencias de pruebas fuera del proyecto para mantener limpia la carpeta del código. La carpeta <code>tests/</code> se utiliza para desarrollo y no se incluye en el XPI.
-    </td>
-  </tr>
-</table>
-
-```bash
-npm install --prefix ../capturefox-dev --ignore-scripts --no-bin-links --no-package-lock --no-audit --no-fund fake-indexeddb@6.2.5 jsdom@30.1.2
-```
-
-#### Run tests
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      Run the recording, storage, WebM, interface, and audio helper tests from the project folder.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      Ejecuta las pruebas de grabación, almacenamiento, WebM, interfaz y herramienta de audio desde la carpeta del proyecto.
-    </td>
-  </tr>
-</table>
-
-```bash
-CAPTUREFOX_TEST_DEPS=../capturefox-dev node --test tests/recorder.test.mjs tests/storage.test.mjs tests/webm.test.mjs
-CAPTUREFOX_TEST_DEPS=../capturefox-dev node tests/ui.test.mjs
-PYTHONDONTWRITEBYTECODE=1 python3 tests/test_audio_bridge.py
-```
-
 #### Build the extension
 
 <table width="100%">
@@ -259,10 +237,10 @@ python3 tools/build.py
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      The build produces <code>capturefox-0.1.1.xpi</code>, containing only <code>extension/</code>. Development dependencies are excluded.
+      The build produces <code>capturefox-0.1.1.xpi</code> from the files in <code>extension/</code>. Their paths are relative to that directory, so <code>manifest.json</code> is at the archive root. Development dependencies are excluded.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      La compilación genera <code>capturefox-0.1.1.xpi</code>, que contiene solamente <code>extension/</code>. No incluye dependencias de desarrollo.
+      La compilación genera <code>capturefox-0.1.1.xpi</code> con los archivos de <code>extension/</code>. Sus rutas son relativas a ese directorio, por lo que <code>manifest.json</code> queda en la raíz del comprimido. No incluye dependencias de desarrollo.
     </td>
   </tr>
 </table>

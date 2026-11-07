@@ -24,14 +24,6 @@ set -euo pipefail
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# cleanup temporary files on exit or error
-work_dir="$(pwd)"
-cleanup() {
-    rm -f "$work_dir/master.zip"
-    rm -rf "$work_dir/phpvirtualbox-master"
-}
-trap cleanup EXIT
-
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -226,20 +218,28 @@ fi
 # PHPVBOX
 # ------------------------------------------------------------------------------
 
-# download phpvirtualbox
-retry_cmd wget -q -c https://github.com/phpvirtualbox/phpvirtualbox/archive/master.zip
-download_sha256="$(sha256sum master.zip | awk '{print $1}')"
-echo "master.zip SHA256: $download_sha256"
-unzip -q master.zip
-# ren config
-mv phpvirtualbox-master/config.php-example phpvirtualbox-master/config.php
-#mv phpvirtualbox-master/recovery.php-disabled phpvirtualbox-master/recovery.php
-# change user
-safe_local_user=$(printf '%s' "$local_user" | sed -e 's/[\&:]/\\&/g')
-sed -i "0,/var \\\$username/{/var \\\$username/s:'vbox':'$safe_local_user':}" phpvirtualbox-master/config.php
-# move folder to final path (remove previous install to avoid nesting on reinstall)
-rm -rf /var/www/html/phpvirtualbox
-mv phpvirtualbox-master/ /var/www/html/phpvirtualbox
+(
+    work_dir=$(mktemp -d) || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot create temporary directory -abort" >&2
+        exit 1
+    }
+    trap 'rm -rf -- "$work_dir"' EXIT
+    cd -- "$work_dir"
+    # download phpvirtualbox
+    retry_cmd wget -q -c https://github.com/phpvirtualbox/phpvirtualbox/archive/master.zip
+    download_sha256="$(sha256sum master.zip | awk '{print $1}')"
+    echo "master.zip SHA256: $download_sha256"
+    unzip -q master.zip
+    # ren config
+    mv phpvirtualbox-master/config.php-example phpvirtualbox-master/config.php
+    #mv phpvirtualbox-master/recovery.php-disabled phpvirtualbox-master/recovery.php
+    # change user
+    safe_local_user=$(printf '%s' "$local_user" | sed -e 's/[\&:]/\\&/g')
+    sed -i "0,/var \\\$username/{/var \\\$username/s:'vbox':'$safe_local_user':}" phpvirtualbox-master/config.php
+    # move folder to final path (remove previous install to avoid nesting on reinstall)
+    rm -rf /var/www/html/phpvirtualbox
+    mv phpvirtualbox-master/ /var/www/html/phpvirtualbox
+)
 # set chown
 chown -R www-data:www-data /var/www/html/phpvirtualbox
 # create virtualbox file config
@@ -252,17 +252,17 @@ fi
 for apache_php_ini in /etc/php/*/apache2/php.ini; do
     [ -f "$apache_php_ini" ] || continue
     if ! { [ -f "${apache_php_ini}.bak" ] || cp -p "$apache_php_ini" "${apache_php_ini}.bak"; }; then
-        echo "ERROR: cannot back up $apache_php_ini -abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot back up $apache_php_ini -abort" >&2
         exit 1
     fi
     if grep -Eq '^[[:space:]]*;*[[:space:]]*session\.upload_progress\.enabled[[:space:]]*=' "$apache_php_ini"; then
         sed -i 's/^[[:space:]]*;*[[:space:]]*session\.upload_progress\.enabled[[:space:]]*=.*/session.upload_progress.enabled = 0/' "$apache_php_ini" || {
-            echo "ERROR: cannot edit $apache_php_ini -abort" >&2
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot edit $apache_php_ini -abort" >&2
             exit 1
         }
     else
         printf '\nsession.upload_progress.enabled = 0\n' >> "$apache_php_ini" || {
-            echo "ERROR: cannot edit $apache_php_ini -abort" >&2
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot edit $apache_php_ini -abort" >&2
             exit 1
         }
     fi

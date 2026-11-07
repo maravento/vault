@@ -96,7 +96,7 @@ sub list_netplan_files {
     my $dir = $config{'netplan_path'} || "/etc/netplan";
     my @files;
     if (opendir(my $dh, $dir)) {
-        @files = sort grep { /\.ya?ml$/i && -f "$dir/$_" } readdir($dh);
+        @files = sort grep { -f "$dir/$_" && is_safe_netplan_file("$dir/$_") } readdir($dh);
         closedir($dh);
     }
     return map { "$dir/$_" } @files;
@@ -112,6 +112,12 @@ sub read_file_content {
         return $c;
     }
     return undef;
+}
+
+sub backup_file {
+    my ($file) = @_;
+    local $SIG{'CHLD'} = 'DEFAULT';
+    return system('cp', '-fT', '--remove-destination', '--', $file, "${file}.bak") == 0;
 }
 
 sub write_file_content {
@@ -149,7 +155,7 @@ sub is_safe_netplan_file {
     my $real_dir = realpath($dir);
     return 0 unless $real_dir;
 
-    return $real_dir eq $real_allowed;
+    return $real_dir eq $real_allowed && !-l $f;
 }
 
 # ============================================================
@@ -176,7 +182,10 @@ if (defined $in{'save'}) {
     my $content = $in{'content'} || '';
     if ($file && is_safe_netplan_file($file)
         && ($config{'netplan_backup'} // '1') eq '1' && -f $file) {
-        system("cp -f \"$file\" \"${file}.bak\" 2>/dev/null");
+        unless (backup_file($file)) {
+            &redirect("index.cgi?error=backup");
+            exit;
+        }
     }
     if ($file && is_safe_netplan_file($file) && write_file_content($file, $content)) {
         &redirect("index.cgi?saved=1&file=" . &urlize($file));
@@ -220,7 +229,10 @@ if (defined $in{'apply'}) {
     if ($file && is_safe_netplan_file($file)) {
         if (defined $in{'content'}) {
             if (($config{'netplan_backup'} // '1') eq '1' && -f $file) {
-                system("cp -f \"$file\" \"${file}.bak\" 2>/dev/null");
+                unless (backup_file($file)) {
+                    &redirect("index.cgi?error=backup");
+                    exit;
+                }
             }
             if (!write_file_content($file, $in{'content'})) {
                 &redirect("index.cgi?error=save");
@@ -691,7 +703,8 @@ if (defined $in{'applied'}) {
 }
 
 if (defined $in{'error'}) {
-    print "<div class='alert-error'> $text{'file_error'}</div>";
+    my $message = $in{'error'} eq 'backup' ? 'Cannot create YAML backup' : $text{'file_error'};
+    print "<div class='alert-error'> $message</div>";
 }
 
 print "<div class='netplan-container'>";
@@ -718,7 +731,7 @@ if (!@files) {
         print "<td data-label='$text{\"table_actions\"}'>";
         print "<div class='button-group'>";
 
-        print "<button type='button' class='netplan-btn netplan-btn-edit' onclick='openEditModal(\"$escaped_file\", \"$escaped_basename\")'>$text{'action_edit'}</button>";
+        print "<button type='button' class='netplan-btn netplan-btn-edit' data-file=\"$escaped_file\" data-name=\"$escaped_basename\" onclick='openEditModal(this.dataset.file, this.dataset.name)'>$text{'action_edit'}</button>";
 
         print "<form method='post' action='index.cgi' style='display:inline-block; margin:0;'>";
         print "<input type='hidden' name='file' value='$escaped_file'>";
@@ -738,25 +751,6 @@ if (!@files) {
     }
 
     print "</tbody></table>";
-}
-
-if (defined $in{'edit'}) {
-    my $file = $in{'file'} || '';
-    my $content = read_file_content($file) || "";
-    my $basename = $file;
-    $basename =~ s{.*/}{};
-
-    print "<div class='edit-section'>";
-    print "<h4>$text{'editing'}: <code>$basename</code></h4>";
-    print &ui_form_start("index.cgi", "post");
-    print &ui_hidden("file", $file);
-    print &ui_textarea("content", $content, 25, 100);
-    print "<br>";
-    print &ui_submit($text{'action_save'}, "save");
-    print " ";
-    print "<input type='button' value='$text{\"action_cancel\"}' onclick='window.location=\"index.cgi\"' class='btn-secondary'>";
-    print &ui_form_end();
-    print "</div>";
 }
 
 print "</div>";
@@ -989,7 +983,7 @@ EOF
 Version 1.2 (2025)
 - Added modal popup editor for better UX with long file lists
 - Added AJAX file loading for instant editing
-- Added configuration options (backup, themes, auto-validate)
+- Added configuration option (backup)
 - Added Spanish configuration translations
 - Improved user experience with floating editor
 
@@ -1130,7 +1124,7 @@ show_usage() {
 
 main() {
     if [ ! -d "/usr/share/webmin" ] && [ ! -d "/etc/webmin" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Webmin is not installed on this system -abort"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Webmin is not installed on this system -abort" >&2
         exit 1
     fi
 
@@ -1152,7 +1146,7 @@ main() {
                 exit 0
                 ;;
             *)
-                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option '$1' -abort"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
                 echo ""
                 show_usage
                 exit 1
@@ -1177,20 +1171,18 @@ main() {
 
         case $option in
             1)
-                install_module
+                install_module || return 1
                 break
                 ;;
             2)
-                uninstall_module
+                uninstall_module || return 1
                 break
                 ;;
             3)
                 break
                 ;;
             *)
-                echo ""
-                echo "Invalid option. Please select 1, 2, or 3"
-                echo ""
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: invalid option -retry"
                 sleep 2
                 ;;
         esac

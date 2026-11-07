@@ -168,12 +168,10 @@ set "version=!version:~1,-2!"
 echo Latest version: !version!
 echo [%date% %time%] JRE version detected: !version! >> "%logfile%"
 
-set "url_version=!version!"
-set "url_version=!url_version:B=%2B!"
 set "file_version=!version!"
 for /l %%i in (1,1,10) do set "file_version=!file_version:+=_!"
 
-set "download_url=!version_base_url!jdk-!url_version!/OpenJDK!jdk_major!U-!jdk_type!_!os_arch!_!vm_type!_!file_version!.msi"
+set "download_url=!version_base_url!jdk-!version!/OpenJDK!jdk_major!U-!jdk_type!_!os_arch!_!vm_type!_!file_version!.msi"
 set "msi_filename=OpenJDK!jdk_major!U-!jdk_type!_!os_arch!_!vm_type!_!file_version!.msi"
 
 echo [%date% %time%] Download URL: !download_url! >> "%logfile%"
@@ -281,10 +279,10 @@ set "selected_url="
 if "%product_type%"=="network" (
     echo [%date% %time%] Getting Network Controller versions... >> "%logfile%"
     
-    :: Get all versions, sort by version number (descending)
+    REM Get all versions, sort by version number (descending)
     powershell -Command "$versions = (Get-Content '%json_file%' | ConvertFrom-Json).downloads | Where-Object { $_.name -like '*UniFi Network Application*Windows*' } | Select-Object -ExpandProperty version -Unique | ForEach-Object { [version]$_ } | Sort-Object -Descending; $versions | ForEach-Object { $_.ToString() }" > "%installpath%\network_versions.txt"
     
-    :: Get latest version (first line = highest version)
+    REM Get latest version (first line = highest version)
     for /f "delims=" %%v in ('type "%installpath%\network_versions.txt"') do (
         if not defined version_latest (
             set "version_latest=%%v"
@@ -292,7 +290,7 @@ if "%product_type%"=="network" (
         )
     )
     
-    :: Find the latest version from a different major version
+    REM Find the latest version from a different major version
     for /f "delims=" %%v in ('type "%installpath%\network_versions.txt"') do (
         for /f "tokens=1 delims=." %%m in ("%%v") do (
             if not "%%m"=="!latest_major!" (
@@ -400,7 +398,7 @@ echo [%date% %time%] Selected version: !selected_version! >> "%logfile%"
 
 :: Get download URL for selected version
 if "%product_type%"=="network" (
-    :: For Network Controller - simple URL format
+    REM For Network Controller - simple URL format
     set "selected_url=https://dl.ui.com/unifi/!selected_version!/UniFi-installer.exe"
     echo [%date% %time%] Network download URL: !selected_url! >> "%logfile%"
 )
@@ -496,12 +494,11 @@ echo =========================================== >> "%logfile%"
 echo [%date% %time%] STARTING UNIFI NETWORK CONTROLLER INSTALLATION >> "%logfile%"
 echo =========================================== >> "%logfile%"
 
-:: FIX 1: Improved folder check - only block if UniFi is actually running
 :: Check if UniFi service is running
 sc query "UniFi" >nul 2>&1
 if %errorlevel% equ 0 (
     echo UniFi Network Controller service is running.
-    echo Please uninstall UniFi first using option 4.
+    echo Please uninstall UniFi first using option 3.
     echo [%date% %time%] ERROR: UniFi service is running >> "%logfile%"
     echo.
     exit /b 1
@@ -518,16 +515,16 @@ if exist "%UserProfile%\Ubiquiti UniFi\" (
     echo %UserProfile%\Ubiquiti UniFi\
     echo.
     
-    :: Check if it's a complete installation
+    REM Check if it's a complete installation
     if exist "%UserProfile%\Ubiquiti UniFi\Uninstall.exe" (
         echo This appears to be a complete UniFi installation.
-        echo Please use option 4 to uninstall it first.
+        echo Please use option 3 to uninstall it first.
         echo [%date% %time%] ERROR: Complete UniFi installation found >> "%logfile%"
         echo.
         exit /b 1
     )
     
-    :: It's incomplete or leftover - offer to clean
+    REM It's incomplete or leftover - offer to clean
     echo This appears to be an incomplete or leftover installation.
     echo.
     echo Options:
@@ -543,7 +540,7 @@ if exist "%UserProfile%\Ubiquiti UniFi\" (
         call :kill_processes
         call :force_remove_folder "%UserProfile%\Ubiquiti UniFi"
         
-        :: Verify removal
+        REM Verify removal
         if exist "%UserProfile%\Ubiquiti UniFi\" (
             echo.
             echo ERROR: Could not remove the folder completely.
@@ -759,11 +756,11 @@ if %detect_network% equ 1 (
     echo Uninstalling UniFi Network Controller...
     echo [%date% %time%] Uninstalling UniFi Network Controller >> "%logfile%"
     
-    :: Stop UniFi service if running
+    REM Stop UniFi service if running
     net stop UniFi >nul 2>&1
     echo [%date% %time%] Stopped UniFi service >> "%logfile%"
     
-    :: Uninstall service using Java if available
+    REM Uninstall service using Java if available
     if exist "%ProgramFiles%\Temurin\bin\java.exe" (
         if exist "%UserProfile%\Ubiquiti UniFi\lib\ace.jar" (
             echo Removing UniFi service...
@@ -772,7 +769,7 @@ if %detect_network% equ 1 (
         )
     )
     
-    :: Run the uninstaller if it exists
+    REM Run the uninstaller if it exists
     set "uninstall_path=%UserProfile%\Ubiquiti UniFi\Uninstall.exe"
     if exist "!uninstall_path!" (
         echo Running UniFi uninstaller...
@@ -784,7 +781,7 @@ if %detect_network% equ 1 (
         echo No uninstaller found, cleaning up files...
     )
     
-    :: Force remove folder after uninstallation
+    REM Force remove folder after uninstallation
     timeout /t 3 /nobreak >nul
     call :force_remove_folder "%UserProfile%\Ubiquiti UniFi"
     echo OK
@@ -798,7 +795,7 @@ if %detect_java% equ 1 (
     cd /d "%installpath%" 2>nul || cd /d "%HOMEDRIVE%\"
     set "latest_msi="
     
-    :: Find the latest JRE MSI
+    REM Find the latest JRE MSI
     for /f "delims=" %%f in ('dir /b /a-d /o-d /t:c "OpenJDK*-jre_x64_windows_hotspot_*.msi" 2^>nul') do (
         set "latest_msi=%%f"
         goto :remove_jre

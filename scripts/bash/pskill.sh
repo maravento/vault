@@ -8,6 +8,7 @@
 #
 # DESCRIPTION: Kills every process matching a name. Sends TERM, waits three
 # seconds, then sends KILL to the survivors. Refuses core system processes.
+# Matches the exact comm name and rejects names longer than 15 bytes.
 #
 # USAGE: sudo bash pskill.sh
 #
@@ -37,6 +38,11 @@ done
 # FUNCTIONS
 # ------------------------------------------------------------------------------
 
+name_fits_comm() {
+    local LC_ALL=C
+    (( ${#1} <= 15 ))
+}
+
 # LIVE PIDS
 # Return the PIDs still running, excluding the gone and the zombies
 live_pids() {
@@ -62,17 +68,25 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: pskill start..."
 read -rp "Set process name (e.g. vlc): " process_name
 
 if [ -z "$process_name" ]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: process name cannot be empty -abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: process name cannot be empty -abort" >&2
     exit 1
 fi
 
 protected_pattern="^(systemd|init|kernel|kthreadd|ksoftirqd|migration|watchdog)$"
 if [[ "$process_name" =~ $protected_pattern ]]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: '$process_name' is a protected system process -abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: '$process_name' is a protected system process -abort" >&2
     exit 1
 fi
 
-pids=$(ps ax | awk '{print $1, $5}' | grep -wF "$process_name" | awk '{print $1}' 2>/dev/null || true)
+if ! name_fits_comm "$process_name"; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: name exceeds 15 bytes; use the comm name -abort" >&2
+    exit 1
+fi
+
+pids=$(ps -ww -eo pid=,comm= | PROCESS_NAME="$process_name" awk '
+    { pid = $1; sub(/^[[:blank:]]*[0-9]+[[:blank:]]+/, "") }
+    ("x" $0) == ("x" ENVIRON["PROCESS_NAME"]) { print pid }
+')
 
 if [ -z "$pids" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no process named $process_name -skip"

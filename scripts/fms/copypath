@@ -36,12 +36,13 @@ fi
 # ------------------------------------------------------------------------------
 
 # Select clipboard tool
+clip_cmd=()
 if command -v xclip &>/dev/null; then
-    clip_cmd="xclip -selection clipboard"
+    clip_cmd=(xclip -selection clipboard)
 elif command -v xsel &>/dev/null; then
-    clip_cmd="xsel --clipboard"
+    clip_cmd=(xsel --clipboard)
 elif command -v wl-copy &>/dev/null; then
-    clip_cmd="wl-copy"
+    clip_cmd=(wl-copy)
 fi
 
 # Detect file manager and get selected paths
@@ -75,14 +76,18 @@ else
     exit 1
 fi
 
-# Clean up paths (remove file:// prefix and decode URIs)
-selected_paths=$(echo "$selected_paths" | sed 's|file://||g' | python3 -c "
-import sys, urllib.parse
-print(urllib.parse.unquote(sys.stdin.read()), end='')
-")
+# Decode file URIs while preserving literal paths.
+selected_paths=$(printf '%s' "$selected_paths" | python3 -c '
+import sys
+from urllib.parse import unquote_to_bytes
 
-# Remove any trailing newlines or whitespace
-selected_paths=$(echo "$selected_paths" | sed 's/[[:space:]]*$//')
+prefix = b"file://"
+paths = sys.stdin.buffer.read().split(b"\n")
+sys.stdout.buffer.write(b"\n".join(
+    unquote_to_bytes(path[len(prefix):]) if path.startswith(prefix) else path
+    for path in paths
+))
+') || exit 1
 
 # Validate that we have actual paths
 if [[ -z "$selected_paths" ]]; then
@@ -95,7 +100,21 @@ if [[ -z "$selected_paths" ]]; then
 fi
 
 # Copy to clipboard
-echo -n "$selected_paths" | $clip_cmd
+clip_error=""
+if (( ${#clip_cmd[@]} == 0 )); then
+    clip_error="No clipboard tool found. Install xclip, xsel, or wl-copy."
+elif ! printf '%s' "$selected_paths" | "${clip_cmd[@]}"; then
+    clip_error="Could not copy paths to the clipboard."
+fi
+if [[ -n "$clip_error" ]]; then
+    printf '%s\n' "$clip_error" >&2
+    if command -v zenity &>/dev/null; then
+        zenity --error --title="Copy Path" --text="$clip_error" 2>/dev/null || true
+    elif command -v notify-send &>/dev/null; then
+        notify-send "Copy Path Error" "$clip_error" -u critical
+    fi
+    exit 1
+fi
 
 # ------------------------------------------------------------------------------
 # END

@@ -274,7 +274,10 @@ do_uninstall() {
 
 do_start() {
     check_password_exists
-    systemctl start "$service_name"
+    if ! systemctl start "$service_name"; then
+        log "ERROR: cannot start $service_name -abort"
+        exit 1
+    fi
 
     log "INFO: $service_name started"
 
@@ -282,13 +285,19 @@ do_start() {
 }
 
 do_stop() {
-    systemctl stop "$service_name"
+    if ! systemctl stop "$service_name"; then
+        log "ERROR: cannot stop $service_name -abort"
+        exit 1
+    fi
 
     log "INFO: $service_name stopped"
 }
 
 do_restart() {
-    systemctl restart "$service_name"
+    if ! systemctl restart "$service_name"; then
+        log "ERROR: cannot restart $service_name -abort"
+        exit 1
+    fi
 
     log "INFO: $service_name restarted"
 
@@ -299,18 +308,18 @@ do_status() {
     if systemctl is-active --quiet "$service_name"; then
         local pid
         pid=$(systemctl show -p MainPID --value "$service_name")
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [UP] $service_name (PID $pid)"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $service_name up (PID $pid)"
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [DOWN] $service_name"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $service_name down"
     fi
 
     local port_listeners
     if ! port_listeners=$(vnc_listeners); then
         echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot check port ${vnc_port} -alert"
     elif [ -n "$port_listeners" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [UP] port ${vnc_port} listening"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: port ${vnc_port} listening"
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [DOWN] port ${vnc_port} not listening"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: port ${vnc_port} not listening"
     fi
 }
 
@@ -362,7 +371,7 @@ else
         --stop)      do_stop ;;
         --restart)   do_restart ;;
         --status)    do_status ;;
-        *)         usage ;;
+        *)         log "ERROR: invalid option -abort"; usage ;;
     esac
 fi
 

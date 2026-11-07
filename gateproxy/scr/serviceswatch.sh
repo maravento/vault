@@ -64,7 +64,7 @@ done
 # dependencies (external repo)
 for dep in webmin; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
-        log "ERROR: missing dependency '$dep' -abort"
+        log "ERROR: dependency '$dep' is not installed -abort"
         exit 1
     fi
 done
@@ -83,44 +83,48 @@ sleep_time="5"
 # ------------------------------------------------------------------------------
 
 # Webmin service
-if pgrep -x miniserv.pl > /dev/null; then
-    log "INFO: Webmin ONLINE"
-else
+if ! pgrep -x miniserv.pl > /dev/null; then
     pkill -9 -x miniserv.pl &>/dev/null || true
     sleep "${sleep_time}"
-    /etc/webmin/restart-by-force-kill
-    log "INFO: Webmin restarted -fixed"
+    if /etc/webmin/restart-by-force-kill && pgrep -x miniserv.pl > /dev/null; then
+        log "INFO: Webmin restarted -fixed"
+    else
+        log "WARNING: Webmin restart FAILED -alert"
+    fi
 fi
 
 # Apache2 service
-if pgrep -x apache2 > /dev/null; then
-    log "INFO: apache2 ONLINE"
-else
+if ! pgrep -x apache2 > /dev/null; then
     pkill -9 -x apache2 &>/dev/null || true
     sleep "${sleep_time}"
-    systemctl start apache2.service
-    log "INFO: apache2 restarted -fixed"
+    if systemctl start apache2.service; then
+        log "INFO: apache2 restarted -fixed"
+    else
+        log "WARNING: apache2 restart FAILED -alert"
+    fi
 fi
 
 # Squid Service
-if pgrep -x squid > /dev/null; then
-    log "INFO: squid ONLINE"
-else
+if ! pgrep -x squid > /dev/null; then
     pkill -9 -x squid &>/dev/null || true
     rm -f /run/squid.pid &>/dev/null
     sleep "${sleep_time}"
-    systemctl start squid.service
-    log "INFO: squid restarted -fixed"
+    if systemctl start squid.service; then
+        log "INFO: squid restarted -fixed"
+    else
+        log "WARNING: squid restart FAILED -alert"
+    fi
 fi
 
 # rsyslog
-if pgrep -x rsyslogd > /dev/null; then
-    log "INFO: rsyslog ONLINE"
-else
+if ! pgrep -x rsyslogd > /dev/null; then
     systemctl stop syslog.socket rsyslog.service &>/dev/null
     sleep "${sleep_time}"
-    systemctl start syslog.socket rsyslog.service
-    log "INFO: rsyslog restarted -fixed"
+    if systemctl start syslog.socket rsyslog.service; then
+        log "INFO: rsyslog restarted -fixed"
+    else
+        log "WARNING: rsyslog restart FAILED -alert"
+    fi
 fi
 
 # End

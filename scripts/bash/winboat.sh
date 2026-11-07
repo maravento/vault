@@ -10,6 +10,8 @@
 # Installs or removes Winboat, a Windows-in-a-container runner that uses
 # FreeRDP strictly as an RDP client -- it does not bypass Windows RDP
 # session limits.
+# When installing or removing Docker, downloads docker.sh from Vault over
+# HTTPS and checks its Bash syntax before running it as root.
 #
 # USAGE: sudo bash winboat.sh [--install|--uninstall|--help]
 #
@@ -78,7 +80,7 @@ fi
 echo "Using local user: $local_user"
 
 # dependencies
-for dep in wget curl util-linux iproute2 libc-bin; do
+for dep in wget curl util-linux iproute2 libc-bin coreutils; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
@@ -145,7 +147,32 @@ check_internet() {
     exit 1
 }
 
-# Function to install Winboat
+fetch_docker_script() {
+    local docker_url="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh"
+    docker_script=""
+    if ! docker_script=$(mktemp /tmp/docker.XXXXXX.sh); then
+        docker_script=""
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot create docker.sh temporary file -alert"
+        return 1
+    fi
+    if ! curl -q --proto '=https' --fail --silent --show-error \
+        --location --max-redirs 0 --max-time 30 "$docker_url" -o "$docker_script"; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot download docker.sh -alert"
+        rm -f -- "$docker_script"
+        return 1
+    fi
+    if [[ ! -s "$docker_script" ]] || ! bash -n -- "$docker_script"; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: invalid docker.sh -alert"
+        rm -f -- "$docker_script"
+        return 1
+    fi
+    if ! chmod u+x "$docker_script"; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot make docker.sh executable -alert"
+        rm -f -- "$docker_script"
+        return 1
+    fi
+}
+
 install_winboat() {
     check_ipv4_interfaces
     check_internet
@@ -155,19 +182,16 @@ install_winboat() {
     # Step 1: Install Docker + Portainer
     echo "$(date '+%Y-%m-%d %H:%M:%S') [1/4] Installing Docker + Portainer..."
     if ! command -v docker &> /dev/null; then
-        docker_script=$(mktemp /tmp/docker.XXXXXX.sh)
-        if ! wget --timeout=30 --show-progress https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh -O "$docker_script"; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') PARTIAL: https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh"
+        if ! fetch_docker_script; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot prepare docker.sh -abort" >&2
             exit 1
         fi
-        echo "$(date '+%Y-%m-%d %H:%M:%S') SAVED: docker.sh"
-        chmod +x "$docker_script"
         if ! "$docker_script" --install; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: docker.sh --install failed -abort"
-            rm -f "$docker_script"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: docker.sh --install failed -abort" >&2
+            rm -f -- "$docker_script"
             exit 1
         fi
-        rm "$docker_script"
+        rm -f -- "$docker_script"
     else
         echo "$(date '+%Y-%m-%d %H:%M:%S') Docker is already installed. Skipping..."
     fi
@@ -194,7 +218,7 @@ install_winboat() {
             echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: apt-get update failed -fallback"
         fi
         if ! apt-get install -y flatpak; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install flatpak -abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install flatpak -abort" >&2
             exit 1
         fi
 
@@ -203,7 +227,7 @@ install_winboat() {
 
         echo "$(date '+%Y-%m-%d %H:%M:%S') Installing FreeRDP from Flatpak..."
         if ! flatpak install --system -y flathub com.freerdp.FreeRDP; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install FreeRDP from Flatpak -abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install FreeRDP from Flatpak -abort" >&2
             exit 1
         fi
         echo "FreeRDP3 installed successfully from Flatpak"
@@ -219,7 +243,7 @@ install_winboat() {
         deb_url=$(curl -sL https://api.github.com/repos/TibixDev/winboat/releases/latest | grep -oP '"browser_download_url": "\K[^"]*\.deb')
 
         if [ -z "$deb_url" ]; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: could not fetch Winboat download URL -abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: could not fetch Winboat download URL -abort" >&2
             exit 1
         fi
 
@@ -227,7 +251,7 @@ install_winboat() {
         winboat_deb=$(mktemp /tmp/winboat.XXXXXX.deb)
         if ! wget -q --timeout=30 --show-progress \
                 "$deb_url" -O "$winboat_deb"; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to download Winboat package -abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to download Winboat package -abort" >&2
             rm -f "$winboat_deb"
             exit 1
         fi
@@ -235,14 +259,14 @@ install_winboat() {
         echo "$(date '+%Y-%m-%d %H:%M:%S') Installing Winboat package..."
         dpkg -i "$winboat_deb" || true
         if ! apt-get install -f -y; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to resolve Winboat dependencies -abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to resolve Winboat dependencies -abort" >&2
             rm -f "$winboat_deb"
             exit 1
         fi
         rm -f "$winboat_deb"
 
         if ! command -v winboat &> /dev/null; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Winboat is not installed after setup -abort"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Winboat is not installed after setup -abort" >&2
             exit 1
         fi
         echo "Winboat installed successfully!"
@@ -416,15 +440,15 @@ uninstall_winboat() {
             check_ipv4_interfaces
             check_internet
             echo "$(date '+%Y-%m-%d %H:%M:%S') Removing Docker..."
-            docker_script=$(mktemp /tmp/docker.XXXXXX.sh)
-            if ! wget --timeout=30 --show-progress https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh -O "$docker_script"; then
-                echo "$(date '+%Y-%m-%d %H:%M:%S') PARTIAL: https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh"
-                exit 1
+            if fetch_docker_script; then
+                if ! "$docker_script" --uninstall; then
+                    echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Docker removal failed -alert"
+                    cleanup_failed=1
+                fi
+                rm -f -- "$docker_script"
+            else
+                cleanup_failed=1
             fi
-            echo "$(date '+%Y-%m-%d %H:%M:%S') SAVED: docker.sh"
-            chmod +x "$docker_script"
-            "$docker_script" --uninstall
-            rm "$docker_script"
             ;;
         *)
             echo "Docker kept installed"
@@ -473,7 +497,7 @@ if [ $# -eq 0 ]; then
       3)
         ;;
       *)
-        echo "Invalid option"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
         exit 1
         ;;
     esac
@@ -490,8 +514,8 @@ else
             show_help
             ;;
         *)
-            echo "Unknown command: $1"
-            echo "Use --help for usage information"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
+            show_help
             exit 1
             ;;
     esac

@@ -63,7 +63,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: trim start..."
 # Execute TRIM
 # -a: all mounted filesystems on devices that support TRIM
 # -v: verbose output
-TRIM_LOG=$(fstrim -av) || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: fstrim failed -abort"; exit 1; }
+TRIM_LOG=$(fstrim -av) || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: fstrim failed -abort" >&2; exit 1; }
 echo "$TRIM_LOG"
 
 echo ""

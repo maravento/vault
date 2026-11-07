@@ -16,7 +16,7 @@
 # Without arguments, searches from /
 #
 # LOG: /var/log/cleaner.log
-#      /var/log/syslog
+#      system logger (destination set by system configuration)
 #
 ################################################################################
 
@@ -48,7 +48,7 @@ if ! flock -n 200; then
 fi
 
 # dependencies
-for dep in findutils coreutils util-linux; do
+for dep in findutils coreutils util-linux bsdutils; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
@@ -79,7 +79,8 @@ end=$(date +%s)
 duration=$((end - start))
 
 # Log registry
-echo "Cleaner: $(date +"%a %d %b %Y %H:%M:%S") - Files deleted: ${deleted_count} - Time: ${duration}s" | tee -a /var/log/syslog
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Files deleted: ${deleted_count} - Time: ${duration}s"
+logger -t cleaner "Cleaner: Files deleted: ${deleted_count} - Time: ${duration}s" || true
 
 # ------------------------------------------------------------------------------
 # END
