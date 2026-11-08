@@ -88,7 +88,8 @@ install_dir="$script_dir/install"
 conf_dir="/etc/suricata"
 conf_data_dir="$conf_dir/data"
 suridata_env="$conf_data_dir/suridata.env"
-out_file="$conf_data_dir/suridata.txt"
+conf_acl_dir="$conf_dir/acl"
+out_file="$conf_acl_dir/suridata.txt"
 state_dir="/var/lib/suricata"
 log_dir="/var/log/suricata"
 project_log="/var/log/suridata.log"
@@ -889,8 +890,9 @@ install_files() {
     local failure_message="cannot create $conf_dir"
     mkdir -p "$conf_dir" "$state_dir" "$log_dir" "$ulog_dir"
     acl_prepare "$conf_data_dir" 700 600
+    acl_prepare "$conf_acl_dir" 700 600
 
-    local file
+    local file target_dir
     for file in "${project_scripts[@]}"; do
         [ -f "$install_dir/$file" ] || abort "$file not found in the repository -abort"
     done
@@ -909,15 +911,17 @@ install_files() {
     done
 
     for file in "${project_data[@]}"; do
-        if [ -L "$conf_data_dir/$file" ] || { [ -e "$conf_data_dir/$file" ] && [ ! -f "$conf_data_dir/$file" ]; }; then
+        target_dir="$conf_data_dir"
+        [ "$file" != suridata.txt ] || target_dir="$conf_acl_dir"
+        if [ -L "$target_dir/$file" ] || { [ -e "$target_dir/$file" ] && [ ! -f "$target_dir/$file" ]; }; then
             abort "$file is not a regular file -abort"
         fi
-        if [ ! -e "$conf_data_dir/$file" ]; then
+        if [ ! -e "$target_dir/$file" ]; then
             failure_message="cannot copy $file"
-            install -m 600 -o root -g root -- "$data_dir/$file" "$conf_data_dir/$file"
-            cmp -s -- "$data_dir/$file" "$conf_data_dir/$file" || abort "src and dst do not match: $file -abort"
+            install -m 600 -o root -g root -- "$data_dir/$file" "$target_dir/$file"
+            cmp -s -- "$data_dir/$file" "$target_dir/$file" || abort "src and dst do not match: $file -abort"
         fi
-        acl_prepare "$conf_data_dir" 700 600 "$conf_data_dir/$file"
+        acl_prepare "$target_dir" 700 600 "$target_dir/$file"
     done
 
     failure_message="cannot create $project_log"
@@ -1132,11 +1136,14 @@ do_update() {
     for file in "${project_scripts[@]}"; do
         update_file "$install_dir/$file" "$conf_dir/$file" 750 root:root
     done
+    update_target "$conf_acl_dir" d700 root:root
     for file in "${project_data[@]}"; do
-        if [ ! -e "$conf_data_dir/$file" ]; then
-            update_file "$data_dir/$file" "$conf_data_dir/$file" 600 root:root
+        local target_dir="$conf_data_dir"
+        [ "$file" != suridata.txt ] || target_dir="$conf_acl_dir"
+        if [ ! -e "$target_dir/$file" ]; then
+            update_file "$data_dir/$file" "$target_dir/$file" 600 root:root
         fi
-        update_target "$conf_data_dir/$file" 600
+        update_target "$target_dir/$file" 600
     done
     update_target "$conf_data_dir" d700 root:root
     update_file "$install_dir/evebox.yaml" "$evebox_dir/evebox.yaml" 644 root:root
@@ -1152,7 +1159,8 @@ do_update() {
     update_stop_service evebox.service
     update_wait_jobs
     update_apply
-    acl_prepare "$conf_data_dir" 700 600 "${project_data[@]/#/$conf_data_dir/}"
+    acl_prepare "$conf_data_dir" 700 600 "$conf_data_dir/drop.conf" "$conf_data_dir/disable.conf"
+    acl_prepare "$conf_acl_dir" 700 600 "$out_file"
     touch "$project_log" && chown root:root "$project_log" && chmod 640 "$project_log" \
         || update_error "cannot prepare log: $project_log"
     install_logrotate || update_error "cannot configure suridata log rotation"
@@ -1238,15 +1246,15 @@ do_uninstall() {
     rm -f "$state_dir/suridata.offset" "$state_dir/suridata.sids"
 
     # the four protected files go only when the administrator says so
-    read -r -p "Remove the protected data in $conf_data_dir too? (y/n): " keep_data
+    read -r -p "Remove the protected data in $conf_data_dir and $conf_acl_dir too? (y/n): " keep_data
     case "$keep_data" in
         [Yy]*)
             failure_message="cannot remove the protected data"
-            rm -f "${project_data[@]/#/$conf_data_dir/}" "$suridata_env"
-            rmdir "$conf_data_dir" 2>/dev/null || true
+            rm -f "$conf_data_dir/drop.conf" "$conf_data_dir/disable.conf" "$out_file" "$suridata_env"
+            rmdir "$conf_data_dir" "$conf_acl_dir" 2>/dev/null || true
             info "protected data removed"
             ;;
-        *) info "protected data kept: $conf_data_dir" ;;
+        *) info "protected data kept: $conf_data_dir and $conf_acl_dir" ;;
     esac
 
     # Suricata and EveBox are asked for apart: another tool may still use them
@@ -1306,10 +1314,12 @@ do_status() {
     done
 
     for file in "${project_data[@]}"; do
-        if [ -f "$conf_data_dir/$file" ]; then
-            echo "installed:  $conf_data_dir/$file"
+        local target_dir="$conf_data_dir"
+        [ "$file" != suridata.txt ] || target_dir="$conf_acl_dir"
+        if [ -f "$target_dir/$file" ]; then
+            echo "installed:  $target_dir/$file"
         else
-            echo "missing:    $conf_data_dir/$file"
+            echo "missing:    $target_dir/$file"
         fi
     done
 

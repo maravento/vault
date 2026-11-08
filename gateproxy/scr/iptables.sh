@@ -366,14 +366,11 @@ fi
 
 # PATHS
 # Declare the file and directory paths used below
-acl_mac_path="${ACL_PATH:-/etc/acl}/mac"
-acl_ipt_path="${ACL_PATH:-/etc/acl}/ipt"
+acl_mac_path="${ACL_PATH:-/etc/acl}"
 
 # ACL/config files used by this script (existence verified below)
-blockports_file="$acl_ipt_path/blockports.txt"
+blockports_file="$ACL_PATH/blockports.txt"
 dhcp_conf="/etc/pydhcp/core/pydhcpd.conf"
-path_ips="$acl_ipt_path/dhcp_ip.txt"
-path_macs="$acl_ipt_path/dhcp_mac.txt"
 
 for required_file in "$ACL_MAC_LIMITED" "$ACL_MAC_UNLIMITED" "$blockports_file" "$dhcp_conf"; do
     if [ ! -f "$required_file" ]; then
@@ -382,15 +379,14 @@ for required_file in "$ACL_MAC_LIMITED" "$ACL_MAC_UNLIMITED" "$blockports_file" 
     fi
 done
 unset required_file
-if [ ! -d "$acl_mac_path" ] || [ -z "$(ls -A "$acl_mac_path" 2>/dev/null)" ]; then
-    log "ERROR: ACL_MAC_PATH missing or empty -abort"
+if [ ! -d "$acl_mac_path" ]; then
+    log "ERROR: ACL_MAC_PATH missing -abort"
     exit 1
 fi
 
 # REQUIRED DIRS
-# This script writes its own lists here, so an empty dir is enough
-acl_prepare "${ACL_PATH:-/etc/acl}" 755 644
-acl_prepare "$acl_ipt_path" 700 600 "$path_ips" "$path_macs"
+# Prepare the directory that holds the required lists
+acl_prepare "${ACL_PATH:-/etc/acl}" 700 600
 
 # start
 log "EVENT: iptables start..."
@@ -742,9 +738,7 @@ else
     ipset flush macip
 fi
 create_acl() {
-    local ip_list mac_list mac_addr client_ip
-    ip_list="# ips"
-    mac_list="# macs"
+    local mac_addr client_ip
     while (( $# >= 2 )); do
         mac_addr="$1"
         shift
@@ -752,11 +746,7 @@ create_acl() {
         shift
         # Add MAC+IP to set
         [[ "$mac_addr" =~ $UH_MAC ]] && [[ "$client_ip" =~ $UH_IPV4 ]] && ipset add macip "$client_ip,$mac_addr" -exist
-        ip_list="$ip_list\n$client_ip"
-        mac_list="$mac_list\n$mac_addr"
     done
-    echo -e "$ip_list" > "$path_ips"
-    echo -e "$mac_list" > "$path_macs"
 }
 if [ -n "$mac2ip_rules" ]; then
     # create_acl expects a flat MAC IP MAC IP ... arg list (it shifts two at a
@@ -808,8 +798,8 @@ done
 # Reserved and unroutable address ranges. Optional and disabled by default:
 # enable the whole block only if the LAN range is not listed in bogons.txt,
 # or it will block the local network.
-#bogons_file="$acl_ipt_path/bogons.txt"
-#bogons_url="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/gateproxy/acl/ipt/bogons.txt"
+#bogons_file="$ACL_PATH/bogons.txt"
+#bogons_url="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/gateproxy/acl/bogons.txt"
 #if [ ! -f "$bogons_file" ]; then
 #    if curl -fL --retry 3 --retry-delay 2 --progress-bar -o "$bogons_file" "$bogons_url"; then
 #        chown root:root "$bogons_file"
@@ -844,7 +834,7 @@ done
 #iptables -t mangle -A PREROUTING -i "$wan_iface" -m set --match-set bogons src -j DROP
 
 # BLOCKPORTS
-# path: /etc/acl/ipt/blockports.txt
+# path: /etc/acl/blockports.txt
 # Block Direct Connections:
 # - HTTPs (443) - TCP/UDP
 # - HTTPs Fallback (4444,9443) - TCP

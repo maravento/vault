@@ -74,7 +74,7 @@ rules_file="/var/lib/suricata/rules/suricata.rules"
 eve_log="/var/log/suricata/eve.json"
 offset_file="/var/lib/suricata/suridata.offset"
 sids_file="/var/lib/suricata/suridata.sids"
-out_file="/etc/suricata/data/suridata.txt"
+out_file="/etc/suricata/acl/suridata.txt"
 
 # ------------------------------------------------------------------------------
 # FUNCTIONS

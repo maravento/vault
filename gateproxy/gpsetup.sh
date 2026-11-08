@@ -1367,28 +1367,29 @@ failure_message="cannot write hosts"
 grep -q "ipv6.msftncsi.com" /etc/hosts || echo "$SERVER_IP ipv6.msftncsi.com ipv6.msftconnecttest.com" | tee -a /etc/hosts >/dev/null
 
 # ACLs SECTION
-acl_mac_path="$acl_root/mac"
-acl_squid_path="$acl_root/squid"
-acl_ipt_path="$acl_root/ipt"
+acl_mac_path="$acl_root"
+acl_squid_path="/etc/squid/acl"
 # Only files missing in $acl_root are copied from the repo template -- never
 # overwrite one that already exists, since it may hold real data from a
 # previous install, from pydhcp (mac-*.txt is also seeded by pydhcp's own
 # pysetup.sh), or edited by hand.
 while IFS= read -r -d '' acl_src; do
-    acl_dest="$acl_root/${acl_src#"$gp_path"/acl/}"
+    case "$acl_src" in
+        "$gp_path"/conf/squid/acl/*) acl_dest="$acl_squid_path/${acl_src##*/}" ;;
+        *) acl_dest="$acl_root/${acl_src##*/}" ;;
+    esac
     if [ ! -f "$acl_dest" ]; then
         failure_message="cannot create the ACL destination directory"
         mkdir -p "$(dirname "$acl_dest")"
         failure_message="cannot copy $(basename "$acl_dest")"
         cp "$acl_src" "$acl_dest"
     fi
-done < <(find "$gp_path/acl" -type f -print0)
+done < <(find "$gp_path/acl" "$gp_path/conf/squid/acl" -maxdepth 1 -type f -print0)
 # ACL directories and files, per rules.md BLOQUE 6, section 14
 shopt -s nullglob
-acl_prepare "$acl_root" 755 644
-acl_prepare "$acl_mac_path" 700 600 "$acl_mac_path"/mac-*.txt
+acl_prepare "$acl_root" 700 600 "$acl_mac_path"/mac-*.txt \
+    "$acl_root/blockports.txt" "$acl_root/bogons.txt"
 acl_prepare "$acl_squid_path" 755 644 "$acl_squid_path"/*.txt
-acl_prepare "$acl_ipt_path" 700 600 "$acl_ipt_path"/*.txt
 shopt -u nullglob
 
 # DNS
@@ -1963,56 +1964,56 @@ upgrade
 # ACLs ###
 echo ""
 # Allow IP
-get_acl https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt "$acl_root/squid/allowip.txt" || true
-if [ -f "$acl_root/squid/allowip.txt" ]; then
-    acl_fix_perms "$acl_root/squid/allowip.txt" 644
+get_acl https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt "$acl_squid_path/allowip.txt" || true
+if [ -f "$acl_squid_path/allowip.txt" ]; then
+    acl_fix_perms "$acl_squid_path/allowip.txt" 644
 fi
-if [ ! -s "$acl_root/squid/allowip.txt" ]; then
+if [ ! -s "$acl_squid_path/allowip.txt" ]; then
     warn "allowip.txt is empty -alert"
 fi
 
 # Block TLDs
-get_acl https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt "$acl_root/squid/blocktlds.txt" || true
-if [ -f "$acl_root/squid/blocktlds.txt" ]; then
-    acl_fix_perms "$acl_root/squid/blocktlds.txt" 644
+get_acl https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt "$acl_squid_path/blocktlds.txt" || true
+if [ -f "$acl_squid_path/blocktlds.txt" ]; then
+    acl_fix_perms "$acl_squid_path/blocktlds.txt" 644
 fi
-if [ ! -s "$acl_root/squid/blocktlds.txt" ]; then
+if [ ! -s "$acl_squid_path/blocktlds.txt" ]; then
     info "blocktlds.txt is empty, ACL disabled in squid.conf"
     failure_message="cannot edit squid.conf"
     sed -i '/^acl blocktlds /s/^/#/; /^http_access deny workdays blocktlds/s/^/#/' "$gp_path/conf/squid/squid.conf"
 fi
 
 # Ransomware Extensions (Squid, optional)
-get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/rw/rwext.txt "$acl_root/squid/rwext.txt" || true
-if [ -f "$acl_root/squid/rwext.txt" ]; then
-    acl_fix_perms "$acl_root/squid/rwext.txt" 644
+get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/rw/rwext.txt "$acl_squid_path/rwext.txt" || true
+if [ -f "$acl_squid_path/rwext.txt" ]; then
+    acl_fix_perms "$acl_squid_path/rwext.txt" 644
 fi
-if [ ! -s "$acl_root/squid/rwext.txt" ]; then
+if [ ! -s "$acl_squid_path/rwext.txt" ]; then
     warn "rwext.txt is empty -alert"
 fi
 
 # Bad User-Agents (Squid, optional)
-get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/ua/blockua.txt "$acl_root/squid/blockua.txt" || true
-if [ -f "$acl_root/squid/blockua.txt" ]; then
-    acl_fix_perms "$acl_root/squid/blockua.txt" 644
+get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/ua/blockua.txt "$acl_squid_path/blockua.txt" || true
+if [ -f "$acl_squid_path/blockua.txt" ]; then
+    acl_fix_perms "$acl_squid_path/blockua.txt" 644
 fi
-if [ ! -s "$acl_root/squid/blockua.txt" ]; then
+if [ ! -s "$acl_squid_path/blockua.txt" ]; then
     warn "blockua.txt is empty -alert"
 fi
 
 # Web3 Domains/TLDs (Squid, optional)
-get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3domains.txt "$acl_root/squid/web3domains.txt" || true
-if [ -f "$acl_root/squid/web3domains.txt" ]; then
-    acl_fix_perms "$acl_root/squid/web3domains.txt" 644
+get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3domains.txt "$acl_squid_path/web3domains.txt" || true
+if [ -f "$acl_squid_path/web3domains.txt" ]; then
+    acl_fix_perms "$acl_squid_path/web3domains.txt" 644
 fi
-if [ ! -s "$acl_root/squid/web3domains.txt" ]; then
+if [ ! -s "$acl_squid_path/web3domains.txt" ]; then
     warn "web3domains.txt is empty -alert"
 fi
-get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3tld.txt "$acl_root/squid/web3tld.txt" || true
-if [ -f "$acl_root/squid/web3tld.txt" ]; then
-    acl_fix_perms "$acl_root/squid/web3tld.txt" 644
+get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3tld.txt "$acl_squid_path/web3tld.txt" || true
+if [ -f "$acl_squid_path/web3tld.txt" ]; then
+    acl_fix_perms "$acl_squid_path/web3tld.txt" 644
 fi
-if [ ! -s "$acl_root/squid/web3tld.txt" ]; then
+if [ ! -s "$acl_squid_path/web3tld.txt" ]; then
     warn "web3tld.txt is empty -alert"
 fi
 
@@ -2020,8 +2021,8 @@ fi
 if (cd "$gp_path" && get_acl https://raw.githubusercontent.com/maravento/blackweb/master/blackweb.tar.gz blackweb.tar.gz && [ -f blackweb.tar.gz ]); then
     (cd "$gp_path" && cat blackweb.tar.gz* | tar xzf -)
     failure_message="cannot copy blackweb.txt"
-    cp "$gp_path/blackweb.txt" "$acl_root/squid/blackweb.txt"
-    acl_fix_perms "$acl_root/squid/blackweb.txt" 644
+    cp "$gp_path/blackweb.txt" "$acl_squid_path/blackweb.txt"
+    acl_fix_perms "$acl_squid_path/blackweb.txt" 644
 else
     warn "blackweb.tar.gz not available -alert"
 fi
