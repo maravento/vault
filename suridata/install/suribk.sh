@@ -251,7 +251,26 @@ fi
 # run can only ever delete its own work. The archive takes its final name once
 # zip has succeeded, which also keeps the retention glob from seeing a partial.
 backup_part="${backup_zip}.part"
-if (umask 077; zip -r -q -y "$backup_part" "${backup_list[@]}"); then
+trap 'rm -f -- "$backup_part"; log "ERROR: backup interrupted -abort"; exit 130' INT
+if (
+    umask 077
+    if [[ -t 2 ]] && zip_output=$(mktemp); then
+        printf 'Compressing' >&2
+        while sleep 1; do printf '.' >&2; done &
+        progress_pid=$!
+        trap '
+            kill "$progress_pid" 2>/dev/null || true
+            wait "$progress_pid" 2>/dev/null || true
+            printf "\n" >&2
+            cat -- "$zip_output" >&2
+            rm -f -- "$zip_output"
+        ' EXIT
+        zip -r -q -y "$backup_part" "${backup_list[@]}" >"$zip_output" 2>&1
+    else
+        zip -r -q -y "$backup_part" "${backup_list[@]}"
+    fi
+); then
+    trap - INT
     chmod 600 "$backup_part"
     if ! mv -fT -- "$backup_part" "$backup_zip"; then
         rm -f "$backup_part"
@@ -275,8 +294,10 @@ if (umask 077; zip -r -q -y "$backup_part" "${backup_list[@]}"); then
     fi
     (( retention_ok )) || log "WARNING: backup retention incomplete -alert"
 else
+    zip_status=$?
+    trap - INT
     rm -f "$backup_part"
-    log "ERROR: $(basename "$backup_zip"). check space/chmod -abort"
+    log "ERROR: cannot write archive $(basename "$backup_zip") (zip exit $zip_status) -abort"
     exit 1
 fi
 

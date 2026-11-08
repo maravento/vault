@@ -501,7 +501,7 @@ xml_to_html() (
             else
                 xsl_detail="xsltproc failed"
             fi
-            log "WARNING: $xsl_detail (rc=$xsl_rc)"
+            log "WARNING: $xsl_detail (rc=$xsl_rc) -fallback"
         fi
     else
         log "WARNING: default nmap XSL not found -alert"

@@ -1024,8 +1024,7 @@ for check_file in "$acl_mac_path"/mac-*.txt; do
         [[ "$client_mac" =~ $UH_MAC ]] || continue
         client_mac_lc="${client_mac,,}"
         if ! grep -qxF "$client_mac_lc" <<< "$mac2ip_macs"; then
-            log "WARNING: $client_mac ($(basename "$check_file")) has no static reservation"
-            log "WARNING: MACCHECK drops it until added or reloaded -alert"
+            log "WARNING: No fixed IP configured for $client_mac -alert"
         fi
     done < "$check_file"
 done

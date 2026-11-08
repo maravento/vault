@@ -88,6 +88,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: massunzip start..."
 # CHECK
 # Try the configured passwords against each supported archive
 found_files=0
+exit_status=0
 for f in *.@(gz|rar|zip|zip.001|7z|7z.001); do
     found_files=1
     [[ ("$f" =~ \.part[[:digit:]]+\.rar$) && ! ("$f" =~ \.part0*1\.rar$) ]] && continue
@@ -95,18 +96,18 @@ for f in *.@(gz|rar|zip|zip.001|7z|7z.001); do
     matched=0
     for p in "${passw[@]}"; do
         if 7z t -p"$p" "$f" &>/dev/null; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: password match '$f': $p"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: password match '$f'"
             if ! 7z x -y -p"$p" "$f" -aoa &>/dev/null; then
+                exit_status=1
                 echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: extraction failed: $f -alert"
             fi
             matched=1
             break
-        else
-            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: password test failed for '$f': $p"
         fi
     done
 
     if [ "$matched" -eq 0 ]; then
+        exit_status=1
         echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: no password matched for: $f -alert"
     fi
 done
@@ -121,3 +122,5 @@ fi
 
 # end
 echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: massunzip done"
+
+exit "$exit_status"

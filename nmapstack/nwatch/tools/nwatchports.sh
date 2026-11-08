@@ -501,11 +501,11 @@ run_poll() {
 
     if [ "$PORTS_MODE" = "target" ]; then
         if [ -z "$PORTS_TARGET_IP" ]; then
-            log "WARNING: mode is target with no target host -alert"
+            log "WARNING: Port scan skipped: PORTS_TARGET_IP empty -alert"
             return
         fi
         if ! valid_host "$PORTS_TARGET_IP"; then
-            log "WARNING: invalid target host '$PORTS_TARGET_IP' -alert"
+            log "WARNING: Port scan skipped: PORTS_TARGET_IP invalid -alert"
             return
         fi
         poll_target "$PORTS_TARGET_IP" "$now"

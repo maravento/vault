@@ -123,10 +123,29 @@ SQLITE_BACKUP
     fi
 fi
 
-if ! (umask 077; zip -r -q -y "$backup_part" "${backup_list[@]}" -x '*/nwatch.db' '*/nwatch.db-wal' '*/nwatch.db-shm'); then
-    log "ERROR: cannot create Nwatch archive -abort"
+trap 'log "ERROR: backup interrupted -abort"; exit 130' INT
+(
+    umask 077
+    if [[ -t 2 ]] && zip_output=$(mktemp); then
+        printf 'Compressing' >&2
+        while sleep 1; do printf '.' >&2; done &
+        progress_pid=$!
+        trap '
+            kill "$progress_pid" 2>/dev/null || true
+            wait "$progress_pid" 2>/dev/null || true
+            printf "\n" >&2
+            cat -- "$zip_output" >&2
+            rm -f -- "$zip_output"
+        ' EXIT
+        zip -r -q -y "$backup_part" "${backup_list[@]}" -x '*/nwatch.db' '*/nwatch.db-wal' '*/nwatch.db-shm' >"$zip_output" 2>&1
+    else
+        zip -r -q -y "$backup_part" "${backup_list[@]}" -x '*/nwatch.db' '*/nwatch.db-wal' '*/nwatch.db-shm'
+    fi
+) || {
+    zip_status=$?
+    log "ERROR: cannot create Nwatch archive (zip exit $zip_status) -abort"
     exit 1
-fi
+}
 if [ -f "$backup_stage/var/www/nwatch/data/nwatch.db" ]; then
     if ! (cd "$backup_stage" && zip -q "$backup_part" var/www/nwatch/data/nwatch.db); then
         log "ERROR: cannot archive nwatch.db snapshot -abort"
@@ -134,6 +153,7 @@ if [ -f "$backup_stage/var/www/nwatch/data/nwatch.db" ]; then
     fi
 fi
 zip -T -q "$backup_part" || { log "ERROR: invalid Nwatch archive -abort"; exit 1; }
+trap - INT
 if ! { chmod 600 "$backup_part" && mv -T -- "$backup_part" "$backup_zip"; }; then
     log "ERROR: cannot publish Nwatch archive -abort"
     exit 1
