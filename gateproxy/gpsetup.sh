@@ -1892,7 +1892,7 @@ failure_message="cannot update system packages"
 upgrade
 
 # UHM ###
-# UniFi Hotspot Manager (optional, requires pydhcp already installed above).
+# UniFi Host Manager (UHM) (optional, requires pydhcp already installed above).
 # Only prompted if a local UniFi Network controller is actually detected --
 # classic (dpkg package "unifi") or unifi-os (/var/lib/uosserver, podman-based).
 # gateproxy does not install UniFi/podman itself. To install UniFi Network
@@ -1911,11 +1911,11 @@ if [ -n "$UNIFI_DETECTED_TYPE" ]; then
     while true; do
         failure_message="cannot read the UHM installation answer"
         read -r -p "UniFi detected ($UNIFI_DETECTED_TYPE).
-Do you want to install UniFi Hotspot Manager (uhm)? (y/n) " answer
+Do you want to install UniFi Host Manager (UHM)? (y/n) " answer
 
         case "$answer" in
         [Yy]*)
-            info "UniFi Hotspot Manager (uhm): YES"
+            info "UniFi Host Manager (UHM): YES"
             if (cd "$gp_path" && git clone https://github.com/maravento/uhm); then
                 uhm_path="$gp_path/uhm"
 
@@ -1942,7 +1942,7 @@ Do you want to install UniFi Hotspot Manager (uhm)? (y/n) " answer
 
         [Nn]*|"")
             # default on empty ENTER
-            info "UniFi Hotspot Manager (uhm): NO"
+            info "UniFi Host Manager (UHM): NO"
             break
             ;;
 
