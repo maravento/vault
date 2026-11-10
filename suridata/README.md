@@ -55,21 +55,44 @@ FILE: README.md
 ---
 
 ```text
-suridata/                      # Repository root
-├── README.md                  # Project documentation
-├── surisetup.sh               # Installer: install, update, uninstall, status
-├── data/                      # Initial project data templates
-│   ├── disable.conf             # Rule selections suppressed by suricata-update
-│   ├── drop.conf                # Rule selections converted to the drop action
-│   └── suridata.txt             # Template for /etc/suricata/acl/suridata.txt
-└── install/                   # Scripts deployed to /etc/suricata/; EveBox files below
-    ├── evebox.service           # Unit deployed to /etc/systemd/system/evebox.service
-    ├── evebox.yaml              # Settings deployed to /etc/evebox/evebox.yaml
-    ├── suridataenv.sh           # Shared configuration reader
-    ├── suribk.sh                # Configuration backup and archive retention
-    ├── suricataclean.sh         # Suricata log and EveBox event cleanup
-    ├── suricataupdate.sh        # Rule updates and service restarts
-    └── suridata.sh              # Alert processing and destination blocking
+suridata/                            # repository root
+├── README.md                        # project documentation
+├── surisetup.sh                     # installer, updater and uninstaller
+├── data/                            # initial data templates
+│   ├── disable.conf                 # deployed to: /etc/suricata/data/disable.conf [0600 root:root]
+│   ├── drop.conf                    # deployed to: /etc/suricata/data/drop.conf [0600 root:root]
+│   └── suridata.txt                 # deployed to: /etc/suricata/acl/suridata.txt [0600 root:root]
+└── install/                         # scripts and EveBox templates
+    ├── evebox.service               # deployed to: /etc/systemd/system/evebox.service [0644 root:root]
+    ├── evebox.yaml                  # deployed to: /etc/evebox/evebox.yaml [0644 root:root]
+    ├── suridataenv.sh               # deployed to: /etc/suricata/suridataenv.sh [0750 root:root]
+    ├── suribk.sh                    # deployed to: /etc/suricata/suribk.sh [0750 root:root]
+    ├── suricataclean.sh             # deployed to: /etc/suricata/suricataclean.sh [0750 root:root]
+    ├── suricataupdate.sh            # deployed to: /etc/suricata/suricataupdate.sh [0750 root:root]
+    └── suridata.sh                  # deployed to: /etc/suricata/suridata.sh [0750 root:root]
+```
+
+### Additional Installed Paths
+
+```text
+etc/
+├── bak/
+│   └── suridata/                    # configuration backups [0700 root:root]
+├── cron.d/
+│   ├── suridata                     # scheduled tasks [0644 root:root]
+│   └── suridata.lock                # cron writer lock [0600 root:root]
+├── evebox/                          # configuration directory, observed [0755 root:root]
+├── logrotate.d/
+│   └── suridata                     # project log rotation [0644 root:root]
+└── suricata/                        # Suricata configuration directory, observed [0755 root:root]
+    ├── acl/                         # project ACL directory [0700 root:root]
+    ├── data/                        # project configuration directory [0700 root:root]
+    │   └── suridata.env             # generated configuration [0640 root:root]
+    └── suricata.yaml                # Suricata configuration, observed [0644 root:root]
+
+var/
+└── log/
+    └── suridata.log                 # project log [0640 root:root]
 ```
 
 ## HOW TO USE
@@ -196,8 +219,8 @@ sudo env SURIDATA_WAN_IFACE=enp1s0 SURIDATA_LAN_IFACE=enp2s0 \
 
 <table width="100%">
   <tr>
-    <td style="width: 50%; vertical-align: top;">Edit <code>/etc/suricata/data/suridata.env</code> using plain <code>KEY=value</code> lines, without surrounding quotes or spaces. Its owner is <code>root:root</code>, with mode <code>640</code>.</td>
-    <td style="width: 50%; vertical-align: top;">Edita <code>/etc/suricata/data/suridata.env</code> con líneas <code>KEY=value</code>, sin comillas ni espacios externos. Su propietario es <code>root:root</code>, con permisos <code>640</code>.</td>
+    <td style="width: 50%; vertical-align: top;">Edit <code>/etc/suricata/data/suridata.env</code> using plain <code>KEY=value</code> lines, without surrounding quotes or spaces.</td>
+    <td style="width: 50%; vertical-align: top;">Edita <code>/etc/suricata/data/suridata.env</code> con líneas <code>KEY=value</code>, sin comillas ni espacios externos.</td>
   </tr>
 </table>
 

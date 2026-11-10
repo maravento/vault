@@ -56,30 +56,40 @@ FILE: gateproxy/README.md
 
 ```
 gateproxy/
-├── acl/                        # Access control lists for MAC, Squid and iptables rules (see ACL STRUCTURE)
-│
-├── conf/
+├── acl/                            # MAC, Squid and firewall ACL templates
+├── conf/                           # service configuration templates
 │   ├── fail2ban/
-│   │   └── jail.local              # fail2ban jail config
+│   │   └── jail.local              # deployed to: /etc/fail2ban/jail.local
 │   ├── netplan/
-│   │   └── 00-networkd.yaml        # Netplan configuration
+│   │   └── 00-networkd.yaml        # deployed to: /etc/netplan/00-networkd.yaml [0600 root:root]
 │   ├── squid/
-│   │   └── squid.conf              # Squid proxy configuration
+│   │   └── squid.conf              # deployed to: /etc/squid/squid.conf [0644 root:root]
 │   ├── ttyd/
-│   │   └── ttyd.service            # ttyd (web terminal) systemd unit
+│   │   └── ttyd.service            # deployed to: /etc/systemd/system/ttyd.service [0644 root:root]
 │   ├── unbound/
-│   │   └── forward.conf            # Unbound DNS forwarder configuration
+│   │   └── forward.conf            # deployed to: /etc/unbound/unbound.conf.d/forward.conf [0644 root:root]
 │   └── webmin/
 │       └── text-editor.wbm         # Webmin Text Editor module
-│
-├── scr/                        # Scripts (deployed to /etc/scr/)
-│   ├── bkconf.sh                   # Backup configuration files
-│   ├── iptables.sh                 # Firewall rules and ipsets
-│   ├── killswitch.sh               # Emergency traffic block
-│   ├── serverboot.sh               # Start/restart all services
-│   └── serviceswatch.sh            # Service watchdog
-│
-└── gpsetup.sh                  # Main installer script
+├── scr/                            # deployed to: /etc/scr [0755 root:root]
+│   ├── bkconf.sh                   # configuration backup [0755 root:root]
+│   ├── iptables.sh                 # firewall rules and ipsets
+│   ├── killswitch.sh               # emergency traffic block [0755 root:root]
+│   ├── serverboot.sh               # service startup and restart [0755 root:root]
+│   └── serviceswatch.sh            # service watchdog [0755 root:root]
+└── gpsetup.sh                      # installer
+```
+
+### Additional Installed Paths
+
+```text
+etc/
+├── acl/                            # administrator ACL directory [0700 root:root]
+├── cron.d/
+│   └── gateproxy                   # scheduled tasks [0644 root:root]
+├── gateproxy/                      # configuration directory [0750 root:root]
+│   └── gateproxy.env               # generated configuration [0640 root:root]
+└── squid/
+    └── acl/                        # Squid ACL directory [0755 root:root]
 ```
 
 ## HOW TO USE
@@ -285,10 +295,10 @@ none /run/shm tmpfs defaults,ro 0 0                                 # read-only 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      The installer creates <code>/etc/gateproxy/gateproxy.env</code> after verifying the configured interfaces. Directory: root:root 750; file: root:root 640. It contains <code>WAN_IFACE</code> and <code>BACKUP_DIR</code>. The backup directory must be <code>/etc/bak/gateproxy</code> and is exclusive to <code>bkconf.sh</code>, which aborts on any other value and deletes other contents after publishing an archive. Other keys may be added when Gateproxy itself needs them; module-specific settings remain in their module configurations. The firewall reads DHCP settings from <code>pydhcp.env</code> and proxy ports from <code>proxymon.env</code> when installed. Files are parsed without executing their contents; each required key is checked in its owner file. <code>bkconf.sh</code> includes this directory in its backup. Subsequent changes are made in the configuration owned by the affected module.
+      The installer creates <code>/etc/gateproxy/gateproxy.env</code> after verifying the configured interfaces. It contains <code>WAN_IFACE</code> and <code>BACKUP_DIR</code>. The backup directory must be <code>/etc/bak/gateproxy</code> and is exclusive to <code>bkconf.sh</code>, which aborts on any other value and deletes other contents after publishing an archive. Other keys may be added when Gateproxy itself needs them; module-specific settings remain in their module configurations. The firewall reads DHCP settings from <code>pydhcp.env</code> and proxy ports from <code>proxymon.env</code> when installed. Files are parsed without executing their contents; each required key is checked in its owner file. <code>bkconf.sh</code> includes this directory in its backup. Subsequent changes are made in the configuration owned by the affected module.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      El instalador crea <code>/etc/gateproxy/gateproxy.env</code> después de verificar las interfaces configuradas. Directorio: root:root 750; archivo: root:root 640. Contiene <code>WAN_IFACE</code> y <code>BACKUP_DIR</code>. El directorio de respaldo debe ser <code>/etc/bak/gateproxy</code> y es exclusivo de <code>bkconf.sh</code>, que aborta con cualquier otro valor y elimina el resto del contenido tras publicar un respaldo. Se pueden añadir otras claves cuando el propio Gateproxy las necesite; los parámetros específicos de módulos permanecen en sus configuraciones. El firewall lee los datos DHCP desde <code>pydhcp.env</code> y los puertos del proxy desde <code>proxymon.env</code> cuando está instalado. Los archivos se interpretan sin ejecutar su contenido; cada clave requerida se comprueba en el archivo de su propietario. <code>bkconf.sh</code> incluye este directorio en su respaldo. Los cambios posteriores se realizan en la configuración propia del módulo afectado.
+      El instalador crea <code>/etc/gateproxy/gateproxy.env</code> después de verificar las interfaces configuradas. Contiene <code>WAN_IFACE</code> y <code>BACKUP_DIR</code>. El directorio de respaldo debe ser <code>/etc/bak/gateproxy</code> y es exclusivo de <code>bkconf.sh</code>, que aborta con cualquier otro valor y elimina el resto del contenido tras publicar un respaldo. Se pueden añadir otras claves cuando el propio Gateproxy las necesite; los parámetros específicos de módulos permanecen en sus configuraciones. El firewall lee los datos DHCP desde <code>pydhcp.env</code> y los puertos del proxy desde <code>proxymon.env</code> cuando está instalado. Los archivos se interpretan sin ejecutar su contenido; cada clave requerida se comprueba en el archivo de su propietario. <code>bkconf.sh</code> incluye este directorio en su respaldo. Los cambios posteriores se realizan en la configuración propia del módulo afectado.
     </td>
   </tr>
 </table>

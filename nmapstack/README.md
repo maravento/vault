@@ -26,28 +26,54 @@ FILE: nmapstack/README.md
 
 ```
 nmapstack/
-├── linux/                   # LINUX — on-demand scan-and-report tool
-│   └── nreport.sh
+├── linux/                          # on-demand Linux scan and report
+│   └── nreport.sh                  # local scan and HTML report
 │
-├── nwatch/                  # WEB — live web dashboard
-│   ├── nwatchsetup.sh         # Installer: --install|--update|--uninstall|--status
-│   │
-│   ├── tools/               # Daemons and maintenance tools
-│   │   ├── nwatchbk.sh        # Project backup and consistent SQLite snapshot
-│   │   ├── nwatchenv.sh       # Shared Bash configuration reader (sourced, not executed)
-│   │   ├── nwatchlan.sh       # LAN discovery daemon (arp-scan)
-│   │   └── nwatchports.sh     # Port auditing daemon (ss / nmap) + mode CLI
-│   │
-│   └── web/                 # Web dashboard front-end (LAN/Ports tabs)
-│       ├── index.php          # Main page (LAN / Ports tabs)
-│       ├── lan.html           # LAN devices viewer
-│       ├── nwatch.conf        # Apache vhost (:9777/?tab=lan and :9777/?tab=ports)
-│       ├── nwatchapi.php      # JSON API (devices, ports, mode switch)
-│       └── ports.html         # Ports viewer + Server/Target mode selector
+├── nwatch/                         # web dashboard
+│   ├── nwatchsetup.sh              # installer, updater and uninstaller
+│   ├── tools/                      # deployed to: /var/www/nwatch/tools [0755 root:root]
+│   │   ├── nwatchbk.sh             # configuration and SQLite backup [0755 root:root]
+│   │   ├── nwatchenv.sh            # shared Bash configuration reader [0644 root:root]
+│   │   ├── nwatchlan.sh            # LAN discovery daemon [0755 root:root]
+│   │   └── nwatchports.sh          # port audit daemon and mode CLI [0755 root:root]
+│   └── web/                        # deployed to: /var/www/nwatch/web [0755 www-data:www-data]
+│       ├── index.php               # dashboard entry point [0755 www-data:www-data]
+│       ├── lan.html                # LAN devices view [0755 www-data:www-data]
+│       ├── nwatch.conf             # deployed to: /etc/apache2/sites-available/nwatch.conf [0644 root:root]
+│       ├── nwatchapi.php           # JSON API [0755 www-data:www-data]
+│       └── ports.html              # port audit view [0755 www-data:www-data]
 │
-└── win/                     # Windows package metadata (Nscan is hosted on mega.nz)
-    ├── changelog.txt          # Version history
-    └── nscan.exe.sha256       # Checksum for Nscan
+└── win/                            # Windows package metadata
+    ├── changelog.txt               # version history
+    └── nscan.exe.sha256            # Nscan checksum
+```
+
+### Additional Installed Paths
+
+```text
+etc/
+├── apache2/
+│   └── sites-enabled/
+│       └── nwatch.conf             # link to ../sites-available/nwatch.conf [0777 root:root]
+├── bak/
+│   └── nwatch/                     # configuration backups [0700 root:root]
+├── cron.d/
+│   ├── nwatch                      # scheduled tasks [0644 root:root]
+│   └── nwatch.lock                 # cron writer lock [0600 root:root]
+├── logrotate.d/
+│   └── nwatch                      # log rotation policy [0644 root:root]
+└── nwatch/                         # configuration directory [0750 root:www-data]
+    └── nwatch.env                  # generated configuration [0640 root:www-data]
+
+var/
+├── log/
+│   └── nwatch.log                  # shared daemon log [0640 root:root]
+└── www/
+    └── nwatch/                     # panel root [0755 root:root]
+        └── data/                   # runtime state [0775 www-data:www-data]
+            ├── nwatch.db           # SQLite database [0640 root:www-data]
+            ├── port_scan_status.conf# last port scan status [0664 www-data:www-data]
+            └── ports_mode.conf     # active mode and target IP [0664 www-data:www-data]
 ```
 
 ## WINDOWS
@@ -426,34 +452,18 @@ sudo bash nwatchsetup.sh
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Files and directories created at runtime. They are not included in the repository. See the section REPOSITORY STRUCTURE for the files included in the project:
+      The daemons create the following PID files at runtime. See REPOSITORY STRUCTURE for installed paths and permissions.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Archivos y directorios creados durante la ejecución. No están incluidos en el repositorio. Consulte la sección REPOSITORY STRUCTURE para ver los archivos incluidos en el proyecto:
+      Los demonios crean los siguientes archivos PID durante la ejecución. Consulte REPOSITORY STRUCTURE para ver las rutas instaladas y sus permisos.
     </td>
   </tr>
 </table>
 
 ```
-/etc/nwatch/                # Read-only config (750 root:www-data), same model as proxymon's /etc/proxymon
-└── nwatch.env                # Install config: interfaces, network, server IP, poll intervals
-                              # (640 root:www-data — web reads, never writes)
-
-/var/www/nwatch/data/       # Web-writable state (775 www-data:www-data)
-├── nwatch.db                 # SQLite database (WAL mode)
-├── ports_mode.conf           # Active ports mode + target IP
-│                             # (664 www-data:www-data — web replaces atomically)
-└── port_scan_status.conf     # Last completed poll cycle (source, host, time, ports found)
-                              # (664 www-data:www-data — nwatchports.sh rewrites every cycle)
-
 /run/                       # PID files, used by start/stop/status
 ├── nwatchlan.pid             # nwatchlan.sh
 └── nwatchports.pid           # nwatchports.sh
-
-/var/log/nwatch.log         # Shared by both daemons
-/etc/logrotate.d/nwatch     # Daily rotation; seven previous files, delayed compression
-
-/etc/cron.d/nwatch          # All cron entries of the project, one file
 ```
 
 #### Scheduled tasks and logs
@@ -502,10 +512,10 @@ sudo bash nwatchsetup.sh
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Shared Bash reader installed at <code>/var/www/nwatch/tools/nwatchenv.sh</code> (root:root, 644). <code>nwatchlan.sh</code> and <code>nwatchports.sh</code> load it with <code>source</code> and pass their allowed keys. It reads <code>/etc/nwatch/nwatch.env</code> without executing its contents. File permissions and key validation remain in each daemon. <code>nwatchsetup.sh</code> deploys the reader before the daemon scripts during installation and update. Deployment failure aborts the operation. Do not run the reader separately or schedule it in cron.
+      Shared Bash reader installed at <code>/var/www/nwatch/tools/nwatchenv.sh</code>. <code>nwatchlan.sh</code> and <code>nwatchports.sh</code> load it with <code>source</code> and pass their allowed keys. It reads <code>/etc/nwatch/nwatch.env</code> without executing its contents. File permissions and key validation remain in each daemon. <code>nwatchsetup.sh</code> deploys the reader before the daemon scripts during installation and update. Deployment failure aborts the operation. Do not run the reader separately or schedule it in cron.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Lector Bash compartido instalado en <code>/var/www/nwatch/tools/nwatchenv.sh</code> (root:root, 644). <code>nwatchlan.sh</code> y <code>nwatchports.sh</code> lo cargan mediante <code>source</code> y pasan sus claves permitidas. Lee <code>/etc/nwatch/nwatch.env</code> sin ejecutar su contenido. Los permisos y la validación de claves permanecen en cada demonio. <code>nwatchsetup.sh</code> despliega el lector antes de los scripts durante la instalación y la actualización. Un fallo de despliegue aborta la operación. No se ejecuta el lector por separado ni se programa en cron.
+      Lector Bash compartido instalado en <code>/var/www/nwatch/tools/nwatchenv.sh</code>. <code>nwatchlan.sh</code> y <code>nwatchports.sh</code> lo cargan mediante <code>source</code> y pasan sus claves permitidas. Lee <code>/etc/nwatch/nwatch.env</code> sin ejecutar su contenido. Los permisos y la validación de claves permanecen en cada demonio. <code>nwatchsetup.sh</code> despliega el lector antes de los scripts durante la instalación y la actualización. Un fallo de despliegue aborta la operación. No se ejecuta el lector por separado ni se programa en cron.
     </td>
   </tr>
 </table>
@@ -578,7 +588,7 @@ sudo bash nwatchsetup.sh
 | `web/nwatch.conf` | Preserved; VirtualHost ports set to `9777` / Conservado; puertos VirtualHost ajustados a `9777` | ✅ removed |
 | `web/index.php`, `lan.html`, `ports.html`, `nwatchapi.php` | ✅ overwritten | ✅ removed |
 | `tools/nwatchlan.sh`, `tools/nwatchports.sh` | ✅ overwritten (daemons restarted) | ✅ removed (daemons stopped) |
-| `tools/nwatchenv.sh` | ✅ overwritten (root:root, 644) | ✅ removed |
+| `tools/nwatchenv.sh` | ✅ overwritten | ✅ removed |
 | `tools/nwatchbk.sh` | ✅ overwritten | ✅ removed |
 | `/etc/nwatch/nwatch.env` | ⛔ preserved | ✅ removed |
 | `/var/www/nwatch/data/nwatch.db`, `ports_mode.conf`, `port_scan_status.conf` | ⛔ preserved | ✅ removed |

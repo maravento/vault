@@ -869,7 +869,6 @@ done
 # - Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560) - TCP
 # - WINS (42) - TCP/UDP
 # - BTC/ETH (8332,8333,8545,30303) - TCP
-# - IPP (631) - TCP
 if ! ipset list blockports &>/dev/null; then
     ipset create blockports bitmap:port range 0-65535 -exist
 else
@@ -964,13 +963,11 @@ iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 3092 -m set --match-set macp
 # COMMONS PORTS
 # SMB / Microsoft-DS
 iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 445 -m set --match-set macports src -j ACCEPT
-# Printers (printer/scanner PROTOCOL traffic addressed to the proxy itself)
-iptables -A INPUT -i "$INTERFACESv4" -p udp -m multiport --dports 161,162,3910,3911 -m set --match-set macports src -j ACCEPT
-iptables -A INPUT -i "$INTERFACESv4" -p tcp -m multiport --dports 9100,3910,3911 -m set --match-set macports src -j ACCEPT
-# Printers & Scanners UDP (SNMP 161,162 + prnrequest/prnstatus 3910/3911)
+# PRINTERS & SCANNERS
+iptables -A INPUT -i "$INTERFACESv4" -p udp -m multiport --dports 161,162,3702,3910,3911 -m set --match-set macports src -j ACCEPT
+iptables -A INPUT -i "$INTERFACESv4" -p tcp -m multiport --dports 631,3910,3911,9100 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -p udp -m multiport --dports 161,162,3910,3911 -m set --match-set macports src -j ACCEPT
-# Printers & Scanners TCP (JetDirect/RAW 9100 + prnrequest/prnstatus 3910/3911)
-iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -p tcp -m multiport --dports 9100,3910,3911 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -p tcp -m multiport --dports 3910,3911,9100 -m set --match-set macports src -j ACCEPT
 # STUN/TURN (WebRTC, Teams, Meet, Zoom)
 iptables -A FORWARD -i "$INTERFACESv4" -o "$wan_iface" -p udp -m multiport --dports 3478:3481 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i "$INTERFACESv4" -o "$wan_iface" -p tcp -m multiport --dports 3478,5349 -m set --match-set macports src -j ACCEPT
