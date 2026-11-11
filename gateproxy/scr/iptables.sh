@@ -275,6 +275,7 @@ fi
 unset key_errors key_error
 
 # KEY GUARD
+# WAN and LAN must be two distinct, existing interfaces
 if [ "$WAN_IFACE" = "$INTERFACESv4" ]; then
     log "ERROR: WAN and LAN must differ -abort"
     exit 1
@@ -964,6 +965,7 @@ iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 3092 -m set --match-set macp
 # SMB / Microsoft-DS
 iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 445 -m set --match-set macports src -j ACCEPT
 # PRINTERS & SCANNERS
+# SNMP, WSD, IPP and raw printing for macports devices
 iptables -A INPUT -i "$INTERFACESv4" -p udp -m multiport --dports 161,162,3702,3910,3911 -m set --match-set macports src -j ACCEPT
 iptables -A INPUT -i "$INTERFACESv4" -p tcp -m multiport --dports 631,3910,3911,9100 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -p udp -m multiport --dports 161,162,3910,3911 -m set --match-set macports src -j ACCEPT
