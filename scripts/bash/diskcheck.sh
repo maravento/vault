@@ -59,7 +59,7 @@ if ! flock -n 200; then
 fi
 
 # Start
-log "EVENT: diskcheck start..."
+log "INFO: diskcheck start..."
 
 # dependencies
 for dep in inxi smartmontools util-linux libnotify-bin systemd coreutils grep sudo software-properties-common apt bsdutils logrotate iproute2 libc-bin; do
@@ -184,7 +184,7 @@ if [ ! -f "$LOGROTATE_CONF" ]; then
     cat > "$LOGROTATE_CONF" << 'EOF'
 /var/log/diskcheck.log {
     weekly
-    rotate 4
+    rotate 7
     compress
     delaycompress
     missingok
@@ -294,7 +294,7 @@ fi
 # ------------------------------------------------------------------------------
 
 # Detects HDD/SSD/NVMe degradation and alerts for timely replacement
-log "EVENT: Check Disk SMART Health. Wait..."
+log "INFO: Check Disk SMART Health. Wait..."
 
 # Alert thresholds
 REALLOCATED_THRESHOLD=10 # reallocated sectors (sign of bad sectors)
@@ -308,7 +308,7 @@ if [ -z "$DISKS" ]; then
     log "INFO: no disks found -skip"
 else
     for DISK in $DISKS; do
-        log "EVENT: Checking $DISK"
+        log "INFO: Checking $DISK"
         DISK_ALERTS=0
 
         if ! smartctl -i "$DISK" &>/dev/null; then
@@ -371,4 +371,4 @@ fi
 # ------------------------------------------------------------------------------
 
 # end
-log "EVENT: diskcheck done"
+log "INFO: diskcheck done"

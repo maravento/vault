@@ -173,7 +173,7 @@ show_final_status() {
 }
 
 cleanup_all_connections() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Cleaning up all bridge connections..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Cleaning up all bridge connections..."
     nmcli connection delete "$BRIDGE_SLAVE" 2>/dev/null || true
     nmcli connection delete "$BRIDGE_NAME" 2>/dev/null || true
     ip link set dev "$BRIDGE_NAME" down 2>/dev/null || true
@@ -186,7 +186,7 @@ cleanup_all_connections() {
 }
 
 create_bridge_connection() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Creating bridge configuration..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Creating bridge configuration..."
     local original_conn
     original_conn=$(get_original_connection_name "$INTERFACE")
     [ -n "$original_conn" ] && echo "Original connection detected: $original_conn"
@@ -212,7 +212,7 @@ create_bridge_connection() {
 }
 
 force_interface_to_bridge() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Forcing link of $INTERFACE to $BRIDGE_NAME..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Forcing link of $INTERFACE to $BRIDGE_NAME..."
 
     ip link set dev "$INTERFACE" down 2>/dev/null || true
     sleep 1
@@ -222,7 +222,7 @@ force_interface_to_bridge() {
     sleep 2
 
     if ! bridge link show dev "$INTERFACE" 2>/dev/null | grep -q "$BRIDGE_NAME"; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Retrying link..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Retrying link..."
         ip link set dev "$INTERFACE" nomaster 2>/dev/null || true
         sleep 1
         ip link set dev "$INTERFACE" master "$BRIDGE_NAME" 2>/dev/null || true
@@ -231,7 +231,7 @@ force_interface_to_bridge() {
 }
 
 activate_bridge() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Activating bridge..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Activating bridge..."
 
     ip link set dev "$INTERFACE" down 2>/dev/null || true
     ip addr flush dev "$INTERFACE" 2>/dev/null || true
@@ -246,7 +246,7 @@ activate_bridge() {
         sleep 2
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Activating bridge first..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Activating bridge first..."
     if ! nmcli connection up "$BRIDGE_NAME" 2>&1; then
         echo "Error activating bridge"
         return 1
@@ -255,9 +255,9 @@ activate_bridge() {
 
     force_interface_to_bridge
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Activating slave..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Activating slave..."
     if ! nmcli connection up "$BRIDGE_SLAVE" 2>&1; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Problem activating slave, but continuing..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Problem activating slave, but continuing..."
     fi
     sleep 3
 
@@ -271,7 +271,7 @@ activate_bridge() {
 }
 
 wait_for_dhcp() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Waiting for DHCP configuration..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Waiting for DHCP configuration..."
     local max_attempts=6
     local attempt=0
 
@@ -282,10 +282,10 @@ wait_for_dhcp() {
         fi
 
         attempt=$((attempt + 1))
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Attempt $attempt/$max_attempts..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Attempt $attempt/$max_attempts..."
 
         if [ $((attempt % 2)) -eq 0 ]; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Forcing DHCP renewal..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Forcing DHCP renewal..."
             nmcli device reapply "$BRIDGE_NAME" 2>/dev/null || true
         fi
 
@@ -297,7 +297,7 @@ wait_for_dhcp() {
 }
 
 restore_normal_network() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Restoring normal network configuration..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Restoring normal network configuration..."
     nmcli connection down "$BRIDGE_SLAVE" 2>/dev/null || true
     nmcli connection down "$BRIDGE_NAME" 2>/dev/null || true
     sleep 2
@@ -331,12 +331,12 @@ restore_normal_network() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: bridge start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: bridge start..."
 
 # Main
 case "${1:-}" in
     --on)
-        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Scanning for active Ethernet interface..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Scanning for active Ethernet interface..."
         INTERFACE=$(detect_ethernet_interface) || exit 1
         echo "Found active Ethernet interface: $INTERFACE"
 
@@ -346,7 +346,7 @@ case "${1:-}" in
             exit 1
         fi
 
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Activating bridge ${BRIDGE_NAME} on ${INTERFACE}..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Activating bridge ${BRIDGE_NAME} on ${INTERFACE}..."
         cleanup_all_connections
 
         if ! create_bridge_connection; then
@@ -368,7 +368,7 @@ case "${1:-}" in
     --off)
         INTERFACE=$(get_ethernet_interface_for_status)
         if bridge_exists; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Deactivating bridge and restoring normal configuration..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Deactivating bridge, restoring normal config..."
             cleanup_all_connections
             restore_normal_network
             show_restored_status
@@ -410,7 +410,7 @@ case "${1:-}" in
 
     --clean)
         INTERFACE=$(get_ethernet_interface_for_status)
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Complete cleanup of bridge connections..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Complete cleanup of bridge connections..."
         cleanup_all_connections
         echo "Cleanup completed"
         ;;
@@ -433,6 +433,6 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: bridge done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: bridge done"
 
 exit 0

@@ -88,7 +88,7 @@ for dep in wget curl util-linux iproute2 libc-bin coreutils; do
 done
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: winboat start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: winboat start..."
 
 # ------------------------------------------------------------------------------
 # FUNCTIONS
@@ -180,7 +180,7 @@ install_winboat() {
     printf "\n"
 
     # Step 1: Install Docker + Portainer
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [1/4] Installing Docker + Portainer..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [1/4] Installing Docker + Portainer..."
     if ! command -v docker &> /dev/null; then
         if ! fetch_docker_script; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot prepare docker.sh -abort" >&2
@@ -193,16 +193,16 @@ install_winboat() {
         fi
         rm -f -- "$docker_script"
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Docker is already installed. Skipping..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Docker is already installed. Skipping..."
     fi
     printf "\n"
 
     # Step 2: Install FreeRDP
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [2/4] Installing FreeRDP3..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [2/4] Installing FreeRDP3..."
 
     # Check and remove Ubuntu repository version if installed (conflicts with Flatpak)
     if dpkg -l | grep -q freerdp3-x11; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Found freerdp3-x11 from Ubuntu repository. Removing to avoid conflicts..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: removing Ubuntu freerdp3-x11 (conflicts)..."
         if ! apt-get purge -y freerdp3-x11; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot purge freerdp3-x11 -abort" >&2
             exit 1
@@ -213,7 +213,7 @@ install_winboat() {
 
     # Install FreeRDP from Flatpak (fixes bugs present in Ubuntu 24.04 repository version)
     if ! flatpak list 2>/dev/null | grep -q "com.freerdp.FreeRDP"; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Installing Flatpak if not present..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing Flatpak if not present..."
         if ! apt-get update; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: apt-get update failed -fallback"
         fi
@@ -222,24 +222,24 @@ install_winboat() {
             exit 1
         fi
 
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Adding Flathub repository..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Adding Flathub repository..."
         flatpak remote-add --if-not-exists --system flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
 
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Installing FreeRDP from Flatpak..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing FreeRDP from Flatpak..."
         if ! flatpak install --system -y flathub com.freerdp.FreeRDP; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install FreeRDP from Flatpak -abort" >&2
             exit 1
         fi
         echo "FreeRDP3 installed successfully from Flatpak"
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') FreeRDP3 (Flatpak) is already installed. Skipping..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: FreeRDP3 (Flatpak) is already installed. Skipping..."
     fi
     printf "\n"
 
     # Step 3: Install Winboat
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [3/4] Installing Winboat..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [3/4] Installing Winboat..."
     if ! command -v winboat &> /dev/null; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Fetching latest Winboat release..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Fetching latest Winboat release..."
         deb_url=$(curl -sL https://api.github.com/repos/TibixDev/winboat/releases/latest | grep -oP '"browser_download_url": "\K[^"]*\.deb')
 
         if [ -z "$deb_url" ]; then
@@ -247,7 +247,7 @@ install_winboat() {
             exit 1
         fi
 
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Downloading Winboat..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Downloading Winboat..."
         winboat_deb=$(mktemp /tmp/winboat.XXXXXX.deb)
         if ! wget -q --timeout=30 --show-progress \
                 "$deb_url" -O "$winboat_deb"; then
@@ -256,7 +256,7 @@ install_winboat() {
             exit 1
         fi
 
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Installing Winboat package..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing Winboat package..."
         dpkg -i "$winboat_deb" || true
         if ! apt-get install -f -y; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to resolve Winboat dependencies -abort" >&2
@@ -271,7 +271,7 @@ install_winboat() {
         fi
         echo "Winboat installed successfully!"
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Winboat is already installed. Skipping..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Winboat is already installed. Skipping..."
     fi
     printf "\n"
 
@@ -281,7 +281,7 @@ install_winboat() {
     read -p "Do you want to reboot the system now? (y/n): " reboot_choice
     case $reboot_choice in
         [Yy]*)
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Rebooting system..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Rebooting system..."
             reboot
             ;;
         *)
@@ -306,7 +306,7 @@ uninstall_winboat() {
     read -p "Do you want to continue? (y/n): " confirm_removal
     case $confirm_removal in
         [Yy]*)
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Proceeding with uninstallation..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Proceeding with uninstallation..."
             ;;
         *)
             echo "Uninstallation cancelled"
@@ -316,21 +316,21 @@ uninstall_winboat() {
     printf "\n"
 
     # Step 1: Stop Winboat processes
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [1/5] Stopping Winboat processes..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [1/5] Stopping Winboat processes..."
     pkill -x winboat 2>/dev/null || true
     pkill -f xfreerdp3 2>/dev/null || true
     sleep 2
     printf "\n"
 
     # Step 2: Stop and remove Winboat Docker containers
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [2/5] Removing Winboat Docker containers..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [2/5] Removing Winboat Docker containers..."
     if ! winboat_containers=$(docker ps -a --filter "name=WinBoat" --format "{{.ID}}" 2>/dev/null); then
         echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot list containers -alert"
         cleanup_failed=1
         winboat_containers=""
     fi
     if [ -n "$winboat_containers" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Found Winboat containers, stopping and removing..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Found Winboat containers, stopping and removing..."
         docker stop $winboat_containers 2>/dev/null || true
         docker rm $winboat_containers 2>/dev/null || true
         if remaining=$(docker ps -a --filter "name=WinBoat" --format "{{.ID}}" 2>/dev/null); then
@@ -357,7 +357,7 @@ uninstall_winboat() {
         winboat_volumes=""
     fi
     if [ -n "$winboat_volumes" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Found Winboat volumes, removing..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Found Winboat volumes, removing..."
         echo "$winboat_volumes" | xargs -r docker volume rm 2>/dev/null || true
         if volumes_now=$(docker volume ls --format "{{.Name}}" 2>/dev/null); then
             if echo "$volumes_now" | grep -qi winboat; then
@@ -374,7 +374,7 @@ uninstall_winboat() {
     printf "\n"
 
     # Step 3: Uninstall Winboat package
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [3/5] Uninstalling Winboat package..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [3/5] Uninstalling Winboat package..."
     if dpkg-query -W -f='${Status}' winboat 2>/dev/null | grep -q "install ok installed"; then
         if ! apt-get purge -y winboat; then
             purge_failed=1
@@ -399,7 +399,7 @@ uninstall_winboat() {
     printf "\n"
 
     # Step 4: Remove winboat work directory
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [4/5] Removing winboat work directory..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [4/5] Removing winboat work directory..."
     if [ -n "$local_user" ] && [ "$local_user" != "root" ] && [ -d "/home/$local_user/winboat" ]; then
         rm -rf "/home/$local_user/winboat" || true
         if [ -d "/home/$local_user/winboat" ]; then
@@ -414,13 +414,13 @@ uninstall_winboat() {
     printf "\n"
 
     # Step 5: Ask to remove dependencies
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [5/5] Cleaning up dependencies..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: [5/5] Cleaning up dependencies..."
     printf "\n"
 
     read -p "Do you want to remove FreeRDP3? (y/n): " remove_freerdp
     case $remove_freerdp in
         [Yy]*)
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Removing FreeRDP3..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing FreeRDP3..."
             if flatpak uninstall -y com.freerdp.FreeRDP >/dev/null 2>&1; then
                 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: FreeRDP3 removed"
             else
@@ -439,7 +439,7 @@ uninstall_winboat() {
         [Yy]*)
             check_ipv4_interfaces
             check_internet
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Removing Docker..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing Docker..."
             if fetch_docker_script; then
                 if ! "$docker_script" --uninstall; then
                     echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Docker removal failed -alert"
@@ -526,4 +526,4 @@ fi
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: winboat done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: winboat done"

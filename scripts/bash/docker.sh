@@ -76,7 +76,7 @@ fi
 echo "Using local user: $local_user"
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: docker start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: docker start..."
 
 # ------------------------------------------------------------------------------
 # FUNCTIONS
@@ -170,7 +170,7 @@ install_docker() {
   if ! command -v docker &> /dev/null; then
     check_ipv4_interfaces
     check_internet
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Docker is not installed. Proceeding with installation..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Docker not installed. Installing..."
     apt-get update || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
         exit 1
@@ -266,7 +266,7 @@ install_docker() {
 uninstall_docker() {
     local purge_failed=0
   if command -v docker &> /dev/null; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Docker is installed. Proceeding with uninstallation..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Docker is installed. Proceeding with uninstallation..."
 
     # Stop and kill all running containers
     CONTAINERS=$(docker ps -q)
@@ -302,7 +302,7 @@ uninstall_docker() {
 
     # Uninstall Docker packages
     for pkg in docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Removing Dockers Packages..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing Dockers Packages..."
         if dpkg -s "$pkg" &>/dev/null && ! apt-get purge -y "$pkg"; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: package $pkg not removed -alert"
             purge_failed=1
@@ -390,4 +390,4 @@ fi
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: docker done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: docker done"

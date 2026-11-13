@@ -14,7 +14,7 @@
 #
 # LOG: nwatchsetup.log, next to this script (rewritten on each run)
 #      The daemons nwatchlan.sh / nwatchports.sh log to the shared
-#      /var/log/nwatch.log, rotated daily via /etc/logrotate.d/nwatch
+#      /var/log/nwatch.log, rotated weekly via /etc/logrotate.d/nwatch
 #      (deployed by --install, removed by --uninstall).
 #
 ################################################################################
@@ -99,12 +99,9 @@ check_repo() {
 check_repo
 
 # dependencies
-for dep in systemd apache2 libapache2-mod-php php-cli php-sqlite3 arp-scan sqlite3 nmap iproute2 logrotate cron procps coreutils findutils util-linux python3 zip; do
-    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
-        log "ERROR: '$dep' is not installed -abort"
-        exit 1
-    fi
-done
+# Every package the deployed components need. Installed by install_deps
+# in --install and --update.
+apt_deps=(systemd apache2 libapache2-mod-php php-cli php-sqlite3 arp-scan sqlite3 nmap iproute2 logrotate cron procps coreutils findutils util-linux python3 zip grep)
 
 # INTERFACE / NETWORK SELECTION
 # Virtual/loopback interfaces are never useful arp-scan targets and are
@@ -513,6 +510,62 @@ list_ipv4_ifaces() {
     done < <(list_ifaces)
 }
 
+# check ipv4 interfaces
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if [ -n "$(list_ipv4_ifaces)" ]; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for an interface with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no interface with IPv4 -abort"
+    exit 1
+}
+
+# check internet
+check_internet() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for internet..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no internet connection -abort"
+    exit 1
+}
+
+# DEPENDENCIES
+# Install the missing packages of apt_deps
+install_deps() {
+    local dep_pkg missing_pkgs=()
+    for dep_pkg in "${apt_deps[@]}"; do
+        [[ "$(dpkg-query -W -f='${Status}' "$dep_pkg" 2>/dev/null)" == *"ok installed"* ]] || missing_pkgs+=("$dep_pkg")
+    done
+    (( ${#missing_pkgs[@]} == 0 )) && return 0
+    check_ipv4_interfaces
+    check_internet
+    if ! DEBIAN_FRONTEND=noninteractive apt-get -qq install -y "${missing_pkgs[@]}"; then
+        log "ERROR: cannot install ${missing_pkgs[*]}"
+        log "ERROR: install them with apt, then re-run -abort"
+        exit 1
+    fi
+    log "INFO: Installed: ${missing_pkgs[*]}"
+}
+
 # LAN SELECTION
 # Select an existing interface and one of its configured IPv4 addresses
 choose_lan_interface() {
@@ -863,7 +916,7 @@ install_project_logrotate() {
     chmod 640 "$project_log" || return 1
     cat > "$rotate_file" <<EOF
 $project_log {
-    daily
+    weekly
     rotate 7
     compress
     delaycompress
@@ -882,6 +935,7 @@ EOF
 do_install() {
 
     check_already_installed
+    install_deps
 
     # dependency checks
     check_conflicts "web server" nginx lighttpd caddy
@@ -921,7 +975,7 @@ do_install() {
     fi
 
     if ! { cp -f "$tools_dir"/*.sh "$nwatch_tools/" \
-        && chmod +x "$nwatch_tools"/*.sh \
+        && chmod 750 "$nwatch_tools"/*.sh \
         && chmod 644 "$nwatch_tools/nwatchenv.sh"; }; then
         log "ERROR: cannot deploy tools -abort"
         exit 1
@@ -1097,13 +1151,14 @@ update_apache_port() {
 
 do_update() {
     [ -f "$nwatch_env" ] || { log "ERROR: nwatch is not installed -abort"; exit 1; }
+    install_deps
     update_reset /etc/cron.d/nwatch
     local file mode
     for file in index.php lan.html nwatchapi.php ports.html; do
         update_file "$web_dir/$file" "$nwatch_web/$file" 755 www-data:www-data
     done
     for file in nwatchenv.sh nwatchlan.sh nwatchports.sh nwatchbk.sh; do
-        mode=755
+        mode=750
         [ "$file" != nwatchenv.sh ] || mode=644
         update_file "$tools_dir/$file" "$nwatch_tools/$file" "$mode" root:root
     done
@@ -1177,6 +1232,7 @@ do_uninstall() {
         log "INFO: Removed /etc/logrotate.d/nwatch"
         log "INFO: Removed /etc/logrotate.d/nwatch.bak"
     }
+    rm -f -- /var/log/nwatch.log /var/log/nwatch.log.* && log "INFO: Removed /var/log/nwatch.log*"
 
     rm -rf "$nwatch_www"
     rm -rf "$nwatch_etc"
@@ -1304,7 +1360,7 @@ show_menu() {
             3) do_uninstall; break ;;
             4) do_status; break ;;
             5)
-                log "EVENT: nwatchsetup done"
+                log "INFO: nwatchsetup done"
                 exit 0
                 ;;
             *) log "INFO: invalid option -retry" ;;
@@ -1317,7 +1373,7 @@ show_menu() {
 # ------------------------------------------------------------------------------
 
 # Dispatch the requested command to its action
-log "EVENT: nwatchsetup start..."
+log "INFO: nwatchsetup start..."
 case "${1:-}" in
     --install) do_install ;;
     --update) do_update || exit 1 ;;
@@ -1335,4 +1391,4 @@ esac
 # END
 # ------------------------------------------------------------------------------
 
-log "EVENT: nwatchsetup done"
+log "INFO: nwatchsetup done"

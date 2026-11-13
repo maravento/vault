@@ -138,7 +138,7 @@ check_internet
 # MAIN
 # ------------------------------------------------------------------------------
 
-log "EVENT: suricataupdate start..."
+log "INFO: suricataupdate start..."
 
 for service in suricata evebox; do
     if ! systemctl stop "$service"; then
@@ -191,4 +191,4 @@ fi
 # END
 # ------------------------------------------------------------------------------
 
-log "EVENT: suricataupdate done"
+log "INFO: suricataupdate done"

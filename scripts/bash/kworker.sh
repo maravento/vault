@@ -53,12 +53,12 @@ done
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: kworker start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: kworker start..."
 
 kworker=$(mktemp /tmp/gpelist.XXXXXX)
 trap 'rm -f "$kworker"' EXIT
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Checking GPE list..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Checking GPE list..."
 grep enabled /sys/firmware/acpi/interrupts/* 2>/dev/null > "$kworker"
 
 gpe=$(grep -E '[1-9][0-9][0-9][0-9]+ ' "$kworker" | sort -rnk 2 | head -n1 | cut -d":" -f1)
@@ -67,7 +67,7 @@ gpe=$(grep -E '[1-9][0-9][0-9][0-9]+ ' "$kworker" | sort -rnk 2 | head -n1 | cut
 if [ -z "$gpe" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no GPE interrupt storm found"
 else
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Disabling ${gpe##*/}..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Disabling ${gpe##*/}..."
     echo "disable" > "$gpe"
     gpe_rc=$?
     if [ "$gpe_rc" -eq 0 ]; then
@@ -83,4 +83,4 @@ fi
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: kworker done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: kworker done"

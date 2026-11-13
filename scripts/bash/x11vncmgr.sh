@@ -268,7 +268,7 @@ do_uninstall() {
     verify_removed
 
     rm -f "$x11vnc_log_file" "$log_file"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: x11vncmgr done"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: x11vncmgr done"
     exit 0
 }
 
@@ -359,7 +359,7 @@ menu() {
 # ------------------------------------------------------------------------------
 
 # Start
-log "EVENT: x11vncmgr start..."
+log "INFO: x11vncmgr start..."
 
 if [ -z "${1:-}" ]; then
     menu
@@ -380,4 +380,4 @@ fi
 # ------------------------------------------------------------------------------
 
 # End
-log "EVENT: x11vncmgr done"
+log "INFO: x11vncmgr done"

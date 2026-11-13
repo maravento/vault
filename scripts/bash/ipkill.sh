@@ -47,7 +47,7 @@ UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: ipkill start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: ipkill start..."
 
 sleep_time="10"
 
@@ -85,11 +85,11 @@ sleep "${sleep_time}"
 kill "$tcpkill_pid" 2>/dev/null
 wait "$tcpkill_pid" 2>/dev/null
 
-logger -t ipkill "$(date '+%Y-%m-%d %H:%M:%S') EVENT: ipkill done: $target_ip_validated on $eth"
+logger -t ipkill "$(date '+%Y-%m-%d %H:%M:%S') INFO: ipkill done: $target_ip_validated on $eth"
 
 # ------------------------------------------------------------------------------
 # END
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: ipkill done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: ipkill done"

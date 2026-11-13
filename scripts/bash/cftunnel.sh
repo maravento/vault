@@ -264,7 +264,7 @@ delete_dns_record() {
         return 0
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Deleting DNS record for '$tunnel_hostname' (zone: $zone_name)..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Deleting DNS record for '$tunnel_hostname' (zone: $zone_name)..."
     if curl -sf -X DELETE "https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records/${record_id}" \
         -H "Authorization: Bearer $api_token" -H "Content-Type: application/json" >/dev/null; then
         echo "[OK] DNS record for '$tunnel_hostname' deleted"
@@ -364,7 +364,7 @@ stop_tunnel() {
         return
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Stopping tunnel '$tunnel_name' (PID $pid)..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Stopping tunnel '$tunnel_name' (PID $pid)..."
     kill "$pid" 2>/dev/null
     sleep 1
     if _pid_is_tunnel "$pid" "$tunnel_name"; then
@@ -396,7 +396,7 @@ stop_all_tunnels() {
                 continue
             fi
             if _pid_is_tunnel "$pid" "$tunnel"; then
-                echo "$(date '+%Y-%m-%d %H:%M:%S') Stopping tunnel '$tunnel' (PID $pid)..."
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Stopping tunnel '$tunnel' (PID $pid)..."
                 kill "$pid" 2>/dev/null
                 sleep 1
                 _pid_is_tunnel "$pid" "$tunnel" && kill -9 "$pid" 2>/dev/null
@@ -757,7 +757,7 @@ _cron_remove() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: cftunnel start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: cftunnel start..."
 
 ACTION="${1:-}"
 
@@ -780,7 +780,7 @@ if [[ -z "$ACTION" ]]; then
         4) ACTION="--stop" ;;
         5) ACTION="--status" ;;
         6) ACTION="--delete" ;;
-        0) echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: cftunnel done"
+        0) echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: cftunnel done"
            exit 0 ;;
         *) echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2; exit 1 ;;
     esac
@@ -849,4 +849,4 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: cftunnel done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: cftunnel done"

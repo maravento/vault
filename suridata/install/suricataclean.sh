@@ -97,7 +97,7 @@ done
 # MAIN
 # ------------------------------------------------------------------------------
 
-log "EVENT: suricataclean start..."
+log "INFO: suricataclean start..."
 
 for service in suricata evebox; do
     if ! systemctl stop "$service"; then
@@ -168,4 +168,4 @@ done
 # END
 # ------------------------------------------------------------------------------
 
-log "EVENT: suricataclean done"
+log "INFO: suricataclean done"

@@ -433,7 +433,7 @@ xml_to_html() (
 
     # Create custom XSL if not present
     if [ ! -f "$xsl" ]; then
-        log "EVENT: Creating custom XSL stylesheet..."
+        log "INFO: Creating custom XSL stylesheet..."
         create_custom_xsl "$xsl"
     fi
 
@@ -445,7 +445,7 @@ xml_to_html() (
     trap 'rm -f -- "$html_tmp"' EXIT
 
     # Try conversion with custom XSL
-    log "EVENT: Converting with custom XSL..."
+    log "INFO: Converting with custom XSL..."
     local xsl_rc=0
     xsltproc -o "$html_tmp" "$xsl" "$xml" 2>"$xsl_error" || xsl_rc=$?
     if (( xsl_rc == 0 )) && [[ -s "$html_tmp" ]] &&
@@ -463,7 +463,7 @@ xml_to_html() (
 
     # Fallback: try default nmap XSL
     if [ -f "$default_xsl" ]; then
-        log "EVENT: Attempting conversion with default nmap XSL..."
+        log "INFO: Attempting conversion with default nmap XSL..."
         xsl_rc=0
         if ! : > "$html_tmp"; then
             log "WARNING: cannot reset HTML temporary file -alert"
@@ -645,7 +645,7 @@ select_interface() {
     SEL_NET="$lan_cidr_answer"
 }
 
-log "EVENT: nreport start..."
+log "INFO: nreport start..."
 
 # ------------------------------------------------------------------------------
 # MENU
@@ -706,7 +706,7 @@ case "$opt" in
         html_file="${report_dir}/scan_deep_${TS}.html"
 
         log "INFO: Starting Advanced LAN Scan on $net"
-        log "EVENT: This may take several minutes..."
+        log "INFO: This may take several minutes..."
 
         # Run nmap in background
         nmap -sS -T4 -p- -sV -sC --max-retries 3 --host-timeout 5m "$net" -oX "$xml_file" > "$SCRIPT_TMPDIR/nmap_out" 2>&1 &
@@ -725,7 +725,7 @@ case "$opt" in
         select_interface
         iface="$SEL_IFACE"
         net="$SEL_NET"
-        log "EVENT: Discovering active hosts on $net ..."
+        log "INFO: Discovering active hosts on $net ..."
         echo ""
         nmap -sn "$net" 2>/dev/null | awk '/report for/{ip=$5} /MAC/{printf " %-18s %s %s %s\n", ip, $3, $4, $5}' | sort -t. -k4 -n
         echo ""
@@ -749,7 +749,7 @@ case "$opt" in
 
         log "INFO: Starting IP/Host Scan on: $target"
         log "INFO: all ports, with vulnerability detection"
-        log "EVENT: May take 20-30 minutes..."
+        log "INFO: May take 20-30 minutes..."
 
         # Full scan: all 65535 ports, OS detection, version intensity, vuln scripts and traceroute
         nmap -Pn -sS -T4 -p- -sV --version-intensity 8 -sC -O \
@@ -781,7 +781,7 @@ case "$opt" in
 
                 finalize_html_report "$html_file"
                 cleanup_intermediate_files "$base"
-                log "EVENT: nreport done"
+                log "INFO: nreport done"
                 exit 0
             else
                 cp -f "$SCRIPT_TMPDIR/nmap_out" "${base}_nmap_out.log" 2>/dev/null || true
@@ -810,7 +810,7 @@ case "$opt" in
         ;;
 
     4)
-        log "EVENT: nreport done"
+        log "INFO: nreport done"
         exit 0
         ;;
 esac
@@ -819,5 +819,5 @@ esac
 # END
 # ------------------------------------------------------------------------------
 
-log "EVENT: nreport done"
+log "INFO: nreport done"
 echo ""

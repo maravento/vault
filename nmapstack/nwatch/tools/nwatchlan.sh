@@ -338,7 +338,7 @@ start() {
         exec 200>&-
         echo "$BASHPID" > "$pid_file"
         while true; do
-            log "EVENT: nwatchlan cycle start..."
+            log "INFO: nwatchlan cycle start..."
             run_scan
             sleep "$LAN_POLL_INTERVAL"
         done
@@ -356,7 +356,7 @@ start() {
 # STOP
 # Stop the recorded daemon process
 stop() {
-    log "EVENT: Stopping nwatchlan..."
+    log "INFO: Stopping nwatchlan..."
     if [ -f "$pid_file" ]; then
         local daemon_pid
         daemon_pid=$(cat "$pid_file")
@@ -383,7 +383,7 @@ stop() {
 # STATUS
 # Report the current daemon or installation state
 status() {
-    log "EVENT: nwatchlan status..."
+    log "INFO: nwatchlan status..."
     if [ -f "$pid_file" ] && daemon_alive "$(cat "$pid_file")"; then
         log "INFO: nwatchlan is RUNNING (PID $(cat "$pid_file"))"
         log "INFO: Interfaces: ${LAN_IFACES:-unset}"
@@ -481,7 +481,7 @@ fi
 # ACTIONS
 # ------------------------------------------------------------------------------
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: nwatchlan start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: nwatchlan start..."
 case "${1:-}" in
     --start) start ;;
     --stop) stop ;;
@@ -493,4 +493,4 @@ esac || exit 1
 # END
 # ------------------------------------------------------------------------------
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: nwatchlan done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: nwatchlan done"

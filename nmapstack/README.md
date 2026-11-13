@@ -346,10 +346,9 @@ sudo ./nreport.sh
 - Apache2 with mod_php (not PHP-FPM — the vhost uses `SetHandler application/x-httpd-php`)
 - arp-scan, sqlite3, php-sqlite3, php-cli, nmap, iproute2 (`ss`), logrotate, util-linux, python3, zip
 
-```bash
-apt-get install -y apache2 libapache2-mod-php php-cli
-apt-get install -y arp-scan sqlite3 php-sqlite3 nmap iproute2 logrotate util-linux python3 zip
-```
+`nwatchsetup.sh --install` and `--update` install the missing ones. `--uninstall` never uninstalls APT packages: other projects and the system may share them.
+
+`nwatchsetup.sh --install` y `--update` instalan los que falten. `--uninstall` nunca desinstala paquetes APT, porque otros proyectos y el sistema pueden compartirlos.
 
 <table width="100%">
   <tr>
@@ -473,10 +472,10 @@ sudo bash nwatchsetup.sh
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Project log: <code>/var/log/nwatch.log</code>. Installation and update configure daily rotation in <code>/etc/logrotate.d/nwatch</code>, keeping seven previous files plus the active log. Compression starts on the next rotation. Empty logs are not rotated; missing logs are tolerated. The installer also sets <code>rotate 7</code> in <code>/etc/logrotate.d/apache2</code>, backing it up first. Squid keeps its own policy.
+      Project log: <code>/var/log/nwatch.log</code>. Installation and update configure weekly rotation in <code>/etc/logrotate.d/nwatch</code>, keeping seven previous files plus the active log. Compression starts on the next rotation. Empty logs are not rotated; missing logs are tolerated. The installer also sets <code>rotate 7</code> in <code>/etc/logrotate.d/apache2</code>, backing it up first. Squid keeps its own policy.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Log del proyecto: <code>/var/log/nwatch.log</code>. La instalación y la actualización configuran rotación diaria en <code>/etc/logrotate.d/nwatch</code>. Se conservan siete archivos anteriores y el activo. La compresión comienza en la siguiente rotación. Los logs vacíos no se rotan; los ausentes se toleran. El instalador también fija <code>rotate 7</code> en <code>/etc/logrotate.d/apache2</code>, con respaldo previo. Squid conserva su propia política.
+      Log del proyecto: <code>/var/log/nwatch.log</code>. La instalación y la actualización configuran rotación semanal en <code>/etc/logrotate.d/nwatch</code>. Se conservan siete archivos anteriores y el activo. La compresión comienza en la siguiente rotación. Los logs vacíos no se rotan; los ausentes se toleran. El instalador también fija <code>rotate 7</code> en <code>/etc/logrotate.d/apache2</code>, con respaldo previo. Squid conserva su propia política.
     </td>
   </tr>
 </table>
@@ -759,18 +758,18 @@ sudo /var/www/nwatch/tools/nwatchports.sh --list
 | Finish | The installer regenerates its complete cron file and resumes the consumers that were active. It writes `done` only after successful completion. | El instalador regenera su archivo cron completo y reanuda los procesos que estaban activos. Escribe `done` únicamente si termina correctamente. |
 
 ```bash
-2026-10-28 15:35:09 EVENT: nwatchsetup start...
-2026-10-28 15:35:09 EVENT: nwatchbk start...
+2026-10-28 15:35:09 INFO: nwatchsetup start...
+2026-10-28 15:35:09 INFO: nwatchbk start...
 2026-10-28 15:35:18 INFO: backup written to nwatchbk_20261028_153509.zip
-2026-10-28 15:35:18 EVENT: nwatchbk done
-2026-10-28 15:35:19 EVENT: nwatchlan start...
-2026-10-28 15:35:19 EVENT: Stopping nwatchlan...
+2026-10-28 15:35:18 INFO: nwatchbk done
+2026-10-28 15:35:19 INFO: nwatchlan start...
+2026-10-28 15:35:19 INFO: Stopping nwatchlan...
 2026-10-28 15:35:20 INFO: nwatchlan stopped (PID 2965731)
-2026-10-28 15:35:20 EVENT: nwatchlan done
-2026-10-28 15:35:21 EVENT: nwatchports start...
-2026-10-28 15:35:21 EVENT: Stopping nwatchports...
+2026-10-28 15:35:20 INFO: nwatchlan done
+2026-10-28 15:35:21 INFO: nwatchports start...
+2026-10-28 15:35:21 INFO: Stopping nwatchports...
 2026-10-28 15:35:22 INFO: nwatchports stopped (PID 2966130)
-2026-10-28 15:35:22 EVENT: nwatchports done
+2026-10-28 15:35:22 INFO: nwatchports done
 2026-10-28 15:35:23 INFO: updated index.php
 2026-10-28 15:35:23 INFO: updated lan.html
 2026-10-28 15:35:23 INFO: updated nwatchapi.php
@@ -780,7 +779,7 @@ sudo /var/www/nwatch/tools/nwatchports.sh --list
 2026-10-28 15:35:23 INFO: updated nwatchports.sh
 2026-10-28 15:35:23 INFO: updated nwatchbk.sh
 2026-10-28 15:35:23 INFO: updated /etc/logrotate.d/nwatch
-2026-10-28 15:35:23 EVENT: nwatchlan start...
+2026-10-28 15:35:23 INFO: nwatchlan start...
 2026-10-28 15:35:23 INFO: interface: eno1=UP
 2026-10-28 15:35:23 INFO: interface: eno2=UP
 2026-10-28 15:35:23 INFO: Interfaces: eno1,eno2
@@ -788,15 +787,15 @@ sudo /var/www/nwatch/tools/nwatchports.sh --list
 2026-10-28 15:35:23 INFO: Offline grace: 3 polls
 2026-10-28 15:35:23 INFO: Database: /var/www/nwatch/data/nwatch.db
 2026-10-28 15:35:23 INFO: nwatchlan started with PID 3020595
-2026-10-28 15:35:23 EVENT: nwatchlan done
-2026-10-28 15:35:24 EVENT: nwatchports start...
+2026-10-28 15:35:23 INFO: nwatchlan done
+2026-10-28 15:35:24 INFO: nwatchports start...
 2026-10-28 15:35:24 INFO: Mode: server
 2026-10-28 15:35:24 INFO: Interval: 30s
 2026-10-28 15:35:24 INFO: Database: /var/www/nwatch/data/nwatch.db
 2026-10-28 15:35:24 INFO: nwatchports started with PID 3020638
-2026-10-28 15:35:24 EVENT: nwatchports done
+2026-10-28 15:35:24 INFO: nwatchports done
 2026-10-28 15:35:24 INFO: nwatch updated
-2026-10-28 15:35:24 EVENT: nwatchsetup done
+2026-10-28 15:35:24 INFO: nwatchsetup done
 ```
 
 ## ⚠️ WARNING: NETWORK ACCESS

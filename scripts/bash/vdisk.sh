@@ -232,7 +232,7 @@ mount_img() {
         case "$choice" in
         1)
             # mount .img
-            echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Mounting VHD-IMG..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Mounting VHD-IMG..."
             mount -o loop,rw,sync "$myimg" "$mountpoint"
             mount_rc=$?
             if [ "$mount_rc" -eq 0 ]; then
@@ -246,7 +246,7 @@ mount_img() {
             ;;
         2)
             # umount .img
-            echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Unmounting VHD-IMG..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Unmounting VHD-IMG..."
             umount "$mountpoint"
             umount_rc=$?
             if [ "$umount_rc" -eq 0 ]; then
@@ -276,7 +276,7 @@ mount_img_kpartx() {
         case "$choice" in
         1)
             # mount .img
-            echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Mounting VHD-IMG..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Mounting VHD-IMG..."
             if findmnt --mountpoint "$mountpoint" >/dev/null 2>&1; then
                 echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: mount point already in use -abort" >&2
                 exit 1
@@ -317,7 +317,7 @@ mount_img_kpartx() {
             ;;
         2)
             # umount .img
-            echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Unmounting VHD-IMG..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Unmounting VHD-IMG..."
             was_mounted=0
             findmnt --mountpoint "$mountpoint" >/dev/null 2>&1 && was_mounted=1
             umount "$mountpoint"
@@ -356,7 +356,7 @@ mount_img_kpartx() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: vdisk start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: vdisk start..."
 
 # if no .img exists, create it
 if [ ! -f "$myimg" ]; then create_img; fi
@@ -386,4 +386,4 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: vdisk done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: vdisk done"

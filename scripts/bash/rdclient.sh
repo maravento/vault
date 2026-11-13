@@ -313,7 +313,7 @@ install_rustdesk() {
         exit 1
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Installing package..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing package..."
     dpkg_out=$(mktemp)
     if dpkg -i "./$deb_file" >"$dpkg_out" 2>&1; then
         setup_keyboard
@@ -340,7 +340,7 @@ remove_rustdesk() {
         return
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Removing RustDesk..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing RustDesk..."
     apt_out=$(mktemp)
     if apt-get remove --purge -y rustdesk >"$apt_out" 2>&1; then
         rm -f "$apt_out"
@@ -397,7 +397,7 @@ show_menu() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: rdclient start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: rdclient start..."
 
 show_menu
 read -r option
@@ -422,4 +422,4 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: rdclient done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: rdclient done"

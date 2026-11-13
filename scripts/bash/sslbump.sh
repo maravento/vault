@@ -51,7 +51,7 @@ for dep in openssl ca-certificates systemd util-linux; do
 done
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: sslbump start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: sslbump start..."
 
 # ------------------------------------------------------------------------------
 # VARIABLES
@@ -65,7 +65,7 @@ CA_CERT_D=/usr/local/share/ca-certificates
 
 # Function: Remove regular squid and install squid-openssl
 remove_and_install_squid_openssl() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Backing up /etc/squid..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Backing up /etc/squid..."
     BACKUP_DIR=$(mktemp -d /tmp/squid.etc.bak.XXXXXX) || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot create Squid backup directory -abort" >&2
         exit 1
@@ -80,11 +80,11 @@ remove_and_install_squid_openssl() {
     read -rp "Confirm Squid purge? (yes/no) [no]: " confirm_purge
     if [[ "$confirm_purge" != "yes" ]]; then
         echo "Purge cancelled"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: sslbump done"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: sslbump done"
         exit 0
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Removing old squid..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing old squid..."
     apt purge -y 'squid*' &>/dev/null || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot purge Squid packages -abort" >&2
         exit 1
@@ -92,7 +92,7 @@ remove_and_install_squid_openssl() {
     rm -rf /var/spool/squid* /var/log/squid* /etc/squid
     rm -f "$CA_CERT_D/squid_proxyCA.crt"
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Installing squid-openssl..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing squid-openssl..."
     apt update || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: apt update failed -abort" >&2; exit 1; }
     apt install -y squid-openssl squid-langpack squid-common squidclient squid-purge || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Failed to install squid-openssl packages -abort" >&2
@@ -134,7 +134,7 @@ ssl_bump_setup() {
     mkdir -p "$CERT_D"
 
     local tmp_cert=""
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Generating SSL certificate..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Generating SSL certificate..."
     umask 077
     if ! { tmp_cert="$(mktemp "${CERT}.XXXXXX")" &&
         openssl req -new -newkey rsa:4096 -sha256 -days 365 -nodes -x509 \
@@ -154,7 +154,7 @@ ssl_bump_setup() {
         exit 1
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Adding certificate to system..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Adding certificate to system..."
     CA_CERT_D=/usr/local/share/ca-certificates
     mkdir -p "$CA_CERT_D"
     local crt="$CA_CERT_D/squid_proxyCA.crt" tmp_dir
@@ -179,7 +179,7 @@ ssl_bump_setup() {
     }
 
     SSL_DB=/var/spool/squid/ssl_db
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Initializing SSL certificate database..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Initializing SSL certificate database..."
     rm -rf "$SSL_DB"
     /usr/lib/squid/security_file_certgen -c -s "$SSL_DB" -M 4MB || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot initialize Squid SSL database -abort" >&2
@@ -201,7 +201,7 @@ ssl_bump_setup() {
 
 # Check if squid is installed
 if ! package_installed squid && ! package_installed squid-openssl; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Squid is not installed. Installing squid-openssl..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Squid is not installed. Installing squid-openssl..."
     # Only install squid-openssl if it's not installed
     apt update || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: apt update failed -abort" >&2; exit 1; }
     apt install -y squid-openssl squid-langpack squid-common squidclient squid-purge || {
@@ -218,7 +218,7 @@ else
         remove_and_install_squid_openssl
     else
         echo "Aborted by user"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: sslbump done"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: sslbump done"
         exit 0
     fi
 fi
@@ -237,4 +237,4 @@ echo "ssl_bump bump all"
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: sslbump done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: sslbump done"

@@ -241,6 +241,7 @@ curl http://SERVER_IP:18800/wpad.pac
 | :--- | :--- | :--- | :--- |
 | `/etc/logrotate.d/squid` | `weekly` | Rotation frequency | Frecuencia de rotación |
 | `/etc/logrotate.d/squid` | `rotate 7` | Rotated log files retained | Archivos de log rotados conservados |
+| `/etc/logrotate.d/squid` | `compress`, `delaycompress`, `missingok`, `notifempty` | Added when missing | Se añaden si faltan |
 | `/etc/logrotate.d/squid` | `create 0640 proxy proxy` | Permissions, owner and group of the recreated log | Permisos, propietario y grupo del log recreado |
 | `/etc/logrotate.d/apache2` | `rotate 7` | Rotated log files retained; Ubuntu defaults to 14 | Archivos de log rotados conservados; Ubuntu utiliza 14 por defecto |
 

@@ -245,7 +245,7 @@ ensure_prereqs() {
     done
 
     if [ "${#missing[@]}" -gt 0 ]; then
-        log "EVENT: Installing prerequisites..."
+        log "INFO: Installing prerequisites..."
         apt-get update -qq >>"$log_file" 2>&1 || {
             err "cannot update package lists -abort"
             exit 1
@@ -267,7 +267,7 @@ ensure_prereqs() {
 # ------------------------------------------------------------------------------
 
 fetch_downloads_json() {
-    log "EVENT: Fetching official Ubiquiti release catalog..."
+    log "INFO: Fetching official Ubiquiti release catalog..."
     if ! curl -fsSL "${downloads_api}" -o "${downloads_json}"; then
         err "release catalog download failed -abort"
         exit 1
@@ -322,7 +322,7 @@ ensure_mongodb_repo() {
     if [ -f /etc/apt/sources.list.d/mongodb-org-8.0.list ]; then
         return 0
     fi
-    log "EVENT: Adding MongoDB 8.0 repository..."
+    log "INFO: Adding MongoDB 8.0 repository..."
     if ! install_repo_key https://pgp.mongodb.com/server-8.0.asc /etc/apt/keyrings/mongodb-server-8.0.gpg; then
         err "failed to add MongoDB repository key -abort"
         return 1
@@ -339,7 +339,7 @@ ensure_adoptium_repo() {
     if [ -f /etc/apt/sources.list.d/adoptium.list ]; then
         return 0
     fi
-    log "EVENT: Adding Adoptium (Temurin) repository..."
+    log "INFO: Adding Adoptium (Temurin) repository..."
 
     # Adoptium doesn't always have a suite for a brand-new Ubuntu release
     # yet. Check its dists listing first
@@ -397,7 +397,7 @@ install_network() {
         return 1
     fi
 
-    log "EVENT: Updating apt package lists..."
+    log "INFO: Updating apt package lists..."
     apt-get update -qq >>"$log_file" 2>&1 || {
         err "cannot update package lists -abort"
         return 1
@@ -416,7 +416,7 @@ install_network() {
         }
     fi
 
-    log "EVENT: Installing Java runtime (${java_package})..."
+    log "INFO: Installing Java runtime (${java_package})..."
     if ! DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${java_package}" ca-certificates-java >>"$log_file" 2>&1; then
         err "failed to install ${java_package} -abort"
         return 1
@@ -442,7 +442,7 @@ install_network() {
     # ca-certificates-java can leave a fresh JRE's cacerts keystore empty
     # or half-built (a known Debian/Ubuntu packaging bug), which breaks
     # UniFi's own outbound HTTPS calls. Rebuild it from scratch.
-    log "EVENT: Refreshing CA certificates for Java..."
+    log "INFO: Refreshing CA certificates for Java..."
     rm -f /etc/ssl/certs/java/cacerts 2>/dev/null
     if update-ca-certificates -f >>"$log_file" 2>&1; then
         mkdir -p /etc/ssl/certs/java
@@ -456,13 +456,13 @@ install_network() {
     fi
 
     local deb_file="${work_dir}/unifi_${target_version}_all.deb"
-    log "EVENT: Downloading UniFi Network ${target_version}..."
+    log "INFO: Downloading UniFi Network ${target_version}..."
     if ! curl -fL --progress-bar -o "${deb_file}" "${target_url}"; then
         err "UniFi Network package download failed -abort"
         return 1
     fi
 
-    log "EVENT: Installing UniFi Network ${target_version}..."
+    log "INFO: Installing UniFi Network ${target_version}..."
     if DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' "${deb_file}" >>"$log_file" 2>&1; then
         info "UniFi Network ${target_version} installed"
     else
@@ -590,7 +590,7 @@ action_uninstall_network() {
     systemctl is-active --quiet unifi && was_active="yes"
     systemctl stop unifi 2>/dev/null || true
 
-    log "EVENT: Purging unifi package..."
+    log "INFO: Purging unifi package..."
     DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq unifi >>"$log_file" 2>&1 || {
         err "cannot purge unifi package, uninstall aborted -abort"
         if [ "${was_active}" = "yes" ]; then
@@ -602,7 +602,7 @@ action_uninstall_network() {
 
     case "$remove_mongo" in
         [Yy]*)
-            log "EVENT: Purging MongoDB packages..."
+            log "INFO: Purging MongoDB packages..."
             if DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq 'mongodb-org*' >>"$log_file" 2>&1; then
                 rm -rf /var/lib/mongodb /etc/mongod.conf* /var/log/mongodb
                 rm -f /etc/apt/sources.list.d/mongodb-org-8.0.list /etc/apt/keyrings/mongodb-server-8.0.gpg
@@ -643,7 +643,7 @@ ensure_osserver_prereqs() {
         [[ "$(dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null)" == *"ok installed"* ]] || missing+=("$pkg")
     done
     if [ "${#missing[@]}" -gt 0 ]; then
-        log "EVENT: Installing UniFi OS Server prerequisites..."
+        log "INFO: Installing UniFi OS Server prerequisites..."
         DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >>"$log_file" 2>&1
     fi
 }
@@ -655,7 +655,7 @@ install_osserver() {
     ensure_osserver_prereqs || return 1
 
     local installer_file="${work_dir}/uosserver-${target_version}"
-    log "EVENT: Downloading UniFi OS Server ${target_version}..."
+    log "INFO: Downloading UniFi OS Server ${target_version}..."
     info "This is a large file, it may take a while"
     if ! curl -fL --progress-bar -o "${installer_file}" "${target_url}"; then
         err "UniFi OS Server download failed -abort"
@@ -664,7 +664,7 @@ install_osserver() {
 
     chmod +x "${installer_file}"
 
-    log "EVENT: Running UniFi OS Server installer..."
+    log "INFO: Running UniFi OS Server installer..."
     if "${installer_file}" --non-interactive --force-install 200>&- >>"$log_file" 2>&1; then
         info "OS Server ${target_version} installed"
     else
@@ -990,7 +990,7 @@ if [ "$action" = --help ] || [ "$action" = -h ]; then
 fi
 
 # Start
-log "EVENT: unifisetup start..."
+log "INFO: unifisetup start..."
 
 os_check
 arch_check
@@ -1006,4 +1006,4 @@ case "$action:$component" in
     :) menu || exit 1 ;;
 esac
 
-log "EVENT: unifisetup done"
+log "INFO: unifisetup done"

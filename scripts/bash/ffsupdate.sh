@@ -56,7 +56,7 @@ log() {
 }
 
 # Start
-log "EVENT: ffsupdate start..."
+log "INFO: ffsupdate start..."
 
 # dependencies
 for dep in expect tcl-expect wget tar coreutils util-linux iproute2 libc-bin; do
@@ -246,4 +246,4 @@ rm -f "$ffsfile" "$ffsrun"
 # ------------------------------------------------------------------------------
 
 # End
-log "EVENT: ffsupdate done"
+log "INFO: ffsupdate done"

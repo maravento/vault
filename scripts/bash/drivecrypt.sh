@@ -182,11 +182,11 @@ originpath="/home/$local_user/.local/share/Cryptomator/mnt"
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: drivecrypt start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: drivecrypt start..."
 
 case "${1:-}" in
 '--start')
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: mounting DriveCrypt..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: mounting DriveCrypt..."
     if [ ! -d "$originpath" ]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: source folder $(basename "$originpath") not found -abort" >&2
         exit 1
@@ -200,7 +200,7 @@ case "${1:-}" in
     logger -t drivecrypt "$msg"
     ;;
 '--stop')
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: unmounting DriveCrypt..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: unmounting DriveCrypt..."
     sudo -u "$local_user" fusermount -u "$dstpath" || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot unmount DriveCrypt -abort" >&2
         exit 1
@@ -221,4 +221,4 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: drivecrypt done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: drivecrypt done"

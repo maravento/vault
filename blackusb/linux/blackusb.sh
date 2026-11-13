@@ -66,14 +66,15 @@ log_enabled='yes'
 log_file='/var/log/blackusb.log'
 if [ ! -f "$log_file" ]; then touch "$log_file"; fi
 
-# Rotate log_file weekly, keep 4 weeks (deployed once, never overwritten)
+# Rotate log_file daily, keep 7 (deployed once, never overwritten)
 logrotate_file='/etc/logrotate.d/blackusb'
 if [ ! -f "$logrotate_file" ]; then
     cat >"$logrotate_file" <<EOF
 $log_file {
     weekly
-    rotate 4
+    rotate 7
     compress
+    delaycompress
     missingok
     notifempty
 }
@@ -372,7 +373,7 @@ log_allowed() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: blackusb start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: blackusb start..."
 
 case "${1:-}" in
 --generate)
@@ -439,4 +440,4 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: blackusb done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: blackusb done"

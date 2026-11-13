@@ -123,9 +123,9 @@ sudo bash aistack.sh --status
 - [make sha256](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/makesha256)
 - [mount manager (smb, sftp, fuse)](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/mountman)
 
-> FMS installation requires an X11 or Wayland desktop session. Run the installer as the desktop user, without sudo. It installs for every supported file manager it finds, and skips the ones that already have FMS. Without `DISPLAY` or `WAYLAND_DISPLAY`, it aborts before installing scripts. Uninstallation remains available without a graphical session.
+> FMS installation requires an X11 or Wayland desktop session. Run the installer as the desktop user, without sudo. It installs for every supported file manager it finds, and skips the ones that already have FMS. Without `DISPLAY` or `WAYLAND_DISPLAY`, it aborts before installing scripts. Uninstallation remains available without a graphical session. `--install` and `--update` ask before installing missing APT packages with sudo. `--uninstall` never uninstalls APT packages.
 >
-> La instalación de FMS requiere una sesión de escritorio X11 o Wayland. Ejecute el instalador como usuario del escritorio, sin sudo. Instala en todos los gestores de archivos compatibles que encuentre, y omite los que ya tienen FMS. Si no existen `DISPLAY` ni `WAYLAND_DISPLAY`, aborta antes de instalar scripts. La desinstalación sigue disponible sin sesión gráfica.
+> La instalación de FMS requiere una sesión de escritorio X11 o Wayland. Ejecute el instalador como usuario del escritorio, sin sudo. Instala en todos los gestores de archivos compatibles que encuentre, y omite los que ya tienen FMS. Si no existen `DISPLAY` ni `WAYLAND_DISPLAY`, aborta antes de instalar scripts. La desinstalación sigue disponible sin sesión gráfica. `--install` y `--update` preguntan antes de instalar con sudo los paquetes APT que falten. `--uninstall` nunca desinstala paquetes APT.
 
 #### Networking, Remote Access & Security
 

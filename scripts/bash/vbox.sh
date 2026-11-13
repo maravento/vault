@@ -84,7 +84,7 @@ for dep in wget gnupg lsb-release psmisc procps findutils systemd sudo util-linu
 done
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: vbox start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: vbox start..."
 
 # ------------------------------------------------------------------------------
 # FUNCTIONS
@@ -147,7 +147,7 @@ check_internet() {
 vboxinstall() {
     check_ipv4_interfaces
     check_internet
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Installing Virtualbox..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing Virtualbox..."
     # Download and install .asc
     local key_tmp
     if ! key_tmp=$(mktemp /usr/share/keyrings/virtualbox.gpg.XXXXXX); then
@@ -208,7 +208,7 @@ vboxinstall() {
 
 vboxpurge() {
     local purge_failed=0
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Removing Virtualbox..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing Virtualbox..."
     sudo -u $local_user bash -c "VBoxManage list runningvms | grep -oP '(?<=\{)[0-9a-f-]+(?=\})' | xargs -r -I {} VBoxManage controlvm {} poweroff"
     pkill -9 -x 'vboxwebsrv|VirtualBox' &>/dev/null || true
     systemctl stop vboxweb-service.service &>/dev/null
@@ -262,4 +262,4 @@ fi
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: vbox done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: vbox done"

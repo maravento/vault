@@ -6,6 +6,10 @@
 # Iptables/Ipset Firewall O(1)
 # FILE: scr/iptables.sh
 #
+# DESCRIPTION:
+# Raw gateproxy firewall built with iptables and ipset. No switches and
+# no UniFi rules. HTTPS 443 is dropped by default through blockports.txt.
+#
 # USAGE:
 # sudo ./iptables.sh
 #
@@ -37,6 +41,43 @@ log() {
         echo "$log_msg"
     fi
 }
+
+# prevent overlapping runs
+script_lock="/var/lock/$(basename "$0" .sh).lock"
+(umask 077; : >> "$script_lock") || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
+    exit 1
+}
+exec 200>"$script_lock"
+if ! flock -n 200; then
+    log "ERROR: script $(basename "$0") is already running -abort"
+    exit 1
+fi
+
+# dependencies
+for dep_pkg in iptables ipset arptables ebtables kmod procps util-linux ulogd2 coreutils grep iproute2; do
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep_pkg" 2>/dev/null)" != *"ok installed"* ]]; then
+        log "ERROR: dependency '$dep_pkg' is not installed -abort"
+        exit 1
+    fi
+done
+
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
+
+# validation -- one variable per thing validated; use directly with =~
+UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
+UH_DNS='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(,(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9]))*$'
+UH_UINT='^(0|[1-9][0-9]*)$'
+UH_MAC_RE='([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}'
+UH_MAC="^${UH_MAC_RE}$"
+UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5 252.0.0.0:6 254.0.0.0:7 255.0.0.0:8 255.128.0.0:9 255.192.0.0:10 255.224.0.0:11 255.240.0.0:12 255.248.0.0:13 255.252.0.0:14 255.254.0.0:15 255.255.0.0:16 255.255.128.0:17 255.255.192.0:18 255.255.224.0:19 255.255.240.0:20 255.255.248.0:21 255.255.252.0:22 255.255.254.0:23 255.255.255.0:24 255.255.255.128:25 255.255.255.192:26 255.255.255.224:27 255.255.255.240:28 255.255.255.248:29 255.255.255.252:30 255.255.255.254:31 255.255.255.255:32'
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
 
 # ACL PREPARATION
 # Canonical block -- copied byte for byte into every script that creates a
@@ -103,38 +144,56 @@ acl_fix_perms() {
     log "INFO: $(basename "$acl_path") perms fixed -fixed"
 }
 
-# prevent overlapping runs
-script_lock="/var/lock/$(basename "$0" .sh).lock"
-(umask 077; : >> "$script_lock") || {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
-    exit 1
+# NETWORK WAIT
+# Wait until WAN and LAN are up, wired, and hold a global IPv4 address
+check_network_interfaces() {
+    local attempt=1 max_attempts=24 iface state ready
+    while (( attempt <= max_attempts )); do
+        ready=true
+        for iface in "$WAN_IFACE" "$INTERFACESv4"; do
+            state=$(ip -br link show "$iface" 2>/dev/null | awk '{print $2}')
+            if [ "$state" != UP ] || [ -d "/sys/class/net/$iface/wireless" ]; then
+                ready=false
+                continue
+            fi
+            if ! ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+                | awk '$4 != "" {found=1} END {exit !found}'; then
+                ready=false
+            fi
+        done
+        [ "$ready" = true ] && return 0
+        if (( attempt == 1 )); then
+            log "INFO: waiting for WAN and LAN with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+    log "ERROR: WAN and LAN with IPv4 are required -abort"
+    return 1
 }
-exec 200>"$script_lock"
-if ! flock -n 200; then
-    log "ERROR: script $(basename "$0") is already running -abort"
-    exit 1
-fi
 
-# dependencies
-for dep_pkg in iptables ipset arptables ebtables kmod procps util-linux ulogd2 coreutils grep iproute2; do
-    if [[ "$(dpkg-query -W -f='${Status}' "$dep_pkg" 2>/dev/null)" != *"ok installed"* ]]; then
-        log "ERROR: dependency '$dep_pkg' is not installed -abort"
-        exit 1
+# MAC SET FILL
+# Create or empty one MAC set and fill it from an ACL list
+mac_set() {
+    local set_name="$1" src_file="$2" mac_addr invalid_count=0
+    ipset create "$set_name" hash:mac -exist
+    ipset flush "$set_name"
+    if [ ! -f "$src_file" ]; then
+        log "WARNING: $(basename "$src_file") not found -alert"
+        return 0
     fi
-done
-
-# ------------------------------------------------------------------------------
-# VARIABLES
-# ------------------------------------------------------------------------------
-
-# validation -- one variable per thing validated; use directly with =~
-UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
-UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
-UH_DNS='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(,(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9]))*$'
-UH_UINT='^(0|[1-9][0-9]*)$'
-UH_MAC_RE='([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}'
-UH_MAC="^${UH_MAC_RE}$"
-UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5 252.0.0.0:6 254.0.0.0:7 255.0.0.0:8 255.128.0.0:9 255.192.0.0:10 255.224.0.0:11 255.240.0.0:12 255.248.0.0:13 255.252.0.0:14 255.254.0.0:15 255.255.0.0:16 255.255.128.0:17 255.255.192.0:18 255.255.224.0:19 255.255.240.0:20 255.255.248.0:21 255.255.252.0:22 255.255.254.0:23 255.255.255.0:24 255.255.255.128:25 255.255.255.192:26 255.255.255.224:27 255.255.255.240:28 255.255.255.248:29 255.255.255.252:30 255.255.255.254:31 255.255.255.255:32'
+    for mac_addr in $(awk -F";" 'NF>=2 && $1 == "a" && $2 != "" {print $2}' "$src_file"); do
+        if [[ "$mac_addr" =~ $UH_MAC ]]; then
+            ipset add "$set_name" "$mac_addr" -exist
+        else
+            invalid_count=$((invalid_count + 1))
+        fi
+    done
+    if [ "$invalid_count" -gt 0 ]; then
+        log "WARNING: $invalid_count invalid MACs in $(basename "$src_file") -alert"
+    fi
+    return 0
+}
 
 # ------------------------------------------------------------------------------
 # ENV
@@ -281,31 +340,6 @@ if [ "$WAN_IFACE" = "$INTERFACESv4" ]; then
     exit 1
 fi
 
-check_network_interfaces() {
-    local attempt=1 max_attempts=24 iface state ready
-    while (( attempt <= max_attempts )); do
-        ready=true
-        for iface in "$WAN_IFACE" "$INTERFACESv4"; do
-            state=$(ip -br link show "$iface" 2>/dev/null | awk '{print $2}')
-            if [ "$state" != UP ] || [ -d "/sys/class/net/$iface/wireless" ]; then
-                ready=false
-                continue
-            fi
-            if ! ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
-                | awk '$4 != "" {found=1} END {exit !found}'; then
-                ready=false
-            fi
-        done
-        [ "$ready" = true ] && return 0
-        if (( attempt == 1 )); then
-            log "INFO: waiting for WAN and LAN with IPv4..."
-        fi
-        attempt=$((attempt + 1))
-        sleep 5
-    done
-    log "ERROR: WAN and LAN with IPv4 are required -abort"
-    return 1
-}
 check_network_interfaces || exit 1
 
 # interfaces
@@ -375,7 +409,7 @@ dhcp_conf="/etc/pydhcp/core/pydhcpd.conf"
 
 for required_file in "$ACL_MAC_LIMITED" "$ACL_MAC_UNLIMITED" "$blockports_file" "$dhcp_conf"; do
     if [ ! -f "$required_file" ]; then
-        log "ERROR: required file not found: $required_file -abort"
+        log "ERROR: required file not found: $(basename "$required_file") -abort"
         exit 1
     fi
 done
@@ -390,61 +424,20 @@ fi
 acl_prepare "${ACL_PATH:-/etc/acl}" 700 600
 
 # start
-log "EVENT: iptables start..."
+log "INFO: iptables start..."
 
-# ------------------------------------------------------------------------------
 # MAC SETS
-# ------------------------------------------------------------------------------
-
 # The MAC sets are declared and filled here, in one place, before any rule
 # uses them. macports has no list of its own: it is a set of sets, so adding a
 # member costs no file read and no duplicated address.
-mac_set() {
-    local set_name="$1" src_file="$2" mac_addr invalid_count=0
-    ipset create "$set_name" hash:mac -exist
-    ipset flush "$set_name"
-    if [ ! -f "$src_file" ]; then
-        log "WARNING: $src_file not found -alert"
-        return 0
-    fi
-    for mac_addr in $(awk -F";" 'NF>=2 && $1 == "a" && $2 != "" {print $2}' "$src_file"); do
-        if [[ "$mac_addr" =~ $UH_MAC ]]; then
-            ipset add "$set_name" "$mac_addr" -exist
-        else
-            invalid_count=$((invalid_count + 1))
-        fi
-    done
-    if [ "$invalid_count" -gt 0 ]; then
-        log "WARNING: $invalid_count invalid MACs in $(basename "$src_file") -alert"
-    fi
-    return 0
-}
-
 mac_set maclimited   "$ACL_MAC_LIMITED"
 mac_set macunlimited "$ACL_MAC_UNLIMITED"
 
-# MACPORTS
+# MACPORTS LIST
 # Set of sets. One member today, maclimited; add more with a single ipset add
 ipset create macports list:set -exist
 ipset flush macports
 ipset add macports maclimited -exist
-
-logrotate_conf="/etc/logrotate.d/iptables"
-if [ ! -f "$logrotate_conf" ]; then
-    cat > "$logrotate_conf" <<'EOF'
-/var/log/iptables.log {
-    daily
-    rotate 7
-    compress
-    delaycompress
-    missingok
-    notifempty
-    create 640 root adm
-}
-EOF
-    chmod 644 "$logrotate_conf"
-    chown root:root "$logrotate_conf"
-fi
 
 # ------------------------------------------------------------------------------
 # KERNEL RULES
@@ -479,8 +472,16 @@ ebtables -X 2>/dev/null || true
 # Conntrack (Optional)
 #conntrack -F 2>/dev/null || true
 
+# KERNEL AND FILESYSTEM HARDENING
+# Enable full ASLR (Address Space Layout Randomization)
+sysctl -w kernel.randomize_va_space=2 >/dev/null 2>&1 || true
+# Protect hardlinks (prevents privilege escalation attacks)
+sysctl -w fs.protected_hardlinks=1 >/dev/null 2>&1 || true
+# Protect symlinks (prevents unauthorized link access in shared directories)
+sysctl -w fs.protected_symlinks=1 >/dev/null 2>&1 || true
+
 # ------------------------------------------------------------------------------
-# IPv4
+# IPV4
 # ------------------------------------------------------------------------------
 
 # SYSTEM OPTIMIZATION
@@ -501,7 +502,7 @@ modprobe -q nf_conntrack 2>/dev/null || true
 sysctl -w net.netfilter.nf_conntrack_max=524288 >/dev/null 2>&1 || true
 sysctl -w net.netfilter.nf_conntrack_buckets=131072 >/dev/null 2>&1 || true
 
-# SECURITY & NETWORK HARDENING
+# SECURITY AND NETWORK HARDENING
 # Disable IP source routing (prevents IP spoofing and routing attacks)
 sysctl -w net.ipv4.conf.all.accept_source_route=0 >/dev/null 2>&1 || true
 sysctl -w net.ipv4.conf.default.accept_source_route=0 >/dev/null 2>&1 || true
@@ -516,7 +517,7 @@ sysctl -w net.ipv4.conf.default.log_martians=1 >/dev/null 2>&1 || true
 sysctl -w net.ipv4.conf.all.rp_filter=1 >/dev/null 2>&1 || true
 sysctl -w net.ipv4.conf.default.rp_filter=1 >/dev/null 2>&1 || true
 
-# NETWORK PERFORMANCE & TCP PROTECTION
+# NETWORK PERFORMANCE AND TCP PROTECTION
 # Optimized TCP/IP parameters for high-performance and secure routing
 # Enable TCP SYN cookies (protects against SYN flood attacks)
 sysctl -w net.ipv4.tcp_syncookies=1 >/dev/null 2>&1 || true
@@ -558,7 +559,7 @@ sysctl -w net.ipv4.tcp_max_tw_buckets=1000000 >/dev/null 2>&1 || true
 # Allow safe TIME_WAIT socket reuse (improves connection efficiency)
 sysctl -w net.ipv4.tcp_tw_reuse=1 >/dev/null 2>&1 || true
 
-# ROUTING & FORWARDING
+# ROUTING AND FORWARDING
 # Enable packet forwarding (required for NAT/routing)
 sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
 # Not a tuning value like the rest: without forwarding this host stops
@@ -600,14 +601,6 @@ sysctl -w "net.ipv4.neigh.${INTERFACESv4}.mcast_solicit=6" >/dev/null 2>&1 || tr
 # previous holder's MAC.
 sysctl -w "net.ipv4.neigh.${INTERFACESv4}.base_reachable_time_ms=30000" >/dev/null 2>&1 || true
 
-# KERNEL & FILESYSTEM HARDENING
-# Enable full ASLR (Address Space Layout Randomization)
-sysctl -w kernel.randomize_va_space=2 >/dev/null 2>&1 || true
-# Protect hardlinks (prevents privilege escalation attacks)
-sysctl -w fs.protected_hardlinks=1 >/dev/null 2>&1 || true
-# Protect symlinks (prevents unauthorized link access in shared directories)
-sysctl -w fs.protected_symlinks=1 >/dev/null 2>&1 || true
-
 # ICMP
 # Disable sending ICMP redirects (prevents MITM via route manipulation)
 sysctl -w net.ipv4.conf.all.send_redirects=0 >/dev/null 2>&1 || true
@@ -625,7 +618,7 @@ sysctl -w net.ipv4.icmp_ignore_bogus_error_responses=1 >/dev/null 2>&1 || true
 sysctl -w net.ipv4.icmp_ratelimit=100 >/dev/null 2>&1 || true
 
 # ------------------------------------------------------------------------------
-# IPv6
+# IPV6
 # ------------------------------------------------------------------------------
 
 sysctl -w net.ipv6.conf.all.disable_ipv6=0 >/dev/null 2>&1 || true
@@ -641,7 +634,7 @@ ip6tables -A OUTPUT -o "$wan_iface" -p udp --sport 546 --dport 547 -j ACCEPT || 
 ip6tables -A INPUT -i "$wan_iface" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT || true
 
 # ------------------------------------------------------------------------------
-# GLOBAL RULES
+# POLICIES
 # ------------------------------------------------------------------------------
 
 # Global policies IPv4 (ACCEPT, then explicit drops)
@@ -795,7 +788,7 @@ done
 # SECURITY RULES
 # ------------------------------------------------------------------------------
 
-# BOGONS
+# BOGON LIST
 # Reserved and unroutable address ranges. Optional and disabled by default:
 # enable the whole block only if the LAN range is not listed in bogons.txt,
 # or it will block the local network.
@@ -1003,7 +996,7 @@ iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -p igmp -m set --match
 iptables -A FORWARD -i "$INTERFACESv4" -p udp --dport 123 -m set --match-set macports src -j ACCEPT
 
 # ------------------------------------------------------------------------------
-# MACRULES
+# MAC RULES
 # ------------------------------------------------------------------------------
 
 # MACLIMITED
@@ -1039,4 +1032,4 @@ iptables -A INPUT -j DROP
 iptables -A FORWARD -m hashlimit --hashlimit-name forward-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip,dstport -j NFLOG --nflog-prefix "FINAL-FORWARD DROP: "
 iptables -A FORWARD -j DROP
 
-log "EVENT: iptables done"
+log "INFO: iptables done"

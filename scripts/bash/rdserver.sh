@@ -295,7 +295,7 @@ install_server() {
         fi
     done
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Installing packages..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing packages..."
     dpkg_out=$(mktemp)
     if dpkg -i "./$hbbs_deb" "./$hbbr_deb" >"$dpkg_out" 2>&1; then
         rm -f "$hbbs_deb" "$hbbr_deb" "$dpkg_out"
@@ -324,7 +324,7 @@ remove_server() {
         return
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Removing RustDesk Server..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing RustDesk Server..."
     systemctl stop rustdesk-hbbs.service rustdesk-hbbr.service 2>/dev/null || true
 
     apt_out=$(mktemp)
@@ -399,7 +399,7 @@ show_menu() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: rdserver start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: rdserver start..."
 
 show_menu
 read -r option
@@ -439,4 +439,4 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: rdserver done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: rdserver done"

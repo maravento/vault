@@ -63,7 +63,7 @@ install_module() {
     echo "=========================================="
     echo ""
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Creating Services Monitor module structure..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Creating Services Monitor module structure..."
 
     mkdir -p "$mod_dir/images"
     mkdir -p "$mod_dir/lang"
@@ -828,7 +828,7 @@ ICONEOF
 
     rm -f /var/webmin/module.infos.cache
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Restarting Webmin service..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
 
     echo ""
@@ -867,7 +867,7 @@ uninstall_module() {
         return 1
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Removing module directories..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing module directories..."
     rm -rf "$mod_dir"
     rm -rf "$etc_dir"
     echo "Module directories removed"
@@ -885,7 +885,7 @@ uninstall_module() {
     rm -f /var/webmin/module.infos.cache
     echo "Module cache cleared"
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Restarting Webmin service..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
 
     echo ""
@@ -936,17 +936,17 @@ main() {
         case "$1" in
             --install)
                 install_module || exit 1
-                echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: servicemon done"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: servicemon done"
                 exit 0
                 ;;
             --uninstall)
                 uninstall_module || exit 1
-                echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: servicemon done"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: servicemon done"
                 exit 0
                 ;;
             -h|--help)
                 show_usage
-                echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: servicemon done"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: servicemon done"
                 exit 0
                 ;;
             *)
@@ -987,7 +987,7 @@ main() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: servicemon start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: servicemon start..."
 
 main "$@" || exit 1
 
@@ -996,4 +996,4 @@ main "$@" || exit 1
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: servicemon done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: servicemon done"

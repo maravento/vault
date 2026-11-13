@@ -70,7 +70,7 @@ for dep in webmin; do
 done
 
 # Start
-log "EVENT: serviceswatch start..."
+log "INFO: serviceswatch start..."
 
 # ------------------------------------------------------------------------------
 # VARIABLES
@@ -128,4 +128,4 @@ if ! pgrep -x rsyslogd > /dev/null; then
 fi
 
 # End
-log "EVENT: serviceswatch done"
+log "INFO: serviceswatch done"

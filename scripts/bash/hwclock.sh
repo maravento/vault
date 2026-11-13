@@ -44,7 +44,7 @@ fi
 # dependencies
 for dep in util-linux util-linux-extra bsdutils coreutils; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Installing $dep..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing $dep..."
         if ! apt-get install -y "$dep"; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install $dep -abort" >&2
             exit 1
@@ -57,7 +57,7 @@ done
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: hwclock start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: hwclock start..."
 
 hwclock_rc=0
 hwclock -w || {
@@ -74,4 +74,4 @@ logger -t hwclock "HWClock Update: rc=$hwclock_rc" || true
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: hwclock done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: hwclock done"

@@ -395,7 +395,7 @@ switch_to_networkd() {
 
         if [ "$confirm" != "I UNDERSTAND" ]; then
             echo "Aborted. Good choice!"
-            echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: npswitch done"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: npswitch done"
             exit 0
         fi
     fi
@@ -433,7 +433,7 @@ switch_to_networkd() {
 
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
         echo "Aborted."
-        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: npswitch done"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: npswitch done"
         exit 0
     fi
 
@@ -450,7 +450,7 @@ switch_to_networkd() {
     echo -e "${color_blue}Validating configuration...${color_reset}"
     if ! netplan generate >/dev/null 2>&1; then
         echo -e "${color_red}Error: Configuration validation failed${color_reset}"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Restoring backup..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Restoring backup..."
         restore_all_yaml_files
         rm -f "$networkd_file"
         exit 1
@@ -484,7 +484,7 @@ switch_to_networkd() {
         echo "To rollback: $0 --to-nm"
     else
         echo -e "${color_red}Error applying configuration!${color_reset}"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Attempting rollback..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Attempting rollback..."
         restore_all_yaml_files
         rm -f "$networkd_file"
         netplan apply
@@ -519,7 +519,7 @@ switch_to_nm() {
 
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
         echo "Aborted."
-        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: npswitch done"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: npswitch done"
         exit 0
     fi
 
@@ -739,7 +739,7 @@ show_menu() {
 case "${1:-}" in
     -h|--help) show_help; exit 0 ;;
 esac
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: npswitch start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: npswitch start..."
 if [ $# -eq 0 ]; then
     show_menu || exit 1
 else
@@ -769,4 +769,4 @@ fi
 # END
 # ------------------------------------------------------------------------------
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: npswitch done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: npswitch done"

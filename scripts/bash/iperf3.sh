@@ -159,7 +159,7 @@ run_ping() {
     local ip="$1"
     local log="$2"
     echo "" >> "$log"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: latency test (ping ${PING_COUNT})" >> "$log"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: latency test (ping ${PING_COUNT})" >> "$log"
     ping -c "$PING_COUNT" -i 0.5 "$ip" 2>&1 | tee -a "$log"
 }
 
@@ -170,7 +170,7 @@ run_iperf3_tcp() {
     local iface="$2"
     local log="$3"
     echo "" >> "$log"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: iperf TCP test (${PARALLEL} streams)" >> "$log"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: iperf TCP test (${PARALLEL} streams)" >> "$log"
     if ! $IPERF_CMD -c "$ip" -p "$IPERF_PORT" -t "$DURATION" -P "$PARALLEL" \
             --bind-dev "$iface" 2>&1 | tee -a "$log"; then
         $IPERF_CMD -c "$ip" -p "$IPERF_PORT" -t "$DURATION" -P "$PARALLEL" \
@@ -185,7 +185,7 @@ run_iperf3_udp() {
     local iface="$2"
     local log="$3"
     echo "" >> "$log"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: iperf UDP test" >> "$log"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: iperf UDP test" >> "$log"
     if ! iperf3 -c "$ip" -p "$IPERF_PORT" -u -b 1G -t "$DURATION" \
             --bind-dev "$iface" 2>&1 | tee -a "$log"; then
         iperf3 -c "$ip" -p "$IPERF_PORT" -u -b 1G -t "$DURATION" \
@@ -200,7 +200,7 @@ run_iperf3_reverse() {
     local iface="$2"
     local log="$3"
     echo "" >> "$log"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: iperf TCP reverse test" >> "$log"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: iperf TCP reverse test" >> "$log"
     if ! $IPERF_CMD -c "$ip" -p "$IPERF_PORT" -t "$DURATION" -P "$PARALLEL" \
             -R --bind-dev "$iface" 2>&1 | tee -a "$log"; then
         $IPERF_CMD -c "$ip" -p "$IPERF_PORT" -t "$DURATION" -P "$PARALLEL" \
@@ -302,14 +302,14 @@ main() {
         label="$(sanitize_label "$ip")"
 
         echo ""
-        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: checking connectivity to $ip..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: checking connectivity to $ip..."
         if ! ping -c 2 -W 2 "$ip" &>/dev/null; then
             warn "no ping reply from $ip -alert"
             continue
         fi
         ok "Host $ip reachable"
 
-        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Checking iperf on $ip..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Checking iperf on $ip..."
 
         if ! detect_iperf "$ip"; then
             continue
@@ -330,9 +330,9 @@ main() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: iperf3 start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: iperf3 start..."
 
 main "$@"
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: iperf3 done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: iperf3 done"

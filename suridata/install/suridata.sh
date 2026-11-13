@@ -257,7 +257,7 @@ unset key_errors key_error
 # MAIN
 # ------------------------------------------------------------------------------
 
-log "EVENT: suridata start..."
+log "INFO: suridata start..."
 
 for f in "$rules_file" "$eve_log"; do
     if [ ! -f "$f" ]; then
@@ -319,7 +319,7 @@ mapfile -t drop_sids < <(grep '^drop ' "$rules_file" 2>/dev/null | grep -oP 'sid
 if [ "${#drop_sids[@]}" -eq 0 ]; then
     log "INFO: no drop SIDs in $(basename "$rules_file")"
     apply_blocklist
-    log "EVENT: suridata done"
+    log "INFO: suridata done"
     exit 0
 fi
 
@@ -523,4 +523,4 @@ apply_blocklist
 # END
 # ------------------------------------------------------------------------------
 
-log "EVENT: suridata done"
+log "INFO: suridata done"

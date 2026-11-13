@@ -40,7 +40,7 @@ if ! flock -n 200; then
 fi
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: joomla start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: joomla start..."
 
 # ------------------------------------------------------------------------------
 # FUNCTIONS
@@ -167,7 +167,7 @@ EOF
     USER_EXISTS=$(mysql -u root -p"${ROOTPASS}" -sse "SELECT COUNT(*) FROM mysql.user WHERE user = 'joomla_user' AND host = 'localhost'" 2>/dev/null)
 
     if [ -z "$DB_EXISTS" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Creating joomla_db database..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Creating joomla_db database..."
         mysql -u root -p"${ROOTPASS}" <<EOF
 CREATE DATABASE joomla_db CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 EOF
@@ -176,7 +176,7 @@ EOF
     fi
 
     if [ "${USER_EXISTS:-1}" -eq 0 ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Creating joomla_user user..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Creating joomla_user user..."
         mysql -u root -p"${ROOTPASS}" <<EOF
 CREATE USER 'joomla_user'@'localhost' IDENTIFIED BY '${SQL_DBPASS}';
 GRANT ALL PRIVILEGES ON joomla_db.* TO 'joomla_user'@'localhost';
@@ -311,7 +311,7 @@ delete_joomla() {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: password cannot be empty -abort" >&2
         exit 1
     fi
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Removing Joomla..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing Joomla..."
     rm -rf /var/www/html/joomla
 
     mysql -u root -p"${ROOTPASS}" <<EOF
@@ -329,7 +329,7 @@ EOF
 
 delete_dependencies() {
     local purge_failed=0
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Removing MySQL, Apache2, PHP and mkcert..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing MySQL, Apache2, PHP and mkcert..."
     systemctl stop apache2 mysql
     if ! apt purge --auto-remove mysql-server mysql-client mysql-common apache2 'php*' libapache2-mod-php -y; then
         purge_failed=1
@@ -386,4 +386,4 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: joomla done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: joomla done"

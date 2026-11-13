@@ -268,7 +268,7 @@ sudo env SURIDATA_WAN_IFACE=enp1s0 SURIDATA_LAN_IFACE=enp2s0 \
 | Daily at 02:00 | Run `suricataupdate.sh`: stop and verify both services, update rules, then start both services. | Ejecuta `suricataupdate.sh`: detiene y verifica ambos servicios, actualiza reglas e inicia ambos servicios. |
 | Monthly | Run `suricataclean.sh` and `suribk.sh` as separate tasks. | Ejecuta `suricataclean.sh` y `suribk.sh` como tareas separadas. |
 | `surisetup.log` | Installer log beside `surisetup.sh`; emptied on each invocation. | Registro junto a `surisetup.sh`; vaciado en cada ejecución. |
-| `/var/log/suridata.log` | Shared operational log; daily rotation, seven retained rotations. | Registro operativo compartido; rotación diaria, siete archivos retenidos. |
+| `/var/log/suridata.log` | Shared operational log; weekly rotation, seven retained rotations. | Registro operativo compartido; rotación semanal, siete archivos retenidos. |
 | `/etc/logrotate.d/suridata` | Rotation settings for the operational log, owned by root with mode `644`. | Configuración de rotación del registro operativo, propiedad root con permisos `644`. |
 | `/var/lib/suricata/suridata.offset` | Saved byte position and device/inode identity of `eve.json`. | Posición en bytes e identidad mediante dispositivo e inode de `eve.json`. |
 | `/var/lib/suricata/suridata.sids` | Previously processed drop SID selection. | Selección de SID drop procesados anteriormente. |

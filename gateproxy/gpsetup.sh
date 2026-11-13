@@ -167,7 +167,7 @@ report_failure() {
 failure_message="cannot initialize Gateproxy"
 trap 'report_failure' ERR
 
-log "EVENT: gpsetup start..."
+log "INFO: gpsetup start..."
 
 # conflicting packages
 check_conflicts() {
@@ -305,7 +305,7 @@ cron_d_set() {
     rm -f "$cron_tmp"
 }
 
-log "EVENT: Checking for conflicting pre-installed packages..."
+log "INFO: Checking for conflicting pre-installed packages..."
 failure_message="cannot check conflicting packages"
 check_conflicts "DHCP server" isc-dhcp-server kea-dhcp4-server udhcpd
 failure_message="cannot check conflicting packages"
@@ -472,7 +472,7 @@ fi
 
 # CHECK SO & DESKTOP
 # Check the operating system and desktop environment
-log "EVENT: Check System..."
+log "INFO: Check System..."
 # lsb_release (lsb-release package) is used below but the DEPENDENCIES block
 # hasn't run yet at this point in the script -- ensure it exists here instead.
 failure_message="cannot install lsb-release"
@@ -494,7 +494,7 @@ elif [ "$UBUNTU_VERSION" != "24.04" ] && [ "$UBUNTU_VERSION" != "26.04" ]; then
     warn "unsupported version $UBUNTU_VERSION -alert"
 fi
 
-log "EVENT: Clearing apt package cache..."
+log "INFO: Clearing apt package cache..."
 apt-get clean &>/dev/null || true
 rm -f /var/cache/apt/archives/*.deb 2>/dev/null || true
 
@@ -523,7 +523,7 @@ if [ -f "$file" ]; then
     done < <(grep "^Components:" "$file")
 
     if [[ $changed -eq 1 ]]; then
-        log "EVENT: Updating package list. Wait..."
+        log "INFO: Updating package list. Wait..."
         failure_message="cannot update APT package lists"
         retry_cmd apt update > /dev/null 2>&1
     else
@@ -552,9 +552,9 @@ mkdir -p "$scr_root" &>/dev/null
 
 # PACKAGES
 # Install the base system packages
-log "EVENT: Check Dependencies..."
+log "INFO: Check Dependencies..."
 
-pkgs='curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 7zip rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3 iproute2 util-linux-extra'
+pkgs='curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 7zip rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3 iproute2 util-linux-extra iptables kmod procps grep findutils cron'
 failure_message="cannot collect missing package names"
 missing=$(for p in $pkgs; do [[ "$(dpkg-query -W -f='${Status}' "$p" 2>/dev/null)" == *"ok installed"* ]] || echo "$p"; done)
 unavailable=""
@@ -570,7 +570,7 @@ if [ -n "$unavailable" ]; then
     exit 1
 fi
 if [ -n "$missing" ]; then
-    log "EVENT: Waiting for apt/dpkg to finish..."
+    log "INFO: Waiting for apt/dpkg to finish..."
     apt_wait=0
     apt_wait_limit=60
     while pgrep -x apt > /dev/null 2>&1 || pgrep -x apt-get > /dev/null 2>&1 || pgrep -x dpkg > /dev/null 2>&1; do
@@ -635,10 +635,10 @@ done
 (
     apt() { LC_ALL=C command apt "$@" >>"$log_file" 2>&1; }
     apt-file() { LC_ALL=C command apt-file "$@" >>"$log_file" 2>&1; }
-    log "EVENT: Installing apt-file..."
+    log "INFO: Installing apt-file..."
     failure_message="cannot install apt-file"
     retry_cmd apt -qq install -y apt-file
-    log "EVENT: Updating apt-file package index..."
+    log "INFO: Updating apt-file package index..."
     failure_message="cannot update the apt-file package index"
     retry_cmd apt-file update
 )
@@ -658,7 +658,7 @@ cp /etc/apt/sources.list{,.bak} &>/dev/null || true
 echo ""
 upgrade() {
     local failure_message="cannot update system packages"
-    log "EVENT: Update and Clean. Wait..."
+    log "INFO: Update and Clean. Wait..."
     failure_message="cannot update the package list"
     retry_cmd apt update
     failure_message="cannot upgrade system packages"
@@ -1167,7 +1167,7 @@ validate_network_interfaces before
 
 # NETPLAN
 # Apply the selected network interface configuration
-log "EVENT: Applying network configuration..."
+log "INFO: Applying network configuration..."
 find /etc/netplan -maxdepth 1 -type f -name '*.yaml' -not -name '*.yaml.bak' -exec mv -- {} {}.bak \; 2>/dev/null
 failure_message="cannot create cloud.cfg.d"
 mkdir -p /etc/cloud/cloud.cfg.d
@@ -1188,7 +1188,7 @@ if ! netplan apply 2>&1 | tee -a "$log_file"; then
     exit 1
 fi
 
-log "EVENT: Waiting for $LAN_IF at $SERVER_IP..."
+log "INFO: Waiting for $LAN_IF at $SERVER_IP..."
 NETPLAN_WAIT=0
 NETPLAN_WAIT_LIMIT=30
 until ip -4 addr show "$LAN_IF" 2>/dev/null | grep -qF "inet $SERVER_IP/"; do
@@ -1218,7 +1218,7 @@ done
 # Configure the local Avahi daemon
 avahi_conf="/etc/avahi/avahi-daemon.conf"
 if command -v avahi-daemon &>/dev/null && [ -f "$avahi_conf" ]; then
-    log "EVENT: Restricting avahi-daemon to $LAN_IF..."
+    log "INFO: Restricting avahi-daemon to $LAN_IF..."
     failure_message="cannot edit avahi-daemon.conf"
     sed -i "s/^use-ipv6=yes/use-ipv6=no/" "$avahi_conf"
     failure_message="cannot edit avahi-daemon.conf"
@@ -1229,7 +1229,7 @@ fi
 # ESSENTIAL
 # Install the supporting system packages
 echo ""
-log "EVENT: Essential Packages..."
+log "INFO: Essential Packages..."
 # DISK & STORAGE MANAGEMENT
 # Install disk and storage management packages
 failure_message="cannot install packages with apt"
@@ -1350,7 +1350,7 @@ upgrade
 # SETUP
 # Prepare the application installation directories
 echo ""
-log "EVENT: Gateproxy Packages..."
+log "INFO: Gateproxy Packages..."
 if grep -qFw "$HOSTNAME" /etc/hosts 2>/dev/null; then
     info "$HOSTNAME already resolves in /etc/hosts -skip"
 elif grep -q "^127\.0\.1\.1" /etc/hosts; then
@@ -1543,6 +1543,12 @@ else
     sed -i -E 's/^([[:space:]]*)rotate[[:space:]]+[0-9]+$/\1rotate 7/' /etc/logrotate.d/squid
     failure_message="cannot edit Squid logrotate settings"
     sed -i -E 's/^([[:space:]]*)(hourly|daily|monthly|yearly)$/\1weekly/' /etc/logrotate.d/squid
+    for rotate_option in compress delaycompress missingok notifempty; do
+        if ! grep -qE "^[[:space:]]*$rotate_option$" /etc/logrotate.d/squid; then
+            failure_message="cannot edit Squid logrotate settings"
+            sed -i -E "0,/^([[:space:]]*)rotate[[:space:]]+7$/s//&\n\1$rotate_option/" /etc/logrotate.d/squid
+        fi
+    done
 fi
 # Apache keeps 14 rotations by default; the projects keep 7
 if [ -f /etc/logrotate.d/apache2 ]; then
@@ -1584,7 +1590,7 @@ systemctl stop webmin.service 2>/dev/null || true
 find "$acl_mac_path" -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/dev/null || true
 # List of modules to install
 for module in servicemon netplanmgr; do
-    log "EVENT: Installing $module module..."
+    log "INFO: Installing $module module..."
     if wget -q -O "$gp_path/${module}.sh" --timeout=15 --tries=1 "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/${module}.sh"; then
         log "SAVED: ${module}.sh"
         failure_message="cannot set permissions on ${module}.sh"
@@ -1625,7 +1631,7 @@ fi
 
 # DHCP SECTION
 # pydhcp
-log "EVENT: Installing pydhcp..."
+log "INFO: Installing pydhcp..."
 
 if (cd "$gp_path" && git clone https://github.com/maravento/pydhcp); then
     pydhcp_path="$gp_path/pydhcp"
@@ -1715,7 +1721,7 @@ sleep 1
 failure_message="cannot install packages with apt"
 (
     apt() { LC_ALL=C command apt "$@" >>"$log_file" 2>&1; }
-    log "EVENT: Installing iw..."
+    log "INFO: Installing iw..."
     retry_cmd apt install -y iw
 )
 failure_message="cannot install packages with apt"
@@ -1772,7 +1778,7 @@ info "ttyd Access: http://localhost:7681"
 # Suricata, EveBox and the Suricata-driven blocklist are their own project
 # now. gitfolder.py is already in the parent directory, downloaded for the
 # Gateproxy repository above, so it is reused as is.
-log "EVENT: Installing suridata..."
+log "INFO: Installing suridata..."
 suridata_path="$(dirname "$gp_path")/suridata"
 [ -d "$suridata_path" ] && rm -rf "$suridata_path"
 failure_message="cannot enter the Gateproxy parent directory"
@@ -1921,7 +1927,7 @@ Do you want to install UniFi Host Manager (UHM)? (y/n) " answer
 
                 if [ -d "$uhm_path" ]; then
                     if cd "$uhm_path"; then
-                        log "EVENT: Launching uhm installer (interactive)..."
+                        log "INFO: Launching uhm installer (interactive)..."
                         if ! UHM_LAN_IFACE="$LAN_IF" UHM_SERVER_IP="$SERVER_IP" bash uhmsetup.sh; then
                             warn "uhmsetup.sh failed -alert"
                         fi
@@ -2032,7 +2038,7 @@ failure_message="cannot wait before the next attempt"
 sleep 1
 
 # ADD CONFIG ###
-log "EVENT: Applying Config..."
+log "INFO: Applying Config..."
 # squid
 cp -f /etc/squid/squid.conf{,.bak} &>/dev/null || true
 systemctl stop squid.service &>/dev/null || true
@@ -2075,7 +2081,22 @@ failure_message="cannot copy Gateproxy scripts"
 cp -fr "$gp_path/scr/"* "$scr_root"
 failure_message="cannot set owner of Gateproxy scripts"
 chown -R root:root "$scr_root"/*
-find "$scr_root" -name "*.sh" -exec chmod +x {} \;
+find "$scr_root" -name "*.sh" -exec chmod 750 {} \;
+# log rotation for /var/log/iptables.log (iptables.sh and killswitch.sh)
+failure_message="cannot write iptables logrotate"
+cat > /etc/logrotate.d/iptables <<'EOF'
+/var/log/iptables.log {
+    weekly
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 root adm
+}
+EOF
+chmod 644 /etc/logrotate.d/iptables
+chown root:root /etc/logrotate.d/iptables
 # Default: leave /tmp and shared-memory mounts unchanged; see README.
 # Read-only shared memory is independent of the two /tmp alternatives.
 #echo 'none /run/shm tmpfs defaults,ro 0 0' | tee -a /etc/fstab &> /dev/null # Optional
@@ -2087,7 +2108,7 @@ find "$scr_root" -name "*.sh" -exec chmod +x {} \;
 failure_message="cannot wait before the next attempt"
 sleep 1
 
-log "EVENT: Proxy Apache Config..."
+log "INFO: Proxy Apache Config..."
 
 cp -f /etc/apache2/sites-available/000-default.conf{,.bak} &>/dev/null || true
 failure_message="cannot edit 000-default.conf"
@@ -2103,7 +2124,7 @@ grep -qE '^[[:space:]]*RequestHeader unset Proxy early[[:space:]]*$' /etc/apache
 failure_message="cannot wait before the next attempt"
 sleep 1
 
-log "EVENT: Adding Parameters..."
+log "INFO: Adding Parameters..."
 failure_message="cannot write syslogemu.log"
 grep -qxF '*.none    /var/log/ulog/syslogemu.log' /etc/rsyslog.conf || \
     echo '*.none    /var/log/ulog/syslogemu.log' | tee -a /etc/rsyslog.conf >/dev/null
@@ -2138,7 +2159,7 @@ failure_message="cannot write user.conf"
 grep -qxF "DefaultLimitNOFILE=65535" /etc/systemd/user.conf || echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/user.conf >/dev/null
 sysctl --system >/dev/null || info "some sysctl parameters failed to apply"
 
-log "EVENT: Apache Config..."
+log "INFO: Apache Config..."
 cp -f /etc/apache2/apache2.conf{,.bak} &>/dev/null || true
 #echo 'RequestReadTimeout header=10-20,MinRate=500 body=20,MinRate=500' | tee -a /etc/apache2/apache2.conf # optional
 
@@ -2189,7 +2210,7 @@ sleep 1
 
 # APACHE PASSWORD
 # Create the Apache authentication password file
-log "EVENT: Create Apache Password: /var/www/..."
+log "INFO: Create Apache Password: /var/www/..."
 until htpasswd -c /etc/apache2/.htpasswd "$local_user"; do
     info "Passwords did not match or were empty. Try again"
 done
@@ -2208,7 +2229,7 @@ sleep 1
 # CRONTAB
 # Register the project startup and maintenance tasks
 echo ""
-log "EVENT: Add Crontab Tasks..."
+log "INFO: Add Crontab Tasks..."
 failure_message="cannot update the project cron file"
 cron_d_set "systemctl daemon-reload" "@reboot root systemctl daemon-reload"
 failure_message="cannot update the project cron file"
@@ -2300,6 +2321,6 @@ rm -rf "$gp_path"
 # END
 # ------------------------------------------------------------------------------
 
-log "EVENT: gpsetup done"
+log "INFO: gpsetup done"
 failure_message="cannot reboot the server"
 reboot

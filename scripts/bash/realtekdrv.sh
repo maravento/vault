@@ -69,7 +69,7 @@ install_r8168() {
         return 0
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Installing and configuring 'r8168' driver..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing and configuring 'r8168' driver..."
     if ! apt-get -qq update; then
         echo "Failed to update package lists"
         exit 1
@@ -105,7 +105,7 @@ restore_r8169() {
         return 0
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Restoring 'r8169' driver..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Restoring 'r8169' driver..."
     rm -f /etc/modprobe.d/blacklist-r8169.conf
 
     for realtek_mod in r8168 r8125; do
@@ -114,7 +114,7 @@ restore_r8169() {
         fi
     done
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Removing Realtek DKMS packages..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing Realtek DKMS packages..."
     for realtek_pkg in r8168-dkms r8125-dkms; do
         if dpkg -s "$realtek_pkg" &>/dev/null && ! apt-get purge -y "$realtek_pkg"; then
             echo "Failed to remove $realtek_pkg"
@@ -147,7 +147,7 @@ install_r8125() {
         return 0
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Installing and configuring 'r8125' driver..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing and configuring 'r8125' driver..."
     if ! apt-get -qq update; then
         echo "Failed to update package lists"
         exit 1
@@ -184,7 +184,7 @@ install_r8125() {
 clear
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: realtekdrv start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: realtekdrv start..."
 
 show_chipset
 show_current_module
@@ -213,4 +213,4 @@ done
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: realtekdrv done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: realtekdrv done"

@@ -106,18 +106,18 @@ fi
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: vm start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: vm start..."
 
 case "${1:-}" in
 --start)
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Starting $vm_name..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Starting $vm_name..."
     sudo -H -u "$local_user" VBoxManage startvm "$vm_name" --type headless || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot start $vm_name -abort" >&2
         exit 1
     }
     ;;
 --stop)
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Saving State $vm_name..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Saving State $vm_name..."
     sudo -H -u "$local_user" VBoxManage controlvm "$vm_name" savestate || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot save state of $vm_name -abort" >&2
         exit 1
@@ -125,7 +125,7 @@ case "${1:-}" in
     sleep 20
     ;;
 --shutdown)
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Shutting Down $vm_name..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Shutting Down $vm_name..."
     sudo -H -u "$local_user" VBoxManage controlvm "$vm_name" acpipowerbutton || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot shut down $vm_name -abort" >&2
         exit 1
@@ -133,7 +133,7 @@ case "${1:-}" in
     sleep 20
     ;;
 --reset)
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Resetting $vm_name..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Resetting $vm_name..."
     sudo -H -u "$local_user" VBoxManage controlvm "$vm_name" reset || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot reset $vm_name -abort" >&2
         exit 1
@@ -146,7 +146,7 @@ case "${1:-}" in
         exit 1
     fi
     echo "VM->$vm_state"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: vm done"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: vm done"
     exit 0
     ;;
 esac
@@ -156,6 +156,6 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: vm done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: vm done"
 
 exit 0

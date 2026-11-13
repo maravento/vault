@@ -48,7 +48,7 @@ UH_UINT='^(0|[1-9][0-9]*)$'
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: portkill start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: portkill start..."
 
 # PORT KILL
 # Read the port whose owning processes will be stopped
@@ -93,4 +93,4 @@ fi
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: portkill done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: portkill done"

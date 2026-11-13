@@ -81,7 +81,7 @@ fi
 echo "Using local user: $local_user"
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: phpvbox start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: phpvbox start..."
 
 retry_cmd() {
     local max_attempts=10
@@ -184,7 +184,7 @@ if [ "${#unavailable[@]}" -gt 0 ]; then
     exit 1
 fi
 if [ "${#missing[@]}" -gt 0 ]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Waiting for APT/DPKG locks to be released..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Waiting for APT/DPKG locks to be released..."
     apt_lock_timeout=120
     apt_lock_elapsed=0
     apt_lock_files=(/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend)
@@ -284,7 +284,7 @@ echo '#!/bin/bash
 if pgrep -x vboxwebsrv > /dev/null; then
     echo "vboxweb OK"
   else
-    echo "$(date '+%Y-%m-%d %H:%M:%S') vboxweb starting..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: vboxweb starting..."
     service vboxweb-service start
     sleep 10
     # check again
@@ -321,4 +321,4 @@ echo "Use vinagre or remmina to connect (activate Enable Server into Remote Disp
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: phpvbox done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: phpvbox done"

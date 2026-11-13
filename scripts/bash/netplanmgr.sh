@@ -64,7 +64,7 @@ install_module() {
     echo "=========================================="
     echo ""
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Creating Netplan Manager module structure..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Creating Netplan Manager module structure..."
 
     # Create directories
     mkdir -p "$mod_dir/images"
@@ -1037,7 +1037,7 @@ ICONEOF
     rm -f /var/webmin/module.infos.cache
 
     # Restart Webmin
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Restarting Webmin service..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
 
     echo ""
@@ -1070,7 +1070,7 @@ uninstall_module() {
         return 1
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Removing module files..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing module files..."
     rm -rf "$mod_dir"
     rm -rf "$etc_dir"
 
@@ -1090,7 +1090,7 @@ uninstall_module() {
     echo "Module cache cleared"
 
     # Restart Webmin
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Restarting Webmin service..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
 
     echo ""
@@ -1132,17 +1132,17 @@ main() {
         case "$1" in
             --install)
                 install_module || exit 1
-                echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: netplanmgr done"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: netplanmgr done"
                 exit 0
                 ;;
             --uninstall)
                 uninstall_module || exit 1
-                echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: netplanmgr done"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: netplanmgr done"
                 exit 0
                 ;;
             -h|--help)
                 show_usage
-                echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: netplanmgr done"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: netplanmgr done"
                 exit 0
                 ;;
             *)
@@ -1190,9 +1190,9 @@ main() {
 }
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: netplanmgr start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: netplanmgr start..."
 
 main "$@" || exit 1
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: netplanmgr done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: netplanmgr done"

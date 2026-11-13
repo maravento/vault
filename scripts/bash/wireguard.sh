@@ -48,7 +48,7 @@ done
 # validation -- integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: wireguard start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: wireguard start..."
 
 # ------------------------------------------------------------------------------
 # FUNCTIONS
@@ -262,7 +262,7 @@ PersistentKeepalive = 25 # Optional" > /etc/wireguard/wg0.conf
 uninstall_wireguard() {
     local purge_failed=0
   if command -v wg &> /dev/null; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Uninstalling WireGuard..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Uninstalling WireGuard..."
 
     # Stop WireGuard interface
     wg-quick down wg0 2>/dev/null || true
@@ -333,4 +333,4 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: wireguard done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: wireguard done"

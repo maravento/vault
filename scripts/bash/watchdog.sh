@@ -116,7 +116,7 @@ start() {
         exit 1
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: starting watchdog in background..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: starting watchdog in background..."
     (
         while true; do
             timestamp=$(date '+%F %T')
@@ -192,7 +192,7 @@ status() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: watchdog start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: watchdog start..."
 
 case "${1:-}" in
     --start) start ;;
@@ -210,4 +210,4 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: watchdog done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: watchdog done"

@@ -306,7 +306,7 @@ poll_server() {
             sql+="INSERT INTO port_scan_state (source, host, port, proto, service, status, last_checked, last_changed) VALUES ('server', '$esc_host', ${port}, '$proto', '$esc_service', 'open', '$now', '$now');
 INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('server', '$esc_host', ${port}, 'opened', '$now');
 "
-            log "server port ${host}:${port}/${proto}"
+            log "INFO: server port ${host}:${port}/${proto}"
             log "INFO: server port opened; service=${service:-unknown}"
         else
             sql+="UPDATE port_scan_state SET service='$esc_service', status='open', last_checked='$now' WHERE source='server' AND host='$esc_host' AND port=${port} AND proto='$proto';
@@ -315,7 +315,7 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('se
                 sql+="UPDATE port_scan_state SET last_changed='$now' WHERE source='server' AND host='$esc_host' AND port=${port} AND proto='$proto';
 INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('server', '$esc_host', ${port}, 'opened', '$now');
 "
-                log "server port ${host}:${port}/${proto}"
+                log "INFO: server port ${host}:${port}/${proto}"
                 log "INFO: server port opened; service=${service:-unknown}"
             fi
         fi
@@ -439,7 +439,7 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('ta
             if [ "$status" = "open" ]; then
                 sql+="INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('target', '$esc_target', ${port}, 'opened', '$now');
 "
-                log "target port ${target}:${port}/${proto}"
+                log "INFO: target port ${target}:${port}/${proto}"
                 log "INFO: target port opened; service=${service:-unknown}"
             fi
         else
@@ -453,7 +453,7 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('ta
                 sql+="UPDATE port_scan_state SET last_changed='$now' WHERE source='target' AND host='$esc_target' AND port=${port} AND proto='$proto';
 INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('target', '$esc_target', ${port}, '$event_type', '$now');
 "
-                log "target port ${target}:${port}/${proto}"
+                log "INFO: target port ${target}:${port}/${proto}"
                 log "INFO: target port ${event_type}; service=${service:-unknown}"
             fi
         fi
@@ -557,7 +557,7 @@ start() {
         exec 200>&-
         echo "$BASHPID" > "$pid_file"
         while true; do
-            log "EVENT: nwatchports cycle start..."
+            log "INFO: nwatchports cycle start..."
             run_poll
             sleep "$PORT_POLL_INTERVAL"
         done
@@ -575,7 +575,7 @@ start() {
 # STOP
 # Stop the recorded daemon process
 stop() {
-    log "EVENT: Stopping nwatchports..."
+    log "INFO: Stopping nwatchports..."
     if [ -f "$pid_file" ]; then
         local daemon_pid
         daemon_pid=$(cat "$pid_file")
@@ -602,7 +602,7 @@ stop() {
 # STATUS
 # Report the current daemon or installation state
 status() {
-    log "EVENT: nwatchports status..."
+    log "INFO: nwatchports status..."
     load_ports_mode
     if [ -f "$pid_file" ] && daemon_alive "$(cat "$pid_file")"; then
         log "INFO: nwatchports is RUNNING (PID $(cat "$pid_file"))"
@@ -702,7 +702,7 @@ fi
 # ACTIONS
 # ------------------------------------------------------------------------------
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: nwatchports start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: nwatchports start..."
 case "${1:-}" in
     --start) start ;;
     --stop) stop ;;
@@ -716,4 +716,4 @@ esac || exit 1
 # END
 # ------------------------------------------------------------------------------
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: nwatchports done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: nwatchports done"

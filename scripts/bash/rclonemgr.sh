@@ -224,7 +224,7 @@ mount_start() {
         local service_path="$cloud_path/$service_name"
         [ -d "$service_path" ] || sudo -u "$local_user" mkdir -p "$service_path"
 
-        echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Mounting $service_name to $service_path"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Mounting $service_name to $service_path"
 
         if ! is_service_configured "$service_name"; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: rclone remote '$service_name' not configured -alert"
@@ -258,7 +258,7 @@ mount_start() {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: mount incomplete -abort" >&2
         return 1
     fi
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Mount start finished"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Mount start finished"
 }
 
 # MOUNT STOP
@@ -273,7 +273,7 @@ mount_stop() {
                 stop_failed=1
                 continue
             fi
-            echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Unmounting $service_name"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Unmounting $service_name"
             if fusermount -u "$service_path" 2>/dev/null; then
                 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $service_name unmounted"
             else
@@ -295,13 +295,13 @@ mount_stop() {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: unmount incomplete -abort" >&2
         return 1
     fi
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Mount stop finished"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Mount stop finished"
 }
 
 # MOUNT RESTART
 # Unmounts everything, waits, and mounts again
 mount_restart() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Restarting mount..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Restarting mount..."
     mount_stop || return 1
     sleep 3
     mount_start || return 1
@@ -369,7 +369,7 @@ run_mount() {
 # Copies one direction between a local folder and the mounted cloud
 sync_transfer() {
     local direction="$1" service_name="$2" src="$3" dst="$4"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Sync $direction $service_name"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Sync $direction $service_name"
     if sudo -u "$local_user" rclone sync "$src" "$dst" --update --modify-window 1h --skip-links --verbose --transfers 30 --checkers 8 --contimeout 60s --timeout 300s --retries 3 --low-level-retries 10 --stats 1s --stats-file-name-length 0 --log-file="$rclone_path/rsync.log"; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Sync $direction $service_name completed"
     else
@@ -381,7 +381,7 @@ sync_transfer() {
 # SYNC RUN
 # Syncs download and upload folders for every mounted remote
 sync_run() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Run Sync"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Run Sync"
     logger -t rclonemgr "Run Sync" || true
     local sync_failed=0
 
@@ -494,7 +494,7 @@ show_menu() {
 # Dispatch the requested mode and action to its function
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: rclonemgr start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: rclonemgr start..."
 
 MODE="${1:-}"
 ACTION="${2:-}"
@@ -522,6 +522,6 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: rclonemgr done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: rclonemgr done"
 
 exit 0

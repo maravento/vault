@@ -115,7 +115,7 @@ register_cron() {
             log "ERROR: cannot create $(dirname "$installed_path") -abort"
             exit 1
         fi
-        install -m 755 -o root -g root "$script_path" "$installed_path"
+        install -m 750 -o root -g root "$script_path" "$installed_path"
         log "INFO: deployed to $installed_path"
     fi
 
@@ -207,19 +207,19 @@ backup_zip="${backup_dir}/bkconf_$(date +%Y%m%d_%H%M%S).zip"
 # Start
 case "${1:-}" in
     --install)
-        log "EVENT: bkconf start..."
+        log "INFO: bkconf start..."
         register_cron
-        log "EVENT: bkconf done"
+        log "INFO: bkconf done"
         exit 0
         ;;
     --uninstall)
-        log "EVENT: bkconf start..."
+        log "INFO: bkconf start..."
         deregister_cron
-        log "EVENT: bkconf done"
+        log "INFO: bkconf done"
         exit 0
         ;;
     "")
-        log "EVENT: bkconf start..."
+        log "INFO: bkconf start..."
         ;;
     *)
         log "ERROR: invalid option -abort"
@@ -309,4 +309,4 @@ fi
 # END
 # ------------------------------------------------------------------------------
 
-log "EVENT: bkconf done"
+log "INFO: bkconf done"

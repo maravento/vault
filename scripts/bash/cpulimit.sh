@@ -153,7 +153,7 @@ stop_limit() {
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: cpulimit start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: cpulimit start..."
 
 # start|stop|status
 
@@ -179,6 +179,6 @@ esac
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: cpulimit done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: cpulimit done"
 
 exit 0

@@ -64,7 +64,7 @@ err() { log "ERROR: $*"; }
 abort() { err "$*"; exit 1; }
 
 # dependencies
-for dep_pkg in coreutils util-linux grep sed procps; do
+for dep_pkg in coreutils util-linux grep sed procps iproute2 libc-bin; do
     if ! dpkg-query -W -f='${Status}' "$dep_pkg" 2>/dev/null \
         | grep -qx 'install ok installed'; then
         abort "dependency '$dep_pkg' is not installed -abort"
@@ -111,6 +111,59 @@ required_commands=(python3 zenity notify-send xdg-open mount
 # ------------------------------------------------------------------------------
 # FUNCTIONS
 # ------------------------------------------------------------------------------
+
+# check ipv4 interfaces
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if [ -n "$(list_ipv4_ifaces)" ]; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for an interface with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no interface with IPv4 -abort"
+    exit 1
+}
+
+# check internet
+check_internet() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for internet..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no internet connection -abort"
+    exit 1
+}
 
 check_sources() {
     local script_name
@@ -203,6 +256,8 @@ prepare_dependencies() {
             || abort "dependency 'sudo' is not installed -abort"
         command -v apt-get >/dev/null \
             || abort "dependency 'apt-get' is not installed -abort"
+        check_ipv4_interfaces
+        check_internet
         sudo apt-get update || abort "cannot update APT package lists -abort"
         sudo apt-get install -y "${missing_packages[@]}" \
             || abort "APT dependency installation failed -abort"
@@ -419,6 +474,7 @@ do_update() {
         fi
     done
     [ "$registered" = true ] || abort "FMS is not installed -abort"
+    prepare_dependencies
     check_sources
     deploy_scripts
     for manager_name in "${manager_names[@]}"; do
@@ -489,7 +545,7 @@ show_menu() {
 # ACTIONS
 # ------------------------------------------------------------------------------
 
-log "EVENT: fmssetup start..."
+log "INFO: fmssetup start..."
 case "${1:-}" in
     --install) do_install ;;
     --update) do_update ;;
@@ -506,4 +562,4 @@ esac
 # END
 # ------------------------------------------------------------------------------
 
-log "EVENT: fmssetup done"
+log "INFO: fmssetup done"

@@ -153,7 +153,7 @@ umount_drive() {
     fi
 
     if [ -n "$mount_point" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Unmounting $mount_point..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Unmounting $mount_point..."
         if ! umount "$mount_point"; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot unmount device -abort" >&2
             return 1
@@ -171,7 +171,7 @@ echo "Do you want to mount or unmount an NTFS disk?"
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: ntfsdrive start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: ntfsdrive start..."
 
 select choice in "Mount" "Unmount" "Exit"; do
     case $choice in
@@ -187,4 +187,4 @@ done
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: ntfsdrive done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: ntfsdrive done"

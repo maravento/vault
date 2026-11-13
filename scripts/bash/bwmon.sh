@@ -120,7 +120,7 @@ notify_send() {
     fi
 }
 
-log "EVENT: bwmon start..."
+log "INFO: bwmon start..."
 
 # dependencies
 for dep in speedtest-cli libnotify-bin systemd util-linux iproute2 libc-bin; do
@@ -201,7 +201,7 @@ ulmin="1.00"
 # ------------------------------------------------------------------------------
 
 # Measure the current download and upload speeds
-log "EVENT: Running speedtest (this may take ~30s)..."
+log "INFO: Running speedtest (this may take ~30s)..."
 resume=$(speedtest-cli --secure --simple 2>&1)
 
 if ! echo "$resume" | grep -q "^Download:"; then
@@ -257,11 +257,11 @@ if [ "$below_threshold" -eq 1 ]; then
         "Speed below minimum: Download ${dlvalue} ${dlmb}, Upload ${ulvalue} ${ulmb}"
 fi
 
-log "Full result: $resume"
+log "INFO: Full result: $resume"
 
 # ------------------------------------------------------------------------------
 # END
 # ------------------------------------------------------------------------------
 
-log "EVENT: bwmon done"
+log "INFO: bwmon done"
 exit "$below_threshold"

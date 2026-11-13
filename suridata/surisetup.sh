@@ -578,6 +578,8 @@ install_packages() {
     if (( ${#missing[@]} == 0 )); then
         return 0
     fi
+    check_ipv4_interfaces
+    check_internet
     failure_message="cannot update the package lists"
     retry_cmd apt-get update -qq || warn "cannot update package lists -alert"
     failure_message="cannot install the required packages"
@@ -609,6 +611,25 @@ list_ipv4_ifaces() {
             printf '%s\n' "$iface"
         fi
     done < <(list_ifaces)
+}
+
+# check ipv4 interfaces
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if [ -n "$(list_ipv4_ifaces)" ]; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for an interface with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no interface with IPv4 -abort"
+    exit 1
 }
 
 print_ifaces() {
@@ -989,7 +1010,7 @@ install_logrotate() {
     local failure_message="cannot write $rotate_file"
     cat > "$rotate_file" <<ROTATE_END
 $project_log {
-    daily
+    weekly
     rotate 7
     compress
     delaycompress
@@ -1129,10 +1150,11 @@ do_install() {
 do_update() {
     [ -f "$suridata_env" ] || abort "suridata is not installed -abort"
     update_reset /etc/cron.d/suridata
-    local file package
-    for package in suricata evebox; do
-        dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q 'ok installed' || abort "required package '$package' is not installed -abort"
-    done
+    local file
+    install_packages
+    # evebox comes from its own repository; install_evebox would also
+    # overwrite evebox.yaml, so --update only checks it
+    dpkg-query -W -f='${Status}' evebox 2>/dev/null | grep -q 'ok installed' || abort "required package 'evebox' is not installed -abort"
     for file in "${project_scripts[@]}"; do
         update_file "$install_dir/$file" "$conf_dir/$file" 750 root:root
     done
@@ -1240,6 +1262,8 @@ do_uninstall() {
     rm -f "$cron_file" "${cron_file}.update-disabled"
     failure_message="cannot remove $rotate_file"
     rm -f "$rotate_file"
+    failure_message="cannot remove $project_log"
+    rm -f -- "$project_log" "$project_log".*
 
     failure_message="cannot remove the project files"
     rm -f "${project_scripts[@]/#/$conf_dir/}"
@@ -1265,6 +1289,7 @@ do_uninstall() {
             systemctl disable --now suricata.service &>/dev/null || true
             apt-get purge -y suricata suricata-update &>/dev/null \
                 || warn "cannot remove suricata -alert"
+            rm -rf -- "$state_dir" "$log_dir" /etc/suricata
             ;;
         *) info "suricata kept" ;;
     esac
@@ -1276,7 +1301,7 @@ do_uninstall() {
             systemctl disable --now evebox.service &>/dev/null || true
             apt-get purge -y evebox &>/dev/null || warn "cannot remove evebox -alert"
             rm -f "$evebox_service" "$evebox_list" "$evebox_keyring"
-            rm -rf "$evebox_dir"
+            rm -rf "$evebox_dir" /var/lib/evebox
             systemctl daemon-reload
             ;;
         *) info "evebox kept" ;;
@@ -1436,7 +1461,7 @@ source "$install_dir/suridataenv.sh" || abort "cannot load suridataenv.sh -abort
 # ------------------------------------------------------------------------------
 
 # Run the action given on the command line, or fall back to the menu
-log "EVENT: surisetup start..."
+log "INFO: surisetup start..."
 
 case "${1:-}" in
     --install) do_install ;;
@@ -1453,4 +1478,4 @@ case "${1:-}" in
         ;;
 esac
 
-log "EVENT: surisetup done"
+log "INFO: surisetup done"

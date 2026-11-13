@@ -383,7 +383,7 @@ step() { echo -e "\n ${MAGENTA}>>${RESET} ${BOLD}$*${RESET}"; }
 line() { echo -e " ${DIM}------------------------------------------------${RESET}"; }
 
 finish() {
-    log "EVENT: aistack done"
+    log "INFO: aistack done"
     exit 0
 }
 
@@ -428,7 +428,7 @@ fetch_available_models() {
 # Display the available models and read the selected model
 select_model() {
     echo ""
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Fetching current model catalog from ollama.com..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Fetching current model catalog from ollama.com..."
     if ! fetch_available_models; then
         err "model catalog unavailable; download aborted -abort"
         SELECTED_MODEL=""
@@ -478,7 +478,7 @@ install_docker() {
     if command -v docker &> /dev/null; then
         ok "Docker is already installed"
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Installing Docker..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing Docker..."
         apt-get update -qq 2>/dev/null || true
         retry_cmd apt-get install -y ca-certificates curl gnupg lsb-release
 
@@ -546,7 +546,7 @@ install_docker() {
     if command -v docker &>/dev/null && docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^portainer$"; then
         ok "Portainer already running"
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Installing Portainer..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing Portainer..."
         docker volume create portainer_data 2>/dev/null || true
         docker run -d -p ${PORTAINER_PORT}:9000 --name portainer --restart=always \
             -v /var/run/docker.sock:/var/run/docker.sock \
@@ -701,7 +701,7 @@ deploy_stack() {
     cd "${AI_BASE_DIR}" || { err "Cannot cd to ${AI_BASE_DIR} -abort"; return 1; }
 
     # Pull images with retry logic (large images can fail on unstable connections)
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Pulling Docker images (may take several minutes)..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Pulling Docker images (may take several minutes)..."
     local max_attempts=5
     local attempt=1
     until docker compose pull; do
@@ -715,7 +715,7 @@ deploy_stack() {
     done
 
     # Start services
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Starting services..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Starting services..."
     docker compose up -d
 
     ok "AI Stack deployed successfully"
@@ -763,7 +763,7 @@ download_model() {
     require_ollama_running || return 1
 
     # Wait for Ollama to be ready
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Waiting for Ollama service to be ready..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Waiting for Ollama service to be ready..."
     local max_attempts=30
     local attempt=0
     while ! curl -s --connect-timeout 2 "http://localhost:${OLLAMA_PORT}/api/tags" &>/dev/null; do
@@ -781,7 +781,7 @@ download_model() {
         return 0
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Downloading ${SELECTED_MODEL} (may take several minutes)..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Downloading ${SELECTED_MODEL} (may take several minutes)..."
     docker exec ollama ollama pull "${SELECTED_MODEL}"
     ok "Model ${SELECTED_MODEL} downloaded successfully"
 }
@@ -965,7 +965,7 @@ install_opencode() {
     # Ensure nvm is installed (needed to manage Node.js without apt)
     local nvm_dir="/home/$local_user/.nvm"
     if [ ! -f "$nvm_dir/nvm.sh" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Installing nvm (Node Version Manager) for user: $local_user..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing nvm (Node Version Manager) for user: $local_user..."
         local nvm_tmp
         nvm_tmp=$(mktemp /tmp/nvm_install_XXXXXX.sh)
         download_url="https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh"
@@ -996,7 +996,7 @@ install_opencode() {
     # Ensure Node.js LTS is installed via nvm
     local nvm_sh="$nvm_dir/nvm.sh"
     if ! sudo -u "$local_user" bash -c "source '$nvm_sh' && command -v node" &>/dev/null; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Installing Node.js LTS via nvm..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing Node.js LTS via nvm..."
         if ! sudo -u "$local_user" bash -c "source '$nvm_sh' && nvm install --lts"; then
             err "Node.js installation via nvm failed -abort"
             return 1
@@ -1013,7 +1013,7 @@ install_opencode() {
     local pnpm_home="/home/$local_user/.local/share/pnpm"
     local pnpm_env="source $(printf '%q' "$nvm_sh"); export PNPM_HOME=$(printf '%q' "$pnpm_home"); export PATH=\"\$PNPM_HOME/bin:\$PATH\""
     if [ ! -f "$pnpm_home/bin/pnpm" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Installing pnpm..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing pnpm..."
         local pnpm_tmp
         pnpm_tmp=$(mktemp /tmp/pnpm_install_XXXXXX.sh)
         download_url="https://get.pnpm.io/install.sh"
@@ -1052,7 +1052,7 @@ install_opencode() {
     fi
     :
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Installing via pnpm (official package)..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing via pnpm (official package)..."
     local pnpm_bin="/home/$local_user/.local/share/pnpm/bin/pnpm"
     if ! printf 'a\n' | sudo -u "$local_user" bash -c "$pnpm_env; '$pnpm_bin' add -g opencode-ai@latest"; then
         err "pnpm failed to install opencode-ai -abort"
@@ -1082,7 +1082,7 @@ WRAPPER
         if [ -n "$postinstall_path" ]; then
             local postinstall_dir
             postinstall_dir=$(dirname "$postinstall_path")
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Running postinstall script..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Running postinstall script..."
             sudo -u "$local_user" bash -c "$pnpm_env; cd '$postinstall_dir' && node postinstall.mjs"
         fi
 
@@ -1092,7 +1092,7 @@ WRAPPER
 
     # Fallback: Official install script as the real user (not root)
     # Separate download from execution to allow inspection and avoid pipe-to-bash
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Installing via official install script as user: $local_user..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing via official install script as user: $local_user..."
     local install_tmp
     install_tmp=$(mktemp /tmp/opencode_install_XXXXXX.sh)
     download_url="https://opencode.ai/install"
@@ -1255,7 +1255,7 @@ update_opencode() {
     local pnpm_bin="$pnpm_home/bin/pnpm"
 
     if [ -f "$pnpm_bin" ] && sudo -u "$local_user" bash -c "$pnpm_env; pnpm list -g opencode-ai" &>/dev/null 2>&1; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Updating opencode-ai via pnpm..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Updating opencode-ai via pnpm..."
         if ! printf 'a\n' | sudo -u "$local_user" bash -c "$pnpm_env; '$pnpm_bin' update -g opencode-ai"; then
             err "pnpm update failed -abort"
             return 1
@@ -1287,13 +1287,13 @@ WRAPPER
         if [ -n "$postinstall_path" ]; then
             local postinstall_dir
             postinstall_dir=$(dirname "$postinstall_path")
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Running postinstall script..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Running postinstall script..."
             sudo -u "$local_user" bash -c "$pnpm_env; cd '$postinstall_dir' && node postinstall.mjs"
         fi
 
         ok "OpenCode updated via pnpm"
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') pnpm package not found -- reinstalling via official script..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: pnpm package missing, reinstalling..."
         local update_tmp
         update_tmp=$(mktemp /tmp/opencode_update_XXXXXX.sh)
         download_url="https://opencode.ai/install"
@@ -1714,7 +1714,7 @@ install_opencode_desktop() {
     local ext
     [ "$format" = "appimage" ] && ext="AppImage" || ext="deb"
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Checking latest OpenCode Desktop release..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Checking latest OpenCode Desktop release..."
     local version url
     { read -r version; read -r url; } < <(_opencode_desktop_resolve_release "$arch" "$ext")
     if [ -z "$version" ] || [ -z "$url" ]; then
@@ -1781,7 +1781,7 @@ install_opencode_desktop() {
         fi
 
         if [[ "$(dpkg-query -W -f='${Status}' libfuse2 2>/dev/null)" != *"ok installed"* ]]; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Installing libfuse2 (required by AppImage)..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing libfuse2 (required by AppImage)..."
             apt-get update -qq 2>/dev/null || true
             retry_cmd apt-get install -y libfuse2 &>/dev/null
             :
@@ -1849,7 +1849,7 @@ update_opencode_desktop() {
     local ext
     [ "$format" = "appimage" ] && ext="AppImage" || ext="deb"
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Checking latest OpenCode Desktop release..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Checking latest OpenCode Desktop release..."
     local version url
     { read -r version; read -r url; } < <(_opencode_desktop_resolve_release "$arch" "$ext")
     if [ -z "$version" ] || [ -z "$url" ]; then
@@ -2032,7 +2032,7 @@ uninstall_open_webui() {
 
     # Offer to remove native Open WebUI if found
     echo ""
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Checking for native Open WebUI outside Docker..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Checking for native Open WebUI outside Docker..."
     detect_native_components
     if [ "$NATIVE_OPENWEBUI" = true ]; then
         remove_native_components
@@ -2079,7 +2079,7 @@ uninstall_ollama_container() {
 
     # Offer to remove native Ollama if found
     echo ""
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Checking for native Ollama outside Docker..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Checking for native Ollama outside Docker..."
     detect_native_components
     if [ "$NATIVE_OLLAMA" = true ]; then
         remove_native_components
@@ -2163,7 +2163,7 @@ uninstall_all() {
     echo ""
 
     # AI Stack containers (Ollama + Open WebUI)
-    echo "$(date '+%Y-%m-%d %H:%M:%S') AI Stack containers (Ollama + Open WebUI)..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: AI Stack containers (Ollama + Open WebUI)..."
     if command -v docker &>/dev/null && [ -f "${AI_BASE_DIR}/docker-compose.yml" ]; then
         if cd "${AI_BASE_DIR}" && docker compose down -v >/dev/null 2>&1; then
             ok "Containers stopped and removed"
@@ -2176,7 +2176,7 @@ uninstall_all() {
     fi
 
     # Portainer
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Portainer..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Portainer..."
     if command -v docker &>/dev/null && docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^portainer$"; then
         local portainer_failed=0
         docker stop portainer >/dev/null 2>&1 \
@@ -2203,7 +2203,7 @@ uninstall_all() {
     fi
 
     # Docker
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Docker..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Docker..."
     if docker --version >/dev/null 2>&1; then
         read -rp " Remove Docker completely? [y/N]: " remove_docker
         if [[ "$remove_docker" =~ ^[yY]$ ]]; then
@@ -2236,7 +2236,7 @@ uninstall_all() {
     fi
 
     # AI data directory
-    echo "$(date '+%Y-%m-%d %H:%M:%S') AI data directory (${AI_BASE_DIR})..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: AI data directory (${AI_BASE_DIR})..."
     if [ -d "${AI_BASE_DIR}" ]; then
         read -rp " Remove all AI data? [y/N]: " remove_data
         if [[ "$remove_data" =~ ^[yY]$ ]]; then
@@ -2255,7 +2255,7 @@ uninstall_all() {
     fi
 
     # Native installations outside Docker
-    echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: Checking for native installations outside Docker..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Checking for native installations outside Docker..."
     detect_native_components
     remove_native_components
 
@@ -2372,11 +2372,11 @@ update_components() {
 
     case "$update_opt" in
         1)
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Updating EVERYTHING..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Updating EVERYTHING..."
             docker pull ollama/ollama:latest
             docker pull ghcr.io/open-webui/open-webui:main
             docker compose up -d --pull always
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Updating Portainer..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Updating Portainer..."
             docker stop portainer >/dev/null 2>&1 || true
             docker rm portainer >/dev/null 2>&1 || true
             docker pull portainer/portainer-ce:lts
@@ -2388,7 +2388,7 @@ update_components() {
             ok "Full stack updated"
             ;;
         2)
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Updating Ollama, LLM and Web UI..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Updating Ollama, LLM and Web UI..."
             docker pull ollama/ollama:latest
             docker pull ghcr.io/open-webui/open-webui:main
             docker compose up -d --pull always
@@ -2396,7 +2396,7 @@ update_components() {
             ok "AI components updated"
             ;;
         3)
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Updating Docker Engine & Portainer..."
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Updating Docker Engine & Portainer..."
             retry_cmd apt-get update -qq
             retry_cmd apt-get install --only-upgrade -y docker-ce docker-ce-cli containerd.io >/dev/null 2>&1
 
@@ -2582,14 +2582,14 @@ install_lmstudio() {
 
     # Install libfuse2 dependency (required by AppImage)
     if [[ "$(dpkg-query -W -f='${Status}' libfuse2 2>/dev/null)" != *"ok installed"* ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Installing libfuse2 (required by AppImage)..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing libfuse2 (required by AppImage)..."
         apt-get update -qq 2>/dev/null || true
         retry_cmd apt-get install -y libfuse2 &>/dev/null
         :
     fi
 
     # Download AppImage
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Downloading LM Studio AppImage..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Downloading LM Studio AppImage..."
     sudo -u "$local_user" bash -c "mkdir -p \"${AI_BASE_DIR}/lmstudio\""
     if ! curl -fL --progress-bar "https://lmstudio.ai/download/latest/linux/x64?format=AppImage" -o "${AI_BASE_DIR}/lmstudio/LMStudio.AppImage"; then
         err "Failed to download LM Studio -abort"
@@ -2780,7 +2780,7 @@ cli_mode() {
 
 # MAIN
 # Choose the interactive menu or command line workflow
-log "EVENT: aistack start..."
+log "INFO: aistack start..."
 
 if [[ $# -eq 0 ]]; then
     menu_main

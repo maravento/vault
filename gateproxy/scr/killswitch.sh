@@ -60,7 +60,7 @@ for dep in iptables iproute2 conntrack util-linux; do
 done
 
 # Start
-log "EVENT: killswitch start..."
+log "INFO: killswitch start..."
 
 # ------------------------------------------------------------------------------
 # KERNEL RULES
@@ -96,4 +96,4 @@ ip -6 route replace blackhole ::/0 2>/dev/null || true
 conntrack -F 2>/dev/null || true
 
 # End
-log "EVENT: killswitch done"
+log "INFO: killswitch done"

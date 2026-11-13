@@ -3,19 +3,19 @@
 #
 ################################################################################
 #
-# Suridata Backup
+# suribk -- configuration backup for suridata
 # FILE: suribk.sh
 #
 # USAGE:
-# sudo bash suribk.sh
-# sudo bash suribk.sh --install
-# sudo bash suribk.sh --uninstall
+# sudo bash suribk.sh            Create a backup now
+# sudo bash suribk.sh --install    Register the @monthly cron entry
+# sudo bash suribk.sh --uninstall  Remove the cron entry (keeps archives)
 #
 # LOG: /var/log/suridata.log
 #
 ################################################################################
 
-set -uo pipefail
+set -euo pipefail
 
 # ------------------------------------------------------------------------------
 # REQUIREMENTS
@@ -45,7 +45,7 @@ log() {
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
 (umask 077; : >> "$script_lock") || {
-    log "ERROR: cannot open $(basename "$script_lock") -abort"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot open $(basename "$script_lock") -abort" >&2
     exit 1
 }
 exec 200>"$script_lock"
@@ -55,8 +55,8 @@ if ! flock -n 200; then
 fi
 
 # dependencies
-for dep_pkg in zip coreutils findutils util-linux cron grep; do
-    if ! dpkg-query -W -f='${Status}' "$dep_pkg" 2>/dev/null | grep -q 'ok installed'; then
+for dep_pkg in zip coreutils findutils util-linux cron; do
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep_pkg" 2>/dev/null)" != *"ok installed"* ]]; then
         log "ERROR: dependency '$dep_pkg' is not installed -abort"
         exit 1
     fi
@@ -122,8 +122,12 @@ register_cron() {
             log "ERROR: cannot create $(dirname "$installed_path") -abort"
             exit 1
         fi
+        install -m 644 -o root -g root "$(dirname "$script_path")/suridataenv.sh" "$(dirname "$installed_path")/suridataenv.sh" \
+            || { log "ERROR: cannot deploy suridataenv.sh -abort"; exit 1; }
+        cmp -s -- "$(dirname "$script_path")/suridataenv.sh" "$(dirname "$installed_path")/suridataenv.sh" \
+            || { log "ERROR: src and dst do not match: suridataenv.sh -abort"; exit 1; }
         install -m 750 -o root -g root "$script_path" "$installed_path" \
-            || { log "ERROR: cannot replace file: $(basename "$installed_path") -abort"; exit 1; }
+            || { log "ERROR: cannot deploy $(basename "$installed_path") -abort"; exit 1; }
         cmp -s -- "$script_path" "$installed_path" \
             || { log "ERROR: src and dst do not match: $(basename "$installed_path") -abort"; exit 1; }
         log "INFO: deployed to $installed_path"
@@ -168,41 +172,38 @@ unset env_specs env_spec env_path env_owner_want env_perms_want
 unset env_owner env_perms
 
 # LOAD_CONF
-source "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/suridataenv.sh" || {
+if ! source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/suridataenv.sh" 2>/dev/null; then
     log "ERROR: cannot load suridataenv.sh -abort"
     exit 1
-}
-env_keys="BACKUP_DIR"
-
+fi
+env_keys='BACKUP_DIR'
 # LOAD
-load_suridata_env "$suridata_env" "$env_keys" || true
+load_suridata_env "$suridata_env" "$env_keys" || { log "ERROR: cannot load suridata.env -abort"; exit 1; }
 
-# KEY CHECK
 backup_dir="/etc/bak/suridata"
 if [[ "${BACKUP_DIR:-}" != "$backup_dir" ]] \
    || [[ "$(readlink -m -- "$backup_dir")" != "$backup_dir" ]]; then
     log "ERROR: BACKUP_DIR must be $backup_dir -abort"
     exit 1
 fi
-
 backup_zip="${backup_dir}/suribk_$(date +%Y%m%d_%H%M%S).zip"
 
 # Start
 case "${1:-}" in
     --install)
-        log "EVENT: suribk start..."
+        log "INFO: suribk start..."
         register_cron || exit 1
-        log "EVENT: suribk done"
+        log "INFO: suribk done"
         exit 0
         ;;
     --uninstall)
-        log "EVENT: suribk start..."
+        log "INFO: suribk start..."
         deregister_cron || exit 1
-        log "EVENT: suribk done"
+        log "INFO: suribk done"
         exit 0
         ;;
     "")
-        log "EVENT: suribk start..."
+        log "INFO: suribk start..."
         ;;
     *)
         log "ERROR: invalid option -abort"
@@ -238,7 +239,7 @@ do
     if [ -e "$backup_item" ]; then
         backup_list+=("$backup_item")
     else
-        log "INFO: $backup_item not present -skip"
+        log "INFO: $(basename "$backup_item") not present"
     fi
 done
 
@@ -297,7 +298,7 @@ else
     zip_status=$?
     trap - INT
     rm -f "$backup_part"
-    log "ERROR: cannot write archive $(basename "$backup_zip") (zip exit $zip_status) -abort"
+    log "ERROR: zip failed ($zip_status): $(basename "$backup_zip") -abort"
     exit 1
 fi
 
@@ -305,4 +306,4 @@ fi
 # END
 # ------------------------------------------------------------------------------
 
-log "EVENT: suribk done"
+log "INFO: suribk done"

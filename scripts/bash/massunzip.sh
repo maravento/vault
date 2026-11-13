@@ -83,7 +83,7 @@ passw=(
 # ------------------------------------------------------------------------------
 
 # start
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: massunzip start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: massunzip start..."
 
 # CHECK
 # Try the configured passwords against each supported archive
@@ -121,6 +121,6 @@ fi
 # ------------------------------------------------------------------------------
 
 # end
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: massunzip done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: massunzip done"
 
 exit "$exit_status"
