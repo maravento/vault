@@ -3,11 +3,11 @@
 #
 ################################################################################
 #
-# Server Boot
+# serverboot -- service startup and restart
 # FILE: scr/serverboot.sh
 #
 # USAGE:
-# sudo ./serverboot.sh
+# sudo bash serverboot.sh
 #
 # LOG: /var/log/serverboot.log
 #

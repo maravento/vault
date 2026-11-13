@@ -3,7 +3,7 @@
 #
 ################################################################################
 #
-# Suridata Configuration Reader
+# suridataenv -- suridata configuration reader
 # FILE: suridataenv.sh
 #
 # USAGE:

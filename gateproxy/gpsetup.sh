@@ -3,8 +3,7 @@
 #
 ################################################################################
 #
-# Gateproxy
-# A simple proxy/firewall server
+# gpsetup -- gateproxy proxy/firewall server installer
 # FILE: gpsetup.sh
 #
 # USAGE:
@@ -879,8 +878,6 @@ while true; do
                     sed -i "s:192.168.0.10:$serveripNEW:g" "$file" || exit $?
                 done
 
-                find "$gp_path/acl" -type f -name "mac-*" -exec sed -i "s:192.168.0\.:$(echo "$serveripNEW" | awk -F '.' '{OFS="."; $4=""; print $0}'):g" {} \;
-
                 info "You have entered IP $SERVER_IP :OK"
                 break
             done
@@ -1369,10 +1366,10 @@ grep -q "ipv6.msftncsi.com" /etc/hosts || echo "$SERVER_IP ipv6.msftncsi.com ipv
 # ACLs SECTION
 acl_mac_path="$acl_root"
 acl_squid_path="/etc/squid/acl"
-# Only files missing in $acl_root are copied from the repo template -- never
-# overwrite one that already exists, since it may hold real data from a
-# previous install, from pydhcp (mac-*.txt is also seeded by pydhcp's own
-# pysetup.sh), or edited by hand.
+# Only Squid lists missing in $acl_squid_path are copied from the repo template
+# -- never overwrite one that already exists, since it may hold real data from
+# a previous install or edited by hand. mac-*.txt is created empty below when
+# missing (pydhcp's own pysetup.sh also seeds it).
 while IFS= read -r -d '' acl_src; do
     case "$acl_src" in
         "$gp_path"/conf/squid/acl/*) acl_dest="$acl_squid_path/${acl_src##*/}" ;;
@@ -1384,11 +1381,11 @@ while IFS= read -r -d '' acl_src; do
         failure_message="cannot copy $(basename "$acl_dest")"
         cp "$acl_src" "$acl_dest"
     fi
-done < <(find "$gp_path/acl" "$gp_path/conf/squid/acl" -maxdepth 1 -type f -print0)
+done < <(find "$gp_path/conf/squid/acl" -maxdepth 1 -type f -print0)
 # ACL directories and files, per rules.md BLOQUE 6, section 14
 shopt -s nullglob
-acl_prepare "$acl_root" 700 600 "$acl_mac_path"/mac-*.txt \
-    "$acl_root/blockports.txt" "$acl_root/bogons.txt"
+acl_prepare "$acl_root" 700 600 "$acl_mac_path/mac-limited.txt" \
+    "$acl_mac_path/mac-unlimited.txt"
 acl_prepare "$acl_squid_path" 755 644 "$acl_squid_path"/*.txt
 shopt -u nullglob
 

@@ -3,11 +3,11 @@
 #
 ################################################################################
 #
-# N Report
+# nreport -- nmap network report
 # FILE: linux/nreport.sh
 #
 # USAGE:
-# sudo /path/to/nreport.sh
+# sudo bash nreport.sh
 #
 # LOG: /var/log/nreport.log
 #      Truncated on every run (single-run tool, no rotation).

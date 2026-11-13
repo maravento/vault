@@ -3,7 +3,7 @@
 #
 ################################################################################
 #
-# Suridata Installer
+# surisetup -- suridata installer
 # FILE: surisetup.sh
 #
 # USAGE:
@@ -11,6 +11,9 @@
 # sudo bash surisetup.sh --update
 # sudo bash surisetup.sh --uninstall
 # sudo bash surisetup.sh --status
+# sudo bash surisetup.sh
+# sudo bash surisetup.sh -h
+# sudo bash surisetup.sh --help
 #
 # LOG: surisetup.log, beside this script
 #

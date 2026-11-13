@@ -3,11 +3,11 @@
 #
 ################################################################################
 #
-# Iptables Kill Switch
+# killswitch -- iptables emergency traffic block
 # FILE: scr/killswitch.sh
 #
 # USAGE:
-# sudo ./killswitch.sh
+# sudo bash killswitch.sh
 #
 # LOG: /var/log/iptables.log, shared with scr/iptables.sh
 #      Rotation is self-installed there, /etc/logrotate.d/iptables

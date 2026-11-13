@@ -3,7 +3,7 @@
 #
 ################################################################################
 #
-# Suridata
+# suridata -- Suricata drop-alert IP blocker
 # FILE: suridata.sh
 #
 # USAGE:

@@ -3,15 +3,11 @@
 #
 ################################################################################
 #
-# Iptables/Ipset Firewall O(1)
+# iptables -- gateproxy iptables/ipset firewall O(1)
 # FILE: scr/iptables.sh
 #
-# DESCRIPTION:
-# Raw gateproxy firewall built with iptables and ipset. No switches and
-# no UniFi rules. HTTPS 443 is dropped by default through blockports.txt.
-#
 # USAGE:
-# sudo ./iptables.sh
+# sudo bash iptables.sh
 #
 # LOG: /var/log/iptables.log
 #
@@ -55,7 +51,7 @@ if ! flock -n 200; then
 fi
 
 # dependencies
-for dep_pkg in iptables ipset arptables ebtables kmod procps util-linux ulogd2 coreutils grep iproute2; do
+for dep_pkg in iptables ipset arptables ebtables kmod procps util-linux ulogd2 coreutils grep iproute2 curl libc-bin; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep_pkg" 2>/dev/null)" != *"ok installed"* ]]; then
         log "ERROR: dependency '$dep_pkg' is not installed -abort"
         exit 1
@@ -68,6 +64,7 @@ done
 
 # validation -- one variable per thing validated; use directly with =~
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
 UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
 UH_DNS='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(,(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9]))*$'
 UH_UINT='^(0|[1-9][0-9]*)$'
@@ -144,6 +141,34 @@ acl_fix_perms() {
     log "INFO: $(basename "$acl_path") perms fixed -fixed"
 }
 
+# LIST DOWNLOAD
+# Download a list only when it is missing or empty; return 1 if unavailable
+# Usage: fetch_list <file> <url>
+fetch_list() {
+    local list_file="$1" list_url="$2" list_rc=0 list_code
+    [ -s "$list_file" ] && return 0
+    # Download labels: rules.md, Etiquetas de descarga
+    list_code=$(curl -sL --connect-timeout 10 --retry 3 --retry-delay 2 \
+        -w '%{http_code}' -o "$list_file" "$list_url") || list_rc=$?
+    case "${list_code:-000}" in
+        2*) if (( list_rc == 0 )); then
+                log "SAVED: $(basename "$list_url")"
+            else
+                log "PARTIAL: $list_url"
+            fi ;;
+        000) log "TIMEOUT: $list_url" ;;
+        5*) log "BUSY: $list_code $list_url" ;;
+        404|410) log "BROKEN: $list_code $list_url" ;;
+        *) log "HTTP_ERROR: $list_code $list_url" ;;
+    esac
+    if [[ "${list_code:-000}" == 2* ]] && (( list_rc == 0 )); then
+        return 0
+    fi
+    rm -f "$list_file"
+    log "INFO: $(basename "$list_file") not available, rule -skip"
+    return 1
+}
+
 # NETWORK WAIT
 # Wait until WAN and LAN are up, wired, and hold a global IPv4 address
 check_network_interfaces() {
@@ -193,6 +218,20 @@ mac_set() {
         log "WARNING: $invalid_count invalid MACs in $(basename "$src_file") -alert"
     fi
     return 0
+}
+
+# MACIP SET
+# Add each MAC and IP pair to the macip set
+create_acl() {
+    local mac_addr client_ip
+    while (( $# >= 2 )); do
+        mac_addr="$1"
+        shift
+        client_ip="$1"
+        shift
+        # Add MAC+IP to set
+        [[ "$mac_addr" =~ $UH_MAC ]] && [[ "$client_ip" =~ $UH_IPV4 ]] && ipset add macip "$client_ip,$mac_addr" -exist
+    done
 }
 
 # ------------------------------------------------------------------------------
@@ -339,17 +378,12 @@ if [ "$WAN_IFACE" = "$INTERFACESv4" ]; then
     log "ERROR: WAN and LAN must differ -abort"
     exit 1
 fi
-
 check_network_interfaces || exit 1
 
-# interfaces
 wan_iface="$WAN_IFACE"
-# LAN SERV_SUBNET/NETMASK (CIDR prefix derived from pydhcp's own SERV_MASK,
-# no separate gateproxy key to keep in sync by hand)
 # CIDR prefix derived from SERV_MASK, already validated by KEY CHECK
-[[ " $UH_PREFIX " =~ [[:space:]]${SERV_MASK//./\.}:([0-9]+)[[:space:]] ]]
+[[ " $UH_PREFIX " =~ [[:space:]]${SERV_MASK//./\\.}:([0-9]+)[[:space:]] ]]
 netmask_int="${BASH_REMATCH[1]}"
-# PAC port announced by pydhcpd in DHCP option 252
 
 # SQUID PORTS
 # Read optional shared ports without changing this script's network variables
@@ -404,10 +438,9 @@ fi
 acl_mac_path="${ACL_PATH:-/etc/acl}"
 
 # ACL/config files used by this script (existence verified below)
-blockports_file="$ACL_PATH/blockports.txt"
 dhcp_conf="/etc/pydhcp/core/pydhcpd.conf"
 
-for required_file in "$ACL_MAC_LIMITED" "$ACL_MAC_UNLIMITED" "$blockports_file" "$dhcp_conf"; do
+for required_file in "$ACL_MAC_LIMITED" "$ACL_MAC_UNLIMITED" "$dhcp_conf"; do
     if [ ! -f "$required_file" ]; then
         log "ERROR: required file not found: $(basename "$required_file") -abort"
         exit 1
@@ -415,13 +448,33 @@ for required_file in "$ACL_MAC_LIMITED" "$ACL_MAC_UNLIMITED" "$blockports_file" 
 done
 unset required_file
 if [ ! -d "$acl_mac_path" ]; then
-    log "ERROR: ACL_MAC_PATH missing -abort"
+    log "ERROR: ACL_PATH missing -abort"
     exit 1
 fi
 
 # REQUIRED DIRS
 # Prepare the directory that holds the required lists
 acl_prepare "${ACL_PATH:-/etc/acl}" 700 600
+
+# PORT LIST
+# Optional and disabled by default; uncomment together with BLOCKPORTS below
+#blockports_file="$ACL_PATH/blockports.txt"
+#blockports_url="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/acl/blockports.txt"
+#blockports_ok=0
+#if fetch_list "$blockports_file" "$blockports_url"; then
+#    acl_fix_perms "$blockports_file" 600
+#    blockports_ok=1
+#fi
+
+# BOGON LIST
+# Optional and disabled by default; uncomment together with BOGONS below
+#bogons_file="$ACL_PATH/bogons.txt"
+#bogons_url="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/acl/bogons.txt"
+#bogons_ok=0
+#if fetch_list "$bogons_file" "$bogons_url"; then
+#    acl_fix_perms "$bogons_file" 600
+#    bogons_ok=1
+#fi
 
 # start
 log "INFO: iptables start..."
@@ -666,7 +719,6 @@ iptables -A OUTPUT -o "$INTERFACESv4" -p udp --sport 67 --dport 68 -j ACCEPT
 
 # MASQUERADE: NAT for LAN to share dynamic WAN IP
 iptables -t nat -A POSTROUTING -s "$SERV_SUBNET/$netmask_int" -o "$wan_iface" -j MASQUERADE
-#
 # SNAT example for static WAN IP (more efficient)
 # wan_ip=$(ip -4 -o addr show dev "$wan_iface" | awk '{print $4}' | cut -d/ -f1)
 # iptables -t nat -A POSTROUTING -s "$SERV_SUBNET/$netmask_int" -o "$wan_iface" -j SNAT --to-source "$wan_ip"
@@ -731,17 +783,6 @@ if ! ipset list macip &>/dev/null; then
 else
     ipset flush macip
 fi
-create_acl() {
-    local mac_addr client_ip
-    while (( $# >= 2 )); do
-        mac_addr="$1"
-        shift
-        client_ip="$1"
-        shift
-        # Add MAC+IP to set
-        [[ "$mac_addr" =~ $UH_MAC ]] && [[ "$client_ip" =~ $UH_IPV4 ]] && ipset add macip "$client_ip,$mac_addr" -exist
-    done
-}
 if [ -n "$mac2ip_rules" ]; then
     # create_acl expects a flat MAC IP MAC IP ... arg list (it shifts two at a
     # time). $mac2ip_rules is one "mac ip" pair per line, so it must still be split
@@ -788,49 +829,46 @@ done
 # SECURITY RULES
 # ------------------------------------------------------------------------------
 
-# BOGON LIST
-# Reserved and unroutable address ranges. Optional and disabled by default:
-# enable the whole block only if the LAN range is not listed in bogons.txt,
-# or it will block the local network.
-#bogons_file="$ACL_PATH/bogons.txt"
-#bogons_url="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/gateproxy/acl/bogons.txt"
-#if [ ! -f "$bogons_file" ]; then
-#    if curl -fL --retry 3 --retry-delay 2 --progress-bar -o "$bogons_file" "$bogons_url"; then
-#        chown root:root "$bogons_file"
+# BOGONS
+# Reserved and unroutable ranges. Optional and disabled by default: uncomment
+# this block and BOGON LIST above to enable it. The LAN range and the WAN's
+# own subnet are always excluded.
+#if (( bogons_ok )); then
+#    if ! ipset list bogons &>/dev/null; then
+#        ipset create bogons hash:net -exist
 #    else
-#        rm -f "$bogons_file"
+#        ipset flush bogons
 #    fi
-#fi
-
-#if ! ipset list bogons &>/dev/null; then
-#    ipset create bogons hash:net -exist
-#else
-#    ipset flush bogons
-#fi
-#if [ -f "$bogons_file" ]; then
 #    for bogons_cidr in $(grep -vE '^\s*#|^\s*$' "$bogons_file" | awk '{print $1}' | sort -V -u 2>/dev/null); do
 #        ipset add bogons "$bogons_cidr" -exist
 #    done
-#else
-#    log "WARNING: $bogons_file not found, bogons -alert"
+#
+#    # Allow 255.255.255.0/24 before BOGONS DROP
+#    iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -s 255.255.255.0/24 -j ACCEPT
+#    iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -d 255.255.255.0/24 -j ACCEPT
+#    # DROP bogons, except the LAN range
+#    iptables -t mangle -A PREROUTING -i "$INTERFACESv4" ! -s "$SERV_SUBNET/$netmask_int" -m set --match-set bogons src -j DROP
+#    iptables -t mangle -A PREROUTING -i "$INTERFACESv4" ! -d "$SERV_SUBNET/$netmask_int" -m set --match-set bogons dst -j DROP
+#    # WAN INGRESS
+#    # drop spoofed traffic claiming a reserved/private source address.
+#    # dst intentionally omitted -- this host may itself sit behind CGNAT/double-NAT
+#    # on a private WAN address, which a dst check would wrongly match and drop.
+#    # The WAN's own subnet is excluded, so an upstream router on a private
+#    # range (e.g. a 192.168.x modem) keeps reaching this host.
+#    wan_net=$(ip -4 route show dev "$wan_iface" scope link proto kernel 2>/dev/null | awk 'NR == 1 {print $1}') || wan_net=""
+#    if [[ "$wan_net" =~ $UH_CIDR ]]; then
+#        iptables -t mangle -A PREROUTING -i "$wan_iface" ! -s "$wan_net" -m set --match-set bogons src -j DROP
+#    else
+#        iptables -t mangle -A PREROUTING -i "$wan_iface" -m set --match-set bogons src -j DROP
+#    fi
 #fi
 
-# Allow 255.255.255.0/24 before BOGONS DROP
-#iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -s 255.255.255.0/24 -j ACCEPT
-#iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -d 255.255.255.0/24 -j ACCEPT
-# DROP bogons
-#iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set bogons src -j DROP
-#iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -m set --match-set bogons dst -j DROP
-
-# WAN ingress: drop spoofed traffic claiming a reserved/private source address.
-# dst intentionally omitted -- this host may itself sit behind CGNAT/double-NAT
-# on a private WAN address, which a dst check would wrongly match and drop.
-#iptables -t mangle -A PREROUTING -i "$wan_iface" -m set --match-set bogons src -j DROP
-
 # BLOCKPORTS
+# Optional and disabled by default: uncomment this block and PORT LIST above
+# to enable it. 443 is never taken from the list, see HTTPS PATH.
 # path: /etc/acl/blockports.txt
 # Block Direct Connections:
-# - HTTPs (443) - TCP/UDP
+# - HTTPs (443) - TCP/UDP: skipped here, see HTTPS PATH
 # - HTTPs Fallback (4444,9443) - TCP
 # - DoT (853,8053) - TCP
 # - DNS over QUIC DoQ (784) - UDP
@@ -863,16 +901,25 @@ done
 # - Cryptomining (3333,5555,6666,7777,8848,9999,14444,14433,45560) - TCP
 # - WINS (42) - TCP/UDP
 # - BTC/ETH (8332,8333,8545,30303) - TCP
-if ! ipset list blockports &>/dev/null; then
-    ipset create blockports bitmap:port range 0-65535 -exist
-else
-    ipset flush blockports
-fi
-for blocked_ports in $(sort -V -u "$blockports_file" 2>/dev/null); do
-    [[ "$blocked_ports" =~ $UH_UINT ]] && [ "${#blocked_ports}" -le 5 ] && [ "$blocked_ports" -le 65535 ] && ipset add blockports "$blocked_ports" -exist
-done
+#if (( blockports_ok )); then
+#    if ! ipset list blockports &>/dev/null; then
+#        ipset create blockports bitmap:port range 0-65535 -exist
+#    else
+#        ipset flush blockports
+#    fi
+#    # 443 is handled by HTTPS PATH below, so the list never decides it
+#    for blocked_ports in $(sort -V -u "$blockports_file" 2>/dev/null); do
+#        [[ "$blocked_ports" =~ $UH_UINT ]] && [ "${#blocked_ports}" -le 5 ] && [ "$blocked_ports" -le 65535 ] && [ "$blocked_ports" != 443 ] && ipset add blockports "$blocked_ports" -exist
+#    done
+#    for proto_name in tcp udp; do
+#        iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -p "$proto_name" -m set --match-set blockports dst -j DROP
+#    done
+#fi
+
+# HTTPS PATH
+# Squid is always installed: direct HTTPS and QUIC are dropped; HTTPS goes only via CONNECT
 for proto_name in tcp udp; do
-    iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -p "$proto_name" -m set --match-set blockports dst -j DROP
+    iptables -t mangle -A PREROUTING -i "$INTERFACESv4" -p "$proto_name" --dport 443 -j DROP
 done
 
 # Block 6to4 (IPv6-in-IPv4 tunneling) - prevents LAN clients from bypassing
@@ -933,9 +980,6 @@ iptables -A INPUT -i "$INTERFACESv4" -p udp --dport 3289 -j DROP
 iptables -A INPUT -i "$INTERFACESv4" -p udp --dport 17500 -j DROP
 
 # ICMP (ping) (Optional)
-# WARNING:
-# You need to change the following kernel parameter in the header of this script:
-# sysctl -w net.ipv4.icmp_echo_ignore_all=0 >/dev/null 2>&1
 # NOTE: For nmap scans, increase limit to 100/second or use -Pn in nmap options
 #iptables -A INPUT -p icmp -m limit --limit 10/second -j ACCEPT
 #iptables -A FORWARD -p icmp -m limit --limit 10/second -j ACCEPT

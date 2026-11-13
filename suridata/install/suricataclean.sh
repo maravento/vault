@@ -3,7 +3,7 @@
 #
 ################################################################################
 #
-# Suricata Clean
+# suricataclean -- Suricata log cleanup
 # FILE: suricataclean.sh
 #
 # USAGE:

@@ -56,7 +56,6 @@ FILE: gateproxy/README.md
 
 ```
 gateproxy/
-├── acl/                            # MAC, Squid and firewall ACL templates
 ├── conf/                           # service configuration templates
 │   ├── fail2ban/
 │   │   └── jail.local              # deployed to: /etc/fail2ban/jail.local
@@ -71,11 +70,11 @@ gateproxy/
 │   └── webmin/
 │       └── text-editor.wbm         # Webmin Text Editor module
 ├── scr/                            # deployed to: /etc/scr [0755 root:root]
-│   ├── bkconf.sh                   # configuration backup [0755 root:root]
+│   ├── bkconf.sh                   # configuration backup [0750 root:root]
 │   ├── iptables.sh                 # firewall rules and ipsets
-│   ├── killswitch.sh               # emergency traffic block [0755 root:root]
-│   ├── serverboot.sh               # service startup and restart [0755 root:root]
-│   └── serviceswatch.sh            # service watchdog [0755 root:root]
+│   ├── killswitch.sh               # emergency traffic block [0750 root:root]
+│   ├── serverboot.sh               # service startup and restart [0750 root:root]
+│   └── serviceswatch.sh            # service watchdog [0750 root:root]
 └── gpsetup.sh                      # installer
 ```
 
@@ -439,15 +438,14 @@ BACKUP_DIR=/etc/bak/gateproxy
 
 | Function | Description | Descripción |
 | :--- | :--- | :--- |
-| ACL deployment | Squid lists live in <code>/etc/squid/acl/</code>. Administrator lists live in <code>/etc/acl/</code>. Templates are copied only when missing. Webmin Text Editor lists the MAC files. | Las listas de Squid están en <code>/etc/squid/acl/</code>. Las del administrador están en <code>/etc/acl/</code>. Las plantillas solo se copian si faltan. Text Editor de Webmin lista los archivos MAC. |
+| ACL deployment | Squid lists live in <code>/etc/squid/acl/</code>. Administrator lists live in <code>/etc/acl/</code>. Squid templates are copied only when missing. Missing MAC files are created empty. Webmin Text Editor lists the MAC files. | Las listas de Squid están en <code>/etc/squid/acl/</code>. Las del administrador están en <code>/etc/acl/</code>. Las plantillas de Squid solo se copian si faltan. Los archivos MAC que faltan se crean vacíos. Text Editor de Webmin lista los archivos MAC. |
 | MAC entry format | MAC list files use pydhcp's own entry format: <code>a;MAC;IP;HOSTNAME;</code>. The leading <code>a</code> marks an active entry — <code>iptables.sh</code> only reads lines starting with <code>a;</code> and a non-empty MAC field; anything else (including a different leading character or a commented-out <code>#a;...</code> line) is ignored. | Los archivos de listas MAC usan el mismo formato de entrada que pydhcp: <code>a;MAC;IP;HOSTNAME;</code>. La <code>a</code> inicial marca una entrada activa — <code>iptables.sh</code> sólo lee líneas que empiecen con <code>a;</code> y tengan el campo MAC no vacío; cualquier otra cosa (incluido un carácter inicial distinto o una línea comentada <code>#a;...</code>) se ignora. |
 
 ```
 /etc/acl/
 ├── mac-limited.txt
 ├── mac-unlimited.txt
-├── blockports.txt
-└── bogons.txt
+└── blockports.txt    # only when the BLOCKPORTS rule is enabled
 
 /etc/squid/acl/
 ├── aipextra.txt
@@ -467,10 +465,10 @@ BACKUP_DIR=/etc/bak/gateproxy
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     The firewall (<code>iptables.sh</code>) uses an O(1) ipset-based architecture. Every LAN device is identified by MAC+IP binding derived from the DHCP server config. Global IPv4 policy is permissive with explicit drops; IPv6 is closed by default on LAN.
+     The firewall (<code>iptables.sh</code>) uses an O(1) ipset-based architecture. Every LAN device is identified by MAC+IP binding derived from the DHCP server config. Global IPv4 policy is permissive with explicit drops; IPv6 is closed by default on LAN. It has no switches and no UniFi rules. Direct HTTPS and QUIC (443) are always dropped, so HTTPS goes only through Squid.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     El firewall (<code>iptables.sh</code>) usa una arquitectura basada en ipset O(1). Cada dispositivo LAN es identificado por enlace MAC+IP derivado de la configuración del servidor DHCP. La política IPv4 global es permisiva con drops explícitos; IPv6 está cerrado por defecto en LAN.
+     El firewall (<code>iptables.sh</code>) usa una arquitectura basada en ipset O(1). Cada dispositivo LAN es identificado por enlace MAC+IP derivado de la configuración del servidor DHCP. La política IPv4 global es permisiva con drops explícitos; IPv6 está cerrado por defecto en LAN. No tiene interruptores ni reglas UniFi. El HTTPS y QUIC directos (443) se descartan siempre, así que el HTTPS solo pasa por Squid.
     </td>
   </tr>
 </table>
@@ -497,10 +495,10 @@ BACKUP_DIR=/etc/bak/gateproxy
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     <code>blockports.txt</code> holds the ports blocked outbound from the LAN by default, one per line. They cover VPNs and tunnels, P2P, cryptomining, Tor, alternate proxies and legacy or risky protocols. The list is the ACL itself, so consult the file for the current entries.
+     <code>blockports.txt</code> holds the ports to block outbound from the LAN, one per line. They cover VPNs and tunnels, P2P, cryptomining, Tor, alternate proxies and legacy or risky protocols. The list is the ACL itself, so consult the file for the current entries. The rule is optional and commented out by default in <code>iptables.sh</code>. Once enabled, it downloads the list from <code>vault/acl</code> when it is missing or empty. If the download fails, it logs an <code>INFO ... -skip</code>, skips the port rule and continues. Port 443 is never taken from the list.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     <code>blockports.txt</code> contiene los puertos bloqueados por defecto en tráfico saliente desde la LAN, uno por línea. Cubren VPN y túneles, P2P, criptominería, Tor, proxies alternativos y protocolos antiguos o riesgosos. La lista es la ACL misma, así que las entradas vigentes se consultan en el archivo.
+     <code>blockports.txt</code> contiene los puertos que se bloquean en tráfico saliente desde la LAN, uno por línea. Cubren VPN y túneles, P2P, criptominería, Tor, proxies alternativos y protocolos antiguos o riesgosos. La lista es la ACL misma, así que las entradas vigentes se consultan en el archivo. La regla es opcional y viene comentada por defecto en <code>iptables.sh</code>. Una vez activada, descarga la lista desde <code>vault/acl</code> cuando falta o está vacía. Si la descarga falla, registra un <code>INFO ... -skip</code>, omite la regla de puertos y continúa. El puerto 443 nunca se toma de la lista.
     </td>
   </tr>
 </table>

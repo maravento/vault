@@ -3,7 +3,7 @@
 #
 ################################################################################
 #
-# Suricata Update
+# suricataupdate -- Suricata rules update
 # FILE: suricataupdate.sh
 #
 # USAGE:

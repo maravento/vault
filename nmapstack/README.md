@@ -32,16 +32,16 @@ nmapstack/
 ├── nwatch/                         # web dashboard
 │   ├── nwatchsetup.sh              # installer, updater and uninstaller
 │   ├── tools/                      # deployed to: /var/www/nwatch/tools [0755 root:root]
-│   │   ├── nwatchbk.sh             # configuration and SQLite backup [0755 root:root]
+│   │   ├── nwatchbk.sh             # configuration and SQLite backup [0750 root:root]
 │   │   ├── nwatchenv.sh            # shared Bash configuration reader [0644 root:root]
-│   │   ├── nwatchlan.sh            # LAN discovery daemon [0755 root:root]
-│   │   └── nwatchports.sh          # port audit daemon and mode CLI [0755 root:root]
+│   │   ├── nwatchlan.sh            # LAN discovery daemon [0750 root:root]
+│   │   └── nwatchports.sh          # port audit daemon and mode CLI [0750 root:root]
 │   └── web/                        # deployed to: /var/www/nwatch/web [0755 www-data:www-data]
-│       ├── index.php               # dashboard entry point [0755 www-data:www-data]
-│       ├── lan.html                # LAN devices view [0755 www-data:www-data]
+│       ├── index.php               # dashboard entry point [0644 www-data:www-data]
+│       ├── lan.html                # LAN devices view [0644 www-data:www-data]
 │       ├── nwatch.conf             # deployed to: /etc/apache2/sites-available/nwatch.conf [0644 root:root]
-│       ├── nwatchapi.php           # JSON API [0755 www-data:www-data]
-│       └── ports.html              # port audit view [0755 www-data:www-data]
+│       ├── nwatchapi.php           # JSON API [0644 www-data:www-data]
+│       └── ports.html              # port audit view [0644 www-data:www-data]
 │
 └── win/                            # Windows package metadata
     ├── changelog.txt               # version history

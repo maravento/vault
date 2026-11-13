@@ -3,11 +3,11 @@
 #
 ################################################################################
 #
-# Services Watchdog
+# serviceswatch -- services watchdog
 # FILE: scr/serviceswatch.sh
 #
 # USAGE:
-# ./serviceswatch.sh
+# sudo bash serviceswatch.sh
 #
 # LOG: /var/log/serviceswatch.log, its own log, not shared
 #

@@ -3,12 +3,20 @@
 #
 ################################################################################
 #
-# BlackUSB
-# USB device access control via udev rules
+# blackusb -- USB device access control via udev rules
 # FILE: blackusb/linux/blackusb.sh
 #
 # USAGE:
-# sudo bash blackusb.sh {--show|--on|--eject|--off|--generate|--delete|--trigger|--edit|--help}
+# sudo bash blackusb.sh --show      Show connected USB devices
+# sudo bash blackusb.sh --on        Activate blackusb
+# sudo bash blackusb.sh --off       Temporarily deactivate blackusb
+# sudo bash blackusb.sh --eject     Add an entry on eject
+# sudo bash blackusb.sh --generate  Generate or refresh the whitelist rules
+# sudo bash blackusb.sh --delete    Delete the udev rules file
+# sudo bash blackusb.sh --trigger   Trigger the insertion or removal event
+# sudo bash blackusb.sh --edit      Edit the udev rules file by hand
+# sudo bash blackusb.sh -h          Show this help
+# sudo bash blackusb.sh --help      Show this help
 #
 # LOG: /var/log/blackusb.log
 #

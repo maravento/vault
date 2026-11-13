@@ -3,7 +3,7 @@
 #
 ################################################################################
 #
-# nwatch - LAN device inventory & watched ports dashboard
+# nwatchsetup -- nwatch installer
 # FILE: nwatch/nwatchsetup.sh
 #
 # USAGE:
@@ -11,6 +11,7 @@
 # sudo bash nwatchsetup.sh --update
 # sudo bash nwatchsetup.sh --uninstall
 # sudo bash nwatchsetup.sh --status
+# sudo bash nwatchsetup.sh
 #
 # LOG: nwatchsetup.log, next to this script (rewritten on each run)
 #      The daemons nwatchlan.sh / nwatchports.sh log to the shared
@@ -963,7 +964,8 @@ do_install() {
     mkdir -p "$nwatch_web" "$nwatch_tools" "$nwatch_data" "$nwatch_etc"
 
     if ! { cp -f "$web_dir"/*.php "$web_dir"/*.html "$nwatch_web/" \
-        && chmod -R 755 "$nwatch_web" \
+        && find "$nwatch_web" -type d -exec chmod 755 {} + \
+        && find "$nwatch_web" -type f -exec chmod 644 {} + \
         && chown -R www-data:www-data "$nwatch_web"; }; then
         log "ERROR: cannot deploy web files -abort"
         exit 1
@@ -1155,7 +1157,7 @@ do_update() {
     update_reset /etc/cron.d/nwatch
     local file mode
     for file in index.php lan.html nwatchapi.php ports.html; do
-        update_file "$web_dir/$file" "$nwatch_web/$file" 755 www-data:www-data
+        update_file "$web_dir/$file" "$nwatch_web/$file" 644 www-data:www-data
     done
     for file in nwatchenv.sh nwatchlan.sh nwatchports.sh nwatchbk.sh; do
         mode=750

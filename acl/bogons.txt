@@ -3,7 +3,7 @@
 # RFC1918 - Private
 10.0.0.0/8
 172.16.0.0/12
-#192.168.0.0/16
+192.168.0.0/16
 # RFC6598 - Shared Address Space (commonly used by Tailscale/CGNAT -- commented for compatibility)
 #100.64.0.0/10
 # RFC1122 - Loopback

@@ -3,11 +3,13 @@
 #
 ################################################################################
 #
-# nwatchlan - LAN Devices Watchdog
+# nwatchlan -- LAN devices watchdog
 # FILE: tools/nwatchlan.sh
 #
 # USAGE:
-# ./nwatchlan.sh {--start|--stop|--status}
+# sudo bash nwatchlan.sh --start
+# sudo bash nwatchlan.sh --stop
+# sudo bash nwatchlan.sh --status
 #
 # LOG: /var/log/nwatch.log (root:root, 640) -- shared by both daemons
 #      (nwatchlan.sh + nwatchports.sh). The installer writes its own

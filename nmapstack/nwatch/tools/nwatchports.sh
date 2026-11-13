@@ -3,14 +3,16 @@
 #
 ################################################################################
 #
-# nwatchports - Port Auditing Daemon + CLI
+# nwatchports -- port auditing daemon and CLI
 # FILE: tools/nwatchports.sh
 #
 # USAGE:
-# ./nwatchports.sh {--start|--stop|--status}
-# ./nwatchports.sh --mode server
-# ./nwatchports.sh --mode target <host>
-# ./nwatchports.sh --list
+# sudo bash nwatchports.sh --start
+# sudo bash nwatchports.sh --stop
+# sudo bash nwatchports.sh --status
+# sudo bash nwatchports.sh --mode server
+# sudo bash nwatchports.sh --mode target <host>
+# sudo bash nwatchports.sh --list
 #
 # LOG: /var/log/nwatch.log (root:root, 640) -- shared by both daemons
 #      (nwatchlan.sh + nwatchports.sh). The installer writes its own
