@@ -9,7 +9,9 @@
 # DESCRIPTION: Mounts or unmounts an NTFS disk by label or UUID, owned by the
 # local user. Asks for the identifier and the mount folder name.
 #
-# USAGE: sudo bash ntfsdrive.sh
+# USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash ntfsdrive.sh
 #
 ################################################################################
 

@@ -11,7 +11,13 @@
 # interface to monitor, start, stop and restart systemd services.
 #
 # USAGE:
-# sudo ./servicemon.sh [--install|--uninstall|-h|--help]
+# ACTION            COMMAND
+# Interactive menu  sudo bash servicemon.sh
+# Install           sudo bash servicemon.sh --install
+# Uninstall         sudo bash servicemon.sh --uninstall
+# Show usage        sudo bash servicemon.sh -h
+# Show usage        sudo bash servicemon.sh --help
+#
 # Run with no argument for an interactive menu.
 #
 ################################################################################

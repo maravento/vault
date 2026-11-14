@@ -7,9 +7,10 @@
 # FILE: scr/bkconf.sh
 #
 # USAGE:
-# sudo bash bkconf.sh            Create a backup now
-# sudo bash bkconf.sh --install    Register the @monthly cron entry
-# sudo bash bkconf.sh --uninstall  Remove the cron entry (keeps archives)
+# ACTION                                  COMMAND
+# Create a backup now                     sudo bash bkconf.sh
+# Register the @monthly cron entry        sudo bash bkconf.sh --install
+# Remove the cron entry (keeps archives)  sudo bash bkconf.sh --uninstall
 #
 # LOG: /var/log/bkconf.log
 #
@@ -255,7 +256,6 @@ for backup_item in \
     /etc/apt/sources.list \
     /etc/cron.d/gateproxy \
     /etc/logrotate.d/rsyslog \
-    /etc/unbound \
     /etc/suricata \
     /etc/sarg
 do
@@ -267,8 +267,8 @@ do
 done
 
 if (( ${#backup_list[@]} == 0 )); then
-    log "ERROR: none of expected paths exist"
-    log "ERROR: is gateproxy installed? -abort"
+    log "ERROR: [1/2] none of expected paths exist"
+    log "ERROR: [2/2] is gateproxy installed? -abort"
     exit 1
 fi
 

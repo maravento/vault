@@ -9,7 +9,15 @@
 # DESCRIPTION: Manages x11vnc as a systemd service: install, uninstall, start,
 # stop, status and restart. Must be run as root.
 #
-# USAGE: x11vncmgr.sh [--install|--uninstall|--start|--stop|--restart|--status]
+# USAGE:
+# ACTION            COMMAND
+# Interactive menu  sudo bash x11vncmgr.sh
+# Install           sudo bash x11vncmgr.sh --install
+# Uninstall         sudo bash x11vncmgr.sh --uninstall
+# Start             sudo bash x11vncmgr.sh --start
+# Stop              sudo bash x11vncmgr.sh --stop
+# Restart           sudo bash x11vncmgr.sh --restart
+# Show status       sudo bash x11vncmgr.sh --status
 #
 #   --install    Install x11vnc, create the VNC password if missing, create and
 #              enable the systemd service, and start it
@@ -19,7 +27,6 @@
 #   --stop       Stop the service
 #   --restart    Restart the service
 #   --status     Show whether the service is active and the port is listening
-#
 #   Run with no arguments for an interactive menu with the same options.
 #
 # LOG: /var/log/x11vncmgr.log, this script's own actions, rewritten each run
@@ -143,6 +150,28 @@ x11vnc_log_file="/var/log/x11vnc.log"
 # FUNCTIONS
 # ------------------------------------------------------------------------------
 
+retry_cmd() {
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
+        fi
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
+    done
+}
+
 check_password_exists() {
     if [ ! -f "$vnc_passwd" ]; then
         x11vnc -storepasswd "$vnc_passwd"
@@ -206,13 +235,13 @@ do_install() {
     if ! command -v x11vnc >/dev/null 2>&1; then
         check_ipv4_interfaces
         check_internet
-        if ! apt_out=$(apt update 2>&1); then
+        if ! apt_out=$(retry_cmd "update package lists" apt update 2>&1); then
             log "ERROR: apt update failed -abort"
             echo "$apt_out"
             exit 1
         fi
 
-        if ! apt_out=$(apt install -y x11vnc 2>&1); then
+        if ! apt_out=$(retry_cmd "install packages" apt install -y x11vnc 2>&1); then
             log "ERROR: failed to install x11vnc package -abort"
             echo "$apt_out"
             exit 1

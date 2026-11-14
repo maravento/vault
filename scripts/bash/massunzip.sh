@@ -11,7 +11,9 @@
 # directory, trying a predefined list of passwords against each file.
 #
 # USAGE:
-# ./massunzip.sh
+# ACTION              COMMAND
+# Run (no arguments)  bash massunzip.sh
+#
 # Run (as a non-root user) from the directory containing the archives.
 #
 # NOTE:
@@ -45,8 +47,8 @@ if ! flock -n 200; then
 fi
 
 if ! apt-cache policy | grep -qE '/multiverse'; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: multiverse off; sudo add-apt-repository multiverse" >&2
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: multiverse: then sudo apt update -abort" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] run: sudo add-apt-repository multiverse" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [2/2] multiverse off; then sudo apt update -abort" >&2
     exit 1
 fi
 

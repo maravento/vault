@@ -10,7 +10,9 @@
 # rendezvous and hbbr for relay, under a dedicated non-root system user. Sets
 # the public relay address, so a client needs one entry plus the public key.
 #
-# USAGE: sudo bash rdserver.sh
+# USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash rdserver.sh
 #
 # Ports: hbbs, the ID and rendezvous server, listens on 21115/tcp and
 #        21116/tcp+udp. hbbr, the relay server, listens on 21117/tcp,
@@ -45,30 +47,24 @@ if ! flock -n 200; then
 fi
 
 retry_cmd() {
-    local max_attempts=10
-    local attempt=1
-    local retry_name retry_failure retry_arg
-    retry_name="$(basename "$1")"
-    retry_failure="$retry_name failed"
-    case "$retry_name" in
-        apt-get)
-            for retry_arg in "$@"; do
-                case "$retry_arg" in
-                    install) retry_failure="package installation failed"; break ;;
-                    update) retry_failure="package list update failed"; break ;;
-                esac
-            done
-            ;;
-        curl|wget) retry_failure="$retry_name download failed" ;;
-    esac
-    until "$@"; do
-        if [ "$attempt" -ge "$max_attempts" ]; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: $retry_failure -abort" >&2
-            exit 1
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
         fi
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $retry_name: retry $((attempt + 1))/$max_attempts"
-        attempt=$((attempt + 1))
-        sleep 10
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
     done
 }
 
@@ -169,7 +165,7 @@ check_dependencies() {
             sleep 5
             apt_lock_elapsed=$((apt_lock_elapsed + 5))
         done
-        if ! retry_cmd apt-get -qq update || ! retry_cmd apt-get install -y "${missing[@]}"; then
+        if ! retry_cmd "update package lists" apt-get -qq update || ! retry_cmd "install packages" apt-get install -y "${missing[@]}"; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install dependencies: ${missing[*]} -abort" >&2
             exit 1
         fi
@@ -281,7 +277,7 @@ install_server() {
             exit 1
         fi
 
-        if ! retry_cmd wget -q "${base_url}/${deb}"; then
+        if ! retry_cmd "download RustDesk server" wget --tries=1 -q "${base_url}/${deb}"; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: download failed: $deb -abort" >&2
             rm -f "$hbbs_deb" "$hbbr_deb"
             exit 1

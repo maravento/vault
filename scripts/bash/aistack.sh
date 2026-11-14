@@ -15,7 +15,23 @@
 # OpenCode Desktop (AI GUI app, native .deb package)
 # LM Studio (desktop app for local LLMs, requires GUI)
 #
-# USAGE: ./aistack.sh [OPTION] [COMPONENT] [FORMAT]
+# USAGE:
+# ACTION            COMMAND
+# Interactive menu  sudo bash aistack.sh
+# Install           sudo bash aistack.sh --install stack
+# Install           sudo bash aistack.sh --install opencode
+# Install           sudo bash aistack.sh --install opencode-desktop appimage
+# Install           sudo bash aistack.sh --install opencode-desktop deb
+# Update            sudo bash aistack.sh --update opencode
+# Update            sudo bash aistack.sh --update opencode-desktop
+# Uninstall         sudo bash aistack.sh --uninstall all
+# Uninstall         sudo bash aistack.sh --uninstall opencode
+# Uninstall         sudo bash aistack.sh --uninstall opencode-desktop
+# Show status       sudo bash aistack.sh --status
+# Manage models     sudo bash aistack.sh --model
+# Show usage        sudo bash aistack.sh -h
+# Show usage        sudo bash aistack.sh --help
+#
 # --install [stack|opencode|opencode-desktop] (default: stack)
 # --update opencode|opencode-desktop
 # --uninstall [all|opencode|opencode-desktop] (default: all)
@@ -159,33 +175,24 @@ check_internet() {
 }
 
 retry_cmd() {
-    local max_attempts=10
-    local attempt=1
-    local retry_name retry_failure retry_arg
-    retry_name="$(basename "$1")"
-    retry_failure="$retry_name failed"
-    case "$retry_name" in
-        apt-get)
-            for retry_arg in "$@"; do
-                case "$retry_arg" in
-                    install) retry_failure="package installation failed"; break ;;
-                    update) retry_failure="package list update failed"; break ;;
-                esac
-            done
-            ;;
-        curl|wget) retry_failure="$retry_name download failed" ;;
-    esac
-    until "$@"; do
-        if [ "$attempt" -ge "$max_attempts" ]; then
-            if [ -n "${download_url:-}" ]; then
-                echo "PARTIAL: $download_url"
-            fi
-            err "$retry_failure -abort"
-            exit 1
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
         fi
-        info "$retry_name: retry $((attempt + 1))/$max_attempts"
-        attempt=$((attempt + 1))
-        sleep 10
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
     done
 }
 
@@ -479,8 +486,8 @@ install_docker() {
         ok "Docker is already installed"
     else
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing Docker..."
-        apt-get update -qq 2>/dev/null || true
-        retry_cmd apt-get install -y ca-certificates curl gnupg lsb-release
+        retry_cmd "update package lists" apt-get update -qq 2>/dev/null || true
+        retry_cmd "install packages" apt-get install -y ca-certificates curl gnupg lsb-release || abort "package installation failed -abort"
 
         # GPG key
         local key_dir=/etc/apt/keyrings key_stage
@@ -489,7 +496,7 @@ install_docker() {
             exit 1
         fi
         download_url="https://download.docker.com/linux/ubuntu/gpg"
-        if ! retry_cmd curl -fsSL "$download_url" -o "$key_stage/key.asc"; then
+        if ! retry_cmd "download signing key" curl -fsSL "$download_url" -o "$key_stage/key.asc"; then
             err "Docker GPG key download failed -abort"
             rm -rf -- "$key_stage"
             exit 1
@@ -525,8 +532,8 @@ install_docker() {
             tee /etc/apt/sources.list.d/docker.list > /dev/null
 
         # Install Docker
-        retry_cmd apt-get update
-        retry_cmd apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        retry_cmd "update package lists" apt-get update || abort "package list update failed -abort"
+        retry_cmd "install packages" apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || abort "package installation failed -abort"
 
         mkdir -p /etc/docker
         systemctl start docker
@@ -570,7 +577,7 @@ install_nvidia_docker() {
             exit 1
         fi
         download_url="https://nvidia.github.io/libnvidia-container/gpgkey"
-        if ! retry_cmd curl -fsSL "$download_url" -o "$key_stage/key.asc"; then
+        if ! retry_cmd "download signing key" curl -fsSL "$download_url" -o "$key_stage/key.asc"; then
             err "Failed to download NVIDIA Docker GPG key -abort"
             rm -rf -- "$key_stage"
             exit 1
@@ -595,7 +602,7 @@ install_nvidia_docker() {
         # Add repo with signed-by pointing to its own keyring (not the global one)
         download_url="https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list"
         nvidia_repo_tmp=$(mktemp)
-        if ! retry_cmd curl -fsSL "$download_url" -o "$nvidia_repo_tmp"; then
+        if ! retry_cmd "download NVIDIA repository" curl -fsSL "$download_url" -o "$nvidia_repo_tmp"; then
             rm -f "$nvidia_repo_tmp"
             exit 1
         fi
@@ -606,8 +613,8 @@ install_nvidia_docker() {
         rm -f "$nvidia_repo_tmp"
         :
 
-        retry_cmd apt-get update
-        retry_cmd apt-get install -y nvidia-container-toolkit
+        retry_cmd "update package lists" apt-get update || abort "package list update failed -abort"
+        retry_cmd "install packages" apt-get install -y nvidia-container-toolkit || abort "package installation failed -abort"
 
         # Configure Docker daemon -- merge nvidia runtime into existing config if present
         mkdir -p /etc/docker
@@ -954,8 +961,8 @@ install_opencode() {
         local node_path
         node_path=$(command -v node)
         if [[ "$node_path" == /usr/bin/node || "$node_path" == /usr/local/bin/node ]]; then
-            err "Node.js is installed system-wide via apt ($node_path)"
-            err "System Node.js conflicts with nvm -abort"
+            err "[1/2] apt Node.js: $node_path"
+            err "[2/2] System Node.js conflicts with nvm -abort"
             info "Run: sudo apt remove --purge nodejs npm -y"
             info "Then run: sudo apt autoremove -y"
             return 1
@@ -969,7 +976,7 @@ install_opencode() {
         local nvm_tmp
         nvm_tmp=$(mktemp /tmp/nvm_install_XXXXXX.sh)
         download_url="https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh"
-        if ! retry_cmd curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh -o "$nvm_tmp"; then
+        if ! retry_cmd "download nvm installer" curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh -o "$nvm_tmp"; then
             rm -f "$nvm_tmp"
             return 1
         fi
@@ -1017,7 +1024,7 @@ install_opencode() {
         local pnpm_tmp
         pnpm_tmp=$(mktemp /tmp/pnpm_install_XXXXXX.sh)
         download_url="https://get.pnpm.io/install.sh"
-        if ! retry_cmd curl -fsSL https://get.pnpm.io/install.sh -o "$pnpm_tmp"; then
+        if ! retry_cmd "download pnpm installer" curl -fsSL https://get.pnpm.io/install.sh -o "$pnpm_tmp"; then
             rm -f "$pnpm_tmp"
             return 1
         fi
@@ -1096,7 +1103,7 @@ WRAPPER
     local install_tmp
     install_tmp=$(mktemp /tmp/opencode_install_XXXXXX.sh)
     download_url="https://opencode.ai/install"
-    if ! retry_cmd curl -fsSL https://opencode.ai/install -o "$install_tmp"; then
+    if ! retry_cmd "download OpenCode installer" curl -fsSL https://opencode.ai/install -o "$install_tmp"; then
         rm -f "$install_tmp"
         return 1
     fi
@@ -1297,7 +1304,7 @@ WRAPPER
         local update_tmp
         update_tmp=$(mktemp /tmp/opencode_update_XXXXXX.sh)
         download_url="https://opencode.ai/install"
-        if ! retry_cmd curl -fsSL https://opencode.ai/install -o "$update_tmp"; then
+        if ! retry_cmd "download OpenCode installer" curl -fsSL https://opencode.ai/install -o "$update_tmp"; then
             rm -f "$update_tmp"
             return 1
         fi
@@ -1727,7 +1734,7 @@ install_opencode_desktop() {
     asset_tmp=$(mktemp "/tmp/opencode_desktop_XXXXXX.${ext}")
 
     info "Downloading: $(basename "$url")"
-    if ! curl -fL --progress-bar "$url" -o "$asset_tmp"; then
+    if ! retry_cmd "download desktop package" curl -fL --progress-bar "$url" -o "$asset_tmp"; then
         err "Failed to download OpenCode Desktop -abort"
         rm -f "$asset_tmp"
         return 1
@@ -1751,8 +1758,8 @@ install_opencode_desktop() {
 
         info "Installing package: $pkg_name"
         chmod 644 "$asset_tmp"
-        apt-get update -qq 2>/dev/null || true
-        if ! apt-get install -y "$asset_tmp"; then
+        retry_cmd "update package lists" apt-get update -qq 2>/dev/null || true
+        if ! retry_cmd "install packages" apt-get install -y "$asset_tmp"; then
             err "Failed to install OpenCode Desktop -abort"
             rm -f "$asset_tmp"
             return 1
@@ -1782,8 +1789,8 @@ install_opencode_desktop() {
 
         if [[ "$(dpkg-query -W -f='${Status}' libfuse2 2>/dev/null)" != *"ok installed"* ]]; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing libfuse2 (required by AppImage)..."
-            apt-get update -qq 2>/dev/null || true
-            retry_cmd apt-get install -y libfuse2 &>/dev/null
+            retry_cmd "update package lists" apt-get update -qq 2>/dev/null || true
+            retry_cmd "install packages" apt-get install -y libfuse2 &>/dev/null || abort "package installation failed -abort"
             :
         fi
 
@@ -1867,7 +1874,7 @@ update_opencode_desktop() {
     asset_tmp=$(mktemp "/tmp/opencode_desktop_update_XXXXXX.${ext}")
 
     info "Downloading: $(basename "$url")"
-    if ! curl -fL --progress-bar "$url" -o "$asset_tmp"; then
+    if ! retry_cmd "download desktop package" curl -fL --progress-bar "$url" -o "$asset_tmp"; then
         err "Failed to download OpenCode Desktop -abort"
         rm -f "$asset_tmp"
         return 1
@@ -1888,8 +1895,8 @@ update_opencode_desktop() {
             return 1
         fi
 
-        apt-get update -qq 2>/dev/null || true
-        if ! apt-get install -y "$asset_tmp"; then
+        retry_cmd "update package lists" apt-get update -qq 2>/dev/null || true
+        if ! retry_cmd "install packages" apt-get install -y "$asset_tmp"; then
             err "Failed to update OpenCode Desktop -abort"
             rm -f "$asset_tmp"
             return 1
@@ -2216,8 +2223,8 @@ uninstall_all() {
                 fi
             done
             if [ ${#purge_failed[@]} -gt 0 ]; then
-                warn "packages not removed: ${purge_failed[*]}"
-                warn "run: apt-get purge -y ${purge_failed[*]} -alert"
+                warn "[1/2] packages not removed: ${purge_failed[*]}"
+                warn "[2/2] apt-get purge ${purge_failed[*]} -alert"
             fi
             rm -rf /var/lib/docker
             rm -f /etc/apt/sources.list.d/docker.list
@@ -2373,13 +2380,13 @@ update_components() {
     case "$update_opt" in
         1)
             echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Updating EVERYTHING..."
-            docker pull ollama/ollama:latest
-            docker pull ghcr.io/open-webui/open-webui:main
+            retry_cmd "download Ollama image" docker pull ollama/ollama:latest
+            retry_cmd "download Open WebUI image" docker pull ghcr.io/open-webui/open-webui:main
             docker compose up -d --pull always
             echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Updating Portainer..."
             docker stop portainer >/dev/null 2>&1 || true
             docker rm portainer >/dev/null 2>&1 || true
-            docker pull portainer/portainer-ce:lts
+            retry_cmd "download Portainer image" docker pull portainer/portainer-ce:lts
             docker run -d -p ${PORTAINER_PORT}:9000 --name portainer --restart=always \
                 -v /var/run/docker.sock:/var/run/docker.sock \
                 -v portainer_data:/data portainer/portainer-ce:lts >/dev/null
@@ -2389,20 +2396,20 @@ update_components() {
             ;;
         2)
             echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Updating Ollama, LLM and Web UI..."
-            docker pull ollama/ollama:latest
-            docker pull ghcr.io/open-webui/open-webui:main
+            retry_cmd "download Ollama image" docker pull ollama/ollama:latest
+            retry_cmd "download Open WebUI image" docker pull ghcr.io/open-webui/open-webui:main
             docker compose up -d --pull always
             docker image prune -f >/dev/null
             ok "AI components updated"
             ;;
         3)
             echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Updating Docker Engine & Portainer..."
-            retry_cmd apt-get update -qq
-            retry_cmd apt-get install --only-upgrade -y docker-ce docker-ce-cli containerd.io >/dev/null 2>&1
+            retry_cmd "update package lists" apt-get update -qq || abort "package list update failed -abort"
+            retry_cmd "update packages" apt-get install --only-upgrade -y docker-ce docker-ce-cli containerd.io >/dev/null 2>&1 || abort "package installation failed -abort"
 
             docker stop portainer >/dev/null 2>&1 || true
             docker rm portainer >/dev/null 2>&1 || true
-            docker pull portainer/portainer-ce:lts
+            retry_cmd "download Portainer image" docker pull portainer/portainer-ce:lts
             docker run -d -p ${PORTAINER_PORT}:9000 --name portainer --restart=always \
                 -v /var/run/docker.sock:/var/run/docker.sock \
                 -v portainer_data:/data portainer/portainer-ce:lts >/dev/null
@@ -2583,15 +2590,15 @@ install_lmstudio() {
     # Install libfuse2 dependency (required by AppImage)
     if [[ "$(dpkg-query -W -f='${Status}' libfuse2 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing libfuse2 (required by AppImage)..."
-        apt-get update -qq 2>/dev/null || true
-        retry_cmd apt-get install -y libfuse2 &>/dev/null
+        retry_cmd "update package lists" apt-get update -qq 2>/dev/null || true
+        retry_cmd "install packages" apt-get install -y libfuse2 &>/dev/null || abort "package installation failed -abort"
         :
     fi
 
     # Download AppImage
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Downloading LM Studio AppImage..."
     sudo -u "$local_user" bash -c "mkdir -p \"${AI_BASE_DIR}/lmstudio\""
-    if ! curl -fL --progress-bar "https://lmstudio.ai/download/latest/linux/x64?format=AppImage" -o "${AI_BASE_DIR}/lmstudio/LMStudio.AppImage"; then
+    if ! retry_cmd "download LM Studio" curl -fL --progress-bar "https://lmstudio.ai/download/latest/linux/x64?format=AppImage" -o "${AI_BASE_DIR}/lmstudio/LMStudio.AppImage"; then
         err "Failed to download LM Studio -abort"
         rm -f "${AI_BASE_DIR}/lmstudio/LMStudio.AppImage"
         return 1

@@ -14,8 +14,15 @@
 # service.
 #
 # USAGE:
-# sudo ./rclonemgr.sh mount { --start | --stop | --restart | --status }
-# sudo ./rclonemgr.sh sync { --run | --status }
+# ACTION               COMMAND
+# Interactive menu     sudo bash rclonemgr.sh
+# Start                sudo bash rclonemgr.sh mount --start
+# Stop                 sudo bash rclonemgr.sh mount --stop
+# Restart              sudo bash rclonemgr.sh mount --restart
+# Show status          sudo bash rclonemgr.sh mount --status
+# Run synchronization  sudo bash rclonemgr.sh sync --run
+# Show status          sudo bash rclonemgr.sh sync --status
+#
 # Without arguments, shows an interactive menu.
 #
 # LOG: /var/log/rclonemgr.log
@@ -110,8 +117,8 @@ done
 
 # dependencies (curl install)
 if ! command -v rclone &>/dev/null; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: 'rclone' is not installed" >&2
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: install it with: curl https://rclone.org/install.sh | sudo bash -abort" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] 'rclone' is not installed" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [2/2] install it with: curl https://rclone.org/install.sh | sudo bash -abort" >&2
     exit 1
 fi
 

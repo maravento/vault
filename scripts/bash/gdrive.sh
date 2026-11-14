@@ -9,7 +9,10 @@
 # DESCRIPTION: Mounts/unmounts the local user's Google Drive folder,
 # auto-detecting the local sudo user. Not run as root.
 #
-# USAGE: ./gdrive.sh { --start | --stop }
+# USAGE:
+# ACTION  COMMAND
+# Start   bash gdrive.sh --start
+# Stop    bash gdrive.sh --stop
 #
 ################################################################################
 
@@ -46,8 +49,8 @@ done
 # dependencies (external repo)
 for dep in google-drive-ocamlfuse; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: 'google-drive-ocamlfuse' is not installed" >&2
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: run: add-apt-repository ppa:alessandro-strada/ppa -abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] 'google-drive-ocamlfuse' is not installed" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [2/2] run: add-apt-repository ppa:alessandro-strada/ppa -abort" >&2
         exit 1
     fi
 done

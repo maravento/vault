@@ -7,7 +7,8 @@
 # FILE: scr/iptables.sh
 #
 # USAGE:
-# sudo bash iptables.sh
+# ACTION          COMMAND
+# (no arguments)  sudo bash iptables.sh
 #
 # LOG: /var/log/iptables.log
 #

@@ -9,7 +9,9 @@
 # DESCRIPTION: Installs squid-openssl, replacing a plain squid if it is
 # present, and generates the CA certificate that SSL-Bump needs.
 #
-# USAGE: sudo bash sslbump.sh
+# USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash sslbump.sh
 #
 ################################################################################
 
@@ -63,6 +65,28 @@ CA_CERT_D=/usr/local/share/ca-certificates
 # FUNCTIONS
 # ------------------------------------------------------------------------------
 
+retry_cmd() {
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
+        fi
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
+    done
+}
+
 # Function: Remove regular squid and install squid-openssl
 remove_and_install_squid_openssl() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Backing up /etc/squid..."
@@ -93,8 +117,8 @@ remove_and_install_squid_openssl() {
     rm -f "$CA_CERT_D/squid_proxyCA.crt"
 
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing squid-openssl..."
-    apt update || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: apt update failed -abort" >&2; exit 1; }
-    apt install -y squid-openssl squid-langpack squid-common squidclient squid-purge || {
+    retry_cmd "update package lists" apt update || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: apt update failed -abort" >&2; exit 1; }
+    retry_cmd "install packages" apt install -y squid-openssl squid-langpack squid-common squidclient squid-purge || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Failed to install squid-openssl packages -abort" >&2
         exit 1
     }
@@ -203,8 +227,8 @@ ssl_bump_setup() {
 if ! package_installed squid && ! package_installed squid-openssl; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Squid is not installed. Installing squid-openssl..."
     # Only install squid-openssl if it's not installed
-    apt update || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: apt update failed -abort" >&2; exit 1; }
-    apt install -y squid-openssl squid-langpack squid-common squidclient squid-purge || {
+    retry_cmd "update package lists" apt update || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: apt update failed -abort" >&2; exit 1; }
+    retry_cmd "install packages" apt install -y squid-openssl squid-langpack squid-common squidclient squid-purge || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Failed to install squid-openssl packages -abort" >&2
         exit 1
     }

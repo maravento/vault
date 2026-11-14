@@ -15,12 +15,16 @@
 # Status checks local installation and service state without online queries.
 #
 # USAGE:
-# sudo ./unifisetup.sh
-# sudo ./unifisetup.sh --install {network|osserver}
-# sudo ./unifisetup.sh --update {network|osserver}
-# sudo ./unifisetup.sh --uninstall {network|osserver}
-# sudo ./unifisetup.sh --status
-# sudo ./unifisetup.sh --help
+# ACTION            COMMAND
+# Interactive menu  sudo bash unifisetup.sh
+# Install           sudo bash unifisetup.sh --install network
+# Install           sudo bash unifisetup.sh --install osserver
+# Update            sudo bash unifisetup.sh --update network
+# Update            sudo bash unifisetup.sh --update osserver
+# Uninstall         sudo bash unifisetup.sh --uninstall network
+# Uninstall         sudo bash unifisetup.sh --uninstall osserver
+# Show status       sudo bash unifisetup.sh --status
+# Show usage        sudo bash unifisetup.sh --help
 #
 # LOG: unifisetup.log, next to this script (rewritten on each run)
 #
@@ -50,6 +54,28 @@ fi
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 log_file="${script_dir}/unifisetup.log"
 { > "$log_file"; } 2>/dev/null || true
+retry_cmd() {
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
+        fi
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
+    done
+}
+
 log() {
     local msg="$(date '+%Y-%m-%d %H:%M:%S') $1"
     echo "$msg" >> "$log_file" 2>/dev/null || true
@@ -156,13 +182,13 @@ os_check() {
     . /etc/os-release
 
     if [ "${ID:-}" != "ubuntu" ]; then
-        warn "Ubuntu required; detected ${ID:-unknown}"
-        warn "continuing anyway -alert"
+        warn "[1/2] Ubuntu required; detected ${ID:-unknown}"
+        warn "[2/2] continuing anyway -alert"
     fi
 
     if [ "$(printf '%s\n' "${VERSION_ID:-0}" "${min_major}.${min_minor}" | sort -V | head -n1)" != "${min_major}.${min_minor}" ]; then
-        warn "untested below Ubuntu ${min_major}.${min_minor}"
-        warn "Ubuntu ${VERSION_ID:-unknown} untested -alert"
+        warn "[1/2] untested below Ubuntu ${min_major}.${min_minor}"
+        warn "[2/2] Ubuntu ${VERSION_ID:-unknown} untested -alert"
     fi
 
     os_codename="${VERSION_CODENAME:-noble}"
@@ -246,11 +272,11 @@ ensure_prereqs() {
 
     if [ "${#missing[@]}" -gt 0 ]; then
         log "INFO: Installing prerequisites..."
-        apt-get update -qq >>"$log_file" 2>&1 || {
+        retry_cmd "update package lists" apt-get update -qq >>"$log_file" 2>&1 || {
             err "cannot update package lists -abort"
             exit 1
         }
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >>"$log_file" 2>&1 || {
+        retry_cmd "install packages" env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >>"$log_file" 2>&1 || {
             err "cannot install prerequisites -abort"
             exit 1
         }
@@ -268,7 +294,7 @@ ensure_prereqs() {
 
 fetch_downloads_json() {
     log "INFO: Fetching official Ubiquiti release catalog..."
-    if ! curl -fsSL "${downloads_api}" -o "${downloads_json}"; then
+    if ! retry_cmd "download UniFi releases" curl -fsSL "${downloads_api}" -o "${downloads_json}"; then
         err "release catalog download failed -abort"
         exit 1
     fi
@@ -398,7 +424,7 @@ install_network() {
     fi
 
     log "INFO: Updating apt package lists..."
-    apt-get update -qq >>"$log_file" 2>&1 || {
+    retry_cmd "update package lists" apt-get update -qq >>"$log_file" 2>&1 || {
         err "cannot update package lists -abort"
         return 1
     }
@@ -410,14 +436,14 @@ install_network() {
         if ! ensure_adoptium_repo; then
             return 1
         fi
-        apt-get update -qq >>"$log_file" 2>&1 || {
+        retry_cmd "update package lists" apt-get update -qq >>"$log_file" 2>&1 || {
             err "cannot update package lists -abort"
             return 1
         }
     fi
 
     log "INFO: Installing Java runtime (${java_package})..."
-    if ! DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${java_package}" ca-certificates-java >>"$log_file" 2>&1; then
+    if ! retry_cmd "install packages" env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${java_package}" ca-certificates-java >>"$log_file" 2>&1; then
         err "failed to install ${java_package} -abort"
         return 1
     fi
@@ -457,13 +483,13 @@ install_network() {
 
     local deb_file="${work_dir}/unifi_${target_version}_all.deb"
     log "INFO: Downloading UniFi Network ${target_version}..."
-    if ! curl -fL --progress-bar -o "${deb_file}" "${target_url}"; then
+    if ! retry_cmd "download package" curl -fL --progress-bar -o "${deb_file}" "${target_url}"; then
         err "UniFi Network package download failed -abort"
         return 1
     fi
 
     log "INFO: Installing UniFi Network ${target_version}..."
-    if DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' "${deb_file}" >>"$log_file" 2>&1; then
+    if retry_cmd "install packages" env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' "${deb_file}" >>"$log_file" 2>&1; then
         info "UniFi Network ${target_version} installed"
     else
         err "UniFi Network package installation failed -abort"
@@ -644,7 +670,7 @@ ensure_osserver_prereqs() {
     done
     if [ "${#missing[@]}" -gt 0 ]; then
         log "INFO: Installing UniFi OS Server prerequisites..."
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >>"$log_file" 2>&1
+        retry_cmd "install packages" env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >>"$log_file" 2>&1
     fi
 }
 
@@ -657,7 +683,7 @@ install_osserver() {
     local installer_file="${work_dir}/uosserver-${target_version}"
     log "INFO: Downloading UniFi OS Server ${target_version}..."
     info "This is a large file, it may take a while"
-    if ! curl -fL --progress-bar -o "${installer_file}" "${target_url}"; then
+    if ! retry_cmd "download installer" curl -fL --progress-bar -o "${installer_file}" "${target_url}"; then
         err "UniFi OS Server download failed -abort"
         return 1
     fi
@@ -778,16 +804,16 @@ action_uninstall_osserver() {
     local was_active="no"
     systemctl is-active --quiet uosserver && was_active="yes"
     if ! systemctl stop uosserver >>"$log_file" 2>&1; then
-        err "cannot stop uosserver, uninstall aborted"
-        err "uosserver: run systemctl status uosserver -abort"
+        err "[1/2] cannot stop uosserver, uninstall aborted"
+        err "[2/2] systemctl status uosserver -abort"
         return 1
     fi
     # A successful stop is not proof on its own, so the state is read back.
     # Aborting while the unit is still up leaves the service exactly as it
     # was found, so there is nothing to restore.
     if systemctl is-active --quiet uosserver; then
-        err "uosserver still active after stop, uninstall aborted"
-        err "uosserver: run systemctl status uosserver -abort"
+        err "[1/2] uosserver active after stop; uninstall aborted"
+        err "[2/2] systemctl status uosserver -abort"
         return 1
     fi
 

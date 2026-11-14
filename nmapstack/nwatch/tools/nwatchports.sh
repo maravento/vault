@@ -7,16 +7,15 @@
 # FILE: tools/nwatchports.sh
 #
 # USAGE:
-# sudo bash nwatchports.sh --start
-# sudo bash nwatchports.sh --stop
-# sudo bash nwatchports.sh --status
-# sudo bash nwatchports.sh --mode server
-# sudo bash nwatchports.sh --mode target <host>
-# sudo bash nwatchports.sh --list
+# ACTION                  COMMAND
+# Start the daemon        sudo bash nwatchports.sh --start
+# Stop the daemon         sudo bash nwatchports.sh --stop
+# Show status             sudo bash nwatchports.sh --status
+# Select server mode      sudo bash nwatchports.sh --mode server
+# Select the target host  sudo bash nwatchports.sh --mode target <host>
+# List scan results       sudo bash nwatchports.sh --list
 #
-# LOG: /var/log/nwatch.log (root:root, 640) -- shared by both daemons
-#      (nwatchlan.sh + nwatchports.sh). The installer writes its own
-#      nwatchsetup.log next to itself.
+# LOG: /var/log/nwatch.log
 #
 ################################################################################
 
@@ -686,8 +685,8 @@ if [ "${1:-}" != --stop ]; then
         for key_error in "${key_errors[@]}"; do
             log "WARNING: $key_error -alert"
         done
-        log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$nwatch_env")"
-        log "ERROR: run nwatchsetup first -abort"
+        log "ERROR: [1/2] ${#key_errors[@]} key(s) invalid in $(basename "$nwatch_env")"
+        log "ERROR: [2/2] run nwatchsetup first -abort"
         exit 1
     fi
     unset key_errors key_error env_key

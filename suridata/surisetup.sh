@@ -7,13 +7,14 @@
 # FILE: surisetup.sh
 #
 # USAGE:
-# sudo bash surisetup.sh --install
-# sudo bash surisetup.sh --update
-# sudo bash surisetup.sh --uninstall
-# sudo bash surisetup.sh --status
-# sudo bash surisetup.sh
-# sudo bash surisetup.sh -h
-# sudo bash surisetup.sh --help
+# ACTION            COMMAND
+# Install           sudo bash surisetup.sh --install
+# Update            sudo bash surisetup.sh --update
+# Uninstall         sudo bash surisetup.sh --uninstall
+# Show status       sudo bash surisetup.sh --status
+# Interactive menu  sudo bash surisetup.sh
+# Show usage        sudo bash surisetup.sh -h
+# Show usage        sudo bash surisetup.sh --help
 #
 # LOG: surisetup.log, beside this script
 #
@@ -44,6 +45,52 @@ report_failure() {
 
 failure_message="cannot initialize Suridata"
 trap 'report_failure; exit 1' ERR
+
+check_requirements() {
+    local network_command
+    for network_command in ip awk; do
+        command -v "$network_command" >/dev/null 2>&1 \
+            || abort "network command '$network_command' missing -abort"
+    done
+    case "$1" in
+        install)
+            check_already_installed
+            failure_message="cannot check conflicting packages"
+            check_conflicts "IDS" snort
+            local network_command
+            for network_command in ip awk; do
+            command -v "$network_command" >/dev/null 2>&1 \
+                || abort "network command '$network_command' missing -abort"
+            done
+            check_install_sources
+            ask_settings
+            ;;
+        update)
+            [ -f "$suridata_env" ] || abort "suridata is not installed -abort"
+            local INTERFACESv4="" WAN_IFACE=""
+            load_suridata_env "$suridata_env" 'INTERFACESv4|WAN_IFACE'
+            local network_key
+            for network_key in INTERFACESv4; do
+                [ -n "${!network_key:-}" ] \
+                    || abort "$network_key not set -abort"
+            done
+            choose_lan_interface "$INTERFACESv4" "$WAN_IFACE"
+            ;;
+    esac
+    check_ipv4_interfaces
+    if [ "$1" = install ]; then
+        check_internet
+    else
+        local package
+        for package in "${project_packages[@]}"; do
+            if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null \
+                | grep -q "ok installed"; then
+                check_internet
+                break
+            fi
+        done
+    fi
+}
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
@@ -374,8 +421,8 @@ update_apply() {
             if (( ${#compared_file} <= 19 )); then
                 update_error "src and dst do not match: $compared_file"
             fi
-            log "ERROR: src and dst: $compared_file"
-            update_error "src and dst do not match"
+            log "ERROR: [1/2] src and dst: $compared_file"
+            update_error "[2/2] src and dst do not match"
         }
         info "updated $(basename "$target")"
     done
@@ -558,15 +605,25 @@ check_conflicts() {
 # RETRY_CMD
 # Run a command twice before giving up, for transient apt failures
 retry_cmd() {
-    local attempt
-    for attempt in 1 2; do
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
         if "$@"; then
             return 0
+        else
+            retry_status=$?
         fi
-        warn "$1 $2 failed (attempt $attempt/2) -alert"
-        sleep 3
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
     done
-    return 1
 }
 
 # PACKAGES
@@ -584,9 +641,9 @@ install_packages() {
     check_ipv4_interfaces
     check_internet
     failure_message="cannot update the package lists"
-    retry_cmd apt-get update -qq || warn "cannot update package lists -alert"
+    retry_cmd "update package lists" apt-get update -qq || warn "cannot update package lists -alert"
     failure_message="cannot install the required packages"
-    if ! retry_cmd apt-get install -y "${missing[@]}"; then
+    if ! retry_cmd "install packages" apt-get install -y "${missing[@]}"; then
         for pkg in "${missing[@]}"; do
             warn "package in failed install: $pkg -alert"
         done
@@ -1039,16 +1096,16 @@ install_evebox() {
         failure_message="cannot create the APT keyrings directory"
         mkdir -p "$(dirname "$evebox_keyring")"
         failure_message="cannot download $(basename "$evebox_key_url")"
-        if ! retry_cmd curl -fsSL "$evebox_key_url" -o "$evebox_keyring"; then
+        if ! retry_cmd "download signing key" curl -fsSL "$evebox_key_url" -o "$evebox_keyring"; then
             abort "cannot download the evebox key -abort"
         fi
         info "evebox key saved"
         failure_message="cannot write $(basename "$evebox_list")"
         echo "deb [signed-by=$evebox_keyring] $evebox_repo" > "$evebox_list"
         failure_message="cannot update the package lists"
-        retry_cmd apt-get update -qq || warn "cannot update package lists -alert"
+        retry_cmd "update package lists" apt-get update -qq || warn "cannot update package lists -alert"
         failure_message="cannot install evebox"
-        if ! retry_cmd apt-get install -y evebox; then
+        if ! retry_cmd "install packages" apt-get install -y evebox; then
             abort "cannot install evebox -abort"
         fi
     else
@@ -1112,23 +1169,13 @@ check_already_installed() {
         while IFS= read -r reason; do
             [ -z "$reason" ] || warn "$reason -alert"
         done < <(printf "%b" "$skip_reasons")
-        abort "suridata already installed; use --update -abort"
+        abort "suridata installed; use --update | --uninstall -abort"
     fi
 }
 
 do_install() {
+    check_requirements install
     local failure_message="cannot install suridata"
-    check_already_installed
-    failure_message="cannot check conflicting packages"
-    check_conflicts "IDS" snort
-    local network_command
-    for network_command in ip awk; do
-        command -v "$network_command" >/dev/null 2>&1 \
-            || abort "network command '$network_command' missing -abort"
-    done
-    check_install_sources
-    ask_settings
-    check_internet
     install_packages
     calculate_lan_network
     install_files
@@ -1151,6 +1198,7 @@ do_install() {
 # Refreshes code, rules, permissions and cron. Keeps suridata.env and the
 # blocklist, because both hold live data this installer never decides.
 do_update() {
+    check_requirements update
     [ -f "$suridata_env" ] || abort "suridata is not installed -abort"
     update_reset /etc/cron.d/suridata
     local file

@@ -23,7 +23,7 @@
 | :---: | :---: | :---: | :---: | :---: |:---: |
 | [zenity.exe (.zip)](https://github.com/maravento/vault/raw/master/winzenity/zenity.zip) (Win32) | 2 MB | Win XP/7/8/10 | 3.6 | [src](https://github.com/maravento/vault/raw/master/winzenity/zenity-3.6.0_src.7z) | [Help](https://github.com/maravento/vault/raw/master/winzenity/zenityhelp.txt) |
 
-## ORIGINAL PROJECT
+## ACKNOWLEDGMENTS
 
 ---
 

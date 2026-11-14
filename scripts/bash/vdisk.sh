@@ -9,7 +9,9 @@
 # DESCRIPTION: Creates a VHD image file, then mounts or unmounts it through a
 # loop device or kpartx. Asks for the file system on creation.
 #
-# USAGE: sudo bash vdisk.sh
+# USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash vdisk.sh
 #
 # LOG: system logger (destination set by system configuration)
 #

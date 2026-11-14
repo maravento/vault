@@ -7,10 +7,10 @@
 # FILE: scr/killswitch.sh
 #
 # USAGE:
-# sudo bash killswitch.sh
+# ACTION          COMMAND
+# (no arguments)  sudo bash killswitch.sh
 #
-# LOG: /var/log/iptables.log, shared with scr/iptables.sh
-#      Rotation is self-installed there, /etc/logrotate.d/iptables
+# LOG: /var/log/iptables.log
 #
 ################################################################################
 

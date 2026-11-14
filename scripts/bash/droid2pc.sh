@@ -9,7 +9,11 @@
 # DESCRIPTION: Starts, stops or checks the status of scrcpy for an Android
 # device connected via ADB/USB debugging. Not run as root.
 #
-# USAGE: ./droid2pc.sh { --start | --stop | --status }
+# USAGE:
+# ACTION       COMMAND
+# Start        bash droid2pc.sh --start
+# Stop         bash droid2pc.sh --stop
+# Show status  bash droid2pc.sh --status
 #
 # ENV: PID file under /run/user/<uid>/
 #

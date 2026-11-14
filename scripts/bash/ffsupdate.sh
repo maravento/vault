@@ -9,7 +9,9 @@
 # DESCRIPTION: Downloads and silently installs the latest FreeFileSync
 # release. Run as root, intended for cron/unattended use.
 #
-# USAGE: sudo ./ffsupdate.sh
+# USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash ffsupdate.sh
 #
 # LOG: /var/log/ffsupdate.log (rewritten on each run)
 #
@@ -44,6 +46,28 @@ fi
 # logging
 log_file="/var/log/ffsupdate.log"
 { > "$log_file"; } 2>/dev/null || true
+retry_cmd() {
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
+        fi
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
+    done
+}
+
 log() {
     local msg="$1"
     local log_msg="$(date '+%Y-%m-%d %H:%M:%S') $msg"
@@ -153,7 +177,7 @@ if [ -z "$version" ]; then
     exit 1
 fi
 
-if ! wget -qO "$ffsfile" "https://www.freefilesync.org$link" \
+if ! retry_cmd "download FreeFileSync" wget --tries=1 -qO "$ffsfile" "https://www.freefilesync.org$link" \
     -U "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/63.0.3239.84 Chrome/63.0.3239.84 Safari/537.36"; then
     log "PARTIAL: https://www.freefilesync.org$link"
     rm -f "$ffsfile"

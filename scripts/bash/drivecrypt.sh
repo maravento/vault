@@ -10,7 +10,10 @@
 # bindfs, auto-detecting the local sudo user and installing Cryptomator
 # if missing.
 #
-# USAGE: ./drivecrypt.sh { --start | --stop }
+# USAGE:
+# ACTION  COMMAND
+# Start   sudo bash drivecrypt.sh --start
+# Stop    sudo bash drivecrypt.sh --stop
 #
 # LOG: system log (via logger, tag drivecrypt)
 #

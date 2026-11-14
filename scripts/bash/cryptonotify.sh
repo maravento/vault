@@ -11,6 +11,9 @@
 # cap and sends a desktop notification with their symbols and prices.
 #
 # USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  bash cryptonotify.sh
+#
 # Run periodically via crontab.
 #
 ################################################################################

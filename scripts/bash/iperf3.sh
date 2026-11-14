@@ -11,7 +11,9 @@
 # parallel streams; the iperf3 server must already be running on each
 # target. Not run as root.
 #
-# USAGE: ./iperf3.sh
+# USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  bash iperf3.sh
 #
 # OUTPUT: logs saved under ./iperf3_logs/
 #
@@ -144,8 +146,8 @@ detect_iperf() {
     fi
 
     if timeout 2 bash -c "echo > /dev/tcp/$ip/5001" 2>/dev/null; then
-        warn "iperf v2 detected on $ip:5001"
-        warn "start iperf3 -s on $ip:5201 -alert"
+        warn "[1/2] iperf v2 detected on $ip:5001"
+        warn "[2/2] start iperf3 -s on $ip:5201 -alert"
         return 1
     fi
 

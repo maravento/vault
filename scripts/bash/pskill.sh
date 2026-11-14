@@ -10,7 +10,9 @@
 # seconds, then sends KILL to the survivors. Refuses core system processes.
 # Matches the exact comm name and rejects names longer than 15 bytes.
 #
-# USAGE: sudo bash pskill.sh
+# USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash pskill.sh
 #
 ################################################################################
 

@@ -10,7 +10,9 @@
 # the proprietary DKMS drivers r8168 (RTL8111/8168) and r8125 (RTL8125 2.5G).
 # The proprietary ones can perform better, but need maintenance out of tree.
 #
-# USAGE: sudo bash realtekdrv.sh
+# USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash realtekdrv.sh
 #
 ################################################################################
 
@@ -50,6 +52,28 @@ done
 # FUNCTIONS
 # ------------------------------------------------------------------------------
 
+retry_cmd() {
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
+        fi
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
+    done
+}
+
 # Function to show detected chipset
 show_chipset() {
     echo "Detected chipset:"
@@ -70,11 +94,11 @@ install_r8168() {
     fi
 
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing and configuring 'r8168' driver..."
-    if ! apt-get -qq update; then
+    if ! retry_cmd "update package lists" apt-get -qq update; then
         echo "Failed to update package lists"
         exit 1
     fi
-    if ! apt-get install -y r8168-dkms; then
+    if ! retry_cmd "install packages" apt-get install -y r8168-dkms; then
         echo "Failed to install r8168-dkms"
         exit 1
     fi
@@ -148,11 +172,11 @@ install_r8125() {
     fi
 
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing and configuring 'r8125' driver..."
-    if ! apt-get -qq update; then
+    if ! retry_cmd "update package lists" apt-get -qq update; then
         echo "Failed to update package lists"
         exit 1
     fi
-    if ! apt-get install -y r8125-dkms; then
+    if ! retry_cmd "install packages" apt-get install -y r8125-dkms; then
         echo "Failed to install r8125-dkms"
         exit 1
     fi

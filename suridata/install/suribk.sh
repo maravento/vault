@@ -7,9 +7,10 @@
 # FILE: suribk.sh
 #
 # USAGE:
-# sudo bash suribk.sh            Create a backup now
-# sudo bash suribk.sh --install    Register the @monthly cron entry
-# sudo bash suribk.sh --uninstall  Remove the cron entry (keeps archives)
+# ACTION                                  COMMAND
+# Create a backup now                     sudo bash suribk.sh
+# Register the @monthly cron entry        sudo bash suribk.sh --install
+# Remove the cron entry (keeps archives)  sudo bash suribk.sh --uninstall
 #
 # LOG: /var/log/suridata.log
 #

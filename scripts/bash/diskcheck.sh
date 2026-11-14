@@ -9,7 +9,10 @@
 # HDD, SSD and NVMe. Sends a desktop alert and logs to syslog on any issue.
 # Requires: inxi, smartmontools, util-linux, libnotify-bin
 #
-# USAGE: sudo ./diskcheck.sh
+# USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash diskcheck.sh
+#
 # Intended to run periodically via root's crontab.
 # Log rotate: /etc/logrotate.d/diskcheck
 #

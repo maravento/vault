@@ -7,13 +7,12 @@
 # FILE: tools/nwatchlan.sh
 #
 # USAGE:
-# sudo bash nwatchlan.sh --start
-# sudo bash nwatchlan.sh --stop
-# sudo bash nwatchlan.sh --status
+# ACTION            COMMAND
+# Start the daemon  sudo bash nwatchlan.sh --start
+# Stop the daemon   sudo bash nwatchlan.sh --stop
+# Show status       sudo bash nwatchlan.sh --status
 #
-# LOG: /var/log/nwatch.log (root:root, 640) -- shared by both daemons
-#      (nwatchlan.sh + nwatchports.sh). The installer writes its own
-#      nwatchsetup.log next to itself.
+# LOG: /var/log/nwatch.log
 #
 ################################################################################
 
@@ -465,8 +464,8 @@ if [ "${1:-}" != --stop ]; then
         for key_error in "${key_errors[@]}"; do
             log "WARNING: $key_error -alert"
         done
-        log "ERROR: ${#key_errors[@]} key(s) invalid in $(basename "$nwatch_env")"
-        log "ERROR: run nwatchsetup first -abort"
+        log "ERROR: [1/2] ${#key_errors[@]} key(s) invalid in $(basename "$nwatch_env")"
+        log "ERROR: [2/2] run nwatchsetup first -abort"
         exit 1
     fi
     unset key_errors key_error env_key

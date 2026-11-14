@@ -11,7 +11,8 @@
 # Requires VirtualBox 7.x already installed.
 #
 # USAGE:
-# sudo ./phpvbox.sh
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash phpvbox.sh
 #
 ################################################################################
 
@@ -84,30 +85,24 @@ echo "Using local user: $local_user"
 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: phpvbox start..."
 
 retry_cmd() {
-    local max_attempts=10
-    local attempt=1
-    local retry_name retry_failure retry_arg
-    retry_name="$(basename "$1")"
-    retry_failure="$retry_name failed"
-    case "$retry_name" in
-        apt-get)
-            for retry_arg in "$@"; do
-                case "$retry_arg" in
-                    install) retry_failure="package installation failed"; break ;;
-                    update) retry_failure="package list update failed"; break ;;
-                esac
-            done
-            ;;
-        curl|wget) retry_failure="$retry_name download failed" ;;
-    esac
-    until "$@"; do
-        if [ "$attempt" -ge "$max_attempts" ]; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: $retry_failure -abort" >&2
-            exit 1
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
         fi
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $retry_name: retry $((attempt + 1))/$max_attempts"
-        attempt=$((attempt + 1))
-        sleep 10
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
     done
 }
 
@@ -198,8 +193,8 @@ if [ "${#missing[@]}" -gt 0 ]; then
         apt_lock_elapsed=$((apt_lock_elapsed + 5))
     done
     echo "Installing: ${missing[*]}"
-    retry_cmd apt-get -qq update
-    if ! retry_cmd apt-get -y install "${missing[@]}"; then
+    retry_cmd "update package lists" apt-get -qq update || { printf '%s ERROR: package list update failed -abort\n' "$(date '+%Y-%m-%d %H:%M:%S')" >&2; exit 1; }
+    if ! retry_cmd "install packages" apt-get -y install "${missing[@]}"; then
         echo "Error installing: ${missing[*]}"
         exit 1
     fi
@@ -226,7 +221,7 @@ fi
     trap 'rm -rf -- "$work_dir"' EXIT
     cd -- "$work_dir"
     # download phpvirtualbox
-    retry_cmd wget -q -c https://github.com/phpvirtualbox/phpvirtualbox/archive/master.zip
+    retry_cmd "download phpVirtualBox" wget --tries=1 -q -c https://github.com/phpvirtualbox/phpvirtualbox/archive/master.zip || { printf '%s ERROR: wget download failed -abort\n' "$(date '+%Y-%m-%d %H:%M:%S')" >&2; exit 1; }
     download_sha256="$(sha256sum master.zip | awk '{print $1}')"
     echo "master.zip SHA256: $download_sha256"
     unzip -q master.zip

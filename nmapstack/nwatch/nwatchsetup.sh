@@ -7,16 +7,14 @@
 # FILE: nwatch/nwatchsetup.sh
 #
 # USAGE:
-# sudo bash nwatchsetup.sh --install
-# sudo bash nwatchsetup.sh --update
-# sudo bash nwatchsetup.sh --uninstall
-# sudo bash nwatchsetup.sh --status
-# sudo bash nwatchsetup.sh
+# ACTION            COMMAND
+# Install           sudo bash nwatchsetup.sh --install
+# Update            sudo bash nwatchsetup.sh --update
+# Uninstall         sudo bash nwatchsetup.sh --uninstall
+# Show status       sudo bash nwatchsetup.sh --status
+# Interactive menu  sudo bash nwatchsetup.sh
 #
-# LOG: nwatchsetup.log, next to this script (rewritten on each run)
-#      The daemons nwatchlan.sh / nwatchports.sh log to the shared
-#      /var/log/nwatch.log, rotated weekly via /etc/logrotate.d/nwatch
-#      (deployed by --install, removed by --uninstall).
+# LOG: nwatchsetup.log, next to this script
 #
 ################################################################################
 
@@ -31,6 +29,52 @@ if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+check_requirements() {
+    local network_command
+    for network_command in ip awk; do
+        command -v "$network_command" >/dev/null 2>&1 || {
+            log "ERROR: network command '$network_command' missing -abort"
+            exit 1
+        }
+    done
+    case "$1" in
+        install)
+            check_port tcp "$vhost_port" "web interface"
+            check_already_installed
+            check_conflicts "web server" nginx lighttpd caddy
+            select_scan_interfaces
+            select_management_interface
+            ;;
+        update)
+            [ -f "$nwatch_env" ] || {
+                log "ERROR: nwatch is not installed -abort"
+                exit 1
+            }
+            local MGMT_IFACE=""
+            source "$tools_dir/nwatchenv.sh"
+            load_nwatch_env "$nwatch_env" 'MGMT_IFACE'
+            [ -n "$MGMT_IFACE" ] || {
+                log "ERROR: MGMT_IFACE not set -abort"
+                exit 1
+            }
+            choose_lan_interface "$MGMT_IFACE"
+            ;;
+    esac
+    check_ipv4_interfaces
+    if [ "$1" = install ]; then
+        check_internet
+    else
+        local package
+        for package in "${apt_deps[@]}"; do
+            if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null \
+                | grep -q "ok installed"; then
+                check_internet
+                break
+            fi
+        done
+    fi
+}
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
@@ -92,8 +136,8 @@ check_repo() {
         fi
     done
     if [ "$missing" -eq 1 ]; then
-        log "ERROR: repository files not found"
-        log "ERROR: clone it from github.com/maravento/vault -abort"
+        log "ERROR: [1/2] repository files not found"
+        log "ERROR: [2/2] clone it from github.com/maravento/vault -abort"
         exit 1
     fi
 }
@@ -119,6 +163,28 @@ candidate_addrs=()
 # ------------------------------------------------------------------------------
 # FUNCTIONS
 # ------------------------------------------------------------------------------
+
+retry_cmd() {
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
+        fi
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
+    done
+}
 
 # UPDATE CHECKS
 update_error() {
@@ -378,8 +444,8 @@ update_apply() {
             if (( ${#compared_file} <= 19 )); then
                 update_error "src and dst do not match: $compared_file"
             fi
-            log "ERROR: src and dst: $compared_file"
-            update_error "src and dst do not match"
+            log "ERROR: [1/2] src and dst: $compared_file"
+            update_error "[2/2] src and dst do not match"
         }
         info "updated $(basename "$target")"
     done
@@ -481,13 +547,13 @@ if result.returncode != 0 or result.stderr.strip():
 sys.stdout.write(result.stdout)
 PY
     ); then
-        log "ERROR: cannot check ${proto^^} port $port"
-        log "ERROR: fix the ss query before installing -abort"
+        log "ERROR: [1/2] cannot check ${proto^^} port $port"
+        log "ERROR: [2/2] fix the ss query before installing -abort"
         exit 1
     fi
     if [ -n "$port_listeners" ]; then
-        log "ERROR: ${proto^^} port $port in use by another $role"
-        log "ERROR: stop that service before installing -abort"
+        log "ERROR: [1/2] ${proto^^} port $port in use by another $role"
+        log "ERROR: [2/2] stop that service before installing -abort"
         exit 1
     fi
 }
@@ -559,9 +625,9 @@ install_deps() {
     (( ${#missing_pkgs[@]} == 0 )) && return 0
     check_ipv4_interfaces
     check_internet
-    if ! DEBIAN_FRONTEND=noninteractive apt-get -qq install -y "${missing_pkgs[@]}"; then
-        log "ERROR: cannot install ${missing_pkgs[*]}"
-        log "ERROR: install them with apt, then re-run -abort"
+    if ! retry_cmd "install packages" env DEBIAN_FRONTEND=noninteractive apt-get -qq install -y "${missing_pkgs[@]}"; then
+        log "ERROR: [1/2] cannot install ${missing_pkgs[*]}"
+        log "ERROR: [2/2] install them with apt, then re-run -abort"
         exit 1
     fi
     log "INFO: Installed: ${missing_pkgs[*]}"
@@ -847,7 +913,7 @@ check_already_installed() {
             [ -n "$reason" ] && log "WARNING: nwatch: $reason -alert"
         done < <(printf "%b" "$reasons")
         echo ""
-        log "ERROR: nwatch: use --update for this installation -abort"
+        log "ERROR: nwatch installed; use --update | --uninstall -abort"
         exit 1
     fi
 }
@@ -934,30 +1000,26 @@ EOF
 }
 
 do_install() {
+    check_requirements install
 
-    check_already_installed
     install_deps
 
     # dependency checks
-    check_conflicts "web server" nginx lighttpd caddy
 
     if ! systemctl is-active --quiet apache2; then
-        log "ERROR: apache2 is not running"
-        log "ERROR: start it first: systemctl start apache2 -abort"
+        log "ERROR: [1/2] apache2 is not running"
+        log "ERROR: [2/2] start it first: systemctl start apache2 -abort"
         exit 1
     fi
 
-    check_port tcp "$vhost_port" "web interface"
 
     # The vhost needs mod_php (SetHandler application/x-httpd-php), not PHP-FPM.
     if ! apache2ctl -M 2>/dev/null | grep -qi 'php_module'; then
-        log "ERROR: Apache mod_php is not loaded"
-        log "ERROR: run: apt-get install -y libapache2-mod-php -abort"
+        log "ERROR: [1/2] Apache mod_php is not loaded"
+        log "ERROR: [2/2] apt-get install -y libapache2-mod-php -abort"
         exit 1
     fi
 
-    select_scan_interfaces
-    select_management_interface
 
     a2enmod -q headers
 
@@ -1152,6 +1214,7 @@ update_apache_port() {
 }
 
 do_update() {
+    check_requirements update
     [ -f "$nwatch_env" ] || { log "ERROR: nwatch is not installed -abort"; exit 1; }
     install_deps
     update_reset /etc/cron.d/nwatch

@@ -10,9 +10,12 @@
 # stack and local mkcert certificates, remove Joomla only, or remove the
 # whole stack. Run as root.
 #
-# USAGE: ./joomla.sh
+# USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash joomla.sh
 #
 # Included: Apache/MySQL/PHP/mkcert
+#
 ################################################################################
 
 set -uo pipefail
@@ -45,6 +48,28 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: joomla start..."
 # ------------------------------------------------------------------------------
 # FUNCTIONS
 # ------------------------------------------------------------------------------
+
+retry_cmd() {
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
+        fi
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
+    done
+}
 
 # check ipv4 interfaces
 list_ifaces() {
@@ -119,18 +144,18 @@ install_joomla() {
     SQL_DBPASS="${DBPASS//\\/\\\\}"
     SQL_DBPASS="${SQL_DBPASS//\'/\'\'}"
 
-    apt update || {
+    retry_cmd "update package lists" apt update || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
         exit 1
     }
-    apt upgrade -y
+    retry_cmd "update packages" apt upgrade -y
 
-    apt install -y apache2 apache2-doc apache2-utils apache2-dev apache2-suexec-pristine libaprutil1t64 libaprutil1-dev libtest-fatal-perl || {
+    retry_cmd "install packages" apt install -y apache2 apache2-doc apache2-utils apache2-dev apache2-suexec-pristine libaprutil1t64 libaprutil1-dev libtest-fatal-perl || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install Apache prerequisites -abort" >&2
         exit 1
     }
 
-    apt install -y php php-mysql php-xml php-mbstring php-curl php-zip php-gd libapache2-mod-php php-cli php-intl php-bcmath unzip || {
+    retry_cmd "install packages" apt install -y php php-mysql php-xml php-mbstring php-curl php-zip php-gd libapache2-mod-php php-cli php-intl php-bcmath unzip || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install PHP prerequisites -abort" >&2
         exit 1
     }
@@ -151,9 +176,9 @@ install_joomla() {
         echo "$PHP_INI Not found"
     fi
 
-    apt install mysql-server -y
+    retry_cmd "install packages" apt install mysql-server -y
     dpkg --configure -a
-    apt install -f
+    retry_cmd "install packages" apt install -f
 
     mysql -u root <<EOF
 ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${SQL_ROOTPASS}';
@@ -201,7 +226,7 @@ EOF
 
     DOWNLOAD_URL="https://update.joomla.org/releases/$LATEST_VERSION/Joomla_$LATEST_VERSION-Stable-Full_Package.zip"
 
-    if ! curl -L -o joomla.zip "$DOWNLOAD_URL"; then
+    if ! retry_cmd "download Joomla" curl -L -o joomla.zip "$DOWNLOAD_URL"; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') PARTIAL: $DOWNLOAD_URL"
         rm -f joomla.zip
         exit 1
@@ -229,10 +254,10 @@ EOF
     rm -f joomla.zip
 
     if ! command -v mkcert &>/dev/null; then
-        apt install libnss3-tools -y
+        retry_cmd "install packages" apt install libnss3-tools -y
         MKCERT_VER=$(curl -sf "https://api.github.com/repos/FiloSottile/mkcert/releases/latest" | grep -oP '"tag_name": "\K[^"]+')
         MKCERT_VER="${MKCERT_VER:-v1.4.4}"
-        if ! curl -L -o mkcert "https://github.com/FiloSottile/mkcert/releases/download/${MKCERT_VER}/mkcert-${MKCERT_VER}-linux-amd64"; then
+        if ! retry_cmd "download mkcert" curl -L -o mkcert "https://github.com/FiloSottile/mkcert/releases/download/${MKCERT_VER}/mkcert-${MKCERT_VER}-linux-amd64"; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') PARTIAL: https://github.com/FiloSottile/mkcert/releases/download/${MKCERT_VER}/mkcert-${MKCERT_VER}-linux-amd64"
             exit 1
         fi

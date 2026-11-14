@@ -9,7 +9,11 @@
 # DESCRIPTION: Caps the CPU usage of a program with cpulimit. Asks for the
 # program name and the percentage to allow.
 #
-# USAGE: sudo bash cpulimit.sh {--start|--stop|--status}
+# USAGE:
+# ACTION       COMMAND
+# Start        sudo bash cpulimit.sh --start
+# Stop         sudo bash cpulimit.sh --stop
+# Show status  sudo bash cpulimit.sh --status
 #
 ################################################################################
 

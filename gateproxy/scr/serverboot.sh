@@ -7,7 +7,8 @@
 # FILE: scr/serverboot.sh
 #
 # USAGE:
-# sudo bash serverboot.sh
+# ACTION          COMMAND
+# (no arguments)  sudo bash serverboot.sh
 #
 # LOG: /var/log/serverboot.log
 #

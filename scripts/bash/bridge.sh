@@ -10,7 +10,12 @@
 # NetworkManager bridge, so a virtual machine can reach the LAN directly.
 # Waits for DHCP on the bridge, and restores the original connection on off.
 #
-# USAGE: sudo ./bridge.sh [--on|--off|--status|--clean]
+# USAGE:
+# ACTION                      COMMAND
+# Enable bridge               sudo bash bridge.sh --on
+# Disable bridge              sudo bash bridge.sh --off
+# Show status                 sudo bash bridge.sh --status
+# Clean bridge configuration  sudo bash bridge.sh --clean
 #
 ################################################################################
 

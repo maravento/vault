@@ -7,7 +7,8 @@
 # FILE: tools/nwatchenv.sh
 #
 # USAGE:
-# Loaded by callers with source. Not a standalone command or cron job.
+# ACTION                            COMMAND
+# Load shared environment settings  source nwatchenv.sh
 #
 ################################################################################
 

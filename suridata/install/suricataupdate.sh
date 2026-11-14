@@ -7,7 +7,8 @@
 # FILE: suricataupdate.sh
 #
 # USAGE:
-# sudo bash suricataupdate.sh
+# ACTION          COMMAND
+# (no arguments)  sudo bash suricataupdate.sh
 #
 # LOG: /var/log/suridata.log
 #

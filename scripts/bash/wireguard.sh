@@ -9,7 +9,9 @@
 # DESCRIPTION: Installs WireGuard as a server or as a client, generating the
 # key pair and the interface configuration. Also uninstalls it.
 #
-# USAGE: sudo bash wireguard.sh
+# USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash wireguard.sh
 #
 ################################################################################
 
@@ -54,22 +56,44 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: wireguard start..."
 # FUNCTIONS
 # ------------------------------------------------------------------------------
 
+retry_cmd() {
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
+        fi
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
+    done
+}
+
 # Function to install WireGuard as Server
 install_wireguard_server() {
   if ! command -v wg &> /dev/null; then
     # WireGuard Install
-    apt update || {
+    retry_cmd "update package lists" apt update || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
         exit 1
     }
-    apt install -y wireguard wireguard-tools || {
+    retry_cmd "install packages" apt install -y wireguard wireguard-tools || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install WireGuard packages -abort" >&2
         exit 1
     }
 
     # qrcode (Optional)
     # e.g: sudo qrencode -t ansiutf8 < qr.conf
-    apt install -y qrencode
+    retry_cmd "install packages" apt install -y qrencode
 
     # testing
     modprobe wireguard || true
@@ -195,11 +219,11 @@ EOL
 install_wireguard_client() {
   if ! command -v wg &> /dev/null; then
     # WireGuard Install
-    apt update || {
+    retry_cmd "update package lists" apt update || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
         exit 1
     }
-    apt install -y wireguard wireguard-tools || {
+    retry_cmd "install packages" apt install -y wireguard wireguard-tools || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install WireGuard packages -abort" >&2
         exit 1
     }

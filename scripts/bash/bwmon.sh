@@ -13,6 +13,9 @@
 # either value is below the minimum, 0 otherwise -- usable as a cron watchdog.
 #
 # USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash bwmon.sh
+#
 # Add this script to your crontab to run periodically, e.g. every 30 minutes:
 # */30 * * * * /path_to/bwmon.sh
 #

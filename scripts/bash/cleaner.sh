@@ -12,7 +12,10 @@
 #   .fseventsd*, .DS_Store, ~lock.*)
 # - Extended attributes and metadata streams (e.g., :attributes:)
 #
-# USAGE: sudo ./cleaner.sh [search_path]
+# USAGE:
+# ACTION                   COMMAND
+# Clean the selected path  sudo bash cleaner.sh [search_path]
+#
 # Without arguments, searches from /
 #
 # LOG: /var/log/cleaner.log

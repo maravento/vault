@@ -39,13 +39,34 @@ FILE: README.md
   </tr>
 </table>
 
+### Network
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <p>Installation and update require the following:</p>
+      <ul>
+        <li>At least one interface must have an UP link and configured global IPv4. With several eligible interfaces, WAN and LAN must be distinct.</li>
+        <li>Internet access is required for package installation, EveBox repository access, and rule downloads.</li>
+      </ul>
+      <p>The operation continues if the applicable requirements above are met; otherwise, it aborts.</p>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <p>La instalación y actualización requieren lo siguiente:</p>
+      <ul>
+        <li>Al menos una interfaz debe tener enlace UP e IPv4 global configurada. Con varias interfaces válidas, WAN y LAN deben ser distintas.</li>
+        <li>Se requiere Internet para instalar paquetes, acceder al repositorio EveBox y descargar reglas.</li>
+      </ul>
+      <p>La operación continúa si se cumplen los requisitos anteriores que correspondan; de lo contrario, aborta.</p>
+    </td>
+  </tr>
+</table>
+
 ### Software
 
 | Component | Description | Descripción |
 |---|---|---|
 | System | Ubuntu with Bash, APT, systemd, and root privileges. | Ubuntu con Bash, APT, systemd y permisos root. |
-| Network | At least one UP interface with configured global IPv4. With one eligible interface, use it automatically as the inspected LAN, with no WAN. With several, select distinct WAN and LAN interfaces. Validate their IPv4 and prefixes before package installation. | Al menos una interfaz UP con IPv4 global configurada. Con una sola interfaz válida, úsala automáticamente como la LAN inspeccionada, sin WAN. Con varias, selecciona interfaces WAN y LAN diferentes. Valida sus IPv4 y prefijos antes de instalar paquetes. |
-| Internet | Required for package installation, EveBox repository access, and rule downloads. | Necesario para instalar paquetes, acceder al repositorio EveBox y descargar reglas. |
 | Packages | The installer installs missing Suricata, suricata-update, jq, ipset, iptables, ulogd2, Python 3, curl, ca-certificates, zip, logrotate, cron, iproute2, grep, coreutils, findutils, util-linux, sed, and libc-bin packages. | El instalador agrega los paquetes faltantes Suricata, suricata-update, jq, ipset, iptables, ulogd2, Python 3, curl, ca-certificates, zip, logrotate, cron, iproute2, grep, coreutils, findutils, util-linux, sed y libc-bin. |
 | EveBox | Required component, installed from its external repository; installation or service failures abort setup. | Componente obligatorio, instalado desde su repositorio externo; los fallos de instalación o servicio abortan el instalador. |
 | Fresh installation | Existing Suricata, EveBox, or Suridata configuration prevents fresh installation. Installed Snort also prevents installation. | Suricata, EveBox o configuración Suridata existentes impiden una instalación nueva. Snort instalado también impide instalar. |

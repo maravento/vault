@@ -7,10 +7,10 @@
 # FILE: linux/nreport.sh
 #
 # USAGE:
-# sudo bash nreport.sh
+# ACTION          COMMAND
+# (no arguments)  sudo bash nreport.sh
 #
 # LOG: /var/log/nreport.log
-#      Truncated on every run (single-run tool, no rotation).
 #
 ################################################################################
 

@@ -13,7 +13,13 @@
 # When installing or removing Docker, downloads docker.sh from Vault over
 # HTTPS and checks its Bash syntax before running it as root.
 #
-# USAGE: sudo bash winboat.sh [--install|--uninstall|--help]
+# USAGE:
+# ACTION            COMMAND
+# Interactive menu  sudo bash winboat.sh
+# Install           sudo bash winboat.sh --install
+# Uninstall         sudo bash winboat.sh --uninstall
+# Show usage        sudo bash winboat.sh -h
+# Show usage        sudo bash winboat.sh --help
 #
 ################################################################################
 
@@ -94,6 +100,28 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: winboat start..."
 # FUNCTIONS
 # ------------------------------------------------------------------------------
 
+retry_cmd() {
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
+        fi
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
+    done
+}
+
 # check ipv4 interfaces
 list_ifaces() {
     ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
@@ -155,7 +183,7 @@ fetch_docker_script() {
         echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot create docker.sh temporary file -alert"
         return 1
     fi
-    if ! curl -q --proto '=https' --fail --silent --show-error \
+    if ! retry_cmd "download Docker installer" curl -q --proto '=https' --fail --silent --show-error \
         --location --max-redirs 0 --max-time 30 "$docker_url" -o "$docker_script"; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot download docker.sh -alert"
         rm -f -- "$docker_script"
@@ -214,10 +242,10 @@ install_winboat() {
     # Install FreeRDP from Flatpak (fixes bugs present in Ubuntu 24.04 repository version)
     if ! flatpak list 2>/dev/null | grep -q "com.freerdp.FreeRDP"; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing Flatpak if not present..."
-        if ! apt-get update; then
+        if ! retry_cmd "update package lists" apt-get update; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: apt-get update failed -fallback"
         fi
-        if ! apt-get install -y flatpak; then
+        if ! retry_cmd "install packages" apt-get install -y flatpak; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install flatpak -abort" >&2
             exit 1
         fi
@@ -226,7 +254,7 @@ install_winboat() {
         flatpak remote-add --if-not-exists --system flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
 
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing FreeRDP from Flatpak..."
-        if ! flatpak install --system -y flathub com.freerdp.FreeRDP; then
+        if ! retry_cmd "install FreeRDP" flatpak install --system -y flathub com.freerdp.FreeRDP; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install FreeRDP from Flatpak -abort" >&2
             exit 1
         fi
@@ -249,7 +277,7 @@ install_winboat() {
 
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Downloading Winboat..."
         winboat_deb=$(mktemp /tmp/winboat.XXXXXX.deb)
-        if ! wget -q --timeout=30 --show-progress \
+        if ! retry_cmd "download Winboat package" wget --tries=1 -q --timeout=30 --show-progress \
                 "$deb_url" -O "$winboat_deb"; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to download Winboat package -abort" >&2
             rm -f "$winboat_deb"
@@ -258,7 +286,7 @@ install_winboat() {
 
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing Winboat package..."
         dpkg -i "$winboat_deb" || true
-        if ! apt-get install -f -y; then
+        if ! retry_cmd "install packages" apt-get install -f -y; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to resolve Winboat dependencies -abort" >&2
             rm -f "$winboat_deb"
             exit 1

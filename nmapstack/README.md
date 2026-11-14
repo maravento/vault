@@ -20,6 +20,34 @@ FILE: nmapstack/README.md
 
 <!-- markdownlint-disable MD033 -->
 
+## REQUIREMENTS
+
+---
+
+### Network
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <p>Nwatch installation and update require the following:</p>
+      <ul>
+        <li>At least one interface must have an UP link and configured global IPv4.</li>
+        <li>Internet access is required when installing or updating packages and downloading components.</li>
+      </ul>
+      <p>The operation continues if the applicable requirements above are met; otherwise, it aborts.</p>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <p>La instalación y actualización de Nwatch requieren lo siguiente:</p>
+      <ul>
+        <li>Al menos una interfaz debe tener enlace UP e IPv4 global configurada.</li>
+        <li>Se requiere Internet para instalar o actualizar paquetes y descargar componentes.</li>
+      </ul>
+      <p>La operación continúa si se cumplen los requisitos anteriores que correspondan; de lo contrario, aborta.</p>
+    </td>
+  </tr>
+</table>
+
+
 ## REPOSITORY STRUCTURE
 
 ---
@@ -797,6 +825,13 @@ sudo /var/www/nwatch/tools/nwatchports.sh --list
 2026-10-28 15:35:24 INFO: nwatch updated
 2026-10-28 15:35:24 INFO: nwatchsetup done
 ```
+
+
+## Script log details / Detalles de logs de scripts
+
+`/var/log/nreport.log` is cleared on every run and is not rotated. `nwatchsetup.log`, beside `nwatchsetup.sh`, is cleared when the installer starts. Both Nwatch daemons share `/var/log/nwatch.log`, owned by `root:root` with permissions `640`. Installation and update configure weekly rotation; uninstall removes `/etc/logrotate.d/nwatch`.
+
+`/var/log/nreport.log` se vacía en cada ejecución y no se rota. `nwatchsetup.log`, junto a `nwatchsetup.sh`, se vacía al iniciar el instalador. Ambos demonios Nwatch comparten `/var/log/nwatch.log`, con propietario `root:root` y permisos `640`. La instalación y actualización configuran rotación semanal; la desinstalación elimina `/etc/logrotate.d/nwatch`.
 
 ## ⚠️ WARNING: NETWORK ACCESS
 

@@ -12,7 +12,10 @@
 # the background and avoids multiple instances.
 #
 # USAGE:
-# ./watchdog.sh {--start|--stop|--status}
+# ACTION       COMMAND
+# Start        bash watchdog.sh --start
+# Stop         bash watchdog.sh --stop
+# Show status  bash watchdog.sh --status
 #
 # LOG: connection.log, next to this script
 #      PID file under /run/user/<uid>/watchdog.pid

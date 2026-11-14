@@ -10,7 +10,8 @@
 # Verifies a SHA256 checksum as a normal desktop user.
 #
 # USAGE:
-# bash checksha256 [file]
+# ACTION                  COMMAND
+# Process selected files  bash checksha256 [file]
 #
 ################################################################################
 

@@ -13,10 +13,13 @@
 # Install requires an X11 or Wayland desktop session.
 #
 # USAGE:
-# bash fmssetup.sh --install      Install for every file manager found
-# bash fmssetup.sh --update       Replace installed shared scripts
-# bash fmssetup.sh --uninstall    Remove FMS from every file manager
-# bash fmssetup.sh                Interactive menu
+# ACTION            COMMAND
+# Interactive menu  bash fmssetup.sh
+# Install           bash fmssetup.sh --install
+# Update            bash fmssetup.sh --update
+# Uninstall         bash fmssetup.sh --uninstall
+# Show usage        bash fmssetup.sh -h
+# Show usage        bash fmssetup.sh --help
 #
 # LOG: fmssetup.log, in this script's directory
 #
@@ -111,6 +114,28 @@ required_commands=(python3 zenity notify-send xdg-open mount
 # ------------------------------------------------------------------------------
 # FUNCTIONS
 # ------------------------------------------------------------------------------
+
+retry_cmd() {
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
+        fi
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
+    done
+}
 
 # check ipv4 interfaces
 list_ifaces() {
@@ -258,8 +283,8 @@ prepare_dependencies() {
             || abort "dependency 'apt-get' is not installed -abort"
         check_ipv4_interfaces
         check_internet
-        sudo apt-get update || abort "cannot update APT package lists -abort"
-        sudo apt-get install -y "${missing_packages[@]}" \
+        retry_cmd "update package lists" sudo apt-get update || abort "cannot update APT package lists -abort"
+        retry_cmd "install packages" sudo apt-get install -y "${missing_packages[@]}" \
             || abort "APT dependency installation failed -abort"
     fi
     if ! command -v xclip >/dev/null && ! command -v xsel >/dev/null \

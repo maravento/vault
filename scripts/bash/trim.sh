@@ -9,7 +9,9 @@
 # DESCRIPTION: Runs fstrim on every mounted filesystem whose device supports
 # TRIM, and prints the freed space reported for each one.
 #
-# USAGE: sudo ./trim.sh
+# USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash trim.sh
 #
 # WARNING: TRIM is a highly destructive command. Use it at your own risk.
 # Safe for: modern SSDs (SATA or NVMe) without RAID or LVM.

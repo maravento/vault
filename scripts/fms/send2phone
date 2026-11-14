@@ -10,7 +10,8 @@
 # Sends selected files as a normal desktop user.
 #
 # USAGE:
-# bash send2phone [file ...]
+# ACTION                  COMMAND
+# Process selected files  bash send2phone [file ...]
 #
 # LOG: send2phone.log, in this script's directory
 #

@@ -12,7 +12,13 @@
 # ~/.cloudflared/.
 #
 # USAGE:
-# cftunnel.sh {--create|--start|--startall|--stop|--status|--delete}
+# ACTION             COMMAND
+# Create tunnel      bash cftunnel.sh --create
+# Start              bash cftunnel.sh --start
+# Start all tunnels  bash cftunnel.sh --startall
+# Stop               bash cftunnel.sh --stop
+# Show status        bash cftunnel.sh --status
+# Delete tunnel      bash cftunnel.sh --delete
 #
 # LOG: ~/.cloudflared/preflight.log, cleared at startup
 #
@@ -493,8 +499,8 @@ create_tunnel() {
         fi
         domain="${tunnel_hostname#*.}"
         if ! getent hosts "$domain" >/dev/null 2>&1; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: domain '$domain' does not resolve"
-            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: a zone apex with no A/AAAA record is normal -alert"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: [1/2] domain '$domain' does not resolve"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: [2/2] zone apex without A/AAAA can be valid -alert"
         fi
         break
     done

@@ -10,7 +10,8 @@
 # Creates MD5 checksums as a normal desktop user.
 #
 # USAGE:
-# bash makemd5 [file ...]
+# ACTION                  COMMAND
+# Process selected files  bash makemd5 [file ...]
 #
 ################################################################################
 

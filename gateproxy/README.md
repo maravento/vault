@@ -37,6 +37,31 @@ FILE: gateproxy/README.md
   </tr>
 </table>
 
+### Network
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <p>Installation requires the following:</p>
+      <ul>
+        <li>Two distinct wired interfaces, WAN and LAN, must have an UP link and configured global IPv4.</li>
+        <li>Internet access is required when installing or updating packages and downloading components.</li>
+        <li>Netplan and systemd-networkd must be available. An active NetworkManager also requires nmcli for the transition.</li>
+      </ul>
+      <p>The operation continues if the applicable requirements above are met; otherwise, it aborts.</p>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <p>La instalación requiere lo siguiente:</p>
+      <ul>
+        <li>Se requieren dos interfaces cableadas distintas, WAN y LAN, con enlace UP e IPv4 global configurada.</li>
+        <li>Se requiere Internet para instalar o actualizar paquetes y descargar componentes.</li>
+        <li>Netplan y systemd-networkd deben estar disponibles. Si NetworkManager está activo, también se requiere nmcli para la transición.</li>
+      </ul>
+      <p>La operación continúa si se cumplen los requisitos anteriores que correspondan; de lo contrario, aborta.</p>
+    </td>
+  </tr>
+</table>
+
 ### Hardware
 
 <table width="100%">
@@ -65,8 +90,6 @@ gateproxy/
 │   │   └── squid.conf              # deployed to: /etc/squid/squid.conf [0644 root:root]
 │   ├── ttyd/
 │   │   └── ttyd.service            # deployed to: /etc/systemd/system/ttyd.service [0644 root:root]
-│   ├── unbound/
-│   │   └── forward.conf            # deployed to: /etc/unbound/unbound.conf.d/forward.conf [0644 root:root]
 │   └── webmin/
 │       └── text-editor.wbm         # Webmin Text Editor module
 ├── scr/                            # deployed to: /etc/scr [0755 root:root]
@@ -189,6 +212,29 @@ curl http://SERVER_IP:18800/wpad.pac
 
 ![Gateproxy](https://raw.githubusercontent.com/maravento/vault/master/gateproxy/img/gateproxy.png)
 
+#### Network configuration
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <ul>
+        <li>The installer validates the final Netplan configuration with WAN DHCP and a static LAN IPv4. It stops and disables NetworkManager globally, enables and starts systemd-networkd, and runs netplan apply once.</li>
+        <li>Before invoking PyDHCP, it verifies WAN/LAN IPv4, the static LAN and Internet connectivity. PyDHCP retains its own static-LAN and DNS-conflict checks.</li>
+        <li>Existing YAML and cloud network configuration are protected with .bak copies. A transition failure restores the configuration, service activation/enabled states and previously active NetworkManager connections. An incomplete restore reports an error; this does not reverse the entire installation.</li>
+        <li>The transition is integrated; npswitch.sh is not downloaded or executed. python3-yaml is installed for final Netplan validation.</li>
+      </ul>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <ul>
+        <li>El instalador valida la configuración final de Netplan con WAN DHCP e IPv4 estática en la LAN. Detiene y deshabilita NetworkManager globalmente, habilita e inicia systemd-networkd y ejecuta netplan apply una vez.</li>
+        <li>Antes de ejecutar PyDHCP, verifica las IPv4 WAN/LAN, la LAN estática y la conexión a Internet. PyDHCP conserva sus verificaciones de LAN estática y conflictos DNS.</li>
+        <li>Los YAML existentes y la configuración de red cloud se protegen con copias .bak. Un fallo en la transición restaura la configuración, los estados de activación/habilitación de servicios y las conexiones activas de NetworkManager. Una restauración incompleta informa un error; esto no revierte toda la instalación.</li>
+        <li>La transición está integrada; no se descarga ni ejecuta npswitch.sh. Se instala python3-yaml para validar la configuración final de Netplan.</li>
+      </ul>
+    </td>
+  </tr>
+</table>
+
 #### Conflict Checks
 
 <table width="100%">
@@ -206,8 +252,8 @@ curl http://SERVER_IP:18800/wpad.pac
 | :--- | :--- | :--- |
 | `python3` | Required dependency: abort installation if it is not installed | Dependencia requerida: abortar la instalación si no está instalado |
 | UDP `67` | DHCP port in use, or the check cannot be completed: abort installation | Puerto DHCP ocupado, o la comprobación no puede completarse: abortar la instalación |
+| `bind9`, `pdns-recursor`, `unbound` | DNS: abort before installing packages; pydhcp checks again before its own installation | DNS: abortar antes de instalar paquetes; pydhcp vuelve a comprobar antes de su instalación |
 | `isc-dhcp-server`, `kea-dhcp4-server`, `udhcpd` | DHCP: abort installation | DHCP: abortar la instalación |
-| `bind9`, `pdns-recursor`, `unbound` | DNS server: abort installation | Servidor DNS: abortar la instalación |
 | `squid`, `squid3`, `squid-openssl` | Proxy: abort installation | Proxy: abortar la instalación |
 | `apache2`, `nginx`, `lighttpd`, `caddy` | Web server: abort installation | Servidor web: abortar la instalación |
 | `samba` | File server: abort installation | Servidor de archivos: abortar la instalación |
@@ -277,8 +323,8 @@ none /run/shm tmpfs defaults,ro 0 0                                 # read-only 
 | LAN Interface | none (required) | Same numbered list and confirmation flow as the WAN interface. It cannot be the interface already assigned to WAN | Mismo flujo de lista numerada y confirmación que la interfaz WAN. No puede ser la interfaz ya asignada a WAN |
 | Server IP | `192.168.0.10` | Gateway IP assigned to this server | IP del servidor en la LAN |
 | Netmask | `255.255.255.0` | Configurable subnet mask. The CIDR prefix is derived from it; `/24` corresponds only to the default | Máscara de subred configurable. El prefijo CIDR se calcula desde ella; `/24` corresponde solo al valor inicial |
-| DNS Primary | `1.1.1.2` | Primary DNS server | DNS primario |
-| DNS Secondary | `1.0.0.2` | Secondary DNS server | DNS secundario |
+| DNS Primary | `1.1.1.2` | Primary upstream passed to the pydhcp installer | DNS externo primario enviado al instalador de pydhcp |
+| DNS Secondary | `1.0.0.2` | Secondary upstream passed to the pydhcp installer | DNS externo secundario enviado al instalador de pydhcp |
 | Proxy Port | `3128` | Squid proxy port | Puerto del proxy Squid |
 | Squid Intercept Port | `3129` | Squid intercept port | Puerto transparente de Squid |
 
@@ -287,7 +333,7 @@ none /run/shm tmpfs defaults,ro 0 0                                 # read-only 
 | Function | Description | Descripción |
 | :--- | :--- | :--- |
 | Localnet | Localnet (<code>192.168.0.0</code>) is derived from the Server IP and Netmask together, not asked separately. | Localnet (<code>192.168.0.0</code>) se deriva del Server IP y la Netmask en conjunto, no se pregunta por separado. |
-| Client DNS | DNS Primary/Secondary configure Unbound forwarders. The firewall reads <code>SERV_DNS</code> from <code>pydhcp.env</code>, the same setting pydhcp uses for DHCP clients. Installation supplies the server IP as DNS to pydhcp. To change client DNS, edit that key, regenerate DHCP configuration and reload the affected services. | Los DNS Primario/Secundario configuran los reenviadores de Unbound. El firewall lee <code>SERV_DNS</code> desde <code>pydhcp.env</code>, la misma clave que pydhcp utiliza para los clientes DHCP. La instalación entrega a pydhcp la IP del servidor como DNS. Para cambiar los DNS de clientes, edita esa clave, regenera la configuración DHCP y recarga los servicios afectados. |
+| Client DNS | DNS Primary/Secondary are passed to pydhcp, which installs and configures Unbound. The firewall reads <code>SERV_DNS</code> from <code>pydhcp.env</code>, the same setting pydhcp uses for DHCP clients. pydhcp announces the server IP as client DNS and uses its default local domain. To change client DNS, edit that key, regenerate DHCP configuration and reload the affected services. | Los DNS Primario/Secundario se envían a pydhcp, que instala y configura Unbound. El firewall lee <code>SERV_DNS</code> desde <code>pydhcp.env</code>, la misma clave que pydhcp utiliza para los clientes DHCP. pydhcp anuncia la IP del servidor como DNS de clientes y utiliza su dominio local predeterminado. Para cambiar los DNS de clientes, edita esa clave, regenera la configuración DHCP y recarga los servicios afectados. |
 | Installer configuration | Require two connected wired interfaces. Ask WAN first among interfaces with global IPv4, then LAN among the remaining connected interfaces. Configure LAN through Netplan and verify its selected IPv4/prefix. Save only WAN in <code>gateproxy.env</code>. Other answers replace placeholders or are passed to module installers. Each module writes the same own keys it would write in a standalone installation. | Exige dos interfaces cableadas conectadas. Pregunta WAN primero entre interfaces con IPv4 global y después LAN entre las restantes conectadas. Configura LAN mediante Netplan y verifica su IPv4/prefijo seleccionado. Guarda únicamente WAN en <code>gateproxy.env</code>. Las otras respuestas sustituyen placeholders o se entregan a los instaladores de módulos. Cada módulo escribe las mismas claves propias que escribiría al instalarse por separado. |
 
 #### gateproxy.env
@@ -392,7 +438,7 @@ BACKUP_DIR=/etc/bak/gateproxy
 
 | Component | Config | Description | Descripción |
 | :--- | :--- | :--- | :--- |
-| Unbound | `/etc/unbound/unbound.conf.d/forward.conf` | Forwarding resolver, not recursive. Listens on `127.0.0.1` and the server IP, and forwards to `1.1.1.2`, `1.0.0.2` and `9.9.9.9` by default. DHCP clients receive the server IP as their DNS server. | Resolutor de reenvío, no recursivo. Escucha en `127.0.0.1` y en la IP del servidor, y reenvía a `1.1.1.2`, `1.0.0.2` y `9.9.9.9` de forma predeterminada. Los clientes DHCP reciben la IP del servidor como su DNS. |
+| DNS via pydhcp | `/etc/pydhcp` | pydhcp owns Unbound installation, configuration, conflict checks, name publication and DNS backups. GateProxy checks DNS conflicts at startup and passes upstream choices; it does not install or configure Unbound directly | pydhcp administra instalación, configuración, conflictos, publicación de nombres y respaldos DNS. GateProxy comprueba conflictos DNS al inicio y transmite los DNS externos elegidos; no instala ni configura Unbound directamente |
 
 #### Security / Monitoring
 
@@ -706,3 +752,10 @@ BACKUP_DIR=/etc/bak/gateproxy
 ---
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## Script logs / Logs de scripts
+
+`gpsetup.log` is written beside `gpsetup.sh` and cleared at the start of each run. `iptables.sh` and `killswitch.sh` share `/var/log/iptables.log`; `gpsetup.sh` configures its weekly rotation in `/etc/logrotate.d/iptables`.
+
+`gpsetup.log` se guarda junto a `gpsetup.sh` y se vacía al iniciar cada ejecución. `iptables.sh` y `killswitch.sh` comparten `/var/log/iptables.log`; `gpsetup.sh` configura su rotación semanal en `/etc/logrotate.d/iptables`.
+

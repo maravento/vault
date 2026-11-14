@@ -10,7 +10,8 @@
 # Copies selected paths as a normal desktop user.
 #
 # USAGE:
-# bash copypath [file ...]
+# ACTION                  COMMAND
+# Process selected files  bash copypath [file ...]
 #
 ################################################################################
 

@@ -7,7 +7,8 @@
 # FILE: suridata.sh
 #
 # USAGE:
-# sudo bash suridata.sh
+# ACTION          COMMAND
+# (no arguments)  sudo bash suridata.sh
 #
 # LOG: /var/log/suridata.log
 #

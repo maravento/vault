@@ -9,7 +9,9 @@
 # DESCRIPTION: Installs or removes the RustDesk client, and sets the keyboard
 # layout that matches the system language.
 #
-# USAGE: sudo bash rdclient.sh
+# USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash rdclient.sh
 #
 ################################################################################
 
@@ -138,40 +140,34 @@ check_internet() {
 }
 
 retry_cmd() {
-    local max_attempts=10
-    local attempt=1
-    local retry_name retry_failure retry_arg
-    retry_name="$(basename "$1")"
-    retry_failure="$retry_name failed"
-    case "$retry_name" in
-        apt-get)
-            for retry_arg in "$@"; do
-                case "$retry_arg" in
-                    install) retry_failure="package installation failed"; break ;;
-                    update) retry_failure="package list update failed"; break ;;
-                esac
-            done
-            ;;
-        curl|wget) retry_failure="$retry_name download failed" ;;
-    esac
-    until "$@"; do
-        if [ "$attempt" -ge "$max_attempts" ]; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: $retry_failure -abort" >&2
-            exit 1
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
         fi
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $retry_name: retry $((attempt + 1))/$max_attempts"
-        attempt=$((attempt + 1))
-        sleep 10
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
     done
 }
 
 check_dependencies() {
     if [[ "$(dpkg-query -W -f='${Status}' curl 2>/dev/null)" != *"ok installed"* ]]; then
-        if ! retry_cmd apt-get -qq update; then
+        if ! retry_cmd "update package lists" apt-get -qq update; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to update package lists while preparing curl -abort" >&2
             exit 1
         fi
-        if ! retry_cmd apt-get install -y curl; then
+        if ! retry_cmd "install packages" apt-get install -y curl; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install curl -abort" >&2
             exit 1
         fi
@@ -207,11 +203,11 @@ check_dependencies() {
             sleep 5
             apt_lock_elapsed=$((apt_lock_elapsed + 5))
         done
-        if ! retry_cmd apt-get -qq update; then
+        if ! retry_cmd "update package lists" apt-get -qq update; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to update package lists -abort" >&2
             exit 1
         fi
-        if ! retry_cmd apt-get install -y "${missing[@]}"; then
+        if ! retry_cmd "install packages" apt-get install -y "${missing[@]}"; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install dependencies -abort" >&2
             exit 1
         fi
@@ -220,7 +216,7 @@ check_dependencies() {
     # rustdesk depends on libxdo3 | libxdo4 (either one satisfies it)
     if [[ "$(dpkg-query -W -f='${Status}' libxdo3 2>/dev/null)" != *"ok installed"* ]] && [[ "$(dpkg-query -W -f='${Status}' libxdo4 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing missing dependency: libxdo3"
-        if ! retry_cmd apt-get install -y libxdo3; then
+        if ! retry_cmd "install packages" apt-get install -y libxdo3; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install libxdo3 -abort" >&2
             exit 1
         fi
@@ -307,7 +303,7 @@ install_rustdesk() {
     base_url="https://github.com/rustdesk/rustdesk/releases/download/${ver_tag}"
 
     cd /tmp
-    if ! retry_cmd wget -q "${base_url}/${deb_file}"; then
+    if ! retry_cmd "download package" wget --tries=1 -q "${base_url}/${deb_file}"; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: download failed -abort" >&2
         rm -f "$deb_file"
         exit 1

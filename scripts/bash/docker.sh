@@ -9,7 +9,13 @@
 # DESCRIPTION: Installs Docker CE together with Portainer, or removes Docker.
 # Without an argument it opens an interactive menu.
 #
-# USAGE: sudo bash docker.sh [--install|--uninstall|--help]
+# USAGE:
+# ACTION            COMMAND
+# Interactive menu  sudo bash docker.sh
+# Install           sudo bash docker.sh --install
+# Uninstall         sudo bash docker.sh --uninstall
+# Show usage        sudo bash docker.sh -h
+# Show usage        sudo bash docker.sh --help
 #
 ################################################################################
 
@@ -81,6 +87,28 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: docker start..."
 # ------------------------------------------------------------------------------
 # FUNCTIONS
 # ------------------------------------------------------------------------------
+
+retry_cmd() {
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
+        fi
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
+    done
+}
 
 # check ipv4 interfaces
 list_ifaces() {
@@ -171,11 +199,11 @@ install_docker() {
     check_ipv4_interfaces
     check_internet
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Docker not installed. Installing..."
-    apt-get update || {
+    retry_cmd "update package lists" apt-get update || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
         exit 1
     }
-    apt-get install -y ca-certificates curl gnupg lsb-release || {
+    retry_cmd "install packages" apt-get install -y ca-certificates curl gnupg lsb-release || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install prerequisites -abort" >&2
         exit 1
     }
@@ -190,7 +218,7 @@ install_docker() {
     # Download the key to a temp file and verify its fingerprint before trusting it
     DOCKER_GPG_EXPECTED_FPR="9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
     DOCKER_GPG_TMP="$key_stage/docker.asc"
-    if ! curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$DOCKER_GPG_TMP"; then
+    if ! retry_cmd "download signing key" curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$DOCKER_GPG_TMP"; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') PARTIAL: https://download.docker.com/linux/ubuntu/gpg"
         rm -rf -- "$key_stage"
         exit 1
@@ -198,8 +226,8 @@ install_docker() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') SAVED: gpg"
     DOCKER_GPG_ACTUAL_FPR=$(gpg --with-colons --import-options show-only --import --fingerprint "$DOCKER_GPG_TMP" 2>/dev/null | awk -F: '/^fpr:/{print $10; exit}')
     if [ "$DOCKER_GPG_ACTUAL_FPR" != "$DOCKER_GPG_EXPECTED_FPR" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Docker GPG fingerprint mismatch, got: ${DOCKER_GPG_ACTUAL_FPR:-none}" >&2
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: expected: $DOCKER_GPG_EXPECTED_FPR -abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] Docker GPG fingerprint mismatch, got: ${DOCKER_GPG_ACTUAL_FPR:-none}" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [2/2] expected: $DOCKER_GPG_EXPECTED_FPR -abort" >&2
         rm -rf -- "$key_stage"
         exit 1
     fi
@@ -224,12 +252,12 @@ install_docker() {
     }
 
     # Install
-    apt-get update || {
+    retry_cmd "update package lists" apt-get update || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
         exit 1
     }
     # Method 1: install Docker CE and Compose from the Docker repository.
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || {
+    retry_cmd "install packages" apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install Docker packages -abort" >&2
         exit 1
     }

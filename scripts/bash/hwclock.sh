@@ -9,7 +9,9 @@
 # DESCRIPTION: Syncs the hardware clock with the system clock. Run as root,
 # intended to run at boot via cron (@reboot).
 #
-# USAGE: sudo ./hwclock.sh
+# USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash hwclock.sh
 #
 # LOG: system logger (destination set by system configuration)
 ################################################################################

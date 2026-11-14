@@ -9,7 +9,9 @@
 # DESCRIPTION: Installs VirtualBox 7.x from the Oracle repository, or purges
 # it if a version is already present.
 #
-# USAGE: sudo bash vbox.sh
+# USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash vbox.sh
 #
 ################################################################################
 
@@ -90,6 +92,28 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: vbox start..."
 # FUNCTIONS
 # ------------------------------------------------------------------------------
 
+retry_cmd() {
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
+        fi
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
+    done
+}
+
 # check ipv4 interfaces
 list_ifaces() {
     ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
@@ -164,12 +188,12 @@ vboxinstall() {
     # add repo
     distro=$(lsb_release -sc 2>/dev/null || grep -oP '(?<=UBUNTU_CODENAME=)\S+' /etc/os-release 2>/dev/null || grep -oP '(?<=VERSION_CODENAME=)\S+' /etc/os-release)
     echo deb [arch=amd64 signed-by=/usr/share/keyrings/virtualbox.gpg] https://download.virtualbox.org/virtualbox/debian "$distro" contrib | tee /etc/apt/sources.list.d/virtualbox.list
-    apt-get update || {
+    retry_cmd "update package lists" apt-get update || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
         exit 1
     }
     # install vbox
-    apt-get -y install linux-headers-$(uname -r) build-essential gcc make perl dkms bridge-utils || {
+    retry_cmd "install packages" apt-get -y install linux-headers-$(uname -r) build-essential gcc make perl dkms bridge-utils || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install prerequisites -abort" >&2
         exit 1
     }
@@ -178,12 +202,12 @@ vboxinstall() {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: virtualbox-7.x unavailable for $distro -abort" >&2
         exit 1
     fi
-    apt-get -y install "$vbox_pkg" || {
+    retry_cmd "install packages" apt-get -y install "$vbox_pkg" || {
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install VirtualBox -abort" >&2
         exit 1
     }
     dpkg --configure -a
-    apt-get -f -y install
+    retry_cmd "install packages" apt-get -f -y install
     # configure
     usermod -aG vboxusers $local_user
     # for host
@@ -195,7 +219,7 @@ vboxinstall() {
     systemctl restart vboxdrv
     # install Extension Pack
     export VBOX_VER=$(VBoxManage --version | awk 'END {print $1}' | cut -d 'r' -f 1)
-    if ! wget --timeout=30 -c "https://download.virtualbox.org/virtualbox/$VBOX_VER/Oracle_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack"; then
+    if ! retry_cmd "download VirtualBox extension" wget --tries=1 --timeout=30 -c "https://download.virtualbox.org/virtualbox/$VBOX_VER/Oracle_VirtualBox_Extension_Pack-$VBOX_VER.vbox-extpack"; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot download Extension Pack -abort" >&2
         return 1
     fi

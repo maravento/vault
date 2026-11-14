@@ -7,10 +7,10 @@
 # FILE: gpsetup.sh
 #
 # USAGE:
-# sudo bash gpsetup.sh
+# ACTION          COMMAND
+# (no arguments)  sudo bash gpsetup.sh
 #
 # LOG: gpsetup.log, in the directory containing this script
-#      (rewritten on each run)
 #
 ################################################################################
 
@@ -25,6 +25,285 @@ if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+print_interfaces() {
+    local i iface_state iface_addrs
+    echo "Available network interfaces:"
+    for i in "${!IFACES[@]}"; do
+        iface_state=$(ip -br link show "${IFACES[$i]}" | awk '{print $2}')
+        printf " [%d] %s (%s)\n" "$((i+1))" "${IFACES[$i]}" "$iface_state"
+        describe_lan_ipv4 "${IFACES[$i]}"
+    done
+}
+
+public_interface() {
+    local failure_message="cannot select the WAN interface"
+    local iface state
+    local -a IFACES=()
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            IFACES+=("$iface")
+        fi
+    done < <(list_wired_ifaces)
+    (( ${#IFACES[@]} > 0 )) || abort "no wired WAN interface with IPv4 -abort"
+    while true; do
+        failure_message="cannot display the network interfaces"
+        print_interfaces
+        failure_message="cannot read the WAN interface choice"
+        read -r -p "Select WAN Interface [1-${#IFACES[@]}]: " SEL || abort "cannot read interface selection -abort"
+        if [[ "$SEL" =~ $UH_UINT ]] \
+           && [ "${#SEL}" -le 5 ] \
+           && [ "$SEL" -ge 1 ] && [ "$SEL" -le "${#IFACES[@]}" ]; then
+            CANDIDATE="${IFACES[$((SEL-1))]}"
+            while true; do
+                failure_message="cannot read the WAN interface confirmation"
+                read -r -p "Confirm WAN (Internet) interface is '$CANDIDATE'? (y/n): " CONFIRM || abort "cannot read interface selection -abort"
+                case "$CONFIRM" in
+                    [Yy]) wan_iface="$CANDIDATE"; break 2 ;;
+                    [Nn]) break ;;
+                    *) info "Answer: YES (y) or NO (n)" ;;
+                esac
+            done
+        else
+            info "invalid interface selection -retry"
+        fi
+    done
+    info "WAN interface: $wan_iface"
+}
+
+local_interface() {
+    local failure_message="cannot select the LAN interface"
+    local iface state
+    local -a IFACES=()
+    while read -r iface state; do
+        [ "$state" = UP ] && [ "$iface" != "$wan_iface" ] || continue
+        IFACES+=("$iface")
+    done < <(list_wired_ifaces)
+    (( ${#IFACES[@]} > 0 )) || abort "no remaining wired LAN interface -abort"
+    while true; do
+        failure_message="cannot display the network interfaces"
+        print_interfaces
+        failure_message="cannot read the LAN interface choice"
+        read -r -p "Select LAN Interface [1-${#IFACES[@]}]: " SEL || abort "cannot read interface selection -abort"
+        if [[ "$SEL" =~ $UH_UINT ]] \
+           && [ "${#SEL}" -le 5 ] \
+           && [ "$SEL" -ge 1 ] && [ "$SEL" -le "${#IFACES[@]}" ]; then
+            CANDIDATE="${IFACES[$((SEL-1))]}"
+            if [ "$CANDIDATE" = "$wan_iface" ]; then
+                info "Interface already assigned to WAN; choose another"
+                continue
+            fi
+            while true; do
+                failure_message="cannot read the LAN interface choice"
+                read -r -p "Confirm LAN interface is '$CANDIDATE'? (y/n): " CONFIRM || abort "cannot read interface selection -abort"
+                case "$CONFIRM" in
+                    [Yy]) ETH1="$CANDIDATE"; break 2 ;;
+                    [Nn]) break ;;
+                    *) info "Answer: YES (y) or NO (n)" ;;
+                esac
+            done
+        else
+            info "invalid interface selection -retry"
+        fi
+    done
+    info "LAN interface: $ETH1"
+    export LAN_IF="$ETH1"
+}
+
+is_interfaces() {
+    local failure_message="cannot configure the network interfaces"
+    if ip link show eth0 &>/dev/null; then
+        info "Older NIC-Ethernet Format Detected"
+        info "Aborted installation. Check Minimum Requirements"
+        exit 1
+    elif ! check_wired_interfaces; then
+        exit 1
+    else
+        info "Check Net Interfaces: OK"
+        failure_message="cannot select the WAN interface"
+        public_interface
+        failure_message="cannot select the LAN interface"
+        local_interface
+    fi
+}
+
+check_static_lan() {
+    local static_result
+    static_result=$(python3 -I - "$1" "$2" <<'STATIC_LAN'
+import configparser
+import fnmatch
+import ipaddress
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+
+iface, address = sys.argv[1:]
+
+def run(*args):
+    return subprocess.check_output(
+        args, text=True, stderr=subprocess.DEVNULL, timeout=10,
+        env={**os.environ, 'LC_ALL': 'C', 'SYSTEMD_PAGER': 'cat'}).strip()
+
+def has_address(values):
+    return any(str(ipaddress.ip_interface(value.split(',')[0]).ip)
+               == address for value in values)
+
+def persistent_static():
+    data = json.loads(run('ip', '-j', '-4', 'addr', 'show', 'dev', iface))
+    selected = [entry for link in data for entry in link['addr_info']
+                if entry.get('local') == address]
+    if len(selected) != 1:
+        return 'unknown'
+    entry = selected[0]
+    if entry.get('dynamic') or 'dynamic' in entry.get('flags', []):
+        return 'dhcp'
+
+    nm_active = False
+    if shutil.which('nmcli'):
+        try:
+            uuid = run('nmcli', '-g', 'GENERAL.CON-UUID',
+                       'device', 'show', iface)
+            if uuid and uuid != '--':
+                nm_active = True
+                method = run('nmcli', '-g', 'ipv4.method',
+                             'connection', 'show', uuid)
+                addresses = run('nmcli', '-g', 'ipv4.addresses',
+                                'connection', 'show', uuid)
+                if method != 'manual' or not has_address(
+                        addresses.split(', ')):
+                    return 'unknown'
+                rows = run('nmcli', '-t', '--escape', 'no',
+                           '-f', 'UUID,FILENAME', 'connection', 'show')
+                netplan_profile = False
+                for row in rows.splitlines():
+                    key, _, filename = row.partition(':')
+                    if key != uuid:
+                        continue
+                    netplan_profile = (filename.startswith('/run/') and
+                                       '/netplan-' in filename)
+                    if not filename.startswith('/etc/'):
+                        continue
+                    config = configparser.ConfigParser(interpolation=None)
+                    config.read(filename)
+                    if config.get('ipv4', 'method') != 'manual':
+                        return 'unknown'
+                    values = [value for key, value in config['ipv4'].items()
+                              if re.fullmatch(r'address\d+', key)]
+                    if has_address(values):
+                        return 'static'
+                if not netplan_profile:
+                    return 'unknown'
+        except (OSError, ValueError, configparser.Error,
+                subprocess.SubprocessError):
+            if nm_active:
+                return 'unknown'
+
+    if not shutil.which('netplan'):
+        return 'unknown'
+    # Runtime Netplan overrides cannot prove persistent configuration.
+    if list(Path('/run/netplan').glob('*.yaml')):
+        return 'unknown'
+    if not nm_active:
+        status = run('networkctl', '--no-pager', 'status', iface)
+        if not re.search(r'Network File: .*netplan.*\.network', status):
+            return 'unknown'
+    import yaml
+    try:
+        network = yaml.safe_load(run('netplan', 'get')).get('network', {})
+    except yaml.YAMLError:
+        return 'unknown'
+    for kind in ('ethernets', 'wifis', 'bridges', 'bonds', 'vlans'):
+        for name, config in network.get(kind, {}).items():
+            match = config.get('match', {})
+            if match:
+                mac = data[0].get('permaddr', data[0].get('address', ''))
+                matches = not (set(match) - {'name', 'macaddress'})
+                if 'name' in match:
+                    matches &= fnmatch.fnmatchcase(iface, match['name'])
+                if 'macaddress' in match:
+                    matches &= mac.lower() == match['macaddress'].lower()
+                if config.get('set-name') == iface:
+                    matches = True
+            else:
+                matches = name == iface
+            if matches and has_address(config.get('addresses', [])):
+                return 'static'
+    return 'unknown'
+
+try:
+    print(persistent_static())
+except (OSError, ValueError, KeyError, TypeError, AttributeError,
+        ImportError, subprocess.SubprocessError):
+    print('unknown')
+STATIC_LAN
+    ) || static_result=unknown
+    if [ "${3:-}" = probe ]; then
+        printf '%s\n' "$static_result"
+        return 0
+    fi
+    case "$static_result" in
+        static) return 0 ;;
+        dhcp)
+            log "ERROR: [1/2] LAN $1: $2 uses DHCP"
+            log "ERROR: [2/2] configure a static LAN IPv4 -abort"
+            ;;
+        *)
+            log "ERROR: [1/2] LAN $1: $2"
+            log "ERROR: [2/2] cannot verify persistent static IPv4 -abort"
+            ;;
+    esac
+    exit 1
+}
+
+lan_ipv4_condition() {
+    case "$(check_static_lan "$1" "$2" probe)" in
+        static) printf 'static' ;;
+        dhcp) printf 'dynamic' ;;
+        *) printf 'unverified' ;;
+    esac
+}
+
+describe_lan_ipv4() {
+    local cidr
+    while read -r cidr; do
+        printf '      %s (%s)\n' "$cidr" \
+            "$(lan_ipv4_condition "$1" "${cidr%/*}")"
+    done < <(ip -4 -o addr show dev "$1" scope global | awk '{print $4}')
+}
+
+
+
+check_requirements() {
+    local network_command
+    for network_command in ip awk python3 netplan networkctl systemctl; do
+        command -v "$network_command" >/dev/null 2>&1 \
+            || abort "network command '$network_command' missing -abort"
+    done
+    check_wired_interfaces || exit 1
+    check_ipv4_interfaces
+    case "$(systemctl show -p LoadState --value systemd-networkd.service)" in
+        loaded|masked) ;;
+        *) abort "systemd-networkd unavailable -abort" ;;
+    esac
+    if systemctl is-active --quiet NetworkManager.service; then
+        command -v nmcli >/dev/null 2>&1 \
+            || abort "nmcli unavailable for network transition -abort"
+    fi
+    is_interfaces
+    ip -4 -o addr show dev "$LAN_IF" scope global \
+        | awk '$4 != "" {found=1} END {exit !found}' \
+        || abort "LAN has no global IPv4 -abort"
+    if ! check_internet; then
+        err "no internet connection -abort"
+        exit 1
+    fi
+}
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
@@ -68,7 +347,6 @@ scr_root=/etc/scr
 # validation -- one variable per thing validated; use directly with =~
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
-UH_DNS='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(,(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9]))*$'
 UH_UINT='^(0|[1-9][0-9]*)$'
 UH_PREFIX='0.0.0.0:0 128.0.0.0:1 192.0.0.0:2 224.0.0.0:3 240.0.0.0:4 248.0.0.0:5 252.0.0.0:6 254.0.0.0:7 255.0.0.0:8 255.128.0.0:9 255.192.0.0:10 255.224.0.0:11 255.240.0.0:12 255.248.0.0:13 255.252.0.0:14 255.254.0.0:15 255.255.0.0:16 255.255.128.0:17 255.255.192.0:18 255.255.224.0:19 255.255.240.0:20 255.255.248.0:21 255.255.252.0:22 255.255.254.0:23 255.255.255.0:24 255.255.255.128:25 255.255.255.192:26 255.255.255.224:27 255.255.255.240:28 255.255.255.248:29 255.255.255.252:30 255.255.255.254:31 255.255.255.255:32'
 
@@ -217,8 +495,8 @@ if result.returncode != 0 or result.stderr.strip():
 sys.stdout.write(result.stdout)
 PY
     ); then
-        err "cannot check ${proto^^} port $port"
-        err "fix the ss query before installing -abort"
+        err "[1/2] cannot check ${proto^^} port $port"
+        err "[2/2] fix the ss query before installing -abort"
         exit 1
     fi
     if [ -n "$port_listeners" ]; then
@@ -226,8 +504,8 @@ PY
             info "${proto^^} port $port in use; choose another -retry"
             return 1
         fi
-        err "${proto^^} port $port in use by another $role"
-        err "stop that service before installing -abort"
+        err "[1/2] ${proto^^} port $port in use by another $role"
+        err "[2/2] stop that service before installing -abort"
         exit 1
     fi
 }
@@ -251,24 +529,24 @@ get_acl() {
 }
 
 retry_cmd() {
-    local max_attempts=10
-    local attempt=1
-    until "$@"; do
-        if [ "$attempt" -ge "$max_attempts" ]; then
-            if [ -n "${download_url:-}" ]; then
-                log "PARTIAL: $download_url"
-            fi
-            report_failure
-            exit 1
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
         fi
-        info "$(basename "$1"): retry $((attempt + 1))/$max_attempts"
-        case "$1" in
-            apt|apt-get)
-                rm -f /var/cache/apt/archives/*.deb 2>/dev/null || true
-                ;;
-        esac
-        attempt=$((attempt + 1))
-        sleep 10
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
     done
 }
 
@@ -306,9 +584,13 @@ cron_d_set() {
 
 log "INFO: Checking for conflicting pre-installed packages..."
 failure_message="cannot check conflicting packages"
-check_conflicts "DHCP server" isc-dhcp-server kea-dhcp4-server udhcpd
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
+check_conflicts "DNS server" bind9 pdns-recursor unbound
 failure_message="cannot check conflicting packages"
-check_conflicts "DNS server"  bind9 pdns-recursor unbound
+check_conflicts "DHCP server" isc-dhcp-server kea-dhcp4-server udhcpd
 failure_message="cannot check conflicting packages"
 check_conflicts "proxy"       squid squid3 squid-openssl
 failure_message="cannot check conflicting packages"
@@ -442,8 +724,6 @@ check_ipv4_interfaces() {
     exit 1
 }
 
-check_wired_interfaces || exit 1
-check_ipv4_interfaces
 
 # check internet
 check_internet() {
@@ -464,10 +744,7 @@ check_internet() {
     return 1
 }
 
-if ! check_internet; then
-    err "no internet connection -abort"
-    exit 1
-fi
+check_requirements install
 
 # CHECK SO & DESKTOP
 # Check the operating system and desktop environment
@@ -475,7 +752,7 @@ log "INFO: Check System..."
 # lsb_release (lsb-release package) is used below but the DEPENDENCIES block
 # hasn't run yet at this point in the script -- ensure it exists here instead.
 failure_message="cannot install lsb-release"
-command -v lsb_release &>/dev/null || apt-get install -y lsb-release
+command -v lsb_release &>/dev/null || retry_cmd "install lsb-release" apt-get install -y lsb-release
 # Get the current desktop environment in lowercase
 failure_message="cannot read the desktop environment"
 DESKTOP_ENV=$(echo "${XDG_CURRENT_DESKTOP:-}" | tr '[:upper:]' '[:lower:]') || { failure_status=$?; report_failure; exit "$failure_status"; }
@@ -524,7 +801,7 @@ if [ -f "$file" ]; then
     if [[ $changed -eq 1 ]]; then
         log "INFO: Updating package list. Wait..."
         failure_message="cannot update APT package lists"
-        retry_cmd apt update > /dev/null 2>&1
+        retry_cmd "update package lists" apt update > /dev/null 2>&1 || { report_failure; exit 1; }
     else
         info "No changes made. No update needed"
     fi
@@ -553,7 +830,7 @@ mkdir -p "$scr_root" &>/dev/null
 # Install the base system packages
 log "INFO: Check Dependencies..."
 
-pkgs='curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 7zip rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3 iproute2 util-linux-extra iptables kmod procps grep findutils cron'
+pkgs='python3-yaml curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 7zip rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3 iproute2 util-linux-extra iptables kmod procps grep findutils cron'
 failure_message="cannot collect missing package names"
 missing=$(for p in $pkgs; do [[ "$(dpkg-query -W -f='${Status}' "$p" 2>/dev/null)" == *"ok installed"* ]] || echo "$p"; done)
 unavailable=""
@@ -595,9 +872,9 @@ if [ -n "$missing" ]; then
     failure_message="cannot configure pending DPKG packages"
     dpkg --configure -a
     failure_message="cannot update APT package lists"
-    apt-get -qq update
+    retry_cmd "update package lists" apt-get -qq update
     failure_message="cannot install packages with apt-get"
-    retry_cmd apt-get -y install $missing
+    retry_cmd "install packages" apt-get -y install $missing || { report_failure; exit 1; }
 fi
 
 # ------------------------------------------------------------------------------
@@ -608,7 +885,7 @@ fi
 failure_message="cannot purge conflicting time packages"
 apt purge -y ntp ntpdate ntpsec chrony &>/dev/null || true
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y --reinstall systemd-timesyncd &>/dev/null
+retry_cmd "install packages" apt install -y --reinstall systemd-timesyncd &>/dev/null || { report_failure; exit 1; }
 hwclock -w &>/dev/null || warn "cannot write system time to the RTC -alert"
 failure_message="cannot enable systemd-timesyncd"
 systemctl enable --now systemd-timesyncd &>/dev/null || warn "systemd-timesyncd failed to start -alert"
@@ -636,10 +913,10 @@ done
     apt-file() { LC_ALL=C command apt-file "$@" >>"$log_file" 2>&1; }
     log "INFO: Installing apt-file..."
     failure_message="cannot install apt-file"
-    retry_cmd apt -qq install -y apt-file
+    retry_cmd "install packages" apt -qq install -y apt-file || { report_failure; exit 1; }
     log "INFO: Updating apt-file package index..."
     failure_message="cannot update the apt-file package index"
-    retry_cmd apt-file update
+    retry_cmd "update package index" apt-file update || { report_failure; exit 1; }
 )
 apt -qq remove -y zsys &>/dev/null || true
 ubuntu-drivers autoinstall &>/dev/null || true
@@ -654,22 +931,21 @@ ifconfig lo 127.0.0.1
 cp /etc/apt/sources.list{,.bak} &>/dev/null || true
 
 # CLEAN | UPDATE | FIX
-echo ""
 upgrade() {
     local failure_message="cannot update system packages"
     log "INFO: Update and Clean. Wait..."
     failure_message="cannot update the package list"
-    retry_cmd apt update
+    retry_cmd "update package lists" apt update || { report_failure; exit 1; }
     failure_message="cannot upgrade system packages"
-    retry_cmd apt upgrade -y
+    retry_cmd "update packages" apt upgrade -y || { report_failure; exit 1; }
     failure_message="cannot remove unused packages"
-    retry_cmd apt autoremove --purge -y
+    retry_cmd "remove unused packages" apt autoremove --purge -y || { report_failure; exit 1; }
     failure_message="cannot upgrade system packages"
-    retry_cmd aptitude safe-upgrade -y
+    retry_cmd "update packages" aptitude safe-upgrade -y || { report_failure; exit 1; }
     failure_message="cannot configure pending DPKG packages"
     dpkg --configure -a
     failure_message="cannot install packages with apt"
-    retry_cmd apt install -f -y
+    retry_cmd "install packages" apt install -f -y || { report_failure; exit 1; }
     failure_message="cannot reload systemd configuration"
     systemctl daemon-reload
     failure_message="cannot write pending data to disk"
@@ -690,13 +966,13 @@ echo ""
 [ -d "$gp_path" ] && rm -rf "$gp_path"
 download_url="https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py"
 failure_message="cannot download $(basename "${download_url%%\?*}")"
-retry_cmd wget -qO gitfolder.py --timeout=15 --tries=1 "$download_url"
+retry_cmd "download gitfolder.py" wget -qO gitfolder.py --timeout=15 --tries=1 "$download_url" || { report_failure; exit 1; }
 log "SAVED: gitfolder.py"
 download_url=""
 failure_message="cannot set permissions on gitfolder.py"
 chmod +x gitfolder.py
 failure_message="cannot download the Gateproxy repository"
-retry_cmd python3 gitfolder.py https://github.com/maravento/vault/gateproxy
+retry_cmd "download project sources" python3 gitfolder.py https://github.com/maravento/vault/gateproxy || { report_failure; exit 1; }
 
 # IDENTITY
 # Writes this host name, user and home into the reference config files
@@ -711,117 +987,14 @@ find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_home:$loc
 
 # detect interfaces
 # print interface list
-print_interfaces() {
-    local i iface_state iface_addrs
-    echo "Available network interfaces:"
-    for i in "${!IFACES[@]}"; do
-        iface_state=$(ip -br link show "${IFACES[$i]}" | awk '{print $2}')
-        iface_addrs=$(ip -4 -o addr show dev "${IFACES[$i]}" scope global | awk '{print $4}' | paste -sd' ')
-        printf " [%d] %s (%s, %s)\n" "$((i+1))" "${IFACES[$i]}" "$iface_state" "${iface_addrs:-no IPv4}"
-    done
-}
 
 # public interface
-public_interface() {
-    local failure_message="cannot select the WAN interface"
-    local iface state
-    local -a IFACES=()
-    while read -r iface state; do
-        [ "$state" = UP ] || continue
-        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
-            | awk '$4 != "" {found=1} END {exit !found}'; then
-            IFACES+=("$iface")
-        fi
-    done < <(list_wired_ifaces)
-    (( ${#IFACES[@]} > 0 )) || abort "no wired WAN interface with IPv4 -abort"
-    while true; do
-        failure_message="cannot display the network interfaces"
-        print_interfaces
-        failure_message="cannot read the WAN interface choice"
-        read -r -p "Select WAN Interface [1-${#IFACES[@]}]: " SEL || abort "cannot read interface selection -abort"
-        if [[ "$SEL" =~ $UH_UINT ]] \
-           && [ "${#SEL}" -le 5 ] \
-           && [ "$SEL" -ge 1 ] && [ "$SEL" -le "${#IFACES[@]}" ]; then
-            CANDIDATE="${IFACES[$((SEL-1))]}"
-            while true; do
-                failure_message="cannot read the WAN interface confirmation"
-                read -r -p "Confirm WAN (Internet) interface is '$CANDIDATE'? (y/n): " CONFIRM || abort "cannot read interface selection -abort"
-                case "$CONFIRM" in
-                    [Yy]) wan_iface="$CANDIDATE"; break 2 ;;
-                    [Nn]) break ;;
-                    *) info "Answer: YES (y) or NO (n)" ;;
-                esac
-            done
-        else
-            info "invalid interface selection -retry"
-        fi
-    done
-    info "WAN interface: $wan_iface"
-    find "$gp_path/conf" "$gp_path/scr" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$wan_iface:g" "{}"
-}
 
 # local interface
-local_interface() {
-    local failure_message="cannot select the LAN interface"
-    local iface state
-    local -a IFACES=()
-    while read -r iface state; do
-        [ "$state" = UP ] && [ "$iface" != "$wan_iface" ] || continue
-        IFACES+=("$iface")
-    done < <(list_wired_ifaces)
-    (( ${#IFACES[@]} > 0 )) || abort "no remaining wired LAN interface -abort"
-    while true; do
-        failure_message="cannot display the network interfaces"
-        print_interfaces
-        failure_message="cannot read the LAN interface choice"
-        read -r -p "Select LAN Interface [1-${#IFACES[@]}]: " SEL || abort "cannot read interface selection -abort"
-        if [[ "$SEL" =~ $UH_UINT ]] \
-           && [ "${#SEL}" -le 5 ] \
-           && [ "$SEL" -ge 1 ] && [ "$SEL" -le "${#IFACES[@]}" ]; then
-            CANDIDATE="${IFACES[$((SEL-1))]}"
-            if [ "$CANDIDATE" = "$wan_iface" ]; then
-                info "Interface already assigned to WAN; choose another"
-                continue
-            fi
-            while true; do
-                failure_message="cannot read the LAN interface choice"
-                read -r -p "Confirm LAN interface is '$CANDIDATE'? (y/n): " CONFIRM || abort "cannot read interface selection -abort"
-                case "$CONFIRM" in
-                    [Yy]) ETH1="$CANDIDATE"; break 2 ;;
-                    [Nn]) break ;;
-                    *) info "Answer: YES (y) or NO (n)" ;;
-                esac
-            done
-        else
-            info "invalid interface selection -retry"
-        fi
-    done
-    info "LAN interface: $ETH1"
-    find "$gp_path/conf" "$gp_path/scr" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth1:$ETH1:g" "{}"
-    export LAN_IF="$ETH1"
-}
 
-is_interfaces() {
-    local failure_message="cannot configure the network interfaces"
-    if ip link show eth0 &>/dev/null; then
-        info "Older NIC-Ethernet Format Detected"
-        info "Aborted installation. Check Minimum Requirements"
-        failure_message="cannot remove the Gateproxy repository"
-        rm -rf "$gp_path" &>/dev/null
-        exit
-    elif ! check_wired_interfaces; then
-        exit 1
-    else
-        info "Check Net Interfaces: OK"
-        failure_message="cannot select the WAN interface"
-        public_interface
-        failure_message="cannot select the LAN interface"
-        local_interface
-    fi
-}
 
-failure_message="cannot configure the network interfaces"
-is_interfaces
+failure_message="cannot apply the selected interface names"
+find "$gp_path/conf" "$gp_path/scr" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$wan_iface:g; s:eth1:$LAN_IF:g" "{}"
 
 # START
 # Display the installation introduction and system requirements
@@ -971,10 +1144,8 @@ is_dns1() {
         info "Using default DNS1 $DNSNEW1"
         return 0
     fi
-    DNSNEW1=$(printf '%s' "$DNS1" | { [[ "$DNS1" =~ $UH_DNS ]] && cat || true; })
+    DNSNEW1=$(printf '%s' "$DNS1" | { [[ "$DNS1" =~ $UH_IPV4 ]] && cat || true; })
     if [ "$DNSNEW1" ]; then
-        failure_message="cannot edit Unbound forward.conf"
-        sed -i "s:1.1.1.2:$DNSNEW1:g" "$gp_path/conf/unbound/forward.conf"
         info "You have entered DNS1 $DNS1 :OK"
         return 0
     else
@@ -992,10 +1163,8 @@ is_dns2() {
         info "Using default DNS2 $DNSNEW2"
         return 0
     fi
-    DNSNEW2=$(printf '%s' "$DNS2" | { [[ "$DNS2" =~ $UH_DNS ]] && cat || true; })
+    DNSNEW2=$(printf '%s' "$DNS2" | { [[ "$DNS2" =~ $UH_IPV4 ]] && cat || true; })
     if [ "$DNSNEW2" ]; then
-        failure_message="cannot edit Unbound forward.conf"
-        sed -i "s:1.0.0.2:$DNSNEW2:g" "$gp_path/conf/unbound/forward.conf"
         info "You have entered DNS2 $DNS2 :OK"
         return 0
     else
@@ -1049,6 +1218,8 @@ apply_squid_ports() {
         -e "s:__GATEPROXY_SQUID_INTERCEPT_PORT__:$INTERCEPT_PORTNEW:g" "{}"
 }
 
+DNSNEW1=1.1.1.2
+DNSNEW2=1.0.0.2
 PORTNEW=3128
 INTERCEPT_PORTNEW=3129
 
@@ -1100,6 +1271,187 @@ info "Localnet: $SERV_SUBNET (from Server IP and Netmask)"
 if [ "$SERV_SUBNET" != "192.168.0.0" ]; then
     find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$SERV_SUBNET:g" "{}"
 fi
+
+
+apply_gateproxy_network() (
+    local network_file=/etc/netplan/00-networkd.yaml
+    local cloud_file=/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+    local file unit state attempt=0 ready=false committed=false
+    local network_written=false cloud_written=false cloud_existed=false
+    local services_changed=false
+    local nm_snapshot="" connection
+    local -a nm_connections=()
+    local -a original_files=() moved_files=()
+    local -a units=(NetworkManager.service systemd-networkd.service
+        NetworkManager-dispatcher.service NetworkManager-wait-online.service
+        systemd-networkd.socket systemd-networkd-wait-online.service)
+    local -A unit_enabled=() unit_active=()
+
+    network_error() {
+        err "$* -abort"
+        exit 1
+    }
+
+    restore_network_activity() {
+        local restore_unit restore_ok=0
+        for restore_unit in "${units[@]}"; do
+            [ "${unit_enabled[$restore_unit]}" != not-found ] || continue
+            if [ "${unit_active[$restore_unit]}" = true ]; then
+                systemctl start "$restore_unit" || restore_ok=1
+            else
+                systemctl stop "$restore_unit" || restore_ok=1
+            fi
+        done
+        return "$restore_ok"
+    }
+
+    restore_network() {
+        local restore_unit mode restore_ok=0
+        if "$network_written"; then
+            rm -f -- "$network_file" || restore_ok=1
+        fi
+        for file in "${moved_files[@]}"; do
+            mv -f -- "${file}.bak" "$file" || restore_ok=1
+        done
+        if "$cloud_written"; then
+            if "$cloud_existed"; then
+                cp -p -- "${cloud_file}.bak" "$cloud_file" || restore_ok=1
+            else
+                rm -f -- "$cloud_file" || restore_ok=1
+            fi
+        fi
+        if "$services_changed"; then
+            for restore_unit in NetworkManager.service systemd-networkd.service; do
+                [ "${unit_enabled[$restore_unit]}" != not-found ] || continue
+                systemctl unmask "$restore_unit" || restore_ok=1
+                systemctl unmask --runtime "$restore_unit" || restore_ok=1
+            done
+            restore_network_activity || restore_ok=1
+            netplan apply 2>&1 | tee -a "$log_file" || restore_ok=1
+            restore_network_activity || restore_ok=1
+            for connection in "${nm_connections[@]}"; do
+                nmcli connection up uuid "$connection" || restore_ok=1
+            done
+            # Restore main units first; their Also= units follow afterwards.
+            for restore_unit in "${units[@]}"; do
+                mode="${unit_enabled[$restore_unit]}"
+                case "$mode" in
+                    enabled) systemctl enable "$restore_unit" || restore_ok=1 ;;
+                    enabled-runtime)
+                        systemctl disable "$restore_unit" || restore_ok=1
+                        systemctl enable --runtime "$restore_unit" || restore_ok=1
+                        ;;
+                    disabled|indirect) systemctl disable "$restore_unit" || restore_ok=1 ;;
+                    masked) systemctl mask "$restore_unit" || restore_ok=1 ;;
+                    masked-runtime)
+                        systemctl mask --runtime "$restore_unit" || restore_ok=1
+                        ;;
+                esac
+            done
+        else
+            netplan generate 2>&1 | tee -a "$log_file" || restore_ok=1
+        fi
+        if [ "$restore_ok" -eq 0 ]; then
+            info "previous network configuration restored -fixed"
+        else
+            err "network restore failed; check Netplan/services -abort"
+        fi
+    }
+
+    [ ! -L "$network_file" ] && [ ! -L "$cloud_file" ] \
+        || network_error "network configuration is a symbolic link"
+    [ ! -e "$cloud_file" ] || [ -f "$cloud_file" ] \
+        || network_error "cloud network configuration is not a file"
+    for unit in "${units[@]}"; do
+        state=$(systemctl is-enabled "$unit" 2>/dev/null) || true
+        unit_enabled[$unit]="${state:-not-found}"
+        if systemctl is-active --quiet "$unit"; then
+            unit_active[$unit]=true
+        else
+            unit_active[$unit]=false
+        fi
+    done
+    if "${unit_active[NetworkManager.service]}"; then
+        nm_snapshot=$(nmcli -t -f UUID connection show --active) \
+            || network_error "cannot read NetworkManager connections"
+        if [ -n "$nm_snapshot" ]; then
+            mapfile -t nm_connections <<< "$nm_snapshot"
+        fi
+    fi
+    mapfile -d '' -t original_files < <(
+        find /etc/netplan -maxdepth 1 -type f -name '*.yaml' -print0)
+    trap 'if ! "$committed"; then restore_network; fi' EXIT
+    for file in "${original_files[@]}"; do
+        mv -f -- "$file" "${file}.bak" \
+            || network_error "cannot preserve $(basename "$file")"
+        moved_files+=("$file")
+    done
+    if [ -f "$cloud_file" ]; then
+        cp -p -- "$cloud_file" "${cloud_file}.bak" \
+            || network_error "cannot preserve cloud network configuration"
+        cloud_existed=true
+    fi
+    mkdir -p /etc/cloud/cloud.cfg.d \
+        || network_error "cannot prepare cloud network configuration"
+    cloud_written=true
+    echo 'network: {config: disabled}' > "$cloud_file" \
+        || network_error "cannot disable cloud network configuration"
+    network_written=true
+    install -m 600 -o root -g root \
+        "$gp_path/conf/netplan/00-networkd.yaml" "$network_file" \
+        || network_error "cannot write Netplan configuration"
+    netplan generate 2>&1 | tee -a "$log_file" || network_error "netplan generate failed"
+
+    services_changed=true
+    if [ "${unit_enabled[NetworkManager.service]}" != not-found ]; then
+        systemctl stop NetworkManager.service \
+            || network_error "cannot stop NetworkManager"
+        case "${unit_enabled[NetworkManager.service]}" in
+            masked|masked-runtime) ;;
+            *) systemctl disable NetworkManager.service \
+                || network_error "cannot disable NetworkManager" ;;
+        esac
+    fi
+    if systemctl is-active --quiet NetworkManager.service; then
+        network_error "NetworkManager is still active"
+    fi
+    systemctl unmask systemd-networkd.service \
+        || network_error "cannot unmask systemd-networkd"
+    systemctl unmask --runtime systemd-networkd.service \
+        || network_error "cannot unmask runtime systemd-networkd"
+    systemctl enable systemd-networkd.service \
+        || network_error "cannot enable systemd-networkd"
+    systemctl start systemd-networkd.service \
+        || network_error "cannot start systemd-networkd"
+    netplan apply 2>&1 | tee -a "$log_file" || network_error "netplan apply failed"
+
+    log "INFO: Waiting for $LAN_IF at $SERVER_IP..."
+    while [ "$attempt" -lt 30 ]; do
+        if ip -4 -o addr show dev "$LAN_IF" scope global \
+            | awk -v expected="$SERVER_IP/$MASKNEW2" \
+                '$4 == expected {found=1} END {exit !found}' \
+            && ip -4 -o addr show dev "$wan_iface" scope global \
+                | awk '$4 != "" {found=1} END {exit !found}'; then
+            ready=true
+            break
+        fi
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+    if ! "$ready"; then
+        err "[1/2] WAN $wan_iface; LAN $LAN_IF"
+        network_error "[2/2] IPv4 setup incomplete; check Netplan"
+    fi
+    validate_network_interfaces after
+    check_static_lan "$LAN_IF" "$SERVER_IP"
+    check_internet || network_error "no internet connection"
+    systemctl is-active --quiet systemd-networkd.service \
+        || network_error "systemd-networkd is not active"
+    if systemctl is-active --quiet NetworkManager.service; then
+        network_error "NetworkManager is still active"
+    fi
+    committed=true
+)
 
 validate_network_interfaces() {
     local phase="${1:-before}" iface state
@@ -1163,42 +1515,11 @@ validate_network_interfaces before
 # ------------------------------------------------------------------------------
 
 # NETPLAN
-# Apply the selected network interface configuration
+# Validate the configuration, switch renderer and verify the resulting network.
 log "INFO: Applying network configuration..."
-find /etc/netplan -maxdepth 1 -type f -name '*.yaml' -not -name '*.yaml.bak' -exec mv -- {} {}.bak \; 2>/dev/null
-failure_message="cannot create cloud.cfg.d"
-mkdir -p /etc/cloud/cloud.cfg.d
-failure_message="cannot write cloud network config"
-echo "network: {config: disabled}" > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
-failure_message="cannot copy 00-networkd.yaml to /etc/netplan"
-cp -f "$gp_path/conf/netplan/00-networkd.yaml" /etc/netplan/00-networkd.yaml
-failure_message="cannot set owner of 00-networkd.yaml"
-chown root:root /etc/netplan/00-networkd.yaml
-failure_message="cannot set permissions on 00-networkd.yaml"
-chmod 600 /etc/netplan/00-networkd.yaml
-if ! netplan generate 2>&1 | tee -a "$log_file"; then
-    err "netplan generate failed -abort"
+if ! apply_gateproxy_network; then
     exit 1
 fi
-if ! netplan apply 2>&1 | tee -a "$log_file"; then
-    err "netplan apply failed -abort"
-    exit 1
-fi
-
-log "INFO: Waiting for $LAN_IF at $SERVER_IP..."
-NETPLAN_WAIT=0
-NETPLAN_WAIT_LIMIT=30
-until ip -4 addr show "$LAN_IF" 2>/dev/null | grep -qF "inet $SERVER_IP/"; do
-    if [ "$NETPLAN_WAIT" -ge "$NETPLAN_WAIT_LIMIT" ]; then
-        err "$LAN_IF: expected IP $SERVER_IP"
-        err "$LAN_IF: expected IP not assigned -abort"
-        exit 1
-    fi
-    failure_message="cannot wait before the next attempt"
-    sleep 2
-    NETPLAN_WAIT=$((NETPLAN_WAIT + 1))
-done
-validate_network_interfaces after
 write_gateproxy_env
 info "Network OK: $LAN_IF has $SERVER_IP"
 
@@ -1230,111 +1551,111 @@ log "INFO: Essential Packages..."
 # DISK & STORAGE MANAGEMENT
 # Install disk and storage management packages
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y --no-install-recommends smartmontools
+retry_cmd "install packages" apt install -y --no-install-recommends smartmontools || { report_failure; exit 1; }
 
 # FILE SYSTEMS SUPPORT
 # Install file system support packages
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y nfs-common ntfs-3g xfsprogs jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools exfat-fuse
+retry_cmd "install packages" apt install -y nfs-common ntfs-3g xfsprogs jfsutils dosfstools e2fsprogs hfsprogs hfsutils hfsplus mtools nilfs-tools f2fs-tools exfat-fuse || { report_failure; exit 1; }
 
 # FUSE & VIRTUAL FILE SYSTEMS
 # Install FUSE and virtual file system packages
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y libfuse2t64 gvfs-fuse bindfs sshfs go-mtpfs
+retry_cmd "install packages" apt install -y libfuse2t64 gvfs-fuse bindfs sshfs go-mtpfs || { report_failure; exit 1; }
 
 # VOLUME & QUOTA MANAGEMENT
 # Install volume and quota management packages
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y lvm2 quota attr
+retry_cmd "install packages" apt install -y lvm2 quota attr || { report_failure; exit 1; }
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y udisks2 udisks2-btrfs udisks2-lvm2
+retry_cmd "install packages" apt install -y udisks2 udisks2-btrfs udisks2-lvm2 || { report_failure; exit 1; }
 
 # SYSTEM UTILITIES & MONITORING
 # Install system utilities and monitoring packages
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y trash-cli pm-utils btop htop lsof inotify-tools dmidecode pv tree moreutils preload debconf-utils mokutil util-linux linux-tools-common apparmor-utils
+retry_cmd "install packages" apt install -y trash-cli pm-utils btop htop lsof inotify-tools dmidecode pv tree moreutils preload debconf-utils mokutil util-linux linux-tools-common apparmor-utils || { report_failure; exit 1; }
 
 # PACKAGE MANAGEMENT TOOLS
 # Install package management tools
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y dpkg ppa-purge apt-utils
+retry_cmd "install packages" apt install -y dpkg ppa-purge apt-utils || { report_failure; exit 1; }
 
 # TEXT & FILE UTILITIES
 # Install text and file utilities
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y rename renameutils sharutils dos2unix colordiff ripgrep yamllint
+retry_cmd "install packages" apt install -y rename renameutils sharutils dos2unix colordiff ripgrep yamllint || { report_failure; exit 1; }
 
 # LOGGING & SYSTEM SERVICES
 # Install logging and system service packages
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y finger logrotate
+retry_cmd "install packages" apt install -y finger logrotate || { report_failure; exit 1; }
 
 # DRIVERS & KERNEL MODULES
 # Install driver and kernel module packages
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y linux-firmware linux-headers-$(uname -r) module-assistant
+retry_cmd "install packages" apt install -y linux-firmware linux-headers-$(uname -r) module-assistant || { report_failure; exit 1; }
 
 # DEVELOPMENT: COMPILERS & BUILD TOOLS
 # Install compilers and build tools
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y build-essential autoconf autoconf-archive autogen automake dh-autoreconf pkg-config
+retry_cmd "install packages" apt install -y build-essential autoconf autoconf-archive autogen automake dh-autoreconf pkg-config || { report_failure; exit 1; }
 
 # DEVELOPMENT: LIBRARIES & HEADERS
 # Install development libraries and headers
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y uuid-dev libmnl-dev libssl-dev libffi-dev libpam0g-dev libpcap-dev libasound2-dev libglib2.0-dev libudisks2-dev liblvm2-dev python3-dev
+retry_cmd "install packages" apt install -y uuid-dev libmnl-dev libssl-dev libffi-dev libpam0g-dev libpcap-dev libasound2-dev libglib2.0-dev libudisks2-dev liblvm2-dev python3-dev || { report_failure; exit 1; }
 
 # PROGRAMMING: PYTHON
 # Install Python runtime and development packages
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y python3-pip python3-venv python3-psutil
+retry_cmd "install packages" apt install -y python3-pip python3-venv python3-psutil || { report_failure; exit 1; }
 
 # PROGRAMMING: RUBY
 # Install Ruby runtime packages
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y rubygems-integration rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit
+retry_cmd "install packages" apt install -y rubygems-integration rake ruby ruby-did-you-mean ruby-json ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit || { report_failure; exit 1; }
 
 # PROGRAMMING: JAVASCRIPT & WEB
 # Install JavaScript and web development packages
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y javascript-common libjs-jquery xsltproc
+retry_cmd "install packages" apt install -y javascript-common libjs-jquery xsltproc || { report_failure; exit 1; }
 
 # NETWORK DEPENDENCIES
 # Install network utilities used by the server
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y bind9-dnsutils conntrack i2c-tools wsdd ipset arptables ebtables
+retry_cmd "install packages" apt install -y bind9-dnsutils conntrack i2c-tools wsdd ipset arptables ebtables || { report_failure; exit 1; }
 
 # GEOLOCATION DATABASES
 # Install the geolocation databases
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y geoip-database
+retry_cmd "install packages" apt install -y geoip-database || { report_failure; exit 1; }
 
 # GRAPHICS & DISPLAY
 # if there any problems, install the package: libegl-mesa0
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y libfontconfig1
+retry_cmd "install packages" apt install -y libfontconfig1 || { report_failure; exit 1; }
 
 # RUNTIME LIBRARIES
 # Install the required runtime libraries
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y libuser gir1.2-gtop-2.0
+retry_cmd "install packages" apt install -y libuser gir1.2-gtop-2.0 || { report_failure; exit 1; }
 
 # MAIL
 # Stop the existing mail service before configuring mail packages
 service sendmail stop &>/dev/null || true
 update-rc.d -f sendmail remove &>/dev/null || true
 failure_message="cannot install packages with apt"
-DEBIAN_FRONTEND=noninteractive retry_cmd apt install -y postfix
+DEBIAN_FRONTEND=noninteractive retry_cmd "install packages" apt install -y postfix || { report_failure; exit 1; }
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y mailutils
+retry_cmd "install packages" apt install -y mailutils || { report_failure; exit 1; }
 
 # FONTS
 # Install the server font packages
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y fonts-lato fonts-liberation fonts-dejavu
+retry_cmd "install packages" apt install -y fonts-lato fonts-liberation fonts-dejavu || { report_failure; exit 1; }
 echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y ttf-mscorefonts-installer fontconfig
+retry_cmd "install packages" apt install -y ttf-mscorefonts-installer fontconfig || { report_failure; exit 1; }
 failure_message="cannot update the font cache"
 fc-cache -f
 
@@ -1389,25 +1710,9 @@ acl_prepare "$acl_root" 700 600 "$acl_mac_path/mac-limited.txt" \
 acl_prepare "$acl_squid_path" 755 644 "$acl_squid_path"/*.txt
 shopt -u nullglob
 
-# DNS
-# Install and configure the DNS resolver
-failure_message="cannot install packages with apt"
-retry_cmd apt install -y unbound
-failure_message="cannot copy Unbound forward.conf"
-cp -f "$gp_path/conf/unbound/forward.conf" /etc/unbound/unbound.conf.d/forward.conf
-failure_message="cannot write Unbound daemon settings"
-tee /etc/default/unbound >/dev/null <<'EOF'
-DAEMON_OPTS=""
-EOF
-unbound-checkconf || warn "unbound config check failed -alert"
-failure_message="cannot reload systemd configuration"
-systemctl daemon-reload
-failure_message="cannot enable unbound"
-systemctl enable --now unbound
-
 # PHP
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y php libapache2-mod-php php-cli php-curl php-sqlite3
+retry_cmd "install packages" apt install -y php libapache2-mod-php php-cli php-curl php-sqlite3 || { report_failure; exit 1; }
 
 # Detect PHP version
 if command -v php &>/dev/null; then
@@ -1461,14 +1766,14 @@ sed -i \
 # HTTP SERVER SECTION
 # apache2
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y apache2 apache2-doc apache2-utils apache2-dev \
+retry_cmd "install packages" apt install -y apache2 apache2-doc apache2-utils apache2-dev \
                 apache2-suexec-pristine libaprutil1t64 libaprutil1-dev \
-                libtest-fatal-perl
+                libtest-fatal-perl || { report_failure; exit 1; }
 failure_message="cannot enable apache2.service"
 systemctl enable apache2.service
 #apt install -y libapache2-mod-dnssd
 failure_message="cannot install packages with apt"
-retry_cmd apt -qq install -y --reinstall apache2-doc
+retry_cmd "install packages" apt -qq install -y --reinstall apache2-doc || { report_failure; exit 1; }
 failure_message="cannot update system packages"
 upgrade
 cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null || true
@@ -1503,7 +1808,7 @@ failure_message="cannot remove squid.pid"
 rm -f /run/squid.pid &>/dev/null
 #DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends squid-openssl
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y squid-openssl squid-langpack squid-common
+retry_cmd "install packages" apt install -y squid-openssl squid-langpack squid-common || { report_failure; exit 1; }
 failure_message="cannot update system packages"
 upgrade
 failure_message="cannot create Squid log files"
@@ -1563,7 +1868,7 @@ fi
 # https://www.maravento.com/2019/06/instalar-modulo-webmin-por-linea-de.html
 download_url="https://raw.githubusercontent.com/webmin/webmin/master/setup-repos.sh"
 failure_message="cannot download $(basename "${download_url%%\?*}")"
-retry_cmd curl -o setup-repos.sh "$download_url"
+retry_cmd "download setup-repos.sh" curl -o setup-repos.sh "$download_url" || { report_failure; exit 1; }
 log "SAVED: setup-repos.sh"
 download_url=""
 failure_message="cannot set permissions on setup-repos.sh"
@@ -1572,7 +1877,7 @@ echo "y" | ./setup-repos.sh
 failure_message="cannot update system packages"
 upgrade
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y webmin
+retry_cmd "install packages" apt install -y webmin || { report_failure; exit 1; }
 failure_message="cannot update system packages"
 upgrade
 systemctl enable webmin.service 2>/dev/null || true
@@ -1588,7 +1893,7 @@ find "$acl_mac_path" -maxdepth 1 -type f | tee /etc/webmin/text-editor/files &>/
 # List of modules to install
 for module in servicemon netplanmgr; do
     log "INFO: Installing $module module..."
-    if wget -q -O "$gp_path/${module}.sh" --timeout=15 --tries=1 "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/${module}.sh"; then
+    if retry_cmd "download helper script" wget -q -O "$gp_path/${module}.sh" --timeout=15 --tries=1 "https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/${module}.sh"; then
         log "SAVED: ${module}.sh"
         failure_message="cannot set permissions on ${module}.sh"
         chmod +x "$gp_path/${module}.sh"
@@ -1602,8 +1907,8 @@ done
 
 # Proxy Monitor
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y rsync nbtscan libcgi-session-perl libgd-perl sarg
-if (cd "$gp_path" && git clone https://github.com/maravento/proxymon); then
+retry_cmd "install packages" apt install -y rsync nbtscan libcgi-session-perl libgd-perl sarg || { report_failure; exit 1; }
+if (cd "$gp_path" && retry_cmd "clone project sources" git clone https://github.com/maravento/proxymon); then
     if cd "$gp_path/proxymon"; then
         if [ -f pmsetup.sh ]; then
             failure_message="cannot set permissions on pmsetup.sh"
@@ -1630,7 +1935,7 @@ fi
 # pydhcp
 log "INFO: Installing pydhcp..."
 
-if (cd "$gp_path" && git clone https://github.com/maravento/pydhcp); then
+if (cd "$gp_path" && retry_cmd "clone project sources" git clone https://github.com/maravento/pydhcp); then
     pydhcp_path="$gp_path/pydhcp"
 
     if [ -d "$pydhcp_path" ]; then
@@ -1644,8 +1949,12 @@ expect "Enter pool start"
 send "\r"
 expect "Enter pool end"
 send "\r"
-expect "Enter DNS server"
-send "$SERVER_IP\r"
+expect "Enter DNS1"
+send "$DNSNEW1\r"
+expect "Enter DNS2"
+send "$DNSNEW2\r"
+expect "Enter local domain"
+send "\r"
 expect "DHCP pool lease cleanup interval"
 send "\r"
 expect "Deploy WPAD/PAC"
@@ -1678,7 +1987,7 @@ fi
 failure_message="cannot set owner of /var/log"
 chown root:root /var/log
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y ulogd2
+retry_cmd "install packages" apt install -y ulogd2 || { report_failure; exit 1; }
 failure_message="cannot create ulog"
 mkdir -p /var/log/ulog &>/dev/null
 failure_message="cannot create syslogemu.log"
@@ -1689,20 +1998,20 @@ info "Ulog Access: /var/log/ulog/syslogemu.log"
 # rsyslog
 # in case fails: apt install -y libfastjson4
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y rsyslog
+retry_cmd "install packages" apt install -y rsyslog || { report_failure; exit 1; }
 failure_message="cannot enable rsyslog.service"
 systemctl enable rsyslog.service
 
 # BACKUP SECTION
 # Timeshift
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y timeshift
+retry_cmd "install packages" apt install -y timeshift || { report_failure; exit 1; }
 # FreeFileSync
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y libatk-adaptor libgail-common
+retry_cmd "install packages" apt install -y libatk-adaptor libgail-common || { report_failure; exit 1; }
 download_url="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/ffsupdate.sh"
 failure_message="cannot download $(basename "${download_url%%\?*}")"
-retry_cmd wget -O "$gp_path/scr/ffsupdate.sh" --timeout=15 --tries=1 "$download_url"
+retry_cmd "download ffsupdate.sh" wget -O "$gp_path/scr/ffsupdate.sh" --timeout=15 --tries=1 "$download_url" || { report_failure; exit 1; }
 log "SAVED: ffsupdate.sh"
 download_url=""
 failure_message="cannot set permissions on ffsupdate.sh"
@@ -1719,39 +2028,39 @@ failure_message="cannot install packages with apt"
 (
     apt() { LC_ALL=C command apt "$@" >>"$log_file" 2>&1; }
     log "INFO: Installing iw..."
-    retry_cmd apt install -y iw
+    retry_cmd "install packages" apt install -y iw || { report_failure; exit 1; }
 )
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y fping              # Net diagnostics: fping -a -g 192.168.0.0/24
+retry_cmd "install packages" apt install -y fping || { report_failure; exit 1; }              # Net diagnostics: fping -a -g 192.168.0.0/24
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y ethtool            # Net config: ethtool eth0
+retry_cmd "install packages" apt install -y ethtool || { report_failure; exit 1; }            # Net config: ethtool eth0
 # Net test: On server: iperf3 -s | On client: iperf3 -c SERVER_IP
 failure_message="cannot install packages with apt"
-DEBIAN_FRONTEND=noninteractive retry_cmd apt install -y iperf3  2>/dev/null
+DEBIAN_FRONTEND=noninteractive retry_cmd "install packages" apt install -y iperf3  2>/dev/null || { report_failure; exit 1; }
 # Net Scanning (Replace NIC and IP/CIDR)
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y masscan            # masscan --ports 0-65535 192.168.0.0/16
+retry_cmd "install packages" apt install -y masscan || { report_failure; exit 1; }            # masscan --ports 0-65535 192.168.0.0/16
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y nast               # nast -m
+retry_cmd "install packages" apt install -y nast || { report_failure; exit 1; }               # nast -m
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y arp-scan           # arp-scan --localnet
+retry_cmd "install packages" apt install -y arp-scan || { report_failure; exit 1; }           # arp-scan --localnet
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y arping             # arping -I eth0 192.168.0.10
+retry_cmd "install packages" apt install -y arping || { report_failure; exit 1; }             # arping -I eth0 192.168.0.10
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y netdiscover        # netdiscover
+retry_cmd "install packages" apt install -y netdiscover || { report_failure; exit 1; }        # netdiscover
 # Nmap
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y nmap python3-nmap ndiff
+retry_cmd "install packages" apt install -y nmap python3-nmap ndiff || { report_failure; exit 1; }
 # Domain/IP Scanning
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y traceroute         # traceroute google.com
+retry_cmd "install packages" apt install -y traceroute || { report_failure; exit 1; }         # traceroute google.com
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y mtr-tiny           # mtr google.com
+retry_cmd "install packages" apt install -y mtr-tiny || { report_failure; exit 1; }           # mtr google.com
 
 # SECURITY SECTION
 # fail2ban
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y fail2ban
+retry_cmd "install packages" apt install -y fail2ban || { report_failure; exit 1; }
 failure_message="cannot copy jail.local"
 cp "$gp_path/conf/fail2ban/jail.local" /etc/fail2ban/jail.local
 failure_message="cannot edit fail2ban.conf"
@@ -1763,7 +2072,7 @@ info "Unban all: sudo fail2ban-client unban --all"
 info "Unban: fail2ban-client set <jail> unban --all"
 # ttyd (web terminal)
 failure_message="cannot install packages with apt"
-retry_cmd apt install -y ttyd
+retry_cmd "install packages" apt install -y ttyd || { report_failure; exit 1; }
 failure_message="cannot copy ttyd.service"
 cp -f "$gp_path/conf/ttyd/ttyd.service" /etc/systemd/system/ttyd.service
 failure_message="cannot reload systemd configuration"
@@ -1781,7 +2090,7 @@ suridata_path="$(dirname "$gp_path")/suridata"
 failure_message="cannot enter the Gateproxy parent directory"
 cd "$(dirname "$gp_path")"
 failure_message="cannot download the Suridata repository"
-if retry_cmd python3 gitfolder.py https://github.com/maravento/vault/suridata; then
+if retry_cmd "download project sources" python3 gitfolder.py https://github.com/maravento/vault/suridata; then
     if [ -f "$suridata_path/surisetup.sh" ]; then
         failure_message="cannot set permissions on surisetup.sh"
         chmod +x "$suridata_path/surisetup.sh"
@@ -1815,18 +2124,18 @@ gsmartcontrol, cpu-x, synaptic, gdebi, gtkhash, wmctrl, fsearch  (y/n)" answer
         info "Optional GTK Pack: YES"
         # gtk
         failure_message="cannot install packages with apt"
-        retry_cmd apt install -y --no-install-recommends gsmartcontrol
+        retry_cmd "install packages" apt install -y --no-install-recommends gsmartcontrol || { report_failure; exit 1; }
         failure_message="cannot install packages with apt"
-        retry_cmd apt install -y gparted gnome-disk-utility qdirstat baobab cpu-x synaptic gdebi gtkhash wmctrl mesa-utils
+        retry_cmd "install packages" apt install -y gparted gnome-disk-utility qdirstat baobab cpu-x synaptic gdebi gtkhash wmctrl mesa-utils || { report_failure; exit 1; }
         # lynis
         failure_message="cannot install packages with apt"
-        retry_cmd apt install -y lynis
+        retry_cmd "install packages" apt install -y lynis || { report_failure; exit 1; }
         info "Lynis Run: lynis -c -Q and log: /var/log/lynis.log"
         # fsearch
         add-apt-repository -y ppa:christian-boxdoerfer/fsearch-stable || true
         failure_message="cannot update system packages"
         upgrade
-        apt install -y fsearch || true
+        retry_cmd "install packages" apt install -y fsearch || true
         break
         ;;
     [Nn]*|"")
@@ -1855,7 +2164,7 @@ with SHARED folder, Recycle Bin and Audit (y/n)" answer
     case "$answer" in
     [Yy]*)
         info "Samba (smbstack): YES"
-        if (cd "$gp_path" && git clone https://github.com/maravento/smbstack); then
+        if (cd "$gp_path" && retry_cmd "clone project sources" git clone https://github.com/maravento/smbstack); then
             smbstack_path="$gp_path/smbstack"
 
             if [ -d "$smbstack_path" ]; then
@@ -1919,7 +2228,7 @@ Do you want to install UniFi Host Manager (UHM)? (y/n) " answer
         case "$answer" in
         [Yy]*)
             info "UniFi Host Manager (UHM): YES"
-            if (cd "$gp_path" && git clone https://github.com/maravento/uhm); then
+            if (cd "$gp_path" && retry_cmd "clone project sources" git clone https://github.com/maravento/uhm); then
                 uhm_path="$gp_path/uhm"
 
                 if [ -d "$uhm_path" ]; then
@@ -1967,7 +2276,7 @@ upgrade
 # ACLs ###
 echo ""
 # Allow IP
-get_acl https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt "$acl_squid_path/allowip.txt" || true
+retry_cmd "download allowip.txt" get_acl https://raw.githubusercontent.com/maravento/blackip/master/bipupdate/lst/allowip.txt "$acl_squid_path/allowip.txt" || true
 if [ -f "$acl_squid_path/allowip.txt" ]; then
     acl_fix_perms "$acl_squid_path/allowip.txt" 644
 fi
@@ -1976,7 +2285,7 @@ if [ ! -s "$acl_squid_path/allowip.txt" ]; then
 fi
 
 # Block TLDs
-get_acl https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt "$acl_squid_path/blocktlds.txt" || true
+retry_cmd "download blocktlds.txt" get_acl https://raw.githubusercontent.com/maravento/blackweb/master/bwupdate/lst/blocktlds.txt "$acl_squid_path/blocktlds.txt" || true
 if [ -f "$acl_squid_path/blocktlds.txt" ]; then
     acl_fix_perms "$acl_squid_path/blocktlds.txt" 644
 fi
@@ -1987,7 +2296,7 @@ if [ ! -s "$acl_squid_path/blocktlds.txt" ]; then
 fi
 
 # Ransomware Extensions (Squid, optional)
-get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/rw/rwext.txt "$acl_squid_path/rwext.txt" || true
+retry_cmd "download rwext.txt" get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/rw/rwext.txt "$acl_squid_path/rwext.txt" || true
 if [ -f "$acl_squid_path/rwext.txt" ]; then
     acl_fix_perms "$acl_squid_path/rwext.txt" 644
 fi
@@ -1996,7 +2305,7 @@ if [ ! -s "$acl_squid_path/rwext.txt" ]; then
 fi
 
 # Bad User-Agents (Squid, optional)
-get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/ua/blockua.txt "$acl_squid_path/blockua.txt" || true
+retry_cmd "download blockua.txt" get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/ua/blockua.txt "$acl_squid_path/blockua.txt" || true
 if [ -f "$acl_squid_path/blockua.txt" ]; then
     acl_fix_perms "$acl_squid_path/blockua.txt" 644
 fi
@@ -2005,14 +2314,14 @@ if [ ! -s "$acl_squid_path/blockua.txt" ]; then
 fi
 
 # Web3 Domains/TLDs (Squid, optional)
-get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3domains.txt "$acl_squid_path/web3domains.txt" || true
+retry_cmd "download web3domains.txt" get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3domains.txt "$acl_squid_path/web3domains.txt" || true
 if [ -f "$acl_squid_path/web3domains.txt" ]; then
     acl_fix_perms "$acl_squid_path/web3domains.txt" 644
 fi
 if [ ! -s "$acl_squid_path/web3domains.txt" ]; then
     warn "web3domains.txt is empty -alert"
 fi
-get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3tld.txt "$acl_squid_path/web3tld.txt" || true
+retry_cmd "download web3tld.txt" get_acl https://raw.githubusercontent.com/maravento/blackweb/master/fpack/web3/web3tld.txt "$acl_squid_path/web3tld.txt" || true
 if [ -f "$acl_squid_path/web3tld.txt" ]; then
     acl_fix_perms "$acl_squid_path/web3tld.txt" 644
 fi
@@ -2021,7 +2330,7 @@ if [ ! -s "$acl_squid_path/web3tld.txt" ]; then
 fi
 
 # Blackweb
-if (cd "$gp_path" && get_acl https://raw.githubusercontent.com/maravento/blackweb/master/blackweb.tar.gz blackweb.tar.gz && [ -f blackweb.tar.gz ]); then
+if (cd "$gp_path" && retry_cmd "download blackweb archive" get_acl https://raw.githubusercontent.com/maravento/blackweb/master/blackweb.tar.gz blackweb.tar.gz && [ -f blackweb.tar.gz ]); then
     (cd "$gp_path" && cat blackweb.tar.gz* | tar xzf -)
     failure_message="cannot copy blackweb.txt"
     cp "$gp_path/blackweb.txt" "$acl_squid_path/blackweb.txt"
@@ -2066,7 +2375,7 @@ for url in "${scripts[@]}"; do
     failure_message="cannot read the downloaded filename"
     fname=$(basename "$url") || { failure_status=$?; report_failure; exit "$failure_status"; }
 
-    if wget -q -O "$gp_path/scr/$fname" --timeout=15 --tries=1 "$url"; then
+    if retry_cmd "download helper script" wget -q -O "$gp_path/scr/$fname" --timeout=15 --tries=1 "$url"; then
         log "SAVED: $fname"
     else
         log "PARTIAL: $url"
@@ -2268,12 +2577,12 @@ if command -v snap >/dev/null 2>&1; then
     snap unset system proxy.http || true
     snap unset system proxy.https || true
     failure_message="cannot refresh snap packages"
-    retry_cmd snap refresh snapd
+    retry_cmd "refresh snap packages" snap refresh snapd || { report_failure; exit 1; }
     failure_message="cannot reload systemd configuration"
     systemctl daemon-reload
     systemctl restart snapd || true
     failure_message="cannot refresh snap packages"
-    retry_cmd snap refresh
+    retry_cmd "refresh snap packages" snap refresh || { report_failure; exit 1; }
 fi
 # logs
 failure_message="cannot set permissions on /var/log"

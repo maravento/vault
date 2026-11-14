@@ -9,7 +9,10 @@
 # DESCRIPTION: Interactively cuts off a target host's TCP connections on a
 # chosen network interface for a fixed time window. Run as root.
 #
-# USAGE: sudo ./ipkill.sh
+# USAGE:
+# ACTION              COMMAND
+# Run (no arguments)  sudo bash ipkill.sh
+#
 # Asks for the target host and the network interface.
 #
 # LOG: system log (via logger, tag ipkill)

@@ -9,7 +9,14 @@
 # DESCRIPTION: Drives one VirtualBox machine headless through VBoxManage, as
 # the detected local user. Asks for the VM name or UUID at the prompt.
 #
-# USAGE: /path_to/vm.sh {--start|--stop|--shutdown|--reset|--status}
+# USAGE:
+# ACTION       COMMAND
+# Start        sudo bash vm.sh --start
+# Stop         sudo bash vm.sh --stop
+# Shut down    sudo bash vm.sh --shutdown
+# Run          sudo bash vm.sh --reset
+# Show status  sudo bash vm.sh --status
+#
 # Add user to vboxusers: usermod -a -G vboxusers $USER
 #
 ################################################################################
