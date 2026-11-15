@@ -12,13 +12,13 @@
 # ~/.cloudflared/.
 #
 # USAGE:
-# ACTION             COMMAND
-# Create tunnel      bash cftunnel.sh --create
-# Start              bash cftunnel.sh --start
-# Start all tunnels  bash cftunnel.sh --startall
-# Stop               bash cftunnel.sh --stop
-# Show status        bash cftunnel.sh --status
-# Delete tunnel      bash cftunnel.sh --delete
+# COMMAND                      ACTION
+# bash cftunnel.sh --create    Create tunnel
+# bash cftunnel.sh --start     Start
+# bash cftunnel.sh --startall  Start all tunnels
+# bash cftunnel.sh --stop      Stop
+# bash cftunnel.sh --status    Show status
+# bash cftunnel.sh --delete    Delete tunnel
 #
 # LOG: ~/.cloudflared/preflight.log, cleared at startup
 #

@@ -10,8 +10,8 @@
 # disables it to stop the associated kworker CPU spike. Run as root.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash kworker.sh
+# COMMAND               ACTION
+# sudo bash kworker.sh  Run (no arguments)
 #
 # LOG: system logger (destination set by system configuration)
 ################################################################################

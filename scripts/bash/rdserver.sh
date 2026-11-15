@@ -11,8 +11,8 @@
 # the public relay address, so a client needs one entry plus the public key.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash rdserver.sh
+# COMMAND                ACTION
+# sudo bash rdserver.sh  Run (no arguments)
 #
 # Ports: hbbs, the ID and rendezvous server, listens on 21115/tcp and
 #        21116/tcp+udp. hbbr, the relay server, listens on 21117/tcp,

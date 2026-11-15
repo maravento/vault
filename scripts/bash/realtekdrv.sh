@@ -11,8 +11,8 @@
 # The proprietary ones can perform better, but need maintenance out of tree.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash realtekdrv.sh
+# COMMAND                  ACTION
+# sudo bash realtekdrv.sh  Run (no arguments)
 #
 ################################################################################
 

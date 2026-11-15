@@ -10,8 +10,8 @@
 # chosen network interface for a fixed time window. Run as root.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash ipkill.sh
+# COMMAND              ACTION
+# sudo bash ipkill.sh  Run (no arguments)
 #
 # Asks for the target host and the network interface.
 #

@@ -11,11 +11,11 @@
 # Waits for DHCP on the bridge, and restores the original connection on off.
 #
 # USAGE:
-# ACTION                      COMMAND
-# Enable bridge               sudo bash bridge.sh --on
-# Disable bridge              sudo bash bridge.sh --off
-# Show status                 sudo bash bridge.sh --status
-# Clean bridge configuration  sudo bash bridge.sh --clean
+# COMMAND                       ACTION
+# sudo bash bridge.sh --on      Enable bridge
+# sudo bash bridge.sh --off     Disable bridge
+# sudo bash bridge.sh --status  Show status
+# sudo bash bridge.sh --clean   Clean bridge configuration
 #
 ################################################################################
 

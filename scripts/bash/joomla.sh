@@ -11,8 +11,8 @@
 # whole stack. Run as root.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash joomla.sh
+# COMMAND              ACTION
+# sudo bash joomla.sh  Run (no arguments)
 #
 # Included: Apache/MySQL/PHP/mkcert
 #

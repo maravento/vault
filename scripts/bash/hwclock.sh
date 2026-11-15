@@ -10,8 +10,8 @@
 # intended to run at boot via cron (@reboot).
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash hwclock.sh
+# COMMAND               ACTION
+# sudo bash hwclock.sh  Run (no arguments)
 #
 # LOG: system logger (destination set by system configuration)
 ################################################################################

@@ -10,8 +10,8 @@
 # key pair and the interface configuration. Also uninstalls it.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash wireguard.sh
+# COMMAND                 ACTION
+# sudo bash wireguard.sh  Run (no arguments)
 #
 ################################################################################
 

@@ -10,8 +10,8 @@
 # Verifies an MD5 checksum as a normal desktop user.
 #
 # USAGE:
-# ACTION                  COMMAND
-# Process selected files  bash checkmd5 [file]
+# COMMAND               ACTION
+# bash checkmd5 [file]  Process selected files
 #
 ################################################################################
 

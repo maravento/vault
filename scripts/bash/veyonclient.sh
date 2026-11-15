@@ -13,8 +13,8 @@
 # deployed on the remote side.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  bash veyonclient.sh
+# COMMAND              ACTION
+# bash veyonclient.sh  Run (no arguments)
 #
 ################################################################################
 

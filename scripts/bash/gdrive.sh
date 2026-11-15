@@ -10,9 +10,9 @@
 # auto-detecting the local sudo user. Not run as root.
 #
 # USAGE:
-# ACTION  COMMAND
-# Start   bash gdrive.sh --start
-# Stop    bash gdrive.sh --stop
+# COMMAND                 ACTION
+# bash gdrive.sh --start  Start
+# bash gdrive.sh --stop   Stop
 #
 ################################################################################
 

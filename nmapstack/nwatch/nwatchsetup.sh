@@ -7,12 +7,12 @@
 # FILE: nwatch/nwatchsetup.sh
 #
 # USAGE:
-# ACTION            COMMAND
-# Install           sudo bash nwatchsetup.sh --install
-# Update            sudo bash nwatchsetup.sh --update
-# Uninstall         sudo bash nwatchsetup.sh --uninstall
-# Show status       sudo bash nwatchsetup.sh --status
-# Interactive menu  sudo bash nwatchsetup.sh
+# COMMAND                               ACTION
+# sudo bash nwatchsetup.sh --install    Install
+# sudo bash nwatchsetup.sh --update     Update
+# sudo bash nwatchsetup.sh --uninstall  Uninstall
+# sudo bash nwatchsetup.sh --status     Show status
+# sudo bash nwatchsetup.sh              Interactive menu
 #
 # LOG: nwatchsetup.log, next to this script
 #

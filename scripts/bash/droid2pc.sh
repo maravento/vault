@@ -10,10 +10,10 @@
 # device connected via ADB/USB debugging. Not run as root.
 #
 # USAGE:
-# ACTION       COMMAND
-# Start        bash droid2pc.sh --start
-# Stop         bash droid2pc.sh --stop
-# Show status  bash droid2pc.sh --status
+# COMMAND                    ACTION
+# bash droid2pc.sh --start   Start
+# bash droid2pc.sh --stop    Stop
+# bash droid2pc.sh --status  Show status
 #
 # ENV: PID file under /run/user/<uid>/
 #

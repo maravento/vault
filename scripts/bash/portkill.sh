@@ -10,8 +10,8 @@
 # Kills the process(es) listening on a port number entered by the user.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash portkill.sh
+# COMMAND                ACTION
+# sudo bash portkill.sh  Run (no arguments)
 #
 ################################################################################
 

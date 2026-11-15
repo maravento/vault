@@ -7,10 +7,10 @@
 # FILE: scr/bkconf.sh
 #
 # USAGE:
-# ACTION                                  COMMAND
-# Create a backup now                     sudo bash bkconf.sh
-# Register the @monthly cron entry        sudo bash bkconf.sh --install
-# Remove the cron entry (keeps archives)  sudo bash bkconf.sh --uninstall
+# COMMAND                          ACTION
+# sudo bash bkconf.sh              Create a backup now
+# sudo bash bkconf.sh --install    Register the @monthly cron entry
+# sudo bash bkconf.sh --uninstall  Remove the cron entry (keeps archives)
 #
 # LOG: /var/log/bkconf.log
 #

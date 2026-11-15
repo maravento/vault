@@ -7,8 +7,8 @@
 # FILE: tools/nwatchenv.sh
 #
 # USAGE:
-# ACTION                            COMMAND
-# Load shared environment settings  source nwatchenv.sh
+# COMMAND              ACTION
+# source nwatchenv.sh  Load shared environment settings
 #
 ################################################################################
 

@@ -10,10 +10,10 @@ FILE: nmapstack/README.md
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-    NmapStack is a zero-knowledge network scanning and auditing toolkit built around Nmap. It discovers, analyzes, and monitors network devices, services, and ports. Its results help assess a network's status and exposure through on-demand audits or continuous monitoring. No agents or software need to be installed on audited devices.
+    NmapStack is a network scanning and auditing toolkit built around Nmap. It discovers, analyzes, and monitors network devices, services, and ports. Its results help assess a network's status and exposure through on-demand audits or continuous monitoring. No agents or software need to be installed on audited devices.
     </td>
     <td style="width: 50%; vertical-align: top;">
-    NmapStack es un conjunto de herramientas de escaneo y auditoría de redes de conocimiento cero, basado en Nmap. Permite descubrir, analizar y supervisar dispositivos, servicios y puertos. Sus resultados ayudan a evaluar el estado y la exposición de una red mediante auditorías puntuales o supervisión continua. No requiere instalar agentes ni software en los equipos auditados.
+    NmapStack es un conjunto de herramientas de escaneo y auditoría de redes basadas en Nmap. Permite descubrir, analizar y supervisar dispositivos, servicios y puertos. Sus resultados ayudan a evaluar el estado y la exposición de una red mediante auditorías puntuales o supervisión continua. No requiere instalar agentes ni software en los equipos auditados.
     </td>
   </tr>
 </table>

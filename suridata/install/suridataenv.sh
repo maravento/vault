@@ -7,8 +7,8 @@
 # FILE: suridataenv.sh
 #
 # USAGE:
-# ACTION                            COMMAND
-# Load shared environment settings  source suridataenv.sh
+# COMMAND                ACTION
+# source suridataenv.sh  Load shared environment settings
 #
 ################################################################################
 

@@ -11,13 +11,13 @@
 # systems. Detects network interfaces and recommends the best renderer.
 #
 # USAGE:
-# ACTION                    COMMAND
-# Interactive menu          sudo bash npswitch.sh
-# Show status               sudo bash npswitch.sh --status
-# Switch to networkd        sudo bash npswitch.sh --to-networkd
-# Switch to NetworkManager  sudo bash npswitch.sh --to-nm
-# Show usage                sudo bash npswitch.sh -h
-# Show usage                sudo bash npswitch.sh --help
+# COMMAND                              ACTION
+# sudo bash npswitch.sh                Interactive menu
+# sudo bash npswitch.sh --status       Show status
+# sudo bash npswitch.sh --to-networkd  Switch to networkd
+# sudo bash npswitch.sh --to-nm        Switch to NetworkManager
+# sudo bash npswitch.sh -h             Show usage
+# sudo bash npswitch.sh --help         Show usage
 #
 # Without arguments, shows an interactive menu.
 #

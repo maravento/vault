@@ -10,8 +10,8 @@
 # Creates SHA256 checksums as a normal desktop user.
 #
 # USAGE:
-# ACTION                  COMMAND
-# Process selected files  bash makesha256 [file ...]
+# COMMAND                     ACTION
+# bash makesha256 [file ...]  Process selected files
 #
 ################################################################################
 

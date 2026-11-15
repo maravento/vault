@@ -10,12 +10,12 @@
 # Without an argument it opens an interactive menu.
 #
 # USAGE:
-# ACTION            COMMAND
-# Interactive menu  sudo bash docker.sh
-# Install           sudo bash docker.sh --install
-# Uninstall         sudo bash docker.sh --uninstall
-# Show usage        sudo bash docker.sh -h
-# Show usage        sudo bash docker.sh --help
+# COMMAND                          ACTION
+# sudo bash docker.sh              Interactive menu
+# sudo bash docker.sh --install    Install
+# sudo bash docker.sh --uninstall  Uninstall
+# sudo bash docker.sh -h           Show usage
+# sudo bash docker.sh --help       Show usage
 #
 ################################################################################
 

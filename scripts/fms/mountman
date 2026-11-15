@@ -10,8 +10,8 @@
 # Mounts or unmounts resources from a desktop session.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  bash mountman
+# COMMAND        ACTION
+# bash mountman  Run (no arguments)
 #
 ################################################################################
 

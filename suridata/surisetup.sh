@@ -7,14 +7,14 @@
 # FILE: surisetup.sh
 #
 # USAGE:
-# ACTION            COMMAND
-# Install           sudo bash surisetup.sh --install
-# Update            sudo bash surisetup.sh --update
-# Uninstall         sudo bash surisetup.sh --uninstall
-# Show status       sudo bash surisetup.sh --status
-# Interactive menu  sudo bash surisetup.sh
-# Show usage        sudo bash surisetup.sh -h
-# Show usage        sudo bash surisetup.sh --help
+# COMMAND                             ACTION
+# sudo bash surisetup.sh --install    Install
+# sudo bash surisetup.sh --update     Update
+# sudo bash surisetup.sh --uninstall  Uninstall
+# sudo bash surisetup.sh --status     Show status
+# sudo bash surisetup.sh              Interactive menu
+# sudo bash surisetup.sh -h           Show usage
+# sudo bash surisetup.sh --help       Show usage
 #
 # LOG: surisetup.log, beside this script
 #

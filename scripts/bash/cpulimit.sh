@@ -10,10 +10,10 @@
 # program name and the percentage to allow.
 #
 # USAGE:
-# ACTION       COMMAND
-# Start        sudo bash cpulimit.sh --start
-# Stop         sudo bash cpulimit.sh --stop
-# Show status  sudo bash cpulimit.sh --status
+# COMMAND                         ACTION
+# sudo bash cpulimit.sh --start   Start
+# sudo bash cpulimit.sh --stop    Stop
+# sudo bash cpulimit.sh --status  Show status
 #
 ################################################################################
 

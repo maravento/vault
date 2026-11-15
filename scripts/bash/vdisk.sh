@@ -10,8 +10,8 @@
 # loop device or kpartx. Asks for the file system on creation.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash vdisk.sh
+# COMMAND             ACTION
+# sudo bash vdisk.sh  Run (no arguments)
 #
 # LOG: system logger (destination set by system configuration)
 #

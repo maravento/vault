@@ -7,8 +7,8 @@
 # FILE: suricataclean.sh
 #
 # USAGE:
-# ACTION          COMMAND
-# (no arguments)  sudo bash suricataclean.sh
+# COMMAND                     ACTION
+# sudo bash suricataclean.sh  (no arguments)
 #
 # LOG: /var/log/suridata.log
 #

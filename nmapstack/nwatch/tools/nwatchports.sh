@@ -7,13 +7,13 @@
 # FILE: tools/nwatchports.sh
 #
 # USAGE:
-# ACTION                  COMMAND
-# Start the daemon        sudo bash nwatchports.sh --start
-# Stop the daemon         sudo bash nwatchports.sh --stop
-# Show status             sudo bash nwatchports.sh --status
-# Select server mode      sudo bash nwatchports.sh --mode server
-# Select the target host  sudo bash nwatchports.sh --mode target <host>
-# List scan results       sudo bash nwatchports.sh --list
+# COMMAND                                        ACTION
+# sudo bash nwatchports.sh --start               Start the daemon
+# sudo bash nwatchports.sh --stop                Stop the daemon
+# sudo bash nwatchports.sh --status              Show status
+# sudo bash nwatchports.sh --mode server         Select server mode
+# sudo bash nwatchports.sh --mode target <host>  Select the target host
+# sudo bash nwatchports.sh --list                List scan results
 #
 # LOG: /var/log/nwatch.log
 #

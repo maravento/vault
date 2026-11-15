@@ -15,16 +15,16 @@
 # Status checks local installation and service state without online queries.
 #
 # USAGE:
-# ACTION            COMMAND
-# Interactive menu  sudo bash unifisetup.sh
-# Install           sudo bash unifisetup.sh --install network
-# Install           sudo bash unifisetup.sh --install osserver
-# Update            sudo bash unifisetup.sh --update network
-# Update            sudo bash unifisetup.sh --update osserver
-# Uninstall         sudo bash unifisetup.sh --uninstall network
-# Uninstall         sudo bash unifisetup.sh --uninstall osserver
-# Show status       sudo bash unifisetup.sh --status
-# Show usage        sudo bash unifisetup.sh --help
+# COMMAND                                       ACTION
+# sudo bash unifisetup.sh                       Interactive menu
+# sudo bash unifisetup.sh --install network     Install
+# sudo bash unifisetup.sh --install osserver    Install
+# sudo bash unifisetup.sh --update network      Update
+# sudo bash unifisetup.sh --update osserver     Update
+# sudo bash unifisetup.sh --uninstall network   Uninstall
+# sudo bash unifisetup.sh --uninstall osserver  Uninstall
+# sudo bash unifisetup.sh --status              Show status
+# sudo bash unifisetup.sh --help                Show usage
 #
 # LOG: unifisetup.log, next to this script (rewritten on each run)
 #

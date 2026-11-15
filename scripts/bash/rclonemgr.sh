@@ -14,14 +14,14 @@
 # service.
 #
 # USAGE:
-# ACTION               COMMAND
-# Interactive menu     sudo bash rclonemgr.sh
-# Start                sudo bash rclonemgr.sh mount --start
-# Stop                 sudo bash rclonemgr.sh mount --stop
-# Restart              sudo bash rclonemgr.sh mount --restart
-# Show status          sudo bash rclonemgr.sh mount --status
-# Run synchronization  sudo bash rclonemgr.sh sync --run
-# Show status          sudo bash rclonemgr.sh sync --status
+# COMMAND                                 ACTION
+# sudo bash rclonemgr.sh                  Interactive menu
+# sudo bash rclonemgr.sh mount --start    Start
+# sudo bash rclonemgr.sh mount --stop     Stop
+# sudo bash rclonemgr.sh mount --restart  Restart
+# sudo bash rclonemgr.sh mount --status   Show status
+# sudo bash rclonemgr.sh sync --run       Run synchronization
+# sudo bash rclonemgr.sh sync --status    Show status
 #
 # Without arguments, shows an interactive menu.
 #

@@ -7,8 +7,8 @@
 # FILE: gpsetup.sh
 #
 # USAGE:
-# ACTION          COMMAND
-# (no arguments)  sudo bash gpsetup.sh
+# COMMAND               ACTION
+# sudo bash gpsetup.sh  (no arguments)
 #
 # LOG: gpsetup.log, in the directory containing this script
 #

@@ -10,8 +10,8 @@
 # release. Run as root, intended for cron/unattended use.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash ffsupdate.sh
+# COMMAND                 ACTION
+# sudo bash ffsupdate.sh  Run (no arguments)
 #
 # LOG: /var/log/ffsupdate.log (rewritten on each run)
 #

@@ -16,21 +16,21 @@
 # LM Studio (desktop app for local LLMs, requires GUI)
 #
 # USAGE:
-# ACTION            COMMAND
-# Interactive menu  sudo bash aistack.sh
-# Install           sudo bash aistack.sh --install stack
-# Install           sudo bash aistack.sh --install opencode
-# Install           sudo bash aistack.sh --install opencode-desktop appimage
-# Install           sudo bash aistack.sh --install opencode-desktop deb
-# Update            sudo bash aistack.sh --update opencode
-# Update            sudo bash aistack.sh --update opencode-desktop
-# Uninstall         sudo bash aistack.sh --uninstall all
-# Uninstall         sudo bash aistack.sh --uninstall opencode
-# Uninstall         sudo bash aistack.sh --uninstall opencode-desktop
-# Show status       sudo bash aistack.sh --status
-# Manage models     sudo bash aistack.sh --model
-# Show usage        sudo bash aistack.sh -h
-# Show usage        sudo bash aistack.sh --help
+# COMMAND                                                   ACTION
+# sudo bash aistack.sh                                      Interactive menu
+# sudo bash aistack.sh --install stack                      Install
+# sudo bash aistack.sh --install opencode                   Install
+# sudo bash aistack.sh --install opencode-desktop appimage  Install
+# sudo bash aistack.sh --install opencode-desktop deb       Install
+# sudo bash aistack.sh --update opencode                    Update
+# sudo bash aistack.sh --update opencode-desktop            Update
+# sudo bash aistack.sh --uninstall all                      Uninstall
+# sudo bash aistack.sh --uninstall opencode                 Uninstall
+# sudo bash aistack.sh --uninstall opencode-desktop         Uninstall
+# sudo bash aistack.sh --status                             Show status
+# sudo bash aistack.sh --model                              Manage models
+# sudo bash aistack.sh -h                                   Show usage
+# sudo bash aistack.sh --help                               Show usage
 #
 # --install [stack|opencode|opencode-desktop] (default: stack)
 # --update opencode|opencode-desktop

@@ -13,13 +13,13 @@
 # Install requires an X11 or Wayland desktop session.
 #
 # USAGE:
-# ACTION            COMMAND
-# Interactive menu  bash fmssetup.sh
-# Install           bash fmssetup.sh --install
-# Update            bash fmssetup.sh --update
-# Uninstall         bash fmssetup.sh --uninstall
-# Show usage        bash fmssetup.sh -h
-# Show usage        bash fmssetup.sh --help
+# COMMAND                       ACTION
+# bash fmssetup.sh              Interactive menu
+# bash fmssetup.sh --install    Install
+# bash fmssetup.sh --update     Update
+# bash fmssetup.sh --uninstall  Uninstall
+# bash fmssetup.sh -h           Show usage
+# bash fmssetup.sh --help       Show usage
 #
 # LOG: fmssetup.log, in this script's directory
 #

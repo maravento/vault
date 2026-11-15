@@ -10,10 +10,10 @@ FILE: gateproxy/README.md
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     <b>Gateproxy</b> centralizes internet access and the services of a LAN on one server. It is aimed at small and medium-sized businesses that need to control their traffic and administer their network. It integrates proxy, firewall, DHCP, DNS, Samba, traffic control, intrusion detection, backups and web administration tools through a common installer. Its modular design lets you choose services and use its independent projects separately or together.
+     <b>Gateproxy</b> is a project focused on LAN access control for small and medium-sized businesses. It integrates proxy, firewall, DHCP, DNS, Samba, traffic control, intrusion detection, backups and web administration tools through a common installer. Its modular design lets you choose the services each environment needs and use its component projects separately or together.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     <b>Gateproxy</b> permite centralizar el acceso a Internet y los servicios de una LAN en un servidor. Está orientado a pequeñas y medianas empresas que necesitan controlar el tráfico y administrar su red. Integra proxy, firewall, DHCP, DNS, Samba, control de tráfico, detección de intrusiones, respaldos y herramientas de administración web mediante un instalador común. Su diseño modular permite elegir servicios y utilizar sus proyectos independientes por separado o conjuntamente.
+     <b>Gateproxy</b> es un proyecto orientado al control de acceso en redes LAN de pequeñas y medianas empresas. Integra proxy, firewall, DHCP, DNS, Samba, control de tráfico, detección de intrusiones, respaldos y herramientas de administración web mediante un instalador común. Su diseño modular permite elegir los servicios que necesita cada entorno y utilizar los proyectos que lo componen por separado o conjuntamente.
     </td>
   </tr>
 </table>

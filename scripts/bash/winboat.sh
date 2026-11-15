@@ -14,12 +14,12 @@
 # HTTPS and checks its Bash syntax before running it as root.
 #
 # USAGE:
-# ACTION            COMMAND
-# Interactive menu  sudo bash winboat.sh
-# Install           sudo bash winboat.sh --install
-# Uninstall         sudo bash winboat.sh --uninstall
-# Show usage        sudo bash winboat.sh -h
-# Show usage        sudo bash winboat.sh --help
+# COMMAND                           ACTION
+# sudo bash winboat.sh              Interactive menu
+# sudo bash winboat.sh --install    Install
+# sudo bash winboat.sh --uninstall  Uninstall
+# sudo bash winboat.sh -h           Show usage
+# sudo bash winboat.sh --help       Show usage
 #
 ################################################################################
 

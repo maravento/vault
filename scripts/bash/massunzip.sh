@@ -11,8 +11,8 @@
 # directory, trying a predefined list of passwords against each file.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  bash massunzip.sh
+# COMMAND            ACTION
+# bash massunzip.sh  Run (no arguments)
 #
 # Run (as a non-root user) from the directory containing the archives.
 #

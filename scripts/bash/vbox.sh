@@ -10,8 +10,8 @@
 # it if a version is already present.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash vbox.sh
+# COMMAND            ACTION
+# sudo bash vbox.sh  Run (no arguments)
 #
 ################################################################################
 

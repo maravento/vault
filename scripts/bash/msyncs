@@ -11,10 +11,10 @@
 # home folder and account. Configuration is interactive on first run.
 #
 # USAGE:
-# ACTION       COMMAND
-# Start        bash msyncs --start
-# Stop         bash msyncs --stop
-# Show status  bash msyncs --status
+# COMMAND               ACTION
+# bash msyncs --start   Start
+# bash msyncs --stop    Stop
+# bash msyncs --status  Show status
 #
 ################################################################################
 

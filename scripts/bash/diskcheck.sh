@@ -10,8 +10,8 @@
 # Requires: inxi, smartmontools, util-linux, libnotify-bin
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash diskcheck.sh
+# COMMAND                 ACTION
+# sudo bash diskcheck.sh  Run (no arguments)
 #
 # Intended to run periodically via root's crontab.
 # Log rotate: /etc/logrotate.d/diskcheck

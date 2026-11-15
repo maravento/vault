@@ -11,9 +11,9 @@
 # if missing.
 #
 # USAGE:
-# ACTION  COMMAND
-# Start   sudo bash drivecrypt.sh --start
-# Stop    sudo bash drivecrypt.sh --stop
+# COMMAND                          ACTION
+# sudo bash drivecrypt.sh --start  Start
+# sudo bash drivecrypt.sh --stop   Stop
 #
 # LOG: system log (via logger, tag drivecrypt)
 #

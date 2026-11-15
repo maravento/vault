@@ -7,10 +7,10 @@
 # FILE: tools/nwatchlan.sh
 #
 # USAGE:
-# ACTION            COMMAND
-# Start the daemon  sudo bash nwatchlan.sh --start
-# Stop the daemon   sudo bash nwatchlan.sh --stop
-# Show status       sudo bash nwatchlan.sh --status
+# COMMAND                          ACTION
+# sudo bash nwatchlan.sh --start   Start the daemon
+# sudo bash nwatchlan.sh --stop    Stop the daemon
+# sudo bash nwatchlan.sh --status  Show status
 #
 # LOG: /var/log/nwatch.log
 #

@@ -10,12 +10,12 @@
 # the detected local user. Asks for the VM name or UUID at the prompt.
 #
 # USAGE:
-# ACTION       COMMAND
-# Start        sudo bash vm.sh --start
-# Stop         sudo bash vm.sh --stop
-# Shut down    sudo bash vm.sh --shutdown
-# Run          sudo bash vm.sh --reset
-# Show status  sudo bash vm.sh --status
+# COMMAND                     ACTION
+# sudo bash vm.sh --start     Start
+# sudo bash vm.sh --stop      Stop
+# sudo bash vm.sh --shutdown  Shut down
+# sudo bash vm.sh --reset     Run
+# sudo bash vm.sh --status    Show status
 #
 # Add user to vboxusers: usermod -a -G vboxusers $USER
 #

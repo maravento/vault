@@ -12,8 +12,8 @@
 # as root.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash filereport.sh
+# COMMAND                  ACTION
+# sudo bash filereport.sh  Run (no arguments)
 #
 # Asks for the folder to scan.
 #

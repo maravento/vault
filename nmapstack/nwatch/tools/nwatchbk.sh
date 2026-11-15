@@ -7,10 +7,10 @@
 # FILE: tools/nwatchbk.sh
 #
 # USAGE:
-# ACTION                                  COMMAND
-# Create a backup now                     sudo bash nwatchbk.sh
-# Register the @monthly cron entry        sudo bash nwatchbk.sh --install
-# Remove the cron entry (keeps archives)  sudo bash nwatchbk.sh --uninstall
+# COMMAND                            ACTION
+# sudo bash nwatchbk.sh              Create a backup now
+# sudo bash nwatchbk.sh --install    Register the @monthly cron entry
+# sudo bash nwatchbk.sh --uninstall  Remove the cron entry (keeps archives)
 #
 # LOG: /var/log/nwatch.log
 #

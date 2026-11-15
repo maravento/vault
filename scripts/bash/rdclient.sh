@@ -10,8 +10,8 @@
 # layout that matches the system language.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash rdclient.sh
+# COMMAND                ACTION
+# sudo bash rdclient.sh  Run (no arguments)
 #
 ################################################################################
 

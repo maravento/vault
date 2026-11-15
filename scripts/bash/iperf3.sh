@@ -12,8 +12,8 @@
 # target. Not run as root.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  bash iperf3.sh
+# COMMAND         ACTION
+# bash iperf3.sh  Run (no arguments)
 #
 # OUTPUT: logs saved under ./iperf3_logs/
 #

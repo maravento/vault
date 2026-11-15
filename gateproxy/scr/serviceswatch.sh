@@ -7,8 +7,8 @@
 # FILE: scr/serviceswatch.sh
 #
 # USAGE:
-# ACTION          COMMAND
-# (no arguments)  sudo bash serviceswatch.sh
+# COMMAND                     ACTION
+# sudo bash serviceswatch.sh  (no arguments)
 #
 # LOG: /var/log/serviceswatch.log
 #

@@ -7,8 +7,8 @@
 # FILE: scr/killswitch.sh
 #
 # USAGE:
-# ACTION          COMMAND
-# (no arguments)  sudo bash killswitch.sh
+# COMMAND                  ACTION
+# sudo bash killswitch.sh  (no arguments)
 #
 # LOG: /var/log/iptables.log
 #

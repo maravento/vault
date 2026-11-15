@@ -11,8 +11,8 @@
 # Matches the exact comm name and rejects names longer than 15 bytes.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash pskill.sh
+# COMMAND              ACTION
+# sudo bash pskill.sh  Run (no arguments)
 #
 ################################################################################
 

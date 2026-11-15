@@ -10,8 +10,8 @@
 # present, and generates the CA certificate that SSL-Bump needs.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash sslbump.sh
+# COMMAND               ACTION
+# sudo bash sslbump.sh  Run (no arguments)
 #
 ################################################################################
 

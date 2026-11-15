@@ -10,8 +10,8 @@
 # TRIM, and prints the freed space reported for each one.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash trim.sh
+# COMMAND            ACTION
+# sudo bash trim.sh  Run (no arguments)
 #
 # WARNING: TRIM is a highly destructive command. Use it at your own risk.
 # Safe for: modern SSDs (SATA or NVMe) without RAID or LVM.

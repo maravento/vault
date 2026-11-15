@@ -13,8 +13,8 @@
 # - Extended attributes and metadata streams (e.g., :attributes:)
 #
 # USAGE:
-# ACTION                   COMMAND
-# Clean the selected path  sudo bash cleaner.sh [search_path]
+# COMMAND                             ACTION
+# sudo bash cleaner.sh [search_path]  Clean the selected path
 #
 # Without arguments, searches from /
 #

@@ -10,8 +10,8 @@
 # local user. Asks for the identifier and the mount folder name.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash ntfsdrive.sh
+# COMMAND                 ACTION
+# sudo bash ntfsdrive.sh  Run (no arguments)
 #
 ################################################################################
 

@@ -11,8 +11,8 @@
 # Requires VirtualBox 7.x already installed.
 #
 # USAGE:
-# ACTION              COMMAND
-# Run (no arguments)  sudo bash phpvbox.sh
+# COMMAND               ACTION
+# sudo bash phpvbox.sh  Run (no arguments)
 #
 ################################################################################
 

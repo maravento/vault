@@ -10,14 +10,14 @@
 # stop, status and restart. Must be run as root.
 #
 # USAGE:
-# ACTION            COMMAND
-# Interactive menu  sudo bash x11vncmgr.sh
-# Install           sudo bash x11vncmgr.sh --install
-# Uninstall         sudo bash x11vncmgr.sh --uninstall
-# Start             sudo bash x11vncmgr.sh --start
-# Stop              sudo bash x11vncmgr.sh --stop
-# Restart           sudo bash x11vncmgr.sh --restart
-# Show status       sudo bash x11vncmgr.sh --status
+# COMMAND                             ACTION
+# sudo bash x11vncmgr.sh              Interactive menu
+# sudo bash x11vncmgr.sh --install    Install
+# sudo bash x11vncmgr.sh --uninstall  Uninstall
+# sudo bash x11vncmgr.sh --start      Start
+# sudo bash x11vncmgr.sh --stop       Stop
+# sudo bash x11vncmgr.sh --restart    Restart
+# sudo bash x11vncmgr.sh --status     Show status
 #
 #   --install    Install x11vnc, create the VNC password if missing, create and
 #              enable the systemd service, and start it

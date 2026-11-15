@@ -12,12 +12,12 @@
 # files without manual file handling.
 #
 # USAGE:
-# ACTION            COMMAND
-# Interactive menu  sudo bash netplanmgr.sh
-# Install           sudo bash netplanmgr.sh --install
-# Uninstall         sudo bash netplanmgr.sh --uninstall
-# Show usage        sudo bash netplanmgr.sh -h
-# Show usage        sudo bash netplanmgr.sh --help
+# COMMAND                              ACTION
+# sudo bash netplanmgr.sh              Interactive menu
+# sudo bash netplanmgr.sh --install    Install
+# sudo bash netplanmgr.sh --uninstall  Uninstall
+# sudo bash netplanmgr.sh -h           Show usage
+# sudo bash netplanmgr.sh --help       Show usage
 #
 # Without arguments, shows an interactive menu.
 #
