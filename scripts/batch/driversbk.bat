@@ -49,7 +49,12 @@ echo 1. Backup
 echo 2. Restore
 echo 3. Exit
 echo.
-set /p choice="Enter option (1-3): "
+set "choice="
+set /p choice="Enter option (1-3) [3]: "
+if not defined choice (
+    for /f "delims=" %%I in ('powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'"') do echo %%I INFO: no option selected, exit -skip
+    set "choice=3"
+)
 
 if "%choice%"=="1" goto :backup
 if "%choice%"=="2" goto :restore

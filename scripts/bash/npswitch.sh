@@ -51,11 +51,79 @@ if ! flock -n 200; then
     exit 1
 fi
 
+# check ipv4 interfaces
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if [ -n "$(list_ipv4_ifaces)" ]; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: waiting for an interface with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no interface with IPv4 -abort" >&2
+    exit 1
+}
+
+# check internet
+check_internet() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: waiting for internet..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no internet connection -abort" >&2
+    exit 1
+}
+
+
 # dependencies
-for dep in netplan.io iproute2 systemd network-manager util-linux; do
+net_checked=0
+for dep in netplan.io iproute2 systemd network-manager util-linux libc-bin; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
-        exit 1
+        if [ "$net_checked" -eq 0 ]; then
+            if ! command -v ip >/dev/null 2>&1; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing iproute2"
+                apt-get install -y iproute2 >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install iproute2 -abort" >&2; exit 1; }
+            fi
+            check_ipv4_interfaces
+            check_internet
+            apt-get update -qq || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2; exit 1; }
+            net_checked=1
+        fi
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing $dep"
+        if ! apt-get install -y "$dep" >/dev/null 2>&1; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install $dep -abort" >&2
+            exit 1
+        fi
     fi
 done
 
@@ -77,15 +145,16 @@ netplan_dir="/etc/netplan"
 networkd_file="$netplan_dir/00-networkd.yaml"
 nm_file="$netplan_dir/99-networkmanager.yaml"
 
+# validation - one variable per thing validated; use directly with =~
+UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
+
+# Current IPv4 configuration of each interface, read from NetworkManager
+declare -A ipv4_mode=() ipv4_addresses=() ipv4_gateway=() ipv4_dns=()
+
 # ------------------------------------------------------------------------------
 # FUNCTIONS
 # ------------------------------------------------------------------------------
-
-# IFACES
-# List network interfaces other than loopback
-list_ifaces() {
-    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
-}
 
 # Detect current renderer
 detect_current_renderer() {
@@ -265,21 +334,46 @@ get_networkd_interfaces() {
     done < <(list_ifaces)
 }
 
-# Get interface IP info
-get_interface_info() {
-    local iface="$1"
-    local ip_addr=$(ip -4 addr show dev "$iface" scope global 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
-    local has_dhcp="unknown"
-
-    if [ -n "$ip_addr" ]; then
-        if ip addr show "$iface" | grep -q "dynamic"; then
-            has_dhcp="yes"
-        else
-            has_dhcp="maybe"
-        fi
-    fi
-
-    echo "$ip_addr|$has_dhcp"
+# IPV4 CONFIGURATION
+# Read the IPv4 method, addresses, gateway and DNS of an interface from
+# NetworkManager, so a static address survives the switch to networkd
+read_ipv4_config() {
+    local iface="$1" uuid method value item
+    uuid=$(nmcli -g GENERAL.CON-UUID device show "$iface" 2>/dev/null) || return 1
+    [ -n "$uuid" ] && [ "$uuid" != "--" ] || return 1
+    method=$(nmcli -g ipv4.method connection show "$uuid" 2>/dev/null) || return 1
+    case "$method" in
+        auto)
+            ipv4_mode[$iface]=dhcp
+            ;;
+        manual)
+            ipv4_mode[$iface]=static
+            value=$(nmcli -g ipv4.addresses connection show "$uuid" 2>/dev/null) || return 1
+            value="${value// /}"
+            [ -n "$value" ] || return 1
+            for item in ${value//,/ }; do
+                [[ "$item" =~ $UH_CIDR ]] || return 1
+            done
+            ipv4_addresses[$iface]="${value//,/, }"
+            value=$(nmcli -g ipv4.gateway connection show "$uuid" 2>/dev/null) || return 1
+            value="${value// /}"
+            if [ -n "$value" ] && [ "$value" != "--" ]; then
+                [[ "$value" =~ $UH_IPV4 ]] || return 1
+                ipv4_gateway[$iface]="$value"
+            fi
+            value=$(nmcli -g ipv4.dns connection show "$uuid" 2>/dev/null) || return 1
+            value="${value// /}"
+            if [ -n "$value" ] && [ "$value" != "--" ]; then
+                for item in ${value//,/ }; do
+                    [[ "$item" =~ $UH_IPV4 ]] || return 1
+                done
+                ipv4_dns[$iface]="${value//,/, }"
+            fi
+            ;;
+        *)
+            return 1
+            ;;
+    esac
 }
 
 # Deactivate all YAML files (rename with .bak extension)
@@ -344,12 +438,32 @@ EOF
     fi
 
     for iface in "${interfaces[@]}"; do
-        if ! { echo "    $iface:" >> "$networkd_file" \
-            && echo "      dhcp4: true" >> "$networkd_file" \
-            && echo "      dhcp6: false" >> "$networkd_file"; }; then
+        if [ "${ipv4_mode[$iface]:-dhcp}" = static ]; then
+            {
+                echo "    $iface:"
+                echo "      dhcp4: false"
+                echo "      dhcp6: false"
+                echo "      addresses: [${ipv4_addresses[$iface]}]"
+                if [ -n "${ipv4_gateway[$iface]:-}" ]; then
+                    echo "      routes:"
+                    echo "        - to: default"
+                    echo "          via: ${ipv4_gateway[$iface]}"
+                fi
+                if [ -n "${ipv4_dns[$iface]:-}" ]; then
+                    echo "      nameservers:"
+                    echo "        addresses: [${ipv4_dns[$iface]}]"
+                fi
+            } >> "$networkd_file"
+        else
+            {
+                echo "    $iface:"
+                echo "      dhcp4: true"
+                echo "      dhcp6: false"
+            } >> "$networkd_file"
+        fi || {
             echo -e "${color_red}Error: cannot write $networkd_file${color_reset}" >&2
             exit 1
-        fi
+        }
     done
 
     if ! chown root:root "$networkd_file"; then
@@ -416,11 +530,21 @@ switch_to_networkd() {
         exit 1
     fi
 
+    for iface in "${suitable_ifaces[@]}"; do
+        if ! read_ipv4_config "$iface"; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] $iface: cannot read IPv4 configuration" >&2
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [2/2] switch aborted, network unchanged -abort" >&2
+            exit 1
+        fi
+    done
+
     echo -e "${color_green}Interfaces to be configured with networkd:${color_reset}"
     for iface in "${suitable_ifaces[@]}"; do
-        info=$(get_interface_info "$iface")
-        ip_addr=$(echo "$info" | cut -d'|' -f1)
-        echo "$iface: ${ip_addr:-no IP}"
+        if [ "${ipv4_mode[$iface]}" = static ]; then
+            echo "$iface: ${ipv4_addresses[$iface]} (static)"
+        else
+            echo "$iface: DHCP (dynamic)"
+        fi
     done
     echo ""
 

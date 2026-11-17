@@ -85,13 +85,6 @@ if ! local_user=$(detect_local_user); then
 fi
 echo "Using local user: $local_user"
 
-# dependencies
-for dep in wget curl util-linux iproute2 libc-bin coreutils; do
-    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
-        exit 1
-    fi
-done
 
 # start
 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: winboat start..."
@@ -174,6 +167,28 @@ check_internet() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no internet connection -abort" >&2
     exit 1
 }
+
+# dependencies
+net_checked=0
+for dep in wget curl util-linux iproute2 libc-bin coreutils; do
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
+        if [ "$net_checked" -eq 0 ]; then
+            if ! command -v ip >/dev/null 2>&1; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing iproute2"
+                apt-get install -y iproute2 >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install iproute2 -abort" >&2; exit 1; }
+            fi
+            check_ipv4_interfaces
+            check_internet
+            apt-get update -qq || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2; exit 1; }
+            net_checked=1
+        fi
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing $dep"
+        if ! apt-get install -y "$dep" >/dev/null 2>&1; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install $dep -abort" >&2
+            exit 1
+        fi
+    fi
+done
 
 fetch_docker_script() {
     local docker_url="https://raw.githubusercontent.com/maravento/vault/refs/heads/master/scripts/bash/docker.sh"

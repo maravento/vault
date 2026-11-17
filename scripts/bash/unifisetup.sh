@@ -948,12 +948,15 @@ action_status() {
 }
 
 run_action() {
-    if [ "$1" != action_status ]; then
-        check_ipv4_interfaces
-        check_internet
-        ensure_prereqs
-        fetch_downloads_json
-    fi
+    case "$1" in
+        action_status|action_uninstall_network|action_uninstall_osserver) ;;
+        *)
+            check_ipv4_interfaces
+            check_internet
+            ensure_prereqs
+            fetch_downloads_json
+            ;;
+    esac
     "$1"
 }
 
@@ -977,7 +980,11 @@ menu() {
         echo "7. Show local installation and service status"
         echo "8. Exit"
         echo ""
-        read -rp "Select an option (1-8): " choice || return 1
+        read -rp "Select an option (1-8) [8]: " choice || return 1
+        if [ -z "$choice" ]; then
+            info "no option selected, exit -skip"
+            choice=8
+        fi
         case "$choice" in
             1) run_action action_install_network || exit 1; break ;;
             2) run_action action_install_osserver || exit 1; break ;;

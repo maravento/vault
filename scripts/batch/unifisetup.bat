@@ -25,13 +25,9 @@ for /f "tokens=*" %%I in ('powershell -Command "Get-Date -Format yyyyMMddHHmmss"
 set "logname=unifi_install_%datetime:~0,8%_%datetime:~8,6%.log"
 set "logfile=%logspath%\%logname%"
 
-> "%logfile%" echo [%date% %time%] EVENT: unifisetup start...
-echo EVENT: unifisetup start...
-echo =========================================== >> "%logfile%"
-echo UNIFI INSTALLATION LOG >> "%logfile%"
-echo Started: %date% %time% >> "%logfile%"
-echo Log file: %logfile% >> "%logfile%"
-echo =========================================== >> "%logfile%"
+type nul > "%logfile%"
+call :log "INFO: unifisetup start..."
+call :log "INFO: unifisetup start..." con
 
 cls
 echo ===========================================
@@ -42,7 +38,7 @@ echo ===========================================
 :check_admin
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [%date% %time%] Requesting admin privileges >> "%logfile%"
+    call :log "INFO: Requesting admin privileges"
     powershell -ExecutionPolicy Bypass -Command "Start-Process '%~f0' -Verb RunAs"
     exit /b
 )
@@ -50,17 +46,17 @@ if %errorlevel% neq 0 (
 :check_os
 for /f "tokens=4-5 delims=. " %%i in ('ver') do set VERSION=%%i.%%j
 echo Windows Version Detected: %VERSION%
-echo [%date% %time%] Windows Version: %VERSION% >> "%logfile%"
+call :log "INFO: Windows Version: %VERSION%"
 if NOT "%VERSION%" == "10.0" (
    echo OS Incompatible
-   echo [%date% %time%] ERROR: OS Incompatible - Not Windows 10/11 >> "%logfile%"
+   call :log "ERROR: OS Incompatible - Not Windows 10/11 -abort"
    echo.
    pause
    exit /b 1
 )
 if NOT EXIST "%PROGRAMFILES(X86)%" (
    echo OS Incompatible
-   echo [%date% %time%] ERROR: OS Incompatible - No x86 Program Files >> "%logfile%"
+   call :log "ERROR: OS Incompatible - No x86 Program Files -abort"
    echo.
    pause
    exit /b 1
@@ -68,12 +64,12 @@ if NOT EXIST "%PROGRAMFILES(X86)%" (
 
 :check_path
 if not exist "%installpath%" (
-    echo [%date% %time%] Creating directory: %installpath% >> "%logfile%"
+    call :log "INFO: Creating directory: %installpath%"
     mkdir "%installpath%"
 )
 cd /d "%installpath%" || (
     echo Failed to enter the directory: %installpath%
-    echo [%date% %time%] ERROR: Failed to enter %installpath% >> "%logfile%"
+    call :log "ERROR: Failed to enter %installpath% -abort"
     echo.
     pause
     exit /b 1
@@ -91,29 +87,35 @@ echo 3. Remove UniFi + JRE
 echo 4. Add IPv4 address
 echo 5. Exit
 echo.
-set /p "var=Write your number (1, 2, 3, 4, 5) and Press ENTER: "
+set "var="
+set /p "var=Write your number (1, 2, 3, 4, 5) [5] and Press ENTER: "
+if not defined var (
+    call :log "INFO: no option selected, exit -skip" con
+    call :log "INFO: no option selected, exit -skip"
+    set "var=5"
+)
 if "%var%"=="1" (
-    echo [%date% %time%] User selected: Install UniFi Network Controller >> "%logfile%"
+    call :log "INFO: User selected: Install UniFi Network Controller"
     goto :install_network
 )
 if "%var%"=="2" (
-    echo [%date% %time%] User selected: Backup Configuration >> "%logfile%"
+    call :log "INFO: User selected: Backup Configuration"
     goto :backup
 )
 if "%var%"=="3" (
-    echo [%date% %time%] User selected: Remove UniFi + JRE >> "%logfile%"
+    call :log "INFO: User selected: Remove UniFi + JRE"
     goto :remove
 )
 if "%var%"=="4" (
-    echo [%date% %time%] User selected: Add IPv4 address >> "%logfile%"
+    call :log "INFO: User selected: Add IPv4 address"
     goto :ip
 )
 if "%var%"=="5" (
-    echo [%date% %time%] User selected: Exit >> "%logfile%"
+    call :log "INFO: User selected: Exit"
     exit /b 0
 )
 echo Invalid option. Please select a valid number from 1 to 5
-echo [%date% %time%] ERROR: Invalid option selected: %var% >> "%logfile%"
+call :log "WARNING: Invalid option selected: %var% -alert"
 echo.
 goto :menu
 
@@ -122,36 +124,36 @@ goto :menu
 :: ===========================================
 
 :check_java
-echo [%date% %time%] Checking for existing Java installation >> "%logfile%"
+call :log "INFO: Checking for existing Java installation"
 where java >nul 2>&1
 if %errorlevel% equ 0 (
     for /f "tokens=3" %%v in ('java -version 2^>^&1') do (
         echo Java Version: %%v
         echo Uninstall java and run the script again
-        echo [%date% %time%] ERROR: Java already installed: %%v >> "%logfile%"
+        call :log "ERROR: Java already installed: %%v -abort"
         echo.
         exit /b 1
     )
 )
-echo [%date% %time%] No existing Java found, OK to proceed >> "%logfile%"
+call :log "INFO: No existing Java found, OK to proceed"
 exit /b 0
 
 :check_curl
-echo [%date% %time%] Checking for curl >> "%logfile%"
+call :log "INFO: Checking for curl"
 where curl >nul 2>&1
 if %errorlevel% neq 0 (
     echo curl is not installed. Please install curl before continuing
-    echo [%date% %time%] ERROR: curl not installed >> "%logfile%"
+    call :log "ERROR: curl not installed -abort"
     echo.
     pause
     exit /b 1
 )
-echo [%date% %time%] curl found, OK to proceed >> "%logfile%"
+call :log "INFO: curl found, OK to proceed"
 exit /b 0
 
 :download_jre
 echo.
-echo [%date% %time%] Starting JRE download >> "%logfile%"
+call :log "INFO: Starting JRE download"
 echo Getting the latest version of JRE...
 set "jdk_major=25"
 set "version_base_url=https://github.com/adoptium/temurin!jdk_major!-binaries/releases/download/"
@@ -160,13 +162,13 @@ set "jdk_type=jre"
 set "os_arch=x64_windows"
 set "vm_type=hotspot"
 
-echo [%date% %time%] Fetching JRE version info from: !version_latest_url! >> "%logfile%"
+call :log "INFO: Fetching JRE version info from: !version_latest_url!"
 for /f "delims=" %%a in ('curl -s !version_latest_url! ^| findstr /i "tag_name"') do set "version=%%a"
 for /f "tokens=2 delims=: " %%b in ("!version!") do set "version=%%b"
 set "version=!version:jdk-=!"
 set "version=!version:~1,-2!"
 echo Latest version: !version!
-echo [%date% %time%] JRE version detected: !version! >> "%logfile%"
+call :log "INFO: JRE version detected: !version!"
 
 set "file_version=!version!"
 for /l %%i in (1,1,10) do set "file_version=!file_version:+=_!"
@@ -174,68 +176,68 @@ for /l %%i in (1,1,10) do set "file_version=!file_version:+=_!"
 set "download_url=!version_base_url!jdk-!version!/OpenJDK!jdk_major!U-!jdk_type!_!os_arch!_!vm_type!_!file_version!.msi"
 set "msi_filename=OpenJDK!jdk_major!U-!jdk_type!_!os_arch!_!vm_type!_!file_version!.msi"
 
-echo [%date% %time%] Download URL: !download_url! >> "%logfile%"
+call :log "INFO: Download URL: !download_url!"
 cd /d "%installpath%" || exit /b 1
-echo [%date% %time%] Downloading JRE to: %installpath%\!msi_filename! >> "%logfile%"
+call :log "INFO: Downloading JRE to: %installpath%\!msi_filename!"
 curl -# -L -o "!msi_filename!" "!download_url!"
 set "curl_error=!errorlevel!"
 if !curl_error! NEQ 0 (
     echo Error downloading JRE
-    echo [%date% %time%] ERROR: JRE download failed with error !curl_error! >> "%logfile%"
+    call :log "ERROR: JRE download failed with error !curl_error! -abort"
     exit /b 1
 )
-echo [%date% %time%] JRE download successful: !msi_filename! >> "%logfile%"
+call :log "INFO: JRE download successful: !msi_filename!"
 echo OK
 exit /b 0
 
 :install_jre
 echo.
-echo [%date% %time%] Installing JRE... >> "%logfile%"
+call :log "INFO: Installing JRE..."
 echo Installing JRE...
 cd /d "%installpath%" || exit /b 1
 set "latest_msi=OpenJDK!jdk_major!U-!jdk_type!_!os_arch!_!vm_type!_!file_version!.msi"
-echo [%date% %time%] Installing MSI: !latest_msi! >> "%logfile%"
+call :log "INFO: Installing MSI: !latest_msi!"
 start /wait msiexec /i "!latest_msi!" ADDLOCAL=FeatureMain,FeatureEnvironment,FeatureJarFileRunWith,FeatureJavaHome INSTALLDIR="%ProgramFiles%\Temurin" /quiet >nul 2>&1
 set "msi_error=!errorlevel!"
 if !msi_error! NEQ 0 (
     echo Error installing JRE
-    echo [%date% %time%] ERROR: JRE installation failed with error !msi_error! >> "%logfile%"
+    call :log "ERROR: JRE installation failed with error !msi_error! -abort"
     exit /b 1
 )
-echo [%date% %time%] JRE installation successful >> "%logfile%"
+call :log "INFO: JRE installation successful"
 echo OK
 exit /b 0
 
 :setup_firewall
 echo.
-echo [%date% %time%] Configuring UniFi Firewall Rules... >> "%logfile%"
+call :log "INFO: Configuring UniFi Firewall Rules..."
 echo Configuring UniFi Firewall Rules...
 netsh advfirewall firewall add rule name="Unifi TCP in 8080,8443,8880,8843,8444,8881,8882,9543,10003,11443" protocol=TCP dir=in localport=8080,8443,8880,8843,8444,8881,8882,9543,10003,11443 action=allow >nul 2>&1
-echo [%date% %time%] Added firewall rule: Unifi TCP in >> "%logfile%"
+call :log "INFO: Added firewall rule: Unifi TCP in"
 netsh advfirewall firewall add rule name="Unifi TCP out 8080,8443,8880,8843,8444,8881,8882,9543,10003,11443" protocol=TCP dir=out localport=8080,8443,8880,8843,8444,8881,8882,9543,10003,11443 action=allow >nul 2>&1
-echo [%date% %time%] Added firewall rule: Unifi TCP out >> "%logfile%"
+call :log "INFO: Added firewall rule: Unifi TCP out"
 netsh advfirewall firewall add rule name="Unifi UDP in 3478,10001,5005,5514,6789" protocol=UDP dir=in localport=3478,10001,5005,5514,6789 action=allow >nul 2>&1
-echo [%date% %time%] Added firewall rule: Unifi UDP in >> "%logfile%"
+call :log "INFO: Added firewall rule: Unifi UDP in"
 netsh advfirewall firewall add rule name="Unifi UDP out 3478,10001,5005,5514,6789" protocol=UDP dir=out localport=3478,10001,5005,5514,6789 action=allow >nul 2>&1
-echo [%date% %time%] Added firewall rule: Unifi UDP out >> "%logfile%"
+call :log "INFO: Added firewall rule: Unifi UDP out"
 echo OK
 exit /b 0
 
 :kill_processes
 echo.
-echo [%date% %time%] Stopping UniFi processes... >> "%logfile%"
+call :log "INFO: Stopping UniFi processes..."
 echo Stopping UniFi processes...
-taskkill /f /im "java.exe" >nul 2>&1 && echo [%date% %time%] Killed: java.exe >> "%logfile%"
-taskkill /f /im "UniFi.exe" >nul 2>&1 && echo [%date% %time%] Killed: UniFi.exe >> "%logfile%"
-taskkill /f /im "UniFi-installer.exe" >nul 2>&1 && echo [%date% %time%] Killed: UniFi-installer.exe >> "%logfile%"
-taskkill /f /im "Uninstall.exe" >nul 2>&1 && echo [%date% %time%] Killed: Uninstall.exe >> "%logfile%"
+taskkill /f /im "java.exe" >nul 2>&1 && call :log "INFO: Killed: java.exe"
+taskkill /f /im "UniFi.exe" >nul 2>&1 && call :log "INFO: Killed: UniFi.exe"
+taskkill /f /im "UniFi-installer.exe" >nul 2>&1 && call :log "INFO: Killed: UniFi-installer.exe"
+taskkill /f /im "Uninstall.exe" >nul 2>&1 && call :log "INFO: Killed: Uninstall.exe"
 timeout /t 2 /nobreak >nul
-echo [%date% %time%] Process stopping complete >> "%logfile%"
+call :log "INFO: Process stopping complete"
 exit /b 0
 
 :final_installation
 echo.
-echo [%date% %time%] Installation Complete! >> "%logfile%"
+call :log "INFO: Installation Complete!"
 cls
 echo ===========================================
 echo        INSTALLATION COMPLETE
@@ -243,7 +245,7 @@ echo ===========================================
 echo.
 echo PRODUCT: UniFi Network Controller
 echo ACCESS URL: https://localhost:8443
-echo [%date% %time%] UniFi Network Controller installed at: https://localhost:8443 >> "%logfile%"
+call :log "INFO: UniFi Network Controller installed at: https://localhost:8443"
 
 echo.
 echo ===========================================
@@ -255,10 +257,10 @@ echo You MUST reboot your system for changes to take effect.
 echo.
 echo Press any key to exit...
 echo.
-echo [%date% %time%] Installation finished successfully >> "%logfile%"
+call :log "INFO: Installation finished successfully"
 echo =========================================== >> "%logfile%"
-echo [%date% %time%] EVENT: unifisetup done >> "%logfile%"
-echo [%date% %time%] EVENT: unifisetup done
+call :log "INFO: unifisetup done"
+call :log "INFO: unifisetup done" con
 exit /b 0
 
 :: ===========================================
@@ -269,7 +271,7 @@ exit /b 0
 set "json_file=%~1"
 set "product_type=%~2"
 
-echo [%date% %time%] Getting version selection for: %product_type% >> "%logfile%"
+call :log "INFO: Getting version selection for: %product_type%"
 
 set "version_latest="
 set "version_previous="
@@ -277,7 +279,7 @@ set "selected_version="
 set "selected_url="
 
 if "%product_type%"=="network" (
-    echo [%date% %time%] Getting Network Controller versions... >> "%logfile%"
+    call :log "INFO: Getting Network Controller versions..."
     
     REM Get all versions, sort by version number (descending)
     powershell -Command "$versions = (Get-Content '%json_file%' | ConvertFrom-Json).downloads | Where-Object { $_.name -like '*UniFi Network Application*Windows*' } | Select-Object -ExpandProperty version -Unique | ForEach-Object { [version]$_ } | Sort-Object -Descending; $versions | ForEach-Object { $_.ToString() }" > "%installpath%\network_versions.txt"
@@ -303,7 +305,7 @@ if "%product_type%"=="network" (
     
     echo Latest: !version_latest!
     if defined version_previous echo Previous: !version_previous!
-    echo [%date% %time%] Network - Latest: !version_latest!, Previous: !version_previous! >> "%logfile%"
+    call :log "INFO: Network - Latest: !version_latest!, Previous: !version_previous!"
 )
 
 :: Display version selection menu
@@ -330,7 +332,7 @@ if defined version_previous (
 echo.
 set "choice="
 set /p "choice=Enter your option: "
-echo [%date% %time%] User choice: !choice! >> "%logfile%"
+call :log "INFO: User choice: !choice!"
 
 if "!choice!"=="" goto :version_menu
 
@@ -388,19 +390,19 @@ if "%product_type%"=="network" (
 
 if !version_exists! equ 0 (
     echo Version !custom_ver! not found in available versions.
-    echo [%date% %time%] ERROR: Custom version not found: !custom_ver! >> "%logfile%"
+    call :log "WARNING: Custom version not found: !custom_ver! -alert"
     echo.
     goto :version_menu
 )
 
 :get_version_url
-echo [%date% %time%] Selected version: !selected_version! >> "%logfile%"
+call :log "INFO: Selected version: !selected_version!"
 
 :: Get download URL for selected version
 if "%product_type%"=="network" (
     REM For Network Controller - simple URL format
     set "selected_url=https://dl.ui.com/unifi/!selected_version!/UniFi-installer.exe"
-    echo [%date% %time%] Network download URL: !selected_url! >> "%logfile%"
+    call :log "INFO: Network download URL: !selected_url!"
 )
 
 :: Cleanup temp files
@@ -411,17 +413,17 @@ exit /b 0
 :cancel_version
 :: Cleanup and return to menu
 if exist "%installpath%\network_versions.txt" del "%installpath%\network_versions.txt"
-echo [%date% %time%] User cancelled version selection >> "%logfile%"
+call :log "INFO: User cancelled version selection"
 exit /b 1
 
 :wait_installer
 set "process_name=%~1"
-echo [%date% %time%] Waiting for installer: %process_name% >> "%logfile%"
+call :log "INFO: Waiting for installer: %process_name%"
 :wait_loop
 timeout /t 10 /nobreak >nul
 tasklist /fi "imagename eq %process_name%" 2>nul | find /i "%process_name%" >nul
 if %errorlevel% equ 0 goto wait_loop
-echo [%date% %time%] Installer finished: %process_name% >> "%logfile%"
+call :log "INFO: Installer finished: %process_name%"
 exit /b 0
 
 :: ===========================================
@@ -432,13 +434,13 @@ exit /b 0
 set "folder_to_remove=%~1"
 if not exist "!folder_to_remove!" exit /b 0
 
-echo [%date% %time%] Force removing folder: !folder_to_remove! >> "%logfile%"
+call :log "INFO: Force removing folder: !folder_to_remove!"
 echo Removing: !folder_to_remove!
 
 :: Method 1: Try normal removal first
 rd /s /q "!folder_to_remove!" >nul 2>&1
 if not exist "!folder_to_remove!" (
-    echo [%date% %time%] Successfully removed with rd command >> "%logfile%"
+    call :log "INFO: Successfully removed with rd command"
     exit /b 0
 )
 
@@ -448,7 +450,7 @@ takeown /f "!folder_to_remove!" /r /d y >nul 2>&1
 icacls "!folder_to_remove!" /grant "%username%":F /t /q >nul 2>&1
 rd /s /q "!folder_to_remove!" >nul 2>&1
 if not exist "!folder_to_remove!" (
-    echo [%date% %time%] Successfully removed with takeown >> "%logfile%"
+    call :log "INFO: Successfully removed with takeown"
     exit /b 0
 )
 
@@ -457,7 +459,7 @@ echo Using PowerShell to force delete...
 powershell -Command "if (Test-Path '!folder_to_remove!') { Remove-Item -Path '!folder_to_remove!' -Recurse -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 timeout /t 2 /nobreak >nul
 if not exist "!folder_to_remove!" (
-    echo [%date% %time%] Successfully removed with PowerShell >> "%logfile%"
+    call :log "INFO: Successfully removed with PowerShell"
     exit /b 0
 )
 
@@ -467,7 +469,7 @@ call :kill_processes
 timeout /t 3 /nobreak >nul
 rd /s /q "!folder_to_remove!" >nul 2>&1
 if not exist "!folder_to_remove!" (
-    echo [%date% %time%] Successfully removed after killing processes >> "%logfile%"
+    call :log "INFO: Successfully removed after killing processes"
     exit /b 0
 )
 
@@ -476,12 +478,12 @@ if exist "!folder_to_remove!" (
     echo.
     echo WARNING: Could not completely remove: !folder_to_remove!
     echo The folder may contain locked files or require a system restart.
-    echo [%date% %time%] WARNING: Could not remove folder: !folder_to_remove! >> "%logfile%"
+    call :log "WARNING: Could not remove folder: !folder_to_remove!"
     echo.
     echo The script will continue, but please manually delete this folder after reboot.
     timeout /t 3
 ) else (
-    echo [%date% %time%] Successfully removed folder: !folder_to_remove! >> "%logfile%"
+    call :log "INFO: Successfully removed folder: !folder_to_remove!"
 )
 exit /b 0
 
@@ -491,7 +493,7 @@ exit /b 0
 
 :install_network
 echo =========================================== >> "%logfile%"
-echo [%date% %time%] STARTING UNIFI NETWORK CONTROLLER INSTALLATION >> "%logfile%"
+call :log "INFO: STARTING UNIFI NETWORK CONTROLLER INSTALLATION"
 echo =========================================== >> "%logfile%"
 
 :: Check if UniFi service is running
@@ -499,7 +501,7 @@ sc query "UniFi" >nul 2>&1
 if %errorlevel% equ 0 (
     echo UniFi Network Controller service is running.
     echo Please uninstall UniFi first using option 3.
-    echo [%date% %time%] ERROR: UniFi service is running >> "%logfile%"
+    call :log "ERROR: UniFi service is running -abort"
     echo.
     exit /b 1
 )
@@ -519,7 +521,7 @@ if exist "%UserProfile%\Ubiquiti UniFi\" (
     if exist "%UserProfile%\Ubiquiti UniFi\Uninstall.exe" (
         echo This appears to be a complete UniFi installation.
         echo Please use option 3 to uninstall it first.
-        echo [%date% %time%] ERROR: Complete UniFi installation found >> "%logfile%"
+        call :log "ERROR: Complete UniFi installation found -abort"
         echo.
         exit /b 1
     )
@@ -531,12 +533,18 @@ if exist "%UserProfile%\Ubiquiti UniFi\" (
     echo 1. Clean up and continue with fresh installation
     echo 2. Cancel and exit
     echo.
-    set /p "cleanup_choice=Enter your choice (1 or 2): "
+    set "cleanup_choice="
+    set /p "cleanup_choice=Enter your choice (1 or 2) [2]: "
+    if not defined cleanup_choice (
+        call :log "INFO: no option selected, exit -skip" con
+        call :log "INFO: no option selected, exit -skip"
+        set "cleanup_choice=2"
+    )
     
     if "!cleanup_choice!"=="1" (
         echo.
         echo Cleaning up incomplete installation...
-        echo [%date% %time%] User chose to clean up incomplete installation >> "%logfile%"
+        call :log "INFO: User chose to clean up incomplete installation"
         call :kill_processes
         call :force_remove_folder "%UserProfile%\Ubiquiti UniFi"
         
@@ -546,17 +554,17 @@ if exist "%UserProfile%\Ubiquiti UniFi\" (
             echo ERROR: Could not remove the folder completely.
             echo Please manually delete: %UserProfile%\Ubiquiti UniFi\
             echo Then run the script again.
-            echo [%date% %time%] ERROR: Failed to clean up folder >> "%logfile%"
+            call :log "ERROR: Failed to clean up folder -abort"
             echo.
             exit /b 1
         )
         
         echo Cleanup successful! Continuing with installation...
-        echo [%date% %time%] Cleanup successful, proceeding with installation >> "%logfile%"
+        call :log "INFO: Cleanup successful, proceeding with installation"
         timeout /t 2 /nobreak >nul
     ) else (
         echo Installation cancelled.
-        echo [%date% %time%] User cancelled installation >> "%logfile%"
+        call :log "INFO: User cancelled installation"
         echo.
         exit /b 1
     )
@@ -572,28 +580,28 @@ if errorlevel 1 exit /b 1
 echo.
 echo Getting available versions of UniFi Network...
 curl -s https://download.svc.ui.com/v1/software-downloads > temp_network.json
-echo [%date% %time%] Downloaded version info to temp_network.json >> "%logfile%"
+call :log "INFO: Downloaded version info to temp_network.json"
 
 call :get_version_selection "temp_network.json" "network"
 if errorlevel 1 (
     del temp_network.json
-    echo [%date% %time%] Version selection cancelled or failed >> "%logfile%"
+    call :log "ERROR: Version selection cancelled or failed -abort"
     exit /b 1
 )
 
 echo.
 echo Downloading UniFi Network version !selected_version!...
-echo [%date% %time%] Downloading UniFi Network version: !selected_version! >> "%logfile%"
+call :log "INFO: Downloading UniFi Network version: !selected_version!"
 cd /d "%installpath%" || (
     del temp_network.json
-    echo [%date% %time%] ERROR: Failed to change to install directory >> "%logfile%"
+    call :log "ERROR: Failed to change to install directory -abort"
     exit /b 1
 )
 curl -# -L -o "UniFi-installer.exe" "!selected_url!"
 set "unifi_dl_error=!errorlevel!"
 if !unifi_dl_error! neq 0 (
     echo Error downloading UniFi Network.
-    echo [%date% %time%] ERROR: UniFi download failed with error !unifi_dl_error! >> "%logfile%"
+    call :log "ERROR: UniFi download failed with error !unifi_dl_error! -abort"
     del temp_network.json
     echo.
     exit /b 1
@@ -601,16 +609,16 @@ if !unifi_dl_error! neq 0 (
 
 del temp_network.json
 echo OK
-echo [%date% %time%] UniFi download successful: UniFi-installer.exe >> "%logfile%"
+call :log "INFO: UniFi download successful: UniFi-installer.exe"
 
 echo.
 echo Installing UniFi Network...
-echo [%date% %time%] Running UniFi installer... >> "%logfile%"
+call :log "INFO: Running UniFi installer..."
 "%installpath%\UniFi-installer.exe" /S
 
 call :wait_installer "UniFi-installer.exe"
 
-echo [%date% %time%] Creating UniFi data directory... >> "%logfile%"
+call :log "INFO: Creating UniFi data directory..."
 mkdir "%UserProfile%\Ubiquiti UniFi\data" 2>nul
 (
 echo debug.device=warn
@@ -620,57 +628,57 @@ echo debug.setting_preference=auto
 echo debug.system=warn
 ) > "%installpath%\system.properties"
 copy "%installpath%\system.properties" "%UserProfile%\Ubiquiti UniFi\data" >nul 2>&1
-echo [%date% %time%] Created system.properties configuration file >> "%logfile%"
+call :log "INFO: Created system.properties configuration file"
 echo OK
 
-echo [%date% %time%] Starting JRE installation phase >> "%logfile%"
+call :log "INFO: Starting JRE installation phase"
 call :download_jre
 if errorlevel 1 (
-    echo [%date% %time%] ERROR: JRE download failed >> "%logfile%"
+    call :log "ERROR: JRE download failed -abort"
     goto :cleanup_network
 )
 
 call :install_jre
 if errorlevel 1 (
-    echo [%date% %time%] ERROR: JRE installation failed >> "%logfile%"
+    call :log "ERROR: JRE installation failed -abort"
     goto :cleanup_network
 )
 
 echo.
 echo Setting up UniFi Network as a Service...
-echo [%date% %time%] Setting up UniFi as Windows Service... >> "%logfile%"
+call :log "INFO: Setting up UniFi as Windows Service..."
 cd "%UserProfile%\Ubiquiti UniFi\" || (
     echo Failed to change directory
-    echo [%date% %time%] ERROR: Failed to change to UniFi directory >> "%logfile%"
+    call :log "ERROR: Failed to change to UniFi directory -abort"
     goto :cleanup_network
 )
 set "JAVA_PATH=%ProgramFiles%\Temurin\bin\java.exe"
-echo [%date% %time%] Java path: %JAVA_PATH% >> "%logfile%"
+call :log "INFO: Java path: %JAVA_PATH%"
 
-echo [%date% %time%] Running: %JAVA_PATH% -jar lib\ace.jar startsvc >> "%logfile%"
+call :log "INFO: Running: %JAVA_PATH% -jar lib\ace.jar startsvc"
 "%JAVA_PATH%" -jar lib\ace.jar startsvc
 timeout /t 5 /nobreak >nul
-echo [%date% %time%] Running: %JAVA_PATH% -jar lib\ace.jar installsvc >> "%logfile%"
+call :log "INFO: Running: %JAVA_PATH% -jar lib\ace.jar installsvc"
 "%JAVA_PATH%" -jar lib\ace.jar installsvc >nul 2>&1
 set "service_error=!errorlevel!"
 if !service_error! neq 0 (
     echo Error setting up service
-    echo [%date% %time%] ERROR: Service setup failed with error !service_error! >> "%logfile%"
+    call :log "ERROR: Service setup failed with error !service_error! -abort"
     goto :cleanup_network
 )
-echo [%date% %time%] Service setup successful >> "%logfile%"
+call :log "INFO: Service setup successful"
 echo OK
 
 call :setup_firewall
 
-echo [%date% %time%] UNIFI NETWORK CONTROLLER INSTALLATION COMPLETE >> "%logfile%"
+call :log "INFO: UNIFI NETWORK CONTROLLER INSTALLATION COMPLETE"
 goto :final_installation
 
 :cleanup_network
 echo Installation failed. Cleaning up...
-echo [%date% %time%] INSTALLATION FAILED - CLEANING UP >> "%logfile%"
+call :log "ERROR: INSTALLATION FAILED - CLEANING UP -abort"
 call :force_remove_folder "%UserProfile%\Ubiquiti UniFi"
-echo [%date% %time%] Cleanup complete, exiting >> "%logfile%"
+call :log "INFO: Cleanup complete, exiting"
 exit /b 1
 
 :: ===========================================
@@ -712,8 +720,8 @@ if %found_any_folder% equ 0 (
     echo No UniFi installations or folders detected.
     echo Everything is already clean.
     echo.
-    echo [%date% %time%] EVENT: unifisetup done >> "%logfile%"
-    echo [%date% %time%] EVENT: unifisetup done
+    call :log "INFO: unifisetup done"
+    call :log "INFO: unifisetup done" con
     exit /b 0
 )
 
@@ -739,7 +747,7 @@ if /i not "%confirm%"=="y" (
 )
 
 echo.
-echo [%date% %time%] Starting removal process >> "%logfile%"
+call :log "INFO: Starting removal process"
 
 echo Delete Firewall Rules...
 netsh advfirewall firewall delete rule name="Unifi TCP in 8080,8443,8880,8843,8444,8881,8882,9543,10003,11443" >nul 2>&1
@@ -747,25 +755,25 @@ netsh advfirewall firewall delete rule name="Unifi TCP out 8080,8443,8880,8843,8
 netsh advfirewall firewall delete rule name="Unifi UDP in 3478,10001,5005,5514,6789" >nul 2>&1
 netsh advfirewall firewall delete rule name="Unifi UDP out 3478,10001,5005,5514,6789" >nul 2>&1
 echo OK
-echo [%date% %time%] Firewall rules deleted >> "%logfile%"
+call :log "INFO: Firewall rules deleted"
 
 call :kill_processes
 
 if %detect_network% equ 1 (
     echo.
     echo Uninstalling UniFi Network Controller...
-    echo [%date% %time%] Uninstalling UniFi Network Controller >> "%logfile%"
+    call :log "INFO: Uninstalling UniFi Network Controller"
     
     REM Stop UniFi service if running
     net stop UniFi >nul 2>&1
-    echo [%date% %time%] Stopped UniFi service >> "%logfile%"
+    call :log "INFO: Stopped UniFi service"
     
     REM Uninstall service using Java if available
     if exist "%ProgramFiles%\Temurin\bin\java.exe" (
         if exist "%UserProfile%\Ubiquiti UniFi\lib\ace.jar" (
             echo Removing UniFi service...
             "%ProgramFiles%\Temurin\bin\java.exe" -jar "%UserProfile%\Ubiquiti UniFi\lib\ace.jar" uninstallsvc >nul 2>&1
-            echo [%date% %time%] Ran uninstallsvc command >> "%logfile%"
+            call :log "INFO: Ran uninstallsvc command"
         )
     )
     
@@ -773,7 +781,7 @@ if %detect_network% equ 1 (
     set "uninstall_path=%UserProfile%\Ubiquiti UniFi\Uninstall.exe"
     if exist "!uninstall_path!" (
         echo Running UniFi uninstaller...
-        echo [%date% %time%] Running Uninstall.exe >> "%logfile%"
+        call :log "INFO: Running Uninstall.exe"
         "!uninstall_path!" /S
         call :wait_installer "Uninstall.exe"
         timeout /t 5 /nobreak >nul
@@ -785,13 +793,13 @@ if %detect_network% equ 1 (
     timeout /t 3 /nobreak >nul
     call :force_remove_folder "%UserProfile%\Ubiquiti UniFi"
     echo OK
-    echo [%date% %time%] Network Controller removal complete >> "%logfile%"
+    call :log "INFO: Network Controller removal complete"
 )
 
 if %detect_java% equ 1 (
     echo.
     echo Uninstalling JRE...
-    echo [%date% %time%] Uninstalling JRE >> "%logfile%"
+    call :log "INFO: Uninstalling JRE"
     cd /d "%installpath%" 2>nul || cd /d "%HOMEDRIVE%\"
     set "latest_msi="
     
@@ -805,16 +813,16 @@ if %detect_java% equ 1 (
     
     :remove_jre
     echo Uninstalling Java MSI: !latest_msi!
-    echo [%date% %time%] Uninstalling JRE MSI: !latest_msi! >> "%logfile%"
+    call :log "INFO: Uninstalling JRE MSI: !latest_msi!"
     start /wait msiexec /x "!latest_msi!" /quiet
     echo OK
-    echo [%date% %time%] JRE uninstalled >> "%logfile%"
+    call :log "INFO: JRE uninstalled"
 )
 
 :cleanup_folders
 echo.
 echo Cleaning up residual folders...
-echo [%date% %time%] Cleaning up residual folders >> "%logfile%"
+call :log "INFO: Cleaning up residual folders"
 
 :: Remove any remaining UniFi folders with force method
 call :force_remove_folder "%UserProfile%\Ubiquiti UniFi"
@@ -827,7 +835,7 @@ if exist "%UserProfile%\AppData\Local\Programs\" (
 )
 
 echo OK
-echo [%date% %time%] Folder cleanup complete >> "%logfile%"
+call :log "INFO: Folder cleanup complete"
 
 echo.
 echo ===========================================
@@ -838,9 +846,9 @@ echo All detected components have been removed.
 echo.
 echo IMPORTANT: Please reboot your system to complete the process.
 echo.
-echo [%date% %time%] Removal process completed successfully >> "%logfile%"
-echo [%date% %time%] EVENT: unifisetup done >> "%logfile%"
-echo [%date% %time%] EVENT: unifisetup done
+call :log "INFO: Removal process completed successfully"
+call :log "INFO: unifisetup done"
+call :log "INFO: unifisetup done" con
 exit /b 0
 
 :: ===========================================
@@ -909,8 +917,8 @@ echo.
 echo Source: %sourcefile%
 echo Destination: %destfile%
 echo.
-echo [%date% %time%] EVENT: unifisetup done >> "%logfile%"
-echo [%date% %time%] EVENT: unifisetup done
+call :log "INFO: unifisetup done"
+call :log "INFO: unifisetup done" con
 exit /b 0
 
 :: ===========================================
@@ -927,7 +935,13 @@ if not exist "%propsFile%" (
     exit /b 1
 )
 
+set "system_ip="
 set /p "system_ip=Enter the IPv4 address (e.g. 192.168.1.10): "
+if "%system_ip%"=="" (
+    echo IPv4 address cannot be empty
+    call :log "ERROR: IPv4 address cannot be empty -abort"
+    exit /b 1
+)
 
 set "backupFile=%UserProfile%\Ubiquiti UniFi\data\system.properties.bak"
 copy "%propsFile%" "%backupFile%" >nul
@@ -952,6 +966,22 @@ echo.
 echo Reboot to apply changes
 echo You can now access the URL: https://%system_ip%:8443
 echo.
-echo [%date% %time%] EVENT: unifisetup done >> "%logfile%"
-echo [%date% %time%] EVENT: unifisetup done
+call :log "INFO: unifisetup done"
+call :log "INFO: unifisetup done" con
 exit /b 0
+
+
+:: ===========================================
+:: LOG
+:: ===========================================
+:: arg 1 message, arg 2 "con" prints to console instead of the log; keeps ERRORLEVEL
+:log
+set "log_rc=%errorlevel%"
+set "log_ts="
+for /f "delims=" %%I in ('powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'"') do set "log_ts=%%I"
+if /i "%~2"=="con" goto :log_con
+>> "%logfile%" echo %log_ts% %~1
+exit /b %log_rc%
+:log_con
+echo %log_ts% %~1
+exit /b %log_rc%

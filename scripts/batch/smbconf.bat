@@ -43,7 +43,12 @@ echo 4. Activate SMB1
 echo 5. Deactivate SMB1
 echo 6. Exit
 echo.
-set /p choice="Enter the number (1, 2, 3, 4, 5 or 6): "
+set "choice="
+set /p choice="Enter the number (1, 2, 3, 4, 5 or 6) [6]: "
+if not defined choice (
+    for /f "delims=" %%I in ('powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'"') do echo %%I INFO: no option selected, exit -skip
+    set "choice=6"
+)
 
 REM Validate user input and perform the selected action
 

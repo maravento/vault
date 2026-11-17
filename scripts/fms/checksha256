@@ -140,6 +140,8 @@ else
     while IFS= read -r line; do
         [ -z "$line" ] && continue
         line_file="${line#* }"
+        line_file="${line_file# }"
+        line_file="${line_file#\*}"
         if [[ "$line_file" != /* ]]; then
             line_file="$checksum_dir/$line_file"
         fi

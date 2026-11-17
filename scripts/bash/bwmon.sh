@@ -125,13 +125,6 @@ notify_send() {
 
 log "INFO: bwmon start..."
 
-# dependencies
-for dep in speedtest-cli libnotify-bin systemd util-linux iproute2 libc-bin; do
-    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
-        exit 1
-    fi
-done
 
 # check ipv4 interfaces
 list_ifaces() {
@@ -185,6 +178,28 @@ check_internet() {
     log "ERROR: no internet connection -abort"
     exit 1
 }
+
+# dependencies
+net_checked=0
+for dep in speedtest-cli libnotify-bin systemd util-linux iproute2 libc-bin; do
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
+        if [ "$net_checked" -eq 0 ]; then
+            if ! command -v ip >/dev/null 2>&1; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing iproute2"
+                apt-get install -y iproute2 >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install iproute2 -abort" >&2; exit 1; }
+            fi
+            check_ipv4_interfaces
+            check_internet
+            apt-get update -qq || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2; exit 1; }
+            net_checked=1
+        fi
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing $dep"
+        if ! apt-get install -y "$dep" >/dev/null 2>&1; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install $dep -abort" >&2
+            exit 1
+        fi
+    fi
+done
 
 check_ipv4_interfaces
 check_internet
@@ -247,7 +262,7 @@ check_metric() {
         logger -t bwmon "WARNING: $label slow: $value $unit < $min Mbit/s -alert"
         return 1
     fi
-    log "$label OK: $value $unit (min: $min Mbit/s)"
+    log "INFO: $label OK: $value $unit (min: $min Mbit/s)"
     return 0
 }
 

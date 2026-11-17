@@ -38,7 +38,12 @@ echo.
 echo Write your number (1, 2, 3, 4, 5, 6, 7, 8) and
 echo Press ENTER
 echo.
-set /p var=
+set "var="
+set /p "var=Option [8]: "
+if not defined var (
+    for /f "delims=" %%I in ('powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'"') do echo %%I INFO: no option selected, exit -skip
+    set "var=8"
+)
 if "%var%"=="1" goto :ChangeMySQLUZero
 if "%var%"=="2" goto :RestoreMySQLUZero
 if "%var%"=="3" goto :ChangeApacheUZero

@@ -124,6 +124,44 @@ check_internet() {
     exit 1
 }
 
+# dependencies (network checks, before the menu)
+net_checked=0
+for dep in iproute2 libc-bin; do
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
+        if [ "$net_checked" -eq 0 ]; then
+            if ! command -v ip >/dev/null 2>&1; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing iproute2"
+                apt-get install -y iproute2 >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install iproute2 -abort" >&2; exit 1; }
+            fi
+            check_ipv4_interfaces
+            check_internet
+            apt-get update -qq || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2; exit 1; }
+            net_checked=1
+        fi
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing $dep"
+        if ! apt-get install -y "$dep" >/dev/null 2>&1; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install $dep -abort" >&2
+            exit 1
+        fi
+    fi
+done
+
+# Ask a password; empty answers retry, 3 empty answers abort
+read_password() {
+    local answer attempt
+    for attempt in 1 2 3; do
+        read -r -sp "$1" answer
+        echo >&2
+        if [ -n "$answer" ]; then
+            printf '%s' "$answer"
+            return 0
+        fi
+        [ "$attempt" -lt 3 ] && echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: password cannot be empty -retry" >&2
+    done
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: password cannot be empty -abort" >&2
+    return 1
+}
+
 install_joomla() {
     if [ -d "/var/www/html/joomla" ]; then
         echo "Joomla is already installed /var/www/html/joomla"
@@ -133,10 +171,8 @@ install_joomla() {
     check_ipv4_interfaces
     check_internet
 
-    read -r -sp "Set the password for the MySQL root user: " ROOTPASS
-    echo
-    read -r -sp "Set the password for the MySQL joomla user: " DBPASS
-    echo
+    ROOTPASS=$(read_password "Set the password for the MySQL root user: ") || exit 1
+    DBPASS=$(read_password "Set the password for the MySQL joomla user: ") || exit 1
 
     # Escape backslashes and single quotes for safe embedding in SQL string literals
     SQL_ROOTPASS="${ROOTPASS//\\/\\\\}"

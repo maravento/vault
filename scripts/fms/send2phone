@@ -13,7 +13,7 @@
 # COMMAND                     ACTION
 # bash send2phone [file ...]  Process selected files
 #
-# LOG: send2phone.log, in this script's directory
+# LOG: ~/.local/state/fms/send2phone.log
 #
 ################################################################################
 
@@ -29,8 +29,9 @@ if [ "$(id -u)" == "0" ]; then
     exit 1
 fi
 
-script_dir="$(cd "$(dirname "$0")" 2>/dev/null && pwd)" || exit 1
-log_file="${script_dir}/send2phone.log"
+log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/fms"
+mkdir -p -- "$log_dir" || exit 1
+log_file="${log_dir}/send2phone.log"
 # The cause, the file name and the control action stay on one line: a long name
 # widens the line, and splitting it would hide which file failed
 log() {

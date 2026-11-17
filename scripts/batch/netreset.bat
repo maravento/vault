@@ -81,6 +81,7 @@ for /f "usebackq delims=" %%a in (`powershell -NoProfile -Command "Get-NetAdapte
 )
 
 :: Restart
+set "choice="
 set /p "choice=Reboot is required. Do you wish to continue? [Y/N]: "
 
 if /i "!choice!"=="Y" (

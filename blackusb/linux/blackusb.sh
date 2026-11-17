@@ -107,13 +107,13 @@ program="${0##*/}"
 program_abs="$scr/$program"
 
 # Run this when uknown usb device is added
-trigger_cmd_add="$program_abs --trigger"
+trigger_cmd_add="/bin/bash $program_abs --trigger"
 
 # Run this when specified usb device is removed
-trigger_cmd_remove="$program_abs --trigger"
+trigger_cmd_remove="/bin/bash $program_abs --trigger"
 
 # Run this when a whitelisted usb device is added (logging only, no block)
-trigger_cmd_allow="$program_abs allow_trigger"
+trigger_cmd_allow="/bin/bash $program_abs allow_trigger"
 
 # ------------------------------------------------------------------------------
 # FUNCTIONS
@@ -251,16 +251,11 @@ gen_whitelist() {
     fi
 
     for ((i = 0; i < "${#vendors[@]}"; i++)); do
-        # match_string (no RUN+=) is what's checked against the existing rule
-        # file, so devices whitelisted before trigger_cmd_allow was added
-        # (old-format line, no RUN+=) are still recognized as already present
-        # and not duplicated.
-        match_string="SUBSYSTEM==\"usb\", ATTR{idVendor}==\"${vendors[$i]}\", ATTR{idProduct}==\"${products[$i]}\""
-        [[ -z ${serials[$i]} ]] || match_string="${match_string}, ATTR{serial}==\"${serials[$i]}\""
-        match_string="${match_string}, ENV{ACTION}==\"add\""
-        string="${match_string}, RUN+=\""$trigger_cmd_allow"\", GOTO=\"end\""
+        string="SUBSYSTEM==\"usb\", ATTR{idVendor}==\"${vendors[$i]}\", ATTR{idProduct}==\"${products[$i]}\""
+        [[ -z ${serials[$i]} ]] || string="${string}, ATTR{serial}==\"${serials[$i]}\""
+        string="${string}, ENV{ACTION}==\"add\", RUN+=\""$trigger_cmd_allow"\", GOTO=\"end\""
 
-        if [[ !("$rulevar" =~ .*"$match_string".*) ]]; then
+        if [[ !("$rulevar" =~ .*"$string".*) ]]; then
             if [[ -z ${products_name[$i]} ]]; then
                 rulevar+="\n${string}\n"
             else
@@ -325,8 +320,9 @@ trigger() {
     for ((i = 0; i < "${#vendors[@]}"; i++)); do
         string="SUBSYSTEM==\"usb\", ATTR{idVendor}==\"${vendors[$i]}\", ATTR{idProduct}==\"${products[$i]}\""
         [[ -z ${serials[$i]} ]] || string="${string}, ATTR{serial}==\"${serials[$i]}\""
+        match="${string}, ENV{ACTION}==\"add\""
 
-        if [[ !("$rulevar" =~ .*"$string".*) ]]; then
+        if [[ !("$rulevar" =~ .*"$match".*) ]]; then
             [[ -z ${products_name[$i]} ]] || string+=", Name=${products_name[$i]}"
             newdevice+="${newdevice:+; }${string}"
         fi

@@ -30,7 +30,7 @@ if [ "$(id -u)" == "0" ]; then
     exit 1
 fi
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: msyncs start..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: msyncs start..."
 
 # check dependencies
 dependencies=("zenity" "libatk-adaptor" "libgail-common" "libgtk2.0-0")
@@ -140,17 +140,23 @@ frun () {
                 echo "Launching $(basename "$d")"
                 (exec 200>&-; export HOME="$d"; nohup megasync >/dev/null 2>&1 &)
             done
-            echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: msyncs done"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: msyncs done"
             exit 0
         fi
     fi
 
     echo "MEGAsync Instances are not configured. Will now start the configuration."
 
-    if zenity --question --no-wrap --text="This is the first time you are running MEGAsync Instances.\nIn order to continue we must delete your existing MEGAsync instance.\nPress Yes to continue, No to abort."; then
+    mega_backup="$real_home/${mega_dir}.bak-$(date +%Y%m%d%H%M%S)"
+    if zenity --question --no-wrap --text="This is the first time you are running MEGAsync Instances.\nThe folder $real_home/$mega_dir will be moved to $mega_backup.\nPress Yes to continue, No to abort."; then
         killall megasync 2>/dev/null
         rm -f "$real_home/.config/autostart/msyncs.desktop"
-        rm -rf "$real_home/$mega_dir"
+        if [ -e "$real_home/$mega_dir" ]; then
+            mv -- "$real_home/$mega_dir" "$mega_backup" || {
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot move $mega_dir -abort" >&2
+                exit 1
+            }
+        fi
         rm -rf "$file_path"
     else
         exit
@@ -161,7 +167,7 @@ frun () {
 
     # 1-9 number
     while [[ ! $inst_num =~ ^[1-9]$ ]]; do
-        inst_num=$(zenity --entry --text="How many MEGAsync instances do you need? (1-9)") || { echo "Cancelled."; echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: msyncs done"; exit 0; }
+        inst_num=$(zenity --entry --text="How many MEGAsync instances do you need? (1-9)") || { echo "Cancelled."; echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: msyncs done"; exit 0; }
 
         # check valid number
         if [[ ! $inst_num =~ ^[1-9]$ ]]; then
@@ -174,7 +180,7 @@ frun () {
     for (( i=1; i<=inst_num; i++ )); do
         instance_name=""
         while [[ -z "$instance_name" ]]; do
-            instance_name=$(zenity --entry --text="Insert the name for instance $i/$inst_num") || { echo "Cancelled."; echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: msyncs done"; exit 0; }
+            instance_name=$(zenity --entry --text="Insert the name for instance $i/$inst_num") || { echo "Cancelled."; echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: msyncs done"; exit 0; }
             if [[ -z "$instance_name" ]]; then
                 zenity --error --text="Instance name cannot be empty."
             elif [[ "$instance_name" == */* || "$instance_name" == . || "$instance_name" == .. ]]; then
@@ -261,4 +267,4 @@ esac
 
 action_rc=$?
 [ "$action_rc" -eq 0 ] || exit "$action_rc"
-echo "$(date '+%Y-%m-%d %H:%M:%S') EVENT: msyncs done"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: msyncs done"

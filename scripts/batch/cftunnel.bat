@@ -332,7 +332,7 @@ try {
     $script:log_file = Join-Path $script:config_dir 'preflight.log'
     [IO.File]::WriteAllText($script:log_file, '')
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Log 'EVENT: cftunnel start...'
+    Log 'INFO: cftunnel start...'
     $action = $env:CFTUNNEL_ACTION
     if (!$action) {
         Write-Host '1. create  2. start  3. startall  4. stop  5. status  6. delete  0. exit'
@@ -359,15 +359,15 @@ try {
         '--status' {
             foreach ($name in @(Require-Tunnels)) {
                 $process = Get-TunnelProcess $name
-                if ($process) { Write-Host "[UP] $name (PID $($process.ProcessId))" }
-                else { Write-Host "[DOWN] $name" }
+                if ($process) { Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') INFO: tunnel '$name' up (PID $($process.ProcessId))" }
+                else { Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') INFO: tunnel '$name' down" }
             }
         }
         '--delete' { Delete-Tunnel }
         '--exit' { }
         default { throw 'invalid option' }
     }
-    Log 'EVENT: cftunnel done'
+    Log 'INFO: cftunnel done'
 } catch {
     $exit_code = 1
     $message = "ERROR: $($_.Exception.Message) -abort"

@@ -174,6 +174,28 @@ check_internet() {
     exit 1
 }
 
+# dependencies (network checks, before the menu)
+net_checked=0
+for dep in iproute2 libc-bin; do
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
+        if [ "$net_checked" -eq 0 ]; then
+            if ! command -v ip >/dev/null 2>&1; then
+                log "INFO: installing iproute2"
+                apt-get install -y iproute2 >/dev/null 2>&1 || { log "ERROR: cannot install iproute2 -abort"; exit 1; }
+            fi
+            check_ipv4_interfaces
+            check_internet
+            apt-get update -qq || { log "ERROR: cannot update package lists -abort"; exit 1; }
+            net_checked=1
+        fi
+        log "INFO: installing $dep"
+        if ! apt-get install -y "$dep" >/dev/null 2>&1; then
+            log "ERROR: cannot install $dep -abort"
+            exit 1
+        fi
+    fi
+done
+
 retry_cmd() {
     [ "$#" -ge 2 ] || return 2
     local retry_label="$1" retry_attempt retry_status
@@ -916,8 +938,12 @@ menu_models() {
         echo -e " ${WHITE}0)${RESET} Back to main menu"
         echo ""
         line
-        echo -n " -> Option: "
+        echo -n " -> Option [0]: "
         read -r opt
+        if [ -z "$opt" ]; then
+            info "no option selected, back -skip"
+            opt=0
+        fi
 
         case "$opt" in
             1)
@@ -1354,8 +1380,12 @@ menu_opencode() {
         echo -e " ${WHITE}0)${RESET} Back to main menu"
         echo ""
         line
-        echo -n " -> Option: "
+        echo -n " -> Option [0]: "
         read -r opt
+        if [ -z "$opt" ]; then
+            info "no option selected, back -skip"
+            opt=0
+        fi
 
         case "$opt" in
             1) menu_opencode_cli ;;
@@ -1389,8 +1419,12 @@ menu_opencode_cli() {
         echo -e " ${WHITE}0)${RESET} Back"
         echo ""
         line
-        echo -n " -> Option: "
+        echo -n " -> Option [0]: "
         read -r opt
+        if [ -z "$opt" ]; then
+            info "no option selected, back -skip"
+            opt=0
+        fi
 
         case "$opt" in
             1) install_opencode; finish ;;
@@ -1424,8 +1458,12 @@ menu_opencode_desktop() {
         echo -e " ${WHITE}0)${RESET} Back"
         echo ""
         line
-        echo -n " -> Option: "
+        echo -n " -> Option [0]: "
         read -r opt
+        if [ -z "$opt" ]; then
+            info "no option selected, back -skip"
+            opt=0
+        fi
 
         case "$opt" in
             1) install_opencode_desktop; finish ;;
@@ -1668,7 +1706,11 @@ _opencode_desktop_choose_format() {
     echo -e " ${BOLD}Choose a format for OpenCode Desktop:${RESET}" >&2
     echo -e " ${WHITE}1)${RESET} AppImage ${DIM}(portable, no apt involved, easy to remove)${RESET}" >&2
     echo -e " ${WHITE}2)${RESET} .deb ${DIM}(installed as a native package via apt/dpkg)${RESET}" >&2
-    read -rp " -> Format [1-2]: " choice
+    read -rp " -> Format [1-2] [1]: " choice
+    if [ -z "$choice" ]; then
+        info "no option selected, using AppImage -skip" >&2
+        choice=1
+    fi
     case "$choice" in
         1) echo "appimage" ;;
         2) echo "deb" ;;
@@ -2375,7 +2417,11 @@ update_components() {
     echo -e " ${WHITE}3)${RESET} Update Docker + Portainer"
     echo -e " ${WHITE}0)${RESET} Back"
     echo ""
-    read -rp " -> Select option: " update_opt
+    read -rp " -> Select option [0]: " update_opt
+    if [ -z "$update_opt" ]; then
+        info "no option selected, back -skip"
+        update_opt=0
+    fi
 
     case "$update_opt" in
         1)
@@ -2547,8 +2593,12 @@ menu_uninstall() {
         echo -e " ${WHITE}0)${RESET} Back to main menu"
         echo ""
         line
-        echo -n " -> Option: "
+        echo -n " -> Option [0]: "
         read -r opt
+        if [ -z "$opt" ]; then
+            info "no option selected, back -skip"
+            opt=0
+        fi
 
         case "$opt" in
             1) uninstall_all; finish ;;
@@ -2666,8 +2716,12 @@ menu_lmstudio() {
     echo -e " ${WHITE}2)${RESET} Uninstall LM Studio"
     echo -e " ${WHITE}0)${RESET} Back to main menu"
     line
-    echo -n " -> Option: "
+    echo -n " -> Option [0]: "
     read -r opt
+    if [ -z "$opt" ]; then
+        info "no option selected, back -skip"
+        opt=0
+    fi
     case "$opt" in
         1) install_lmstudio; finish ;;
         2) uninstall_lmstudio; finish ;;
@@ -2694,8 +2748,12 @@ menu_main() {
         echo -e " ${WHITE}0)${RESET} Exit"
         echo ""
         line
-        echo -n " -> Option: "
+        echo -n " -> Option [0]: "
         read -r opt
+        if [ -z "$opt" ]; then
+            info "no option selected, exit -skip"
+            opt=0
+        fi
 
         case "$opt" in
             1) check_ipv4_interfaces; check_internet; install_all; finish ;;

@@ -23,7 +23,12 @@ echo 2. Safe Boot with Network
 echo 3. Normal Boot
 echo 4. Exit
 echo.
-set /p choice="Enter the number (1, 2, 3 or 4): "
+set "choice="
+set /p choice="Enter the number (1, 2, 3 or 4) [4]: "
+if not defined choice (
+    for /f "delims=" %%I in ('powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'"') do echo %%I INFO: no option selected, exit -skip
+    set "choice=4"
+)
 
 REM Validate user input and perform the selected action
 if "%choice%"=="1" (

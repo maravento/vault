@@ -107,20 +107,6 @@ if ! local_user=$(detect_local_user); then
 fi
 echo "Using local user: $local_user"
 
-# dependencies
-for dep in fuse3 curl iproute2 libc-bin bsdutils util-linux; do
-    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
-        exit 1
-    fi
-done
-
-# dependencies (curl install)
-if ! command -v rclone &>/dev/null; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] 'rclone' is not installed" >&2
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [2/2] install it with: curl https://rclone.org/install.sh | sudo bash -abort" >&2
-    exit 1
-fi
 
 # check ipv4 interfaces
 list_ifaces() {
@@ -173,6 +159,35 @@ check_internet() {
 
     return 1
 }
+
+# dependencies
+net_checked=0
+for dep in fuse3 curl iproute2 libc-bin bsdutils util-linux; do
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
+        if [ "$net_checked" -eq 0 ]; then
+            if ! command -v ip >/dev/null 2>&1; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing iproute2"
+                apt-get install -y iproute2 >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install iproute2 -abort" >&2; exit 1; }
+            fi
+            check_ipv4_interfaces
+            check_internet
+            apt-get update -qq || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2; exit 1; }
+            net_checked=1
+        fi
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing $dep"
+        if ! apt-get install -y "$dep" >/dev/null 2>&1; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install $dep -abort" >&2
+            exit 1
+        fi
+    fi
+done
+
+# dependencies (curl install)
+if ! command -v rclone &>/dev/null; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] 'rclone' is not installed" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [2/2] install it with: curl https://rclone.org/install.sh | sudo bash -abort" >&2
+    exit 1
+fi
 
 # ------------------------------------------------------------------------------
 # VARIABLES
@@ -481,7 +496,11 @@ show_menu() {
     echo "6) Sync status"
     echo "7) Exit"
     echo
-    read -rp "Select an option [1-7]: " opt
+    read -rp "Select an option [1-7] [7]: " opt
+    if [ -z "$opt" ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no option selected, exit -skip"
+        opt=7
+    fi
     case "$opt" in
     1) run_mount --start ;;
     2) run_mount --stop ;;

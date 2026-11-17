@@ -266,14 +266,14 @@ delete_dns_record() {
     record_id=$(echo "$records_response" | awk 'match($0,/"id":"[a-f0-9]+"/){print substr($0,RSTART+6,RLENGTH-7); exit}')
 
     if [[ -z "$record_id" ]]; then
-        echo "[OK] No DNS record found for '$tunnel_hostname' (already removed or never created)"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no DNS record for '$tunnel_hostname' -skip"
         return 0
     fi
 
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Deleting DNS record for '$tunnel_hostname' (zone: $zone_name)..."
     if curl -sf -X DELETE "https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records/${record_id}" \
         -H "Authorization: Bearer $api_token" -H "Content-Type: application/json" >/dev/null; then
-        echo "[OK] DNS record for '$tunnel_hostname' deleted"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: DNS record for '$tunnel_hostname' deleted"
     else
         echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: failed to delete DNS record for '$tunnel_hostname' -alert"
     fi
@@ -334,7 +334,7 @@ start_tunnel() {
     while [[ $retries -gt 0 ]]; do
         sleep 1
         if _pid_is_valid "$new_pid" && kill -0 "$new_pid" 2>/dev/null; then
-            echo "[UP] Tunnel '$tunnel_name' started (PID $new_pid)"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: tunnel '$tunnel_name' started (PID $new_pid)"
             echo "Log file: ${log_file/#$USER_HOME/\~}"
             return 0
         fi
@@ -352,7 +352,7 @@ stop_tunnel() {
     local pid_file="$CONFIG_DIR/${tunnel_name}.pid"
 
     if [[ ! -f "$pid_file" ]]; then
-        echo "[DOWN] Tunnel '$tunnel_name' not running"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: tunnel '$tunnel_name' not running"
         return
     fi
 
@@ -378,7 +378,7 @@ stop_tunnel() {
     fi
 
     rm -f "$pid_file"
-    echo "[OK] Tunnel '$tunnel_name' stopped"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: tunnel '$tunnel_name' stopped"
 }
 
 stop_all_tunnels() {
@@ -407,7 +407,7 @@ stop_all_tunnels() {
                 sleep 1
                 _pid_is_tunnel "$pid" "$tunnel" && kill -9 "$pid" 2>/dev/null
                 rm -f "$pid_file"
-                echo "[OK] Tunnel '$tunnel' stopped"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: tunnel '$tunnel' stopped"
                 ((stopped++))
             else
                 rm -f "$pid_file"
@@ -421,7 +421,7 @@ stop_all_tunnels() {
     if [[ $stopped -eq 0 ]]; then
         echo "All tunnels were already stopped"
     else
-        echo "[OK] All tunnels stopped"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: all tunnels stopped"
     fi
 }
 
@@ -551,7 +551,7 @@ create_tunnel() {
         echo "  - service: http_status:404"
     } > "$config_file"
 
-    echo "[OK] Config file created: ${config_file/#$USER_HOME/\~}"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: config created: $(basename "$config_file")"
 
     local do_route
     read -r -p "Route DNS '$tunnel_hostname' to this tunnel now? (y/n): " do_route
@@ -565,7 +565,7 @@ create_tunnel() {
         start_tunnel "$tunnel_name"
     fi
 
-    echo "[OK] Tunnel '$tunnel_name' setup complete"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: tunnel '$tunnel_name' setup complete"
 }
 
 start_multiple_tunnels() {
@@ -606,7 +606,7 @@ start_multiple_tunnels() {
         fi
     done
 
-    echo "[OK] Tunnel startup process completed"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: tunnel startup completed"
 }
 
 startall_tunnels() {
@@ -654,13 +654,13 @@ status_all_tunnels() {
             local pid
             pid=$(cat "$pid_file")
             if _pid_is_valid "$pid" && _pid_is_tunnel "$pid" "$tunnel"; then
-                echo "[UP] $tunnel (PID $pid)"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: tunnel '$tunnel' up (PID $pid)"
             else
                 rm -f "$pid_file"
-                echo "[DOWN] $tunnel"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: tunnel '$tunnel' down"
             fi
         else
-            echo "[DOWN] $tunnel"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: tunnel '$tunnel' down"
         fi
     done
 }
@@ -744,7 +744,7 @@ delete_tunnel() {
     rm -f "$config_file" "$CONFIG_DIR/${tunnel_name}.pid" "$CONFIG_DIR/${tunnel_name}.log"
     [[ -n "$tunnel_id" ]] && rm -f "$CONFIG_DIR/${tunnel_id}.json"
 
-    echo "[OK] Tunnel '$tunnel_name' deleted"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: tunnel '$tunnel_name' deleted"
 }
 
 # This script runs as a normal user, so it cannot write /etc/cron.d, which
@@ -754,7 +754,7 @@ _cron_remove() {
     if crontab -l 2>/dev/null | grep -qF "$script_path"; then
         crontab -l 2>/dev/null | { grep -vF "$script_path" || true; } | crontab -
         pkill -HUP -x crond 2>/dev/null || pkill -HUP -x cron 2>/dev/null || true
-        echo "[OK] Autostart entry removed from crontab"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: autostart removed from crontab"
     fi
 }
 
@@ -778,7 +778,11 @@ if [[ -z "$ACTION" ]]; then
     echo "  6. delete    - Delete a tunnel"
     echo "  0. exit"
     echo ""
-    read -r -p "Select an option: " menu_choice
+    read -r -p "Select an option [0]: " menu_choice
+    if [ -z "$menu_choice" ]; then
+        log "INFO: no option selected, exit -skip"
+        menu_choice=0
+    fi
     case "$menu_choice" in
         1) ACTION="--create" ;;
         2) ACTION="--start" ;;
@@ -819,7 +823,7 @@ case "$ACTION" in
         if ! crontab -l 2>/dev/null | grep -qF "$script_path"; then
             (crontab -l 2>/dev/null; echo "@reboot $script_path --startall") | crontab -
             pkill -HUP -x crond 2>/dev/null || pkill -HUP -x cron 2>/dev/null || true
-            echo "[OK] Autostart enabled in crontab"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: autostart enabled in crontab"
             echo "Entry: @reboot $script_path --startall"
         else
             echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: autostart entry already exists in crontab -skip"

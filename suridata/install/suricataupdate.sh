@@ -184,6 +184,9 @@ if suricata-update --disable-conf=/etc/suricata/data/disable.conf \
         exit 1
     fi
 else
+    for service in suricata evebox; do
+        systemctl start "$service" || log "WARNING: cannot restart $service -alert"
+    done
     log "ERROR: suricata-update failed -abort"
     exit 1
 fi

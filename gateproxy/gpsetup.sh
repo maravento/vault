@@ -1679,32 +1679,6 @@ sed -i '/^\s*\(fe00::\|ff00::\|ff02::\)/ s/^/#/' /etc/hosts
 failure_message="cannot write hosts"
 grep -q "ipv6.msftncsi.com" /etc/hosts || echo "$SERVER_IP ipv6.msftncsi.com ipv6.msftconnecttest.com" | tee -a /etc/hosts >/dev/null
 
-# ACLs SECTION
-acl_mac_path="$acl_root"
-acl_squid_path="/etc/squid/acl"
-# Only Squid lists missing in $acl_squid_path are copied from the repo template
-# -- never overwrite one that already exists, since it may hold real data from
-# a previous install or edited by hand. mac-*.txt is created empty below when
-# missing (pydhcp's own pysetup.sh also seeds it).
-while IFS= read -r -d '' acl_src; do
-    case "$acl_src" in
-        "$gp_path"/conf/squid/acl/*) acl_dest="$acl_squid_path/${acl_src##*/}" ;;
-        *) acl_dest="$acl_root/${acl_src##*/}" ;;
-    esac
-    if [ ! -f "$acl_dest" ]; then
-        failure_message="cannot create the ACL destination directory"
-        mkdir -p "$(dirname "$acl_dest")"
-        failure_message="cannot copy $(basename "$acl_dest")"
-        cp "$acl_src" "$acl_dest"
-    fi
-done < <(find "$gp_path/conf/squid/acl" -maxdepth 1 -type f -print0)
-# ACL directories and files, per rules.md BLOQUE 6, section 14
-shopt -s nullglob
-acl_prepare "$acl_root" 700 600 "$acl_mac_path/mac-limited.txt" \
-    "$acl_mac_path/mac-unlimited.txt"
-acl_prepare "$acl_squid_path" 755 644 "$acl_squid_path"/*.txt
-shopt -u nullglob
-
 # PHP
 failure_message="cannot install packages with apt"
 retry_cmd "install packages" apt install -y php libapache2-mod-php php-cli php-curl php-sqlite3 || { report_failure; exit 1; }
@@ -1804,6 +1778,31 @@ rm -f /run/squid.pid &>/dev/null
 #DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends squid-openssl
 failure_message="cannot install packages with apt"
 retry_cmd "install packages" apt install -y squid-openssl squid-langpack squid-common || { report_failure; exit 1; }
+# ACLs SECTION
+acl_mac_path="$acl_root"
+acl_squid_path="/etc/squid/acl"
+# Only Squid lists missing in $acl_squid_path are copied from the repo template
+# -- never overwrite one that already exists, since it may hold real data from
+# a previous install or edited by hand. mac-*.txt is created empty below when
+# missing (pydhcp's own pysetup.sh also seeds it).
+while IFS= read -r -d '' acl_src; do
+    case "$acl_src" in
+        "$gp_path"/conf/squid/acl/*) acl_dest="$acl_squid_path/${acl_src##*/}" ;;
+        *) acl_dest="$acl_root/${acl_src##*/}" ;;
+    esac
+    if [ ! -f "$acl_dest" ]; then
+        failure_message="cannot create the ACL destination directory"
+        mkdir -p "$(dirname "$acl_dest")"
+        failure_message="cannot copy $(basename "$acl_dest")"
+        cp "$acl_src" "$acl_dest"
+    fi
+done < <(find "$gp_path/conf/squid/acl" -maxdepth 1 -type f -print0)
+# ACL directories and files, per rules.md BLOQUE 6, section 14
+shopt -s nullglob
+acl_prepare "$acl_root" 700 600 "$acl_mac_path/mac-limited.txt" \
+    "$acl_mac_path/mac-unlimited.txt"
+acl_prepare "$acl_squid_path" 755 644 "$acl_squid_path"/*.txt
+shopt -u nullglob
 failure_message="cannot update system packages"
 upgrade
 failure_message="cannot create Squid log files"

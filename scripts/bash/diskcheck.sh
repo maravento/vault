@@ -64,13 +64,6 @@ fi
 # Start
 log "INFO: diskcheck start..."
 
-# dependencies
-for dep in inxi smartmontools util-linux libnotify-bin systemd coreutils grep sudo software-properties-common apt bsdutils logrotate iproute2 libc-bin; do
-    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
-        log "ERROR: '$dep' is not installed -abort"
-        exit 1
-    fi
-done
 
 # check ipv4 interfaces
 list_ifaces() {
@@ -124,6 +117,28 @@ check_internet() {
     log "ERROR: no internet connection -abort"
     exit 1
 }
+
+# dependencies
+net_checked=0
+for dep in inxi smartmontools util-linux libnotify-bin systemd coreutils grep sudo software-properties-common apt bsdutils logrotate iproute2 libc-bin; do
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
+        if [ "$net_checked" -eq 0 ]; then
+            if ! command -v ip >/dev/null 2>&1; then
+                log "INFO: installing iproute2"
+                apt-get install -y iproute2 >/dev/null 2>&1 || { log "ERROR: cannot install iproute2 -abort"; exit 1; }
+            fi
+            check_ipv4_interfaces
+            check_internet
+            apt-get update -qq || { log "ERROR: cannot update package lists -abort"; exit 1; }
+            net_checked=1
+        fi
+        log "INFO: installing $dep"
+        if ! apt-get install -y "$dep" >/dev/null 2>&1; then
+            log "ERROR: cannot install $dep -abort"
+            exit 1
+        fi
+    fi
+done
 
 # local_user detection
 detect_local_user() {
@@ -249,7 +264,7 @@ notify_alert() {
     while IFS= read -r alert_line; do
         [ -n "$alert_line" ] || continue
         if [ -n "$action" ]; then
-            alert_log="INFO: $alert_line"
+            alert_log="WARNING: [1/2] $alert_line"
         else
             alert_log="WARNING: ${alert_line#ALERT: } -alert"
         fi
@@ -257,7 +272,7 @@ notify_alert() {
         log "$alert_log"
     done <<< "$detail"
     if [ -n "$action" ]; then
-        alert_log="WARNING: $action -alert"
+        alert_log="WARNING: [2/2] $action -alert"
         logger -t disktemp "$(date '+%Y-%m-%d %H:%M:%S') $alert_log"
         log "$alert_log"
     fi
@@ -271,26 +286,45 @@ notify_alert() {
 degrees=50
 
 # option 1 (ssd sata and nvme)
-TEMP_OUTPUT=$(inxi -xD | awk -v max="$degrees" '
-    /temp:/ {
+INXI_OUTPUT=$(inxi -xD -c0)
+TEMP_OUTPUT=$(printf '%s\n' "$INXI_OUTPUT" | awk -v max="$degrees" '
+    # with root, inxi may wrap temp: onto the line after its /dev/ name
+    {
         for (i=1; i<=NF; i++) {
+            if ($i ~ /^\/dev\//) dev = substr($i, 6)
             if ($i == "temp:") {
                 temp = $(i+1)+0
                 if (temp > max)
-                    print "ALERT: hard drive temperature is above: " temp "C"
+                    print "ALERT: " dev " temperature above limit: " temp "C"
             }
         }
     }
 ')
 if [ -n "$TEMP_OUTPUT" ]; then
-    notify_alert "$TEMP_OUTPUT" "checkbox" "${TEMP_OUTPUT//ALERT: hard drive temperature is above:/disk temperature above limit:}"
+    notify_alert "$TEMP_OUTPUT" "checkbox"
 fi
 
-# option 2 (for some ssd sata and hdd - uncomment if needed)
-#temperature=$(hddtemp /dev/sda --numeric)
-#if [ $temperature -ge $degrees ]; then
-# notify_alert "ALERT: hard drive's temperature is above: $temperature" "checkbox"
-#fi
+# option 2 (failover for some ssd sata and hdd: each disk inxi reports no temperature for)
+# USB disks are left out: card readers and USB bridges have no sensor
+inxi_temp_disks=$(printf '%s\n' "$INXI_OUTPUT" | awk '
+    { for (i=1; i<=NF; i++) { if ($i ~ /^\/dev\//) dev = substr($i, 6); if ($i == "temp:") print dev } }
+')
+no_temp_disks=$(lsblk -dno NAME,TYPE,TRAN | awk '$2=="disk" && $3!="usb" {print $1}' | grep -vxF -f <(printf '%s\n' "$inxi_temp_disks"))
+if [ -n "$no_temp_disks" ]; then
+    if ! command -v hddtemp >/dev/null 2>&1; then
+        for disk in $no_temp_disks; do
+            log "WARNING: $disk: no temperature, hddtemp absent -alert"
+        done
+    else
+        for disk in $no_temp_disks; do
+            temperature=$(hddtemp "/dev/$disk" --numeric 2>/dev/null)
+            [[ "$temperature" =~ ^[0-9]+$ ]] || continue
+            if [ "$temperature" -ge "$degrees" ]; then
+                notify_alert "ALERT: $disk temperature above limit: ${temperature}C" "checkbox"
+            fi
+        done
+    fi
+fi
 
 # ------------------------------------------------------------------------------
 # SMART HEALTH
@@ -324,17 +358,19 @@ else
             notify_alert "$DISK: SMART status FAILED. Replace immediately." "drive-harddisk" "${DISK##*/}: SMART failed; replace immediately"
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
+        smart_ok=""
+        [ "$SMART_STATUS" = "PASSED" ] && smart_ok=", SMART OK"
 
         # NVMe: uses its own attributes
         if echo "$DISK" | grep -q "nvme"; then
             CRITICAL=$(smartctl -A "$DISK" 2>/dev/null | awk -F: '/Critical Warning/{gsub(/ /,"",$2);print $2}')
             if [ -n "$CRITICAL" ] && [ "$CRITICAL" != "0x00" ] && [ "$CRITICAL" != "0" ]; then
-                notify_alert "$DISK (NVMe): Critical warning detected ($CRITICAL). Check disk immediately." "drive-harddisk" "${DISK##*/}: NVMe critical warning=$CRITICAL" "${DISK##*/}: check disk immediately"
+                notify_alert "$DISK (NVMe): Critical warning detected ($CRITICAL). Check disk immediately." "drive-harddisk" "${DISK##*/}: NVMe critical warning=$CRITICAL" "check disk immediately"
                 DISK_ALERTS=$((DISK_ALERTS + 1))
             fi
             WEAR=$(smartctl -A "$DISK" 2>/dev/null | awk -F: '/Percentage Used/{gsub(/[ %]/,"",$2);print $2}')
             if [ -n "$WEAR" ] && [ "$WEAR" -ge 90 ] 2>/dev/null; then
-                notify_alert "$DISK (NVMe): Wear level at ${WEAR}%. Plan replacement soon." "drive-harddisk" "${DISK##*/}: wear=${WEAR}%" "${DISK##*/}: plan replacement soon"
+                notify_alert "$DISK (NVMe): Wear level at ${WEAR}%. Plan replacement soon." "drive-harddisk" "${DISK##*/}: wear=${WEAR}%" "plan replacement soon"
                 DISK_ALERTS=$((DISK_ALERTS + 1))
             fi
             [ "$DISK_ALERTS" -eq 0 ] && log "INFO: ${DISK##*/}: OK"
@@ -349,19 +385,19 @@ else
         POWER_HOURS=$(echo "$SMART_ATTRS" | awk '/Power_On_Hours/ {print $10}')
 
         if [ -n "$REALLOCATED" ] && [ "$REALLOCATED" -ge "$REALLOCATED_THRESHOLD" ] 2>/dev/null; then
-            notify_alert "$DISK: $REALLOCATED reallocated sectors detected. Disk degrading -- plan replacement." "drive-harddisk" "${DISK##*/}: reallocated sectors=$REALLOCATED" "${DISK##*/}: disk degrading; plan replacement"
+            notify_alert "$DISK: $REALLOCATED reallocated sectors detected. Disk degrading -- plan replacement." "drive-harddisk" "${DISK##*/}: reallocated sectors=$REALLOCATED" "disk degrading; plan replacement"
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
         if [ -n "$PENDING" ] && [ "$PENDING" -ge "$PENDING_THRESHOLD" ] 2>/dev/null; then
-            notify_alert "$DISK: $PENDING pending sectors. Possible imminent failure." "drive-harddisk" "${DISK##*/}: pending sectors=$PENDING" "${DISK##*/}: possible imminent failure"
+            notify_alert "$DISK: $PENDING pending sectors. Possible imminent failure." "drive-harddisk" "${DISK##*/}: pending sectors=$PENDING" "possible imminent failure"
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
         if [ -n "$UNCORRECTABLE" ] && [ "$UNCORRECTABLE" -ge "$UNCORRECTABLE_THRESHOLD" ] 2>/dev/null; then
-            notify_alert "$DISK: $UNCORRECTABLE uncorrectable errors. Replace disk immediately." "drive-harddisk" "${DISK##*/}: uncorrectable errors=$UNCORRECTABLE" "${DISK##*/}: replace disk immediately"
+            notify_alert "$DISK: $UNCORRECTABLE uncorrectable errors. Replace disk immediately." "drive-harddisk" "${DISK##*/}: uncorrectable errors=$UNCORRECTABLE" "replace disk immediately"
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
         if [ -n "$POWER_HOURS" ] && [ "$POWER_HOURS" -ge 40000 ] 2>/dev/null; then
-            notify_alert "$DISK: ${POWER_HOURS}h of use. Consider replacement as preventive measure." "drive-harddisk" "${DISK##*/}: hours of use=$POWER_HOURS" "${DISK##*/}: consider preventive replacement"
+            notify_alert "$DISK: ${POWER_HOURS}h of use. Consider replacement as preventive measure." "drive-harddisk" "${DISK##*/}: hours of use=$POWER_HOURS${smart_ok}" "consider preventive replacement"
             DISK_ALERTS=$((DISK_ALERTS + 1))
         fi
 

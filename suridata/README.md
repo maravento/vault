@@ -180,7 +180,7 @@ sudo env SURIDATA_WAN_IFACE=enp1s0 SURIDATA_LAN_IFACE=enp2s0 \
 | Command | Description | Descripción |
 |---|---|---|
 | `sudo bash /etc/suricata/suridata.sh` | Process alerts and refresh firewall blocks. | Procesa alertas y actualiza bloqueos. |
-| `sudo bash /etc/suricata/suricataupdate.sh` | Stop Suricata and EveBox, update selected rules, then start both services. | Detiene Suricata y EveBox, actualiza las reglas seleccionadas e inicia ambos servicios. |
+| `sudo bash /etc/suricata/suricataupdate.sh` | Stop Suricata and EveBox, update selected rules, then start both services. If the update fails, start both services again and abort. | Detiene Suricata y EveBox, actualiza las reglas seleccionadas e inicia ambos servicios. Si la actualización falla, vuelve a iniciar ambos servicios y aborta. |
 | `sudo bash /etc/suricata/suribk.sh` | Create a configuration backup. | Crea un respaldo de configuración. |
 | `sudo bash /etc/suricata/suribk.sh --install` | Register the monthly backup task. | Registra el respaldo mensual. |
 | `sudo bash /etc/suricata/suribk.sh --uninstall` | Remove the backup task; keep archives. | Elimina la tarea de respaldo; conserva los archivos. |
@@ -287,7 +287,7 @@ sudo env SURIDATA_WAN_IFACE=enp1s0 SURIDATA_LAN_IFACE=enp2s0 \
 |---|---|---|
 | `/etc/cron.d/suridata` | Single project schedule file, owned by root with mode `644`. | Archivo único de tareas, propiedad root con permisos `644`. |
 | Every five minutes | Run `suridata.sh`. | Ejecuta `suridata.sh`. |
-| Daily at 02:00 | Run `suricataupdate.sh`: stop and verify both services, update rules, then start both services. | Ejecuta `suricataupdate.sh`: detiene y verifica ambos servicios, actualiza reglas e inicia ambos servicios. |
+| Daily at 02:00 | Run `suricataupdate.sh`: stop and verify both services, update rules, then start both services. If the update fails, start both services again and abort. | Ejecuta `suricataupdate.sh`: detiene y verifica ambos servicios, actualiza reglas e inicia ambos servicios. Si la actualización falla, vuelve a iniciar ambos servicios y aborta. |
 | Monthly | Run `suricataclean.sh` and `suribk.sh` as separate tasks. | Ejecuta `suricataclean.sh` y `suribk.sh` como tareas separadas. |
 | `surisetup.log` | Installer log beside `surisetup.sh`; emptied on each invocation. | Registro junto a `surisetup.sh`; vaciado en cada ejecución. |
 | `/var/log/suridata.log` | Shared operational log; weekly rotation, seven retained rotations. | Registro operativo compartido; rotación semanal, siete archivos retenidos. |

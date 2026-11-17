@@ -73,13 +73,6 @@ log() {
     fi
 }
 
-# dependencies
-for dep in iproute2 util-linux systemd coreutils grep apt libc-bin; do
-    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
-        log "ERROR: dependency '$dep' is not installed -abort"
-        exit 1
-    fi
-done
 
 # check ipv4 interfaces
 list_ifaces() {
@@ -133,6 +126,28 @@ check_internet() {
     log "ERROR: no internet connection -abort"
     exit 1
 }
+
+# dependencies
+net_checked=0
+for dep in iproute2 util-linux systemd coreutils grep apt libc-bin; do
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
+        if [ "$net_checked" -eq 0 ]; then
+            if ! command -v ip >/dev/null 2>&1; then
+                log "INFO: installing iproute2"
+                apt-get install -y iproute2 >/dev/null 2>&1 || { log "ERROR: cannot install iproute2 -abort"; exit 1; }
+            fi
+            check_ipv4_interfaces
+            check_internet
+            apt-get update -qq || { log "ERROR: cannot update package lists -abort"; exit 1; }
+            net_checked=1
+        fi
+        log "INFO: installing $dep"
+        if ! apt-get install -y "$dep" >/dev/null 2>&1; then
+            log "ERROR: cannot install $dep -abort"
+            exit 1
+        fi
+    fi
+done
 
 # ------------------------------------------------------------------------------
 # VARIABLES
@@ -369,7 +384,11 @@ menu() {
     echo ""
 
     local choice
-    read -r -p "Select an option: " choice
+    read -r -p "Select an option [0]: " choice
+    if [ -z "$choice" ]; then
+        log "INFO: no option selected, exit -skip"
+        choice=0
+    fi
 
     case "$choice" in
         1) do_install ;;

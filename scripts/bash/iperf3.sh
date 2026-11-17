@@ -72,10 +72,10 @@ trap 'printf "%s ${RED}ERROR:${NC} interrupted; logs in %s -abort\n" "$(date "+%
 # ------------------------------------------------------------------------------
 
 # OUTPUT HELPERS
-# Single place for the colored ERROR, INFO, [OK], WARNING and header lines
+# Single place for the colored ERROR, INFO, WARNING and header lines
 die() { echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${RED}ERROR:${NC} $* -abort" >&2; exit 1; }
 info() { echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${BLU}INFO:${NC} $*"; }
-ok() { echo -e "${GRN}[OK]${NC} $*"; }
+ok() { echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${GRN}INFO:${NC} $*"; }
 warn() { echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YLW}WARNING:${NC} $*"; }
 hdr() { echo -e "\n${CYN}--------------------------------------------------${NC}"; \
          echo -e "${CYN} $*${NC}"; \

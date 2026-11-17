@@ -223,15 +223,23 @@ mac_set() {
 # MACIP SET
 # Add each MAC and IP pair to the macip set
 create_acl() {
-    local mac_addr client_ip
+    local mac_addr client_ip invalid_count=0
     while (( $# >= 2 )); do
         mac_addr="$1"
         shift
         client_ip="$1"
         shift
         # Add MAC+IP to set
-        [[ "$mac_addr" =~ $UH_MAC ]] && [[ "$client_ip" =~ $UH_IPV4 ]] && ipset add macip "$client_ip,$mac_addr" -exist
+        if [[ "$mac_addr" =~ $UH_MAC ]] && [[ "$client_ip" =~ $UH_IPV4 ]]; then
+            ipset add macip "$client_ip,$mac_addr" -exist
+        else
+            invalid_count=$((invalid_count + 1))
+        fi
     done
+    if [ "$invalid_count" -gt 0 ]; then
+        log "WARNING: $invalid_count invalid MAC/IP pairs in pydhcpd.conf -alert"
+    fi
+    return 0
 }
 
 # ------------------------------------------------------------------------------
