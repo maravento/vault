@@ -165,194 +165,194 @@ check_internet() {
 
 # Leaves the installer's Portainer running. Used by the first install and the retry.
 ensure_portainer() {
-  local container_names portainer_image portainer_running portainer_label
-  docker info >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: docker is not responding -abort" >&2; exit 1; }
-  container_names=$(docker ps -a --format '{{.Names}}') || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot list containers -abort" >&2; exit 1; }
-  if ! grep -qx portainer <<< "$container_names"; then
-    docker volume create portainer_data || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot create portainer volume -abort" >&2; exit 1; }
-    docker run -d -p 9000:9000 --name portainer --restart=always \
-    --label com.maravento.docker-sh=portainer \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -v portainer_data:/data portainer/portainer-ce || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot start portainer -abort" >&2; exit 1; }
-  fi
-  portainer_image=$(docker inspect -f '{{.Config.Image}}' portainer) || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot inspect portainer -abort" >&2; exit 1; }
-  case "$portainer_image" in
-    portainer/portainer-ce|portainer/portainer-ce:*) ;;
-    *) echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: container name portainer is used by another image -abort" >&2; exit 1; ;;
-  esac
-  portainer_running=$(docker inspect -f '{{.State.Running}}' portainer) || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot inspect portainer -abort" >&2; exit 1; }
-  if [ "$portainer_running" != "true" ]; then
-    portainer_label=$(docker inspect -f '{{index .Config.Labels "com.maravento.docker-sh"}}' portainer) || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot inspect portainer -abort" >&2; exit 1; }
-    if [ "$portainer_label" != "portainer" ]; then
-      echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: stopped portainer was not created by docker.sh -abort" >&2
-      exit 1
+    local container_names portainer_image portainer_running portainer_label
+    docker info >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: docker is not responding -abort" >&2; exit 1; }
+    container_names=$(docker ps -a --format '{{.Names}}') || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot list containers -abort" >&2; exit 1; }
+    if ! grep -qx portainer <<< "$container_names"; then
+        docker volume create portainer_data || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot create portainer volume -abort" >&2; exit 1; }
+        docker run -d -p 9000:9000 --name portainer --restart=always \
+        --label com.maravento.docker-sh=portainer \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -v portainer_data:/data portainer/portainer-ce || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot start portainer -abort" >&2; exit 1; }
     fi
-    docker start portainer || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot start portainer -abort" >&2; exit 1; }
+    portainer_image=$(docker inspect -f '{{.Config.Image}}' portainer) || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot inspect portainer -abort" >&2; exit 1; }
+    case "$portainer_image" in
+        portainer/portainer-ce|portainer/portainer-ce:*) ;;
+        *) echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: container name portainer is used by another image -abort" >&2; exit 1; ;;
+    esac
     portainer_running=$(docker inspect -f '{{.State.Running}}' portainer) || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot inspect portainer -abort" >&2; exit 1; }
-    [ "$portainer_running" = "true" ] || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: portainer is not running -abort" >&2; exit 1; }
-  fi
+    if [ "$portainer_running" != "true" ]; then
+        portainer_label=$(docker inspect -f '{{index .Config.Labels "com.maravento.docker-sh"}}' portainer) || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot inspect portainer -abort" >&2; exit 1; }
+        if [ "$portainer_label" != "portainer" ]; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: stopped portainer was not created by docker.sh -abort" >&2
+            exit 1
+        fi
+        docker start portainer || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot start portainer -abort" >&2; exit 1; }
+        portainer_running=$(docker inspect -f '{{.State.Running}}' portainer) || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot inspect portainer -abort" >&2; exit 1; }
+        [ "$portainer_running" = "true" ] || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: portainer is not running -abort" >&2; exit 1; }
+    fi
 }
 
 # Function to install Docker and docker-compose-plugin
 install_docker() {
-  if ! command -v docker &> /dev/null; then
-    check_ipv4_interfaces
-    check_internet
-    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Docker not installed. Installing..."
-    retry_cmd "update package lists" apt-get update || {
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
-        exit 1
-    }
-    retry_cmd "install packages" apt-get install -y ca-certificates curl gnupg lsb-release || {
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install prerequisites -abort" >&2
-        exit 1
-    }
+    if ! command -v docker &> /dev/null; then
+        check_ipv4_interfaces
+        check_internet
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Docker not installed. Installing..."
+        retry_cmd "update package lists" apt-get update || {
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
+                exit 1
+        }
+        retry_cmd "install packages" apt-get install -y ca-certificates curl gnupg lsb-release || {
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install prerequisites -abort" >&2
+                exit 1
+        }
 
-    # GPG
-    local key_dir=/etc/apt/keyrings key_stage
-    if ! mkdir -p -- "$key_dir" || ! key_stage=$(mktemp -d "$key_dir/docker-key.XXXXXX"); then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot stage Docker GPG key -abort" >&2
-        exit 1
-    fi
+        # GPG
+        local key_dir=/etc/apt/keyrings key_stage
+        if ! mkdir -p -- "$key_dir" || ! key_stage=$(mktemp -d "$key_dir/docker-key.XXXXXX"); then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot stage Docker GPG key -abort" >&2
+                exit 1
+        fi
 
-    # Download the key to a temp file and verify its fingerprint before trusting it
-    DOCKER_GPG_EXPECTED_FPR="9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
-    DOCKER_GPG_TMP="$key_stage/docker.asc"
-    if ! retry_cmd "download signing key" curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$DOCKER_GPG_TMP"; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') PARTIAL: https://download.docker.com/linux/ubuntu/gpg"
+        # Download the key to a temp file and verify its fingerprint before trusting it
+        docker_gpg_expected_fpr="9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
+        docker_gpg_tmp="$key_stage/docker.asc"
+        if ! retry_cmd "download signing key" curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$docker_gpg_tmp"; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') PARTIAL: https://download.docker.com/linux/ubuntu/gpg"
+                rm -rf -- "$key_stage"
+                exit 1
+        fi
+        echo "$(date '+%Y-%m-%d %H:%M:%S') SAVED: gpg"
+        docker_gpg_actual_fpr=$(gpg --with-colons --import-options show-only --import --fingerprint "$docker_gpg_tmp" 2>/dev/null | awk -F: '/^fpr:/{print $10; exit}')
+        if [ "$docker_gpg_actual_fpr" != "$docker_gpg_expected_fpr" ]; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] Docker GPG fingerprint mismatch, got: ${docker_gpg_actual_fpr:-none}" >&2
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [2/2] expected: $docker_gpg_expected_fpr -abort" >&2
+                rm -rf -- "$key_stage"
+                exit 1
+        fi
+        if ! gpg --dearmor -o "$key_stage/docker.gpg" "$docker_gpg_tmp" ||
+              ! chmod 644 "$key_stage/docker.gpg" ||
+              ! mv -fT -- "$key_stage/docker.gpg" "$key_dir/docker.gpg"; then
+                rm -rf -- "$key_stage"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot store Docker GPG key -abort" >&2
+                exit 1
+        fi
         rm -rf -- "$key_stage"
-        exit 1
-    fi
-    echo "$(date '+%Y-%m-%d %H:%M:%S') SAVED: gpg"
-    DOCKER_GPG_ACTUAL_FPR=$(gpg --with-colons --import-options show-only --import --fingerprint "$DOCKER_GPG_TMP" 2>/dev/null | awk -F: '/^fpr:/{print $10; exit}')
-    if [ "$DOCKER_GPG_ACTUAL_FPR" != "$DOCKER_GPG_EXPECTED_FPR" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] Docker GPG fingerprint mismatch, got: ${DOCKER_GPG_ACTUAL_FPR:-none}" >&2
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [2/2] expected: $DOCKER_GPG_EXPECTED_FPR -abort" >&2
-        rm -rf -- "$key_stage"
-        exit 1
-    fi
-    if ! gpg --dearmor -o "$key_stage/docker.gpg" "$DOCKER_GPG_TMP" ||
-       ! chmod 644 "$key_stage/docker.gpg" ||
-       ! mv -fT -- "$key_stage/docker.gpg" "$key_dir/docker.gpg"; then
-        rm -rf -- "$key_stage"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot store Docker GPG key -abort" >&2
-        exit 1
-    fi
-    rm -rf -- "$key_stage"
 
-    # Add Repo
-    echo \
-      "deb [arch=$(dpkg --print-architecture) \
-      signed-by=/etc/apt/keyrings/docker.gpg] \
-      https://download.docker.com/linux/ubuntu \
-      $(lsb_release -cs) stable" | \
-      tee /etc/apt/sources.list.d/docker.list > /dev/null || {
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot write docker.list -abort" >&2
-        exit 1
-    }
+        # Add Repo
+        echo \
+            "deb [arch=$(dpkg --print-architecture) \
+            signed-by=/etc/apt/keyrings/docker.gpg] \
+            https://download.docker.com/linux/ubuntu \
+            $(lsb_release -cs) stable" | \
+            tee /etc/apt/sources.list.d/docker.list > /dev/null || {
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot write docker.list -abort" >&2
+                exit 1
+        }
 
-    # Install
-    retry_cmd "update package lists" apt-get update || {
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
-        exit 1
-    }
-    # Method 1: install Docker CE and Compose from the Docker repository.
-    retry_cmd "install packages" apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || {
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install Docker packages -abort" >&2
-        exit 1
-    }
-    # Method 2: alternative docker.io installation; replace Method 1.
-    #apt install -y docker.io docker-compose-plugin # Optional
-    mkdir -p /etc/docker
-    docker compose version || {
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: docker compose not available -abort" >&2
-        exit 1
-    }
-    systemctl start docker || {
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot start docker -abort" >&2
-        exit 1
-    }
-    systemctl enable docker || {
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot enable docker -abort" >&2
-        exit 1
-    }
-    usermod -aG docker "$local_user" || {
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot add user to docker group -abort" >&2
-        exit 1
-    }
-    ensure_portainer
-    #docker run hello-world
-    echo "Docker + Portainer has been installed successfully"
-    echo "Access: http://localhost:9000/"
-  else
-    ensure_portainer
-    echo "Docker is already installed"
-  fi
+        # Install
+        retry_cmd "update package lists" apt-get update || {
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
+                exit 1
+        }
+        # Method 1: install Docker CE and Compose from the Docker repository.
+        retry_cmd "install packages" apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || {
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install Docker packages -abort" >&2
+                exit 1
+        }
+        # Method 2: alternative docker.io installation; replace Method 1.
+        #apt install -y docker.io docker-compose-plugin # Optional
+        mkdir -p /etc/docker
+        docker compose version || {
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: docker compose not available -abort" >&2
+                exit 1
+        }
+        systemctl start docker || {
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot start docker -abort" >&2
+                exit 1
+        }
+        systemctl enable docker || {
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot enable docker -abort" >&2
+                exit 1
+        }
+        usermod -aG docker "$local_user" || {
+                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot add user to docker group -abort" >&2
+                exit 1
+        }
+        ensure_portainer
+        #docker run hello-world
+        echo "Docker + Portainer has been installed successfully"
+        echo "Access: http://localhost:9000/"
+    else
+        ensure_portainer
+        echo "Docker is already installed"
+    fi
 }
 
 # Docker uninstall function
 uninstall_docker() {
-    local purge_failed=0
-  if command -v docker &> /dev/null; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Docker is installed. Proceeding with uninstallation..."
+        local purge_failed=0
+    if command -v docker &> /dev/null; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Docker is installed. Proceeding with uninstallation..."
 
-    # Stop and kill all running containers
-    CONTAINERS=$(docker ps -q)
-    if [ -n "$CONTAINERS" ]; then
-      docker stop $CONTAINERS
-    fi
-    CONTAINERS=$(docker ps -aq)
-    if [ -n "$CONTAINERS" ]; then
-      docker rm $CONTAINERS
-    fi
-
-    # Delete all volumes
-    VOLUMES=$(docker volume ls -q)
-    if [ -n "$VOLUMES" ]; then
-      docker volume rm $VOLUMES
-    fi
-
-    # Delete all images
-    IMAGES=$(docker images -q)
-    if [ -n "$IMAGES" ]; then
-      docker rmi $IMAGES
-    fi
-
-    # Delete custom networks (excluding predefined ones)
-    NETWORKS=$(docker network ls -q)
-    PREDEFINED_NETWORKS="bridge host none"
-    for NETWORK in $NETWORKS; do
-      NETWORK_NAME=$(docker network inspect --format '{{.Name}}' "$NETWORK")
-      if ! echo "$PREDEFINED_NETWORKS" | grep -wq "$NETWORK_NAME"; then
-        docker network rm $NETWORK
-      fi
-    done
-
-    # Uninstall Docker packages
-    for pkg in docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing Dockers Packages..."
-        if dpkg -s "$pkg" &>/dev/null && ! apt-get purge -y "$pkg"; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: package $pkg not removed -alert"
-            purge_failed=1
+        # Stop and kill all running containers
+        container_ids=$(docker ps -q)
+        if [ -n "$container_ids" ]; then
+            docker stop $container_ids
         fi
-    done
+        container_ids=$(docker ps -aq)
+        if [ -n "$container_ids" ]; then
+            docker rm $container_ids
+        fi
 
-    # Delete Docker ppa, directories and files
-    rm -rf /var/lib/docker 2>/dev/null || true
-    rm -f /etc/apt/sources.list.d/docker.list
+        # Delete all volumes
+        volume_ids=$(docker volume ls -q)
+        if [ -n "$volume_ids" ]; then
+            docker volume rm $volume_ids
+        fi
 
-    # Clean up unneeded packages
-    apt autoremove -y
-    apt-get clean
+        # Delete all images
+        image_ids=$(docker images -q)
+        if [ -n "$image_ids" ]; then
+            docker rmi $image_ids
+        fi
 
-    if [ "$purge_failed" -gt 0 ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Docker data removed, packages pending -alert"
+        # Delete custom networks (excluding predefined ones)
+        network_ids=$(docker network ls -q)
+        predefined_networks="bridge host none"
+        for network_id in $network_ids; do
+            network_name=$(docker network inspect --format '{{.Name}}' "$network_id")
+            if ! echo "$predefined_networks" | grep -wq "$network_name"; then
+                docker network rm $network_id
+            fi
+        done
+
+        # Uninstall Docker packages
+        for pkg in docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing Dockers Packages..."
+                if dpkg -s "$pkg" &>/dev/null && ! apt-get purge -y "$pkg"; then
+                        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: package $pkg not removed -alert"
+                        purge_failed=1
+                fi
+        done
+
+        # Delete Docker ppa, directories and files
+        rm -rf /var/lib/docker 2>/dev/null || true
+        rm -f /etc/apt/sources.list.d/docker.list
+
+        # Clean up unneeded packages
+        apt autoremove -y
+        apt-get clean
+
+        if [ "$purge_failed" -gt 0 ]; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Docker data removed, packages pending -alert"
+        else
+                echo "Docker has been successfully uninstalled"
+        fi
     else
-        echo "Docker has been successfully uninstalled"
+        echo "Docker is not installed"
     fi
-  else
-    echo "Docker is not installed"
-  fi
 }
 
 # Show help
@@ -380,18 +380,18 @@ if [ $# -eq 0 ]; then
     option="${option:-3}"
 
     case $option in
-      1)
-        install_docker
-        ;;
-      2)
-        uninstall_docker
-        ;;
-      3)
-        ;;
-      *)
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
-        exit 1
-        ;;
+        1)
+            install_docker
+            ;;
+        2)
+            uninstall_docker
+            ;;
+        3)
+            ;;
+        *)
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
+            exit 1
+            ;;
     esac
 else
     # Command line mode

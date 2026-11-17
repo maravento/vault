@@ -333,7 +333,7 @@ none /run/shm tmpfs defaults,ro 0 0                                 # read-only 
 | Function | Description | Descripción |
 | :--- | :--- | :--- |
 | Localnet | Localnet (<code>192.168.0.0</code>) is derived from the Server IP and Netmask together, not asked separately. | Localnet (<code>192.168.0.0</code>) se deriva del Server IP y la Netmask en conjunto, no se pregunta por separado. |
-| Client DNS | DNS Primary/Secondary are passed to pydhcp, which installs and configures Unbound. The firewall reads <code>SERV_DNS</code> from <code>pydhcp.env</code>, the same setting pydhcp uses for DHCP clients. pydhcp announces the server IP as client DNS and uses its default local domain. To change client DNS, edit that key, regenerate DHCP configuration and reload the affected services. | Los DNS Primario/Secundario se envían a pydhcp, que instala y configura Unbound. El firewall lee <code>SERV_DNS</code> desde <code>pydhcp.env</code>, la misma clave que pydhcp utiliza para los clientes DHCP. pydhcp anuncia la IP del servidor como DNS de clientes y utiliza su dominio local predeterminado. Para cambiar los DNS de clientes, edita esa clave, regenera la configuración DHCP y recarga los servicios afectados. |
+| Client DNS | DNS Primary/Secondary are passed to pydhcp, which installs and configures Unbound. pydhcp announces the server IP (<code>SERVER_IP</code>) as client DNS and uses its default local domain. The firewall lets <code>macports</code> devices query only that resolver. | Los DNS Primario/Secundario se envían a pydhcp, que instala y configura Unbound. pydhcp anuncia la IP del servidor (<code>SERVER_IP</code>) como DNS de clientes y utiliza su dominio local predeterminado. El firewall solo permite a los dispositivos de <code>macports</code> consultar ese resolver. |
 | Installer configuration | Require two connected wired interfaces. Ask WAN first among interfaces with global IPv4, then LAN among the remaining connected interfaces. Configure LAN through Netplan and verify its selected IPv4/prefix. Save only WAN in <code>gateproxy.env</code>. Other answers replace placeholders or are passed to module installers. Each module writes the same own keys it would write in a standalone installation. | Exige dos interfaces cableadas conectadas. Pregunta WAN primero entre interfaces con IPv4 global y después LAN entre las restantes conectadas. Configura LAN mediante Netplan y verifica su IPv4/prefijo seleccionado. Guarda únicamente WAN en <code>gateproxy.env</code>. Las otras respuestas sustituyen placeholders o se entregan a los instaladores de módulos. Cada módulo escribe las mismas claves propias que escribiría al instalarse por separado. |
 
 #### gateproxy.env
@@ -577,10 +577,10 @@ BACKUP_DIR=/etc/bak/gateproxy
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     Devices registered in <code>macports</code> have access to the services below. DNS (UDP/TCP 53) is a global rule applied to all LAN traffic, not a <code>macports</code> privilege; see <code>SERV_DNS</code> above.
+     Devices registered in <code>macports</code> have access to the services below. DNS (UDP/TCP 53) to <code>SERVER_IP</code> is one of them, with a limit of 15 new UDP queries per second per device; DNS to any other server is logged as <code>DNS-DROP:</code> and dropped. <code>macunlimited</code> devices have no DNS restriction.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Los dispositivos registrados en <code>macports</code> tienen acceso a los servicios de abajo. DNS (UDP/TCP 53) es una regla global aplicada a todo el tráfico LAN, no un privilegio de <code>macports</code>; ver <code>SERV_DNS</code> arriba.
+     Los dispositivos registrados en <code>macports</code> tienen acceso a los servicios de abajo. El DNS (UDP/TCP 53) hacia <code>SERVER_IP</code> es uno de ellos, con un límite de 15 consultas UDP nuevas por segundo y dispositivo; el DNS hacia cualquier otro servidor se registra como <code>DNS-DROP:</code> y se descarta. Los dispositivos de <code>macunlimited</code> no tienen restricción de DNS.
     </td>
   </tr>
 </table>

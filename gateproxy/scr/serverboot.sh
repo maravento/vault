@@ -8,7 +8,7 @@
 #
 # USAGE:
 # COMMAND                  ACTION
-# sudo bash serverboot.sh  (no arguments)
+# sudo bash serverboot.sh  Run (no arguments)
 #
 # LOG: /var/log/serverboot.log
 #

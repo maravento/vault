@@ -534,6 +534,12 @@ sudo bash nwatchsetup.sh
   </tr>
 </table>
 
+| Command | Description | Descripción |
+|---|---|---|
+| `sudo bash /var/www/nwatch/tools/nwatchbk.sh` | Create a backup now | Crear una copia ahora |
+| `sudo bash /var/www/nwatch/tools/nwatchbk.sh --install` | Register the `@monthly` cron entry | Registrar la entrada mensual en cron |
+| `sudo bash /var/www/nwatch/tools/nwatchbk.sh --uninstall` | Remove the cron entry, keeping the archives | Quitar la entrada de cron, conservando los archivos |
+
 #### nwatchenv.sh
 
 <table width="100%">
@@ -546,6 +552,17 @@ sudo bash nwatchsetup.sh
     </td>
   </tr>
 </table>
+
+#### Daemon control
+
+| Command | Description | Descripción |
+|---|---|---|
+| `sudo bash /var/www/nwatch/tools/nwatchlan.sh --start` | Start the LAN discovery daemon | Iniciar el demonio de descubrimiento LAN |
+| `sudo bash /var/www/nwatch/tools/nwatchlan.sh --stop` | Stop the LAN discovery daemon | Detener el demonio de descubrimiento LAN |
+| `sudo bash /var/www/nwatch/tools/nwatchlan.sh --status` | Show its status | Mostrar su estado |
+| `sudo bash /var/www/nwatch/tools/nwatchports.sh --start` | Start the port watch daemon | Iniciar el demonio de vigilancia de puertos |
+| `sudo bash /var/www/nwatch/tools/nwatchports.sh --stop` | Stop the port watch daemon | Detener el demonio de vigilancia de puertos |
+| `sudo bash /var/www/nwatch/tools/nwatchports.sh --status` | Show its status | Mostrar su estado |
 
 #### Daemon Configuration
 

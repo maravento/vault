@@ -8,7 +8,7 @@
 #
 # USAGE:
 # COMMAND                     ACTION
-# sudo bash serviceswatch.sh  (no arguments)
+# sudo bash serviceswatch.sh  Run (no arguments)
 #
 # LOG: /var/log/serviceswatch.log
 #

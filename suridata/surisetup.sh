@@ -55,6 +55,7 @@ check_requirements() {
     case "$1" in
         install)
             check_already_installed
+            confirm_install_replacements
             failure_message="cannot check conflicting packages"
             check_conflicts "IDS" snort
             local network_command
@@ -376,8 +377,8 @@ update_stop_service() {
     systemctl stop "$unit" || update_error "cannot stop service: $unit"
     state=$(systemctl show -p ActiveState --value "$unit") || update_error "cannot inspect stopped: $unit"
     [ "$state" = inactive ] || {
-        log "ERROR: $unit state: $state"
-        update_error "$unit did not stop"
+        log "ERROR: [1/2] $unit state: $state"
+        update_error "[2/2] $unit did not stop"
     }
 }
 
@@ -434,8 +435,8 @@ update_resume() {
         systemctl start "$unit" || update_error "cannot start service: $unit"
         state=$(systemctl show -p ActiveState --value "$unit") || update_error "cannot inspect started: $unit"
         [ "$state" = active ] || {
-            log "ERROR: $unit state: $state"
-            update_error "$unit did not start"
+            log "ERROR: [1/2] $unit state: $state"
+            update_error "[2/2] $unit did not start"
         }
     done
 }
@@ -1147,30 +1148,33 @@ install_evebox() {
 # ------------------------------------------------------------------------------
 
 check_already_installed() {
-    local failure_message="cannot check the current installation"
-    local already_installed=0
-    local skip_reasons=""
-
-    if [ -f "$suridata_env" ]; then
-        already_installed=1
-        skip_reasons+="suridata.env already exists\n"
-    fi
-    if dpkg-query -W -f='${Status}' suricata 2>/dev/null | grep -q 'ok installed'; then
-        already_installed=1
-        skip_reasons+="suricata already installed\n"
-    fi
-    if dpkg-query -W -f='${Status}' evebox 2>/dev/null | grep -q 'ok installed'; then
-        already_installed=1
-        skip_reasons+="evebox already installed\n"
-    fi
-
-    if [ "$already_installed" -eq 1 ]; then
-        local reason
-        while IFS= read -r reason; do
-            [ -z "$reason" ] || warn "$reason -alert"
-        done < <(printf "%b" "$skip_reasons")
+    if [ -f "$conf_dir/suridata.sh" ]; then
         abort "suridata installed; use --update | --uninstall -abort"
     fi
+}
+
+confirm_install_replacements() {
+    local existing_config answer
+    local -a existing_configs=()
+    for existing_config in "$suridata_env" "$suricata_yaml" "$suricata_service" \
+        "$evebox_dir/evebox.yaml" "$evebox_service"; do
+        [ ! -f "$existing_config" ] || existing_configs+=("$existing_config")
+    done
+    if (( ${#existing_configs[@]} == 0 )); then
+        return 0
+    fi
+    echo "Suridata will replace or modify these existing configurations:"
+    printf ' %s\n' "${existing_configs[@]}"
+    echo "Suricata and EveBox services will be configured and restarted."
+    read -r -p "Continue with these changes? [y/N]: " answer || answer=""
+    case "${answer,,}" in
+        y|yes) ;;
+        *) info "installation cancelled"; exit 0 ;;
+    esac
+    for existing_config in "${existing_configs[@]}"; do
+        cp -p -- "$existing_config" "${existing_config}.bak" \
+            || abort "cannot back up $(basename "$existing_config") -abort"
+    done
 }
 
 do_install() {

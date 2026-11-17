@@ -452,7 +452,7 @@ restart_manager() {
     "$manager_name" -q >/dev/null 2>&1 || true
     sleep 2
     if pgrep -x "$manager_name" >/dev/null; then
-        warn "$manager_name could not close; restart it manually -alert"
+        warn "$manager_name did not close; restart it by hand -alert"
         return 0
     fi
     # Caja draws the desktop, so it is relaunched; the others start on demand.

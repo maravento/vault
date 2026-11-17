@@ -8,7 +8,7 @@
 #
 # USAGE:
 # COMMAND               ACTION
-# sudo bash gpsetup.sh  (no arguments)
+# sudo bash gpsetup.sh  Run (no arguments)
 #
 # LOG: gpsetup.log, in the directory containing this script
 #
@@ -27,7 +27,7 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 print_interfaces() {
-    local i iface_state iface_addrs
+    local i iface_state
     echo "Available network interfaces:"
     for i in "${!IFACES[@]}"; do
         iface_state=$(ip -br link show "${IFACES[$i]}" | awk '{print $2}')
@@ -276,8 +276,6 @@ describe_lan_ipv4() {
             "$(lan_ipv4_condition "$1" "${cidr%/*}")"
     done < <(ip -4 -o addr show dev "$1" scope global | awk '{print $4}')
 }
-
-
 
 check_requirements() {
     local network_command
@@ -585,7 +583,7 @@ cron_d_set() {
 log "INFO: Checking for conflicting pre-installed packages..."
 failure_message="cannot check conflicting packages"
 # ------------------------------------------------------------------------------
-# REQUIREMENTS
+# PREFLIGHT CHECKS
 # ------------------------------------------------------------------------------
 
 check_conflicts "DNS server" bind9 pdns-recursor unbound
@@ -723,7 +721,6 @@ check_ipv4_interfaces() {
     log "ERROR: no interface with IPv4 -abort"
     exit 1
 }
-
 
 # check internet
 check_internet() {
@@ -991,7 +988,6 @@ find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:your_home:$loc
 # public interface
 
 # local interface
-
 
 failure_message="cannot apply the selected interface names"
 find "$gp_path/conf" "$gp_path/scr" -type f -print0 | xargs -0 -I "{}" sed -i "s:eth0:$wan_iface:g; s:eth1:$LAN_IF:g" "{}"
@@ -1271,7 +1267,6 @@ info "Localnet: $SERV_SUBNET (from Server IP and Netmask)"
 if [ "$SERV_SUBNET" != "192.168.0.0" ]; then
     find "$gp_path/conf" -type f -print0 | xargs -0 -I "{}" sed -i "s:192.168.0.0:$SERV_SUBNET:g" "{}"
 fi
-
 
 apply_gateproxy_network() (
     local network_file=/etc/netplan/00-networkd.yaml
@@ -1914,6 +1909,7 @@ if (cd "$gp_path" && retry_cmd "clone project sources" git clone https://github.
             failure_message="cannot set permissions on pmsetup.sh"
             chmod +x pmsetup.sh
             if ! PROXYMON_LAN="$LAN_IF" PROXYMON_SERVER_IP="$SERVER_IP" \
+                PROXYMON_BANDATA_DNS="$SERVER_IP" \
                 PROXYMON_SQUID_MGR_PORT="${PORTNEW:-3128}" \
                 PROXYMON_SQUID_INTERCEPT_PORT="$INTERCEPT_PORTNEW" ./pmsetup.sh --install; then
                 warn "pmsetup.sh install failed -alert"

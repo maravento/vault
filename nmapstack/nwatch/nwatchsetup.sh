@@ -40,8 +40,8 @@ check_requirements() {
     done
     case "$1" in
         install)
-            check_port tcp "$vhost_port" "web interface"
             check_already_installed
+            check_port tcp "$vhost_port" "web interface"
             check_conflicts "web server" nginx lighttpd caddy
             select_scan_interfaces
             select_management_interface
@@ -399,8 +399,8 @@ update_stop_service() {
     systemctl stop "$unit" || update_error "cannot stop service: $unit"
     state=$(systemctl show -p ActiveState --value "$unit") || update_error "cannot inspect stopped: $unit"
     [ "$state" = inactive ] || {
-        log "ERROR: $unit state: $state"
-        update_error "$unit did not stop"
+        log "ERROR: [1/2] $unit state: $state"
+        update_error "[2/2] $unit did not stop"
     }
 }
 
@@ -457,8 +457,8 @@ update_resume() {
         systemctl start "$unit" || update_error "cannot start service: $unit"
         state=$(systemctl show -p ActiveState --value "$unit") || update_error "cannot inspect started: $unit"
         [ "$state" = active ] || {
-            log "ERROR: $unit state: $state"
-            update_error "$unit did not start"
+            log "ERROR: [1/2] $unit state: $state"
+            update_error "[2/2] $unit did not start"
         }
     done
     for script in "${update_daemons[@]}"; do
@@ -1012,14 +1012,12 @@ do_install() {
         exit 1
     fi
 
-
     # The vhost needs mod_php (SetHandler application/x-httpd-php), not PHP-FPM.
     if ! apache2ctl -M 2>/dev/null | grep -qi 'php_module'; then
         log "ERROR: [1/2] Apache mod_php is not loaded"
         log "ERROR: [2/2] apt-get install -y libapache2-mod-php -abort"
         exit 1
     fi
-
 
     a2enmod -q headers
 

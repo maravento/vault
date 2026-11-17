@@ -50,7 +50,7 @@ FILE: blackusb/README.md
 |Option|Description|
 |------|-----------|
 |`--show`|Show currently connected usb devices / Muestra los dispositivos conectados|
-|`--on`|Activate saved rules; generate a whitelist when none are saved / Activa las reglas guardadas; genera una lista blanca si no existen reglas guardadas|
+|`--on`|Restore the rules deactivated with `--off`; otherwise, generate the whitelist again / Restaura las reglas desactivadas con `--off`; si no, vuelve a generar la lista blanca|
 |`--eject`|Select a device and add a rule for its removal event / Selecciona un dispositivo y añade una regla para su evento de retirada|
 |`--off`|Temporarily deactivate blackusb / Desactiva temporalmente blackusb|
 |`--generate`|Generate or refresh whitelist udev rules file / Genera o refresca lista blanca de dispositivos lista udev usb|
@@ -81,10 +81,10 @@ wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/s
 chmod +x gitfolder.py
 python3 gitfolder.py https://github.com/maravento/vault/blackusb
 
-# Install
+# Activate (generates the whitelist from the connected devices)
 
 cd blackusb/linux
-sudo bash blackusb.sh
+sudo bash blackusb.sh --on
 ```
 
 ### How To Use (For Linux)

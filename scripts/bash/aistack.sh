@@ -374,15 +374,15 @@ RESET=''
 # DISPLAY
 # Render terminal headings and status messages
 header() {
-  clear
-  echo -e "${CYAN}"
-  echo "+------------------------------------------------------+"
-  echo "| AI STACK MANAGER - Dockerized v1.2 |"
-  echo "| Ollama . Open Web UI . Portainer |"
-  echo "+------------------------------------------------------+"
-  echo -e "${RESET}"
-  echo -e " ${DIM}Base directory: ${WHITE}${AI_BASE_DIR}${RESET}"
-  echo ""
+    clear
+    echo -e "${CYAN}"
+    echo "+------------------------------------------------------+"
+    echo "| AI STACK MANAGER - Dockerized v1.2 |"
+    echo "| Ollama . Open Web UI . Portainer |"
+    echo "+------------------------------------------------------+"
+    echo -e "${RESET}"
+    echo -e " ${DIM}Base directory: ${WHITE}${AI_BASE_DIR}${RESET}"
+    echo ""
 }
 
 ok() { info "$*"; }
@@ -507,9 +507,9 @@ install_docker() {
             | awk -F: '/^fpr/{print $10; exit}')
         DOCKER_GPG_EXPECTED="9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
         if [ "$DOCKER_GPG_FINGERPRINT" != "$DOCKER_GPG_EXPECTED" ]; then
-            err "Docker GPG key fingerprint mismatch!"
-            err "Expected: $DOCKER_GPG_EXPECTED"
-            err "Got: ${DOCKER_GPG_FINGERPRINT:-<empty>} -abort"
+            err "[1/3] Valid: $DOCKER_GPG_EXPECTED"
+            err "[2/3] Got: ${DOCKER_GPG_FINGERPRINT:-<empty>}"
+            err "[3/3] Docker GPG key fingerprint mismatch -abort"
             rm -rf -- "$key_stage"
             exit 1
         fi
@@ -588,7 +588,7 @@ install_nvidia_docker() {
             awk -F: '$1 == "pub" { primary = 1 } $1 == "fpr" && primary { print $10; primary = 0 }') ||
            [[ "$nvidia_key_fpr" != C95B321B61E88C1809C4F759DDCAE044F796ECB0 ]]; then
             rm -rf -- "$key_stage"
-            err "NVIDIA GPG key does not match the expected fingerprint -abort"
+            err "NVIDIA GPG key fingerprint mismatch -abort"
             exit 1
         fi
         if ! gpg --dearmor -o "$key_stage/nvidia-docker.gpg" "$key_stage/key.asc" ||
@@ -645,26 +645,26 @@ EOF
 # COMPOSE FILE
 # Write the container configuration file
 create_docker_compose() {
-    step "Creating docker-compose.yml"
+        step "Creating docker-compose.yml"
 
-    mkdir -p "${AI_BASE_DIR}"
+        mkdir -p "${AI_BASE_DIR}"
 
-    # Determine GPU runtime for Ollama
-    local OLLAMA_RUNTIME=""
-    local OLLAMA_GPU_DEVICES=""
-    if [ "$HAS_NVIDIA_DOCKER" = true ]; then
-        OLLAMA_RUNTIME="    runtime: nvidia"
-        OLLAMA_GPU_DEVICES="
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]"
-    fi
+        # Determine GPU runtime for Ollama
+        local OLLAMA_RUNTIME=""
+        local OLLAMA_GPU_DEVICES=""
+        if [ "$HAS_NVIDIA_DOCKER" = true ]; then
+                OLLAMA_RUNTIME="    runtime: nvidia"
+                OLLAMA_GPU_DEVICES="
+        deploy:
+            resources:
+                reservations:
+                    devices:
+                        - driver: nvidia
+                            count: all
+                            capabilities: [gpu]"
+        fi
 
-    cat > "${AI_BASE_DIR}/docker-compose.yml" << EOF
+        cat > "${AI_BASE_DIR}/docker-compose.yml" << EOF
 services:
   # Ollama service - AI model runner
   ollama:
@@ -697,7 +697,7 @@ ${OLLAMA_RUNTIME}${OLLAMA_GPU_DEVICES}
 
 EOF
 
-    :
+        :
 }
 
 # DEPLOYMENT

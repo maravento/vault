@@ -56,7 +56,7 @@ wget -qO blockports.txt https://raw.githubusercontent.com/maravento/vault/master
 
 | List | Description | Descripción |
 | --- | --- | --- |
-| [bogons.txt](https://raw.githubusercontent.com/maravento/vault/master/acl/bogons.txt) | Reserved and unroutable IPv4 ranges, one per line. A line starting with `#` is disabled. | Rangos IPv4 reservados y no enrutables, uno por línea. Una línea que empieza por `#` está desactivada. |
+| [bogons.txt](https://raw.githubusercontent.com/maravento/vault/master/acl/bogons.txt) | Reserved and unroutable IPv4 ranges, one per line. A line starting with `#` is ignored: a heading or a disabled range. | Rangos IPv4 reservados y no enrutables, uno por línea. Una línea que empieza por `#` se ignora: es un título o un rango desactivado. |
 | [blockports.txt](https://raw.githubusercontent.com/maravento/vault/master/acl/blockports.txt) | Ports to block, one per line. | Puertos que se bloquean, uno por línea. |
 
 > Each project decides how to apply these lists. Check the README of the project that downloads them.

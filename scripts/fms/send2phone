@@ -23,6 +23,12 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# no-root check
+if [ "$(id -u)" == "0" ]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: run send2phone as a normal user -abort" >&2
+    exit 1
+fi
+
 script_dir="$(cd "$(dirname "$0")" 2>/dev/null && pwd)" || exit 1
 log_file="${script_dir}/send2phone.log"
 # The cause, the file name and the control action stay on one line: a long name
@@ -34,12 +40,6 @@ log() {
 { > "$log_file"; } 2>/dev/null || true
 
 log "send2phone start..."
-
-# no-root check
-if [ "$(id -u)" == "0" ]; then
-    log "ERROR: run send2phone as a normal user -abort"
-    exit 1
-fi
 
 # dependencies
 for dep_pkg in coreutils kdeconnect; do

@@ -8,7 +8,7 @@
 #
 # USAGE:
 # COMMAND               ACTION
-# sudo bash nreport.sh  (no arguments)
+# sudo bash nreport.sh  Run (no arguments)
 #
 # LOG: /var/log/nreport.log
 #

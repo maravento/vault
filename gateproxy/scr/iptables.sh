@@ -8,7 +8,7 @@
 #
 # USAGE:
 # COMMAND                ACTION
-# sudo bash iptables.sh  (no arguments)
+# sudo bash iptables.sh  Run (no arguments)
 #
 # LOG: /var/log/iptables.log
 #
@@ -67,7 +67,6 @@ done
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
 UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
-UH_DNS='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(,(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9]))*$'
 UH_UINT='^(0|[1-9][0-9]*)$'
 UH_MAC_RE='([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}'
 UH_MAC="^${UH_MAC_RE}$"
@@ -304,7 +303,7 @@ load_conf() {
 
 # LOAD
 # Reads pydhcp.env; a missing key is handled by the check below
-load_pydhcp_env "$pydhcp_env" 'INTERFACESv4 SERVER_IP SERV_SUBNET SERV_MASK SERV_DNS ACL_PATH ACL_MAC_LIMITED ACL_MAC_UNLIMITED WPAD_PORT' || true
+load_pydhcp_env "$pydhcp_env" 'INTERFACESv4 SERVER_IP SERV_SUBNET SERV_MASK ACL_PATH ACL_MAC_LIMITED ACL_MAC_UNLIMITED WPAD_PORT' || true
 load_conf "$gateproxy_env" 'WAN_IFACE' || true
 
 # KEY CHECK
@@ -332,13 +331,6 @@ elif [[ -z "${SERV_MASK:-}" ]]; then
     key_errors+=("SERV_MASK not set")
 elif ! [[ "$SERV_MASK" =~ $UH_NETMASK ]]; then
     key_errors+=("SERV_MASK invalid netmask")
-fi
-if ! grep -q "^SERV_DNS=" "$pydhcp_env"; then
-    key_errors+=("SERV_DNS missing line")
-elif [[ -z "${SERV_DNS:-}" ]]; then
-    key_errors+=("SERV_DNS not set")
-elif ! [[ "$SERV_DNS" =~ $UH_DNS ]]; then
-    key_errors+=("SERV_DNS invalid DNS list")
 fi
 if ! grep -q "^WPAD_PORT=" "$pydhcp_env"; then
     key_errors+=("WPAD_PORT missing line")
@@ -745,25 +737,6 @@ iptables -A FORWARD -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
 iptables -A INPUT -p tcp --tcp-flags SYN,ACK SYN,ACK -m conntrack --ctstate NEW -j DROP
 iptables -A FORWARD -p tcp --tcp-flags SYN,ACK SYN,ACK -m conntrack --ctstate NEW -j DROP
 
-# DNS (Global Policy)
-# Applies to all INTERFACESv4 sources regardless of MAC list -- no list gets a free
-# pass on bypassing the resolver or flooding it. Placed before MACUNLIMITED's
-# blanket ACCEPT-all further down, so that rule never gets a chance to
-# short-circuit this one.
-# Burst limit
-iptables -A FORWARD -i "$INTERFACESv4" -p udp --dport 53 -m state --state NEW -m recent --set --name DNS_DROPPER
-iptables -A FORWARD -i "$INTERFACESv4" -p udp --dport 53 -m state --state NEW -m recent --update --seconds 1 --hitcount 15 --name DNS_DROPPER -j DROP
-for dns_ip in ${SERV_DNS//,/ }; do
-    for proto_name in tcp udp; do
-        iptables -A INPUT -i "$INTERFACESv4" -d "$dns_ip" -p "$proto_name" --dport 53 -j ACCEPT
-        iptables -A FORWARD -i "$INTERFACESv4" -d "$dns_ip" -p "$proto_name" --dport 53 -j ACCEPT
-    done
-done
-for proto_name in tcp udp; do
-    iptables -A FORWARD -i "$INTERFACESv4" -p "$proto_name" --dport 53 -m hashlimit --hashlimit-name dns-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip -j NFLOG --nflog-prefix "DNS-DROP: "
-    iptables -A FORWARD -i "$INTERFACESv4" -p "$proto_name" --dport 53 -j DROP
-done
-
 # MAC2IP
 # Enforce the configured MAC and IPv4 address bindings
 mac2ip_rules=$(awk '
@@ -991,6 +964,15 @@ iptables -A FORWARD -i "$INTERFACESv4" -o "$wan_iface" -p icmp -j DROP
 # ------------------------------------------------------------------------------
 # MAC PORTS
 # ------------------------------------------------------------------------------
+
+# DNS: macports devices use this server's resolver only, with a burst limit
+iptables -A INPUT -i "$INTERFACESv4" -d "$SERVER_IP" -p udp --dport 53 -m set --match-set macports src -m state --state NEW -m recent --set --name DNS_DROPPER
+iptables -A INPUT -i "$INTERFACESv4" -d "$SERVER_IP" -p udp --dport 53 -m set --match-set macports src -m state --state NEW -m recent --update --seconds 1 --hitcount 15 --name DNS_DROPPER -j DROP
+for proto_name in tcp udp; do
+    iptables -A INPUT -i "$INTERFACESv4" -d "$SERVER_IP" -p "$proto_name" --dport 53 -m set --match-set macports src -j ACCEPT
+    iptables -A FORWARD -i "$INTERFACESv4" -p "$proto_name" --dport 53 -m set --match-set macports src -m hashlimit --hashlimit-name dns-drop --hashlimit-above 3/min --hashlimit-burst 3 --hashlimit-mode srcip -j NFLOG --nflog-prefix "DNS-DROP: "
+    iptables -A FORWARD -i "$INTERFACESv4" -p "$proto_name" --dport 53 -m set --match-set macports src -j DROP
+done
 
 # PROXYMON: WARNING PAGE HTTP FOR BANDATA
 # https://github.com/maravento/proxymon
