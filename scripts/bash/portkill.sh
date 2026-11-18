@@ -80,7 +80,6 @@ check_internet() {
     exit 1
 }
 
-
 # dependencies
 net_checked=0
 for dep in lsof iproute2 libc-bin; do

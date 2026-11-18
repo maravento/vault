@@ -56,7 +56,7 @@ if ! flock -n 200; then
 fi
 
 # dependencies
-for dep_pkg in zip coreutils findutils util-linux cron; do
+for dep_pkg in zip coreutils findutils util-linux cron diffutils grep; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep_pkg" 2>/dev/null)" != *"ok installed"* ]]; then
         log "ERROR: dependency '$dep_pkg' is not installed -abort"
         exit 1

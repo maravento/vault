@@ -146,7 +146,7 @@ check_repo
 # dependencies
 # Every package the deployed components need. Installed by install_deps
 # in --install and --update.
-apt_deps=(systemd apache2 libapache2-mod-php php-cli php-sqlite3 arp-scan sqlite3 nmap iproute2 logrotate cron procps coreutils findutils util-linux python3 zip grep)
+apt_deps=(systemd apache2 libapache2-mod-php php-cli php-sqlite3 arp-scan sqlite3 nmap iproute2 logrotate cron procps coreutils findutils util-linux python3 zip grep diffutils sed libc-bin)
 
 # INTERFACE / NETWORK SELECTION
 # Virtual/loopback interfaces are never useful arp-scan targets and are

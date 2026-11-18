@@ -52,7 +52,7 @@ if ! flock -n 200; then
 fi
 
 # dependencies (samba/winbind excluded -- Samba install is optional in gpsetup.sh)
-for dep in iproute2 systemd squid-openssl apache2 rsyslog util-linux; do
+for dep in iproute2 systemd squid-openssl apache2 rsyslog util-linux coreutils grep; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         log "ERROR: dependency '$dep' is not installed -abort"
         exit 1

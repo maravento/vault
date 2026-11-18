@@ -83,7 +83,6 @@ check_internet() {
     exit 1
 }
 
-
 # dependencies
 net_checked=0
 for dep in dsniff iproute2 bsdutils coreutils libc-bin; do

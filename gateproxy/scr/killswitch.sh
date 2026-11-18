@@ -52,7 +52,7 @@ if ! flock -n 200; then
 fi
 
 # dependencies
-for dep in iptables iproute2 conntrack util-linux; do
+for dep in iptables iproute2 conntrack util-linux coreutils; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         log "ERROR: dependency '$dep' is not installed -abort"
         exit 1

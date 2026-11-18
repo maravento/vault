@@ -99,7 +99,6 @@ check_internet() {
     exit 1
 }
 
-
 # dependencies
 net_checked=0
 for dep in coreutils util-linux iproute2 libc-bin; do

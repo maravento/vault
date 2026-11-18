@@ -99,7 +99,6 @@ check_internet() {
     exit 1
 }
 
-
 # dependencies
 net_checked=0
 for dep in iproute2 bridge-utils util-linux network-manager libc-bin; do

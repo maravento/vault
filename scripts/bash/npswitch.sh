@@ -104,7 +104,6 @@ check_internet() {
     exit 1
 }
 
-
 # dependencies
 net_checked=0
 for dep in netplan.io iproute2 systemd network-manager util-linux libc-bin; do

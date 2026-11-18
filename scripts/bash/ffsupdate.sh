@@ -82,7 +82,6 @@ log() {
 # Start
 log "INFO: ffsupdate start..."
 
-
 # check ipv4 interfaces
 list_ifaces() {
     ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'

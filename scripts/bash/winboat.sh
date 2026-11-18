@@ -85,7 +85,6 @@ if ! local_user=$(detect_local_user); then
 fi
 echo "Using local user: $local_user"
 
-
 # start
 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: winboat start..."
 

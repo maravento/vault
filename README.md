@@ -84,7 +84,7 @@ python3 gitfolder.py https://github.com/maravento/vault/project_name
 - [nmapstack](https://github.com/maravento/vault/tree/master/nmapstack)
 - [scripts](https://github.com/maravento/vault/tree/master/scripts)
 - [suridata](https://github.com/maravento/vault/tree/master/suridata)
-- [trek](https://github.com/maravento/vault/tree/master/trek)
+- [uniweb](https://github.com/maravento/vault/tree/master/uniweb)
 - [winzenity](https://github.com/maravento/vault/tree/master/winzenity)
 
 ## NOTICE

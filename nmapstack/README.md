@@ -372,7 +372,7 @@ sudo ./nreport.sh
 #### Software
 
 - Apache2 with mod_php (not PHP-FPM — the vhost uses `SetHandler application/x-httpd-php`)
-- arp-scan, sqlite3, php-sqlite3, php-cli, nmap, iproute2 (`ss`), logrotate, util-linux, python3, zip
+- systemd, apache2, libapache2-mod-php, php-cli, php-sqlite3, arp-scan, sqlite3, nmap, iproute2 (`ss`), logrotate, cron, procps, coreutils, findutils, util-linux, python3, zip, grep, diffutils, sed, libc-bin
 
 `nwatchsetup.sh --install` and `--update` install the missing ones. `--uninstall` never uninstalls APT packages: other projects and the system may share them.
 
@@ -777,10 +777,10 @@ sudo /var/www/nwatch/tools/nwatchports.sh --list
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <strong>CSRF protection:</strong> The Ports tab's mode-switch form does not require a login; guest access across the LAN is intentional. The state-changing POST request includes a per-session CSRF token. The server accepts the request only when the form was loaded from the page first.
+      <strong>CSRF protection:</strong> The Ports tab's mode-switch form does not require a login; the VirtualHost only accepts connections from <code>127.0.0.1</code>. The state-changing POST request includes a per-session CSRF token. The server accepts the request only when the form was loaded from the page first.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <strong>Protección CSRF:</strong> El formulario para cambiar de modo en la pestaña Ports no requiere iniciar sesión; el acceso de invitado en toda la LAN es intencional. La solicitud POST que cambia el estado incluye un token CSRF por sesión. El servidor solo la acepta si el formulario se cargó antes desde la página.
+      <strong>Protección CSRF:</strong> El formulario para cambiar de modo en la pestaña Ports no requiere iniciar sesión; el VirtualHost solo acepta conexiones desde <code>127.0.0.1</code>. La solicitud POST que cambia el estado incluye un token CSRF por sesión. El servidor solo la acepta si el formulario se cargó antes desde la página.
     </td>
   </tr>
 </table>

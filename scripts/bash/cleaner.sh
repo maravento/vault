@@ -106,7 +106,6 @@ check_internet() {
     exit 1
 }
 
-
 # dependencies
 net_checked=0
 for dep in findutils coreutils util-linux bsdutils iproute2 libc-bin; do

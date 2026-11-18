@@ -118,7 +118,6 @@ check_internet() {
     exit 1
 }
 
-
 # dependencies
 net_checked=0
 for dep in ntfs-3g util-linux bsdextrautils iproute2 libc-bin; do

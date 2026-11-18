@@ -138,7 +138,7 @@ sudo bash aistack.sh --status
 - [Rustdesk Client (install|remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rdclient.sh)
 - [Rustdesk Server (install|update|relay host|start|stop|status|public key|remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rdserver.sh)
 - [Veyon Client Tunnel (connects Veyon Master to a remote Veyon Service via cftunnel.sh)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/veyonclient.sh)
-- [x11vnc (--install|--uninstall|--start|--stop|--restart|--status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/x11vncmgr.sh)
+- [x11vnc (--install|--uninstall|--start|--stop|--restart|--status) (requires LightDM)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/x11vncmgr.sh)
 
 #### Server & Deployment
 

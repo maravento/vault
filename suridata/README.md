@@ -67,9 +67,9 @@ FILE: README.md
 | Component | Description | Descripción |
 |---|---|---|
 | System | Ubuntu with Bash, APT, systemd, and root privileges. | Ubuntu con Bash, APT, systemd y permisos root. |
-| Packages | The installer installs missing Suricata, suricata-update, jq, ipset, iptables, ulogd2, Python 3, curl, ca-certificates, zip, logrotate, cron, iproute2, grep, coreutils, findutils, util-linux, sed, and libc-bin packages. | El instalador agrega los paquetes faltantes Suricata, suricata-update, jq, ipset, iptables, ulogd2, Python 3, curl, ca-certificates, zip, logrotate, cron, iproute2, grep, coreutils, findutils, util-linux, sed y libc-bin. |
+| Packages | The installer installs missing Suricata, suricata-update, jq, ipset, iptables, ulogd2, Python 3, curl, ca-certificates, zip, logrotate, cron, iproute2, grep, coreutils, findutils, util-linux, sed, libc-bin, diffutils, and systemd packages. | El instalador agrega los paquetes faltantes Suricata, suricata-update, jq, ipset, iptables, ulogd2, Python 3, curl, ca-certificates, zip, logrotate, cron, iproute2, grep, coreutils, findutils, util-linux, sed, libc-bin, diffutils y systemd. |
 | EveBox | Required component, installed from its external repository; installation or service failures abort setup. | Componente obligatorio, instalado desde su repositorio externo; los fallos de instalación o servicio abortan el instalador. |
-| Fresh installation | Existing Suricata, EveBox, or Suridata configuration prevents fresh installation. Installed Snort also prevents installation. | Suricata, EveBox o configuración Suridata existentes impiden una instalación nueva. Snort instalado también impide instalar. |
+| Fresh installation | An installed Suridata (`/etc/suricata/suridata.sh`) prevents fresh installation. Existing Suricata or EveBox configuration is reused after confirmation. Installed Snort also prevents installation. | Suridata instalado (`/etc/suricata/suridata.sh`) impide una instalación nueva. La configuración existente de Suricata o EveBox se reutiliza tras confirmar. Snort instalado también impide instalar. |
 
 ## REPOSITORY STRUCTURE
 

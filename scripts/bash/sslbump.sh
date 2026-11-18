@@ -44,7 +44,6 @@ package_installed() {
     [ "$(dpkg-query -W -f='${db:Status-Status}' "$1" 2>/dev/null)" = installed ]
 }
 
-
 # start
 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: sslbump start..."
 

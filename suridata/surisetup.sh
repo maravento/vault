@@ -163,7 +163,7 @@ project_data=(drop.conf disable.conf suridata.txt)
 project_evebox=(evebox.yaml evebox.service)
 
 # apt packages this project needs; ulogd2 serves the NFLOG rule
-project_packages=(suricata suricata-update jq ipset iptables ulogd2 python3 curl ca-certificates zip logrotate cron iproute2 grep coreutils findutils util-linux sed libc-bin)
+project_packages=(suricata suricata-update jq ipset iptables ulogd2 python3 curl ca-certificates zip logrotate cron iproute2 grep coreutils findutils util-linux sed libc-bin diffutils systemd)
 
 # answers collected by ask_settings, written to suridata.env
 wan_iface=""

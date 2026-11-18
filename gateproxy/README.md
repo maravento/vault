@@ -87,6 +87,7 @@ gateproxy/
 │   ├── netplan/
 │   │   └── 00-networkd.yaml        # deployed to: /etc/netplan/00-networkd.yaml [0600 root:root]
 │   ├── squid/
+│   │   ├── acl/                    # Squid list templates, copied to /etc/squid/acl only when missing [0644 root:root]
 │   │   └── squid.conf              # deployed to: /etc/squid/squid.conf [0644 root:root]
 │   ├── ttyd/
 │   │   └── ttyd.service            # deployed to: /etc/systemd/system/ttyd.service [0644 root:root]
@@ -478,7 +479,7 @@ BACKUP_DIR=/etc/bak/gateproxy
 | :--- | :--- | :--- |
 | Timeshift | System snapshots | Instantáneas del sistema |
 | FreeFileSync | File mirror sync, updated weekly by `/etc/scr/ffsupdate.sh` | Sincronización espejo de archivos, actualizada cada semana por `/etc/scr/ffsupdate.sh` |
-| `bkconf.sh` | `scr/` | manual; monthly with `--install` | Creates a configuration ZIP in `BACKUP_DIR` and retains three archives. `--install` registers its monthly task; `--uninstall` removes that task | Crea un ZIP de configuración en `BACKUP_DIR` y conserva tres respaldos. `--install` registra su tarea mensual; `--uninstall` elimina esa tarea |
+| `bkconf.sh` | Creates a configuration ZIP in `BACKUP_DIR` and retains three archives. Manual; `--install` registers its monthly task and `--uninstall` removes it | Crea un ZIP de configuración en `BACKUP_DIR` y conserva tres respaldos. Manual; `--install` registra su tarea mensual y `--uninstall` la elimina |
 
 #### ACL Structure
 
@@ -587,12 +588,14 @@ BACKUP_DIR=/etc/bak/gateproxy
 
 <table width="100%">
   <tr><th>Service / Servicio</th><th>Ports / Puertos</th></tr>
-  <tr><td>Printing / Impresión</td><td>JetDirect/RAW 9100, SNMP 161–162, prnrequest/prnstatus 3910–3911</td></tr>
+  <tr><td>Printing / Impresión</td><td>IPP 631, JetDirect/RAW 9100, SNMP 161–162, prnrequest/prnstatus 3910–3911</td></tr>
   <tr><td>Email / Correo</td><td>SMTP 465, 587; IMAP 993; POP3 995; STARTTLS 143, 110</td></tr>
   <tr><td>Messaging / XMPP / Mensajería / XMPP</td><td>5222, 5223, 5228, 5269</td></tr>
   <tr><td>WebRTC / STUN-TURN / WebRTC / STUN-TURN</td><td>UDP 3478–3481, 19302–19309; TCP 3478, 5349</td></tr>
   <tr><td>Samba / SMB / Samba / SMB</td><td>TCP 445; the SMBStack panel on 3092 listens on loopback only / TCP 445; el panel SMBStack en 3092 escucha solo en loopback</td></tr>
-  <tr><td>LAN discovery / Descubrimiento LAN</td><td>mDNS 5353, LLMNR 5355, SSDP/UPnP 1900, WSD 3702, IGMP</td></tr>
+  <tr><td>LAN discovery / Descubrimiento LAN</td><td>mDNS 5353, LLMNR 5355, SSDP/UPnP 1900 and UDP 5000, WSD 3702 and TCP 5357–5358, IGMP</td></tr>
+  <tr><td>Multimedia and streaming / Multimedia y streaming</td><td>TCP 2869, 8200</td></tr>
+  <tr><td>NTP / NTP</td><td>UDP 123</td></tr>
   <tr><td>KMS / KMS</td><td>Windows activation 1688</td></tr>
 </table>
 

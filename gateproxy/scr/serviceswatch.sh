@@ -55,7 +55,7 @@ if ! flock -n 200; then
 fi
 
 # dependencies
-for dep in procps systemd apache2 squid-openssl rsyslog util-linux; do
+for dep in procps systemd apache2 squid-openssl rsyslog util-linux coreutils; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         log "ERROR: dependency '$dep' is not installed -abort"
         exit 1

@@ -132,7 +132,6 @@ check_internet() {
     exit 1
 }
 
-
 # dependencies
 net_checked=0
 for dep in kpartx dmsetup pv ntfs-3g dosfstools e2fsprogs util-linux bsdutils coreutils iproute2 libc-bin; do

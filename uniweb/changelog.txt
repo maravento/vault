@@ -1,0 +1,14 @@
+﻿## uniweb CHANGELOG
+
+2026.11.18
+Added: VisualCppRedist_AIO_x86_x64 v0.107.0
+Added: jre-8u513-windows-x64
+Fix: Bugs
+
+2026.11.3
+Release day
+Added: uniCenta-WEBSERVER-4.5.4 (EOL 21/07/2023)
+Added: mysql-5.7.44-winx64 (EOL 11/10/2023)
+Added: HeidiSQL_12.22_64_Portable
+Added: VisualCppRedist_AIO_x86_x64 v0.106.0
+Added: jre-8u511-windows-x64
