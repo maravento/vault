@@ -28,6 +28,9 @@ set -uo pipefail
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -67,7 +70,7 @@ ports_mode_file="/var/www/nwatch/data/ports_mode.conf"
 scan_status_file="/var/www/nwatch/data/port_scan_status.conf"
 pid_file="/run/nwatchports.pid"
 
-# validation -- one variable per thing validated; use directly with =~
+# validation -one variable per thing validated; use directly with =~
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
 UH_HOST='^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$'
@@ -307,8 +310,8 @@ poll_server() {
             sql+="INSERT INTO port_scan_state (source, host, port, proto, service, status, last_checked, last_changed) VALUES ('server', '$esc_host', ${port}, '$proto', '$esc_service', 'open', '$now', '$now');
 INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('server', '$esc_host', ${port}, 'opened', '$now');
 "
-            log "INFO: server port ${host}:${port}/${proto}"
-            log "INFO: server port opened; service=${service:-unknown}"
+            log "INFO: [1/2] server port ${host}:${port}/${proto}"
+            log "INFO: [2/2] opened, service=${service:-unknown}"
         else
             sql+="UPDATE port_scan_state SET service='$esc_service', status='open', last_checked='$now' WHERE source='server' AND host='$esc_host' AND port=${port} AND proto='$proto';
 "
@@ -316,8 +319,8 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('se
                 sql+="UPDATE port_scan_state SET last_changed='$now' WHERE source='server' AND host='$esc_host' AND port=${port} AND proto='$proto';
 INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('server', '$esc_host', ${port}, 'opened', '$now');
 "
-                log "INFO: server port ${host}:${port}/${proto}"
-                log "INFO: server port opened; service=${service:-unknown}"
+                log "INFO: [1/2] server port ${host}:${port}/${proto}"
+                log "INFO: [2/2] opened, service=${service:-unknown}"
             fi
         fi
     done <<< "$ss_out"
@@ -440,8 +443,8 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('ta
             if [ "$status" = "open" ]; then
                 sql+="INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('target', '$esc_target', ${port}, 'opened', '$now');
 "
-                log "INFO: target port ${target}:${port}/${proto}"
-                log "INFO: target port opened; service=${service:-unknown}"
+                log "INFO: [1/2] target port ${target}:${port}/${proto}"
+                log "INFO: [2/2] opened, service=${service:-unknown}"
             fi
         else
             sql+="UPDATE port_scan_state SET service='$esc_service', status='$status', last_checked='$now' WHERE source='target' AND host='$esc_target' AND port=${port} AND proto='$proto';
@@ -454,8 +457,8 @@ INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('ta
                 sql+="UPDATE port_scan_state SET last_changed='$now' WHERE source='target' AND host='$esc_target' AND port=${port} AND proto='$proto';
 INSERT INTO port_events (source, host, port, event_type, event_time) VALUES ('target', '$esc_target', ${port}, '$event_type', '$now');
 "
-                log "INFO: target port ${target}:${port}/${proto}"
-                log "INFO: target port ${event_type}; service=${service:-unknown}"
+                log "INFO: [1/2] target port ${target}:${port}/${proto}"
+                log "INFO: [2/2] ${event_type}, service=${service:-unknown}"
             fi
         fi
     done
@@ -676,7 +679,12 @@ if [ "${1:-}" != --stop ]; then
         elif [[ -z "${!env_key:-}" ]]; then
             key_errors+=("$env_key not set")
         elif ! [[ "${!env_key}" =~ $UH_UINT ]] || [[ "${!env_key}" == 0 ]]; then
-            key_errors+=("$env_key invalid count")
+            case "$env_key" in
+                PORT_POLL_INTERVAL) key_unit=seconds ;;
+                PURGE_CLOSED_AFTER_HOURS) key_unit=hours ;;
+                *) key_unit=milliseconds ;;
+            esac
+            key_errors+=("$env_key invalid $key_unit")
         elif ! uh_fits "${!env_key}"; then
             key_errors+=("$env_key exceeds the Bash integer range")
         fi

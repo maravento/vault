@@ -16,6 +16,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 
 SOURCE = "captura_system_audio"
 MODULE = "module-remap-source"
@@ -53,7 +54,7 @@ def arguments_for(entry):
             if "=" in item
         )
     except ValueError as error:
-        raise BridgeError("Invalid module arguments.") from error
+        raise BridgeError("Invalid module arguments") from error
 
 
 def owned(entry, state):
@@ -74,11 +75,11 @@ def secure_directory(path, uid):
 def runtime_directory():
     uid = os.getuid()
     if uid == 0:
-        raise BridgeError("Run this tool as your desktop user, not root.")
+        raise BridgeError("Run this tool as your desktop user, not root")
     supplied = os.environ.get("XDG_RUNTIME_DIR")
     base = Path(supplied) if supplied else Path(f"/run/user/{uid}")
     if not base.is_absolute():
-        raise BridgeError("XDG_RUNTIME_DIR must be absolute.")
+        raise BridgeError("XDG_RUNTIME_DIR must be absolute")
     secure_directory(base, uid)
     directory = base / "captura-audio"
     try:
@@ -108,7 +109,7 @@ def locked(directory):
         info = os.fstat(descriptor)
         if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
                 or info.st_mode & 0o077):
-            raise BridgeError("Unsafe lock file.")
+            raise BridgeError("Unsafe lock file")
         fcntl.flock(descriptor, fcntl.LOCK_EX)
         yield
     finally:
@@ -126,12 +127,12 @@ def read_state(directory):
         with os.fdopen(descriptor) as stream:
             state = json.load(stream)
     except (ValueError, TypeError) as error:
-        raise BridgeError("Invalid state file.") from error
+        raise BridgeError("Invalid state file") from error
     if (not isinstance(state, dict) or state.get("uid") != os.getuid()
             or type(state.get("module_id")) is not int
             or not isinstance(state.get("master"), str)
             or not state["master"].endswith(".monitor")):
-        raise BridgeError("Invalid state ownership or module information.")
+        raise BridgeError("Invalid state ownership or module information")
     return state
 
 
@@ -183,7 +184,7 @@ def operate(command, directory):
         inventory = modules()
         default = pactl("get-default-sink")
         if not default or "\n" in default:
-            raise BridgeError("No valid default output device was found.")
+            raise BridgeError("No valid default output device was found")
         result = describe(state, inventory, default)
         if command == "status":
             return {"action": "status", **result}
@@ -199,10 +200,10 @@ def operate(command, directory):
             if arguments_for(entry).get("source_name") == SOURCE:
                 if not (state and identifier == state["module_id"]
                         and owned(entry, state)):
-                    raise BridgeError("The virtual input name is already in use.")
+                    raise BridgeError("The virtual input name is already in use")
         reconnect = result["active"]
         if reconnect and not unload_owned(state):
-            raise BridgeError("The previous module changed; retry start.")
+            raise BridgeError("The previous module changed; retry start")
         master = default + ".monitor"
         identifier = pactl(
             "load-module", MODULE, f"master={master}",
@@ -210,13 +211,13 @@ def operate(command, directory):
             "source_properties=device.description=CaptureFox_System_Audio",
         )
         if not identifier.isdigit():
-            raise BridgeError("pactl returned an invalid module ID.")
+            raise BridgeError("pactl returned an invalid module ID")
         new_state = {"uid": os.getuid(), "module_id": int(identifier),
                      "master": master}
         try:
             new_inventory = modules()
             if not owned(new_inventory.get(int(identifier)), new_state):
-                raise BridgeError("The new module could not be verified.")
+                raise BridgeError("The new module could not be verified")
             write_state(directory, new_state)
         except (BridgeError, OSError):
             unload_owned(new_state)
@@ -239,11 +240,13 @@ def main():
         if options.as_json:
             print(json.dumps({"ok": False, "error": str(error)}))
         else:
-            print(f"ERROR: {error} -abort", file=sys.stderr)
+            print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} ERROR: {error} -abort",
+                  file=sys.stderr)
         return 1
     result = {"ok": True, **result}
     print(json.dumps(result) if options.as_json else
-          f"{result['action']}: {SOURCE}; active={result['active']}")
+          f"{time.strftime('%Y-%m-%d %H:%M:%S')} INFO: {result['action']} "
+          f"{SOURCE}, active={result['active']}")
     return 0
 
 

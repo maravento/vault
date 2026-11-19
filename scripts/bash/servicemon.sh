@@ -28,6 +28,9 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -101,7 +104,7 @@ check_internet() {
 
 # dependencies
 net_checked=0
-for dep in coreutils util-linux iproute2 libc-bin; do
+for dep in coreutils util-linux iproute2 libc-bin grep sed; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -130,12 +133,6 @@ etc_dir="/etc/webmin/$mod_name"
 # ------------------------------------------------------------------------------
 
 install_module() {
-    echo ""
-    echo "=========================================="
-    echo "Installing Services Monitor Module"
-    echo "=========================================="
-    echo ""
-
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Creating Services Monitor module structure..."
 
     mkdir -p "$mod_dir/images"
@@ -893,10 +890,10 @@ ICONEOF
         if ! grep -qE "^root:.*\bservicemon\b" /etc/webmin/webmin.acl 2>/dev/null; then
             sed -i.bak 's/\(^root:.*\)/\1 servicemon/' /etc/webmin/webmin.acl
             rm -f /etc/webmin/webmin.acl.bak
-            echo "Module added to webmin.acl"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: module added to webmin.acl"
         fi
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: webmin.acl not found, ACL not updated -alert"
     fi
 
     rm -f /var/webmin/module.infos.cache
@@ -904,11 +901,7 @@ ICONEOF
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
 
-    echo ""
-    echo "=========================================="
-    echo "Services Monitor module installed successfully!"
-    echo "=========================================="
-    echo ""
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Services Monitor installed"
     echo "Module location: $mod_dir"
     echo "Config location: $etc_dir"
     echo ""
@@ -928,44 +921,32 @@ ICONEOF
 }
 
 uninstall_module() {
-    echo ""
-    echo "=========================================="
-    echo "Uninstalling Services Monitor Module"
-    echo "=========================================="
-    echo ""
-
     if [ ! -d "$mod_dir" ]; then
-        echo "Module is not installed"
-        echo ""
-        return 1
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: module not installed -skip"
+        return 0
     fi
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing module directories..."
     rm -rf "$mod_dir"
     rm -rf "$etc_dir"
-    echo "Module directories removed"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: module directories removed"
 
     if [ -f /etc/webmin/webmin.acl ]; then
         if grep -q "servicemon" /etc/webmin/webmin.acl 2>/dev/null; then
             sed -i.bak 's/ servicemon//g' /etc/webmin/webmin.acl
             rm -f /etc/webmin/webmin.acl.bak
-            echo "Module removed from webmin.acl"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: module removed from webmin.acl"
         fi
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: webmin.acl not found, ACL not updated -alert"
     fi
 
     rm -f /var/webmin/module.infos.cache
-    echo "Module cache cleared"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: module cache cleared"
 
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
 
-    echo ""
-    echo "=========================================="
-    echo "Services Monitor module uninstalled successfully!"
-    echo "=========================================="
-    echo ""
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Services Monitor uninstalled"
 }
 
 show_menu() {

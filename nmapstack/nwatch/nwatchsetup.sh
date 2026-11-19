@@ -146,7 +146,7 @@ check_repo
 # dependencies
 # Every package the deployed components need. Installed by install_deps
 # in --install and --update.
-apt_deps=(systemd apache2 libapache2-mod-php php-cli php-sqlite3 arp-scan sqlite3 nmap iproute2 logrotate cron procps coreutils findutils util-linux python3 zip grep diffutils sed libc-bin)
+apt_deps=(systemd apache2 apache2-bin apache2-data apache2-doc apache2-utils libapache2-mod-php php-cli php-sqlite3 arp-scan sqlite3 nmap iproute2 logrotate cron procps coreutils findutils util-linux python3 zip grep diffutils sed libc-bin)
 
 # INTERFACE / NETWORK SELECTION
 # Virtual/loopback interfaces are never useful arp-scan targets and are
@@ -154,7 +154,7 @@ apt_deps=(systemd apache2 libapache2-mod-php php-cli php-sqlite3 arp-scan sqlite
 # management-interface prompt).
 virtual_iface_pattern='^(lo|docker.*|br-.*|veth.*|virbr.*|tun.*|tap.*|wg.*)$'
 
-# validation -- one variable per thing validated; use directly with =~
+# validation -one variable per thing validated; use directly with =~
 UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
 UH_UINT='^(0|[1-9][0-9]*)$'
 
@@ -626,11 +626,11 @@ install_deps() {
     check_ipv4_interfaces
     check_internet
     if ! retry_cmd "install packages" env DEBIAN_FRONTEND=noninteractive apt-get -qq install -y "${missing_pkgs[@]}"; then
-        log "ERROR: [1/2] cannot install ${missing_pkgs[*]}"
-        log "ERROR: [2/2] install them with apt, then re-run -abort"
+        for dep_pkg in "${missing_pkgs[@]}"; do log "WARNING: cannot install $dep_pkg -alert"; done
+        log "ERROR: install them with apt, then re-run -abort"
         exit 1
     fi
-    log "INFO: Installed: ${missing_pkgs[*]}"
+    for dep_pkg in "${missing_pkgs[@]}"; do log "INFO: installed $dep_pkg"; done
 }
 
 # LAN SELECTION
@@ -1002,7 +1002,31 @@ EOF
 do_install() {
     check_requirements install
 
+    # A reused Apache gets its existing configuration modified: ask first
+    if dpkg -s apache2 &>/dev/null; then
+        local apache_configs=() apache_php_ini apache_answer
+        [[ -f /etc/apache2/ports.conf ]] && apache_configs+=(/etc/apache2/ports.conf)
+        [[ -f /etc/logrotate.d/apache2 ]] && apache_configs+=(/etc/logrotate.d/apache2)
+        for apache_php_ini in /etc/php/*/apache2/php.ini; do
+            [ -f "$apache_php_ini" ] && apache_configs+=("$apache_php_ini")
+        done
+        if (( ${#apache_configs[@]} > 0 )); then
+            echo "nwatch will modify these existing Apache configurations:"
+            printf ' %s\n' "${apache_configs[@]}"
+            read -r -p "Continue with these changes? [y/N]: " apache_answer || apache_answer=""
+            case "${apache_answer,,}" in
+                y|yes) ;;
+                *) log "INFO: installation cancelled"; log "INFO: nwatchsetup done"; exit 0 ;;
+            esac
+        fi
+    fi
+
     install_deps
+    # apache2-doc breaks after apache2 installs or upgrades; reinstall it always
+    if ! retry_cmd "install packages" env DEBIAN_FRONTEND=noninteractive apt-get -qq install -y --reinstall apache2-doc; then
+        log "ERROR: cannot reinstall apache2-doc -abort"
+        exit 1
+    fi
 
     # dependency checks
 
@@ -1268,7 +1292,7 @@ do_uninstall() {
         read -r -p "This will permanently remove NWatch and its data (LAN/port history). Continue? (y/N): " confirm
         case "$confirm" in
             [Yy]|[Yy][Ee][Ss]) ;;
-            *) echo "Aborted."; exit 1 ;;
+            *) log "INFO: Aborted by user"; log "INFO: nwatchsetup done"; exit 0 ;;
         esac
     fi
 
@@ -1291,10 +1315,7 @@ do_uninstall() {
     sed -i "/^Listen .*:${vhost_port}\$/d" /etc/apache2/ports.conf
     rm -f /etc/apache2/sites-available/nwatch.conf
 
-    rm -f /etc/logrotate.d/nwatch /etc/logrotate.d/nwatch.bak && {
-        log "INFO: Removed /etc/logrotate.d/nwatch"
-        log "INFO: Removed /etc/logrotate.d/nwatch.bak"
-    }
+    rm -f /etc/logrotate.d/nwatch && log "INFO: Removed /etc/logrotate.d/nwatch"
     rm -f -- /var/log/nwatch.log /var/log/nwatch.log.* && log "INFO: Removed /var/log/nwatch.log*"
 
     rm -rf "$nwatch_www"
@@ -1371,8 +1392,8 @@ PY
 
     echo ""
     echo "=== Log ==="
-    echo "$log_file (last 10):"
-    [ -f "$log_file" ] && tail -10 "$log_file" | sed 's/^/ /' || echo " (not found)"
+    echo "/var/log/nwatch.log (last 10):"
+    [ -f /var/log/nwatch.log ] && tail -10 /var/log/nwatch.log | sed 's/^/ /' || echo " (not found)"
 
     echo ""
     echo "=== Config ==="

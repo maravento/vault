@@ -45,12 +45,15 @@
 
 set -euo pipefail
 
-# validation -- integer only; use directly with =~
+# validation -integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 
 # ------------------------------------------------------------------------------
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
+
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
 
 # root check
 if [ "$(id -u)" != "0" ]; then
@@ -176,7 +179,7 @@ check_internet() {
 
 # dependencies (network checks, before the menu)
 net_checked=0
-for dep in iproute2 libc-bin; do
+for dep in iproute2 libc-bin sudo coreutils grep sed curl less jq file ca-certificates gnupg lsb-release; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -422,10 +425,6 @@ finish() {
 # returns Ollama's own featured-models list: name + size, no license/RAM info.
 fetch_available_models() {
     AVAILABLE_MODELS=()
-    if ! command -v jq &>/dev/null; then
-        warn "jq missing; cannot read model catalog -alert"
-        return 1
-    fi
 
     local max_attempts=5
     local attempt=1
@@ -509,7 +508,6 @@ install_docker() {
     else
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing Docker..."
         retry_cmd "update package lists" apt-get update -qq 2>/dev/null || true
-        retry_cmd "install packages" apt-get install -y ca-certificates curl gnupg lsb-release || abort "package installation failed -abort"
 
         # GPG key
         local key_dir=/etc/apt/keyrings key_stage
@@ -523,7 +521,7 @@ install_docker() {
             rm -rf -- "$key_stage"
             exit 1
         fi
-        echo "SAVED: gpg"
+        log "SAVED: gpg"
         download_url=""
         DOCKER_GPG_FINGERPRINT=$(gpg --with-fingerprint --with-colons "$key_stage/key.asc" 2>/dev/null \
             | awk -F: '/^fpr/{print $10; exit}')
@@ -604,7 +602,7 @@ install_nvidia_docker() {
             rm -rf -- "$key_stage"
             exit 1
         fi
-        echo "SAVED: gpgkey"
+        log "SAVED: gpgkey"
         download_url=""
         if ! nvidia_key_fpr=$(gpg --batch --with-colons --show-keys "$key_stage/key.asc" |
             awk -F: '$1 == "pub" { primary = 1 } $1 == "fpr" && primary { print $10; primary = 0 }') ||
@@ -628,7 +626,7 @@ install_nvidia_docker() {
             rm -f "$nvidia_repo_tmp"
             exit 1
         fi
-        echo "SAVED: nvidia-container-toolkit.list"
+        log "SAVED: nvidia-container-toolkit.list"
         download_url=""
         sed 's|deb https://|deb [signed-by=/etc/apt/keyrings/nvidia-docker.gpg] https://|g' \
             "$nvidia_repo_tmp" | tee /etc/apt/sources.list.d/nvidia-docker.list > /dev/null
@@ -677,13 +675,13 @@ create_docker_compose() {
         if [ "$HAS_NVIDIA_DOCKER" = true ]; then
                 OLLAMA_RUNTIME="    runtime: nvidia"
                 OLLAMA_GPU_DEVICES="
-        deploy:
-            resources:
-                reservations:
-                    devices:
-                        - driver: nvidia
-                            count: all
-                            capabilities: [gpu]"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]"
         fi
 
         cat > "${AI_BASE_DIR}/docker-compose.yml" << EOF
@@ -1006,7 +1004,7 @@ install_opencode() {
             rm -f "$nvm_tmp"
             return 1
         fi
-        echo "SAVED: install.sh"
+        log "SAVED: install.sh"
         download_url=""
         if ! head -1 "$nvm_tmp" | grep -qE '^#!((/usr)?/bin/(ba)?sh|/usr/bin/env (ba)?sh)'; then
             err "Downloaded nvm script is not shell code -abort"
@@ -1054,7 +1052,7 @@ install_opencode() {
             rm -f "$pnpm_tmp"
             return 1
         fi
-        echo "SAVED: install.sh"
+        log "SAVED: install.sh"
         download_url=""
         if ! head -1 "$pnpm_tmp" | grep -qE '^#!((/usr)?/bin/(ba)?sh|/usr/bin/env (ba)?sh)'; then
             err "Downloaded pnpm script is not shell code -abort"
@@ -1133,7 +1131,7 @@ WRAPPER
         rm -f "$install_tmp"
         return 1
     fi
-    echo "SAVED: install"
+    log "SAVED: install"
     download_url=""
     # Verify the downloaded file is a valid shell script (sanity check)
     if ! head -1 "$install_tmp" | grep -qE '^#!((/usr)?/bin/(ba)?sh|/usr/bin/env (ba)?sh)'; then
@@ -1257,11 +1255,10 @@ uninstall_opencode() {
                 sed -i '/export NVM_DIR/d' "$config"
                 sed -i '/NVM_DIR\/nvm\.sh/d' "$config"
                 sed -i '/NVM_DIR\/bash_completion/d' "$config"
-                # Remove pnpm block including the case/:$PATH:/esac wrapper
-                # Strategy: delete from the export PNPM_HOME line through the closing esac
-                sed -i '/export PNPM_HOME/,/^esac/d' "$config"
-                # Remove any leftover standalone pnpm references
-                sed -i '/pnpm/d' "$config"
+                # Remove the pnpm block only when all five lines match the installer's text
+                sed -i '/^export PNPM_HOME=/{N;N;N;N;/\ncase ":\$PATH:" in\n  \*":\$PNPM_HOME:"\*) ;;\n  \*) export PATH="\$PNPM_HOME:\$PATH" ;;\nesac$/d}' "$config"
+                # Remove the "# pnpm" and "# pnpm end" markers written by the pnpm installer
+                sed -i '/^# pnpm$/d; /^# pnpm end$/d' "$config"
                 # Remove blank lines left at the end of the file
                 sed -z -i 's/\n\{2,\}$/\n/; s/^\n$//' "$config"
                 ok "Cleaned nvm/pnpm entries from $config"
@@ -1334,7 +1331,7 @@ WRAPPER
             rm -f "$update_tmp"
             return 1
         fi
-        echo "SAVED: install"
+        log "SAVED: install"
         download_url=""
         if ! head -1 "$update_tmp" | grep -qE '^#!((/usr)?/bin/(ba)?sh|/usr/bin/env (ba)?sh)'; then
             err "Downloaded opencode script is not shell code -abort"

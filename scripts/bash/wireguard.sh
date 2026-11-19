@@ -21,6 +21,9 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -39,7 +42,7 @@ if ! flock -n 200; then
     exit 1
 fi
 
-# validation -- integer only; use directly with =~
+# validation -integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 # start
 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: wireguard start..."
@@ -103,7 +106,7 @@ check_internet() {
 
 # dependencies
 net_checked=0
-for dep in iproute2 util-linux libc-bin; do
+for dep in iproute2 util-linux libc-bin coreutils sed; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -267,7 +270,7 @@ EOL
         fi
         if command -v ufw &>/dev/null; then
                 if ! ufw allow 51820/udp; then
-                        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot open port 51820/udp, clients may not connect -alert"
+                        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot open 51820/udp, clients may fail -alert"
                 fi
         fi
         wg show

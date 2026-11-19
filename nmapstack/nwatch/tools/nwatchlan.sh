@@ -25,6 +25,9 @@ set -uo pipefail
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -62,7 +65,7 @@ nwatch_env="/etc/nwatch/nwatch.env"
 db_file="/var/www/nwatch/data/nwatch.db"
 pid_file="/run/nwatchlan.pid"
 
-# validation -- integer only; use directly with =~
+# validation -integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 UH_SINT='^(0|-?[1-9][0-9]*)$'
 UH_MAX=9223372036854775807
@@ -455,7 +458,12 @@ if [ "${1:-}" != --stop ]; then
         elif [[ -z "${!env_key:-}" ]]; then
             key_errors+=("$env_key not set")
         elif ! [[ "${!env_key}" =~ $UH_UINT ]] || [[ "${!env_key}" == 0 ]]; then
-            key_errors+=("$env_key invalid count")
+            case "$env_key" in
+                LAN_POLL_INTERVAL) key_unit=seconds ;;
+                NWATCH_DB_TIMEOUT_MS) key_unit=milliseconds ;;
+                *) key_unit=count ;;
+            esac
+            key_errors+=("$env_key invalid $key_unit")
         elif ! uh_fits "${!env_key}"; then
             key_errors+=("$env_key exceeds the Bash integer range")
         fi

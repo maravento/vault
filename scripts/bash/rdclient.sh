@@ -21,6 +21,9 @@ set -euo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -75,7 +78,7 @@ if ! local_user=$(detect_local_user); then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
     exit 1
 fi
-echo "Using local user: $local_user"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: using local user: $local_user"
 
 user_lang=$(locale | grep LANG= | cut -d= -f2 | cut -d_ -f1) || true
 
@@ -141,7 +144,7 @@ check_internet() {
 
 # dependencies (network checks, before the menu)
 net_checked=0
-for dep in iproute2 libc-bin; do
+for dep in iproute2 libc-bin coreutils grep sed curl wget lsof; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -183,19 +186,9 @@ retry_cmd() {
     done
 }
 
+# RustDesk's own packages; the tools the script uses are initial dependencies
 check_dependencies() {
-    if [[ "$(dpkg-query -W -f='${Status}' curl 2>/dev/null)" != *"ok installed"* ]]; then
-        if ! retry_cmd "update package lists" apt-get -qq update; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to update package lists while preparing curl -abort" >&2
-            exit 1
-        fi
-        if ! retry_cmd "install packages" apt-get install -y curl; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install curl -abort" >&2
-            exit 1
-        fi
-    fi
-
-    pkgs='libclang-dev ninja-build libayatana-appindicator3-1 libgstreamer1.0-dev libayatana-appindicator3-dev wget'
+    pkgs='libclang-dev ninja-build libayatana-appindicator3-1 libgstreamer1.0-dev libayatana-appindicator3-dev'
     missing=()
     for p in $pkgs; do
         [[ "$(dpkg-query -W -f='${Status}' "$p" 2>/dev/null)" == *"ok installed"* ]] || missing+=("$p")
@@ -207,7 +200,7 @@ check_dependencies() {
 
     if [ ${#unavailable[@]} -gt 0 ]; then
         for u in "${unavailable[@]}"; do echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: dependency not found in APT: $u -alert"; done
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: install them manually, or enable required repos -abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: install them manually or enable repos -abort" >&2
         exit 1
     fi
 
@@ -247,7 +240,7 @@ check_dependencies() {
 
 setup_keyboard() {
     if [ -z "$local_user" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: could not detect local user, skipping keyboard setup -skip"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: local user not found, keyboard setup -skip"
         return
     fi
 
@@ -324,30 +317,31 @@ install_rustdesk() {
     deb_file="rustdesk-${ver_tag}-x86_64.deb"
     base_url="https://github.com/rustdesk/rustdesk/releases/download/${ver_tag}"
 
-    cd /tmp
-    if ! retry_cmd "download package" wget --tries=1 -q "${base_url}/${deb_file}"; then
+    # Private directory: another user cannot plant the package
+    deb_dir=$(mktemp -d) || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot create temporary directory -abort" >&2; exit 1; }
+    trap 'rm -rf -- "$deb_dir"' EXIT
+    if ! retry_cmd "download package" wget --tries=1 -q -O "$deb_dir/$deb_file" "${base_url}/${deb_file}"; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: download failed -abort" >&2
-        rm -f "$deb_file"
         exit 1
     fi
 
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing package..."
     dpkg_out=$(mktemp)
-    if dpkg -i "./$deb_file" >"$dpkg_out" 2>&1; then
+    if dpkg -i "$deb_dir/$deb_file" >"$dpkg_out" 2>&1; then
         setup_keyboard
         # The .deb's own postinst enables and starts rustdesk.service on its
         # own; undo that here so the package is installed but not running
         # until the user starts it manually.
         systemctl stop rustdesk 2>/dev/null || true
         systemctl disable rustdesk 2>/dev/null || true
-        rm -f "$deb_file" "$dpkg_out"
+        rm -f "$dpkg_out"
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: RustDesk $ver_tag installed"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Service stopped. To start it now: sudo systemctl start rustdesk"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: To start it on every boot: sudo systemctl enable rustdesk"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: service stopped; start: sudo systemctl start rustdesk"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: start on boot: sudo systemctl enable rustdesk"
     else
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: installation failed -abort" >&2
         cat "$dpkg_out" >&2
-        rm -f "$deb_file" "$dpkg_out"
+        rm -f "$dpkg_out"
         exit 1
     fi
 }

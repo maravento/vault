@@ -30,6 +30,9 @@ set -uo pipefail
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -180,9 +183,9 @@ log "INFO: using local user: $local_user"
 # check ppa
 the_ppa=malcscott/ppa
 if [[ "$(dpkg-query -W -f='${Status}' hddtemp 2>/dev/null)" != *"ok installed"* ]]; then
-    check_ipv4_interfaces
-    check_internet
-    if ! add-apt-repository -y ppa:$the_ppa >/dev/null 2>&1; then
+    if ! getent hosts www.google.com >/dev/null 2>&1; then
+        log "WARNING: no internet; hddtemp not installed -alert"
+    elif ! add-apt-repository -y ppa:$the_ppa >/dev/null 2>&1; then
         log "WARNING: add PPA $the_ppa failed; hddtemp absent -alert"
     else
         apt-get update -qq
@@ -282,6 +285,9 @@ notify_alert() {
 # TEMPERATURE CHECK
 # ------------------------------------------------------------------------------
 
+# validation - integer only; use directly with =~
+UH_UINT='^(0|[1-9][0-9]*)$'
+
 degrees=50
 
 # option 1 (ssd sata and nvme)
@@ -317,8 +323,8 @@ if [ -n "$no_temp_disks" ]; then
     else
         for disk in $no_temp_disks; do
             temperature=$(hddtemp "/dev/$disk" --numeric 2>/dev/null)
-            [[ "$temperature" =~ ^[0-9]+$ ]] || continue
-            if [ "$temperature" -ge "$degrees" ]; then
+            [[ "$temperature" =~ $UH_UINT ]] || continue
+            if [ "$temperature" -gt "$degrees" ]; then
                 notify_alert "ALERT: $disk temperature above limit: ${temperature}C" "checkbox"
             fi
         done

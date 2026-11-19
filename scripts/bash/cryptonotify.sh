@@ -27,6 +27,9 @@ set -uo pipefail
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # no-root check
 if [ "$(id -u)" == "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script should not be run as root -abort" >&2
@@ -42,7 +45,7 @@ if ! flock -n 200; then
 fi
 
 # dependencies
-for dep in curl jq libnotify-bin util-linux iproute2 libc-bin; do
+for dep in curl jq libnotify-bin util-linux iproute2 libc-bin coreutils; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1

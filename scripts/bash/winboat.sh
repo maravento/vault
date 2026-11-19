@@ -29,6 +29,9 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -83,7 +86,7 @@ if ! local_user=$(detect_local_user); then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
     exit 1
 fi
-echo "Using local user: $local_user"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: using local user: $local_user"
 
 # start
 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: winboat start..."
@@ -169,7 +172,7 @@ check_internet() {
 
 # dependencies
 net_checked=0
-for dep in wget curl util-linux iproute2 libc-bin coreutils; do
+for dep in wget curl util-linux iproute2 libc-bin coreutils grep; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -250,7 +253,7 @@ install_winboat() {
             exit 1
         fi
         apt-get autoremove -y || true
-        echo "Ubuntu repository version removed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Ubuntu repository version removed"
     fi
 
     # Install FreeRDP from Flatpak (fixes bugs present in Ubuntu 24.04 repository version)
@@ -272,7 +275,7 @@ install_winboat() {
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install FreeRDP from Flatpak -abort" >&2
             exit 1
         fi
-        echo "FreeRDP3 installed successfully from Flatpak"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: FreeRDP3 installed from Flatpak"
     else
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: FreeRDP3 (Flatpak) is already installed. Skipping..."
     fi
@@ -311,7 +314,7 @@ install_winboat() {
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Winboat is not installed after setup -abort" >&2
             exit 1
         fi
-        echo "Winboat installed successfully!"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Winboat installed"
     else
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Winboat is already installed. Skipping..."
     fi
@@ -327,7 +330,7 @@ install_winboat() {
             reboot
             ;;
         *)
-            echo "Reboot skipped. Please reboot manually to complete installation"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: reboot skipped; reboot to finish -skip"
             ;;
     esac
 }
@@ -351,7 +354,7 @@ uninstall_winboat() {
             echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Proceeding with uninstallation..."
             ;;
         *)
-            echo "Uninstallation cancelled"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: uninstall cancelled -skip"
             return
             ;;
     esac
@@ -387,7 +390,7 @@ uninstall_winboat() {
             cleanup_failed=1
         fi
     else
-        echo "No Winboat containers found"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no Winboat containers -skip"
     fi
 
     # Remove Winboat Docker volumes
@@ -431,12 +434,12 @@ uninstall_winboat() {
         fi
         rm -rf /var/cache/apparmor/*/winboat || true
         if [ "$purge_failed" -eq 0 ]; then
-            echo "Winboat package removed"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Winboat package removed"
         else
             echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Winboat package pending -alert"
         fi
     else
-        echo "Winboat package is not installed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Winboat package not installed -skip"
     fi
     printf "\n"
 
@@ -451,7 +454,7 @@ uninstall_winboat() {
             echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: winboat directory removed"
         fi
     else
-        echo "No winboat work directory found"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no winboat work directory -skip"
     fi
     printf "\n"
 
@@ -471,11 +474,13 @@ uninstall_winboat() {
             fi
             ;;
         *)
-            echo "FreeRDP3 kept installed"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: FreeRDP3 kept -skip"
             ;;
     esac
     printf "\n"
 
+    printf '%s\n' ' Removing Docker deletes ALL containers, volumes and images on this host,' \
+        ' not only the Winboat ones, and /var/lib/docker.'
     read -p "Do you want to remove Docker? (y/n): " remove_docker
     case $remove_docker in
         [Yy]*)
@@ -493,7 +498,7 @@ uninstall_winboat() {
             fi
             ;;
         *)
-            echo "Docker kept installed"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Docker kept -skip"
             ;;
     esac
     printf "\n"

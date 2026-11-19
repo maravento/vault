@@ -53,7 +53,7 @@ if ! apt-cache policy | grep -qE '/multiverse'; then
 fi
 
 # dependencies
-for dep in p7zip-full p7zip-rar util-linux; do
+for dep in p7zip-full p7zip-rar util-linux coreutils grep; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1

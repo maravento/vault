@@ -40,7 +40,7 @@ log() {
 
 { > "$log_file"; } 2>/dev/null || true
 
-log "send2phone start..."
+log "INFO: send2phone start..."
 
 # dependencies
 for dep_pkg in coreutils kdeconnect; do
@@ -111,7 +111,7 @@ else
         exit "$handler_rc"
     fi
     log "INFO: KDE Connect accepted ${#send_files[@]} files for sending"
-    log "send2phone done"
+    log "INFO: send2phone done"
     exit 0
 fi
 
@@ -153,4 +153,4 @@ done
 
 log "INFO: KDE Connect accepted $sent of $total_files files for sending"
 
-log "send2phone done"
+log "INFO: send2phone done"

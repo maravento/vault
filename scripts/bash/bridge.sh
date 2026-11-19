@@ -28,6 +28,9 @@ set -uo pipefail
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -101,7 +104,7 @@ check_internet() {
 
 # dependencies
 net_checked=0
-for dep in iproute2 bridge-utils util-linux network-manager libc-bin; do
+for dep in iproute2 bridge-utils util-linux network-manager libc-bin coreutils grep; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -139,8 +142,7 @@ detect_ethernet_interface() {
     wifi_interfaces=$(nmcli -t -f DEVICE,TYPE device status | grep -E ":wifi$" | cut -d: -f1)
     for wifi in $wifi_interfaces; do
         if nmcli -t -f DEVICE,STATE device status | grep -q "^${wifi}:connected"; then
-            echo "WiFi interface '$wifi' is active. Please disable WiFi before creating a bridge." >&2
-            echo "Run: nmcli radio wifi off" >&2
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: WiFi $wifi active; run nmcli radio wifi off -abort" >&2
             return 1
         fi
     done
@@ -157,7 +159,7 @@ detect_ethernet_interface() {
         fi
     done
 
-    echo "No active Ethernet interface found with IP address." >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no active Ethernet interface with an IP -abort" >&2
     return 1
 }
 
@@ -238,8 +240,9 @@ show_final_status() {
         original_conn=$(get_original_connection_name "$INTERFACE")
         [ -n "$original_conn" ] && echo "Original connection '$original_conn' preserved (inactive)"
     else
-        echo "Bridge is not active"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] bridge not active" >&2
         restore_normal_network
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [2/2] network restored -abort" >&2
         exit 1
     fi
 }
@@ -261,20 +264,20 @@ create_bridge_connection() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Creating bridge configuration..."
     local original_conn
     original_conn=$(get_original_connection_name "$INTERFACE")
-    [ -n "$original_conn" ] && echo "Original connection detected: $original_conn"
+    [ -n "$original_conn" ] && echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: original connection detected: $original_conn"
 
     if ! nmcli connection add type bridge con-name "$BRIDGE_NAME" ifname "$BRIDGE_NAME" \
         ipv4.method auto ipv6.method auto \
         ipv4.dhcp-timeout 30 ipv6.dhcp-timeout 30 \
         bridge.stp no \
         connection.autoconnect no 2>&1; then
-        echo "Error creating bridge"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] cannot create bridge" >&2
         return 1
     fi
 
     if ! nmcli connection add type bridge-slave con-name "$BRIDGE_SLAVE" ifname "$INTERFACE" \
         master "$BRIDGE_NAME" connection.autoconnect no 2>&1; then
-        echo "Error creating bridge-slave"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] cannot create bridge-slave" >&2
         nmcli connection delete "$BRIDGE_NAME" 2>/dev/null || true
         return 1
     fi
@@ -313,14 +316,14 @@ activate_bridge() {
     local active_conn
     active_conn=$(get_original_connection_name "$INTERFACE")
     if [ -n "$active_conn" ]; then
-        echo "Deactivating active connection: $active_conn"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: deactivating active connection: $active_conn"
         nmcli connection down "$active_conn" 2>/dev/null || true
         sleep 2
     fi
 
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Activating bridge first..."
     if ! nmcli connection up "$BRIDGE_NAME" 2>&1; then
-        echo "Error activating bridge"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] cannot activate bridge" >&2
         return 1
     fi
     sleep 3
@@ -334,10 +337,10 @@ activate_bridge() {
     sleep 3
 
     if bridge link show dev "$INTERFACE" 2>/dev/null | grep -q "$BRIDGE_NAME"; then
-        echo "$INTERFACE successfully linked to $BRIDGE_NAME"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $INTERFACE linked to $BRIDGE_NAME"
         return 0
     else
-        echo "Failed to link $INTERFACE to bridge $BRIDGE_NAME"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] cannot link $INTERFACE to $BRIDGE_NAME" >&2
         return 1
     fi
 }
@@ -349,7 +352,7 @@ wait_for_dhcp() {
 
     while [ $attempt -lt $max_attempts ]; do
         if ip addr show "$BRIDGE_NAME" | grep -q "inet "; then
-            echo "IP address obtained via DHCP"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: IP address obtained via DHCP"
             return 0
         fi
 
@@ -364,7 +367,7 @@ wait_for_dhcp() {
         sleep 5
     done
 
-    echo "No IP address obtained via DHCP"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] no IP from DHCP on $BRIDGE_NAME" >&2
     return 1
 }
 
@@ -387,15 +390,15 @@ restore_normal_network() {
     local original_conn
     original_conn=$(get_original_connection_name "$INTERFACE")
     if [ -n "$original_conn" ]; then
-        echo "Reactivating original connection: $original_conn"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: reactivating original connection: $original_conn"
         nmcli connection up "$original_conn" 2>/dev/null || true
     else
-        echo "No original connection found for $INTERFACE"
-        echo "Network should auto-connect or you may need to manually activate a connection"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: [1/2] no original connection for $INTERFACE"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: [2/2] activate one manually -alert"
     fi
 
     sleep 3
-    echo "Normal configuration restored"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: normal configuration restored"
 }
 
 # ------------------------------------------------------------------------------
@@ -410,32 +413,19 @@ case "${1:-}" in
     --on)
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Scanning for active Ethernet interface..."
         INTERFACE=$(detect_ethernet_interface) || exit 1
-        echo "Found active Ethernet interface: $INTERFACE"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: active Ethernet interface: $INTERFACE"
 
         if bridge_exists; then
-            echo "Bridge $BRIDGE_NAME is already active or exists"
-            echo "Use '$0 --off' to deactivate it first"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: bridge $BRIDGE_NAME exists; run --off first -abort" >&2
             exit 1
         fi
 
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Activating bridge ${BRIDGE_NAME} on ${INTERFACE}..."
         cleanup_all_connections
 
-        if ! create_bridge_connection; then
-            echo "Error in bridge configuration"
+        if ! create_bridge_connection || ! activate_bridge || ! wait_for_dhcp; then
             restore_normal_network
-            exit 1
-        fi
-
-        if ! activate_bridge; then
-            echo "Error activating bridge - interface linking failed"
-            restore_normal_network
-            exit 1
-        fi
-
-        if ! wait_for_dhcp; then
-            echo "Error obtaining an IP address on the bridge"
-            restore_normal_network
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [2/2] network restored -abort" >&2
             exit 1
         fi
         show_final_status
@@ -449,7 +439,7 @@ case "${1:-}" in
             restore_normal_network
             show_restored_status
         else
-            echo "Bridge $BRIDGE_NAME is not active, nothing to do"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: bridge $BRIDGE_NAME not active -skip"
         fi
         ;;
 
@@ -488,7 +478,7 @@ case "${1:-}" in
         INTERFACE=$(get_ethernet_interface_for_status)
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Complete cleanup of bridge connections..."
         cleanup_all_connections
-        echo "Cleanup completed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: cleanup completed"
         ;;
 
     *)

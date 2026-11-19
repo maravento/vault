@@ -227,7 +227,7 @@ exit /b 0
 echo.
 call :log "INFO: Stopping UniFi processes..."
 echo Stopping UniFi processes...
-taskkill /f /im "java.exe" >nul 2>&1 && call :log "INFO: Killed: java.exe"
+powershell -NoProfile -Command "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'java.exe' -and $_.ExecutablePath -like ($env:ProgramFiles + '\Temurin\*') -and $_.CommandLine -like '*ace.jar*' }; if (-not $p) { exit 1 }; $p | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }" >nul 2>&1 && call :log "INFO: Killed: java.exe (UniFi)"
 taskkill /f /im "UniFi.exe" >nul 2>&1 && call :log "INFO: Killed: UniFi.exe"
 taskkill /f /im "UniFi-installer.exe" >nul 2>&1 && call :log "INFO: Killed: UniFi-installer.exe"
 taskkill /f /im "Uninstall.exe" >nul 2>&1 && call :log "INFO: Killed: Uninstall.exe"

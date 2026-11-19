@@ -23,7 +23,7 @@
 #
 # WARNING:
 # May temporarily disconnect the network -- use with caution over SSH
-# Netplan YAML files under /etc/netplan are backed up (.bak) before changes
+# Netplan YAML files under /etc/netplan are backed up (.npswitch.bak) before changes
 #
 ################################################################################
 
@@ -32,6 +32,9 @@ set -uo pipefail
 # ------------------------------------------------------------------------------
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
+
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
 
 # root check
 if [ "$(id -u)" != "0" ]; then
@@ -106,7 +109,7 @@ check_internet() {
 
 # dependencies
 net_checked=0
-for dep in netplan.io iproute2 systemd network-manager util-linux libc-bin; do
+for dep in netplan.io iproute2 systemd network-manager util-linux libc-bin coreutils grep sed; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -129,15 +132,6 @@ done
 # ------------------------------------------------------------------------------
 # VARIABLES
 # ------------------------------------------------------------------------------
-
-# Colors
-color_red='\033[0;31m'
-color_green='\033[0;32m'
-color_yellow='\033[1;33m'
-color_blue='\033[0;34m'
-color_cyan='\033[0;36m'
-color_magenta='\033[0;35m'
-color_reset='\033[0m' # No Color
 
 # Paths
 netplan_dir="/etc/netplan"
@@ -209,7 +203,6 @@ detect_and_classify_interfaces() {
     local has_virtual=0
     local active_wifi=0
 
-    echo -e "${color_blue}Analyzing network interfaces...${color_reset}" >&2
 
     while IFS= read -r line; do
         iface=$(echo "$line" | awk '{print $1}' | sed 's/@.*//')
@@ -238,19 +231,8 @@ detect_and_classify_interfaces() {
                 ;;
         esac
 
-        local icon color state_display="${color_green}UP/Active${color_reset}"
-
-        case "$type" in
-            wifi) icon=" " color="$color_magenta" ;;
-            ethernet) icon=" " color="$color_green" ;;
-            virtual) icon=" " color="$color_cyan" ;;
-            bridge) icon=" " color="$color_yellow" ;;
-            bond) icon=" " color="$color_blue" ;;
-            *) icon=" " color="$color_reset" ;;
-        esac
-
-        printf "${color}${icon} %-18s${color_reset} [%-10s] %-14s %s\n" \
-            "$iface" "$type" "$state_display" "$ip_addr" >&2
+        printf ' %-18s [%-10s] %-14s %s\n' \
+            "$iface" "$type" "UP/Active" "$ip_addr" >&2
 
     done < <(list_ifaces)
 
@@ -268,21 +250,21 @@ get_renderer_recommendation() {
     local has_virtual=$(echo "$analysis" | cut -d'|' -f3)
     local active_wifi=$(echo "$analysis" | cut -d'|' -f4)
 
-    echo -e "${color_blue}----------------------------------------------${color_reset}"
-    echo -e "${color_blue} RENDERER RECOMMENDATION${color_reset}"
-    echo -e "${color_blue}----------------------------------------------${color_reset}"
+    echo -e "----------------------------------------------"
+    echo -e " RENDERER RECOMMENDATION"
+    echo -e "----------------------------------------------"
     echo ""
 
     if [ "$active_wifi" == "1" ]; then
-        echo -e "${color_yellow} Active WiFi detected${color_reset}"
+        echo -e " Active WiFi detected"
         echo ""
-        echo -e "${color_green} Recommended: NetworkManager${color_reset}"
+        echo -e " Recommended: NetworkManager"
         echo "Reasons:"
         echo "* Easy WiFi management (nmtui/nmcli/GUI)"
         echo "* Automatic connection switching"
         echo "* Better laptop/workstation support"
         echo ""
-        echo -e "${color_red} NOT Recommended: systemd-networkd${color_reset}"
+        echo -e " NOT Recommended: systemd-networkd"
         echo "Limitations:"
         echo "* Requires manual wpa_supplicant configuration"
         echo "* No GUI for WiFi management"
@@ -290,25 +272,25 @@ get_renderer_recommendation() {
         echo ""
         return 1 # Return 1 to indicate WiFi warning
     elif [ "$has_wifi" == "1" ] && [ "$active_wifi" == "0" ]; then
-        echo -e "${color_yellow} WiFi interface present (but inactive)${color_reset}"
+        echo -e " WiFi interface present (but inactive)"
         echo ""
-        echo -e "${color_cyan} Either renderer works, but:${color_reset}"
+        echo -e " Either renderer works, but:"
         echo ""
-        echo -e " ${color_green}NetworkManager:${color_reset} Better if you plan to use WiFi"
-        echo -e " ${color_green}systemd-networkd:${color_reset} OK for server with Ethernet only"
+        echo -e " NetworkManager: Better if you plan to use WiFi"
+        echo -e " systemd-networkd: OK for server with Ethernet only"
         echo ""
         return 0
     else
-        echo -e "${color_green} Server profile detected (Ethernet only)${color_reset}"
+        echo -e " Server profile detected (Ethernet only)"
         echo ""
-        echo -e "${color_green} Recommended: systemd-networkd${color_reset}"
+        echo -e " Recommended: systemd-networkd"
         echo "Benefits:"
         echo "* Faster and lighter (less RAM)"
         echo "* Better for servers"
         echo "* Excellent performance"
         echo "* Native systemd integration"
         echo ""
-        echo -e "${color_cyan} Alternative: NetworkManager${color_reset}"
+        echo -e " Alternative: NetworkManager"
         echo "* More features (may not need them)"
         echo "* GUI management (nmtui)"
         echo "* Better for mixed environments"
@@ -375,40 +357,36 @@ read_ipv4_config() {
     esac
 }
 
-# Deactivate all YAML files (rename with .bak extension)
+# Deactivate all YAML files (rename with .npswitch.bak extension)
 deactivate_all_yaml_files() {
-    echo -e "${color_blue}Deactivating all existing YAML files...${color_reset}"
     local count
     count=$(find "$netplan_dir" -maxdepth 1 -type f -name '*.yaml' -not -name '*.yaml.bak' -print | wc -l)
     if [ "$count" -eq 0 ]; then
-        echo -e "${color_yellow} No active YAML files found${color_reset}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no active YAML files -skip"
     else
         if ! find "$netplan_dir" -maxdepth 1 -type f -name '*.yaml' -not -name '*.yaml.bak' \
-            -exec sh -c 'for f in "$@"; do mv -- "$f" "$f.bak" || exit 1; done' sh {} + 2>/dev/null; then
-            echo -e "${color_red}Error: cannot deactivate YAML files${color_reset}" >&2
+            -exec sh -c 'for f in "$@"; do mv -- "$f" "$f.npswitch.bak" || exit 1; done' sh {} + 2>/dev/null; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot deactivate YAML files -abort" >&2
             exit 1
         fi
-        echo -e "${color_green} Deactivated $count YAML file(s)${color_reset}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: deactivated $count YAML file(s)"
     fi
-    echo ""
 }
 
 # Restore all backup YAML files
 restore_all_yaml_files() {
-    echo -e "${color_blue}Restoring all previous YAML files...${color_reset}"
     local count
-    count=$(find "$netplan_dir" -maxdepth 1 -type f -name '*.yaml.bak' -print | wc -l)
+    count=$(find "$netplan_dir" -maxdepth 1 -type f -name '*.yaml.npswitch.bak' -print | wc -l)
     if [ "$count" -eq 0 ]; then
-        echo -e "${color_yellow} No backup YAML files found to restore${color_reset}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no YAML backups to restore -skip"
     else
-        if ! find "$netplan_dir" -maxdepth 1 -type f -name '*.yaml.bak' \
-            -exec sh -c 'rc=0; for f in "$@"; do mv -- "$f" "${f%.bak}" || rc=1; done; exit $rc' sh {} + 2>/dev/null; then
-            echo -e "${color_yellow} Warning: some YAML files were not restored${color_reset}" >&2
+        if ! find "$netplan_dir" -maxdepth 1 -type f -name '*.yaml.npswitch.bak' \
+            -exec sh -c 'rc=0; for f in "$@"; do mv -- "$f" "${f%.npswitch.bak}" || rc=1; done; exit $rc' sh {} + 2>/dev/null; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: some YAML files not restored -alert"
         else
-            echo -e "${color_green} Restored $count YAML file(s)${color_reset}"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: restored $count YAML file(s)"
         fi
     fi
-    echo ""
 }
 
 # Generate networkd configuration
@@ -416,8 +394,7 @@ generate_networkd_config() {
     local interfaces=("$@")
 
     if [ ${#interfaces[@]} -eq 0 ]; then
-        echo -e "${color_red}Error: No suitable interfaces for systemd-networkd${color_reset}"
-        echo "Only Ethernet interfaces in UP state are included"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no Ethernet interface UP for systemd-networkd -abort" >&2
         exit 1
     fi
 
@@ -432,7 +409,7 @@ network:
   ethernets:
 EOF
     then
-        echo -e "${color_red}Error: cannot write $networkd_file${color_reset}" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot write $networkd_file -abort" >&2
         exit 1
     fi
 
@@ -460,7 +437,7 @@ EOF
                 echo "      dhcp6: false"
             } >> "$networkd_file"
         fi || {
-            echo -e "${color_red}Error: cannot write $networkd_file${color_reset}" >&2
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot write $networkd_file -abort" >&2
             exit 1
         }
     done
@@ -474,19 +451,35 @@ EOF
         exit 1
     fi
 
-    echo -e "${color_green} Created: $networkd_file${color_reset}"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: created $networkd_file"
+}
+
+# Put a unit back to its saved enabled/active state
+restore_unit() {
+    local unit="$1" active="$2" enabled="$3"
+    if [ "$active" = active ]; then
+        systemctl start "$unit" 2>/dev/null
+    else
+        systemctl stop "$unit" 2>/dev/null
+    fi
+    case "$enabled" in
+        enabled) systemctl enable "$unit" 2>/dev/null ;;
+        disabled) systemctl disable "$unit" 2>/dev/null ;;
+        masked) systemctl disable "$unit" 2>/dev/null; systemctl mask "$unit" 2>/dev/null ;;
+    esac
+    return 0
 }
 
 # Switch to networkd
 switch_to_networkd() {
     echo ""
-    echo -e "${color_yellow}================================================${color_reset}"
-    echo -e "${color_yellow} Switching to systemd-networkd${color_reset}"
-    echo -e "${color_yellow}================================================${color_reset}"
+    echo -e "================================================"
+    echo -e " Switching to systemd-networkd"
+    echo -e "================================================"
     echo ""
 
     if ! systemctl list-unit-files | grep -q "systemd-networkd.service"; then
-        echo -e "${color_red}Error: systemd-networkd is not installed${color_reset}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: systemd-networkd not installed -abort" >&2
         exit 1
     fi
 
@@ -498,23 +491,23 @@ switch_to_networkd() {
     echo ""
 
     if [ $rec_result -eq 1 ]; then
-        echo -e "${color_red}----------------------------------------------${color_reset}"
-        echo -e "${color_red} STRONG WARNING${color_reset}"
-        echo -e "${color_red}----------------------------------------------${color_reset}"
+        echo -e "----------------------------------------------"
+        echo -e " STRONG WARNING"
+        echo -e "----------------------------------------------"
         echo ""
         echo "You have ACTIVE WiFi connections!"
         echo "Switching to systemd-networkd will:"
         echo ""
-        echo -e "${color_red} ${color_reset} Disconnect all WiFi connections"
-        echo -e "${color_red} ${color_reset} Require manual wpa_supplicant setup"
-        echo -e "${color_red} ${color_reset} Remove GUI management"
+        echo -e "  Disconnect all WiFi connections"
+        echo -e "  Require manual wpa_supplicant setup"
+        echo -e "  Remove GUI management"
         echo ""
         echo "This is NOT recommended for systems with WiFi"
         echo ""
         read -p "Are you ABSOLUTELY SURE? (type 'I UNDERSTAND'): " confirm
 
         if [ "$confirm" != "I UNDERSTAND" ]; then
-            echo "Aborted. Good choice!"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: aborted by user"
             echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: npswitch done"
             exit 0
         fi
@@ -524,8 +517,7 @@ switch_to_networkd() {
     get_networkd_interfaces suitable_ifaces
 
     if [ ${#suitable_ifaces[@]} -eq 0 ]; then
-        echo -e "${color_red}Error: No suitable Ethernet interfaces found${color_reset}"
-        echo "systemd-networkd configuration requires at least one UP Ethernet interface"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no Ethernet interface UP -abort" >&2
         exit 1
     fi
 
@@ -537,7 +529,7 @@ switch_to_networkd() {
         fi
     done
 
-    echo -e "${color_green}Interfaces to be configured with networkd:${color_reset}"
+    echo -e "Interfaces to be configured with networkd:"
     for iface in "${suitable_ifaces[@]}"; do
         if [ "${ipv4_mode[$iface]}" = static ]; then
             echo "$iface: ${ipv4_addresses[$iface]} (static)"
@@ -547,13 +539,13 @@ switch_to_networkd() {
     done
     echo ""
 
-    echo -e "${color_yellow}NOTE: Virtual interfaces (docker0, virbr0, veth*, br-*) will NOT be included.${color_reset}"
-    echo -e "${color_yellow}They are managed by their respective services.${color_reset}"
+    echo -e "NOTE: Virtual interfaces (docker0, virbr0, veth*, br-*) will NOT be included."
+    echo -e "They are managed by their respective services."
     echo ""
 
-    echo -e "${color_yellow}----------------------------------------------${color_reset}"
+    echo -e "----------------------------------------------"
     echo "This will:"
-    echo "1. Deactivate ALL existing YAML files (rename to .bak)"
+    echo "1. Deactivate ALL existing YAML files (rename to .npswitch.bak)"
     echo "2. Create new 00-networkd.yaml config"
     echo "3. Disable NetworkManager"
     echo "4. Enable systemd-networkd"
@@ -562,62 +554,66 @@ switch_to_networkd() {
     read -p "Continue? (y/n): " confirm
 
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-        echo "Aborted."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: aborted by user"
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: npswitch done"
         exit 0
     fi
 
     deactivate_all_yaml_files
 
-    echo -e "${color_blue}Generating networkd configuration...${color_reset}"
     generate_networkd_config "${suitable_ifaces[@]}"
 
     echo ""
-    echo -e "${color_blue}Generated configuration:${color_reset}"
+    echo -e "Generated configuration:"
     cat "$networkd_file"
     echo ""
 
-    echo -e "${color_blue}Validating configuration...${color_reset}"
     if ! netplan generate >/dev/null 2>&1; then
-        echo -e "${color_red}Error: Configuration validation failed${color_reset}"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Restoring backup..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] configuration not valid" >&2
         restore_all_yaml_files
         rm -f "$networkd_file"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [2/2] backup restored -abort" >&2
         exit 1
     fi
-    echo -e "${color_green} Configuration is valid${color_reset}"
-    echo ""
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: configuration valid"
 
-    echo -e "${color_blue}Unmasking NetworkManager (if masked)...${color_reset}"
+    # Saved for the rollback below
+    nm_active=$(systemctl is-active NetworkManager.service 2>/dev/null)
+    nm_enabled=$(systemctl is-enabled NetworkManager.service 2>/dev/null)
+    nd_active=$(systemctl is-active systemd-networkd.service 2>/dev/null)
+    nd_enabled=$(systemctl is-enabled systemd-networkd.service 2>/dev/null)
+
     systemctl unmask NetworkManager.service 2>/dev/null || true
-
-    echo -e "${color_blue}Stopping and disabling NetworkManager...${color_reset}"
     systemctl stop NetworkManager.service 2>/dev/null || true
     systemctl disable NetworkManager.service 2>/dev/null || true
-    echo -e "${color_green} NetworkManager stopped${color_reset}"
+    if systemctl is-active --quiet NetworkManager.service \
+        || systemctl is-enabled --quiet NetworkManager.service; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: NetworkManager still active or enabled -alert"
+    else
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: NetworkManager stopped and disabled"
+    fi
 
-    echo -e "${color_blue}Enabling systemd-networkd...${color_reset}"
     systemctl unmask systemd-networkd.service 2>/dev/null || true
     systemctl enable systemd-networkd.service 2>/dev/null || true
     systemctl start systemd-networkd.service 2>/dev/null || true
-    echo -e "${color_green} systemd-networkd started${color_reset}"
+    if systemctl is-active --quiet systemd-networkd.service; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: systemd-networkd enabled and started"
+    else
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: systemd-networkd not started -alert"
+    fi
 
-    echo ""
-    echo -e "${color_blue}Applying netplan configuration...${color_reset}"
     if netplan apply; then
-        echo ""
-        echo -e "${color_green}================================================${color_reset}"
-        echo -e "${color_green} Successfully switched to systemd-networkd${color_reset}"
-        echo -e "${color_green}================================================${color_reset}"
-        echo ""
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: switched to systemd-networkd"
         echo "To verify: systemctl status systemd-networkd"
         echo "To rollback: $0 --to-nm"
     else
-        echo -e "${color_red}Error applying configuration!${color_reset}"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Attempting rollback..."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] cannot apply configuration" >&2
         restore_all_yaml_files
         rm -f "$networkd_file"
+        restore_unit systemd-networkd.service "$nd_active" "$nd_enabled"
+        restore_unit NetworkManager.service "$nm_active" "$nm_enabled"
         netplan apply
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [2/2] previous network restored -abort" >&2
         exit 1
     fi
 }
@@ -625,9 +621,9 @@ switch_to_networkd() {
 # Switch to NetworkManager
 switch_to_nm() {
     echo ""
-    echo -e "${color_yellow}================================================${color_reset}"
-    echo -e "${color_yellow} Switching to NetworkManager${color_reset}"
-    echo -e "${color_yellow}================================================${color_reset}"
+    echo -e "================================================"
+    echo -e " Switching to NetworkManager"
+    echo -e "================================================"
     echo ""
 
     analysis=$(detect_and_classify_interfaces)
@@ -636,10 +632,10 @@ switch_to_nm() {
     get_renderer_recommendation "$analysis" || true
     echo ""
 
-    echo -e "${color_yellow}----------------------------------------------${color_reset}"
+    echo -e "----------------------------------------------"
     echo "This will:"
     echo "1. Remove 00-networkd.yaml file"
-    echo "2. Restore ALL previous YAML files (from .bak)"
+    echo "2. Restore ALL previous YAML files (from .npswitch.bak)"
     echo "3. Force renderer to NetworkManager"
     echo "4. Disable systemd-networkd"
     echo "5. Enable NetworkManager"
@@ -648,26 +644,23 @@ switch_to_nm() {
     read -p "Continue? (y/n): " confirm
 
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-        echo "Aborted."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: aborted by user"
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: npswitch done"
         exit 0
     fi
 
-    echo -e "${color_blue}Removing networkd configuration file...${color_reset}"
     if [ -f "$networkd_file" ]; then
         if ! rm -f "$networkd_file"; then
-            echo -e "${color_red}Error: cannot remove $networkd_file${color_reset}" >&2
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot remove $networkd_file -abort" >&2
             exit 1
         fi
-        echo -e "${color_green} Removed: $networkd_file${color_reset}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: removed $networkd_file"
     else
-        echo -e "${color_yellow} File not found: $networkd_file${color_reset}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $networkd_file not found -skip"
     fi
-    echo ""
 
     restore_all_yaml_files
 
-    echo -e "${color_blue}Forcing all YAML files to use NetworkManager renderer...${color_reset}"
     if ! cat > "$nm_file" <<EOF
 # Generated by netplan-renderer-switcher
 # $(date '+%Y-%m-%d %H:%M:%S')
@@ -677,7 +670,7 @@ network:
   renderer: NetworkManager
 EOF
     then
-        echo -e "${color_red}Error: cannot write $nm_file${color_reset}" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot write $nm_file -abort" >&2
         exit 1
     fi
     if ! chown root:root "$nm_file"; then
@@ -688,64 +681,60 @@ EOF
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot set $(basename "$nm_file") permissions -abort" >&2
         exit 1
     fi
-    echo -e "${color_green} Created: $nm_file${color_reset}"
-    echo ""
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: created $nm_file"
 
-    echo -e "${color_blue}Unmasking systemd-networkd temporarily (for netplan apply)...${color_reset}"
     systemctl unmask systemd-networkd.service 2>/dev/null || true
     systemctl unmask systemd-networkd.socket 2>/dev/null || true
-    echo -e "${color_green} Unmasked systemd-networkd${color_reset}"
-    echo ""
+    if [ "$(systemctl is-enabled systemd-networkd.service 2>/dev/null)" = masked ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: systemd-networkd still masked -alert"
+    else
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: systemd-networkd unmasked for netplan apply"
+    fi
 
-    echo -e "${color_blue}Unmasking NetworkManager (if masked)...${color_reset}"
     systemctl unmask NetworkManager.service 2>/dev/null || true
-
-    echo -e "${color_blue}Enabling and starting NetworkManager...${color_reset}"
     systemctl enable NetworkManager.service 2>/dev/null || true
     systemctl start NetworkManager.service 2>/dev/null || true
-    echo -e "${color_green} NetworkManager is running${color_reset}"
-    echo ""
+    if systemctl is-active --quiet NetworkManager.service; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: NetworkManager enabled and started"
+    else
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: NetworkManager not started -alert"
+    fi
 
-    echo -e "${color_blue}Applying netplan configuration...${color_reset}"
     if netplan apply; then
-        echo ""
-        echo -e "${color_green} Netplan configuration applied successfully${color_reset}"
-        echo ""
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: netplan configuration applied"
 
-        echo -e "${color_blue}Stopping systemd-networkd services...${color_reset}"
         systemctl stop systemd-networkd.socket 2>/dev/null || true
         systemctl stop systemd-networkd-wait-online.service 2>/dev/null || true
         systemctl stop systemd-networkd.service 2>/dev/null || true
 
         sleep 1
         if systemctl is-active --quiet systemd-networkd.service; then
-            echo -e "${color_yellow} Force killing systemd-networkd...${color_reset}"
             systemctl kill systemd-networkd.service 2>/dev/null || true
             sleep 1
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: systemd-networkd killed"
         fi
-        echo -e "${color_green} Stopped systemd-networkd services${color_reset}"
+        if systemctl is-active --quiet systemd-networkd.service; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: systemd-networkd still active -alert"
+        else
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: systemd-networkd stopped"
+        fi
 
-        echo -e "${color_blue}Disabling systemd-networkd services...${color_reset}"
         systemctl disable systemd-networkd.service 2>/dev/null || true
         systemctl disable systemd-networkd-wait-online.service 2>/dev/null || true
         systemctl disable systemd-networkd.socket 2>/dev/null || true
-        echo -e "${color_green} Disabled systemd-networkd services${color_reset}"
-
-        echo -e "${color_blue}Masking systemd-networkd...${color_reset}"
         systemctl mask systemd-networkd.service 2>/dev/null || true
-        echo -e "${color_green} Masked systemd-networkd${color_reset}"
-        echo ""
+        if [ "$(systemctl is-enabled systemd-networkd.service 2>/dev/null)" = masked ]; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: systemd-networkd disabled and masked"
+        else
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: systemd-networkd not masked -alert"
+        fi
 
-        echo -e "${color_green}================================================${color_reset}"
-        echo -e "${color_green} Successfully switched to NetworkManager${color_reset}"
-        echo -e "${color_green}================================================${color_reset}"
-        echo ""
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: switched to NetworkManager"
         echo "To verify: systemctl status NetworkManager"
         echo "To manage networks: nmtui or nmcli"
         echo "To switch back: $0 --to-networkd"
     else
-        echo -e "${color_red}Error applying configuration!${color_reset}"
-        echo "Manual intervention may be required"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot apply configuration; fix it manually -abort" >&2
         exit 1
     fi
 }
@@ -753,16 +742,16 @@ EOF
 # Show current status with detailed analysis
 show_status() {
     echo ""
-    echo -e "${color_blue}================================================${color_reset}"
-    echo -e "${color_blue} Current Network Configuration${color_reset}"
-    echo -e "${color_blue}================================================${color_reset}"
+    echo -e "================================================"
+    echo -e " Current Network Configuration"
+    echo -e "================================================"
     echo ""
 
     current_renderer=$(detect_current_renderer)
-    echo -e "Current renderer: ${color_green}$current_renderer${color_reset}"
+    echo -e "Current renderer: $current_renderer"
     echo ""
 
-    echo -e "${color_blue}Active netplan files:${color_reset}"
+    echo -e "Active netplan files:"
     if ls "$netplan_dir"/*.yaml &>/dev/null; then
         for yaml in "$netplan_dir"/*.yaml; do
             [[ "$yaml" == *.yaml.bak ]] && continue
@@ -773,9 +762,9 @@ show_status() {
     fi
     echo ""
 
-    echo -e "${color_blue}Deactivated netplan files:${color_reset}"
-    if ls "$netplan_dir"/*.yaml.bak* &>/dev/null; then
-        for yaml in "$netplan_dir"/*.yaml.bak*; do
+    echo -e "Deactivated netplan files:"
+    if ls "$netplan_dir"/*.yaml.npswitch.bak &>/dev/null; then
+        for yaml in "$netplan_dir"/*.yaml.npswitch.bak; do
             echo "- $(basename "$yaml")"
         done
     else
@@ -789,17 +778,17 @@ show_status() {
     get_renderer_recommendation "$analysis" || true
     echo ""
 
-    echo -e "${color_blue}Service status:${color_reset}"
+    echo -e "Service status:"
     if systemctl is-active NetworkManager.service &>/dev/null; then
-        echo -e " NetworkManager: ${color_green}active${color_reset}"
+        echo -e " NetworkManager: active"
     else
-        echo -e " NetworkManager: ${color_red}inactive${color_reset}"
+        echo -e " NetworkManager: inactive"
     fi
 
     if systemctl is-active systemd-networkd.service &>/dev/null; then
-        echo -e " systemd-networkd: ${color_green}active${color_reset}"
+        echo -e " systemd-networkd: active"
     else
-        echo -e " systemd-networkd: ${color_red}inactive${color_reset}"
+        echo -e " systemd-networkd: inactive"
     fi
     echo ""
 }
@@ -826,7 +815,7 @@ show_menu() {
         clear
         current_renderer=$(detect_current_renderer)
 
-        echo -e "${color_blue}Netplan Renderer Switcher${color_reset} -- current: ${color_green}$current_renderer${color_reset}"
+        echo -e "Netplan Renderer Switcher -- current: $current_renderer"
         echo ""
         echo "1) Status"
         echo "2) Switch to systemd-networkd"

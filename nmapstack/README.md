@@ -293,19 +293,19 @@ Package: Nscan
 
 #### Software
 
-- nmap, xsltproc, iproute2, util-linux
+- nmap, xsltproc, iproute2, util-linux, grep, sed, coreutils
 
 ```bash
-apt-get install -y nmap xsltproc iproute2 util-linux
+apt-get install -y nmap xsltproc iproute2 util-linux grep sed coreutils
 ```
 
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      <code>nreport.sh</code> checks these dependencies at startup. If one is missing, it stops and displays a clear message. Install them beforehand to avoid that extra step.
+      <code>nreport.sh</code> checks these dependencies at startup and installs the missing ones. It needs an interface with IPv4 and internet access to do so.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      <code>nreport.sh</code> verifica estas dependencias al iniciar. Si falta alguna, se detiene y muestra un mensaje claro. Instálelas de antemano para evitar ese paso adicional.
+      <code>nreport.sh</code> verifica estas dependencias al iniciar e instala las que falten. Para hacerlo necesita una interfaz con IPv4 y acceso a internet.
     </td>
   </tr>
 </table>
@@ -372,7 +372,7 @@ sudo ./nreport.sh
 #### Software
 
 - Apache2 with mod_php (not PHP-FPM — the vhost uses `SetHandler application/x-httpd-php`)
-- systemd, apache2, libapache2-mod-php, php-cli, php-sqlite3, arp-scan, sqlite3, nmap, iproute2 (`ss`), logrotate, cron, procps, coreutils, findutils, util-linux, python3, zip, grep, diffutils, sed, libc-bin
+- systemd, apache2, apache2-bin, apache2-data, apache2-doc, apache2-utils, libapache2-mod-php, php-cli, php-sqlite3, arp-scan, sqlite3, nmap, iproute2 (`ss`), logrotate, cron, procps, coreutils, findutils, util-linux, python3, zip, grep, diffutils, sed, libc-bin
 
 `nwatchsetup.sh --install` and `--update` install the missing ones. `--uninstall` never uninstalls APT packages: other projects and the system may share them.
 
@@ -642,10 +642,10 @@ sudo bash nwatchsetup.sh
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-      Shows daemon status, the listener on port <code>9777</code>, and the last ten installer log lines. Also shows configured interfaces, the selected ports mode and target, and device and port counts. Port counts include all stored modes and targets.
+      Shows daemon status, the listener on port <code>9777</code>, and the last ten lines of <code>/var/log/nwatch.log</code>. Also shows configured interfaces, the selected ports mode and target, and device and port counts. Port counts include all stored modes and targets.
     </td>
     <td style="width: 50%; vertical-align: top;">
-      Muestra el estado de los demonios, la escucha del puerto <code>9777</code> y las últimas diez líneas del log del instalador. También muestra las interfaces configuradas, el modo y destino seleccionados, y los recuentos de dispositivos y puertos. El recuento de puertos incluye todos los modos y destinos almacenados.
+      Muestra el estado de los demonios, la escucha del puerto <code>9777</code> y las últimas diez líneas de <code>/var/log/nwatch.log</code>. También muestra las interfaces configuradas, el modo y destino seleccionados, y los recuentos de dispositivos y puertos. El recuento de puertos incluye todos los modos y destinos almacenados.
     </td>
   </tr>
 </table>

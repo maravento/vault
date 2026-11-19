@@ -37,6 +37,9 @@ fi
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 case "${1:-}" in
     -h|--help)
         echo "Usage: bash fmssetup.sh [--install|--update|--uninstall]"
@@ -560,7 +563,7 @@ show_menu() {
             1) do_install; break ;;
             2) do_update; break ;;
             3) do_uninstall; break ;;
-            4) exit 0 ;;
+            4) break ;;
             *) info "invalid option -retry" ;;
         esac
     done

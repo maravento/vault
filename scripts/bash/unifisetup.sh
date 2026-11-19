@@ -28,6 +28,12 @@
 #
 # LOG: unifisetup.log, next to this script (rewritten on each run)
 #
+# --install network and --update network set UniFi's JRE as the system
+# default java. Uninstalling UniFi does not change the default java back.
+# To change it manually:
+# sudo update-alternatives --config java   Choose the default java
+# sudo update-alternatives --auto java     Back to automatic selection
+#
 ################################################################################
 
 set -uo pipefail
@@ -87,6 +93,27 @@ warn() { log "WARNING: $*"; }
 err() { log "ERROR: $*"; }
 abort() { err "$*"; exit 1; }
 
+# Download with the rules.md labels; a failed file is removed
+get_file() {
+    local source_url="$1" target_file="$2" http_code curl_status
+    http_code=$(curl -sL --retry 2 --connect-timeout 10 -w '%{http_code}' -o "$target_file" "$source_url")
+    curl_status=$?
+    case "$http_code" in
+        200)
+            if [ "$curl_status" -eq 0 ]; then
+                log "SAVED: $(basename "$target_file")"
+                return 0
+            fi
+            log "PARTIAL: $source_url" ;;
+        000) log "TIMEOUT: $source_url" ;;
+        5*) log "BUSY: $http_code $source_url" ;;
+        404|410) log "BROKEN: $http_code $source_url" ;;
+        *) log "HTTP_ERROR: $http_code $source_url" ;;
+    esac
+    rm -f "$target_file"
+    return 1
+}
+
 # ------------------------------------------------------------------------------
 # OWN VALUES
 # ------------------------------------------------------------------------------
@@ -132,7 +159,7 @@ select_lan_interface() {
             lan_iface_answer="${ifaces[$((choice-1))]}"
             return 0
         fi
-        echo "INFO: invalid selection -retry" >&2
+        info "invalid LAN interface selection -retry" >&2
     done
 }
 
@@ -162,7 +189,7 @@ select_lan_address() {
             lan_cidr_answer="${addresses[$((choice-1))]}"
             return 0
         fi
-        echo "INFO: invalid selection -retry" >&2
+        info "invalid LAN IPv4 selection -retry" >&2
     done
 }
 
@@ -210,6 +237,9 @@ arch_check() {
 # ------------------------------------------------------------------------------
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
+
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
 
 # check ipv4 interfaces
 list_ifaces() {
@@ -264,24 +294,30 @@ check_internet() {
     exit 1
 }
 
-ensure_prereqs() {
-    local missing=()
-    for pkg in curl gnupg jq ca-certificates apt-transport-https iproute2 util-linux libc-bin; do
-        [[ "$(dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null)" == *"ok installed"* ]] || missing+=("$pkg")
-    done
-
-    if [ "${#missing[@]}" -gt 0 ]; then
-        log "INFO: Installing prerequisites..."
-        retry_cmd "update package lists" apt-get update -qq >>"$log_file" 2>&1 || {
-            err "cannot update package lists -abort"
+# dependencies the script itself needs, including the tools it uses to
+# install UniFi; UniFi's own packages are installed by install_network/osserver
+net_checked=0
+for dep in coreutils util-linux grep sed iproute2 libc-bin curl gnupg jq ca-certificates apt-transport-https; do
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
+        if [ "$net_checked" -eq 0 ]; then
+            if ! command -v ip >/dev/null 2>&1; then
+                log "INFO: installing iproute2"
+                apt-get install -y iproute2 >/dev/null 2>&1 || { log "ERROR: cannot install iproute2 -abort"; exit 1; }
+            fi
+            check_ipv4_interfaces
+            check_internet
+            apt-get update -qq || { log "ERROR: cannot update package lists -abort"; exit 1; }
+            net_checked=1
+        fi
+        log "INFO: installing $dep"
+        if ! apt-get install -y "$dep" >/dev/null 2>&1; then
+            log "ERROR: cannot install $dep -abort"
             exit 1
-        }
-        retry_cmd "install packages" env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >>"$log_file" 2>&1 || {
-            err "cannot install prerequisites -abort"
-            exit 1
-        }
+        fi
     fi
+done
 
+ensure_prereqs() {
     if ! { mkdir -p /etc/apt/keyrings && mkdir -p -m 700 "${work_dir}"; }; then
         err "cannot create prerequisite directories -abort"
         exit 1
@@ -294,7 +330,7 @@ ensure_prereqs() {
 
 fetch_downloads_json() {
     log "INFO: Fetching official Ubiquiti release catalog..."
-    if ! retry_cmd "download UniFi releases" curl -fsSL "${downloads_api}" -o "${downloads_json}"; then
+    if ! get_file "${downloads_api}" "${downloads_json}"; then
         err "release catalog download failed -abort"
         exit 1
     fi
@@ -419,6 +455,21 @@ install_network() {
     local target_version="$1"
     local target_url="$2"
 
+    # The default java and the Java keystore are system-wide: ask first.
+    # Runs for both --install and --update, which share this function.
+    local existing_configs=() config_answer
+    [ -n "$(update-alternatives --list java 2>/dev/null)" ] && existing_configs+=("default java (update-alternatives)")
+    [ -e /etc/ssl/certs/java/cacerts ] && existing_configs+=("/etc/ssl/certs/java/cacerts")
+    if [ "${#existing_configs[@]}" -gt 0 ]; then
+        echo "unifisetup will modify these existing configurations:"
+        printf ' %s\n' "${existing_configs[@]}"
+        read -r -p "Continue with these changes? [y/N]: " config_answer || config_answer=""
+        case "${config_answer,,}" in
+            y|yes) ;;
+            *) info "installation cancelled"; log "INFO: unifisetup done"; exit 0 ;;
+        esac
+    fi
+
     if ! ensure_mongodb_repo; then
         return 1
     fi
@@ -483,7 +534,7 @@ install_network() {
 
     local deb_file="${work_dir}/unifi_${target_version}_all.deb"
     log "INFO: Downloading UniFi Network ${target_version}..."
-    if ! retry_cmd "download package" curl -fL --progress-bar -o "${deb_file}" "${target_url}"; then
+    if ! get_file "${target_url}" "${deb_file}"; then
         err "UniFi Network package download failed -abort"
         return 1
     fi
@@ -609,8 +660,7 @@ action_uninstall_network() {
 
     local remove_mongo="n"
     local mongo_failed="no"
-    echo "MongoDB was installed as a UniFi dependency, may be shared"
-    read -rp "Do you want to remove MongoDB? (y/N) " remove_mongo
+    read -rp "Remove MongoDB? Other apps may use it (y/N) " remove_mongo
 
     local was_active="no"
     systemctl is-active --quiet unifi && was_active="yes"
@@ -641,13 +691,6 @@ action_uninstall_network() {
 
     rm -rf /usr/lib/unifi /var/log/unifi
     apt-get autoremove -y -qq >>"$log_file" 2>&1 || true
-
-    # Release the manual "java" pin install_network() set, so this host
-    # goes back to auto-selecting a default instead of staying locked to
-    # the JRE UniFi needed, now that UniFi is gone.
-    info "Releasing default java pin"
-    update-alternatives --auto java >>"$log_file" 2>&1 \
-        || warn "cannot set Java to automatic selection -alert"
 
     if [ "${mongo_failed}" = "yes" ]; then
         err "UniFi Network removed; MongoDB packages remain -abort"
@@ -683,7 +726,7 @@ install_osserver() {
     local installer_file="${work_dir}/uosserver-${target_version}"
     log "INFO: Downloading UniFi OS Server ${target_version}..."
     info "This is a large file, it may take a while"
-    if ! retry_cmd "download installer" curl -fL --progress-bar -o "${installer_file}" "${target_url}"; then
+    if ! get_file "${target_url}" "${installer_file}"; then
         err "UniFi OS Server download failed -abort"
         return 1
     fi
@@ -817,11 +860,7 @@ action_uninstall_osserver() {
         return 1
     fi
 
-    echo "Note: UniFi OS Server does not keep a .unifi backup file on disk (UI"
-    echo "generates it on demand and streams it straight to your browser)"
-    echo "This backs up its persistent state directory (/var/lib/uosserver) instead,"
-    echo "which is not same file format as UI's Backup button"
-    read -rp "Back up /var/lib/uosserver before removing? (y/N) " do_backup
+    read -rp "Back up /var/lib/uosserver (not a .unifi file) before removing? (y/N) " do_backup
     case "$do_backup" in
         [Yy]*) backup_osserver_config || {
             err "uosserver backup failed; uninstall stopped -abort"
@@ -916,9 +955,9 @@ action_status() {
 
         if [ "$load_state" = not-found ]; then
             if [ "$installed" -eq 1 ]; then
-                echo "$label: not running ($unit not found)"
+                info "$label: not running ($unit not found)"
             else
-                echo "$label: not installed"
+                info "$label: not installed"
             fi
             continue
         fi
@@ -934,11 +973,11 @@ action_status() {
                 ;;
         esac
         case "$active_state" in
-            active|reloading) echo "$label: running" ;;
-            inactive|maintenance) echo "$label: not running" ;;
-            failed) echo "$label: not running (failed)" ;;
-            activating) echo "$label: starting" ;;
-            deactivating) echo "$label: stopping" ;;
+            active|reloading) info "$label: running" ;;
+            inactive|maintenance) info "$label: not running" ;;
+            failed) info "$label: not running (failed)" ;;
+            activating) info "$label: starting" ;;
+            deactivating) info "$label: stopping" ;;
             *)
                 err "$unit: cannot determine service state -abort"
                 return 1
@@ -993,7 +1032,7 @@ menu() {
             5) run_action action_uninstall_network || exit 1; break ;;
             6) run_action action_uninstall_osserver || exit 1; break ;;
             7) run_action action_status || exit 1; break ;;
-            8) exit 0 ;;
+            8) break ;;
             *) info "invalid option -retry" ;;
         esac
     done

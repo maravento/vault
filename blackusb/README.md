@@ -39,7 +39,7 @@ FILE: blackusb/README.md
 
 ### Software
 
-`bash`, `udev`, `systemd`, `util-linux`
+`bash`, `udev`, `systemd`, `util-linux`, `coreutils`, `iproute2`, `libc-bin`, `nano`
 
 ## DATA SHEET
 

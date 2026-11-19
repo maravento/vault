@@ -35,6 +35,9 @@ set -uo pipefail
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" -ne 0 ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -150,7 +153,7 @@ done < <(find "$search_path" -regextype posix-egrep \
     -o -iname '.Spotlight-V100' -o -iname '.fseventsd' -o -iname '.TemporaryItems' \
     -o -iname 'LOST.DIR' \) -prune \) -o \
 \( -type f -iregex \
-'^(.*/)?[^/]*(:encryptable|Zone\.identifier|\.fuse_hidden[^/]*|goutputstream[^/]*|\.spotlight-[^/]*|\.fseventsd[^/]*|\.ds_store[^/]*|~lock\.[^/]*|Thumbs\.db|attributes:)[^/]*$' \
+'^(.*/)?([^/]*:(encryptable|Zone\.identifier)|\.fuse_hidden[^/]*|\.goutputstream-[^/]*|\.spotlight-[^/]*|\.fseventsd[^/]*|\.ds_store|\.?~lock\.[^/]*#|thumbs\.db|[^/]*:attributes:[^/]*)$' \
 -print0 \) 2>>/var/log/cleaner.log)
 
 end=$(date +%s)

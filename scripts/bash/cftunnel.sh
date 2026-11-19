@@ -41,6 +41,9 @@ token_cloudflare=""
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # no-root check
 if [ "$(id -u)" == "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script should not be run as root -abort" >&2
@@ -48,7 +51,7 @@ if [ "$(id -u)" == "0" ]; then
 fi
 
 # dependencies
-for dep in cloudflared curl cron procps util-linux iproute2; do
+for dep in cloudflared curl cron procps util-linux iproute2 coreutils grep; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
@@ -74,7 +77,7 @@ _resolve_user_home() {
 
 USER_HOME=$(_resolve_user_home)
 if [ -z "$USER_HOME" ] || [ ! -d "$USER_HOME" ]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot determine a valid home directory (resolved: '${USER_HOME:-empty}') -abort" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid home directory: ${USER_HOME:-empty} -abort" >&2
     exit 1
 fi
 
@@ -92,7 +95,7 @@ log() {
     if [[ "$1" == ERROR:* ]]; then echo "$msg" >&2; else echo "$msg"; fi
 }
 
-# validation -- one variable per thing validated; use directly with =~
+# validation -one variable per thing validated; use directly with =~
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 UH_UINT='^(0|[1-9][0-9]*)$'
 UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
@@ -217,12 +220,12 @@ delete_dns_record() {
     local tunnel_hostname="$1"
 
     if [[ -z "$tunnel_hostname" ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no hostname found in config, skipping DNS deletion -skip"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no hostname in config, DNS deletion -skip"
         return 0
     fi
 
     if [[ -z "$token_cloudflare" ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: 'token_cloudflare' not set, skipping automatic DNS deletion -skip"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: token_cloudflare not set, DNS deletion -skip"
         printf 'DNS record: %s\n' "$tunnel_hostname"
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: remove the DNS record in Cloudflare dashboard"
         return 0
@@ -232,7 +235,7 @@ delete_dns_record() {
     local zones_response
     zones_response=$(curl -sf -X GET "https://api.cloudflare.com/client/v4/zones?per_page=50" \
         -H "Authorization: Bearer $api_token" -H "Content-Type: application/json") || {
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: could not reach Cloudflare API to list zones, skipping -skip"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Cloudflare API unreachable, zone list -skip"
         return 0
     }
 
@@ -436,7 +439,7 @@ create_tunnel() {
     fi
 
     if [[ ! -f "$CONFIG_DIR/cert.pem" ]]; then
-        echo "No Cloudflare certificate found. Login is required first"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no Cloudflare certificate, login required"
         local do_login
         read -r -p "Run 'cloudflared tunnel login' now? (y/n): " do_login
         if [[ "$do_login" =~ ^[Yy]$ ]]; then
@@ -446,7 +449,7 @@ create_tunnel() {
                 return 1
             fi
         else
-            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot create a tunnel without logging in first -alert"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: login required to create a tunnel -alert"
             return 1
         fi
     fi
@@ -480,7 +483,7 @@ create_tunnel() {
         tunnel_id=$("$CLOUDFLARED_BIN" tunnel list 2>/dev/null | awk -v name="$tunnel_name" '$2==name {print $1}' | head -1)
     fi
     if [[ -z "$tunnel_id" ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: could not determine tunnel ID, aborting config creation -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: no tunnel ID, config not created -alert"
         return 1
     fi
 
@@ -732,7 +735,7 @@ delete_tunnel() {
 
     echo "Running: cloudflared tunnel delete $tunnel_name"
     if ! "$CLOUDFLARED_BIN" tunnel delete "$tunnel_name" 2>&1; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: 'cloudflared tunnel delete' failed, retrying with --force -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: tunnel delete failed, retrying with --force -alert"
         if ! "$CLOUDFLARED_BIN" tunnel delete -f "$tunnel_name" 2>&1; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: tunnel delete failed; local files kept -abort" >&2
             return 1

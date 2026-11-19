@@ -25,6 +25,9 @@ set -euo pipefail
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -79,7 +82,7 @@ if ! local_user=$(detect_local_user); then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
     exit 1
 fi
-echo "Using local user: $local_user"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: using local user: $local_user"
 
 # start
 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: phpvbox start..."
@@ -104,6 +107,27 @@ retry_cmd() {
         fi
         sleep 5
     done
+}
+
+# Download with the rules.md labels; a failed file is removed
+get_file() {
+    local source_url="$1" target_file="$2" http_code curl_status
+    http_code=$(curl -sL --retry 2 --connect-timeout 10 -w '%{http_code}' -o "$target_file" "$source_url")
+    curl_status=$?
+    case "$http_code" in
+        200)
+            if [ "$curl_status" -eq 0 ]; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') SAVED: $(basename "$target_file")"
+                return 0
+            fi
+            echo "$(date '+%Y-%m-%d %H:%M:%S') PARTIAL: $source_url" ;;
+        000) echo "$(date '+%Y-%m-%d %H:%M:%S') TIMEOUT: $source_url" ;;
+        5*) echo "$(date '+%Y-%m-%d %H:%M:%S') BUSY: $http_code $source_url" ;;
+        404|410) echo "$(date '+%Y-%m-%d %H:%M:%S') BROKEN: $http_code $source_url" ;;
+        *) echo "$(date '+%Y-%m-%d %H:%M:%S') HTTP_ERROR: $http_code $source_url" ;;
+    esac
+    rm -f "$target_file"
+    return 1
 }
 
 # check ipv4 interfaces
@@ -162,8 +186,27 @@ check_internet() {
 check_ipv4_interfaces
 check_internet
 
+# existing configurations that will be modified: ask first
+existing_configs=()
+[ -f /etc/default/virtualbox ] && existing_configs+=(/etc/default/virtualbox)
+for apache_php_ini in /etc/php/*/apache2/php.ini; do
+    [ -f "$apache_php_ini" ] && existing_configs+=("$apache_php_ini")
+done
+if [ "${#existing_configs[@]}" -gt 0 ]; then
+    echo "phpvbox will modify these existing configurations:"
+    printf ' %s\n' "${existing_configs[@]}"
+    echo "Apache and vboxweb-service will be restarted."
+    read -r -p "Continue with these changes? [y/N]: " config_answer || config_answer=""
+    case "${config_answer,,}" in
+        y|yes) ;;
+        *) echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installation cancelled"
+           echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: phpvbox done"
+           exit 0 ;;
+    esac
+fi
+
 # check dependencies
-pkgs=(bsdutils lsof unzip apache2 libapache2-mod-php php php-soap php-xml wget procps cron iproute2 libc-bin)
+pkgs=(bsdutils lsof unzip apache2 apache2-bin apache2-data apache2-doc apache2-utils libapache2-mod-php php php-soap php-xml curl procps cron iproute2 libc-bin coreutils grep sed)
 missing=()
 for p in "${pkgs[@]}"; do
     [[ "$(dpkg-query -W -f='${Status}' "$p" 2>/dev/null)" == *"ok installed"* ]] || missing+=("$p")
@@ -173,9 +216,8 @@ for p in "${missing[@]}"; do
     apt-cache show "$p" &>/dev/null || unavailable+=("$p")
 done
 if [ "${#unavailable[@]}" -gt 0 ]; then
-    echo "Missing dependencies not found in APT:"
-    for u in "${unavailable[@]}"; do echo " - $u"; done
-    echo "Please install them manually or enable required repositories"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] not in APT: ${unavailable[*]}" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [2/2] install them manually -abort" >&2
     exit 1
 fi
 if [ "${#missing[@]}" -gt 0 ]; then
@@ -188,24 +230,29 @@ if [ "${#missing[@]}" -gt 0 ]; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: APT/DPKG locks still held after ${apt_lock_timeout}s -abort" >&2
             exit 1
         fi
-        echo "Locks still held, waiting... (${apt_lock_elapsed}s elapsed)"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: waiting for apt lock (${apt_lock_elapsed}s)"
         sleep 5
         apt_lock_elapsed=$((apt_lock_elapsed + 5))
     done
-    echo "Installing: ${missing[*]}"
     retry_cmd "update package lists" apt-get -qq update || { printf '%s ERROR: package list update failed -abort\n' "$(date '+%Y-%m-%d %H:%M:%S')" >&2; exit 1; }
     if ! retry_cmd "install packages" apt-get -y install "${missing[@]}"; then
-        echo "Error installing: ${missing[*]}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install ${missing[*]} -abort" >&2
         exit 1
     fi
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installed: ${missing[*]}"
 else
-    echo "Dependencies OK"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: dependencies OK"
+fi
+# apache2-doc breaks after apache2 installs or upgrades; reinstall it always
+if ! retry_cmd "install packages" apt-get -qq install -y --reinstall apache2-doc; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot reinstall apache2-doc -abort" >&2
+    exit 1
 fi
 
 # check Virtualbox 7x
 output=$(dpkg -l | grep -P 'virtualbox-\d+\.\d+' | awk '{print $2}' || true)
 if ! echo "$output" | grep -q "virtualbox-7"; then
-    echo "Aborting. Vbox 7 is not installed"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: VirtualBox 7 not installed -abort" >&2
     exit 1
 fi
 
@@ -221,7 +268,10 @@ fi
     trap 'rm -rf -- "$work_dir"' EXIT
     cd -- "$work_dir"
     # download phpvirtualbox
-    retry_cmd "download phpVirtualBox" wget --tries=1 -q -c https://github.com/phpvirtualbox/phpvirtualbox/archive/master.zip || { printf '%s ERROR: wget download failed -abort\n' "$(date '+%Y-%m-%d %H:%M:%S')" >&2; exit 1; }
+    get_file "https://github.com/phpvirtualbox/phpvirtualbox/archive/master.zip" master.zip || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: master.zip not available -abort" >&2
+        exit 1
+    }
     download_sha256="$(sha256sum master.zip | awk '{print $1}')"
     echo "master.zip SHA256: $download_sha256"
     unzip -q master.zip
@@ -238,6 +288,12 @@ fi
 # set chown
 chown -R www-data:www-data /var/www/html/phpvirtualbox
 # create virtualbox file config
+if [ -f /etc/default/virtualbox ] && [ ! -f /etc/default/virtualbox.bak ]; then
+    cp -p /etc/default/virtualbox /etc/default/virtualbox.bak || {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot back up /etc/default/virtualbox -abort" >&2
+        exit 1
+    }
+fi
 echo "VBOXWEB_USER=$local_user" | tee /etc/default/virtualbox
 echo "VBOXWEB_HOST=localhost" | tee -a /etc/default/virtualbox
 # add user to vboxusers group if not already a member
@@ -265,12 +321,12 @@ done
 
 # restart services
 if ! service apache2 restart; then
-    echo "Failed to restart apache2"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot restart apache2 -abort" >&2
     exit 1
 fi
 service vboxweb-service stop >/dev/null 2>&1 || true
 if ! service vboxweb-service start; then
-    echo "Failed to start vboxweb-service"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot start vboxweb-service -abort" >&2
     exit 1
 fi
 
@@ -299,16 +355,15 @@ printf '%s\n' "*/30 * * * * root /etc/init.d/phpvbox_port.sh" > "$cron_tmp"
 install -m 644 -o root -g root "$cron_tmp" /etc/cron.d/phpvbox
 rm -f "$cron_tmp"
 if ! service cron restart; then
-    echo "Failed to restart cron"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot restart cron -abort" >&2
     exit 1
 fi
-echo "Script and cron task added successfully"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: script and cron task added"
 echo
 echo "Access: http://localhost/phpvirtualbox"
 echo "Default user: admin / Default password: admin"
-echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: change default password immediately after first login"
 echo "Go to: Admin menu -> Change Password"
-echo "Leaving default password exposes VirtualBox to unauthorized access"
+echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: default admin password; change it -alert"
 echo "Use vinagre or remmina to connect (activate Enable Server into Remote Display of VM)"
 
 # ------------------------------------------------------------------------------

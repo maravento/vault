@@ -20,6 +20,9 @@ set -euo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -63,7 +66,7 @@ done
 # VARIABLES
 # ------------------------------------------------------------------------------
 
-# validation -- one variable per thing validated; use directly with =~
+# validation -one variable per thing validated; use directly with =~
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
 UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
@@ -285,8 +288,9 @@ fi
 
 # gateproxy.env: read known key=value pairs, without sourcing
 load_conf() {
-    local conf_file="$1" conf_keys="$2" env_key env_value env_line
+    local conf_file="$1" conf_keys="$2" env_key env_value env_line env_count=0
     while IFS= read -r env_line || [[ -n "$env_line" ]]; do
+        env_count=$((env_count + 1))
         [[ "$env_line" =~ ^[[:space:]]*[#] ]] && continue
         [[ "$env_line" =~ ^[[:space:]]*$ ]] && continue
         env_key="${env_line%%=*}"
@@ -294,7 +298,11 @@ load_conf() {
         if [[ ! "$env_line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] \
            || [[ "$env_value" == [[:space:]\"\']* ]] \
            || [[ "$env_value" == *[[:space:]\"\'] ]]; then
-            log "ERROR: malformed line in $(basename "$conf_file"): '$env_line' -abort"
+            if [[ ! "$env_line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+                log "ERROR: $(basename "$conf_file"):$env_count not key=value -abort"
+            else
+                log "ERROR: $(basename "$conf_file"):$env_count space or quote in value -abort"
+            fi
             exit 1
         fi
         case "$env_key" in
@@ -956,8 +964,6 @@ iptables -A FORWARD -i "$INTERFACESv4" -o "$wan_iface" -p tcp --dport 1688 -j AC
 iptables -A INPUT -i "$INTERFACESv4" -p udp --dport 57621 -j DROP
 # Cisco IP phones discovery noise
 iptables -A INPUT -i "$INTERFACESv4" -p udp -m multiport --dports 2007,2008 -j DROP
-# SAP broadcast noise (Optional)
-iptables -A INPUT -i "$INTERFACESv4" -p udp --dport 3289 -j DROP
 # Dropbox LAN sync broadcast noise
 iptables -A INPUT -i "$INTERFACESv4" -p udp --dport 17500 -j DROP
 
@@ -993,10 +999,10 @@ iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 3092 -m set --match-set macp
 # SMB / Microsoft-DS
 iptables -A INPUT -i "$INTERFACESv4" -p tcp --dport 445 -m set --match-set macports src -j ACCEPT
 # PRINTERS & SCANNERS
-# SNMP, WSD, IPP and raw printing for macports devices
-iptables -A INPUT -i "$INTERFACESv4" -p udp -m multiport --dports 161,162,3702,3910,3911 -m set --match-set macports src -j ACCEPT
+# SNMP, WSD, IPP, raw printing and Epson ENPC for macports devices
+iptables -A INPUT -i "$INTERFACESv4" -p udp -m multiport --dports 161,162,3289,3702,3910,3911 -m set --match-set macports src -j ACCEPT
 iptables -A INPUT -i "$INTERFACESv4" -p tcp -m multiport --dports 631,3910,3911,9100 -m set --match-set macports src -j ACCEPT
-iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -p udp -m multiport --dports 161,162,3910,3911 -m set --match-set macports src -j ACCEPT
+iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -p udp -m multiport --dports 161,162,3289,3910,3911 -m set --match-set macports src -j ACCEPT
 iptables -A FORWARD -i "$INTERFACESv4" -o "$INTERFACESv4" -p tcp -m multiport --dports 3910,3911,9100 -m set --match-set macports src -j ACCEPT
 # STUN/TURN (WebRTC, Teams, Meet, Zoom)
 iptables -A FORWARD -i "$INTERFACESv4" -o "$wan_iface" -p udp -m multiport --dports 3478:3481 -m set --match-set macports src -j ACCEPT

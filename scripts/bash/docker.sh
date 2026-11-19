@@ -25,6 +25,9 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -42,73 +45,6 @@ if ! flock -n 200; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: script $(basename "$0") is already running -abort" >&2
     exit 1
 fi
-
-# local_user detection
-detect_local_user() {
-    local uid_min uid_max
-    local user uid best_user="" best_uid=999999
-
-    uid_min=$(awk '/^UID_MIN/{print $2}' /etc/login.defs 2>/dev/null)
-    uid_max=$(awk '/^UID_MAX/{print $2}' /etc/login.defs 2>/dev/null)
-    uid_min=${uid_min:-1000}
-    uid_max=${uid_max:-60000}
-
-    while IFS=: read -r user _ uid _ _ _ shell; do
-        [ "$user" = "root" ] && continue
-        [ -z "$uid" ] && continue
-        [ "$uid" -lt "$uid_min" ] && continue
-        [ "$uid" -gt "$uid_max" ] && continue
-
-        case "$shell" in
-            */false|*/nologin) continue ;;
-        esac
-
-        id -nG "$user" 2>/dev/null | grep -qw sudo || continue
-
-        if [ "$uid" -lt "$best_uid" ]; then
-            best_uid="$uid"
-            best_user="$user"
-        fi
-    done </etc/passwd
-
-    [ -n "$best_user" ] || return 1
-    echo "$best_user"
-}
-
-if ! local_user=$(detect_local_user); then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
-    exit 1
-fi
-echo "Using local user: $local_user"
-
-# start
-echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: docker start..."
-
-# ------------------------------------------------------------------------------
-# FUNCTIONS
-# ------------------------------------------------------------------------------
-
-retry_cmd() {
-    [ "$#" -ge 2 ] || return 2
-    local retry_label="$1" retry_attempt retry_status
-    shift
-    for retry_attempt in 1 2 3; do
-        if "$@"; then
-            return 0
-        else
-            retry_status=$?
-        fi
-        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
-        if declare -F log >/dev/null; then
-            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
-        else
-            printf '%s INFO: %s: retry %s/3\n' \
-                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
-                "$((retry_attempt + 1))" >&2
-        fi
-        sleep 5
-    done
-}
 
 # check ipv4 interfaces
 list_ifaces() {
@@ -163,6 +99,95 @@ check_internet() {
     exit 1
 }
 
+# dependencies
+net_checked=0
+for dep in coreutils util-linux grep iproute2 libc-bin ca-certificates curl gnupg lsb-release; do
+    if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
+        if [ "$net_checked" -eq 0 ]; then
+            if ! command -v ip >/dev/null 2>&1; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing iproute2"
+                apt-get install -y iproute2 >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install iproute2 -abort" >&2; exit 1; }
+            fi
+            check_ipv4_interfaces
+            check_internet
+            apt-get update -qq || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2; exit 1; }
+            net_checked=1
+        fi
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing $dep"
+        if ! apt-get install -y "$dep" >/dev/null 2>&1; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install $dep -abort" >&2
+            exit 1
+        fi
+    fi
+done
+
+# local_user detection
+detect_local_user() {
+    local uid_min uid_max
+    local user uid best_user="" best_uid=999999
+
+    uid_min=$(awk '/^UID_MIN/{print $2}' /etc/login.defs 2>/dev/null)
+    uid_max=$(awk '/^UID_MAX/{print $2}' /etc/login.defs 2>/dev/null)
+    uid_min=${uid_min:-1000}
+    uid_max=${uid_max:-60000}
+
+    while IFS=: read -r user _ uid _ _ _ shell; do
+        [ "$user" = "root" ] && continue
+        [ -z "$uid" ] && continue
+        [ "$uid" -lt "$uid_min" ] && continue
+        [ "$uid" -gt "$uid_max" ] && continue
+
+        case "$shell" in
+            */false|*/nologin) continue ;;
+        esac
+
+        id -nG "$user" 2>/dev/null | grep -qw sudo || continue
+
+        if [ "$uid" -lt "$best_uid" ]; then
+            best_uid="$uid"
+            best_user="$user"
+        fi
+    done </etc/passwd
+
+    [ -n "$best_user" ] || return 1
+    echo "$best_user"
+}
+
+if ! local_user=$(detect_local_user); then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
+    exit 1
+fi
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: using local user: $local_user"
+
+# start
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: docker start..."
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
+retry_cmd() {
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
+        fi
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
+    done
+}
+
 # Leaves the installer's Portainer running. Used by the first install and the retry.
 ensure_portainer() {
     local container_names portainer_image portainer_running portainer_label
@@ -178,7 +203,7 @@ ensure_portainer() {
     portainer_image=$(docker inspect -f '{{.Config.Image}}' portainer) || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot inspect portainer -abort" >&2; exit 1; }
     case "$portainer_image" in
         portainer/portainer-ce|portainer/portainer-ce:*) ;;
-        *) echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: container name portainer is used by another image -abort" >&2; exit 1; ;;
+        *) echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: name portainer used by another image -abort" >&2; exit 1; ;;
     esac
     portainer_running=$(docker inspect -f '{{.State.Running}}' portainer) || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot inspect portainer -abort" >&2; exit 1; }
     if [ "$portainer_running" != "true" ]; then
@@ -201,10 +226,6 @@ install_docker() {
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Docker not installed. Installing..."
         retry_cmd "update package lists" apt-get update || {
                 echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
-                exit 1
-        }
-        retry_cmd "install packages" apt-get install -y ca-certificates curl gnupg lsb-release || {
-                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install prerequisites -abort" >&2
                 exit 1
         }
 
@@ -282,11 +303,11 @@ install_docker() {
         }
         ensure_portainer
         #docker run hello-world
-        echo "Docker + Portainer has been installed successfully"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Docker + Portainer installed"
         echo "Access: http://localhost:9000/"
     else
         ensure_portainer
-        echo "Docker is already installed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Docker already installed -skip"
     fi
 }
 
@@ -329,8 +350,8 @@ uninstall_docker() {
         done
 
         # Uninstall Docker packages
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: removing Docker packages..."
         for pkg in docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do
-                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing Dockers Packages..."
                 if dpkg -s "$pkg" &>/dev/null && ! apt-get purge -y "$pkg"; then
                         echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: package $pkg not removed -alert"
                         purge_failed=1
@@ -340,6 +361,7 @@ uninstall_docker() {
         # Delete Docker ppa, directories and files
         rm -rf /var/lib/docker 2>/dev/null || true
         rm -f /etc/apt/sources.list.d/docker.list
+        rm -f /etc/apt/keyrings/docker.gpg
 
         # Clean up unneeded packages
         apt autoremove -y
@@ -348,10 +370,10 @@ uninstall_docker() {
         if [ "$purge_failed" -gt 0 ]; then
                 echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Docker data removed, packages pending -alert"
         else
-                echo "Docker has been successfully uninstalled"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Docker uninstalled"
         fi
     else
-        echo "Docker is not installed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Docker not installed -skip"
     fi
 }
 

@@ -21,6 +21,9 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -134,7 +137,7 @@ check_internet() {
 
 # dependencies
 net_checked=0
-for dep in openssl ca-certificates systemd util-linux iproute2 libc-bin; do
+for dep in openssl ca-certificates systemd util-linux iproute2 libc-bin coreutils; do
     if ! package_installed "$dep"; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -172,7 +175,7 @@ remove_and_install_squid_openssl() {
     echo "Configuration backup: $BACKUP_DIR"
     read -rp "Confirm Squid purge? (yes/no) [no]: " confirm_purge
     if [[ "$confirm_purge" != "yes" ]]; then
-        echo "Purge cancelled"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Squid purge cancelled -skip"
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: sslbump done"
         exit 0
     fi
@@ -218,13 +221,20 @@ remove_and_install_squid_openssl() {
 ssl_bump_setup() {
     if [ ! -f /usr/lib/squid/security_file_certgen ] ||
         [ ! -x /usr/lib/squid/security_file_certgen ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: security_file_certgen is missing or not executable -abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: security_file_certgen not executable -abort" >&2
         exit 1
     fi
 
     CERT_D=/etc/squid/cert
     CERT=$CERT_D/squid_proxyCA.pem
     mkdir -p "$CERT_D"
+    if [ -f "$CERT" ]; then
+        read -rp "Squid CA already exists; clients that trust it must import the new one. Regenerate it? [y/N]: " regen_ca
+        if ! [[ "$regen_ca" =~ ^[Yy]$ ]]; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: keeping the current Squid CA and ssl_db -skip"
+            return 0
+        fi
+    fi
 
     local tmp_cert=""
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Generating SSL certificate..."
@@ -304,7 +314,7 @@ if ! package_installed squid && ! package_installed squid-openssl; then
         exit 1
     }
 elif package_installed squid-openssl; then
-    echo "Squid with SSL support is already installed"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: squid-openssl already installed -skip"
 else
     echo "Squid without SSL support detected"
     read -rp "Do you want to install squid with SSL support (squid-openssl)? (yes/no): " answer
@@ -312,7 +322,7 @@ else
         # If squid without SSL is detected, remove it and reinstall squid-openssl
         remove_and_install_squid_openssl
     else
-        echo "Aborted by user"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: aborted by user"
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: sslbump done"
         exit 0
     fi
@@ -320,7 +330,7 @@ fi
 
 # Run SSL-Bump configuration
 ssl_bump_setup
-echo "Done. SSL-Bump configured"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: SSL-Bump configured"
 echo "Certificate PEM path: /etc/squid/cert/squid_proxyCA.pem"
 echo "Certificate CRT path: /usr/local/share/ca-certificates/squid_proxyCA.crt"
 echo "Edit squid.conf and add:"

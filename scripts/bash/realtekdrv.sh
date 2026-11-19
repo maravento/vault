@@ -22,6 +22,9 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -99,7 +102,7 @@ check_internet() {
 
 # dependencies
 net_checked=0
-for dep in pciutils kmod initramfs-tools util-linux iproute2 libc-bin; do
+for dep in pciutils kmod initramfs-tools util-linux iproute2 libc-bin coreutils grep; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -156,7 +159,7 @@ show_current_module() {
 # Function to install r8168 driver
 install_r8168() {
     if lsmod | grep -q '^r8168'; then
-        echo "Driver 'r8168' is already active. Installation not needed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: r8168 already active -skip"
         return 0
     fi
 
@@ -164,11 +167,11 @@ install_r8168() {
     check_ipv4_interfaces
     check_internet
     if ! retry_cmd "update package lists" apt-get -qq update; then
-        echo "Failed to update package lists"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
         exit 1
     fi
     if ! retry_cmd "install packages" apt-get install -y r8168-dkms; then
-        echo "Failed to install r8168-dkms"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install r8168-dkms -abort" >&2
         exit 1
     fi
 
@@ -185,16 +188,16 @@ install_r8168() {
     modprobe r8168
 
     if lsmod | grep -q '^r8168'; then
-        echo "Driver 'r8168' installed and in use"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: r8168 installed and in use"
     else
-        echo "Could not activate 'r8168'. Please reboot and try again"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: r8168 not active; reboot and retry -alert"
     fi
 }
 
 # Function to restore r8169 driver
 restore_r8169() {
     if lsmod | grep -q '^r8169'; then
-        echo "Driver 'r8169' is already active. Restore not needed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: r8169 already active -skip"
         return 0
     fi
 
@@ -210,7 +213,7 @@ restore_r8169() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing Realtek DKMS packages..."
     for realtek_pkg in r8168-dkms r8125-dkms; do
         if dpkg -s "$realtek_pkg" &>/dev/null && ! apt-get purge -y "$realtek_pkg"; then
-            echo "Failed to remove $realtek_pkg"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot remove $realtek_pkg -abort" >&2
             exit 1
         fi
     done
@@ -221,9 +224,9 @@ restore_r8169() {
     modprobe r8169
 
     if lsmod | grep -q '^r8169'; then
-        echo "Driver 'r8169' restored and in use"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: r8169 restored and in use"
     else
-        echo "Could not activate 'r8169'. Please reboot and try again"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: r8169 not active; reboot and retry -alert"
     fi
 }
 
@@ -231,12 +234,12 @@ restore_r8169() {
 install_r8125() {
     # Detect RTL8125 chipset
     if ! lspci | grep -i 'RTL8125' >/dev/null; then
-        echo "No compatible RTL8125 NIC detected. Aborting"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no RTL8125 NIC -abort" >&2
         exit 1
     fi
 
     if lsmod | grep -q '^r8125'; then
-        echo "Driver 'r8125' is already active. Installation not needed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: r8125 already active -skip"
         return 0
     fi
 
@@ -244,11 +247,11 @@ install_r8125() {
     check_ipv4_interfaces
     check_internet
     if ! retry_cmd "update package lists" apt-get -qq update; then
-        echo "Failed to update package lists"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
         exit 1
     fi
     if ! retry_cmd "install packages" apt-get install -y r8125-dkms; then
-        echo "Failed to install r8125-dkms"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install r8125-dkms -abort" >&2
         exit 1
     fi
 
@@ -265,9 +268,9 @@ install_r8125() {
     modprobe r8125
 
     if lsmod | grep -q '^r8125'; then
-        echo "Driver 'r8125' installed and in use"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: r8125 installed and in use"
     else
-        echo "Could not activate 'r8125'. Please reboot and try again"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: r8125 not active; reboot and retry -alert"
     fi
 }
 

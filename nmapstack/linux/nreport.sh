@@ -20,7 +20,7 @@ set -euo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
-# validation -- one variable per thing validated; use directly with =~
+# validation -one variable per thing validated; use directly with =~
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
 
@@ -60,6 +60,64 @@ fi
 # Single-run tool, not a daemon -- the log only ever needs to hold the
 # current execution, so it is truncated on every start instead of rotated.
 truncate -s 0 "$log_file" 2>/dev/null || true
+
+# awk and grep are needed by the user detection and the interface checks
+for dep_cmd in awk grep; do
+    command -v "$dep_cmd" >/dev/null 2>&1 || { log "ERROR: dependency '$dep_cmd' missing -abort"; exit 1; }
+done
+
+# check ipv4 interfaces
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if [ -n "$(list_ipv4_ifaces)" ]; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for an interface with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no interface with IPv4 -abort"
+    exit 1
+}
+
+# check internet
+check_internet() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for internet..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no internet connection -abort"
+    exit 1
+}
 
 # local_user detection
 detect_local_user() {
@@ -109,11 +167,25 @@ chmod 0755 "$report_dir"
 SCRIPT_TMPDIR=$(mktemp -d)
 trap 'rm -rf "$SCRIPT_TMPDIR"' EXIT
 
-# dependencies
-for dep in nmap xsltproc iproute2 util-linux; do
+# dependencies; missing ones are installed
+net_checked=0
+for dep in nmap xsltproc iproute2 util-linux grep sed coreutils; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
-        log "ERROR: dependency '$dep' is not installed -abort"
-        exit 1
+        if [ "$net_checked" -eq 0 ]; then
+            if ! command -v ip >/dev/null 2>&1; then
+                log "INFO: installing iproute2"
+                apt-get install -y iproute2 >/dev/null 2>&1 || { log "ERROR: cannot install iproute2 -abort"; exit 1; }
+            fi
+            check_ipv4_interfaces
+            check_internet
+            apt-get update -qq || { log "ERROR: cannot update package lists -abort"; exit 1; }
+            net_checked=1
+        fi
+        log "INFO: installing $dep"
+        if ! apt-get install -y "$dep" >/dev/null 2>&1; then
+            log "ERROR: cannot install $dep -abort"
+            exit 1
+        fi
     fi
 done
 
@@ -392,10 +464,10 @@ show_spinner_for_pid() {
     local spin='|/-\\'
     local i=0
     local exit_code
-    printf "[-] Working..."
+    printf "Working..."
     while kill -0 "$pid" 2>/dev/null; do
         i=$(( (i+1) %4 ))
-        printf "\r[-] Working... %s" "${spin:$i:1}"
+        printf "\rWorking... %s" "${spin:$i:1}"
         sleep 0.2
     done
     if wait "$pid"; then
@@ -403,7 +475,7 @@ show_spinner_for_pid() {
     else
         exit_code=$?
     fi
-    printf "\r[-] Done. \n"
+    printf '\r%20s\r' ''
     if [ "$exit_code" -ne 0 ]; then
         log "WARNING: nmap PID $pid exited $exit_code -alert"
     fi
@@ -559,21 +631,6 @@ finalize_html_report() {
     echo ""
 }
 
-list_ifaces() {
-    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
-}
-
-list_ipv4_ifaces() {
-    local iface state
-    while read -r iface state; do
-        [ "$state" = UP ] || continue
-        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
-            | awk '$4 != "" {found=1} END {exit !found}'; then
-            printf '%s\n' "$iface"
-        fi
-    done < <(list_ifaces)
-}
-
 select_lan_interface() {
     local -a ifaces
     local i choice addrs
@@ -601,7 +658,7 @@ select_lan_interface() {
             lan_iface_answer="${ifaces[$((choice-1))]}"
             return 0
         fi
-        echo "INFO: invalid selection -retry" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: invalid LAN interface selection -retry" >&2
     done
 }
 
@@ -631,7 +688,7 @@ select_lan_address() {
             lan_cidr_answer="${addresses[$((choice-1))]}"
             return 0
         fi
-        echo "INFO: invalid selection -retry" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: invalid LAN IPv4 selection -retry" >&2
     done
 }
 

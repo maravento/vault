@@ -8,8 +8,9 @@
 #
 # DESCRIPTION:
 # Manages Rclone cloud remotes (Gdrive, PCloud, Dropbox, OneDrive, Mega...):
-# mounts configured remotes as local folders and performs 2-way sync between
-# local upload/download folders and the mounted cloud folders.
+# mounts configured remotes as local folders and mirrors two folders per
+# remote: cloud download/ to local download/, and local upload/ to cloud
+# upload/. Each mirror deletes in its destination what its source lacks.
 # Requires Rclone remotes already configured (rclone config) for each
 # service.
 #
@@ -37,6 +38,9 @@ set -uo pipefail
 
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
 
 # root check
 if [ "$(id -u)" != "0" ]; then
@@ -66,6 +70,7 @@ lock_sync() {
 
 # LOG FILE for debugging
 SCRIPT_LOG="/var/log/rclonemgr.log"
+{ > "$SCRIPT_LOG"; } 2>/dev/null || true
 exec 1> >(tee -a "$SCRIPT_LOG")
 exec 2>&1
 
@@ -105,7 +110,7 @@ if ! local_user=$(detect_local_user); then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
     exit 1
 fi
-echo "Using local user: $local_user"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: using local user: $local_user"
 
 # check ipv4 interfaces
 list_ifaces() {
@@ -161,7 +166,7 @@ check_internet() {
 
 # dependencies
 net_checked=0
-for dep in fuse3 curl iproute2 libc-bin bsdutils util-linux; do
+for dep in fuse3 curl iproute2 libc-bin bsdutils util-linux logrotate coreutils grep; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -197,7 +202,7 @@ cloud_path="$rclone_path/cloud"
 sync_path="$rclone_path/sync"
 
 # Log Level (INFO, DEBUG, NOTICE, ERROR)
-loglevel="DEBUG"
+loglevel="NOTICE"
 
 # add any services supported by Rclone
 services=(
@@ -239,8 +244,28 @@ is_mounted() {
 
 # MOUNT START
 # Creates the mount point and starts rclone for each remote
+# rclone mounts keep rclone.log open for as long as they run and never reopen
+# it, so the rotation truncates the file in place (copytruncate)
+set_rclone_logrotate() {
+    local rotate_file="/etc/logrotate.d/rclonemgr"
+    cat > "$rotate_file" <<EOF || { echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: cannot write $(basename "$rotate_file") -alert"; return 0; }
+$rclone_path/rclone.log {
+    weekly
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    su $local_user $local_user
+}
+EOF
+    chmod 644 "$rotate_file"
+}
+
 mount_start() {
     local mount_failed=0
+    set_rclone_logrotate
     for service_name in "${services[@]}"; do
         local service_path="$cloud_path/$service_name"
         [ -d "$service_path" ] || sudo -u "$local_user" mkdir -p "$service_path"
@@ -384,7 +409,7 @@ run_mount() {
 # SYNC
 # ------------------------------------------------------------------------------
 
-# Two-way sync between the local folders and the mounted cloud
+# Two one-way mirrors: cloud download to local, local upload to cloud
 
 # SYNC TRANSFER
 # Copies one direction between a local folder and the mounted cloud

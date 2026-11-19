@@ -21,6 +21,9 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -82,7 +85,7 @@ check_internet() {
 
 # dependencies
 net_checked=0
-for dep in lsof iproute2 libc-bin; do
+for dep in iproute2 libc-bin coreutils grep; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -102,13 +105,14 @@ for dep in lsof iproute2 libc-bin; do
     fi
 done
 
-# lsof must support -Q, which separates a failed query from an empty result
-if ! lsof -h 2>&1 | grep -q -- '-Q'; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: lsof does not support -Q -abort" >&2
-    exit 1
-fi
+# PIDs listening on a local TCP/UDP port; a failed query returns 1
+listener_pids() {
+    local ss_out
+    ss_out=$(ss -Hlntup "( sport = :$1 )") || return 1
+    grep -oP 'pid=\K[0-9]+' <<<"$ss_out" | sort -u || true
+}
 
-# validation -- integer only; use directly with =~
+# validation -integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 
 # ------------------------------------------------------------------------------
@@ -132,7 +136,7 @@ if ! [[ "$port" =~ $UH_UINT ]] || [ "${#port}" -gt 5 ] \
     exit 1
 fi
 
-if ! pids=$(lsof -Q -t -i:"$port" 2>/dev/null); then
+if ! pids=$(listener_pids "$port"); then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot query port $port -abort" >&2
     exit 1
 fi
@@ -144,7 +148,7 @@ else
         exit 1
     fi
     sleep 1
-    if ! remaining=$(lsof -Q -t -i:"$port" 2>/dev/null); then
+    if ! remaining=$(listener_pids "$port"); then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot verify port $port -abort" >&2
         exit 1
     fi

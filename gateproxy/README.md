@@ -260,7 +260,7 @@ curl http://SERVER_IP:18800/wpad.pac
 | `samba` | File server: abort installation | Servidor de archivos: abortar la instalación |
 | `syslog-ng` | Syslog: abort installation | Syslog: abortar la instalación |
 | `firewalld`, `fail2ban` | Firewall: abort installation | Firewall: abortar la instalación |
-| `snort` | IDS: abort installation | IDS: abortar la instalación |
+| `snort`, `suricata`, `evebox` | IDS: abort installation | IDS: abortar la instalación |
 | `webmin`, `ttyd` | Web admin: abort installation | Administración web: abortar la instalación |
 | `exim4` | Mail: abort installation | Correo: abortar la instalación |
 | `ufw` | Active firewall: abort installation | Firewall activo: abortar la instalación |

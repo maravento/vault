@@ -25,6 +25,13 @@
 
 set -uo pipefail
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -98,7 +105,7 @@ check_internet() {
 
 # dependencies
 net_checked=0
-for dep in coreutils systemd netplan.io util-linux iproute2 libc-bin; do
+for dep in coreutils systemd util-linux iproute2 libc-bin grep sed; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -118,6 +125,10 @@ for dep in coreutils systemd netplan.io util-linux iproute2 libc-bin; do
     fi
 done
 
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
+
 mod_name="netplanmgr"
 if ! [[ "$mod_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: mod_name contains invalid characters -abort" >&2
@@ -131,12 +142,16 @@ etc_dir="/etc/webmin/$mod_name"
 # ------------------------------------------------------------------------------
 
 install_module() {
-    echo ""
-    echo "=========================================="
-    echo "Installing Netplan Manager Module"
-    echo "=========================================="
-    echo ""
-
+    # netplan.io is only needed by the installed module
+    if [[ "$(dpkg-query -W -f='${Status}' netplan.io 2>/dev/null)" != *"ok installed"* ]]; then
+        check_ipv4_interfaces
+        check_internet
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing netplan.io"
+        apt-get install -y netplan.io >/dev/null 2>&1 || {
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install netplan.io -abort" >&2
+            exit 1
+        }
+    fi
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Creating Netplan Manager module structure..."
 
     # Create directories
@@ -1100,10 +1115,10 @@ ICONEOF
         if ! grep -qE "^root:.*\b${mod_name}\b" /etc/webmin/webmin.acl 2>/dev/null; then
             sed -i.bak 's/\(^root:.*\)/\1 '"$mod_name"'/' /etc/webmin/webmin.acl
             rm -f /etc/webmin/webmin.acl.bak
-            echo "Module added to webmin.acl"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: module added to webmin.acl"
         fi
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: webmin.acl not found, ACL not updated -alert"
     fi
 
     # Clear cache
@@ -1113,11 +1128,7 @@ ICONEOF
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
 
-    echo ""
-    echo "=========================================="
-    echo "Netplan Manager installed successfully!"
-    echo "=========================================="
-    echo ""
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Netplan Manager installed"
     echo "Module location: $mod_dir"
     echo "Config location: $etc_dir"
     echo ""
@@ -1131,16 +1142,9 @@ ICONEOF
 # ------------------------------------------------------------------------------
 
 uninstall_module() {
-    echo ""
-    echo "=========================================="
-    echo "Uninstalling Netplan Manager Module"
-    echo "=========================================="
-    echo ""
-
     if [ ! -d "$mod_dir" ]; then
-        echo "Module is not installed"
-        echo ""
-        return 1
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: module not installed -skip"
+        return 0
     fi
 
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Removing module files..."
@@ -1152,25 +1156,21 @@ uninstall_module() {
         if grep -q "$mod_name" /etc/webmin/webmin.acl 2>/dev/null; then
             sed -i.bak 's/ '"$mod_name"'//g' /etc/webmin/webmin.acl
             rm -f /etc/webmin/webmin.acl.bak
-            echo "Module removed from webmin.acl"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: module removed from webmin.acl"
         fi
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: /etc/webmin/webmin.acl not found, skipping ACL update -alert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: webmin.acl not found, ACL not updated -alert"
     fi
 
     # Clear cache
     rm -f /var/webmin/module.infos.cache
-    echo "Module cache cleared"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: module cache cleared"
 
     # Restart Webmin
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Restarting Webmin service..."
     systemctl restart webmin.service 2>/dev/null || /etc/webmin/restart 2>/dev/null || true
 
-    echo ""
-    echo "=========================================="
-    echo "Netplan Manager uninstalled"
-    echo "=========================================="
-    echo ""
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Netplan Manager uninstalled"
 }
 
 # ------------------------------------------------------------------------------
@@ -1192,42 +1192,10 @@ show_usage() {
 }
 
 # ------------------------------------------------------------------------------
-# MAIN
+# MENU
 # ------------------------------------------------------------------------------
 
-main() {
-    if [ ! -d "/usr/share/webmin" ] && [ ! -d "/etc/webmin" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Webmin is not installed on this system -abort" >&2
-        exit 1
-    fi
-
-    if [ $# -gt 0 ]; then
-        case "$1" in
-            --install)
-                install_module || exit 1
-                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: netplanmgr done"
-                exit 0
-                ;;
-            --uninstall)
-                uninstall_module || exit 1
-                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: netplanmgr done"
-                exit 0
-                ;;
-            -h|--help)
-                show_usage
-                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: netplanmgr done"
-                exit 0
-                ;;
-            *)
-                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
-                echo ""
-                show_usage
-                exit 1
-                ;;
-        esac
-    fi
-
-    # Interactive menu
+show_menu() {
     while true; do
         clear
         echo "============================================================"
@@ -1266,10 +1234,35 @@ main() {
     done
 }
 
+# ------------------------------------------------------------------------------
+# ACTIONS
+# ------------------------------------------------------------------------------
+
 # start
 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: netplanmgr start..."
 
-main "$@" || exit 1
+if [ ! -d "/usr/share/webmin" ] && [ ! -d "/etc/webmin" ]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Webmin is not installed on this system -abort" >&2
+    exit 1
+fi
+
+# Run the action given on the command line, or fall back to the menu
+case "${1:-}" in
+    --install) install_module || exit 1 ;;
+    --uninstall) uninstall_module || exit 1 ;;
+    -h|--help) show_usage ;;
+    "") show_menu || exit 1 ;;
+    *)
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid option -abort" >&2
+        echo ""
+        show_usage
+        exit 1
+        ;;
+esac
+
+# ------------------------------------------------------------------------------
+# END
+# ------------------------------------------------------------------------------
 
 # end
 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: netplanmgr done"

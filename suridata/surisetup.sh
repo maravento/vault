@@ -130,7 +130,7 @@ abort() { err "$*"; exit 1; }
 # VARIABLES
 # ------------------------------------------------------------------------------
 
-# validation -- one variable per thing validated; use directly with =~
+# validation -one variable per thing validated; use directly with =~
 UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
 UH_UINT='^(0|[1-9][0-9]*)$'
 
@@ -1169,7 +1169,7 @@ confirm_install_replacements() {
     read -r -p "Continue with these changes? [y/N]: " answer || answer=""
     case "${answer,,}" in
         y|yes) ;;
-        *) info "installation cancelled"; exit 0 ;;
+        *) info "installation cancelled"; log "INFO: surisetup done"; exit 0 ;;
     esac
     for existing_config in "${existing_configs[@]}"; do
         cp -p -- "$existing_config" "${existing_config}.bak" \
@@ -1344,7 +1344,12 @@ do_uninstall() {
             systemctl disable --now suricata.service &>/dev/null || true
             apt-get purge -y suricata suricata-update &>/dev/null \
                 || warn "cannot remove suricata -alert"
-            rm -rf -- "$state_dir" "$log_dir" /etc/suricata
+            rm -rf -- "$state_dir" "$log_dir"
+            if [[ "$keep_data" == [Yy]* ]]; then
+                rm -rf -- "$conf_dir"
+            elif [ -d "$conf_dir" ]; then
+                find "$conf_dir" -mindepth 1 -maxdepth 1 ! -name data ! -name acl -exec rm -rf -- {} +
+            fi
             ;;
         *) info "suricata kept" ;;
     esac

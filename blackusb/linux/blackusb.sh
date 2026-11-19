@@ -32,21 +32,99 @@ set -uo pipefail
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
-# dependencies
-for dep in udev systemd util-linux; do
+# check ipv4 interfaces
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if [ -n "$(list_ipv4_ifaces)" ]; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: waiting for an interface with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no interface with IPv4 -abort" >&2
+    exit 1
+}
+
+# check internet
+check_internet() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: waiting for internet..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no internet connection -abort" >&2
+    exit 1
+}
+
+# dependencies; calls from udev only check, so a USB event never waits for apt
+case "${1:-}" in
+    --trigger|trigger_async|allow_trigger|allow_trigger_async) dep_install=0 ;;
+    *) dep_install=1 ;;
+esac
+net_checked=0
+for dep in udev systemd util-linux coreutils iproute2 libc-bin nano; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
-        exit 1
+        if [ "$dep_install" -eq 0 ]; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
+            exit 1
+        fi
+        if [ "$net_checked" -eq 0 ]; then
+            if ! command -v ip >/dev/null 2>&1; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing iproute2"
+                apt-get install -y iproute2 >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install iproute2 -abort" >&2; exit 1; }
+            fi
+            check_ipv4_interfaces
+            check_internet
+            apt-get update -qq || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2; exit 1; }
+            net_checked=1
+        fi
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing $dep"
+        if ! apt-get install -y "$dep" >/dev/null 2>&1; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install $dep -abort" >&2
+            exit 1
+        fi
     fi
 done
 
-# validation -- integer only; use directly with =~
+# validation -integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 
 # ------------------------------------------------------------------------------
@@ -65,9 +143,6 @@ commands_list=(
     #'poweroff'
 )
 
-# Use colors in messages
-colors='yes'
-
 # ADVANCED CONFIG
 
 # Logging, you possibly don't want to turn it off
@@ -75,7 +150,7 @@ log_enabled='yes'
 log_file='/var/log/blackusb.log'
 if [ ! -f "$log_file" ]; then touch "$log_file"; fi
 
-# Rotate log_file daily, keep 7 (deployed once, never overwritten)
+# Rotate log_file weekly, keep 7 (deployed once, never overwritten)
 logrotate_file='/etc/logrotate.d/blackusb'
 if [ ! -f "$logrotate_file" ]; then
     cat >"$logrotate_file" <<EOF
@@ -89,11 +164,6 @@ $log_file {
 }
 EOF
 fi
-
-# Use custom editor
-custom_editor='yes'
-editor_x='gedit'
-editor_console='nano'
 
 # Path to udev rule, edit carefully
 rule_file='/etc/udev/rules.d/00-blackusb.rules'
@@ -119,28 +189,12 @@ trigger_cmd_allow="/bin/bash $program_abs allow_trigger"
 # FUNCTIONS
 # ------------------------------------------------------------------------------
 
-# Select the configured graphical or console editor
-if [[ $custom_editor = 'yes' ]]; then
-    [[ -n ${DISPLAY:-} ]] && inx=yes
-    if [[ -n "${inx:-}" ]]; then
-        export EDITOR="$editor_x"
-    else
-        export EDITOR="$editor_console"
-    fi
-fi
-
 die() {
-    local die_time
-    die_time=$(date '+%Y-%m-%d %H:%M:%S')
-    if [[ $colors = 'yes' ]]; then
-        printf '\033[1;31m%s ERROR: %s -abort\033[0m\n' "$die_time" "$*" >&2
-    else
-        printf '%s ERROR: %s -abort\n' "$die_time" "$*" >&2
-    fi
+    printf '%s ERROR: %s -abort\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >&2
     exit 1
 }
 
-message() { [[ $colors = 'yes' ]] && echo -e "\033[1;37m$@\033[0m" || echo -e "$@"; }
+message() { printf '%s INFO: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 
 if [[ ! -d $(dirname "$rule_file") ]]; then
     die "No udev rules folder found"
@@ -165,9 +219,8 @@ usage: ${0##*/} [action]
 
   config (check source)
     udev rule file: $rule_file
-    editor: $EDITOR
+    editor: nano
     safe (demo) mode: $demo
-    colors: $colors
     logs: $log_enabled, $log_file
 
 EOF
@@ -206,7 +259,7 @@ eject_product() {
 }
 
 choose_remove() {
-    message "\nChoose number to add"
+    echo -e "\nChoose number to add"
     read -r -e number
     [[ "$number" =~ $UH_UINT ]] || die "wrong number"
     [ "${#number}" -le 5 ] || die "wrong number"
@@ -235,7 +288,7 @@ choose_remove() {
 
     echo -e "$rulevar" >"$rule_file" || die "cannot update udev rules"
     udevadm control --reload || die "cannot reload udev rules"
-    message "\nAdded:\n${products_name[$number]//\?/ } ${vendors[$number]} ${products[$number]} ${serials[$number]}"
+    message "added: ${products_name[$number]//\?/ } ${vendors[$number]} ${products[$number]} ${serials[$number]}"
 }
 
 gen_whitelist() {
@@ -287,7 +340,7 @@ deactivate() {
         udevadm control --reload || die "cannot reload udev rules"
         message "blackusb deactivated"
     else
-        die "$rule_file does not exist"
+        message "blackusb already inactive"
     fi
 }
 
@@ -307,7 +360,7 @@ edit_rules() {
     elif [[ ! -f "${rule_file}" ]]; then
         die "udev file does not exist, activate blackusb first"
     else
-        "$EDITOR" "$rule_file"
+        nano "$rule_file"
     fi
 }
 
@@ -399,12 +452,12 @@ case "${1:-}" in
     ;;
 
 --trigger)
-    setsid "$program_abs" trigger_async </dev/null >/dev/null 2>&1 &
+    setsid /bin/bash "$program_abs" trigger_async </dev/null >/dev/null 2>&1 &
     disown
     ;;
 
 allow_trigger)
-    setsid "$program_abs" allow_trigger_async </dev/null >/dev/null 2>&1 &
+    setsid /bin/bash "$program_abs" allow_trigger_async </dev/null >/dev/null 2>&1 &
     disown
     ;;
 

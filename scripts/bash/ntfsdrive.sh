@@ -21,6 +21,9 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -63,7 +66,7 @@ if ! local_user=$(detect_local_user); then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
     exit 1
 fi
-echo "Using local user: $local_user"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: using local user: $local_user"
 
 # check ipv4 interfaces
 list_ifaces() {
@@ -120,7 +123,7 @@ check_internet() {
 
 # dependencies
 net_checked=0
-for dep in ntfs-3g util-linux bsdextrautils iproute2 libc-bin; do
+for dep in ntfs-3g util-linux bsdextrautils iproute2 libc-bin coreutils grep; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -165,7 +168,7 @@ mount_drive() {
         mount_point="/media/$local_user/$disk_label"
 
         if mountpoint -q "$mount_point" 2>/dev/null; then
-            echo "Device is already mounted at $mount_point"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: device already mounted: $mount_point -skip"
             return
         fi
 
@@ -183,14 +186,14 @@ mount_drive() {
         fi
 
         if mount -o uid=$(id -u "$local_user"),gid=$(id -g "$local_user"),fmask=0022,dmask=0022,windows_names -t ntfs-3g "$device_path" "$mount_point"; then
-            echo "Device mounted on $mount_point"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: device mounted: $mount_point"
         else
             (( created_dir )) && rmdir "$mount_point" 2>/dev/null
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot mount device -abort" >&2
             return 1
         fi
     else
-        echo "No disk found with LABEL/UUID '$disk_id'"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no disk with label or UUID $disk_id -skip"
     fi
 }
 
@@ -198,7 +201,7 @@ umount_drive() {
     mount_points=$(lsblk -nr -o MOUNTPOINT | grep -E "^/mnt|^/media")
 
     if [ -z "$mount_points" ]; then
-        echo "There are no disks mounted in /mnt or /media"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no disks mounted in /mnt or /media -skip"
         return
     fi
 
@@ -210,7 +213,7 @@ umount_drive() {
     [ "$folder_name" == "exit" ] && return
 
     if [ -z "$folder_name" ] || [[ "$folder_name" == */* ]]; then
-        echo "Invalid folder name"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: invalid folder name -skip"
         return
     fi
 
@@ -222,14 +225,13 @@ umount_drive() {
     fi
 
     if [ -n "$mount_point" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Unmounting $mount_point..."
         if ! umount "$mount_point"; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot unmount device -abort" >&2
             return 1
         fi
-        echo "Device unmounted"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: device unmounted: $mount_point"
     else
-        echo "No mounted disk found at '/$folder_name'"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no mounted disk at /$folder_name -skip"
     fi
 }
 

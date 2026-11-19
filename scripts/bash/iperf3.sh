@@ -25,6 +25,9 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # no-root check
 if [ "$(id -u)" == "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script should not be run as root -abort" >&2
@@ -32,7 +35,7 @@ if [ "$(id -u)" == "0" ]; then
 fi
 
 # dependencies
-for dep in iperf3 iputils-ping iproute2 coreutils; do
+for dep in iperf3 iputils-ping iproute2 coreutils sed; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
@@ -43,7 +46,7 @@ done
 # VARIABLES
 # ------------------------------------------------------------------------------
 
-# validation -- one variable per thing validated; use directly with =~
+# validation -one variable per thing validated; use directly with =~
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 UH_UINT='^(0|[1-9][0-9]*)$'
 
@@ -123,7 +126,7 @@ select_lan_interface() {
             lan_iface_answer="${ifaces[$((choice-1))]}"
             return 0
         fi
-        info "invalid LAN selection -retry" >&2
+        info "invalid LAN interface selection -retry" >&2
     done
 }
 

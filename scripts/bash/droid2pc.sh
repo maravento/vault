@@ -32,14 +32,14 @@ if [ "$(id -u)" == "0" ]; then
 fi
 
 # dependencies
-for dep in zenity adb scrcpy procps util-linux; do
+for dep in zenity adb scrcpy procps util-linux coreutils grep; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
 
-# validation -- integer only; use directly with =~
+# validation -integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 
 # ------------------------------------------------------------------------------
@@ -54,13 +54,13 @@ _pid_is_scrcpy() {
     [[ "$(cat "/proc/$pid/comm" 2>/dev/null)" == "scrcpy" ]]
 }
 show_error() {
-    echo -e "$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: ${1//\\n/ } -abort" >&2
     zenity --error --title="droid2pc Error" --text="$1" --timeout=5 2>/dev/null
     exit 1
 }
 
 show_info() {
-    echo -e "$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: ${1//\\n/ }"
     zenity --info --title="droid2pc" --text="$1" --timeout=5 2>/dev/null
 }
 

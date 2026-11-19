@@ -30,6 +30,9 @@ set -uo pipefail
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -84,7 +87,7 @@ if ! local_user=$(detect_local_user); then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
     exit 1
 fi
-echo "Using local user: $local_user"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: using local user: $local_user"
 
 # check ipv4 interfaces
 list_ifaces() {
@@ -141,7 +144,7 @@ check_internet() {
 
 # dependencies
 net_checked=0
-for dep in findutils util-linux iproute2 libc-bin; do
+for dep in findutils util-linux iproute2 libc-bin coreutils grep; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -194,7 +197,7 @@ report_file="${report_dir}/filereport_$(date +%F-%H_%M_%S).html"
 scan_list=$(mktemp)
 trap 'rm -f "$scan_list"' EXIT
 if ! find "$targetfolder" -type f -printf '%s\t%p\n' 2>/dev/null > "$scan_list"; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: scan incomplete; report includes available files -alert" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: scan incomplete, partial report -alert" >&2
 fi
 total_files=$(wc -l < "$scan_list")
 total_bytes=$(awk -F'\t' '{s+=$1} END{printf "%.0f", s+0}' "$scan_list")
@@ -299,7 +302,7 @@ if ! chown "$local_user:$local_user" "$report_file"; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot set report owner -abort" >&2
     exit 1
 fi
-echo "Done. Report: $report_file"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: report saved: $report_file"
 
 # ------------------------------------------------------------------------------
 # END

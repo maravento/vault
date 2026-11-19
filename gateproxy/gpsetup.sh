@@ -63,11 +63,11 @@ public_interface() {
                 case "$CONFIRM" in
                     [Yy]) wan_iface="$CANDIDATE"; break 2 ;;
                     [Nn]) break ;;
-                    *) info "Answer: YES (y) or NO (n)" ;;
+                    *) info "answer y or n -retry" ;;
                 esac
             done
         else
-            info "invalid interface selection -retry"
+            info "invalid WAN interface selection -retry"
         fi
     done
     info "WAN interface: $wan_iface"
@@ -91,21 +91,17 @@ local_interface() {
            && [ "${#SEL}" -le 5 ] \
            && [ "$SEL" -ge 1 ] && [ "$SEL" -le "${#IFACES[@]}" ]; then
             CANDIDATE="${IFACES[$((SEL-1))]}"
-            if [ "$CANDIDATE" = "$wan_iface" ]; then
-                info "Interface already assigned to WAN; choose another"
-                continue
-            fi
             while true; do
                 failure_message="cannot read the LAN interface choice"
                 read -r -p "Confirm LAN interface is '$CANDIDATE'? (y/n): " CONFIRM || abort "cannot read interface selection -abort"
                 case "$CONFIRM" in
                     [Yy]) ETH1="$CANDIDATE"; break 2 ;;
                     [Nn]) break ;;
-                    *) info "Answer: YES (y) or NO (n)" ;;
+                    *) info "answer y or n -retry" ;;
                 esac
             done
         else
-            info "invalid interface selection -retry"
+            info "invalid LAN interface selection -retry"
         fi
     done
     info "LAN interface: $ETH1"
@@ -115,9 +111,7 @@ local_interface() {
 is_interfaces() {
     local failure_message="cannot configure the network interfaces"
     if ip link show eth0 &>/dev/null; then
-        info "Older NIC-Ethernet Format Detected"
-        info "Aborted installation. Check Minimum Requirements"
-        exit 1
+        abort "ethX naming found; see Minimum Requirements -abort"
     elif ! check_wired_interfaces; then
         exit 1
     else
@@ -342,7 +336,7 @@ acl_root=/etc/acl
 gateproxy_env="/etc/gateproxy/gateproxy.env"
 scr_root=/etc/scr
 
-# validation -- one variable per thing validated; use directly with =~
+# validation -one variable per thing validated; use directly with =~
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
 UH_UINT='^(0|[1-9][0-9]*)$'
@@ -551,34 +545,41 @@ retry_cmd() {
 download_url=""
 
 # CRON_D
-# Add or replace one line in the project's single cron.d file
-cron_d_set() {
+# Replace one task; retain other project tasks and serialize writers.
+cron_d_set() (
     local match="$1" line="$2"
     local cron_file="/etc/cron.d/gateproxy"
-    local cron_tmp
+    local cron_tmp cron_status
 
-    cron_tmp=$(mktemp) || return 1
+    [ -n "$match" ] || return 1
+    [ ! -L "$cron_file" ] || return 1
+    [ ! -e "$cron_file" ] || [ -f "$cron_file" ] || return 1
+    [ ! -L "${cron_file}.lock" ] || return 1
+    (umask 077; : >> "${cron_file}.lock") || return 1
+    exec 201>"${cron_file}.lock" || return 1
+    flock -x 201 || return 1
+    if [ -e "${cron_file}.update-disabled" ] && [ "${UPDATE_CRON_OWNER:-}" != "$$" ]; then
+        return 1
+    fi
+
+    cron_tmp=$(mktemp "${cron_file}.XXXXXX") || return 1
+    trap 'rm -f -- "$cron_tmp"' EXIT
     if [ -f "$cron_file" ]; then
-        grep -vF "$match" "$cron_file" > "$cron_tmp" || {
-            [ "$?" -eq 1 ] || { rm -f "$cron_tmp"; return 1; }
+        grep -vF -- "$match" "$cron_file" > "$cron_tmp" || {
+            cron_status=$?
+            [ "$cron_status" -eq 1 ] || return 1
         }
     fi
     if [ -n "$line" ]; then
-        printf '%s\n' "$line" >> "$cron_tmp" || {
-            rm -f "$cron_tmp"
-            return 1
-        }
+        printf '%s\n' "$line" >> "$cron_tmp" || return 1
     fi
     if [ -s "$cron_tmp" ]; then
-        if ! install -m 644 -o root -g root "$cron_tmp" "$cron_file"; then
-            rm -f "$cron_tmp"
-            return 1
-        fi
+        chmod 644 "$cron_tmp" && chown root:root "$cron_tmp" || return 1
+        mv -fT -- "$cron_tmp" "$cron_file" || return 1
     else
-        rm -f "$cron_file"
+        rm -f -- "$cron_file" || return 1
     fi
-    rm -f "$cron_tmp"
-}
+)
 
 log "INFO: Checking for conflicting pre-installed packages..."
 failure_message="cannot check conflicting packages"
@@ -600,7 +601,7 @@ check_conflicts "syslog"      syslog-ng
 failure_message="cannot check conflicting packages"
 check_conflicts "firewall"    firewalld fail2ban
 failure_message="cannot check conflicting packages"
-check_conflicts "IDS"         snort
+check_conflicts "IDS"         snort suricata evebox
 failure_message="cannot check conflicting packages"
 check_conflicts "web admin"   webmin ttyd
 failure_message="cannot check conflicting packages"
@@ -827,7 +828,7 @@ mkdir -p "$scr_root" &>/dev/null
 # Install the base system packages
 log "INFO: Check Dependencies..."
 
-pkgs='python3-yaml curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 7zip rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3 iproute2 util-linux-extra iptables kmod procps grep findutils cron'
+pkgs='python3-yaml curl wget software-properties-common apt-transport-https aptitude net-tools plocate git git-gui gitk gist expect tcl-expect libnotify-bin gcc make perl bzip2 7zip rar unrar unzip zip unace cabextract arj zlib1g-dev tzdata tar coreutils dconf-editor python-is-python3 iproute2 util-linux-extra iptables kmod procps grep sed findutils cron'
 failure_message="cannot collect missing package names"
 missing=$(for p in $pkgs; do [[ "$(dpkg-query -W -f='${Status}' "$p" 2>/dev/null)" == *"ok installed"* ]] || echo "$p"; done)
 unavailable=""
@@ -1029,15 +1030,14 @@ while true; do
                 fi
                 serveripNEW=$(printf '%s' "$input_ip" | { [[ "$input_ip" =~ $UH_IPV4 ]] && cat || true; })
                 if [ -z "$serveripNEW" ]; then
-                    info "You have entered IP incorrect"
+                    info "invalid IPv4 address -retry"
                     continue
                 fi
                 # 192.168.137.0/24 is reserved by iptables.sh for the Windows ICS block
                 # rule (see "Block Windows ICS network range"); a server IP in that
                 # range would have its own LAN traffic dropped by that rule.
                 if [[ "$serveripNEW" == 192.168.137.* ]]; then
-                    info "IP $serveripNEW is in ICS range 192.168.137.0/24"
-                    info "choose a different range"
+                    info "$serveripNEW is in ICS range 192.168.137.0/24 -retry"
                     continue
                 fi
                 SERVER_IP="$serveripNEW"
@@ -1058,7 +1058,7 @@ while true; do
             break
             ;;
         *)
-            info "Answer: YES (y) or NO (n)"
+            info "answer y or n -retry"
             ;;
     esac
 done
@@ -1092,7 +1092,7 @@ is_ask() {
             ;;
         *)
             echo
-            info "Answer: YES (y) or NO (n)"
+            info "answer y or n -retry"
             ;;
         esac
     done
@@ -1230,11 +1230,11 @@ Squid proxy port 3128, Squid intercept port 3129
     [Yy]*)
         # execute command yes
         failure_message="cannot read server configuration answers"
-        is_ask "Do you want to change? Mask 255.255.255.0? (y/n)" "You have entered Mask incorrect" is_mask1
+        is_ask "Do you want to change? Mask 255.255.255.0? (y/n)" "invalid netmask -retry" is_mask1
         failure_message="cannot read server configuration answers"
-        is_ask "Do you want to change? DNS1 1.1.1.2? (y/n)" "You have entered DNS1 incorrect" is_dns1
+        is_ask "Do you want to change? DNS1 1.1.1.2? (y/n)" "invalid DNS1 -retry" is_dns1
         failure_message="cannot read server configuration answers"
-        is_ask "Do you want to change? DNS2 1.0.0.2? (y/n)" "You have entered DNS2 incorrect" is_dns2
+        is_ask "Do you want to change? DNS2 1.0.0.2? (y/n)" "invalid DNS2 -retry" is_dns2
         failure_message="cannot read server configuration answers"
         is_ask "Change Squid ports [3128/3129]? (y/n) [n]" "Invalid Squid ports: use distinct ports 1-65535 -retry" is_port
         break
@@ -1246,7 +1246,7 @@ Squid proxy port 3128, Squid intercept port 3129
         ;;
     *)
         echo
-        info "Answer: YES (y) or NO (n)"
+        info "answer y or n -retry"
         ;;
     esac
 done
@@ -1735,9 +1735,8 @@ sed -i \
 # HTTP SERVER SECTION
 # apache2
 failure_message="cannot install packages with apt"
-retry_cmd "install packages" apt install -y apache2 apache2-doc apache2-utils apache2-dev \
-                apache2-suexec-pristine libaprutil1t64 libaprutil1-dev \
-                libtest-fatal-perl || { report_failure; exit 1; }
+retry_cmd "install packages" apt install -y apache2 apache2-bin apache2-data apache2-doc \
+                apache2-utils || { report_failure; exit 1; }
 failure_message="cannot enable apache2.service"
 systemctl enable apache2.service
 #apt install -y libapache2-mod-dnssd
@@ -2140,7 +2139,7 @@ gsmartcontrol, cpu-x, synaptic, gdebi, gtkhash, wmctrl, fsearch  (y/n)" answer
         ;;
     *)
         echo
-        info "Answer: YES (y) or NO (n)"
+        info "answer y or n -retry"
         ;;
     esac
 done
@@ -2190,7 +2189,7 @@ with SHARED folder, Recycle Bin and Audit (y/n)" answer
 
     *)
         echo
-        info "Answer: YES (y) or NO (n)"
+        info "answer y or n -retry"
         ;;
     esac
 done
@@ -2255,14 +2254,12 @@ Do you want to install UniFi Host Manager (UHM)? (y/n) " answer
 
         *)
             echo
-            info "Answer: YES (y) or NO (n)"
+            info "answer y or n -retry"
             ;;
         esac
     done
 else
-    info "No UniFi Network/OS controller; skipping UHM prompt"
-    info "Install self-hosted UniFi Network or OS Server first:"
-    info "use unifisetup.sh (check README)"
+    info "no UniFi controller; UHM skipped -skip"
 fi
 
 failure_message="cannot update system packages"
@@ -2458,7 +2455,12 @@ failure_message="cannot write system.conf"
 grep -qxF "DefaultLimitNOFILE=65535" /etc/systemd/system.conf || echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/system.conf >/dev/null
 failure_message="cannot write user.conf"
 grep -qxF "DefaultLimitNOFILE=65535" /etc/systemd/user.conf || echo "DefaultLimitNOFILE=65535" | tee -a /etc/systemd/user.conf >/dev/null
-sysctl --system >/dev/null || info "some sysctl parameters failed to apply"
+if ! sysctl_err=$(sysctl --system 2>&1 >/dev/null); then
+    sysctl_keys=$(grep -oP '(setting key "|cannot stat /proc/sys/)\K[^": ]+' <<<"$sysctl_err" || true)
+    while read -r sysctl_key; do
+        warn "sysctl key not applied: ${sysctl_key:-unknown} -alert"
+    done <<<"$sysctl_keys"
+fi
 
 log "INFO: Apache Config..."
 cp -f /etc/apache2/apache2.conf{,.bak} &>/dev/null || true
@@ -2513,7 +2515,7 @@ sleep 1
 # Create the Apache authentication password file
 log "INFO: Create Apache Password: /var/www/..."
 until htpasswd -c /etc/apache2/.htpasswd "$local_user"; do
-    info "Passwords did not match or were empty. Try again"
+    info "passwords empty or not matching -retry"
 done
 
 # APACHE CONFIG

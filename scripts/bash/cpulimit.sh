@@ -23,6 +23,9 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" -ne 0 ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -84,7 +87,7 @@ check_internet() {
 
 # dependencies
 net_checked=0
-for dep in cpulimit procps util-linux iproute2 libc-bin; do
+for dep in cpulimit procps util-linux iproute2 libc-bin coreutils grep; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -104,7 +107,7 @@ for dep in cpulimit procps util-linux iproute2 libc-bin; do
     fi
 done
 
-# validation -- integer only; use directly with =~
+# validation -integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 
 # ------------------------------------------------------------------------------
@@ -140,18 +143,20 @@ start_limit() {
     fi
 
     # Sanitize program name to prevent regex abuse
-    if [[ "$program_name" =~ [^a-zA-Z0-9_\-\.] ]]; then
-        echo "Invalid program name: only alphanumeric characters, hyphens, underscores and dots are allowed"
+    if [[ "$program_name" =~ [^a-zA-Z0-9_.-] ]]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid program name; use letters, digits, ._- -abort" >&2
         exit 1
     fi
+    # A dot must match a dot, not any character
+    program_re="${program_name//./\\.}"
 
     # Verify process exists
-    if ! pgrep -f "^(/[^[:space:]]*/)?$program_name([[:space:]]|$)" &>/dev/null; then
-        echo "No running process found for '$program_name'"
+    if ! pgrep -f "^(/[^[:space:]]*/)?$program_re([[:space:]]|$)" &>/dev/null; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no running process for '$program_name' -abort" >&2
         exit 1
     fi
 
-    pid_count=$(pgrep -f "^(/[^[:space:]]*/)?$program_name([[:space:]]|$)" | wc -l)
+    pid_count=$(pgrep -f "^(/[^[:space:]]*/)?$program_re([[:space:]]|$)" | wc -l)
     echo "Found $pid_count process(es) matching '$program_name'"
 
     # CPU %
@@ -160,7 +165,7 @@ start_limit() {
     # Check CPU %
     if ! [[ "$cpu_limit" =~ $UH_UINT ]] || [ "${#cpu_limit}" -gt 3 ] \
         || [ "$cpu_limit" -lt 1 ] || [ "$cpu_limit" -gt 100 ]; then
-        echo "Invalid percentage. It must be a number between 1 and 100"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: invalid CPU percentage; use 1-100 -abort" >&2
         exit 1
     fi
 
@@ -171,7 +176,7 @@ start_limit() {
         cpulimit_pid=$!
         echo "$cpulimit_pid" >> /run/cpulimit_managed.pid
         echo "$cpu_limit% CPU limit applied to '$program_name' (PID: $pid, cpulimit PID: $cpulimit_pid)"
-    done < <(pgrep -f "^(/[^[:space:]]*/)?$program_name([[:space:]]|$)")
+    done < <(pgrep -f "^(/[^[:space:]]*/)?$program_re([[:space:]]|$)")
 }
 
 status_limit() {

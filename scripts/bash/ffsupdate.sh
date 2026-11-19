@@ -23,6 +23,9 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # root check
@@ -137,7 +140,7 @@ check_internet() {
 
 # dependencies
 net_checked=0
-for dep in expect tcl-expect wget tar coreutils util-linux iproute2 libc-bin; do
+for dep in expect tcl-expect wget tar coreutils util-linux iproute2 libc-bin grep; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -185,12 +188,6 @@ if [ -z "$link" ]; then
     exit 1
 fi
 
-version=$(echo "$link" | sed -r 's:.*FreeFileSync_([0-9]+\.[0-9]+)_.*:\1:')
-if [ -z "$version" ]; then
-    log "ERROR: could not parse version from link: $link -abort"
-    exit 1
-fi
-
 if ! retry_cmd "download FreeFileSync" wget --tries=1 -qO "$ffsfile" "https://www.freefilesync.org$link" \
     -U "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/63.0.3239.84 Chrome/63.0.3239.84 Safari/537.36"; then
     log "PARTIAL: https://www.freefilesync.org$link"
@@ -205,7 +202,7 @@ if ! tar xf "$ffsfile" >/dev/null 2>&1; then
     exit 1
 fi
 
-extracted=$(ls FreeFileSync*.run 2>/dev/null | head -1)
+extracted=$(ls FreeFileSync*.run 2>/dev/null | head -1) || true
 if [ -z "$extracted" ]; then
     log "ERROR: no FreeFileSync installer after extraction -abort"
     rm -f "$ffsfile"

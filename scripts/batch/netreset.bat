@@ -50,7 +50,7 @@ for %%k in (%keys%) do (
 for /f "usebackq delims=" %%a in (`powershell -NoProfile -Command "Get-NetAdapter | Select-Object -ExpandProperty Name"`) do (
     set "interface=%%a"
     setlocal disabledelayedexpansion
-    echo Configuring interface: %interface%
+    echo Configuring interface: %%a
     endlocal
     setlocal enabledelayedexpansion
     echo Reset IP...

@@ -25,7 +25,7 @@ set -uo pipefail
 # ------------------------------------------------------------------------------
 
 # dependencies
-for dep in cloudflared; do
+for dep in cloudflared coreutils; do
     if ! command -v "$dep" &>/dev/null; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
@@ -40,7 +40,7 @@ fi
 # VARIABLES
 # ------------------------------------------------------------------------------
 
-# validation -- one variable per thing validated; use directly with =~
+# validation -one variable per thing validated; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
 

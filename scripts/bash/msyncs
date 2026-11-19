@@ -33,7 +33,7 @@ fi
 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: msyncs start..."
 
 # check dependencies
-dependencies=("zenity" "libatk-adaptor" "libgail-common" "libgtk2.0-0")
+dependencies=("zenity" "libatk-adaptor" "libgail-common" "libgtk2.0-0" "coreutils" "grep")
 for dep in "${dependencies[@]}"; do
   if [[ "$dep" == "libgtk2.0-0" ]]; then
     # Check for both libgtk2.0-0 and libgtk2.0-0t64

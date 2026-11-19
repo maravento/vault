@@ -28,6 +28,9 @@ set -euo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -139,7 +142,7 @@ check_internet() {
 
 # dependencies (network checks, before the menu)
 net_checked=0
-for dep in iproute2 libc-bin; do
+for dep in iproute2 libc-bin coreutils grep sed wget curl jq lsof; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -159,38 +162,11 @@ for dep in iproute2 libc-bin; do
     fi
 done
 
+# The tools the script uses (wget, curl, jq, lsof) are initial dependencies
 check_dependencies() {
-    for c in wget dpkg systemctl; do
-        command -v "$c" &>/dev/null && continue
-        if [ "$c" = "systemctl" ]; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: systemd (systemctl) not found, this script requires it -abort" >&2
-            exit 1
-        fi
-    done
-
-    missing=()
-    command -v curl &>/dev/null || missing+=("curl")
-    command -v jq &>/dev/null || missing+=("jq")
-    command -v lsof &>/dev/null || missing+=("lsof")
-
-    if [ ${#missing[@]} -gt 0 ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing missing dependencies: ${missing[*]}"
-        apt_lock_timeout=120
-        apt_lock_elapsed=0
-        apt_lock_files="/var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend"
-        while lsof $apt_lock_files >/dev/null 2>&1; do
-            if [ "$apt_lock_elapsed" -ge "$apt_lock_timeout" ]; then
-                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: APT/DPKG locks still held after ${apt_lock_timeout}s -abort" >&2
-                exit 1
-            fi
-            echo "   Locks still held, waiting... (${apt_lock_elapsed}s elapsed)"
-            sleep 5
-            apt_lock_elapsed=$((apt_lock_elapsed + 5))
-        done
-        if ! retry_cmd "update package lists" apt-get -qq update || ! retry_cmd "install packages" apt-get install -y "${missing[@]}"; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: failed to install dependencies: ${missing[*]} -abort" >&2
-            exit 1
-        fi
+    if ! command -v systemctl &>/dev/null; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: systemctl not found, systemd required -abort" >&2
+        exit 1
     fi
 }
 
@@ -232,7 +208,7 @@ validate_relay_host() {
 
 apply_config() {
     if [ ! -f "$conf_file" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no configuration found, run 'Configure Relay Host' first -skip"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no configuration, run 'Configure Relay Host' -skip"
         return 1
     fi
     relay_host=$(sed -n 's/^relay_host=//p' "$conf_file") || return 1
@@ -290,7 +266,10 @@ install_server() {
     hbbr_deb="rustdesk-server-hbbr_${ver_tag}_amd64.deb"
     base_url="https://github.com/rustdesk/rustdesk-server/releases/download/${ver_tag}"
 
-    cd /tmp
+    # Private directory: another user cannot plant a package
+    deb_dir=$(mktemp -d) || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot create temporary directory -abort" >&2; exit 1; }
+    trap 'rm -rf -- "$deb_dir"' EXIT
+    cd "$deb_dir"
     for deb in "$hbbs_deb" "$hbbr_deb"; do
         expected_sha256=$(echo "$release_json" | jq -r --arg name "$deb" '.assets[] | select(.name == $name) | .digest' | sed 's/^sha256://')
         if [ -z "$expected_sha256" ] || [ "$expected_sha256" = "null" ]; then
@@ -390,7 +369,7 @@ show_public_key() {
         echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: public key not found at $key_file, start server first -skip"
         return 1
     fi
-    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Set as Key + ID/Relay Server in RustDesk client settings:"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: use as Key + ID/Relay Server in RustDesk client:"
     cat "$key_file"
     echo
 }

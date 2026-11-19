@@ -7,9 +7,10 @@
 # FILE: watchdog.sh
 #
 # DESCRIPTION:
-# Monitors Internet connectivity by periodically pinging a public IP and
-# logs connection status, packet loss and average latency. Runs safely in
-# the background and avoids multiple instances.
+# Monitors Internet connectivity by pinging a public IP every minute. Logs
+# and notifies when the connection goes down, and logs packet loss and
+# average latency when it comes back. Runs safely in the background and
+# avoids multiple instances.
 #
 # USAGE:
 # COMMAND                    ACTION
@@ -31,6 +32,9 @@ set -uo pipefail
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # no-root check
 if [ "$(id -u)" == "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script should not be run as root -abort" >&2
@@ -38,14 +42,14 @@ if [ "$(id -u)" == "0" ]; then
 fi
 
 # dependencies
-for dep in libnotify-bin iputils-ping util-linux; do
+for dep in libnotify-bin iputils-ping util-linux coreutils grep sed; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
     fi
 done
 
-# validation -- integer only; use directly with =~
+# validation -integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 # Desktop notification helper (X11 and Wayland, silent if no desktop session)
 # desktop notification to the current user (X11 and Wayland, no sudo)
@@ -119,26 +123,34 @@ start() {
         exit 1
     fi
 
+    # individual log without rotation: emptied once no other instance runs
+    { > "$LOGFILE"; } 2>/dev/null || true
+
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: starting watchdog in background..."
     (
+        # only state changes are logged: OK -> DOWN and DOWN -> OK
+        link_state="ok"
         while true; do
-            timestamp=$(date '+%F %T')
             result=$(ping -c 3 -W 2 "$TARGET")
             ping_status=$?
 
             if echo "$result" | grep -q "0 received" || [ "$ping_status" -ge 2 ]; then
-                echo "[$timestamp] Internet DOWN" >> "$LOGFILE"
-                notify_send_self -i network-error -u critical "Watchdog" "Internet DOWN"
-            else
+                if [ "$link_state" = ok ]; then
+                    echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: Internet DOWN, no reply from $TARGET -alert" >> "$LOGFILE"
+                    notify_send_self -i network-error -u critical "Watchdog" "Internet DOWN"
+                    link_state="down"
+                fi
+            elif [ "$link_state" = down ]; then
                 loss=$(echo "$result" | grep -oP '\d+(?=% packet loss)')
                 latency=$(echo "$result" | grep -E "rtt|round-trip" | sed 's/.*=\s*//' | awk -F '/' '{print $2}')
                 latency="${latency:-N/A}"
-                echo "[$timestamp] Internet OK | Loss: ${loss}% | Avg latency: ${latency} ms" >> "$LOGFILE"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Internet OK, loss ${loss}%, latency ${latency} ms" >> "$LOGFILE"
+                link_state="ok"
             fi
 
             sleep 60
         done
-    ) > /dev/null 2>&1 &
+    ) 200>&- > /dev/null 2>&1 &
 
     echo $! > "$PIDFILE"
     sleep 0.2

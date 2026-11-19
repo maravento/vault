@@ -41,6 +41,9 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -246,6 +249,10 @@ verify_removed() {
 }
 
 do_install() {
+    if ! systemctl list-unit-files lightdm.service >/dev/null 2>&1; then
+        log "ERROR: LightDM not found; x11vncmgr requires it -abort"
+        exit 1
+    fi
     if ! command -v x11vnc >/dev/null 2>&1; then
         check_ipv4_interfaces
         check_internet

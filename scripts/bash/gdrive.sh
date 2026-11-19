@@ -22,6 +22,9 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # no-root check
@@ -39,7 +42,7 @@ if ! flock -n 200; then
 fi
 
 # dependencies
-for dep in libcurl3-gnutls libfuse2t64 libsqlite3-0 fuse3 util-linux; do
+for dep in libcurl3-gnutls libfuse2t64 libsqlite3-0 fuse3 util-linux coreutils grep; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: dependency '$dep' is not installed -abort" >&2
         exit 1
@@ -50,7 +53,7 @@ done
 for dep in google-drive-ocamlfuse; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [1/2] 'google-drive-ocamlfuse' is not installed" >&2
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [2/2] run: add-apt-repository ppa:alessandro-strada/ppa -abort" >&2
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: [2/2] add ppa:alessandro-strada/ppa first -abort" >&2
         exit 1
     fi
 done

@@ -21,6 +21,9 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
@@ -75,7 +78,7 @@ if ! local_user=$(detect_local_user); then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no local user; create one with sudo access -abort" >&2
     exit 1
 fi
-echo "Using local user: $local_user"
+echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: using local user: $local_user"
 
 # start
 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: vbox start..."
@@ -161,7 +164,7 @@ check_internet() {
 
 # dependencies
 net_checked=0
-for dep in wget gnupg lsb-release psmisc procps findutils systemd sudo util-linux iproute2 libc-bin; do
+for dep in wget gnupg lsb-release psmisc procps findutils systemd sudo util-linux iproute2 libc-bin coreutils grep; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             if ! command -v ip >/dev/null 2>&1; then
@@ -261,7 +264,6 @@ vboxpurge() {
         purge_failed=1
     fi
     rm -rf /etc/vbox /opt/VirtualBox /usr/lib/virtualbox /etc/apt/sources.list.d/virtualbox.list &>/dev/null
-    rm -rf /var/lib/dpkg/info/virtualbox* &>/dev/null
     # Optional: delete virtual disk config
     #rm -rf ~/.config/VirtualBox # Optional
     if [ "$purge_failed" -gt 0 ]; then
@@ -283,7 +285,7 @@ if [ "$vboxversion" ]; then
     if [ "$answer" = "y" ]; then
         vboxpurge
     else
-        echo "Virtualbox will not be removed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: VirtualBox kept -skip"
     fi
 else
     echo "Virtualbox is not installed. Do you want to install it? (y/n)"
@@ -291,7 +293,7 @@ else
     if [ "$answer" = "y" ]; then
         vboxinstall || exit 1
     else
-        echo "Virtualbox will not be installed"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: VirtualBox not installed -skip"
     fi
 fi
 

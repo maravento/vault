@@ -496,7 +496,7 @@ EOF
 
     tmp_err=$(mktemp) || err "Failed to create temporary file."
     read -ra fuse_args <<< "$FUSE_CMD"
-    if $elevate_cmd "${fuse_args[@]}" "$LOCAL_DIR" 2> "$tmp_err"; then
+    if "${fuse_args[@]}" "$LOCAL_DIR" 2> "$tmp_err"; then
         info "Mounted via FUSE command." "Mounted"
     else
         err_msg=$(< "$tmp_err")

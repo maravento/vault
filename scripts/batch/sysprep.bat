@@ -136,17 +136,24 @@ start /wait PowerShell.exe -NoProfile -Command "& {Start-Process -Wait PowerShel
   echo;      ^</OOBE^>
   echo;      ^<AutoLogon^>
   echo;        ^<Password^>
-  echo;          ^<Value^>%pwd%^</Value^>
+  echo;          ^<Value^>__PWD__^</Value^>
   echo;          ^<PlainText^>true^</PlainText^>
   echo;        ^</Password^>
   echo;        ^<Enabled^>true^</Enabled^>
   echo;        ^<LogonCount^>1^</LogonCount^>
-  echo;        ^<Username^>%username%^</Username^>
+  echo;        ^<Username^>__USER__^</Username^>
   echo;      ^</AutoLogon^>
   echo;    ^</component^>
   echo;  ^</settings^>
   echo;^</unattend^>
 ) >>"%tmpdir%\sysprep_unattend.xml"
+
+powershell -NoProfile -Command "try { $f='%tmpdir%\sysprep_unattend.xml'; [xml]$x=Get-Content -Raw -LiteralPath $f; $n=New-Object Xml.XmlNamespaceManager $x.NameTable; $n.AddNamespace('u','urn:schemas-microsoft-com:unattend'); $x.SelectSingleNode('//u:AutoLogon/u:Password/u:Value',$n).InnerText=$env:pwd; $x.SelectSingleNode('//u:AutoLogon/u:Username',$n).InnerText=$env:USERNAME; $x.Save($f) } catch { exit 1 }"
+if errorlevel 1 (
+    echo ERROR: cannot write the password into the answer file -abort.
+    pause
+    exit /b 1
+)
 
 schtasks /create /tn "SysprepCleanup" /sc onlogon /ru "%username%" /it /rl highest /f /tr "cmd /c rmdir /s /q \"%tmpdir%\" & schtasks /delete /tn \"SysprepCleanup\" /f"
 

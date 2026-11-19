@@ -21,7 +21,7 @@
 
 | File | OS | Size |
 | :---: | :---: | :---: |
-| [uniweb.exe (.zip)](https://mega.nz/file/Od0iCCDR#e8p03qdKlpx0bCqkze_P87DvF1__2FBZm5n-Pz1-Vl0) | Windows 10/11 x64 | 592,5 MB |
+| [uniweb.exe (.zip)](https://mega.nz/file/qQdEnSJJ#sExJCzqSCqICulNJt0YOGMdxYss4d-tGYl78mtMi4MA) | Windows 10/11 x64 | 592,5 MB |
 
 | Package | Version | Path |
 | :---: | :---: | :---: |
@@ -109,6 +109,10 @@
 | --- | --- |
 | User | <code>admin</code> |
 | Password | <code>pwd</code> |
+
+> **Warning:** These are default credentials. Change the password after the first login.
+>
+> **Advertencia:** Estas son credenciales por defecto. Cambie la contraseña después del primer inicio de sesión.
 
 ### DATABASE SETUP
 
