@@ -74,7 +74,7 @@ ERROR_LABELS = {
 
 def normalize_url(url):
     p = urlparse(url)
-    return p.scheme + "://" + p.netloc + p.path + (("?" + p.query) if p.query else "")
+    return p._replace(fragment="").geturl()
 
 def same_domain(url, base_domain):
     return urlparse(url).netloc == base_domain
@@ -152,7 +152,7 @@ def collect_links(resp, domain):
             href = urljoin(final_url, tag["href"])
             norm = normalize_url(href)
             if norm.startswith("http") and same_domain(norm, domain):
-                path = norm.split("?")[0].lower()
+                path = urlparse(norm).path.lower()
                 if not any(path.endswith(e) for e in SKIP_EXTENSIONS):
                     links.add(norm)
         return links

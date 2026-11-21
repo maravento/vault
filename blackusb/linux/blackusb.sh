@@ -124,7 +124,7 @@ for dep in udev systemd util-linux coreutils iproute2 libc-bin nano; do
     fi
 done
 
-# validation -integer only; use directly with =~
+# validation - integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 
 # ------------------------------------------------------------------------------

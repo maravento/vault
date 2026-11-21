@@ -68,7 +68,7 @@ done
 # These passwords are placeholders, not credentials for real archives.
 # Replace them with your archive passwords before running this script.
 # This editable example list is intentionally kept inside the script.
-shopt -s extglob nullglob nocaseglob
+shopt -s nullglob nocaseglob nocasematch
 passw=(
   passfoo
   passbar
@@ -91,7 +91,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: massunzip start..."
 # Try the configured passwords against each supported archive
 found_files=0
 exit_status=0
-for f in *.@(gz|rar|zip|zip.001|7z|7z.001); do
+for f in *.gz *.rar *.zip *.zip.001 *.7z *.7z.001; do
     found_files=1
     [[ ("$f" =~ \.part[[:digit:]]+\.rar$) && ! ("$f" =~ \.part0*1\.rar$) ]] && continue
 
@@ -123,6 +123,10 @@ fi
 # ------------------------------------------------------------------------------
 
 # end
+if (( exit_status )); then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: one or more archives failed -abort" >&2
+    exit 1
+fi
 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: massunzip done"
 
-exit "$exit_status"
+exit 0

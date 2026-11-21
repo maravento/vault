@@ -197,22 +197,21 @@ classify_interface() {
 
 # Detect and classify all interfaces
 detect_and_classify_interfaces() {
-    declare -A iface_data
     local has_wifi=0
     local has_ethernet=0
     local has_virtual=0
     local active_wifi=0
-
 
     while IFS= read -r line; do
         iface=$(echo "$line" | awk '{print $1}' | sed 's/@.*//')
         link_state=$(echo "$line" | awk '{print $2}')
 
         [[ "$iface" == "lo" ]] && continue
+        type=$(classify_interface "$iface")
+        [[ "$type" == "wifi" ]] && has_wifi=1
         [[ "$link_state" != "UP" ]] && continue
 
         ip_addr=$(ip -4 addr show dev "$iface" scope global 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
-        type=$(classify_interface "$iface")
 
         if [[ -z "$ip_addr" ]]; then
             continue
@@ -220,7 +219,6 @@ detect_and_classify_interfaces() {
 
         case "$type" in
             wifi)
-                has_wifi=1
                 active_wifi=1
                 ;;
             ethernet)

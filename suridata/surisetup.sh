@@ -130,7 +130,7 @@ abort() { err "$*"; exit 1; }
 # VARIABLES
 # ------------------------------------------------------------------------------
 
-# validation -one variable per thing validated; use directly with =~
+# validation - one variable per thing validated; use directly with =~
 UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
 UH_UINT='^(0|[1-9][0-9]*)$'
 
@@ -633,7 +633,8 @@ install_packages() {
     local failure_message="cannot verify the installed packages"
     local pkg
     local -a missing=()
-    for pkg in "${project_packages[@]}"; do
+    (( $# > 0 )) || set -- "${project_packages[@]}"
+    for pkg in "$@"; do
         dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q 'ok installed' || missing+=("$pkg")
     done
     if (( ${#missing[@]} == 0 )); then
@@ -1157,7 +1158,7 @@ confirm_install_replacements() {
     local existing_config answer
     local -a existing_configs=()
     for existing_config in "$suridata_env" "$suricata_yaml" "$suricata_service" \
-        "$evebox_dir/evebox.yaml" "$evebox_service"; do
+        "$evebox_dir/evebox.yaml" "$evebox_service" "$rotate_file" "$cron_file"; do
         [ ! -f "$existing_config" ] || existing_configs+=("$existing_config")
     done
     if (( ${#existing_configs[@]} == 0 )); then
@@ -1166,9 +1167,9 @@ confirm_install_replacements() {
     echo "Suridata will replace or modify these existing configurations:"
     printf ' %s\n' "${existing_configs[@]}"
     echo "Suricata and EveBox services will be configured and restarted."
-    read -r -p "Continue with these changes? [y/N]: " answer || answer=""
+    read -r -p "Continue with these changes? [Y/n]: " answer || answer=n
     case "${answer,,}" in
-        y|yes) ;;
+        ""|y|yes) ;;
         *) info "installation cancelled"; log "INFO: surisetup done"; exit 0 ;;
     esac
     for existing_config in "${existing_configs[@]}"; do
@@ -1180,7 +1181,16 @@ confirm_install_replacements() {
 do_install() {
     check_requirements install
     local failure_message="cannot install suridata"
-    install_packages
+    local pkg
+    local -a script_packages=()
+    for pkg in "${project_packages[@]}"; do
+        case "$pkg" in
+            suricata|suricata-update|ulogd2) ;;
+            *) script_packages+=("$pkg") ;;
+        esac
+    done
+    install_packages "${script_packages[@]}"
+    install_packages suricata suricata-update ulogd2
     calculate_lan_network
     install_files
     write_env

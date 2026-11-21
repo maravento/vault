@@ -625,6 +625,10 @@ sudo bash nwatchsetup.sh
   </tr>
 </table>
 
+> Before installing packages, Nwatch lists the existing files it will change. Enter or Yes accepts `[Y/n]` and saves adjacent `.bak` copies. No cancels installation.
+>
+> Antes de instalar paquetes, Nwatch enumera los archivos existentes que cambiará. Enter o Sí acepta `[Y/n]` y guarda copias `.bak` junto a los originales. No cancela la instalación.
+
 ##### Update & Uninstall
 
 | File | `--update` | `--uninstall` |

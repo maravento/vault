@@ -154,7 +154,7 @@ apt_deps=(systemd apache2 apache2-bin apache2-data apache2-doc apache2-utils lib
 # management-interface prompt).
 virtual_iface_pattern='^(lo|docker.*|br-.*|veth.*|virbr.*|tun.*|tap.*|wg.*)$'
 
-# validation -one variable per thing validated; use directly with =~
+# validation - one variable per thing validated; use directly with =~
 UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
 UH_UINT='^(0|[1-9][0-9]*)$'
 
@@ -619,7 +619,8 @@ check_internet() {
 # Install the missing packages of apt_deps
 install_deps() {
     local dep_pkg missing_pkgs=()
-    for dep_pkg in "${apt_deps[@]}"; do
+    (( $# > 0 )) || set -- "${apt_deps[@]}"
+    for dep_pkg in "$@"; do
         [[ "$(dpkg-query -W -f='${Status}' "$dep_pkg" 2>/dev/null)" == *"ok installed"* ]] || missing_pkgs+=("$dep_pkg")
     done
     (( ${#missing_pkgs[@]} == 0 )) && return 0
@@ -959,18 +960,40 @@ add_reboot_cron() {
 # Apache keeps 14 rotations by default; the projects keep 7
 set_apache_logrotate() {
     local apache_rotate="/etc/logrotate.d/apache2"
-    [ -f "$apache_rotate" ] || { log "WARNING: apache2 has no logrotate file -alert"; return 0; }
-    if grep -qE '^[[:space:]]*rotate[[:space:]]+7$' "$apache_rotate"; then
-        log "INFO: ${apache_rotate#/etc/} already rotate 7 -skip"
+    # Replaced, not edited; the package rotation and reload are kept.
+    if [ -f "$apache_rotate" ]; then
+        cp -f "$apache_rotate" "$apache_rotate.bak" \
+            || { log "WARNING: cannot back up ${apache_rotate#/etc/} -alert"; return 0; }
+    fi
+    if ! cat > "$apache_rotate" <<'EOF'
+/var/log/apache2/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 root adm
+    sharedscripts
+    prerotate
+        if [ -d /etc/logrotate.d/httpd-prerotate ]; then
+            run-parts /etc/logrotate.d/httpd-prerotate
+        fi
+    endscript
+    postrotate
+        if pgrep -f ^/usr/sbin/apache2 > /dev/null; then
+            invoke-rc.d apache2 reload 2>&1 | logger -t apache2.logrotate
+        fi
+    endscript
+}
+EOF
+    then
+        log "WARNING: cannot write ${apache_rotate#/etc/} -alert"
         return 0
     fi
-    cp -f "$apache_rotate"{,.bak} &>/dev/null || true
-    sed -i -E 's/^([[:space:]]*)rotate[[:space:]]+[0-9]+$/\1rotate 7/' "$apache_rotate"
-    if grep -qE '^[[:space:]]*rotate[[:space:]]+7$' "$apache_rotate"; then
-        log "INFO: ${apache_rotate#/etc/} set to rotate 7 -fixed"
-    else
-        log "WARNING: cannot set rotate 7 in ${apache_rotate#/etc/} -alert"
-    fi
+    chown root:root "$apache_rotate" && chmod 644 "$apache_rotate" \
+        || { log "WARNING: cannot set ${apache_rotate#/etc/} permissions -alert"; return 0; }
+    log "INFO: ${apache_rotate#/etc/} replaced, previous kept as .bak -fixed"
 }
 
 install_project_logrotate() {
@@ -999,29 +1022,43 @@ EOF
     set_apache_logrotate
 }
 
+confirm_install_replacements() {
+    local existing_config answer
+    local -a existing_configs=()
+    for existing_config in /etc/apache2/ports.conf /etc/apache2/sites-available/nwatch.conf \
+        /etc/logrotate.d/apache2 /etc/logrotate.d/nwatch /etc/php/*/apache2/php.ini \
+        /etc/cron.d/nwatch; do
+        [ ! -f "$existing_config" ] || existing_configs+=("$existing_config")
+    done
+    (( ${#existing_configs[@]} > 0 )) || return 0
+    printf '%s\n' "Existing configurations to change:"
+    printf ' %s\n' "${existing_configs[@]}"
+    echo "Apache modules and the Nwatch site will be configured."
+    read -r -p "Continue with these changes? [Y/n]: " answer || answer=n
+    case "${answer,,}" in
+        ""|y|yes) ;;
+        *) log "INFO: installation cancelled"; log "INFO: nwatchsetup done"; exit 0 ;;
+    esac
+    for existing_config in "${existing_configs[@]}"; do
+        cp -p -- "$existing_config" "${existing_config}.bak" \
+            || { log "ERROR: cannot back up $(basename "$existing_config") -abort"; exit 1; }
+    done
+}
+
 do_install() {
     check_requirements install
+    confirm_install_replacements
 
-    # A reused Apache gets its existing configuration modified: ask first
-    if dpkg -s apache2 &>/dev/null; then
-        local apache_configs=() apache_php_ini apache_answer
-        [[ -f /etc/apache2/ports.conf ]] && apache_configs+=(/etc/apache2/ports.conf)
-        [[ -f /etc/logrotate.d/apache2 ]] && apache_configs+=(/etc/logrotate.d/apache2)
-        for apache_php_ini in /etc/php/*/apache2/php.ini; do
-            [ -f "$apache_php_ini" ] && apache_configs+=("$apache_php_ini")
-        done
-        if (( ${#apache_configs[@]} > 0 )); then
-            echo "nwatch will modify these existing Apache configurations:"
-            printf ' %s\n' "${apache_configs[@]}"
-            read -r -p "Continue with these changes? [y/N]: " apache_answer || apache_answer=""
-            case "${apache_answer,,}" in
-                y|yes) ;;
-                *) log "INFO: installation cancelled"; log "INFO: nwatchsetup done"; exit 0 ;;
-            esac
-        fi
-    fi
-
-    install_deps
+    local dep_pkg apache_php_ini
+    local -a script_packages=() apache_packages=()
+    for dep_pkg in "${apt_deps[@]}"; do
+        case "$dep_pkg" in
+            apache2|apache2-*|libapache2-mod-php|php-sqlite3) apache_packages+=("$dep_pkg") ;;
+            *) script_packages+=("$dep_pkg") ;;
+        esac
+    done
+    install_deps "${script_packages[@]}"
+    install_deps "${apache_packages[@]}"
     # apache2-doc breaks after apache2 installs or upgrades; reinstall it always
     if ! retry_cmd "install packages" env DEBIAN_FRONTEND=noninteractive apt-get -qq install -y --reinstall apache2-doc; then
         log "ERROR: cannot reinstall apache2-doc -abort"
@@ -1118,7 +1155,12 @@ PMODE
     fi
 
     # apache vhost
-    cp -f /etc/apache2/ports.conf{,.bak} &>/dev/null
+    if [ ! -f /etc/apache2/ports.conf.bak ]; then
+        cp -p /etc/apache2/ports.conf{,.bak} || {
+            log "ERROR: cannot back up ports.conf -abort"
+            exit 1
+        }
+    fi
     sed -i "/^Listen .*:${vhost_port}\$/d" /etc/apache2/ports.conf
     printf 'Listen 127.0.0.1:%s\n' "$vhost_port" | tee -a /etc/apache2/ports.conf
     cp -f "$web_dir/nwatch.conf" /etc/apache2/sites-available/nwatch.conf || {

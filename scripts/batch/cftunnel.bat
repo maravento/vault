@@ -202,7 +202,7 @@ function Create-Tunnel {
     if (Test-Path -LiteralPath $config) { throw "Configuration already exists: $config" }
     $hostname = Ask 'Public hostname (e.g. sub.domain.com)'
     if (!$hostname) { return }
-    if ($hostname -notmatch '^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$') {
+    if ($hostname -notmatch '^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$') {
         throw 'Invalid public hostname'
     }
     $type = Ask 'Service type (e.g. http, https or tcp)' 'http'

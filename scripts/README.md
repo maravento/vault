@@ -190,7 +190,7 @@ Tested on: Windows 10/11 x64
 
 #### Networking & System
 
-- [Autorun Disable](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/autorun.bat)
+- [Autorun (enable|disable)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/autorun.bat)
 - [Cloudflare Tunnel (--create|--start|--startall|--stop|--status|--delete) - Zero Trust Activation Recommended](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/cftunnel.bat)
 - [Net Reset (Proxy and NIC)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/netreset.bat)
 - [Non-Essential Services (disable|auto)](https://raw.githubusercontent.com/maravento/vault/master/scripts/batch/nonservices.bat)

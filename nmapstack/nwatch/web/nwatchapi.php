@@ -130,7 +130,7 @@ function is_valid_host($host) {
     if ($host === '' || strlen($host) > 253) return false;
     if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) return true;
     if (preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/', $host)) return true;
-    return (bool) preg_match('/^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/', $host);
+    return (bool) preg_match('/^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$/', $host);
 }
 
 // ports_mode.conf is deliberately separate from nwatch.env (which holds
