@@ -196,7 +196,15 @@ report_file="${report_dir}/filereport_$(date +%F-%H_%M_%S).html"
 # Collect the file inventory used to build the report
 scan_list=$(mktemp)
 trap 'rm -f "$scan_list"' EXIT
-if ! find "$targetfolder" -type f -printf '%s\t%p\n' 2>/dev/null > "$scan_list"; then
+if ! find "$targetfolder" -type f -printf '%s\t%p\0' 2>/dev/null |
+    while IFS= read -r -d '' record; do
+        size=${record%%$'\t'*}
+        name=${record#*$'\t'}
+        name=${name//\\/\\\\}
+        name=${name//$'\t'/\\t}
+        name=${name//$'\n'/\\n}
+        printf '%s\t%s\n' "$size" "$name" || exit 1
+    done > "$scan_list"; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') WARNING: scan incomplete, partial report -alert" >&2
 fi
 total_files=$(wc -l < "$scan_list")

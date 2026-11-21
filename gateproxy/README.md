@@ -122,10 +122,10 @@ etc/
 <table width="100%">
   <tr>
     <td style="width: 50%; vertical-align: top;">
-     Run the following command on a fresh installation. The script must be executed as root or with <code>sudo</code>.
+     Run the following command on a fresh installation. GateProxy replaces system files without asking for confirmation, and aborts if an essential component is already installed. The script must be executed as root or with <code>sudo</code>.
     </td>
     <td style="width: 50%; vertical-align: top;">
-     Ejecute el siguiente comando en una instalación limpia. El script debe ejecutarse como root o con <code>sudo</code>.
+     Ejecute el siguiente comando en una instalación limpia. GateProxy reemplaza archivos del sistema sin pedir confirmación y aborta si ya existe un componente esencial. El script debe ejecutarse como root o con <code>sudo</code>.
     </td>
   </tr>
 </table>
@@ -257,6 +257,8 @@ curl http://SERVER_IP:18800/wpad.pac
 | `isc-dhcp-server`, `kea-dhcp4-server`, `udhcpd` | DHCP: abort installation | DHCP: abortar la instalación |
 | `squid`, `squid3`, `squid-openssl` | Proxy: abort installation | Proxy: abortar la instalación |
 | `apache2`, `nginx`, `lighttpd`, `caddy` | Web server: abort installation | Servidor web: abortar la instalación |
+| `php`, `libapache2-mod-php` | PHP: abort installation | PHP: abortar la instalación |
+| `/etc/proxymon`, `/etc/pydhcp`, `/etc/smbstack`, `/etc/uhm` | Project already installed: abort installation | Proyecto ya instalado: abortar la instalación |
 | `samba` | File server: abort installation | Servidor de archivos: abortar la instalación |
 | `syslog-ng` | Syslog: abort installation | Syslog: abortar la instalación |
 | `firewalld`, `fail2ban` | Firewall: abort installation | Firewall: abortar la instalación |
@@ -269,6 +271,10 @@ curl http://SERVER_IP:18800/wpad.pac
 > `ntp`, `ntpdate`, `ntpsec` and `chrony` do not abort the installation. The installer removes them with `apt purge` and replaces them with `systemd-timesyncd`.
 >
 > `ntp`, `ntpdate`, `ntpsec` y `chrony` no abortan la instalación. El instalador los elimina con `apt purge` y los reemplaza por `systemd-timesyncd`.
+
+> None of the projects that GateProxy installs may exist beforehand. Servicemon and Netplanmgr are Webmin modules, and Suridata requires Suricata. The `webmin` and `suricata` checks cover them.
+>
+> Ninguno de los proyectos que instala GateProxy puede existir antes. Servicemon y Netplanmgr son módulos de Webmin, y Suridata requiere Suricata. Las comprobaciones de `webmin` y `suricata` los cubren.
 
 #### Log Rotation
 

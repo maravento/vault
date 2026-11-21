@@ -336,7 +336,7 @@ acl_root=/etc/acl
 gateproxy_env="/etc/gateproxy/gateproxy.env"
 scr_root=/etc/scr
 
-# validation -one variable per thing validated; use directly with =~
+# validation - one variable per thing validated; use directly with =~
 UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
 UH_NETMASK='^(0\.0\.0\.0|128\.0\.0\.0|192\.0\.0\.0|224\.0\.0\.0|240\.0\.0\.0|248\.0\.0\.0|252\.0\.0\.0|254\.0\.0\.0|255\.0\.0\.0|255\.128\.0\.0|255\.192\.0\.0|255\.224\.0\.0|255\.240\.0\.0|255\.248\.0\.0|255\.252\.0\.0|255\.254\.0\.0|255\.255\.0\.0|255\.255\.128\.0|255\.255\.192\.0|255\.255\.224\.0|255\.255\.240\.0|255\.255\.248\.0|255\.255\.252\.0|255\.255\.254\.0|255\.255\.255\.0|255\.255\.255\.128|255\.255\.255\.192|255\.255\.255\.224|255\.255\.255\.240|255\.255\.255\.248|255\.255\.255\.252|255\.255\.255\.254|255\.255\.255\.255)$'
 UH_UINT='^(0|[1-9][0-9]*)$'
@@ -594,6 +594,15 @@ failure_message="cannot check conflicting packages"
 check_conflicts "proxy"       squid squid3 squid-openssl
 failure_message="cannot check conflicting packages"
 check_conflicts "web server"  apache2 nginx lighttpd caddy
+failure_message="cannot check conflicting packages"
+check_conflicts "PHP"         php libapache2-mod-php
+failure_message="cannot check existing projects"
+for project_dir in /etc/proxymon /etc/pydhcp /etc/smbstack /etc/uhm; do
+    if [ -e "$project_dir" ] || [ -L "$project_dir" ]; then
+        err "project already installed ($project_dir) -abort"
+        exit 1
+    fi
+done
 failure_message="cannot check conflicting packages"
 check_conflicts "file server" samba
 failure_message="cannot check conflicting packages"
@@ -1007,6 +1016,8 @@ echo "    RAM:      4 GB cache_mem (12+ GB RAM recommended)"
 echo "    Storage:  100000 MB rock cache plus system and service files"
 echo "    SO:       Ubuntu 24.04/26.04 LTS"
 echo ""
+echo "    For a clean system only. GateProxy replaces system files"
+echo "    (Apache, PHP, Squid, logrotate) without asking again."
 echo "    Press ENTER to start or CTRL+C to abort"
 echo ""
 failure_message="cannot read the continue confirmation"
@@ -1824,35 +1835,65 @@ failure_message="cannot add www-data to the proxy group"
 usermod -aG proxy www-data
 failure_message="cannot enable squid.service"
 systemctl enable squid.service
-if [ ! -f /etc/logrotate.d/squid ]; then
-    warn "Squid logrotate missing; rotation unchanged -alert"
-else
-    cp -f /etc/logrotate.d/squid{,.bak} &>/dev/null || true
-    failure_message="cannot edit Squid logrotate settings"
-    sed -i '/^[[:space:]]*nocreate$/d' /etc/logrotate.d/squid
-    if ! grep -qE '^[[:space:]]*create[[:space:]]+0640[[:space:]]+proxy[[:space:]]+proxy$' /etc/logrotate.d/squid; then
-        failure_message="cannot edit Squid logrotate settings"
-        sed -i '/sharedscripts/a \    create 0640 proxy proxy' /etc/logrotate.d/squid
-    fi
-    failure_message="cannot edit Squid logrotate settings"
-    sed -i -E 's/^([[:space:]]*)rotate[[:space:]]+[0-9]+$/\1rotate 7/' /etc/logrotate.d/squid
-    failure_message="cannot edit Squid logrotate settings"
-    sed -i -E 's/^([[:space:]]*)(hourly|daily|monthly|yearly)$/\1weekly/' /etc/logrotate.d/squid
-    for rotate_option in compress delaycompress missingok notifempty; do
-        if ! grep -qE "^[[:space:]]*$rotate_option$" /etc/logrotate.d/squid; then
-            failure_message="cannot edit Squid logrotate settings"
-            sed -i -E "0,/^([[:space:]]*)rotate[[:space:]]+7$/s//&\n\1$rotate_option/" /etc/logrotate.d/squid
-        fi
-    done
+# Squid and Apache rotation files are replaced, not edited; the previous
+# file is kept as .bak in the same path.
+if [ -f /etc/logrotate.d/squid ]; then
+    failure_message="cannot back up Squid logrotate settings"
+    cp -f /etc/logrotate.d/squid /etc/logrotate.d/squid.bak
 fi
+failure_message="cannot write Squid logrotate settings"
+cat > /etc/logrotate.d/squid <<'EOF'
+/var/log/squid/*.log {
+    weekly
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 proxy proxy
+    sharedscripts
+    prerotate
+        test ! -x /usr/sbin/sarg-reports || /usr/sbin/sarg-reports daily
+    endscript
+    postrotate
+        test ! -e /run/squid.pid || test ! -x /usr/sbin/squid || /usr/sbin/squid -k rotate
+    endscript
+}
+EOF
+failure_message="cannot set Squid logrotate permissions"
+chown root:root /etc/logrotate.d/squid
+chmod 644 /etc/logrotate.d/squid
 # Apache keeps 14 rotations by default; the projects keep 7
 if [ -f /etc/logrotate.d/apache2 ]; then
-    cp -f /etc/logrotate.d/apache2{,.bak} &>/dev/null || true
-    failure_message="cannot edit Apache logrotate settings"
-    sed -i -E 's/^([[:space:]]*)rotate[[:space:]]+[0-9]+$/\1rotate 7/' /etc/logrotate.d/apache2
-else
-    warn "apache2 has no logrotate file -alert"
+    failure_message="cannot back up Apache logrotate settings"
+    cp -f /etc/logrotate.d/apache2 /etc/logrotate.d/apache2.bak
 fi
+failure_message="cannot write Apache logrotate settings"
+cat > /etc/logrotate.d/apache2 <<'EOF'
+/var/log/apache2/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 root adm
+    sharedscripts
+    prerotate
+        if [ -d /etc/logrotate.d/httpd-prerotate ]; then
+            run-parts /etc/logrotate.d/httpd-prerotate
+        fi
+    endscript
+    postrotate
+        if pgrep -f ^/usr/sbin/apache2 > /dev/null; then
+            invoke-rc.d apache2 reload 2>&1 | logger -t apache2.logrotate
+        fi
+    endscript
+}
+EOF
+failure_message="cannot set Apache logrotate permissions"
+chown root:root /etc/logrotate.d/apache2
+chmod 644 /etc/logrotate.d/apache2
 # Let's Encrypt certificate for client to Squid proxy encryption (Optional)
 #apt install -y certbot python3-certbot-apache
 
@@ -1908,6 +1949,7 @@ if (cd "$gp_path" && retry_cmd "clone project sources" git clone https://github.
             chmod +x pmsetup.sh
             if ! PROXYMON_LAN="$LAN_IF" PROXYMON_SERVER_IP="$SERVER_IP" \
                 PROXYMON_BANDATA_DNS="$SERVER_IP" \
+                PROXYMON_CONFIRM_CONFIG_CHANGES=yes \
                 PROXYMON_SQUID_MGR_PORT="${PORTNEW:-3128}" \
                 PROXYMON_SQUID_INTERCEPT_PORT="$INTERCEPT_PORTNEW" ./pmsetup.sh --install; then
                 warn "pmsetup.sh install failed -alert"

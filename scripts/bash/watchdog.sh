@@ -49,7 +49,7 @@ for dep in libnotify-bin iputils-ping util-linux coreutils grep sed; do
     fi
 done
 
-# validation -integer only; use directly with =~
+# validation - integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 # Desktop notification helper (X11 and Wayland, silent if no desktop session)
 # desktop notification to the current user (X11 and Wayland, no sudo)

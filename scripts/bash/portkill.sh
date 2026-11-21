@@ -112,7 +112,7 @@ listener_pids() {
     grep -oP 'pid=\K[0-9]+' <<<"$ss_out" | sort -u || true
 }
 
-# validation -integer only; use directly with =~
+# validation - integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 
 # ------------------------------------------------------------------------------

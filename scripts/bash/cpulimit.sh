@@ -107,7 +107,7 @@ for dep in cpulimit procps util-linux iproute2 libc-bin coreutils grep; do
     fi
 done
 
-# validation -integer only; use directly with =~
+# validation - integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 
 # ------------------------------------------------------------------------------

@@ -298,14 +298,13 @@ if (umask 077; zip -r -q -y "$backup_part" "${backup_list[@]}"); then
         exit 1
     fi
     # keep only the last 3
+    backup_pattern=".*/bkconf_[0-9]{8}_[0-9]{6}[.]zip"
     retention_ok=1
-    find "$backup_dir" -mindepth 1 -maxdepth 1 ! -name 'bkconf_*.zip' -exec rm -rf {} + \
-        || retention_ok=0
-    old_backups=("$backup_dir"/bkconf_*.zip)
-    if (( ${#old_backups[@]} > 3 )); then
-        printf '%s\0' "${old_backups[@]}" | sort -z | head -z -n -3 | xargs -0 -r rm -f -- \
-            || retention_ok=0
-    fi
+    find "$backup_dir" -mindepth 1 -maxdepth 1 -regextype posix-extended \
+        \( ! -type f -o ! -regex "$backup_pattern" \) -exec rm -rf -- {} + || retention_ok=0
+    find "$backup_dir" -mindepth 1 -maxdepth 1 -regextype posix-extended \
+        -type f -regex "$backup_pattern" -print0 |
+        sort -z | head -z -n -3 | xargs -0 -r rm -f -- || retention_ok=0
     (( retention_ok )) || log "WARNING: backup retention incomplete -alert"
 else
     rm -f "$backup_part"

@@ -9,8 +9,8 @@
 #
 # DESCRIPTION: Runs a speedtest and alerts (syslog + log file + desktop
 # notification, if a desktop session is available) when download/upload falls
-# below the configured minimum (dlmin/ulmin below, user-editable). Exits 1 if
-# either value is below the minimum, 0 otherwise -- usable as a cron watchdog.
+# below the configured minimum (dlmin/ulmin below, user-editable). A completed
+# measurement exits 0, including when either speed is below the minimum.
 #
 # USAGE:
 # COMMAND             ACTION
@@ -282,4 +282,4 @@ fi
 # ------------------------------------------------------------------------------
 
 log "INFO: bwmon done"
-exit "$below_threshold"
+exit 0

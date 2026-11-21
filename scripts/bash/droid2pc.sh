@@ -39,7 +39,7 @@ for dep in zenity adb scrcpy procps util-linux coreutils grep; do
     fi
 done
 
-# validation -integer only; use directly with =~
+# validation - integer only; use directly with =~
 UH_UINT='^(0|[1-9][0-9]*)$'
 
 # ------------------------------------------------------------------------------

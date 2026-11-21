@@ -154,7 +154,7 @@ apt_deps=(systemd apache2 apache2-bin apache2-data apache2-doc apache2-utils lib
 # management-interface prompt).
 virtual_iface_pattern='^(lo|docker.*|br-.*|veth.*|virbr.*|tun.*|tap.*|wg.*)$'
 
-# validation -one variable per thing validated; use directly with =~
+# validation - one variable per thing validated; use directly with =~
 UH_CIDR='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
 UH_UINT='^(0|[1-9][0-9]*)$'
 
@@ -959,18 +959,40 @@ add_reboot_cron() {
 # Apache keeps 14 rotations by default; the projects keep 7
 set_apache_logrotate() {
     local apache_rotate="/etc/logrotate.d/apache2"
-    [ -f "$apache_rotate" ] || { log "WARNING: apache2 has no logrotate file -alert"; return 0; }
-    if grep -qE '^[[:space:]]*rotate[[:space:]]+7$' "$apache_rotate"; then
-        log "INFO: ${apache_rotate#/etc/} already rotate 7 -skip"
+    # Replaced, not edited; the package rotation and reload are kept.
+    if [ -f "$apache_rotate" ]; then
+        cp -f "$apache_rotate" "$apache_rotate.bak" \
+            || { log "WARNING: cannot back up ${apache_rotate#/etc/} -alert"; return 0; }
+    fi
+    if ! cat > "$apache_rotate" <<'EOF'
+/var/log/apache2/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 root adm
+    sharedscripts
+    prerotate
+        if [ -d /etc/logrotate.d/httpd-prerotate ]; then
+            run-parts /etc/logrotate.d/httpd-prerotate
+        fi
+    endscript
+    postrotate
+        if pgrep -f ^/usr/sbin/apache2 > /dev/null; then
+            invoke-rc.d apache2 reload 2>&1 | logger -t apache2.logrotate
+        fi
+    endscript
+}
+EOF
+    then
+        log "WARNING: cannot write ${apache_rotate#/etc/} -alert"
         return 0
     fi
-    cp -f "$apache_rotate"{,.bak} &>/dev/null || true
-    sed -i -E 's/^([[:space:]]*)rotate[[:space:]]+[0-9]+$/\1rotate 7/' "$apache_rotate"
-    if grep -qE '^[[:space:]]*rotate[[:space:]]+7$' "$apache_rotate"; then
-        log "INFO: ${apache_rotate#/etc/} set to rotate 7 -fixed"
-    else
-        log "WARNING: cannot set rotate 7 in ${apache_rotate#/etc/} -alert"
-    fi
+    chown root:root "$apache_rotate" && chmod 644 "$apache_rotate" \
+        || { log "WARNING: cannot set ${apache_rotate#/etc/} permissions -alert"; return 0; }
+    log "INFO: ${apache_rotate#/etc/} replaced, previous kept as .bak -fixed"
 }
 
 install_project_logrotate() {
