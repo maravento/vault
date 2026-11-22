@@ -23,9 +23,6 @@ set -uo pipefail
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
-# awk is a command, not a package: check it before its first use
-command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
-
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # root check
@@ -33,6 +30,9 @@ if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
 
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"

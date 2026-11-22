@@ -49,50 +49,6 @@ chmod +x gitfolder.py
 python3 gitfolder.py https://github.com/maravento/vault/scripts
 ```
 
-### Installation Options
-
-<table width="100%">
-  <tr>
-    <td style="width: 50%; vertical-align: top;">
-      Installation actions use <code>--install</code>, <code>--update</code> and <code>--uninstall</code>. When several components are available, name the component after the option. Each tool accepts only the operations listed below. Run without arguments to use its menu.
-    </td>
-    <td style="width: 50%; vertical-align: top;">
-      Las acciones de instalación usan <code>--install</code>, <code>--update</code> y <code>--uninstall</code>. Si existen varios componentes, indique el componente después de la opción. Cada herramienta acepta únicamente las operaciones indicadas. Ejecute sin argumentos para utilizar su menú.
-    </td>
-  </tr>
-</table>
-
-| Script | Accepted options |
-| --- | --- |
-| `docker.sh`, `winboat.sh` | `--install`, `--uninstall`, `--help` |
-| `aistack.sh` | `--install [component]`, `--update <component>`, `--uninstall [component]`, `--status`, `--model`, `--help` |
-| `unifisetup.sh` | `--install`, `--update` or `--uninstall`, followed by `network` or `osserver`; `--status`, `--help` |
-| `vbox.sh`, `joomla.sh` | Interactive operation; no installation flags |
-
-#### UniFi Examples
-
-```bash
-sudo bash unifisetup.sh --install network
-sudo bash unifisetup.sh --update osserver
-sudo bash unifisetup.sh --uninstall network
-sudo bash unifisetup.sh --status
-```
-
-#### AI Stack Examples
-
-```bash
-sudo bash aistack.sh --install
-sudo bash aistack.sh --install opencode
-sudo bash aistack.sh --update opencode
-sudo bash aistack.sh --install opencode-desktop appimage
-sudo bash aistack.sh --uninstall opencode-desktop
-sudo bash aistack.sh --status
-```
-
-> AI Stack defaults: <code>--install</code> selects <code>stack</code>; <code>--uninstall</code> selects <code>all</code>. The optional <code>appimage</code> or <code>deb</code> format applies only to <code>--install opencode-desktop</code>. CLI updates are available only for <code>opencode</code> and <code>opencode-desktop</code>.
->
-> Valores predeterminados de AI Stack: <code>--install</code> selecciona <code>stack</code>; <code>--uninstall</code> selecciona <code>all</code>. El formato opcional <code>appimage</code> o <code>deb</code> corresponde únicamente a <code>--install opencode-desktop</code>. La actualización por CLI solo está disponible para <code>opencode</code> y <code>opencode-desktop</code>.
-
 ## HOW IT WORKS
 
 ---
@@ -123,10 +79,6 @@ sudo bash aistack.sh --status
 - [make sha256](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/makesha256)
 - [mount manager (smb, sftp, fuse)](https://raw.githubusercontent.com/maravento/vault/master/scripts/fms/mountman)
 
-> FMS installation requires an X11 or Wayland desktop session. Run the installer as the desktop user, without sudo. It installs for every supported file manager it finds, and skips the ones that already have FMS. Without `DISPLAY` or `WAYLAND_DISPLAY`, it aborts before installing scripts. Uninstallation remains available without a graphical session. `--install` and `--update` ask before installing missing APT packages with sudo. `--uninstall` never uninstalls APT packages.
->
-> La instalación de FMS requiere una sesión de escritorio X11 o Wayland. Ejecute el instalador como usuario del escritorio, sin sudo. Instala en todos los gestores de archivos compatibles que encuentre, y omite los que ya tienen FMS. Si no existen `DISPLAY` ni `WAYLAND_DISPLAY`, aborta antes de instalar scripts. La desinstalación sigue disponible sin sesión gráfica. `--install` y `--update` preguntan antes de instalar con sudo los paquetes APT que falten. `--uninstall` nunca desinstala paquetes APT.
-
 #### Networking, Remote Access & Security
 
 - [Android 2 PC via scrcpy (--start|--stop|--status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/droid2pc.sh)
@@ -134,7 +86,7 @@ sudo bash aistack.sh --status
 - [Internet Watchdog (--start|--stop|--status)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/watchdog.sh)
 - [Iperf3 Client](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/iperf3.sh)
 - [IP Kill](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/ipkill.sh)
-- [Netplan Switch (--status|--to-networkd|--to-nm|--help)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/npswitch.sh)
+- [NIC Manager (--check|--status|--networkd|--nm|--install|--uninstall|--help)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/nic.sh)
 - [Rustdesk Client (install|remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rdclient.sh)
 - [Rustdesk Server (install|update|relay host|start|stop|status|public key|remove)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/rdserver.sh)
 - [Veyon Client Tunnel (connects Veyon Master to a remote Veyon Service via cftunnel.sh)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/veyonclient.sh)
@@ -174,7 +126,6 @@ sudo bash aistack.sh --status
 
 #### Webmin Module Installation Tools
 
-- [Netplan Manager - Networking Category (--install|--uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/netplanmgr.sh)
 - [Services Monitor - System Category (--install|--uninstall)](https://raw.githubusercontent.com/maravento/vault/master/scripts/bash/servicemon.sh)
 
 ### BATCH (Windows)

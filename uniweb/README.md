@@ -1,6 +1,6 @@
 # [Uniweb](https://github.com/maravento)
 
-[![status-deprecated](https://img.shields.io/badge/status-deprecated-red.svg)](https://github.com/maravento)
+[![status-frozen](https://img.shields.io/badge/status-frozen-blue.svg)](https://github.com/maravento)
 
 <!-- markdownlint-disable MD033 -->
 
@@ -253,11 +253,10 @@
 
 ```shell
 Wamp: \wamp64\bin\mysql\mysql(version)
-Xamp: \xampp\mysql
+Xampp: \xampp\mysql
 UZero: \UniServerZ\core\mysql
 Uniweb: \uniweb\mysql
-MySQL Server (no-install package .zip): \mysql\mysql(version)
-MySQL (Community Server): \Program Files\MySQL\MySQL(version)
+MySQL (Community Server .msi): \Program Files\MySQL\MySQL Server(version)
 ```
 
 #### IMPORTANT BEFORE USE RAW OPTION
@@ -340,6 +339,29 @@ MySQL (Community Server): \Program Files\MySQL\MySQL(version)
     </td>
     <td style="width: 50%; vertical-align: top;">
      Este proyecto ha alcanzado el fin de vida (EOL) y el fin de soporte (EOS). Ya no cuenta con soporte o actualizaciones.
+    </td>
+  </tr>
+</table>
+
+## NOTICE
+
+---
+
+<table width="100%">
+  <tr>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>This repository</strong>
+      <ul>
+        <li>May include third-party components.</li>
+        <li>Does not accept Pull Requests. Changes must be proposed via Issues.</li>
+      </ul>
+    </td>
+    <td style="width: 50%; vertical-align: top;">
+      <strong>Este repositorio</strong>
+      <ul>
+        <li>Puede incluir componentes de terceros.</li>
+        <li>No acepta Pull Requests. Los cambios deben proponerse mediante Issues.</li>
+      </ul>
     </td>
   </tr>
 </table>
