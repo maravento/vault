@@ -52,6 +52,39 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: joomla start..."
 # FUNCTIONS
 # ------------------------------------------------------------------------------
 
+install_php_hardening() (
+    local conf_dir="${1%/*}/conf.d" target staged
+    [ -d "$conf_dir" ] || return 1
+    target="$conf_dir/99-project-php-hardening.ini"
+    staged=$(mktemp -- "$target.XXXXXXXX") || return 1
+    trap 'rm -f -- "$staged"' EXIT
+    cat > "$staged" <<'PHP_HARDENING' || return 1
+expose_php = Off
+display_errors = Off
+display_startup_errors = Off
+log_errors = On
+allow_url_include = Off
+enable_dl = Off
+session.use_strict_mode = 1
+session.use_only_cookies = 1
+session.cookie_httponly = 1
+session.upload_progress.enabled = 0
+file_uploads = Off
+upload_max_filesize = 2M
+post_max_size = 8M
+max_file_uploads = 20
+PHP_HARDENING
+    [ ! -L "$target" ] || return 1
+    if [ -e "$target" ]; then
+        [ -f "$target" ] || return 1
+        if cmp -s -- "$staged" "$target" && [ "$(stat -c %a -- "$target")" = 644 ]; then
+            return 0
+        fi
+        [ -f "$target.bak" ] || cp -p -- "$target" "$target.bak" || return 1
+    fi
+    chmod 0644 -- "$staged" && mv -fT -- "$staged" "$target"
+)
+
 retry_cmd() {
     [ "$#" -ge 2 ] || return 2
     local retry_label="$1" retry_attempt retry_status
@@ -248,13 +281,14 @@ install_joomla() {
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot back up $PHP_INI -abort" >&2
             exit 1
         fi
-        sed -i 's/^[[:space:]]*;*[[:space:]]*session\.upload_progress\.enabled[[:space:]]*=.*/session.upload_progress.enabled = 0/' "$PHP_INI"
         sed -i 's/^memory_limit = .*/memory_limit = 512M/' "$PHP_INI"
-        sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 256M/' "$PHP_INI"
-        sed -i 's/^post_max_size = .*/post_max_size = 256M/' "$PHP_INI"
         sed -i 's/^max_execution_time = .*/max_execution_time = 300/' "$PHP_INI"
         sed -i 's/^output_buffering = .*/output_buffering = off/' "$PHP_INI"
         sed -i 's~^;date.timezone =.*~date.timezone = America/Bogota~' "$PHP_INI"
+        install_php_hardening "$PHP_INI" || {
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot edit $PHP_INI -abort" >&2
+            exit 1
+        }
         echo "php.ini updated in: $PHP_INI"
     else
         echo "$PHP_INI Not found"
@@ -382,6 +416,9 @@ EOF
         Options Indexes FollowSymLinks
         AllowOverride All
         Require all granted
+        php_admin_flag file_uploads On
+        php_admin_value upload_max_filesize 256M
+        php_admin_value post_max_size 256M
     </Directory>
 
     ErrorLog \${APACHE_LOG_DIR}/joomla_error.log
@@ -400,6 +437,9 @@ EOF
         Options Indexes FollowSymLinks
         AllowOverride All
         Require all granted
+        php_admin_flag file_uploads On
+        php_admin_value upload_max_filesize 256M
+        php_admin_value post_max_size 256M
     </Directory>
 
     ErrorLog \${APACHE_LOG_DIR}/joomla_error.log

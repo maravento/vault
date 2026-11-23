@@ -317,7 +317,7 @@ MySQL (Community Server .msi): \Program Files\MySQL\MySQL Server(version)
 ---
 
 - [uniCenta oPOS](https://unicenta.com)
-- [MySQL Community Server](https://dev.mysql.com/downloads/mysql/)
+- [MySQL Community Server](https://downloads.mysql.com/archives/community/)
 - [HeidiSQL](https://www.heidisql.com/)
 - [Java SE Runtime Environment 8](https://www.java.com/)
 - [Visual C++ Redistributable AIO](https://github.com/abbodi1406/vcredist)
