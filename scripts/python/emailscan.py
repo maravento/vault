@@ -34,18 +34,24 @@ from datetime import datetime
 # ============================================================
 #  CONFIGURATION — edit the URL and email below before running
 # ============================================================
-BASE_URL     = "https://www.anysite.com"      # Starting URL, including https:// or http://; replace the example
-TARGET_EMAIL = "anymail@anysite.com"           # Email to find in HTML; replace the example
-MAX_PAGES    = 500                             # Maximum URLs attempted; use None for no limit
-REQUEST_TIMEOUT  = 15                         # Request timeout in seconds
-REQUEST_DELAY    = 0                          # Delay between URL attempts, in seconds; 0 disables the delay
-VERIFY_SSL       = True                       # Verify HTTPS certificates; False disables certificate verification
+# Starting URL, including https:// or http://; replace the example
+BASE_URL = "https://www.anysite.com"
+# Email to find in HTML; replace the example
+TARGET_EMAIL = "anymail@anysite.com"
+# Maximum URLs attempted; use None for no limit
+MAX_PAGES = 500
+REQUEST_TIMEOUT = 15                         # Request timeout in seconds
+# Delay between URL attempts, in seconds; 0 disables the delay
+REQUEST_DELAY = 0
+# Verify HTTPS certificates; False disables certificate verification
+VERIFY_SSL = True
 # ============================================================
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                   "AppleWebKit/537.36 (KHTML, like Gecko) "
                   "Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;"
+              "q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
 }
 SKIP_EXTENSIONS = (
@@ -65,13 +71,15 @@ def same_domain(url, base_domain):
 
 
 def email_in_html(email, html):
-    pattern = r'(?<![A-Za-z0-9._%+\-])' + re.escape(email) + r'(?![A-Za-z0-9._%+\-@])'
+    pattern = (r'(?<![A-Za-z0-9._%+\-])' + re.escape(email)
+               + r'(?![A-Za-z0-9._%+\-@])')
     return bool(re.search(pattern, html, re.IGNORECASE))
 
 
 def process_page(url, email, session):
     try:
-        resp = session.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True, verify=VERIFY_SSL)
+        resp = session.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True,
+                           verify=VERIFY_SSL)
         resp.raise_for_status()
         resp.encoding = resp.apparent_encoding or resp.encoding
         html = resp.text
@@ -90,7 +98,8 @@ def process_page(url, email, session):
     except KeyboardInterrupt:
         raise
     except Exception as e:
-        print(f"{datetime.now():%Y-%m-%d %H:%M:%S} WARNING: {url} → {e} -alert")
+        print(f"{datetime.now():%Y-%m-%d %H:%M:%S} "
+              f"WARNING: {url} → {e} -alert")
         return False, set()
 
 

@@ -276,7 +276,7 @@ if (
     chmod 600 "$backup_part"
     if ! mv -fT -- "$backup_part" "$backup_zip"; then
         rm -f "$backup_part"
-        log "ERROR: rename $(basename "$backup_zip"). check chmod -abort"
+        log "ERROR: cannot rename to $(basename "$backup_zip") -abort"
         exit 1
     fi
     log "INFO: backup written to $(basename "$backup_zip")"

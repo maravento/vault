@@ -591,6 +591,12 @@ PY
     fi
 }
 
+query_port_listeners() {
+    local port_error
+    port_error=$(ss -lnH "--$1" "sport = :$2" 2>&1 >&3) || return 1
+    [[ "$port_error" != *[![:space:]]* ]]
+} 3>&1
+
 # IFACES
 # List network interfaces other than loopback
 list_ifaces() {
@@ -994,7 +1000,7 @@ add_reboot_cron() {
 set_apache_logrotate() {
     local apache_rotate="/etc/logrotate.d/apache2"
     # Replaced, not edited; the package rotation and reload are kept.
-    if [ -f "$apache_rotate" ]; then
+    if [ -f "$apache_rotate" ] && [ ! -f "$apache_rotate.bak" ]; then
         cp -f "$apache_rotate" "$apache_rotate.bak" \
             || { log "WARNING: cannot back up ${apache_rotate#/etc/} -alert"; return 0; }
     fi
@@ -1073,7 +1079,7 @@ confirm_install_replacements() {
         *) log "INFO: installation cancelled"; log "INFO: nwatchsetup done"; exit 0 ;;
     esac
     for existing_config in "${existing_configs[@]}"; do
-        cp -p -- "$existing_config" "${existing_config}.bak" \
+        [ -f "${existing_config}.bak" ] || cp -p -- "$existing_config" "${existing_config}.bak" \
             || { log "ERROR: cannot back up $(basename "$existing_config") -abort"; exit 1; }
     done
 }
@@ -1430,23 +1436,7 @@ do_status() {
     echo ""
     echo "=== Apache Port ==="
     local port_listeners
-    if ! port_listeners=$(python3 - tcp "$vhost_port" <<'PY'
-import subprocess
-import sys
-
-try:
-    result = subprocess.run(
-        ["ss", "-lnH", f"--{sys.argv[1]}", f"sport = :{sys.argv[2]}"],
-        capture_output=True,
-        text=True,
-    )
-except OSError:
-    sys.exit(1)
-if result.returncode != 0 or result.stderr.strip():
-    sys.exit(1)
-sys.stdout.write(result.stdout)
-PY
-    ); then
+    if ! port_listeners=$(query_port_listeners tcp "$vhost_port"); then
         echo ":${vhost_port} UNKNOWN"
     elif [ -n "$port_listeners" ]; then
         echo ":${vhost_port} OPEN"

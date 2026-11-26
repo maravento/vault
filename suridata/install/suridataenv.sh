@@ -19,7 +19,7 @@ load_suridata_env() {
         [[ "$env_line" =~ ^[[:space:]]*$ ]] && continue
         env_key="${env_line%%=*}"
         env_value="${env_line#*=}"
-        if [[ ! "$env_line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] \
+        if [[ ! "$env_line" =~ ^([A-Z][A-Z0-9_]*|INTERFACESv4)= ]] \
            || [[ "$env_value" == [[:space:]\"\']* ]] \
            || [[ "$env_value" == *[[:space:]\"\'] ]]; then
             log "ERROR: malformed line in $(basename "$conf_file") -abort"

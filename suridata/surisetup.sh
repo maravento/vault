@@ -1173,7 +1173,7 @@ confirm_install_replacements() {
         *) info "installation cancelled"; log "INFO: surisetup done"; exit 0 ;;
     esac
     for existing_config in "${existing_configs[@]}"; do
-        cp -p -- "$existing_config" "${existing_config}.bak" \
+        [ -f "${existing_config}.bak" ] || cp -p -- "$existing_config" "${existing_config}.bak" \
             || abort "cannot back up $(basename "$existing_config") -abort"
     done
 }

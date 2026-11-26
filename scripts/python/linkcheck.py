@@ -27,17 +27,20 @@ from datetime import datetime
 # ============================================================
 #  CONFIGURATION — edit these values before running
 # ============================================================
-BASE_URL     = "https://www.anysite.com"      # Target website URL
-MAX_PAGES    = 500                            # Maximum pages to crawl (set to None for unlimited)
-TIMEOUT      = 10                             # Seconds to wait for a response
-REQUEST_DELAY = 0                             # Seconds between requests (0 = no delay)
+BASE_URL = "https://www.anysite.com"      # Target website URL
+# Maximum pages to crawl (set to None for unlimited)
+MAX_PAGES = 500
+TIMEOUT = 10                             # Seconds to wait for a response
+# Seconds between requests (0 = no delay)
+REQUEST_DELAY = 0
 # ============================================================
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                   "AppleWebKit/537.36 (KHTML, like Gecko) "
                   "Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;"
+              "q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
 }
 
@@ -76,8 +79,10 @@ def normalize_url(url):
     p = urlparse(url)
     return p._replace(fragment="").geturl()
 
+
 def same_domain(url, base_domain):
     return urlparse(url).netloc == base_domain
+
 
 def classify_http(status):
     if status < 300:
@@ -94,6 +99,7 @@ def classify_http(status):
     if 500 <= status < 600:
         return "5xx"
     return None
+
 
 def check_link(url, session):
     try:
@@ -129,8 +135,9 @@ def check_link(url, session):
         return None, "ssl", None
     except ConnectionError as e:
         msg = str(e).lower()
-        if any(x in msg for x in ["nodename nor servname", "name or service not known",
-                                   "getaddrinfo", "name resolution"]):
+        if any(x in msg for x in ["nodename nor servname",
+                                  "name or service not known",
+                                  "getaddrinfo", "name resolution"]):
             return None, "dns", None
         if any(x in msg for x in ["connection refused", "actively refused"]):
             return None, "refused", None
@@ -144,7 +151,9 @@ def collect_links(resp, domain):
         resp.raise_for_status()
         resp.encoding = resp.apparent_encoding or resp.encoding
         content_type = resp.headers.get("Content-Type", "")
-        parser = "xml" if any(x in content_type for x in ("xml", "rss", "atom")) else "html.parser"
+        parser = ("xml" if any(x in content_type
+                               for x in ("xml", "rss", "atom"))
+                  else "html.parser")
         soup = BeautifulSoup(resp.text, parser)
         final_url = resp.url
         links = set()
@@ -176,7 +185,7 @@ def scan():
     visited = set()
     pending = deque([normalize_url(url)])
     pending_set = {normalize_url(url)}
-    broken  = []
+    broken = []
     by_type = defaultdict(list)
 
     session = requests.Session()
@@ -236,13 +245,15 @@ def scan():
                 print(f"     [{code}] {u}")
             print()
 
-        filename = f"broken_links_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        filename = ("broken_links_"
+                    f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt")
         try:
             with open(filename, "w", encoding="utf-8") as f:
                 f.write("Broken Link Report\n")
                 f.write("==================\n")
                 f.write(f"Site scanned : {url}\n")
-                f.write(f"Date         : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write("Date         : "
+                        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                 f.write(f"Pages scanned: {count}\n")
                 f.write(f"Broken links : {len(broken)}\n\n")
 
@@ -267,6 +278,7 @@ def scan():
             print(f"⚠️  Could not save results to file: {e}")
     else:
         print("\n✅ No broken links found.")
+
 
 if __name__ == "__main__":
     scan()

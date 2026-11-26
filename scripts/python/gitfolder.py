@@ -12,7 +12,8 @@ Only GitHub is supported. Only folders are supported: a file URL or any
 other host aborts with an error.
 
 Usage:
-    wget -qO gitfolder.py https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
+    wget -qO gitfolder.py \
+        https://raw.githubusercontent.com/maravento/vault/master/scripts/python/gitfolder.py
     chmod +x gitfolder.py
     python3 gitfolder.py https://github.com/maravento/vault/project_name
 
@@ -43,7 +44,8 @@ def sanitize_path_component(name):
 
 def sanitize_output_dir(path):
     """Sanitize an output directory path to prevent path traversal attacks."""
-    parts = [sanitize_path_component(p) for p in path.split("/") if p and p != ".."]
+    parts = [sanitize_path_component(p) for p in path.split("/") if p and
+             p != ".."]
     return os.path.join(*parts) if parts else "."
 
 
@@ -54,12 +56,14 @@ def fetch_all_pages(url):
     next_url = url
     while next_url:
         try:
-            response = requests.get(next_url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+            response = requests.get(next_url, headers=HEADERS,
+                                    timeout=REQUEST_TIMEOUT)
         except requests.exceptions.RequestException as e:
             print(f"WARNING: request error: {next_url} -> {e} -alert")
             return items, False
         if response.status_code != 200:
-            print(f"WARNING: failed to retrieve folder [{response.status_code}]: {next_url} -alert")
+            print("WARNING: failed to retrieve folder "
+                  f"[{response.status_code}]: {next_url} -alert")
             return items, False
         page = response.json()
         if isinstance(page, dict):
@@ -70,9 +74,11 @@ def fetch_all_pages(url):
     return items, True
 
 
-def download_folder_from_github(repo_owner, repo_name, folder_path, output_dir, branch=""):
+def download_folder_from_github(repo_owner, repo_name, folder_path, output_dir,
+                                branch=""):
     ref_param = f"?ref={branch}" if branch else ""
-    url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{folder_path}{ref_param}"
+    url = (f"https://api.github.com/repos/{repo_owner}/{repo_name}"
+           f"/contents/{folder_path}{ref_param}")
     contents, fetch_ok = fetch_all_pages(url)
     if not fetch_ok and not contents:
         return False
@@ -87,14 +93,19 @@ def download_folder_from_github(repo_owner, repo_name, folder_path, output_dir, 
         elif item["type"] == "dir":
             safe_name = sanitize_path_component(item["name"])
             if not safe_name:
-                print(f"WARNING: unsafe directory name skipped: {item['name']!r} -alert")
+                print("WARNING: unsafe directory name skipped: "
+                      f"{item['name']!r} -alert")
                 ok = False
                 continue
             subfolder_path = folder_path + '/' + item["name"]
             subfolder_output_dir = os.path.join(output_dir, safe_name)
-            ok = download_folder_from_github(repo_owner, repo_name, subfolder_path, subfolder_output_dir, branch) and ok
+            ok = download_folder_from_github(repo_owner, repo_name,
+                                             subfolder_path,
+                                             subfolder_output_dir,
+                                             branch) and ok
         else:
-            print(f"WARNING: unsupported type '{item['type']}' skipped: {item['name']} -alert")
+            print(f"WARNING: unsupported type '{item['type']}' skipped: "
+                  f"{item['name']} -alert")
             ok = False
     return ok
 
@@ -102,19 +113,23 @@ def download_folder_from_github(repo_owner, repo_name, folder_path, output_dir, 
 def download_item(item, output_dir):
     file_url = item.get("download_url")
     if not file_url:
-        print(f"WARNING: no download_url, skipped: {item.get('name', '?')} -alert")
+        print(f"WARNING: no download_url, skipped: {item.get('name',
+                                                             '?')} -alert")
         return False
     safe_name = sanitize_path_component(item["name"])
     if not safe_name:
-        print(f"INFO: skipped unsafe filename: {item.get('name', '?')!r} -skip")
+        print(f"INFO: skipped unsafe filename: {item.get('name',
+                                                         '?')!r} -skip")
         return False
     try:
-        response = requests.get(file_url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+        response = requests.get(file_url, headers=HEADERS,
+                                timeout=REQUEST_TIMEOUT)
     except requests.exceptions.RequestException as e:
         print(f"WARNING: request error: {file_url} -> {e} -alert")
         return False
     if response.status_code != 200:
-        print(f"WARNING: failed to download [{response.status_code}]: {file_url} -alert")
+        print(f"WARNING: failed to download [{response.status_code}]: "
+              f"{file_url} -alert")
         return False
     os.makedirs(output_dir, exist_ok=True)
     file_path = os.path.join(output_dir, safe_name)
@@ -134,14 +149,17 @@ if __name__ == "__main__":
     url = sys.argv[1]
     parsed_url = urlparse(url)
     path_parts = parsed_url.path.strip("/").split("/")
-    if parsed_url.netloc == "raw.githubusercontent.com" or (len(path_parts) > 2 and path_parts[2] == "blob"):
-        print("ERROR: URL points to a file, this script downloads folders only -abort")
+    if parsed_url.netloc == "raw.githubusercontent.com" or (
+            len(path_parts) > 2 and path_parts[2] == "blob"):
+        print("ERROR: URL points to a file, "
+              "this script downloads folders only -abort")
         sys.exit(1)
     if parsed_url.netloc not in ("github.com", "www.github.com"):
         print("ERROR: only GitHub URLs are supported -abort")
         sys.exit(1)
     if len(path_parts) < 2:
-        print("ERROR: URL must include at least owner and repository name -abort")
+        print("ERROR: URL must include at least owner "
+              "and repository name -abort")
         sys.exit(1)
     repo_owner = path_parts[0]
     repo_name = path_parts[1]
@@ -170,6 +188,7 @@ if __name__ == "__main__":
           Branch: {branch or "(default)"}
           Directory: {folder_path or "(root)"}
     """)
-    if not download_folder_from_github(repo_owner, repo_name, folder_path, output_dir, branch):
+    if not download_folder_from_github(repo_owner, repo_name, folder_path,
+                                       output_dir, branch):
         print("ERROR: folder download failed -abort")
         sys.exit(1)

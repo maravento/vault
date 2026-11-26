@@ -1,0 +1,8 @@
+# Installer log
+sorisetup.log
+
+# Configuration, credentials and data never go to the repository
+*.env
+*.pw
+*.mdb
+*.sql.gz

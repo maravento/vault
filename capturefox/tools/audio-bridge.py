@@ -174,7 +174,8 @@ def describe(state, inventory, default):
         "module_id": state["module_id"] if active else None,
         "master": state["master"] if active else None,
         "default_sink": default,
-        "needs_reconnect": bool(active and state["master"] != default + ".monitor"),
+        "needs_reconnect": bool(
+            active and state["master"] != default + ".monitor"),
     }
 
 
@@ -200,7 +201,8 @@ def operate(command, directory):
             if arguments_for(entry).get("source_name") == SOURCE:
                 if not (state and identifier == state["module_id"]
                         and owned(entry, state)):
-                    raise BridgeError("The virtual input name is already in use")
+                    raise BridgeError(
+                        "The virtual input name is already in use")
         reconnect = result["active"]
         if reconnect and not unload_owned(state):
             raise BridgeError("The previous module changed; retry start")
@@ -240,7 +242,8 @@ def main():
         if options.as_json:
             print(json.dumps({"ok": False, "error": str(error)}))
         else:
-            print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} ERROR: {error} -abort",
+            print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} "
+                  f"ERROR: {error} -abort",
                   file=sys.stderr)
         return 1
     result = {"ok": True, **result}

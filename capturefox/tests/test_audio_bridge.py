@@ -59,12 +59,14 @@ class AudioBridgeTests(unittest.TestCase):
         self.addCleanup(self.mock.stop)
 
     def test_start_and_stop_are_idempotent(self):
-        self.assertEqual(bridge.operate("start", self.directory)["action"], "started")
+        self.assertEqual(bridge.operate("start", self.directory)["action"],
+                         "started")
         self.assertEqual(bridge.operate("start", self.directory)["action"],
                          "already_started")
         self.assertEqual(len(self.fake.entries), 1)
         self.assertTrue(bridge.operate("status", self.directory)["active"])
-        self.assertEqual(bridge.operate("stop", self.directory)["action"], "stopped")
+        self.assertEqual(bridge.operate("stop", self.directory)["action"],
+                         "stopped")
         self.assertEqual(bridge.operate("stop", self.directory)["action"],
                          "already_stopped")
         self.assertEqual(self.fake.unloaded, [10])
@@ -80,7 +82,8 @@ class AudioBridgeTests(unittest.TestCase):
     def test_exact_source_name_required(self):
         bridge.operate("start", self.directory)
         self.fake.entries[10] = (
-            bridge.MODULE, "master=speaker.monitor source_name=captura_system_audio_extra"
+            bridge.MODULE,
+            "master=speaker.monitor source_name=captura_system_audio_extra"
         )
         bridge.operate("stop", self.directory)
         self.assertEqual(self.fake.unloaded, [])
@@ -89,7 +92,8 @@ class AudioBridgeTests(unittest.TestCase):
         bridge.operate("start", self.directory)
         self.fake.entries[4] = ("module-null-sink", "sink_name=unrelated")
         self.fake.default = "headset"
-        self.assertTrue(bridge.operate("status", self.directory)["needs_reconnect"])
+        self.assertTrue(bridge.operate("status",
+                                       self.directory)["needs_reconnect"])
         result = bridge.operate("start", self.directory)
         self.assertEqual(result["action"], "reconnected")
         self.assertEqual(result["master"], "headset.monitor")
@@ -110,7 +114,8 @@ class AudioBridgeTests(unittest.TestCase):
         self.assertTrue(bridge.operate("start", self.directory)["active"])
 
     def test_state_write_failure_removes_new_module(self):
-        with patch.object(bridge, "write_state", side_effect=OSError("disk full")):
+        with patch.object(bridge, "write_state",
+                          side_effect=OSError("disk full")):
             with self.assertRaises(OSError):
                 bridge.operate("start", self.directory)
         self.assertEqual(self.fake.entries, {})
@@ -118,7 +123,8 @@ class AudioBridgeTests(unittest.TestCase):
 
     def test_unknown_same_name_module_is_not_adopted(self):
         self.fake.entries[7] = (
-            bridge.MODULE, "master=speaker.monitor source_name=captura_system_audio"
+            bridge.MODULE,
+            "master=speaker.monitor source_name=captura_system_audio"
         )
         with self.assertRaises(bridge.BridgeError):
             bridge.operate("start", self.directory)
@@ -133,7 +139,8 @@ class AudioBridgeTests(unittest.TestCase):
 
     def test_atomic_state_is_private(self):
         bridge.operate("start", self.directory)
-        self.assertEqual((self.directory / "state.json").stat().st_mode & 0o777, 0o600)
+        self.assertEqual(
+            (self.directory / "state.json").stat().st_mode & 0o777, 0o600)
         self.assertEqual(list(self.directory.glob("state-*")), [])
 
     def test_subprocess_is_argv_only(self):

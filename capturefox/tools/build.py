@@ -22,5 +22,6 @@ with zipfile.ZipFile(target, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
 with zipfile.ZipFile(target) as archive:
     assert archive.testzip() is None
     assert 'manifest.json' in archive.namelist()
-print(json.dumps({'path': str(target), 'files': len(files), 'bytes': target.stat().st_size,
+print(json.dumps({'path': str(target), 'files': len(files),
+                  'bytes': target.stat().st_size,
                   'sha256': hashlib.sha256(target.read_bytes()).hexdigest()}))
