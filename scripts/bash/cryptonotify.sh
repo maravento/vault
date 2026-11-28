@@ -20,18 +20,18 @@
 
 set -uo pipefail
 
+# no-root check
+if [ "$(command -p id -u)" == "0" ]; then
+    echo "$(command -p date '+%Y-%m-%d %H:%M:%S') ERROR: This script should not be run as root -abort" >&2
+    exit 1
+fi
+
 # ------------------------------------------------------------------------------
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-# no-root check
-if [ "$(id -u)" == "0" ]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script should not be run as root -abort" >&2
-    exit 1
-fi
 
 # awk is a command, not a package: check it before its first use
 command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
@@ -54,10 +54,6 @@ done
 
 # start
 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: cryptonotify start..."
-
-# ------------------------------------------------------------------------------
-# FUNCTIONS
-# ------------------------------------------------------------------------------
 
 # check ipv4 interfaces
 list_ifaces() {
@@ -111,6 +107,10 @@ check_internet() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no internet connection -abort" >&2
     exit 1
 }
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
 
 check_ipv4_interfaces
 check_internet

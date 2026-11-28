@@ -44,6 +44,10 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 # prevent overlapping runs
 script_lock="/var/lock/$(basename "$0" .sh).lock"
 (umask 077; : >> "$script_lock") || {
@@ -114,133 +118,6 @@ get_file() {
     return 1
 }
 
-# ------------------------------------------------------------------------------
-# OWN VALUES
-# ------------------------------------------------------------------------------
-
-# validation - integer only; use directly with =~
-UH_UINT='^(0|[1-9][0-9]*)$'
-
-# Values this script declares itself -- not read from any .env
-downloads_api="https://download.svc.ui.com/v1/software-downloads"
-work_dir="${script_dir}/unifisetup-work"
-downloads_json="${work_dir}/downloads.json"
-min_major="24"
-min_minor="04"
-
-# ------------------------------------------------------------------------------
-# PLATFORM
-# ------------------------------------------------------------------------------
-
-select_lan_interface() {
-    local -a ifaces
-    local i choice addrs
-    mapfile -t ifaces < <(list_ipv4_ifaces)
-    if [ "${#ifaces[@]}" -eq 0 ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no active interface with global IPv4 -abort" >&2
-        return 1
-    fi
-    if [ "${#ifaces[@]}" -eq 1 ]; then
-        lan_iface_answer="${ifaces[0]}"
-        return 0
-    fi
-    echo "Available LAN interfaces:" >&2
-    for i in "${!ifaces[@]}"; do
-        addrs=$(ip -4 -o addr show dev "${ifaces[$i]}" scope global | awk '{print $4}' | paste -sd' ')
-        printf ' [%d] %s (UP, %s)\n' "$((i+1))" "${ifaces[$i]}" "$addrs" >&2
-    done
-    while true; do
-        read -r -p "Select LAN Interface [1-${#ifaces[@]}]: " choice || {
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot read LAN selection -abort" >&2
-            return 1
-        }
-        if [[ "$choice" =~ $UH_UINT ]] && [ "${#choice}" -le 5 ] \
-            && [ "$choice" -ge 1 ] && [ "$choice" -le "${#ifaces[@]}" ]; then
-            lan_iface_answer="${ifaces[$((choice-1))]}"
-            return 0
-        fi
-        info "invalid LAN interface selection -retry" >&2
-    done
-}
-
-select_lan_address() {
-    local iface="$1" choice i
-    local -a addresses
-    mapfile -t addresses < <(ip -4 -o addr show dev "$iface" scope global | awk '{print $4}')
-    if [ "${#addresses[@]}" -eq 0 ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: LAN has no global IPv4 -abort" >&2
-        return 1
-    fi
-    if [ "${#addresses[@]}" -eq 1 ]; then
-        lan_cidr_answer="${addresses[0]}"
-        return 0
-    fi
-    echo "Available LAN IPv4 addresses:" >&2
-    for i in "${!addresses[@]}"; do
-        printf ' [%d] %s\n' "$((i+1))" "${addresses[$i]}" >&2
-    done
-    while true; do
-        read -r -p "Select LAN IPv4 [1-${#addresses[@]}]: " choice || {
-            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot read IPv4 selection -abort" >&2
-            return 1
-        }
-        if [[ "$choice" =~ $UH_UINT ]] && [ "${#choice}" -le 5 ] \
-            && [ "$choice" -ge 1 ] && [ "$choice" -le "${#addresses[@]}" ]; then
-            lan_cidr_answer="${addresses[$((choice-1))]}"
-            return 0
-        fi
-        info "invalid LAN IPv4 selection -retry" >&2
-    done
-}
-
-get_server_address() {
-    select_lan_interface || return 1
-    select_lan_address "$lan_iface_answer" || return 1
-    printf '%s\n' "${lan_cidr_answer%/*}"
-}
-
-os_check() {
-    if [ ! -f /etc/os-release ]; then
-        err "/etc/os-release not found, cannot detect OS -abort"
-        exit 1
-    fi
-
-    # shellcheck disable=SC1091
-    . /etc/os-release
-
-    if [ "${ID:-}" != "ubuntu" ]; then
-        warn "[1/2] Ubuntu required; detected ${ID:-unknown}"
-        warn "[2/2] continuing anyway -alert"
-    fi
-
-    if [ "$(printf '%s\n' "${VERSION_ID:-0}" "${min_major}.${min_minor}" | sort -V | head -n1)" != "${min_major}.${min_minor}" ]; then
-        warn "[1/2] untested below Ubuntu ${min_major}.${min_minor}"
-        warn "[2/2] Ubuntu ${VERSION_ID:-unknown} untested -alert"
-    fi
-
-    os_codename="${VERSION_CODENAME:-noble}"
-    info "Ubuntu ${VERSION_ID:-unknown} (${os_codename}) detected"
-}
-
-arch_check() {
-    architecture="$(dpkg --print-architecture)"
-    case "${architecture}" in
-        amd64) osserver_arch="x64" ;;
-        arm64) osserver_arch="arm64" ;;
-        *)
-            err "unsupported architecture: ${architecture} -abort"
-            exit 1
-            ;;
-    esac
-}
-
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
-# awk is a command, not a package: check it before its first use
-command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
-
 # check ipv4 interfaces
 list_ifaces() {
     ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
@@ -294,6 +171,137 @@ check_internet() {
     exit 1
 }
 
+# ------------------------------------------------------------------------------
+# OWN VALUES
+# ------------------------------------------------------------------------------
+
+# validation - integer only; use directly with =~
+UH_UINT='^(0|[1-9][0-9]*)$'
+
+# Values this script declares itself -- not read from any .env
+downloads_api="https://download.svc.ui.com/v1/software-downloads"
+work_dir="${script_dir}/unifisetup-work"
+downloads_json="${work_dir}/downloads.json"
+min_major="24"
+min_minor="04"
+
+# ------------------------------------------------------------------------------
+# PLATFORM
+# ------------------------------------------------------------------------------
+
+select_lan_interface() {
+    local -a ifaces
+    local i choice addrs
+    mapfile -t ifaces < <(list_ipv4_ifaces)
+    if [ "${#ifaces[@]}" -eq 0 ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: no active interface with global IPv4 -abort" >&2
+        return 1
+    fi
+    if [ "${#ifaces[@]}" -eq 1 ]; then
+        lan_iface_answer="${ifaces[0]}"
+        return 0
+    fi
+    echo "" >&2
+    echo "==== Available LAN Interfaces ====" >&2
+    for i in "${!ifaces[@]}"; do
+        addrs=$(ip -4 -o addr show dev "${ifaces[$i]}" scope global | awk '{print $4}' | paste -sd' ')
+        printf ' [%d] %s (UP, %s)\n' "$((i+1))" "${ifaces[$i]}" "$addrs" >&2
+    done
+    while true; do
+        read -r -p "Select LAN Interface [1-${#ifaces[@]}]: " choice || {
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot read LAN selection -abort" >&2
+            return 1
+        }
+        echo "" >&2
+        if [[ "$choice" =~ $UH_UINT ]] && [ "${#choice}" -le 5 ] \
+            && [ "$choice" -ge 1 ] && [ "$choice" -le "${#ifaces[@]}" ]; then
+            lan_iface_answer="${ifaces[$((choice-1))]}"
+            return 0
+        fi
+        info "invalid LAN interface selection -retry" >&2
+    done
+}
+
+select_lan_address() {
+    local iface="$1" choice i
+    local -a addresses
+    mapfile -t addresses < <(ip -4 -o addr show dev "$iface" scope global | awk '{print $4}')
+    if [ "${#addresses[@]}" -eq 0 ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: LAN has no global IPv4 -abort" >&2
+        return 1
+    fi
+    if [ "${#addresses[@]}" -eq 1 ]; then
+        lan_cidr_answer="${addresses[0]}"
+        return 0
+    fi
+    echo "" >&2
+    echo "==== Available LAN IPv4 Addresses ====" >&2
+    for i in "${!addresses[@]}"; do
+        printf ' [%d] %s\n' "$((i+1))" "${addresses[$i]}" >&2
+    done
+    while true; do
+        read -r -p "Select LAN IPv4 [1-${#addresses[@]}]: " choice || {
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot read IPv4 selection -abort" >&2
+            return 1
+        }
+        echo "" >&2
+        if [[ "$choice" =~ $UH_UINT ]] && [ "${#choice}" -le 5 ] \
+            && [ "$choice" -ge 1 ] && [ "$choice" -le "${#addresses[@]}" ]; then
+            lan_cidr_answer="${addresses[$((choice-1))]}"
+            return 0
+        fi
+        info "invalid LAN IPv4 selection -retry" >&2
+    done
+}
+
+get_server_address() {
+    select_lan_interface || return 1
+    select_lan_address "$lan_iface_answer" || return 1
+    printf '%s\n' "${lan_cidr_answer%/*}"
+}
+
+os_check() {
+    if [ ! -f /etc/os-release ]; then
+        err "/etc/os-release not found, cannot detect OS -abort"
+        exit 1
+    fi
+
+    # shellcheck disable=SC1091
+    . /etc/os-release
+
+    if [ "${ID:-}" != "ubuntu" ]; then
+        warn "[1/2] Ubuntu required; detected ${ID:-unknown}"
+        warn "[2/2] continuing anyway -alert"
+    fi
+
+    if [ "$(printf '%s\n' "${VERSION_ID:-0}" "${min_major}.${min_minor}" | sort -V | head -n1)" != "${min_major}.${min_minor}" ]; then
+        warn "[1/2] untested below Ubuntu ${min_major}.${min_minor}"
+        warn "[2/2] Ubuntu ${VERSION_ID:-unknown} untested -alert"
+    fi
+
+    os_codename="${VERSION_CODENAME:-noble}"
+    info "Ubuntu ${VERSION_ID:-unknown} (${os_codename}) detected"
+}
+
+arch_check() {
+    architecture="$(dpkg --print-architecture)"
+    case "${architecture}" in
+        amd64) osserver_arch="x64" ;;
+        arm64) osserver_arch="arm64" ;;
+        *)
+            err "unsupported architecture: ${architecture} -abort"
+            exit 1
+            ;;
+    esac
+}
+
+# ------------------------------------------------------------------------------
+# PREFLIGHT CHECKS
+# ------------------------------------------------------------------------------
+
+# awk is a command, not a package: check it before its first use
+command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
+
 # dependencies the script itself needs, including the tools it uses to
 # install UniFi; UniFi's own packages are installed by install_network/osserver
 net_checked=0
@@ -303,9 +311,12 @@ for dep in coreutils util-linux grep sed iproute2 libc-bin curl gnupg jq ca-cert
             if ! command -v ip >/dev/null 2>&1; then
                 log "INFO: installing iproute2"
                 apt-get install -y iproute2 >/dev/null 2>&1 || { log "ERROR: cannot install iproute2 -abort"; exit 1; }
+                # the download proves link and internet; only IPv4 is left to check
+                check_ipv4_interfaces
+            else
+                check_ipv4_interfaces
+                check_internet
             fi
-            check_ipv4_interfaces
-            check_internet
             apt-get update -qq || { log "ERROR: cannot update package lists -abort"; exit 1; }
             net_checked=1
         fi
@@ -1005,11 +1016,8 @@ run_action() {
 
 menu() {
     while true; do
-        clear
         echo ""
-        echo "==========================================="
-        echo "UniFi Setup"
-        echo "==========================================="
+        echo "==== UniFi Setup ===="
         echo "1. Install UniFi Network Application"
         echo "2. Install UniFi OS Server"
         echo "3. Update UniFi Network Application"
@@ -1018,8 +1026,8 @@ menu() {
         echo "6. Uninstall UniFi OS Server"
         echo "7. Show local installation and service status"
         echo "8. Exit"
-        echo ""
         read -rp "Select an option (1-8) [8]: " choice || return 1
+        echo ""
         if [ -z "$choice" ]; then
             info "no option selected, exit -skip"
             choice=8

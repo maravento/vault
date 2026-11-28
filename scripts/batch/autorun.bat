@@ -20,16 +20,14 @@ if %errorlevel% neq 0 (
 set "KEY=HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer"
 
 :Menu
-cls
 echo.
-echo AUTORUN CONTROL
-echo.
+echo ==== AutoRun Control ====
 echo 1. Enable AutoRun
 echo 2. Disable AutoRun
 echo 3. Exit
-echo.
 set "var="
 set /p "var=Option [3]: "
+echo.
 if not defined var set "var=3"
 if "%var%"=="1" goto :Enable
 if "%var%"=="2" goto :Disable

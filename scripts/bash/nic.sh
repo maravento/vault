@@ -37,15 +37,15 @@
 
 set -uo pipefail
 
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # logging
 log() {
@@ -2095,9 +2095,9 @@ run_action() {
 show_menu() {
     local choice
     while true; do
+        echo ""
         cat <<'MENU'
-NIC Manager
-
+==== NIC Manager ====
 1) Check network
 2) Show status
 3) To systemd-networkd
@@ -2108,6 +2108,7 @@ NIC Manager
 8) Exit
 MENU
         read -r -p 'Select [1-8] [8]: ' choice || return 1
+        echo ""
         case "${choice:-8}" in
             1) run_action --check; return $? ;;
             2) run_action --status; return $? ;;

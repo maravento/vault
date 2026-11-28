@@ -12,12 +12,12 @@ require is_file(__DIR__ . '/../app/lib.php') ? __DIR__ . '/../app/lib.php' : __D
 const BATCH = 500;
 const USAGE = <<<TXT
 Usage: sudo php sorimigrate.php --client SLUG --name "NAME" --mdb FILE
-                                [--empresa N] [--anonymize] [--replace]
+                                [--company N] [--anonymize] [--replace]
 
   --client     Client code: lowercase letters and digits, 2 to 30 (database sori_SLUG)
   --name       Client display name
   --mdb        Legacy database file (.mdb)
-  --empresa    Company code to keep (default 1); rows of other companies are skipped
+  --company    Company code to keep (default 1); rows of other companies are skipped
   --anonymize  For demonstrations only: replace third-party identity and contact data,
                blank secrets and skip logins, audit log and report tables.
                Without it, every table is copied as it is.
@@ -140,7 +140,7 @@ function anon_row(string $table, array $cols, array $row, string $client_name, a
         $set('T12Apellido', $company ? '' : $last[intdiv($n, 20) % 20]);
         $set('T12Apellido2', $company ? '' : $last[intdiv($n, 400) % 20]);
         $set('T12Direccion', $get('T12Direccion') === '' ? '' : 'CALLE ' . ($n % 90 + 1) . ' # ' . ($n % 50 + 1) . '-' . ($n % 99 + 1));
-        $set('T12EMail', $get('T12EMail') === '' ? '' : 'tercero' . ($n % 1000000) . '@example.com');
+        $set('T12EMail', $get('T12EMail') === '' ? '' : 'party' . ($n % 1000000) . '@example.com');
         foreach (['T12Telefono', 'T12Telefono2', 'T12Celular1', 'T12Celular2'] as $c) {
             $set($c, $get($c) === '' ? '' : '300' . str_pad((string) ($n % 10000000), 7, '0', STR_PAD_LEFT));
         }
@@ -162,10 +162,10 @@ function anon_row(string $table, array $cols, array $row, string $client_name, a
         }
     } elseif (in_array($table, ['T100CUENTA', 'T100CUENTANIIF'], true)) {
         // Account names of a third party carry its name
-        $tercero = $get('T100Nit');
-        if ($tercero !== '') {
-            $set('T100Nombre', 'TERCERO ' . anon_id($tercero));
-            $set('T100NombreNIIF', 'TERCERO ' . anon_id($tercero));
+        $party = $get('T100Nit');
+        if ($party !== '') {
+            $set('T100Nombre', 'TERCERO ' . anon_id($party));
+            $set('T100NombreNIIF', 'TERCERO ' . anon_id($party));
         }
     } elseif (in_array($table, ['T625VENDEDOR', 'T665COBRADOR', 'T656CONDUCTOR'], true)) {
         $col = preg_replace('/^(T\d+).*$/', '$1', $table) . 'Nombre';
@@ -198,7 +198,7 @@ function anon_row(string $table, array $cols, array $row, string $client_name, a
 // Arguments
 // ----------------------------------------------------------------------------
 
-$o = getopt('', ['client:', 'name:', 'mdb:', 'empresa:', 'anonymize', 'replace', 'help']);
+$o = getopt('', ['client:', 'name:', 'mdb:', 'company:', 'anonymize', 'replace', 'help']);
 if ($o === false || isset($o['help']) || !isset($o['client'], $o['name'], $o['mdb'])) {
     echo USAGE;
     exit(isset($o['help']) ? 0 : 1);
@@ -206,7 +206,7 @@ if ($o === false || isset($o['help']) || !isset($o['client'], $o['name'], $o['md
 $slug = (string) $o['client'];
 $name = trim((string) $o['name']);
 $mdb = (string) $o['mdb'];
-$empresa = (string) ($o['empresa'] ?? '1');
+$company = (string) ($o['company'] ?? '1');
 $anon = isset($o['anonymize']);
 
 if (!preg_match(SORI_SLUG_RE, $slug)) {
@@ -220,7 +220,7 @@ need_command('mdb-export');
 if (!is_file($mdb) || !is_readable($mdb)) {
     stop('database file not readable');
 }
-if (!preg_match('/^[0-9]{1,5}$/', $empresa)) {
+if (!preg_match('/^[0-9]{1,5}$/', $company)) {
     stop('invalid company code');
 }
 $mdb_tables = run_lines(['mdb-tables', '-1', $mdb]);
@@ -299,10 +299,10 @@ foreach ($mdb_tables as $table) {
     $all_cols = $cols;
     $cols = array_map(static fn($i) => $all_cols[$i], $keep);
     $text = array_map(static fn($c) => in_array($types[$c] ?? 'varchar', ['varchar', 'char', 'text', 'longtext', 'mediumtext', 'tinytext'], true), $cols);
-    $emp = null;
+    $company_id = null;
     foreach ($cols as $i => $c) {
         if (preg_match('/CodEmpresa$/i', $c)) {
-            $emp = $i;
+            $company_id = $i;
             break;
         }
     }
@@ -334,7 +334,7 @@ foreach ($mdb_tables as $table) {
             if ($dropped > 0) {
                 $row = array_map(static fn($i) => $row[$i], $keep);
             }
-            if ($emp !== null && $row[$emp] !== $empresa) {
+            if ($company_id !== null && $row[$company_id] !== $company) {
                 continue;
             }
             if ($anon) {
@@ -383,11 +383,11 @@ foreach ($failed as $t => $msg) {
 // ----------------------------------------------------------------------------
 
 $ctlpdo = admin_pdo($ctl);
-$ctlpdo->prepare('INSERT INTO sori_clientes (slug, nombre) VALUES (?, ?) ON DUPLICATE KEY UPDATE nombre = VALUES(nombre), activo = 1')
+$ctlpdo->prepare('INSERT INTO sori_clients (slug, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name), active = 1')
     ->execute([$slug, $name]);
-$cid = (int) $ctlpdo->query("SELECT id FROM sori_clientes WHERE slug = " . $ctlpdo->quote($slug))->fetchColumn();
+$client_id = (int) $ctlpdo->query("SELECT id FROM sori_clients WHERE slug = " . $ctlpdo->quote($slug))->fetchColumn();
 
-$st = $ctlpdo->prepare('SELECT COUNT(*) FROM sori_usuarios WHERE usuario = ?');
+$st = $ctlpdo->prepare('SELECT COUNT(*) FROM sori_users WHERE username = ?');
 $st->execute([$slug]);
 if ((int) $st->fetchColumn() === 0) {
     $alphabet = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -395,8 +395,8 @@ if ((int) $st->fetchColumn() === 0) {
     for ($i = 0; $i < 16; $i++) {
         $pass .= $alphabet[random_int(0, strlen($alphabet) - 1)];
     }
-    $ctlpdo->prepare("INSERT INTO sori_usuarios (cliente_id, usuario, nombre, hash, rol) VALUES (?, ?, ?, ?, 'admin')")
-        ->execute([$cid, $slug, 'Administrador ' . $name, password_hash($pass, PASSWORD_DEFAULT)]);
+    $ctlpdo->prepare("INSERT INTO sori_users (client_id, username, name, hash, role) VALUES (?, ?, ?, ?, 'admin')")
+        ->execute([$client_id, $slug, 'Administrador ' . $name, password_hash($pass, PASSWORD_DEFAULT)]);
     out('');
     out("Client user: $slug");
     out("Password:    $pass");

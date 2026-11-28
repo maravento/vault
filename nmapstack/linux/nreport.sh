@@ -16,21 +16,15 @@
 
 set -euo pipefail
 
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
-# validation - one variable per thing validated; use directly with =~
-UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
-UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$'
-
-timestamp() { date +%F-%H_%M_%S; }
-
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # logging
 log_file="/var/log/nreport.log"
@@ -175,9 +169,12 @@ for dep in nmap xsltproc iproute2 util-linux grep sed coreutils; do
             if ! command -v ip >/dev/null 2>&1; then
                 log "INFO: installing iproute2"
                 apt-get install -y iproute2 >/dev/null 2>&1 || { log "ERROR: cannot install iproute2 -abort"; exit 1; }
+                # the download proves link and internet; only IPv4 is left to check
+                check_ipv4_interfaces
+            else
+                check_ipv4_interfaces
+                check_internet
             fi
-            check_ipv4_interfaces
-            check_internet
             apt-get update -qq || { log "ERROR: cannot update package lists -abort"; exit 1; }
             net_checked=1
         fi
@@ -190,8 +187,18 @@ for dep in nmap xsltproc iproute2 util-linux grep sed coreutils; do
 done
 
 # ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
+
+# validation - one variable per thing validated; use directly with =~
+UH_IPV4='^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])$'
+UH_FQDN='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$'
+
+# ------------------------------------------------------------------------------
 # FUNCTIONS
 # ------------------------------------------------------------------------------
+
+timestamp() { date +%F-%H_%M_%S; }
 
 # Create embedded custom XSL stylesheet
 create_custom_xsl() {
@@ -643,7 +650,8 @@ select_lan_interface() {
         lan_iface_answer="${ifaces[0]}"
         return 0
     fi
-    echo "Available LAN interfaces:" >&2
+    echo "" >&2
+    echo "==== Available LAN Interfaces ====" >&2
     for i in "${!ifaces[@]}"; do
         addrs=$(ip -4 -o addr show dev "${ifaces[$i]}" scope global | awk '{print $4}' | paste -sd' ')
         printf ' [%d] %s (UP, %s)\n' "$((i+1))" "${ifaces[$i]}" "$addrs" >&2
@@ -653,6 +661,7 @@ select_lan_interface() {
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot read LAN selection -abort" >&2
             return 1
         }
+        echo "" >&2
         if [[ "$choice" =~ $UH_UINT ]] && [ "${#choice}" -le 5 ] \
             && [ "$choice" -ge 1 ] && [ "$choice" -le "${#ifaces[@]}" ]; then
             lan_iface_answer="${ifaces[$((choice-1))]}"
@@ -674,7 +683,8 @@ select_lan_address() {
         lan_cidr_answer="${addresses[0]}"
         return 0
     fi
-    echo "Available LAN IPv4 addresses:" >&2
+    echo "" >&2
+    echo "==== Available LAN IPv4 Addresses ====" >&2
     for i in "${!addresses[@]}"; do
         printf ' [%d] %s\n' "$((i+1))" "${addresses[$i]}" >&2
     done
@@ -683,6 +693,7 @@ select_lan_address() {
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot read IPv4 selection -abort" >&2
             return 1
         }
+        echo "" >&2
         if [[ "$choice" =~ $UH_UINT ]] && [ "${#choice}" -le 5 ] \
             && [ "$choice" -ge 1 ] && [ "$choice" -le "${#addresses[@]}" ]; then
             lan_cidr_answer="${addresses[$((choice-1))]}"
@@ -711,22 +722,18 @@ log "INFO: nreport start..."
 # Display the available actions and read the selected option
 TS=$(timestamp)
 echo ""
-echo "----------------------------------------"
-echo "N Report - Network Scanner"
-echo "----------------------------------------"
-echo ""
+echo "==== N Report - Network Scanner ===="
 echo "1) LAN Scan"
 echo "2) Advanced LAN Scan"
 echo "3) IP/Host Scan"
 echo "4) Exit"
-echo ""
 while true; do
     read -rp "Select [1-4] (default: 4): " opt
+    echo ""
     opt="${opt:-4}"
     [[ "$opt" =~ ^[1-4]$ ]] && break
     log "INFO: invalid option '$opt' -retry"
 done
-echo ""
 
 case "$opt" in
     1)

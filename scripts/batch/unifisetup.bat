@@ -29,8 +29,7 @@ type nul > "%logfile%"
 call :log "INFO: unifisetup start..."
 call :log "INFO: unifisetup start..." con
 
-cls
-echo ===========================================
+echo.
 echo UNIFI INSTALLATION MANAGER
 echo Log file: %logfile%
 echo ===========================================
@@ -76,9 +75,8 @@ cd /d "%installpath%" || (
 )
 
 :menu
-cls
 echo.
-echo UniFi Installation Manager
+echo ==== UniFi Installation Manager ====
 echo Log file: %logfile%
 echo.
 echo 1. Install UniFi Network Controller (Runs as Windows Service)
@@ -86,9 +84,9 @@ echo 2. Backup Configuration
 echo 3. Remove UniFi + JRE
 echo 4. Add IPv4 address
 echo 5. Exit
-echo.
 set "var="
 set /p "var=Write your number (1, 2, 3, 4, 5) [5] and Press ENTER: "
+echo.
 if not defined var (
     call :log "INFO: no option selected, exit -skip" con
     call :log "INFO: no option selected, exit -skip"
@@ -310,12 +308,8 @@ if "%product_type%"=="network" (
 
 :: Display version selection menu
 :version_menu
-cls
 echo.
-echo ===========================================
-echo          VERSION SELECTION
-echo ===========================================
-echo.
+echo ==== UniFi Version Selection ====
 echo Available versions for UniFi %product_type%:
 echo.
 echo 1. Latest: !version_latest!
@@ -329,9 +323,9 @@ if defined version_previous (
     echo 3. Cancel
 )
 
-echo.
 set "choice="
 set /p "choice=Enter your option: "
+echo.
 call :log "INFO: User choice: !choice!"
 
 if "!choice!"=="" goto :version_menu
@@ -529,12 +523,12 @@ if exist "%UserProfile%\Ubiquiti UniFi\" (
     REM It's incomplete or leftover - offer to clean
     echo This appears to be an incomplete or leftover installation.
     echo.
-    echo Options:
+    echo ==== UniFi Cleanup Options ====
     echo 1. Clean up and continue with fresh installation
     echo 2. Cancel and exit
-    echo.
     set "cleanup_choice="
     set /p "cleanup_choice=Enter your choice (1 or 2) [2]: "
+    echo.
     if not defined cleanup_choice (
         call :log "INFO: no option selected, exit -skip" con
         call :log "INFO: no option selected, exit -skip"

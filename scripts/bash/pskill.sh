@@ -18,15 +18,15 @@
 
 set -uo pipefail
 
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # awk is a command, not a package: check it before its first use
 command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
@@ -92,9 +92,12 @@ for dep in procps iproute2 libc-bin coreutils; do
             if ! command -v ip >/dev/null 2>&1; then
                 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing iproute2"
                 apt-get install -y iproute2 >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install iproute2 -abort" >&2; exit 1; }
+                # the download proves link and internet; only IPv4 is left to check
+                check_ipv4_interfaces
+            else
+                check_ipv4_interfaces
+                check_internet
             fi
-            check_ipv4_interfaces
-            check_internet
             apt-get update -qq || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2; exit 1; }
             net_checked=1
         fi

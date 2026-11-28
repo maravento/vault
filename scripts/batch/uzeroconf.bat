@@ -21,9 +21,8 @@ set "uzero=%HOMEDRIVE%\UniServerZ"
 set "winfnr=%WINDIR%\System32\fnr.exe"
 
 :Menu
-cls
 echo.
-echo UZERO CONFIG
+echo ==== UZero Configuration Menu ====
 echo You must reboot to take effect
 echo.
 echo 1. Change MySQL Port (Default 3306)
@@ -40,6 +39,7 @@ echo Press ENTER
 echo.
 set "var="
 set /p "var=Option [8]: "
+echo.
 if not defined var (
     for /f "delims=" %%I in ('powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'"') do echo %%I INFO: no option selected, exit -skip
     set "var=8"

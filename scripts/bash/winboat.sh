@@ -25,15 +25,15 @@
 
 set -uo pipefail
 
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # awk is a command, not a package: check it before its first use
 command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
@@ -91,32 +91,6 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: using local user: $local_user"
 # start
 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: winboat start..."
 
-# ------------------------------------------------------------------------------
-# FUNCTIONS
-# ------------------------------------------------------------------------------
-
-retry_cmd() {
-    [ "$#" -ge 2 ] || return 2
-    local retry_label="$1" retry_attempt retry_status
-    shift
-    for retry_attempt in 1 2 3; do
-        if "$@"; then
-            return 0
-        else
-            retry_status=$?
-        fi
-        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
-        if declare -F log >/dev/null; then
-            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
-        else
-            printf '%s INFO: %s: retry %s/3\n' \
-                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
-                "$((retry_attempt + 1))" >&2
-        fi
-        sleep 5
-    done
-}
-
 # check ipv4 interfaces
 list_ifaces() {
     ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
@@ -170,6 +144,32 @@ check_internet() {
     exit 1
 }
 
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
+retry_cmd() {
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
+        fi
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
+    done
+}
+
 # dependencies
 net_checked=0
 for dep in wget curl util-linux iproute2 libc-bin coreutils grep; do
@@ -178,9 +178,12 @@ for dep in wget curl util-linux iproute2 libc-bin coreutils grep; do
             if ! command -v ip >/dev/null 2>&1; then
                 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing iproute2"
                 apt-get install -y iproute2 >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install iproute2 -abort" >&2; exit 1; }
+                # the download proves link and internet; only IPv4 is left to check
+                check_ipv4_interfaces
+            else
+                check_ipv4_interfaces
+                check_internet
             fi
-            check_ipv4_interfaces
-            check_internet
             apt-get update -qq || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2; exit 1; }
             net_checked=1
         fi
@@ -527,11 +530,13 @@ show_help() {
 # Main execution logic
 if [ $# -eq 0 ]; then
     # Interactive mode
-    echo "What action do you want to perform?"
+    echo ""
+    echo "==== Winboat Installation Menu ===="
     echo "1) Install Winboat + Dependencies"
     echo "2) Uninstall Winboat"
     echo "3) Exit"
     read -p "Select an option [3]: " option
+    echo ""
     option="${option:-3}"
 
     case $option in

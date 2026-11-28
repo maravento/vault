@@ -20,15 +20,15 @@
 
 set -uo pipefail
 
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 install_php_hardening() (
     local conf_dir="${1%/*}/conf.d" target staged
@@ -136,6 +136,59 @@ err()  { log "ERROR: $*"; }
 touch "$log_file"
 chmod 640 "$log_file"
 chown root:root "$log_file"
+
+# check ipv4 interfaces
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if [ -n "$(list_ipv4_ifaces)" ]; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for an interface with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no interface with IPv4 -abort"
+    exit 1
+}
+
+# check internet
+check_internet() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for internet..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no internet connection -abort"
+    exit 1
+}
 
 # ------------------------------------------------------------------------------
 # VARIABLES
@@ -597,63 +650,6 @@ query_port_listeners() {
     [[ "$port_error" != *[![:space:]]* ]]
 } 3>&1
 
-# IFACES
-# List network interfaces other than loopback
-list_ifaces() {
-    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
-}
-
-# IPV4 INTERFACES
-# Offer only interfaces with an active link and configured global IPv4
-list_ipv4_ifaces() {
-    local iface state
-    while read -r iface state; do
-        [ "$state" = UP ] || continue
-        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
-            | awk '$4 != "" {found=1} END {exit !found}'; then
-            printf '%s\n' "$iface"
-        fi
-    done < <(list_ifaces)
-}
-
-# check ipv4 interfaces
-check_ipv4_interfaces() {
-    local max_attempts=24 attempt=1
-
-    while (( attempt <= max_attempts )); do
-        if [ -n "$(list_ipv4_ifaces)" ]; then
-            return 0
-        fi
-        if (( attempt == 1 )); then
-            log "INFO: waiting for an interface with IPv4..."
-        fi
-        attempt=$((attempt + 1))
-        sleep 5
-    done
-
-    log "ERROR: no interface with IPv4 -abort"
-    exit 1
-}
-
-# check internet
-check_internet() {
-    local max_attempts=24 attempt=1
-
-    while (( attempt <= max_attempts )); do
-        if getent hosts www.google.com >/dev/null 2>&1; then
-            return 0
-        fi
-        if (( attempt == 1 )); then
-            log "INFO: waiting for internet..."
-        fi
-        attempt=$((attempt + 1))
-        sleep 5
-    done
-
-    log "ERROR: no internet connection -abort"
-    exit 1
-}
-
 # DEPENDENCIES
 # Install the missing packages of apt_deps
 install_deps() {
@@ -700,7 +696,8 @@ choose_lan_interface() {
         lan_iface_answer="${lan_candidates[0]}"
         return 0
     fi
-    echo "Available LAN interfaces:"
+    echo ""
+    echo "==== Available LAN Interfaces ===="
     for iface_index in "${!lan_candidates[@]}"; do
         iface_name="${lan_candidates[$iface_index]}"
         iface_state=$(ip -br link show "$iface_name" | awk '{print $2}')
@@ -712,6 +709,7 @@ choose_lan_interface() {
             log "ERROR: cannot read LAN interface selection -abort"
             exit 1
         }
+        echo ""
         if [[ "$iface_choice" =~ $UH_UINT ]] && [ "${#iface_choice}" -le 5 ] \
            && [ "$iface_choice" -ge 1 ] && [ "$iface_choice" -le "${#lan_candidates[@]}" ]; then
             lan_iface_answer="${lan_candidates[$((iface_choice - 1))]}"
@@ -749,7 +747,8 @@ read_lan_ipv4() {
         lan_cidr_answer="${lan_addresses[0]}"
         return 0
     fi
-    echo "IPv4 addresses on LAN '$selected_iface':"
+    echo ""
+    echo "==== IPv4 Addresses on LAN '$selected_iface' ===="
     for ipv4_index in "${!lan_addresses[@]}"; do
         printf ' [%d] %s\n' "$((ipv4_index + 1))" "${lan_addresses[$ipv4_index]}"
     done
@@ -758,6 +757,7 @@ read_lan_ipv4() {
             log "ERROR: cannot read LAN IPv4 selection -abort"
             exit 1
         }
+        echo ""
         if [[ "$ipv4_choice" =~ $UH_UINT ]] && [ "${#ipv4_choice}" -le 5 ] \
            && [ "$ipv4_choice" -ge 1 ] && [ "$ipv4_choice" -le "${#lan_addresses[@]}" ]; then
             lan_cidr_answer="${lan_addresses[$((ipv4_choice - 1))]}"
@@ -799,9 +799,8 @@ select_scan_interfaces() {
         return 0
     fi
     echo ""
-    echo "Available scan interfaces (virtual/loopback interfaces are hidden):"
+    echo "==== Available Scan Interfaces (virtual/loopback interfaces are hidden) ===="
     print_candidate_interfaces
-    echo ""
     local all_idxs sel
     all_idxs=$(seq -s, 1 "${#candidate_names[@]}")
     while true; do
@@ -809,6 +808,7 @@ select_scan_interfaces() {
             log "ERROR: cannot read scan interface selection -abort"
             exit 1
         }
+        echo ""
         sel="${sel//[[:space:]]/}"
         sel="${sel:-$all_idxs}"
         local idxs chosen idx ok
@@ -1482,15 +1482,14 @@ do_status() {
 show_menu() {
     while true; do
         echo ""
-        echo "nwatch installer"
-        echo "-------------------"
+        echo "==== NWatch Installation Menu ===="
         echo "1) Install"
         echo "2) Update"
         echo "3) Uninstall"
         echo "4) Status"
         echo "5) Exit"
-        echo ""
         read -p "Select option (default: 5): " opt
+        echo ""
         opt="${opt:-5}"
         case "$opt" in
             1) do_install; break ;;

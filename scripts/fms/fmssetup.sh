@@ -88,58 +88,6 @@ if ! flock -n 200; then
     abort "script $(basename "$0") is already running -abort"
 fi
 
-# ------------------------------------------------------------------------------
-# VARIABLES
-# ------------------------------------------------------------------------------
-
-data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
-config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
-[[ "$data_home" == /* && "$config_home" == /* ]] \
-    || abort "XDG data and config paths must be absolute -abort"
-install_root="${data_home}/scripts/fms"
-install_dir="$install_root"
-manifest_file="${install_root}/.fms.manifest"
-manager_dir="${install_root}/.managers"
-found_managers=()
-
-# ------------------------------------------------------------------------------
-# OWN VALUES
-# ------------------------------------------------------------------------------
-
-script_names=(checkmd5 checksha256 copypath makemd5 makesha256 mountman send2phone)
-manager_names=(nautilus caja nemo thunar)
-package_names=(python3 zenity libnotify-bin xdg-utils
-    cifs-utils sshfs fuse3 pkexec kdeconnect)
-required_commands=(python3 zenity notify-send xdg-open mount
-    umount mountpoint mount.cifs sshfs fusermount fusermount3 pkexec kdeconnect-cli
-    kdeconnect-handler md5sum sha256sum)
-
-# ------------------------------------------------------------------------------
-# FUNCTIONS
-# ------------------------------------------------------------------------------
-
-retry_cmd() {
-    [ "$#" -ge 2 ] || return 2
-    local retry_label="$1" retry_attempt retry_status
-    shift
-    for retry_attempt in 1 2 3; do
-        if "$@"; then
-            return 0
-        else
-            retry_status=$?
-        fi
-        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
-        if declare -F log >/dev/null; then
-            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
-        else
-            printf '%s INFO: %s: retry %s/3\n' \
-                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
-                "$((retry_attempt + 1))" >&2
-        fi
-        sleep 5
-    done
-}
-
 # check ipv4 interfaces
 list_ifaces() {
     ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
@@ -191,6 +139,58 @@ check_internet() {
 
     log "ERROR: no internet connection -abort"
     exit 1
+}
+
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
+
+data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+[[ "$data_home" == /* && "$config_home" == /* ]] \
+    || abort "XDG data and config paths must be absolute -abort"
+install_root="${data_home}/scripts/fms"
+install_dir="$install_root"
+manifest_file="${install_root}/.fms.manifest"
+manager_dir="${install_root}/.managers"
+found_managers=()
+
+# ------------------------------------------------------------------------------
+# OWN VALUES
+# ------------------------------------------------------------------------------
+
+script_names=(checkmd5 checksha256 copypath makemd5 makesha256 mountman send2phone)
+manager_names=(nautilus caja nemo thunar)
+package_names=(python3 zenity libnotify-bin xdg-utils
+    cifs-utils sshfs fuse3 pkexec kdeconnect)
+required_commands=(python3 zenity notify-send xdg-open mount
+    umount mountpoint mount.cifs sshfs fusermount fusermount3 pkexec kdeconnect-cli
+    kdeconnect-handler md5sum sha256sum)
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
+retry_cmd() {
+    [ "$#" -ge 2 ] || return 2
+    local retry_label="$1" retry_attempt retry_status
+    shift
+    for retry_attempt in 1 2 3; do
+        if "$@"; then
+            return 0
+        else
+            retry_status=$?
+        fi
+        [ "$retry_attempt" -lt 3 ] || return "$retry_status"
+        if declare -F log >/dev/null; then
+            log "INFO: $retry_label: retry $((retry_attempt + 1))/3" >&2
+        else
+            printf '%s INFO: %s: retry %s/3\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$retry_label" \
+                "$((retry_attempt + 1))" >&2
+        fi
+        sleep 5
+    done
 }
 
 check_sources() {
@@ -552,13 +552,14 @@ show_menu() {
     local menu_option
     while true; do
         echo ""
-        echo "FMS installer"
+        echo "==== FMS Installation Menu ===="
         echo "1) Install"
         echo "2) Update"
         echo "3) Uninstall"
         echo "4) Exit"
         read -r -p "Select option [4]: " menu_option \
             || abort "cannot read the installer menu choice -abort"
+        echo ""
         case "${menu_option:-4}" in
             1) do_install; break ;;
             2) do_update; break ;;

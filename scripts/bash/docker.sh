@@ -21,15 +21,15 @@
 
 set -uo pipefail
 
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # awk is a command, not a package: check it before its first use
 command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
@@ -107,9 +107,12 @@ for dep in coreutils util-linux grep iproute2 libc-bin ca-certificates curl gnup
             if ! command -v ip >/dev/null 2>&1; then
                 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing iproute2"
                 apt-get install -y iproute2 >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install iproute2 -abort" >&2; exit 1; }
+                # the download proves link and internet; only IPv4 is left to check
+                check_ipv4_interfaces
+            else
+                check_ipv4_interfaces
+                check_internet
             fi
-            check_ipv4_interfaces
-            check_internet
             apt-get update -qq || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2; exit 1; }
             net_checked=1
         fi
@@ -194,8 +197,13 @@ ensure_portainer() {
     docker info >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: docker is not responding -abort" >&2; exit 1; }
     container_names=$(docker ps -a --format '{{.Names}}') || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot list containers -abort" >&2; exit 1; }
     if ! grep -qx portainer <<< "$container_names"; then
+        if ! docker image inspect portainer/portainer-ce >/dev/null 2>&1; then
+            check_ipv4_interfaces
+            check_internet
+            retry_cmd "download Portainer image" docker pull portainer/portainer-ce || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot start portainer -abort" >&2; exit 1; }
+        fi
         docker volume create portainer_data || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot create portainer volume -abort" >&2; exit 1; }
-        docker run -d -p 9000:9000 --name portainer --restart=always \
+        docker run --pull=never -d -p 9000:9000 --name portainer --restart=always \
         --label com.maravento.docker-sh=portainer \
         -v /var/run/docker.sock:/var/run/docker.sock \
         -v portainer_data:/data portainer/portainer-ce || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot start portainer -abort" >&2; exit 1; }
@@ -394,11 +402,13 @@ show_help() {
 # Main execution logic
 if [ $# -eq 0 ]; then
     # Interactive mode
-    echo "What action do you want to perform?"
+    echo ""
+    echo "==== Docker Installation Menu ===="
     echo "1) Install Docker + Portainer"
     echo "2) Uninstall Docker"
     echo "3) Exit"
     read -rp "Select an option (1, 2 or 3): " option
+    echo ""
     option="${option:-3}"
 
     case $option in

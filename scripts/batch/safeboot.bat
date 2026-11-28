@@ -16,15 +16,14 @@ if %errorlevel% neq 0 (
 setlocal enabledelayedexpansion
 REM safe with network/safe minimal/normal mode
 echo.
-echo Start PC in the following modes:
-echo.
+echo ==== Safe Boot Menu ====
 echo 1. Safe Boot Minimal
 echo 2. Safe Boot with Network
 echo 3. Normal Boot
 echo 4. Exit
-echo.
 set "choice="
 set /p choice="Enter the number (1, 2, 3 or 4) [4]: "
+echo.
 if not defined choice (
     for /f "delims=" %%I in ('powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'"') do echo %%I INFO: no option selected, exit -skip
     set "choice=4"

@@ -45,18 +45,15 @@
 
 set -euo pipefail
 
-# validation - integer only; use directly with =~
-UH_UINT='^(0|[1-9][0-9]*)$'
-
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # awk is a command, not a package: check it before its first use
 command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
@@ -185,9 +182,12 @@ for dep in iproute2 libc-bin sudo coreutils grep sed curl less jq file ca-certif
             if ! command -v ip >/dev/null 2>&1; then
                 log "INFO: installing iproute2"
                 apt-get install -y iproute2 >/dev/null 2>&1 || { log "ERROR: cannot install iproute2 -abort"; exit 1; }
+                # the download proves link and internet; only IPv4 is left to check
+                check_ipv4_interfaces
+            else
+                check_ipv4_interfaces
+                check_internet
             fi
-            check_ipv4_interfaces
-            check_internet
             apt-get update -qq || { log "ERROR: cannot update package lists -abort"; exit 1; }
             net_checked=1
         fi
@@ -222,6 +222,13 @@ retry_cmd() {
 }
 
 download_url=""
+
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
+
+# validation - integer only; use directly with =~
+UH_UINT='^(0|[1-9][0-9]*)$'
 
 # CONFIGURATION
 # Declare the application paths, ports and component flags
@@ -399,15 +406,9 @@ RESET=''
 # DISPLAY
 # Render terminal headings and status messages
 header() {
-    clear
-    echo -e "${CYAN}"
-    echo "+------------------------------------------------------+"
-    echo "| AI STACK MANAGER - Dockerized v1.2 |"
-    echo "| Ollama . Open Web UI . Portainer |"
-    echo "+------------------------------------------------------+"
-    echo -e "${RESET}"
-    echo -e " ${DIM}Base directory: ${WHITE}${AI_BASE_DIR}${RESET}"
     echo ""
+    echo "==== $1 ===="
+    echo -e " ${DIM}Base directory: ${WHITE}${AI_BASE_DIR}${RESET}"
 }
 
 ok() { info "$*"; }
@@ -464,8 +465,7 @@ select_model() {
     fi
 
     echo ""
-    echo -e " ${BOLD}Available Models (live catalog):${RESET}"
-    echo ""
+    echo "==== Available Models (live catalog) ===="
 
     local i=1
     local entry name size_h
@@ -477,12 +477,11 @@ select_model() {
     done
 
     echo "0) Cancel"
-    echo ""
     read -rp " -> Select model [0-${#AVAILABLE_MODELS[@]}]: " choice
+    echo ""
 
     if [[ "$choice" == "0" ]]; then
         SELECTED_MODEL=""
-        echo ""
         info "model selection cancelled -skip"
         return 0
     elif [[ "$choice" =~ $UH_UINT ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#AVAILABLE_MODELS[@]}" ]; then
@@ -854,8 +853,7 @@ remove_model() {
     fi
 
     echo ""
-    echo -e " ${BOLD}Installed models:${RESET}"
-    echo ""
+    echo "==== Installed Models ===="
     local i=1
     for model in "${models_list[@]}"; do
         echo -e " ${WHITE}$i)${RESET} $model"
@@ -863,12 +861,11 @@ remove_model() {
     done
     echo ""
     echo -e " ${WHITE}0)${RESET} Cancel"
-    echo ""
     read -rp " -> Select model to remove [0-${#models_list[@]}]: " choice
+    echo ""
 
     if [[ "$choice" =~ $UH_UINT ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#models_list[@]}" ]; then
         local model_to_remove="${models_list[$((choice-1))]}"
-        echo ""
         read -rp " Remove model '$model_to_remove'? [y/N]: " confirm
         if [[ "$confirm" =~ ^[yY]$ ]]; then
             docker exec ollama ollama rm "$model_to_remove"
@@ -917,27 +914,19 @@ replace_current_model() {
 # Display the model management actions
 menu_models() {
     while true; do
-        clear
-        echo -e "${CYAN}"
-        echo "+------------------------------------------------------+"
-        echo "| MANAGE MODELS |"
-        echo "+------------------------------------------------------+"
-        echo -e "${RESET}"
         echo ""
+        echo "==== Manage Models ===="
 
         # Show installed models
         list_installed_models
 
-        echo -e " ${BOLD}Select an option:${RESET}"
-        echo ""
         echo -e " ${WHITE}1)${RESET} Install additional model"
         echo -e " ${WHITE}2)${RESET} Remove a model"
         echo -e " ${WHITE}3)${RESET} Replace current model with another"
         echo -e " ${WHITE}0)${RESET} Back to main menu"
-        echo ""
-        line
         echo -n " -> Option [0]: "
         read -r opt
+        echo ""
         if [ -z "$opt" ]; then
             info "no option selected, back -skip"
             opt=0
@@ -1361,24 +1350,16 @@ WRAPPER
 # Select the OpenCode command line or desktop workflow
 menu_opencode() {
     while true; do
-        clear
-        echo -e "${MAGENTA}"
-        echo "+------------------------------------------------------+"
-        echo "| OPENCODE |"
-        echo "+------------------------------------------------------+"
-        echo -e "${RESET}"
         echo ""
+        echo "==== OpenCode Menu ===="
         echo -e " ${DIM}Runs natively on your system, NOT installed inside Docker${RESET}"
-        echo ""
-        echo -e " ${BOLD}Select an option:${RESET}"
         echo ""
         echo -e " ${WHITE}1)${RESET} OpenCode CLI ${DIM}(terminal AI assistant)${RESET}"
         echo -e " ${WHITE}2)${RESET} OpenCode Desktop ${DIM}(GUI app, AppImage/.deb)${RESET}"
         echo -e " ${WHITE}0)${RESET} Back to main menu"
-        echo ""
-        line
         echo -n " -> Option [0]: "
         read -r opt
+        echo ""
         if [ -z "$opt" ]; then
             info "no option selected, back -skip"
             opt=0
@@ -1399,33 +1380,25 @@ menu_opencode() {
 # returns immediately to the OpenCode chooser above.
 menu_opencode_cli() {
     while true; do
-        clear
-        echo -e "${MAGENTA}"
-        echo "+------------------------------------------------------+"
-        echo "| OPENCODE CLI |"
-        echo "+------------------------------------------------------+"
-        echo -e "${RESET}"
         echo ""
+        echo "==== OpenCode CLI Menu ===="
         echo -e " ${DIM}Runs natively on your system, NOT installed inside Docker${RESET}"
-        echo ""
-        echo -e " ${BOLD}Select an option:${RESET}"
         echo ""
         echo -e " ${WHITE}1)${RESET} Install"
         echo -e " ${WHITE}2)${RESET} Update"
         echo -e " ${WHITE}3)${RESET} Uninstall"
         echo -e " ${WHITE}0)${RESET} Back"
-        echo ""
-        line
         echo -n " -> Option [0]: "
         read -r opt
+        echo ""
         if [ -z "$opt" ]; then
             info "no option selected, back -skip"
             opt=0
         fi
 
         case "$opt" in
-            1) install_opencode; finish ;;
-            2) update_opencode; finish ;;
+            1) check_ipv4_interfaces; check_internet; install_opencode; finish ;;
+            2) check_ipv4_interfaces; check_internet; update_opencode; finish ;;
             3) uninstall_opencode; finish ;;
             0) return ;;
             *) info "invalid option -retry" ;;
@@ -1438,33 +1411,25 @@ menu_opencode_cli() {
 # Same navigation convention as menu_opencode_cli above.
 menu_opencode_desktop() {
     while true; do
-        clear
-        echo -e "${MAGENTA}"
-        echo "+------------------------------------------------------+"
-        echo "| OPENCODE DESKTOP |"
-        echo "+------------------------------------------------------+"
-        echo -e "${RESET}"
         echo ""
+        echo "==== OpenCode Desktop Menu ===="
         echo -e " ${DIM}GUI app (AppImage or .deb), runs natively, NOT installed inside Docker${RESET}"
-        echo ""
-        echo -e " ${BOLD}Select an option:${RESET}"
         echo ""
         echo -e " ${WHITE}1)${RESET} Install"
         echo -e " ${WHITE}2)${RESET} Update"
         echo -e " ${WHITE}3)${RESET} Uninstall"
         echo -e " ${WHITE}0)${RESET} Back"
-        echo ""
-        line
         echo -n " -> Option [0]: "
         read -r opt
+        echo ""
         if [ -z "$opt" ]; then
             info "no option selected, back -skip"
             opt=0
         fi
 
         case "$opt" in
-            1) install_opencode_desktop; finish ;;
-            2) update_opencode_desktop; finish ;;
+            1) check_ipv4_interfaces; check_internet; install_opencode_desktop; finish ;;
+            2) check_ipv4_interfaces; check_internet; update_opencode_desktop; finish ;;
             3) uninstall_opencode_desktop; finish ;;
             0) return ;;
             *) info "invalid option -retry" ;;
@@ -1700,10 +1665,11 @@ _opencode_desktop_guess_arch_for_ext() {
 # Ask the user to choose between AppImage and .deb. Echoes "appimage" or "deb".
 _opencode_desktop_choose_format() {
     echo "" >&2
-    echo -e " ${BOLD}Choose a format for OpenCode Desktop:${RESET}" >&2
+    echo "==== OpenCode Desktop Format ====" >&2
     echo -e " ${WHITE}1)${RESET} AppImage ${DIM}(portable, no apt involved, easy to remove)${RESET}" >&2
     echo -e " ${WHITE}2)${RESET} .deb ${DIM}(installed as a native package via apt/dpkg)${RESET}" >&2
     read -rp " -> Format [1-2] [1]: " choice
+    echo "" >&2
     if [ -z "$choice" ]; then
         info "no option selected, using AppImage -skip" >&2
         choice=1
@@ -2408,13 +2374,13 @@ update_components() {
     cd "${AI_BASE_DIR}"
 
     echo ""
-    echo -e " ${BOLD}Components to update:${RESET}"
+    echo "==== AI Stack Update Menu ===="
     echo -e " ${WHITE}1)${RESET} Update All (Docker + Portainer + Ollama + LLM + Open WebUI)"
     echo -e " ${WHITE}2)${RESET} Update Ollama + LLM + Open WebUI"
     echo -e " ${WHITE}3)${RESET} Update Docker + Portainer"
     echo -e " ${WHITE}0)${RESET} Back"
-    echo ""
     read -rp " -> Select option [0]: " update_opt
+    echo ""
     if [ -z "$update_opt" ]; then
         info "no option selected, back -skip"
         update_opt=0
@@ -2569,15 +2535,8 @@ install_all() {
 # Display the component removal actions
 menu_uninstall() {
     while true; do
-        clear
-        echo -e "${RED}"
-        echo "+------------------------------------------------------+"
-        echo "| UNINSTALL MENU |"
-        echo "+------------------------------------------------------+"
-        echo -e "${RESET}"
         echo ""
-        echo -e " ${BOLD}Select what to uninstall:${RESET}"
-        echo ""
+        echo "==== AI Stack Uninstall Menu ===="
         echo -e " ${RED}COMPLETE${RESET}"
         echo -e " ${WHITE}1)${RESET} Uninstall EVERYTHING (containers + Docker + data)"
         echo ""
@@ -2588,10 +2547,9 @@ menu_uninstall() {
         echo -e " ${WHITE}5)${RESET} Uninstall models only (keep everything else)"
         echo ""
         echo -e " ${WHITE}0)${RESET} Back to main menu"
-        echo ""
-        line
         echo -n " -> Option [0]: "
         read -r opt
+        echo ""
         if [ -z "$opt" ]; then
             info "no option selected, back -skip"
             opt=0
@@ -2705,22 +2663,22 @@ uninstall_lmstudio() {
 # LM STUDIO MENU
 # Display the LM Studio installation and removal actions
 menu_lmstudio() {
-    header
+    header "LM Studio Menu"
     echo -e " LM Studio is an optional desktop app for running LLMs locally"
     echo -e " It is NOT part of Docker stack and runs natively on your system"
     echo ""
     echo -e " ${WHITE}1)${RESET} Install LM Studio"
     echo -e " ${WHITE}2)${RESET} Uninstall LM Studio"
     echo -e " ${WHITE}0)${RESET} Back to main menu"
-    line
     echo -n " -> Option [0]: "
     read -r opt
+    echo ""
     if [ -z "$opt" ]; then
         info "no option selected, back -skip"
         opt=0
     fi
     case "$opt" in
-        1) install_lmstudio; finish ;;
+        1) check_ipv4_interfaces; check_internet; install_lmstudio; finish ;;
         2) uninstall_lmstudio; finish ;;
         0) return ;;
         *) info "invalid option; action skipped -skip" ;;
@@ -2731,9 +2689,8 @@ menu_lmstudio() {
 # Display the main application actions
 menu_main() {
     while true; do
-        header
-        echo -e " ${BOLD}Select an option:${RESET}"
-        echo ""
+        header "AI Stack Manager - Dockerized v1.2"
+        echo "Ollama . Open Web UI . Portainer"
         echo -e " ${WHITE}1)${RESET} Install Stack (Docker/Portainer + Ollama + Open WebUI)"
         echo -e " ${WHITE}2)${RESET} Manage LLM Models (download/remove/change)"
         echo -e " ${WHITE}3)${RESET} Update Components"
@@ -2743,10 +2700,9 @@ menu_main() {
         echo -e " ${WHITE}7)${RESET} Status"
         echo -e " ${WHITE}8)${RESET} View logs"
         echo -e " ${WHITE}0)${RESET} Exit"
-        echo ""
-        line
         echo -n " -> Option [0]: "
         read -r opt
+        echo ""
         if [ -z "$opt" ]; then
             info "no option selected, exit -skip"
             opt=0
@@ -2757,8 +2713,8 @@ menu_main() {
             2) check_ipv4_interfaces; check_internet; menu_models ;;
             3) check_ipv4_interfaces; check_internet; update_components ;;
             4) menu_uninstall ;;
-            5) check_ipv4_interfaces; check_internet; menu_opencode ;;
-            6) check_ipv4_interfaces; check_internet; menu_lmstudio ;;
+            5) menu_opencode ;;
+            6) menu_lmstudio ;;
             7) detect_gpu; status_all; finish ;;
             8) if [ -f "${AI_BASE_DIR}/docker-compose.yml" ]; then
                     cd "${AI_BASE_DIR}" && docker compose logs | less -R

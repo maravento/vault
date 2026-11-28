@@ -165,7 +165,7 @@ body {
 .pager { margin-top: 0.8rem; font-size: 0.85rem; display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
 
 /* Forms */
-input[type=text], input[type=password] {
+input[type=text], input[type=password], input[type=number] {
     width: 100%;
     padding: 10px 14px;
     border: 1px solid #ccc;
@@ -181,6 +181,19 @@ select {
     background: white;
     color: #1e3a5f;
 }
+
+/* Quote form */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.8rem; margin: 0.8rem 0; }
+.form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: #1e3a5f; font-weight: 600; }
+.form-grid .wide { grid-column: 1 / -1; }
+.form-grid [hidden] { display: none; }
+form fieldset { border: 1px solid #c9d3e0; border-radius: 6px; margin: 0.8rem 0; padding: 0.6rem 0.9rem; }
+form fieldset legend { font-size: 0.85rem; font-weight: 600; color: #1e3a5f; padding: 0 0.3rem; }
+form .check { display: inline-flex; align-items: center; gap: 6px; margin-right: 1.2rem; font-size: 0.9rem; }
+.items input { min-width: 80px; padding: 6px 10px; border-radius: 14px; font-size: 0.85rem; }
+.items input[readonly] { background: #eef2f7; }
+.totals { margin: 0.8rem 0; }
+.notice { background: #fff8ed; border: 1px solid #d4af37; border-radius: 1rem; padding: 0.6rem 1rem; margin-top: 1rem; font-size: 0.85rem; color: #1e3a5f; }
 
 /* Login */
 .login-card {

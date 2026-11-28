@@ -142,41 +142,41 @@ function user(): ?array
 }
 
 // Returns an error message, or null when login succeeded.
-function login(string $usuario, string $clave): ?string
+function login(string $username, string $password): ?string
 {
     $ip = client_ip();
     $minutes = setting('LOGIN_WINDOW_MINUTES', 10);
-    $st = db()->prepare('SELECT COUNT(*) FROM sori_intentos WHERE ip = ? AND momento > NOW() - INTERVAL ' . $minutes . ' MINUTE');
+    $st = db()->prepare('SELECT COUNT(*) FROM sori_attempts WHERE ip = ? AND attempted_at > NOW() - INTERVAL ' . $minutes . ' MINUTE');
     $st->execute([$ip]);
     if ((int) $st->fetchColumn() >= setting('LOGIN_MAX_ATTEMPTS', 5)) {
         return str_replace('{n}', (string) $minutes, t('Demasiados intentos. Espere {n} minutos.'));
     }
     $st = db()->prepare(
-        'SELECT u.id, u.usuario, u.nombre, u.hash, u.rol, u.cliente_id, c.slug, c.nombre AS cliente, c.activo AS cactivo
-         FROM sori_usuarios u LEFT JOIN sori_clientes c ON c.id = u.cliente_id
-         WHERE u.usuario = ? AND u.activo = 1'
+        'SELECT u.id, u.username, u.name, u.hash, u.role, u.client_id, c.slug, c.name AS client_name, c.active AS client_active
+         FROM sori_users u LEFT JOIN sori_clients c ON c.id = u.client_id
+         WHERE u.username = ? AND u.active = 1'
     );
-    $st->execute([$usuario]);
+    $st->execute([$username]);
     $row = $st->fetch();
     // Verify against a dummy hash when the user does not exist, to keep timing equal
     $hash = $row['hash'] ?? '$2y$10$mmQNATPIXh/msWUnvSlKBu90zEJwbFJDiWk02rSWpXMj.P2bckjca';
-    $ok = password_verify($clave, $hash) && $row;
-    if ($ok && $row['cliente_id'] !== null && !(int) $row['cactivo']) {
+    $ok = password_verify($password, $hash) && $row;
+    if ($ok && $row['client_id'] !== null && !(int) $row['client_active']) {
         $ok = false;
     }
     if (!$ok) {
-        db()->prepare('INSERT INTO sori_intentos (ip) VALUES (?)')->execute([$ip]);
-        db()->exec('DELETE FROM sori_intentos WHERE momento < NOW() - INTERVAL ' . setting('LOGIN_ATTEMPTS_KEEP_DAYS', 1) . ' DAY');
+        db()->prepare('INSERT INTO sori_attempts (ip) VALUES (?)')->execute([$ip]);
+        db()->exec('DELETE FROM sori_attempts WHERE attempted_at < NOW() - INTERVAL ' . setting('LOGIN_ATTEMPTS_KEEP_DAYS', 1) . ' DAY');
         return t('Usuario o contraseña incorrectos.');
     }
     session_regenerate_id(true);
     $_SESSION['user'] = [
         'id' => (int) $row['id'],
-        'usuario' => $row['usuario'],
-        'nombre' => $row['nombre'],
-        'rol' => $row['rol'],
+        'username' => $row['username'],
+        'name' => $row['name'],
+        'role' => $row['role'],
         'slug' => $row['slug'],
-        'cliente' => $row['cliente'],
+        'client_name' => $row['client_name'],
     ];
     return null;
 }
@@ -197,23 +197,23 @@ function require_login(): array
 }
 
 // SQL expression with the full name of a third party, from a T12TERCERO alias
-function nombre_tercero(string $a): string
+function party_name(string $a): string
 {
     return "TRIM(CONCAT_WS(' ', NULLIF(TRIM($a.T12RazonSocial), ''), NULLIF(TRIM($a.T12Nombre), ''), "
          . "NULLIF(TRIM($a.T12Nombre2), ''), NULLIF(TRIM($a.T12Apellido), ''), NULLIF(TRIM($a.T12Apellido2), '')))";
 }
 
 // The legacy database stores dates as text dd/mm/yyyy. This makes one sortable.
-function fecha_sql(string $col): string
+function date_sql(string $col): string
 {
     return "STR_TO_DATE($col, '%d/%m/%Y')";
 }
 
 // Format a value for display by its type: text, money or number
-function fmt(?string $v, string $tipo = 'text'): string
+function fmt(?string $v, string $type = 'text'): string
 {
     $v = (string) $v;
-    if ($tipo === 'money' && is_numeric($v)) {
+    if ($type === 'money' && is_numeric($v)) {
         $n = (float) $v;
         return num($n, $n == round($n) ? 0 : 2);
     }
@@ -227,7 +227,7 @@ function num(float|int $n, int $decimals = 0): string
 }
 
 // Readable label from a legacy column name: T604NumFactura -> Num Factura
-function etiqueta(string $col): string
+function label(string $col): string
 {
     $col = preg_replace('/^T\d+/', '', $col);
     return trim((string) preg_replace('/(?<=[a-z])(?=[A-Z])/', ' ', $col));

@@ -37,15 +37,15 @@
 
 set -uo pipefail
 
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # awk is a command, not a package: check it before its first use
 command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
@@ -137,9 +137,12 @@ for dep in iproute2 util-linux systemd coreutils grep apt libc-bin; do
             if ! command -v ip >/dev/null 2>&1; then
                 log "INFO: installing iproute2"
                 apt-get install -y iproute2 >/dev/null 2>&1 || { log "ERROR: cannot install iproute2 -abort"; exit 1; }
+                # the download proves link and internet; only IPv4 is left to check
+                check_ipv4_interfaces
+            else
+                check_ipv4_interfaces
+                check_internet
             fi
-            check_ipv4_interfaces
-            check_internet
             apt-get update -qq || { log "ERROR: cannot update package lists -abort"; exit 1; }
             net_checked=1
         fi
@@ -379,7 +382,8 @@ usage() {
 }
 
 menu() {
-    echo "x11vnc manager"
+    echo ""
+    echo "==== x11vnc Manager ===="
     echo "1) install"
     echo "2) uninstall"
     echo "3) start"
@@ -387,10 +391,10 @@ menu() {
     echo "5) restart"
     echo "6) status"
     echo "0) exit"
-    echo ""
 
     local choice
     read -r -p "Select an option [0]: " choice
+    echo ""
     if [ -z "$choice" ]; then
         log "INFO: no option selected, exit -skip"
         choice=0

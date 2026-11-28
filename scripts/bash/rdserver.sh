@@ -24,15 +24,15 @@
 
 set -euo pipefail
 
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # awk is a command, not a package: check it before its first use
 command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
@@ -70,22 +70,6 @@ retry_cmd() {
         sleep 5
     done
 }
-
-# ------------------------------------------------------------------------------
-# VARIABLES
-# ------------------------------------------------------------------------------
-
-rd_user="rustdesk"
-rd_data_dir="/var/lib/rustdesk-server"
-rd_log_dir="/var/log/rustdesk-server"
-conf_dir="/etc/rustdesk-server"
-conf_file="$conf_dir/rdserver.conf"
-hbbs_unit="/lib/systemd/system/rustdesk-hbbs.service"
-hbbr_unit="/lib/systemd/system/rustdesk-hbbr.service"
-
-# ------------------------------------------------------------------------------
-# FUNCTIONS
-# ------------------------------------------------------------------------------
 
 # check ipv4 interfaces
 list_ifaces() {
@@ -140,6 +124,22 @@ check_internet() {
     exit 1
 }
 
+# ------------------------------------------------------------------------------
+# VARIABLES
+# ------------------------------------------------------------------------------
+
+rd_user="rustdesk"
+rd_data_dir="/var/lib/rustdesk-server"
+rd_log_dir="/var/log/rustdesk-server"
+conf_dir="/etc/rustdesk-server"
+conf_file="$conf_dir/rdserver.conf"
+hbbs_unit="/lib/systemd/system/rustdesk-hbbs.service"
+hbbr_unit="/lib/systemd/system/rustdesk-hbbr.service"
+
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
 # dependencies (network checks, before the menu)
 net_checked=0
 for dep in iproute2 libc-bin coreutils grep sed wget curl jq lsof; do
@@ -148,9 +148,12 @@ for dep in iproute2 libc-bin coreutils grep sed wget curl jq lsof; do
             if ! command -v ip >/dev/null 2>&1; then
                 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing iproute2"
                 apt-get install -y iproute2 >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install iproute2 -abort" >&2; exit 1; }
+                # the download proves link and internet; only IPv4 is left to check
+                check_ipv4_interfaces
+            else
+                check_ipv4_interfaces
+                check_internet
             fi
-            check_ipv4_interfaces
-            check_internet
             apt-get update -qq || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2; exit 1; }
             net_checked=1
         fi
@@ -375,10 +378,8 @@ show_public_key() {
 }
 
 show_menu() {
-    echo "================================"
-    echo "  RUSTDESK SERVER MANAGER"
-    echo "  (Self-Hosted: hbbs + hbbr)"
-    echo "================================"
+    echo ""
+    echo "==== RustDesk Server Manager (Self-Hosted: hbbs + hbbr) ===="
     echo "1. Install / Update Server"
     echo "2. Configure Relay Host"
     echo "3. Start"
@@ -387,7 +388,6 @@ show_menu() {
     echo "6. Show Server Public Key"
     echo "7. Remove Server"
     echo "8. Exit"
-    echo "================================"
     echo -n "Select an option [8]: "
 }
 
@@ -400,6 +400,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: rdserver start..."
 
 show_menu
 read -r option
+echo ""
 if [ -z "$option" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no option selected, exit -skip"
     option=8

@@ -19,15 +19,15 @@
 
 set -uo pipefail
 
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # logging
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -59,6 +59,59 @@ for dep_cmd in apt-get dpkg dpkg-query systemctl openssl ss; do
         exit 1
     fi
 done
+
+# check ipv4 interfaces
+list_ifaces() {
+    ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
+}
+
+list_ipv4_ifaces() {
+    local iface state
+    while read -r iface state; do
+        [ "$state" = UP ] || continue
+        if ip -4 -o addr show dev "$iface" scope global 2>/dev/null \
+            | awk '$4 != "" {found=1} END {exit !found}'; then
+            printf '%s\n' "$iface"
+        fi
+    done < <(list_ifaces)
+}
+
+check_ipv4_interfaces() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if [ -n "$(list_ipv4_ifaces)" ]; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for an interface with IPv4..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no interface with IPv4 -abort"
+    exit 1
+}
+
+# check internet
+check_internet() {
+    local max_attempts=24 attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if getent hosts www.google.com >/dev/null 2>&1; then
+            return 0
+        fi
+        if (( attempt == 1 )); then
+            log "INFO: waiting for internet..."
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+
+    log "ERROR: no internet connection -abort"
+    exit 1
+}
 
 # ------------------------------------------------------------------------------
 # VARIABLES
@@ -129,13 +182,21 @@ check_sources() {
     local source_item
     for source_item in "${source_web}/public/index.php" \
                        "${source_web}/public/assets/sori.css" "${source_web}/public/assets/sori.js" \
+                       "${source_web}/public/assets/document.js" "${source_web}/public/assets/third_party.js" \
+                       "${source_web}/app/product.php" "${source_web}/app/third_party.php" "${source_web}/app/supplier_payment.php" \
+                       "${source_web}/app/views/product_form.php" "${source_web}/app/views/third_party_form.php" \
+                       "${source_web}/app/views/supplier_payment_new.php" \
                        "${source_web}/app/lib.php" "${source_web}/app/i18n.php" \
                        "${source_web}/app/lang_en.php" "${source_web}/app/modules.php" \
-                       "${source_web}/app/vistas.php" \
-                       "${source_web}/app/views/admin.php" "${source_web}/app/views/detalle.php" \
+                       "${source_web}/app/screens.php" "${source_web}/app/write.php" "${source_web}/app/invoice.php" "${source_web}/app/receipt.php" \
+                       "${source_web}/app/sales_return.php" "${source_web}/app/purchase.php" "${source_web}/app/purchase_return.php" \
+                       "${source_web}/app/views/receipt_new.php" "${source_web}/app/views/sales_return_new.php" \
+                       "${source_web}/app/views/purchase_new.php" "${source_web}/app/views/purchase_return_new.php" \
+                       "${source_web}/app/views/admin.php" "${source_web}/app/views/detail.php" \
+                       "${source_web}/app/views/document_new.php" \
                        "${source_web}/app/views/home.php" "${source_web}/app/views/layout.php" \
-                       "${source_web}/app/views/listado.php" "${source_web}/app/views/login.php" \
-                       "${source_web}/app/views/pendiente.php" \
+                       "${source_web}/app/views/list.php" "${source_web}/app/views/login.php" \
+                       "${source_web}/app/views/pending.php" \
                        "${source_db}/schema.sql" "${source_db}/app.sql" \
                        "${source_tools}/sorimigrate.php" "${source_tools}/soribk.sh" \
                        "${source_tools}/sorienv.sh"; do
@@ -151,6 +212,7 @@ copy_code() {
         || abort "cannot copy the code to $install_dir -abort"
     chown -R root:root "$install_dir"
     chmod -R go-w "$install_dir"
+    chmod 750 "${install_dir}/tools/soribk.sh" || abort "cannot set backup script permissions -abort"
     info "updated ${install_dir}"
 }
 
@@ -159,8 +221,17 @@ sql_admin() {
     mariadb "$@"
 }
 
+# Time zone of the server: dates follow the place where the company works
+detect_timezone() {
+    local zone
+    zone=$(timedatectl show -p Timezone --value 2>/dev/null) || zone=""
+    [[ "$zone" =~ ^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+)*$ ]] || abort "cannot detect the server time zone -abort"
+    echo "$zone"
+}
+
 write_env() {
-    local database_password="$1"
+    local database_password="$1" server_timezone
+    server_timezone=$(detect_timezone) || exit 1
     install -d -m 750 -o root -g www-data "$conf_dir" || abort "cannot create $conf_dir -abort"
     cat > "$env_file" <<EOF
 # =============================================================================
@@ -171,6 +242,7 @@ DB_USER=${database_user}
 DB_PASS=${database_password}
 # =============================================================================
 # Settings
+TIMEZONE=${server_timezone}
 $(printf '%s\n' "${env_settings[@]}")
 # Backup
 BACKUP_DIR=${backup_dir}
@@ -212,11 +284,18 @@ reload_apache() {
 
 # Install the packages the project needs that are still missing
 install_packages() {
-    local missing_pkgs=() pkg_name
+    local missing_pkgs=() pkg_name network_command
     for pkg_name in "${project_pkgs[@]}"; do
         [ "$(dpkg-query -W -f='${db:Status-Status}' "$pkg_name" 2>/dev/null)" = "installed" ] || missing_pkgs+=("$pkg_name")
     done
     if [ "${#missing_pkgs[@]}" -gt 0 ]; then
+        for network_command in ip awk getent; do
+            if ! command -v "$network_command" >/dev/null 2>&1; then
+                abort "network command '$network_command' missing -abort"
+            fi
+        done
+        check_ipv4_interfaces
+        check_internet
         retry_cmd "update package index" apt-get update -qq \
             || abort "cannot update the package index -abort"
         retry_cmd "install packages" env DEBIAN_FRONTEND=noninteractive \
@@ -257,8 +336,8 @@ EOF
     admin_hash="$(php -r 'echo password_hash(trim(fgets(STDIN)), PASSWORD_DEFAULT);' <<< "$admin_password")"
     [ -n "$admin_hash" ] || abort "cannot hash the administrator password -abort"
     sql_admin "$database_name" <<EOF || abort "cannot create the administrator -abort"
-INSERT INTO sori_usuarios (cliente_id, usuario, nombre, hash, rol)
-VALUES (NULL, 'admin', 'Administrador', '${admin_hash}', 'admin');
+INSERT INTO sori_users (client_id, username, name, hash, role)
+VALUES (NULL, 'admin', 'Administrator', '${admin_hash}', 'admin');
 EOF
     info "database ${database_name} created"
 
@@ -341,14 +420,13 @@ do_uninstall() {
 show_menu() {
     while true; do
         echo ""
-        echo "SORI installer"
-        echo "--------------"
+        echo "==== SORI Installation Menu ===="
         echo "1) Install"
         echo "2) Update"
         echo "3) Uninstall"
         echo "4) Exit"
-        echo ""
         read -r -p "Select option [4]: " menu_option
+        echo ""
         menu_option="${menu_option:-4}"
         case "$menu_option" in
             1) do_install || exit 1; break ;;

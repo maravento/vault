@@ -16,19 +16,20 @@
 
 set -Eeuo pipefail
 
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
 
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
+
 print_interfaces() {
     local i iface_state
-    echo "Available network interfaces:"
+    echo ""
+    echo "==== Available Network Interfaces ===="
     for i in "${!IFACES[@]}"; do
         iface_state=$(ip -br link show "${IFACES[$i]}" | awk '{print $2}')
         printf " [%d] %s (%s)\n" "$((i+1))" "${IFACES[$i]}" "$iface_state"
@@ -53,6 +54,7 @@ public_interface() {
         print_interfaces
         failure_message="cannot read the WAN interface choice"
         read -r -p "Select WAN Interface [1-${#IFACES[@]}]: " SEL || abort "cannot read interface selection -abort"
+        echo ""
         if [[ "$SEL" =~ $UH_UINT ]] \
            && [ "${#SEL}" -le 5 ] \
            && [ "$SEL" -ge 1 ] && [ "$SEL" -le "${#IFACES[@]}" ]; then
@@ -87,6 +89,7 @@ local_interface() {
         print_interfaces
         failure_message="cannot read the LAN interface choice"
         read -r -p "Select LAN Interface [1-${#IFACES[@]}]: " SEL || abort "cannot read interface selection -abort"
+        echo ""
         if [[ "$SEL" =~ $UH_UINT ]] \
            && [ "${#SEL}" -le 5 ] \
            && [ "$SEL" -ge 1 ] && [ "$SEL" -le "${#IFACES[@]}" ]; then
@@ -1029,10 +1032,8 @@ find "$gp_path/conf" "$gp_path/scr" -type f -print0 | xargs -0 -I "{}" sed -i "s
 
 # START
 # Display the installation introduction and system requirements
-failure_message="cannot clear the terminal"
-clear
 echo ""
-echo "    Welcome to GateProxy"
+echo "==== Welcome to GateProxy ===="
 echo ""
 echo "    Minimum Requirements:"
 echo "    CPU:      4+ cores (>= 3.0 GHz)"
@@ -1043,13 +1044,10 @@ echo "    SO:       Ubuntu 24.04/26.04 LTS"
 echo ""
 echo "    For a clean system only. GateProxy replaces system files"
 echo "    (Apache, PHP, Squid, logrotate) without asking again."
-echo "    Press ENTER to start or CTRL+C to abort"
+echo "    Press ENTER to continue or CTRL+C to abort"
 echo ""
 failure_message="cannot read the continue confirmation"
 read -r RES
-failure_message="cannot clear the terminal"
-clear
-
 echo ""
 while true; do
     failure_message="cannot read the server IP answer"

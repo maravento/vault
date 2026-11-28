@@ -18,18 +18,18 @@
 
 set -uo pipefail
 
+# root check
+if [ "$(command -p id -u)" != "0" ]; then
+    echo "$(command -p date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
+    exit 1
+fi
+
 # ------------------------------------------------------------------------------
 # REQUIREMENTS
 # ------------------------------------------------------------------------------
 
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-# root check
-if [ "$(id -u)" != "0" ]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
-    exit 1
-fi
 
 # awk is a command, not a package: check it before its first use
 command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
@@ -101,19 +101,24 @@ check_internet() {
 
 # dependencies
 # iproute2 first: the network checks need ip, so it installs without them
+ip_installed=0
 if [[ "$(dpkg-query -W -f='${Status}' iproute2 2>/dev/null)" != *"ok installed"* ]]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: Installing iproute2..."
     if ! apt-get install -y iproute2; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install iproute2 -abort" >&2
         exit 1
     fi
+    ip_installed=1
 fi
 net_checked=0
 for dep in util-linux util-linux-extra bsdutils coreutils libc-bin; do
     if [[ "$(dpkg-query -W -f='${Status}' "$dep" 2>/dev/null)" != *"ok installed"* ]]; then
         if [ "$net_checked" -eq 0 ]; then
             check_ipv4_interfaces
-            check_internet
+            # the iproute2 download already proved link and internet
+            if [ "$ip_installed" -eq 0 ]; then
+                check_internet
+            fi
             if ! apt-get update -qq; then
                 echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2
                 exit 1

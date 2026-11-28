@@ -17,15 +17,15 @@
 
 set -euo pipefail
 
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # awk is a command, not a package: check it before its first use
 command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
@@ -85,10 +85,6 @@ user_lang=$(locale | grep LANG= | cut -d= -f2 | cut -d_ -f1) || true
 export LANG=${LANG:-C.UTF-8}
 export LC_ALL=${LC_ALL:-C.UTF-8}
 
-# ------------------------------------------------------------------------------
-# FUNCTIONS
-# ------------------------------------------------------------------------------
-
 # check ipv4 interfaces
 list_ifaces() {
     ip -br link show 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "%s %s\n", $1, ($2 == "UP") ? "UP" : "DOWN"}'
@@ -142,6 +138,10 @@ check_internet() {
     exit 1
 }
 
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
 # dependencies (network checks, before the menu)
 net_checked=0
 for dep in iproute2 libc-bin coreutils grep sed curl wget lsof; do
@@ -150,9 +150,12 @@ for dep in iproute2 libc-bin coreutils grep sed curl wget lsof; do
             if ! command -v ip >/dev/null 2>&1; then
                 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing iproute2"
                 apt-get install -y iproute2 >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install iproute2 -abort" >&2; exit 1; }
+                # the download proves link and internet; only IPv4 is left to check
+                check_ipv4_interfaces
+            else
+                check_ipv4_interfaces
+                check_internet
             fi
-            check_ipv4_interfaces
-            check_internet
             apt-get update -qq || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2; exit 1; }
             net_checked=1
         fi
@@ -394,13 +397,11 @@ remove_rustdesk() {
 }
 
 show_menu() {
-    echo "================================"
-    echo "   RUSTDESK CLIENT MANAGER"
-    echo "================================"
+    echo ""
+    echo "==== RustDesk Client Manager ===="
     echo "1. Install / Update RustDesk Client"
     echo "2. Remove RustDesk Client"
     echo "3. Exit"
-    echo "================================"
     echo -n "Select an option [3]: "
 }
 
@@ -413,6 +414,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: rdclient start..."
 
 show_menu
 read -r option
+echo ""
 if [ -z "$option" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no option selected, exit -skip"
     option=3

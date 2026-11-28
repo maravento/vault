@@ -26,13 +26,11 @@
 
 set -uo pipefail
 
-# ------------------------------------------------------------------------------
-# CONFIG
-# ------------------------------------------------------------------------------
-
-# Cloudflare API Token (Zone:DNS:Edit permission), only needed for 'delete'
-# to auto-remove the DNS record. Leave empty to skip automatic DNS deletion.
-token_cloudflare=""
+# no-root check
+if [ "$(command -p id -u)" == "0" ]; then
+    echo "$(command -p date '+%Y-%m-%d %H:%M:%S') ERROR: This script should not be run as root -abort" >&2
+    exit 1
+fi
 
 # ------------------------------------------------------------------------------
 # REQUIREMENTS
@@ -40,12 +38,6 @@ token_cloudflare=""
 
 # path for cron
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-# no-root check
-if [ "$(id -u)" == "0" ]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script should not be run as root -abort" >&2
-    exit 1
-fi
 
 # awk is a command, not a package: check it before its first use
 command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
@@ -61,6 +53,10 @@ done
 # ------------------------------------------------------------------------------
 # VARIABLES
 # ------------------------------------------------------------------------------
+
+# Cloudflare API Token (Zone:DNS:Edit permission), only needed for 'delete'
+# to auto-remove the DNS record. Leave empty to skip automatic DNS deletion.
+token_cloudflare=""
 
 _resolve_user_home() {
     local user_home=""
@@ -771,8 +767,8 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: cftunnel start..."
 ACTION="${1:-}"
 
 if [[ -z "$ACTION" ]]; then
-    echo "Cloudflare Tunnel Service Manager (cftunnel)"
-    echo "============================================="
+    echo ""
+    echo "==== Cloudflare Tunnel Service Manager (cftunnel) ===="
     echo "  1. create    - Create a new tunnel interactively"
     echo "  2. start     - Start tunnels interactively"
     echo "  3. startall  - Start all tunnels and enable autostart"
@@ -780,8 +776,8 @@ if [[ -z "$ACTION" ]]; then
     echo "  5. status    - Show status of all tunnels"
     echo "  6. delete    - Delete a tunnel"
     echo "  0. exit"
-    echo ""
     read -r -p "Select an option [0]: " menu_choice
+    echo ""
     if [ -z "$menu_choice" ]; then
         log "INFO: no option selected, exit -skip"
         menu_choice=0

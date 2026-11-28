@@ -25,11 +25,16 @@ $who = user();
         <?php if ($who): ?>
         <form class="user-box" method="post" action="/logout">
             <input type="hidden" name="csrf" value="<?= e(csrf()) ?>">
-            <span><i class="fas fa-user"></i> <?= e($who['nombre']) ?></span>
+            <span><i class="fas fa-user"></i> <?= e($who['name']) ?></span>
             <button type="submit" class="btn-small"><?= e(t('Salir')) ?></button>
         </form>
         <?php endif; ?>
     </div>
+
+    <?php if (!empty($_SESSION['notice'])): ?>
+        <p class="notice"><i class="fas fa-circle-info"></i> <?= e($_SESSION['notice']) ?></p>
+        <?php unset($_SESSION['notice']); ?>
+    <?php endif; ?>
 
     <?= $content ?>
 

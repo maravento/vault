@@ -21,15 +21,15 @@
 
 set -uo pipefail
 
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
 # no-root check
 if [ "$(id -u)" == "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script should not be run as root -abort" >&2
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # awk is a command, not a package: check it before its first use
 command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
@@ -111,7 +111,8 @@ select_lan_interface() {
         lan_iface_answer="${ifaces[0]}"
         return 0
     fi
-    echo "Available LAN interfaces:" >&2
+    echo "" >&2
+    echo "==== Available LAN Interfaces ====" >&2
     for i in "${!ifaces[@]}"; do
         addrs=$(ip -4 -o addr show dev "${ifaces[$i]}" scope global | awk '{print $4}' | paste -sd' ')
         printf ' [%d] %s (UP, %s)\n' "$((i+1))" "${ifaces[$i]}" "$addrs" >&2
@@ -121,6 +122,7 @@ select_lan_interface() {
             echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot read LAN selection -abort" >&2
             return 1
         }
+        echo "" >&2
         if [[ "$choice" =~ $UH_UINT ]] && [ "${#choice}" -le 5 ] \
             && [ "$choice" -ge 1 ] && [ "$choice" -le "${#ifaces[@]}" ]; then
             lan_iface_answer="${ifaces[$((choice-1))]}"

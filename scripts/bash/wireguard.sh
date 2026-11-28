@@ -17,15 +17,15 @@
 
 set -uo pipefail
 
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # awk is a command, not a package: check it before its first use
 command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
@@ -46,10 +46,6 @@ fi
 UH_UINT='^(0|[1-9][0-9]*)$'
 # start
 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: wireguard start..."
-
-# ------------------------------------------------------------------------------
-# FUNCTIONS
-# ------------------------------------------------------------------------------
 
 # check ipv4 interfaces
 list_ifaces() {
@@ -104,6 +100,10 @@ check_internet() {
     exit 1
 }
 
+# ------------------------------------------------------------------------------
+# FUNCTIONS
+# ------------------------------------------------------------------------------
+
 # dependencies
 net_checked=0
 for dep in iproute2 util-linux libc-bin coreutils sed; do
@@ -112,9 +112,12 @@ for dep in iproute2 util-linux libc-bin coreutils sed; do
             if ! command -v ip >/dev/null 2>&1; then
                 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing iproute2"
                 apt-get install -y iproute2 >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install iproute2 -abort" >&2; exit 1; }
+                # the download proves link and internet; only IPv4 is left to check
+                check_ipv4_interfaces
+            else
+                check_ipv4_interfaces
+                check_internet
             fi
-            check_ipv4_interfaces
-            check_internet
             apt-get update -qq || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2; exit 1; }
             net_checked=1
         fi
@@ -404,12 +407,14 @@ uninstall_wireguard() {
 # ------------------------------------------------------------------------------
 
 # Options
-echo "What action do you want to perform?"
+echo ""
+echo "==== WireGuard Installation Menu ===="
 echo "1) Install WireGuard Server"
 echo "2) Install WireGuard Client"
 echo "3) Uninstall WireGuard"
 echo "4) Exit"
 read -rp "Select an option (1, 2, 3 or 4) [4]: " option
+echo ""
 if [ -z "$option" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no option selected, exit -skip"
     option=4

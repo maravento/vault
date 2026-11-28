@@ -16,15 +16,15 @@
 
 set -euo pipefail
 
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # awk is a command, not a package: check it before its first use
 command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
@@ -145,32 +145,75 @@ acl_fix_perms() {
 }
 
 # LIST DOWNLOAD
-# Download a list only when it is missing or empty; return 1 if unavailable
-# Usage: fetch_list <file> <url>
-fetch_list() {
-    local list_file="$1" list_url="$2" list_rc=0 list_code
-    [ -s "$list_file" ] && return 0
-    # Download labels: rules.md, Etiquetas de descarga
-    list_code=$(curl -sL --connect-timeout 10 --retry 3 --retry-delay 2 \
-        -w '%{http_code}' -o "$list_file" "$list_url") || list_rc=$?
-    case "${list_code:-000}" in
-        2*) if (( list_rc == 0 )); then
-                log "SAVED: $(basename "$list_url")"
+# Download only HTTP 200 responses with a nonempty body
+download_list_file() {
+    local target="$1" url="$2" code rc=0
+    code=$(curl -sL --connect-timeout 10 --retry 3 --retry-delay 2 \
+        -w '%{http_code}' -o "$target" "$url") || rc=$?
+    case "${code:-000}" in
+        200)
+            if (( rc != 0 )); then
+                log "PARTIAL: $url"
+            elif [ -s "$target" ]; then
+                return 0
             else
-                log "PARTIAL: $list_url"
-            fi ;;
-        000) log "TIMEOUT: $list_url" ;;
-        5*) log "BUSY: $list_code $list_url" ;;
-        404|410) log "BROKEN: $list_code $list_url" ;;
-        *) log "HTTP_ERROR: $list_code $list_url" ;;
+                log "HTTP_ERROR: $code empty body $url"
+            fi
+            ;;
+        000) log "TIMEOUT: $url" ;;
+        5*) log "BUSY: $code $url" ;;
+        404|410) log "BROKEN: $code $url" ;;
+        *) log "HTTP_ERROR: $code $url" ;;
     esac
-    if [[ "${list_code:-000}" == 2* ]] && (( list_rc == 0 )); then
-        return 0
-    fi
-    rm -f "$list_file"
-    log "INFO: $(basename "$list_file") not available, rule -skip"
     return 1
 }
+
+# Reuse the local list or install a download verified against its SHA-256
+# Usage: fetch_list <file> <url>
+fetch_list() (
+    local list_file="$1" list_url="$2" name stage_dir checksum expected actual
+    [ -s "$list_file" ] && return 0
+    name=${list_file##*/}
+    if ! getent hosts www.google.com >/dev/null 2>&1; then
+        log "WARNING: no internet, $name rule skipped -alert"
+        return 1
+    fi
+    if ! stage_dir=$(mktemp -d -- "$list_file.XXXXXX"); then
+        log "WARNING: no temp dir for $name, rule skipped -alert"
+        return 1
+    fi
+    trap 'rm -rf -- "$stage_dir"' EXIT
+
+    if ! download_list_file "$stage_dir/$name.sha256" "$list_url.sha256"; then
+        log "WARNING: $name SHA-256 unavailable, skipped -alert"
+        return 1
+    fi
+    checksum=$(< "$stage_dir/$name.sha256")
+    if [[ ! "$checksum" =~ ^([[:xdigit:]]{64})[[:blank:]]+[*]?"$name"$ ]]; then
+        log "WARNING: $name SHA-256 invalid, skipped -alert"
+        return 1
+    fi
+    expected=${BASH_REMATCH[1],,}
+    log "SAVED: $name.sha256"
+
+    if ! download_list_file "$stage_dir/$name" "$list_url"; then
+        log "WARNING: $name not available, rule skipped -alert"
+        return 1
+    fi
+    if ! actual=$(sha256sum < "$stage_dir/$name"); then
+        log "WARNING: cannot hash $name, rule skipped -alert"
+        return 1
+    fi
+    if [[ "${actual%% *}" != "$expected" ]]; then
+        log "WARNING: $name SHA-256 mismatch, skipped -alert"
+        return 1
+    fi
+    if ! mv -fT -- "$stage_dir/$name" "$list_file"; then
+        log "WARNING: cannot save $name, rule skipped -alert"
+        return 1
+    fi
+    log "SAVED: $name"
+)
 
 # NETWORK WAIT
 # Wait until WAN and LAN are up, wired, and hold a global IPv4 address

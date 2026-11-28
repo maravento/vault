@@ -335,8 +335,11 @@ try {
     Log 'INFO: cftunnel start...'
     $action = $env:CFTUNNEL_ACTION
     if (!$action) {
+        Write-Host ''
+        Write-Host '==== Cloudflare Tunnel Service Manager ===='
         Write-Host '1. create  2. start  3. startall  4. stop  5. status  6. delete  0. exit'
         $choice = Ask 'Select an option' '0'
+        Write-Host ''
         $menu = @{ '1'='--create'; '2'='--start'; '3'='--startall'; '4'='--stop'; '5'='--status'; '6'='--delete'; '0'='--exit' }
         if (!$menu.ContainsKey($choice)) { throw 'Invalid menu option' }
         $action = $menu[$choice]

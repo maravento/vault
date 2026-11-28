@@ -33,18 +33,16 @@ if %errorlevel% neq 0 (
 set "psScriptPath=%USERPROFILE%\Desktop\smb1.ps1"
 
 echo.
-echo SMB Config
-echo.
-echo Choose an option:
+echo ==== SMB Configuration Menu ====
 echo 1. Activate SMB signing
 echo 2. Restore Default SMB signing
 echo 3. Disable SMB Signing and Enable Insecure Guest Access
 echo 4. Activate SMB1
 echo 5. Deactivate SMB1
 echo 6. Exit
-echo.
 set "choice="
 set /p choice="Enter the number (1, 2, 3, 4, 5 or 6) [6]: "
+echo.
 if not defined choice (
     for /f "delims=" %%I in ('powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'"') do echo %%I INFO: no option selected, exit -skip
     set "choice=6"

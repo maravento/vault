@@ -16,14 +16,12 @@ setlocal enabledelayedexpansion
 
 REM services
 echo.
-echo Regedit Backup
-echo.
-echo Choose an option:
+echo ==== Regedit Backup Menu ====
 echo 1. Backup
 echo 2. Exit
-echo.
 set "choice="
 set /p choice="Enter the number (1 or 2) [2]: "
+echo.
 if not defined choice (
     for /f "delims=" %%I in ('powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'"') do echo %%I INFO: no option selected, exit -skip
     set "choice=2"

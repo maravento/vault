@@ -19,15 +19,15 @@
 
 set -uo pipefail
 
-# ------------------------------------------------------------------------------
-# REQUIREMENTS
-# ------------------------------------------------------------------------------
-
 # root check
 if [ "$(id -u)" != "0" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: This script must be run as root -abort" >&2
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# REQUIREMENTS
+# ------------------------------------------------------------------------------
 
 # awk is a command, not a package: check it before its first use
 command -v awk >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: awk not found -abort" >&2; exit 1; }
@@ -143,9 +143,12 @@ for dep in kpartx dmsetup pv ntfs-3g dosfstools e2fsprogs util-linux bsdutils co
             if ! command -v ip >/dev/null 2>&1; then
                 echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: installing iproute2"
                 apt-get install -y iproute2 >/dev/null 2>&1 || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot install iproute2 -abort" >&2; exit 1; }
+                # the download proves link and internet; only IPv4 is left to check
+                check_ipv4_interfaces
+            else
+                check_ipv4_interfaces
+                check_internet
             fi
-            check_ipv4_interfaces
-            check_internet
             apt-get update -qq || { echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: cannot update package lists -abort" >&2; exit 1; }
             net_checked=1
         fi
@@ -296,11 +299,13 @@ kpartx_abort() {
 
 mount_img() {
     if [ $# -eq 0 ]; then
-        echo "Select an operation loop: "
+        echo ""
+        echo "==== Loop Operations ===="
         echo "1. Mount"
         echo "2. Unmount"
         echo "3. Exit"
         read -r -p "Enter your choice (1, 2 or 3) [3]: " choice
+        echo ""
         if [ -z "$choice" ]; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no option selected, exit -skip"
             choice=3
@@ -347,11 +352,13 @@ mount_img() {
 
 mount_img_kpartx() {
     if [ $# -eq 0 ]; then
-        echo "Select an operation kpartx: "
+        echo ""
+        echo "==== Kpartx Operations ===="
         echo "1. Mount"
         echo "2. Umount"
         echo "3. Exit"
         read -r -p "Enter your choice (1, 2 or 3) [3]: " choice
+        echo ""
         if [ -z "$choice" ]; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no option selected, exit -skip"
             choice=3
@@ -448,11 +455,12 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: vdisk start..."
 if [ ! -f "$myimg" ]; then create_img; fi
 
 # Selection menu
-printf "\n"
-echo "Select a method for VHD image:"
+echo ""
+echo "==== VHD Image Method ===="
 echo "1. With loop"
 echo "2. With kpartx"
 read -r -p "Choose an option (1 or 2) [1]: " choice
+echo ""
 if [ -z "$choice" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: no option selected, using loop -skip"
     choice=1

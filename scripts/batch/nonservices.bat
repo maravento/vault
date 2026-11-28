@@ -16,15 +16,13 @@ setlocal enabledelayedexpansion
 
 REM services
 echo.
-echo Disable or Auto Non-Essential Services
-echo.
-echo Choose an option:
+echo ==== Non-Essential Services Menu ====
 echo 1. Disable: Windows Search, WAP, SysMain, Telemetry
 echo 2. Auto: Windows Search, WAP, SysMain, Telemetry
 echo 3. Exit
-echo.
 set "choice="
 set /p choice="Enter the number (1, 2 or 3) [3]: "
+echo.
 if not defined choice (
     for /f "delims=" %%I in ('powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'"') do echo %%I INFO: no option selected, exit -skip
     set "choice=3"
